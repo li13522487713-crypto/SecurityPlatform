@@ -30,6 +30,22 @@
 - `GET /api/microflow-metadata` 优先读取 `MicroflowMetadataCache` 最新行，缺失时返回空 catalog。
 - 开发 seed 通过 `Microflows:SeedData:Enabled=true` 开启，且只在 Development 环境插入 `mf-seed-blank`。
 
+第 37 轮已补充 Resource CRUD + Schema Save/Load：
+
+- `GET /api/microflows`：真实 DB 列表查询，支持分页、搜索、状态、发布状态、收藏、owner、module、tags、updatedAt 范围与排序。
+- `POST /api/microflows`：创建资源与首个 `MicroflowSchemaSnapshot`。
+- `GET /api/microflows/{id}`：读取资源详情，并附带当前 AuthoringSchema。
+- `PATCH /api/microflows/{id}`：更新资源元数据，不覆盖历史 SchemaSnapshot。
+- `GET /api/microflows/{id}/schema`：读取当前 SchemaSnapshot。
+- `PUT /api/microflows/{id}/schema`：保存 AuthoringSchema，并新增 SchemaSnapshot；已发布资源保存后 `publishStatus=changedAfterPublish`。
+- `POST /duplicate`、`/rename`、`/favorite`、`/archive`、`/restore` 与 `DELETE` 已实现真实持久化。
+
+并发与删除策略：
+
+- `baseVersion` 可匹配 `resource.version`、`resource.concurrencyStamp`、当前 snapshot id 或 snapshot schemaVersion；不匹配返回 `MICROFLOW_VERSION_CONFLICT`。
+- 删除采用物理删除资源行、保留历史 SchemaSnapshot 的第一版策略；后续如需审计可改为软删除。
+- 保存前做最小 AuthoringSchema 结构校验，拒绝根级 `nodes`、`edges`、`workflowJson`、`flowgram` 等 FlowGram-only JSON。
+
 请求上下文支持 `X-Workspace-Id`、`X-Tenant-Id`、`X-User-Id`、`X-Locale`、`X-Trace-Id`，并会把 traceId 写入 Envelope 与 `X-Trace-Id` 响应头。`.http` 示例见 `src/backend/Atlas.AppHost/Bosch.http/MicroflowBackend.http`。
 
 后续建议：

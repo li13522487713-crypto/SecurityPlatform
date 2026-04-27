@@ -32,11 +32,21 @@ Content-Type: application/json
 
 ```json
 {
-  "schema": { "id": "mf-1" },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "mf-1",
+    "name": "OrderFlow",
+    "objectCollection": { "id": "root-collection", "objects": [] },
+    "flows": [],
+    "parameters": [],
+    "returnType": { "kind": "void" }
+  },
   "baseVersion": "1.0.0",
   "saveReason": "manual"
 }
 ```
+
+第 37 轮真实后端会为每次保存新增 `MicroflowSchemaSnapshot`，并拒绝根级 `nodes` / `edges` / `workflowJson` / `flowgram` 这类 FlowGram-only JSON。
 
 ## 4. 校验
 

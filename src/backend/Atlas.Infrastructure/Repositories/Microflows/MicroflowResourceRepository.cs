@@ -58,13 +58,23 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
 
     public Task<bool> ExistsByNameAsync(string? workspaceId, string name, CancellationToken cancellationToken)
     {
+        return ExistsByNameAsync(workspaceId, name, null, cancellationToken);
+    }
+
+    public Task<bool> ExistsByNameAsync(string? workspaceId, string name, string? excludeId, CancellationToken cancellationToken)
+    {
         var q = _db.Queryable<MicroflowResourceEntity>().Where(x => x.Name == name);
         if (!string.IsNullOrWhiteSpace(workspaceId))
         {
             q = q.Where(x => x.WorkspaceId == workspaceId);
         }
 
-        return q.AnyAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(excludeId))
+        {
+            q = q.Where(x => x.Id != excludeId);
+        }
+
+        return q.AnyAsync();
     }
 
     private ISugarQueryable<MicroflowResourceEntity> ApplyFilters(MicroflowResourceQueryDto query)
@@ -110,9 +120,24 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
             q = q.Where(x => x.Favorite);
         }
 
+        if (!string.IsNullOrWhiteSpace(query.OwnerId))
+        {
+            q = q.Where(x => x.OwnerId == query.OwnerId);
+        }
+
         if (!string.IsNullOrWhiteSpace(query.ModuleId))
         {
             q = q.Where(x => x.ModuleId == query.ModuleId);
+        }
+
+        if (query.UpdatedFrom.HasValue)
+        {
+            q = q.Where(x => x.UpdatedAt >= query.UpdatedFrom.Value);
+        }
+
+        if (query.UpdatedTo.HasValue)
+        {
+            q = q.Where(x => x.UpdatedAt <= query.UpdatedTo.Value);
         }
 
         foreach (var tag in query.Tags.Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -120,6 +145,8 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
             var token = $"\"{tag.Trim()}\"";
             q = q.Where(x => x.TagsJson.Contains(token));
         }
+
+        q = q.Where(x => x.ExtraJson == null || !x.ExtraJson.Contains("\"deleted\":true"));
 
         return q;
     }

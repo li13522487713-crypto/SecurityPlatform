@@ -3,6 +3,7 @@
 @tenantId = demo-tenant
 @userId = demo-user
 @traceId = demo-trace
+@microflowId = mf-seed-blank
 
 ### Microflow health
 GET {{host}}/api/microflows/health
@@ -18,6 +19,28 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
+### Microflow create
+POST {{host}}/api/microflows
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "workspaceId": "{{workspaceId}}",
+  "input": {
+    "name": "OrderApprovalDemo",
+    "displayName": "Order Approval Demo",
+    "description": "Created by real backend CRUD API.",
+    "moduleId": "demo-module",
+    "moduleName": "Demo",
+    "tags": ["demo", "crud"],
+    "parameters": [],
+    "returnType": { "kind": "void" }
+  }
+}
+
 ### Microflow storage health
 GET {{host}}/api/microflows/storage/health
 X-Workspace-Id: {{workspaceId}}
@@ -25,12 +48,148 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
-### Microflow seed detail (requires Microflows:SeedData:Enabled=true in Development)
-GET {{host}}/api/microflows/mf-seed-blank
+### Microflow detail
+GET {{host}}/api/microflows/{{microflowId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
+
+### Microflow patch metadata
+PATCH {{host}}/api/microflows/{{microflowId}}
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "patch": {
+    "displayName": "Updated Microflow",
+    "description": "Updated by PATCH.",
+    "tags": ["demo", "updated"]
+  }
+}
+
+### Microflow schema load
+GET {{host}}/api/microflows/{{microflowId}}/schema
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow schema save
+PUT {{host}}/api/microflows/{{microflowId}}/schema
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "baseVersion": "0.1.0",
+  "saveReason": "manual .http save",
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{microflowId}}",
+    "stableId": "{{microflowId}}",
+    "name": "OrderApprovalDemo",
+    "displayName": "Order Approval Demo",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "officialType": "Microflows$MicroflowObjectCollection",
+      "objects": []
+    },
+    "flows": [],
+    "variables": {},
+    "validation": { "issues": [] }
+  }
+}
+
+### Microflow duplicate
+POST {{host}}/api/microflows/{{microflowId}}/duplicate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "name": "OrderApprovalDemoCopy",
+  "displayName": "Order Approval Demo Copy",
+  "moduleId": "demo-module",
+  "tags": ["demo", "copy"]
+}
+
+### Microflow rename
+POST {{host}}/api/microflows/{{microflowId}}/rename
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "name": "RenamedMicroflow",
+  "displayName": "Renamed Microflow"
+}
+
+### Microflow favorite
+POST {{host}}/api/microflows/{{microflowId}}/favorite
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "favorite": true
+}
+
+### Microflow archive
+POST {{host}}/api/microflows/{{microflowId}}/archive
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow restore
+POST {{host}}/api/microflows/{{microflowId}}/restore
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow delete
+DELETE {{host}}/api/microflows/{{microflowId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow schema conflict
+PUT {{host}}/api/microflows/{{microflowId}}/schema
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "baseVersion": "stale-version",
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{microflowId}}",
+    "name": "ConflictDemo",
+    "objectCollection": { "id": "root-collection", "objects": [] },
+    "flows": [],
+    "parameters": [],
+    "returnType": { "kind": "void" }
+  }
+}
 
 ### Microflow not found
 GET {{host}}/api/microflows/not-exist

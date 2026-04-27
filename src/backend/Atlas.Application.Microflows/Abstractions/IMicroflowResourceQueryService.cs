@@ -26,9 +26,15 @@ public sealed record MicroflowResourceQueryDto
 
     public bool FavoriteOnly { get; init; }
 
+    public string? OwnerId { get; init; }
+
     public string? ModuleId { get; init; }
 
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+
+    public DateTimeOffset? UpdatedFrom { get; init; }
+
+    public DateTimeOffset? UpdatedTo { get; init; }
 
     public string? SortBy { get; init; }
 

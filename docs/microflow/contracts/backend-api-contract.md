@@ -22,6 +22,13 @@
 | POST | `/api/microflows/{id}/restore` | — | `MicroflowResource` |
 | DELETE | `/api/microflows/{id}` | — | `{ id: string }` |
 
+第 37 轮后端实现说明：
+
+- 上述资源 CRUD 已由 `Atlas.AppHost` 暴露，并通过 `IMicroflowResourceService` 调用 Repository，Controller 不直接访问 ORM。
+- `POST /api/microflows` 会创建 `MicroflowResource` 与首个 `MicroflowSchemaSnapshot`。
+- `DELETE /api/microflows/{id}` 当前物理删除资源行，但保留历史 SchemaSnapshot；前端列表刷新后不再出现该资源。
+- 名称重复返回 `MICROFLOW_NAME_DUPLICATED`，资源不存在返回 `MICROFLOW_NOT_FOUND`，归档资源保存返回 `MICROFLOW_ARCHIVED`。
+
 ## Schema
 
 | 方法 | 路径 | 说明 |
@@ -29,6 +36,13 @@
 | GET | `/api/microflows/{id}/schema` | 返回 `GetMicroflowSchemaResponse`（`schema` 为 Authoring；可含 `migrationVersion`） |
 | PUT | `/api/microflows/{id}/schema` | `SaveMicroflowSchemaRequest`（`baseVersion` 乐观锁） |
 | POST | `/api/microflows/{id}/schema/migrate` | `MigrateMicroflowSchemaRequest` → `MigrateMicroflowSchemaResponse` |
+
+第 37 轮 Schema 保存策略：
+
+- 每次 `PUT /schema` 都新增 `MicroflowSchemaSnapshot`，不覆盖旧快照。
+- `Resource.CurrentSchemaSnapshotId` 与 `SchemaId` 更新到最新快照。
+- `baseVersion` 可匹配资源版本、并发戳、当前 snapshot id 或 snapshot schemaVersion；不匹配返回 `MICROFLOW_VERSION_CONFLICT`。
+- 保存前做最小 AuthoringSchema 检查，并拒绝 FlowGram-only 根字段。
 
 ## 校验
 

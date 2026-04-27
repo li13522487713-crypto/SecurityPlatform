@@ -18,6 +18,8 @@ public interface IMicroflowResourceRepository
     Task DeleteAsync(string id, CancellationToken cancellationToken);
 
     Task<bool> ExistsByNameAsync(string? workspaceId, string name, CancellationToken cancellationToken);
+
+    Task<bool> ExistsByNameAsync(string? workspaceId, string name, string? excludeId, CancellationToken cancellationToken);
 }
 
 public interface IMicroflowSchemaSnapshotRepository

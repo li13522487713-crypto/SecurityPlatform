@@ -1,6 +1,5 @@
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Contracts;
-using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -12,25 +11,23 @@ namespace Atlas.AppHost.Microflows.Controllers;
 [AllowAnonymous]
 public sealed class MicroflowResourceController : MicroflowApiControllerBase
 {
-    private readonly IMicroflowResourceQueryService _resourceQueryService;
+    private readonly IMicroflowResourceService _resourceService;
     private readonly IMicroflowValidationService _validationService;
     private readonly IMicroflowRuntimeSkeletonService _runtimeService;
     private readonly IMicroflowStorageDiagnosticsService _storageDiagnosticsService;
-    private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
 
     public MicroflowResourceController(
-        IMicroflowResourceQueryService resourceQueryService,
+        IMicroflowResourceService resourceService,
         IMicroflowValidationService validationService,
         IMicroflowRuntimeSkeletonService runtimeService,
         IMicroflowStorageDiagnosticsService storageDiagnosticsService,
         IMicroflowRequestContextAccessor requestContextAccessor)
         : base(requestContextAccessor)
     {
-        _resourceQueryService = resourceQueryService;
+        _resourceService = resourceService;
         _validationService = validationService;
         _runtimeService = runtimeService;
         _storageDiagnosticsService = storageDiagnosticsService;
-        _requestContextAccessor = requestContextAccessor;
     }
 
     [HttpGet("health")]
@@ -65,26 +62,30 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         [FromQuery] string[]? status,
         [FromQuery] string[]? publishStatus,
         [FromQuery] bool favoriteOnly = false,
+        [FromQuery] string? ownerId = null,
         [FromQuery] string? moduleId = null,
         [FromQuery] string[]? tags = null,
+        [FromQuery] DateTimeOffset? updatedFrom = null,
+        [FromQuery] DateTimeOffset? updatedTo = null,
         [FromQuery] string? sortBy = null,
         [FromQuery] string? sortOrder = null,
         [FromQuery] int pageIndex = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var current = _requestContextAccessor.Current;
-        var result = await _resourceQueryService.GetPagedAsync(
-            new MicroflowResourceQueryDto
+        var result = await _resourceService.ListAsync(
+            new ListMicroflowsRequestDto
             {
-                WorkspaceId = workspaceId ?? current.WorkspaceId,
-                TenantId = current.TenantId,
+                WorkspaceId = workspaceId,
                 Keyword = keyword,
                 Status = status ?? Array.Empty<string>(),
                 PublishStatus = publishStatus ?? Array.Empty<string>(),
                 FavoriteOnly = favoriteOnly,
+                OwnerId = ownerId,
                 ModuleId = moduleId,
                 Tags = tags ?? Array.Empty<string>(),
+                UpdatedFrom = updatedFrom,
+                UpdatedTo = updatedTo,
                 SortBy = sortBy,
                 SortOrder = sortOrder,
                 PageIndex = pageIndex,
@@ -102,27 +103,113 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         string id,
         CancellationToken cancellationToken)
     {
-        var resource = await _resourceQueryService.GetByIdAsync(id, cancellationToken)
-            ?? throw new MicroflowApiException(
-                MicroflowApiErrorCode.MicroflowNotFound,
-                "微流资源不存在。",
-                StatusCodes.Status404NotFound);
-
+        var resource = await _resourceService.GetAsync(id, cancellationToken);
         return MicroflowOk(resource);
     }
 
     [HttpPost]
-    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status503ServiceUnavailable)]
-    public ActionResult<MicroflowApiResponse<object>> Create()
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> Create(
+        [FromBody] CreateMicroflowRequestDto request,
+        CancellationToken cancellationToken)
     {
-        return ServiceUnavailable("微流资源创建尚未启用，将在 Resource CRUD 轮次实现。");
+        var resource = await _resourceService.CreateAsync(request, cancellationToken);
+        return MicroflowOk(resource);
+    }
+
+    [HttpPatch("{id}")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> Update(
+        string id,
+        [FromBody] UpdateMicroflowResourceRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var resource = await _resourceService.UpdateAsync(id, request, cancellationToken);
+        return MicroflowOk(resource);
+    }
+
+    [HttpGet("{id}/schema")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<GetMicroflowSchemaResponseDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<GetMicroflowSchemaResponseDto>>> GetSchema(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _resourceService.GetSchemaAsync(id, cancellationToken);
+        return MicroflowOk(result);
     }
 
     [HttpPut("{id}/schema")]
-    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status503ServiceUnavailable)]
-    public ActionResult<MicroflowApiResponse<object>> SaveSchema(string id)
+    [ProducesResponseType(typeof(MicroflowApiResponse<SaveMicroflowSchemaResponseDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<SaveMicroflowSchemaResponseDto>>> SaveSchema(
+        string id,
+        [FromBody] SaveMicroflowSchemaRequestDto request,
+        CancellationToken cancellationToken)
     {
-        return ServiceUnavailable("微流 Schema 保存尚未启用，将在 Schema 存储轮次实现。");
+        var result = await _resourceService.SaveSchemaAsync(id, request, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpPost("{id}/duplicate")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> Duplicate(
+        string id,
+        [FromBody] DuplicateMicroflowRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var resource = await _resourceService.DuplicateAsync(id, request, cancellationToken);
+        return MicroflowOk(resource);
+    }
+
+    [HttpPost("{id}/rename")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> Rename(
+        string id,
+        [FromBody] RenameMicroflowRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var resource = await _resourceService.RenameAsync(id, request, cancellationToken);
+        return MicroflowOk(resource);
+    }
+
+    [HttpPost("{id}/favorite")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> ToggleFavorite(
+        string id,
+        [FromBody] ToggleFavoriteMicroflowRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var resource = await _resourceService.ToggleFavoriteAsync(id, request, cancellationToken);
+        return MicroflowOk(resource);
+    }
+
+    [HttpPost("{id}/archive")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> Archive(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var resource = await _resourceService.ArchiveAsync(id, cancellationToken);
+        return MicroflowOk(resource);
+    }
+
+    [HttpPost("{id}/restore")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> Restore(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var resource = await _resourceService.RestoreAsync(id, cancellationToken);
+        return MicroflowOk(resource);
+    }
+
+    [HttpDelete("{id}")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<DeleteMicroflowResponseDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<DeleteMicroflowResponseDto>>> Delete(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        await _resourceService.DeleteAsync(id, cancellationToken);
+        return MicroflowOk(new DeleteMicroflowResponseDto { Id = id });
     }
 
     [HttpPost("{id}/validate")]
@@ -178,19 +265,5 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
     {
         var result = await _runtimeService.CancelAsync(runId, cancellationToken);
         return MicroflowOk(result);
-    }
-
-    private ActionResult<MicroflowApiResponse<object>> ServiceUnavailable(string message)
-    {
-        var traceId = TraceId;
-        var error = new MicroflowApiError
-        {
-            Code = MicroflowApiErrorCode.MicroflowServiceUnavailable,
-            Message = message,
-            Retryable = false,
-            HttpStatus = StatusCodes.Status503ServiceUnavailable,
-            TraceId = traceId
-        };
-        return StatusCode(StatusCodes.Status503ServiceUnavailable, MicroflowApiResponse<object>.Fail(error, traceId));
     }
 }

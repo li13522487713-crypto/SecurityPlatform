@@ -33,7 +33,25 @@ public static class MicroflowResourceMapper
             CreatedAt = entity.CreatedAt,
             UpdatedBy = entity.UpdatedBy,
             UpdatedAt = entity.UpdatedAt,
-            Schema = ParseSchema(snapshot?.SchemaJson)
+            Schema = ParseSchema(snapshot?.SchemaJson),
+            Permissions = BuildPermissions(entity)
+        };
+    }
+
+    public static JsonElement? ParseSchemaJson(string? schemaJson) => ParseSchema(schemaJson);
+
+    public static IReadOnlyList<string> ReadTags(string? tagsJson) => DeserializeTags(tagsJson);
+
+    private static MicroflowResourcePermissionsDto BuildPermissions(MicroflowResourceEntity entity)
+    {
+        var editable = !entity.Archived && !string.Equals(entity.Status, "archived", StringComparison.OrdinalIgnoreCase);
+        return new MicroflowResourcePermissionsDto
+        {
+            CanEdit = editable,
+            CanDelete = true,
+            CanPublish = editable,
+            CanArchive = editable,
+            CanDuplicate = true
         };
     }
 

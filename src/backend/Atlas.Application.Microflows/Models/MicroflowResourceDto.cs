@@ -79,4 +79,25 @@ public sealed record MicroflowResourceDto
 
     [JsonPropertyName("schema")]
     public JsonElement? Schema { get; init; }
+
+    [JsonPropertyName("permissions")]
+    public MicroflowResourcePermissionsDto? Permissions { get; init; }
+}
+
+public sealed record MicroflowResourcePermissionsDto
+{
+    [JsonPropertyName("canEdit")]
+    public bool CanEdit { get; init; }
+
+    [JsonPropertyName("canDelete")]
+    public bool CanDelete { get; init; }
+
+    [JsonPropertyName("canPublish")]
+    public bool CanPublish { get; init; }
+
+    [JsonPropertyName("canArchive")]
+    public bool CanArchive { get; init; }
+
+    [JsonPropertyName("canDuplicate")]
+    public bool CanDuplicate { get; init; }
 }

@@ -188,11 +188,17 @@ public sealed class MicroflowSeedDataHostedService : IHostedService
         var now = DateTimeOffset.UtcNow;
         var schemaJson = """
             {
-              "schemaVersion": "1.0",
+              "schemaVersion": "1.0.0",
               "id": "mf-seed-blank-schema",
+              "stableId": "mf-seed-blank-schema",
               "name": "SeedBlankMicroflow",
               "displayName": "Seed Blank Microflow",
-              "objects": [],
+              "moduleId": "demo-module",
+              "objectCollection": {
+                "id": "root-collection",
+                "officialType": "Microflows$MicroflowObjectCollection",
+                "objects": []
+              },
               "flows": [],
               "parameters": [],
               "variables": [],

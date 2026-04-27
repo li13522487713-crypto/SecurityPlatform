@@ -34,6 +34,8 @@
 | `compareMicroflowVersion` | `GET /api/.../compare-current` | — | `MicroflowVersionDiff` |
 | `analyzeMicroflowPublishImpact` | `GET /api/microflows/{id}/impact` | `AnalyzeMicroflowImpactRequest` 或对齐 `MicroflowPublishInput.version` 等 | `MicroflowPublishImpactAnalysis` |
 
+第 37 轮后端已实现 ResourceAdapter 中除 publish / references / versions / impact 外的真实 DB 路径。Schema 保存通过 `PUT /api/microflows/{id}/schema` 新增快照，前端刷新后可通过 detail 或 schema API 重新加载。
+
 ## RuntimeAdapter
 
 | 方法 | HTTP | 说明 |
