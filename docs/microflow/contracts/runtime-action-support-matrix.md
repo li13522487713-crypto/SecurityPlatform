@@ -1,4 +1,6 @@
-# Runtime 动作支持矩阵（第 57 阶段）
+# Runtime 动作支持矩阵（第 58 阶段）
+
+第 58 轮补充 ErrorHandling continue 白名单：`callMicroflow`、`restCall` 与 `loopedActivity` 支持 `continue`；其它 action 配置 continue 时 Runtime 返回 `RUNTIME_CONTINUE_NOT_ALLOWED`，Validation 返回 `MF_ERROR_HANDLER_CONTINUE_NOT_ALLOWED`。所有 action 失败均只通过 `MicroflowActionExecutionResult` 返回错误，由 `IMicroflowErrorHandlingService` 决定 rollback/custom/continue。
 
 第 57 轮将 `restCall` 从 preview/mock-only 推进为安全受控的 Runtime HTTP 动作：默认 mock，配置 `allowRealHttp=true` 后通过 `IMicroflowRuntimeHttpClient` 与 `IHttpClientFactory` 执行真实 HTTP，并强制 URL/SSRF/header policy、timeout、response size limit、response handling 与 `$latestHttpResponse` 错误上下文。`logMessage` 同步升级为结构化 RuntimeLog，支持模板参数表达式、`logNodeName`、`includeContextVariables` 与 `includeTraceId`。
 

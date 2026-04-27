@@ -2,6 +2,7 @@ using System.Text.Json;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime.Calls;
+using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Runtime.Transactions;
 
@@ -63,12 +64,29 @@ public sealed class RuntimeExecutionContext
     public string? CurrentTransactionId => Transaction?.Id;
     public IReadOnlyList<MicroflowRuntimeTransactionDiagnostic> TransactionDiagnostics => Transaction?.Diagnostics.ToArray() ?? Array.Empty<MicroflowRuntimeTransactionDiagnostic>();
     public object? TransactionContext => Transaction;
+    public MicroflowErrorHandlingSummary ErrorHandlingSummary => new()
+    {
+        HandledErrorCount = _handledErrorCount,
+        UnhandledErrorCount = _unhandledErrorCount,
+        ContinuedErrorCount = _continuedErrorCount,
+        RollbackCount = _rollbackCount,
+        CustomHandlerCount = _customHandlerCount,
+        ErrorEventCount = _errorEventCount,
+        LatestErrorPreview = _latestErrorPreview
+    };
     public MicroflowRequestContext SecurityContext { get; init; } = new();
     public MicroflowRuntimeSecurityContext RuntimeSecurityContext { get; init; } = MicroflowRuntimeSecurityContext.System();
     public MicroflowMetadataCatalogDto? MetadataCatalog { get; init; }
     public string? MetadataVersion { get; init; }
     public DateTimeOffset StartedAt { get; }
     public IReadOnlyList<MicroflowVariableStoreDiagnostic> Diagnostics => VariableStore.Diagnostics;
+    private int _handledErrorCount;
+    private int _unhandledErrorCount;
+    private int _continuedErrorCount;
+    private int _rollbackCount;
+    private int _customHandlerCount;
+    private int _errorEventCount;
+    private string? _latestErrorPreview;
 
     public static RuntimeExecutionContext Create(
         string runId,
@@ -183,7 +201,8 @@ public sealed class RuntimeExecutionContext
     public IDisposable PushErrorHandlerScope(
         MicroflowRuntimeErrorDto error,
         string? errorHandlerFlowId,
-        JsonElement? latestHttpResponse = null)
+        JsonElement? latestHttpResponse = null,
+        JsonElement? latestSoapFault = null)
     {
         var frame = new MicroflowVariableScopeFrame
         {
@@ -204,7 +223,9 @@ public sealed class RuntimeExecutionContext
             SourceObjectId = error.ObjectId,
             SourceActionId = error.ActionId,
             ScopeKind = MicroflowVariableScopeKind.ErrorHandler,
-            Readonly = true
+            Readonly = true,
+            System = true,
+            AllowShadowing = true
         });
         if (latestHttpResponse.HasValue)
         {
@@ -220,7 +241,28 @@ public sealed class RuntimeExecutionContext
                 SourceObjectId = error.ObjectId,
                 SourceActionId = error.ActionId,
                 ScopeKind = MicroflowVariableScopeKind.ErrorHandler,
-                Readonly = true
+                Readonly = true,
+                System = true,
+                AllowShadowing = true
+            });
+        }
+        if (latestSoapFault.HasValue)
+        {
+            VariableStore.Define(new MicroflowVariableDefinition
+            {
+                Name = "$latestSoapFault",
+                DataTypeJson = JsonSerializer.Serialize(new { kind = "soapFault" }, JsonOptions),
+                RawValueJson = latestSoapFault.Value.GetRawText(),
+                ValuePreview = latestSoapFault.Value.TryGetProperty("faultCode", out var faultCode)
+                    ? $"SOAP Fault {faultCode.GetRawText()}".Trim()
+                    : "SOAP fault",
+                SourceKind = MicroflowVariableSourceKind.ErrorContext,
+                SourceObjectId = error.ObjectId,
+                SourceActionId = error.ActionId,
+                ScopeKind = MicroflowVariableScopeKind.ErrorHandler,
+                Readonly = true,
+                System = true,
+                AllowShadowing = true
             });
         }
 
@@ -232,6 +274,45 @@ public sealed class RuntimeExecutionContext
             }
         });
     }
+
+    public void RecordHandledError(MicroflowRuntimeErrorDto error)
+    {
+        _handledErrorCount++;
+        SetLatestErrorPreview(error);
+    }
+
+    public void RecordUnhandledError(MicroflowRuntimeErrorDto error)
+    {
+        _unhandledErrorCount++;
+        SetLatestErrorPreview(error);
+    }
+
+    public void RecordContinuedError(MicroflowRuntimeErrorDto error)
+    {
+        _continuedErrorCount++;
+        SetLatestErrorPreview(error);
+    }
+
+    public void RecordRollback(MicroflowRuntimeErrorDto error)
+    {
+        _rollbackCount++;
+        SetLatestErrorPreview(error);
+    }
+
+    public void RecordCustomHandler(MicroflowRuntimeErrorDto error)
+    {
+        _customHandlerCount++;
+        SetLatestErrorPreview(error);
+    }
+
+    public void RecordErrorEvent(MicroflowRuntimeErrorDto error)
+    {
+        _errorEventCount++;
+        SetLatestErrorPreview(error);
+    }
+
+    private void SetLatestErrorPreview(MicroflowRuntimeErrorDto error)
+        => _latestErrorPreview = MicroflowVariableStore.TrimPreview($"{error.Code}: {error.Message}", 200);
 
     public MicroflowVariableStoreSnapshot CreateSnapshot(
         string? objectId,

@@ -1,3 +1,165 @@
+### Runtime Round 58 - ErrorHandling complete semantics
+# Covers rollback, customWithRollback, customWithoutRollback, continue, RestCall latestHttpResponse,
+# ErrorEvent rethrow, recursion guard, Loop/CallMicroflow propagation, trace output.errorHandling, and run errorHandlingSummary.
+# Command:
+#   npx tsx scripts/verify-microflow-error-handling-runtime.ts
+# Expected JSON path checks:
+# - $.data.session.trace[*].output.errorHandling.mode in ["rollback","customWithRollback","customWithoutRollback","continue"]
+# - $.data.session.trace[*].output.errorHandling.transactionRolledBack=true for rollback/customWithRollback
+# - $.data.session.trace[*].output.errorHandling.transactionRolledBack=false for customWithoutRollback/continue
+# - $.data.session.trace[*].output.errorHandling.errorHandlerFlowId is present for custom handlers
+# - $.data.session.trace[*].variablesSnapshot.$latestError exists only inside error handler frames
+# - $.data.session.trace[*].variablesSnapshot.$latestHttpResponse exists only for RestCall custom handler frames
+# - $.data.session.errorHandlingSummary.handledErrorCount / continuedErrorCount / rollbackCount reflect terminal status
+# - $.data.session.output.errorHandlingSummary is present on successful handled/continued runs
+
+### Runtime Round 58 - TestRun rollback action failure
+# Expected: run failed, transactionRolledBack=true, error handler not entered.
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "round58-rollback",
+    "name": "Round58Rollback",
+    "displayName": "Round58Rollback",
+    "moduleId": "verify-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "bad", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "bad-1", "kind": "unknownRound58", "errorHandlingType": "rollback" } },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-bad", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "bad" },
+        { "id": "f-bad-end", "kind": "sequence", "originObjectId": "bad", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  },
+  "input": {}
+}
+
+### Runtime Round 58 - TestRun customWithRollback to End
+# Expected: run success, output.errorHandlingSummary.handledErrorCount=1, latestError visible in handler, transactionRolledBack=true.
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "round58-custom-with-rollback",
+    "name": "Round58CustomWithRollback",
+    "displayName": "Round58CustomWithRollback",
+    "moduleId": "verify-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "bad", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "bad-1", "kind": "unknownRound58", "errorHandlingType": "customWithRollback" } },
+        { "id": "log-error", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "log-1", "kind": "logMessage", "level": "warning", "template": { "text": "handled {0}", "arguments": ["$latestError/code"] }, "includeContextVariables": true } },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-bad", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "bad" },
+        { "id": "f-bad-end", "kind": "sequence", "originObjectId": "bad", "destinationObjectId": "end" },
+        { "id": "f-bad-error", "kind": "sequence", "originObjectId": "bad", "destinationObjectId": "log-error", "isErrorHandler": true, "editor": { "edgeKind": "errorHandler" } },
+        { "id": "f-log-end", "kind": "sequence", "originObjectId": "log-error", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  },
+  "input": {}
+}
+
+### Runtime Round 58 - TestRun customWithoutRollback to End
+# Expected: run success, transactionRolledBack=false, custom handler count increments.
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "round58-custom-without-rollback",
+    "name": "Round58CustomWithoutRollback",
+    "displayName": "Round58CustomWithoutRollback",
+    "moduleId": "verify-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "bad", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "bad-1", "kind": "unknownRound58", "errorHandlingType": "customWithoutRollback" } },
+        { "id": "log-error", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "log-1", "kind": "logMessage", "level": "warning", "template": { "text": "handled {0}", "arguments": ["$latestError/code"] }, "includeContextVariables": true } },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-bad", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "bad" },
+        { "id": "f-bad-end", "kind": "sequence", "originObjectId": "bad", "destinationObjectId": "end" },
+        { "id": "f-bad-error", "kind": "sequence", "originObjectId": "bad", "destinationObjectId": "log-error", "isErrorHandler": true, "editor": { "edgeKind": "errorHandler" } },
+        { "id": "f-log-end", "kind": "sequence", "originObjectId": "log-error", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  },
+  "input": {}
+}
+
+### Runtime Round 58 - TestRun continue after RestCall failure
+# Expected: supported continue, no rollback, no error handler entered, normal flow reaches End.
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "round58-continue-rest",
+    "name": "Round58ContinueRest",
+    "displayName": "Round58ContinueRest",
+    "moduleId": "verify-module",
+    "parameters": [{ "id": "p-url", "name": "url", "dataType": "string", "type": { "kind": "string" } }],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "rest", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "rest-1", "kind": "restCall", "errorHandlingType": "continue", "request": { "method": "GET", "urlExpression": "$url" }, "response": { "handling": { "kind": "ignore" } } } },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-rest", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "rest" },
+        { "id": "f-rest-end", "kind": "sequence", "originObjectId": "rest", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  },
+  "input": { "url": "https://example.com/api" },
+  "options": { "simulateRestError": true }
+}
+
 ### Runtime Round 57 - RestCall / LogMessage verify script
 # Covers mock REST execution, URL/header/query/body expression evaluation, sensitive header redaction,
 # response variables, simulateRestError + $latestHttpResponse, structured LogMessage logs, and connector-required guardrails.

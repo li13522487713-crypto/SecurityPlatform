@@ -1,5 +1,12 @@
 # 前端 P0 强类型实现（第 25 轮）
 
+## 第 58 轮 Runtime ErrorHandling 补充
+
+- 后端新增 `Runtime/ErrorHandling`：`IMicroflowErrorHandlingService`、`MicroflowErrorHandlingService`、`MicroflowErrorHandlingContext`、`MicroflowErrorHandlingResult`、`MicroflowRuntimeErrorContext`、Latest*Value、Resolver、Policy 与 Diagnostic。
+- `MicroflowMockRuntimeRunner` 的 action failure、RestCall failure、CallMicroflow child failure、unsupported action failure 均交给统一服务派发。
+- Error scope 继续由 `RuntimeExecutionContext.PushErrorHandlerScope` 实现，已补 `$latestSoapFault` 预留与 nested shadow。
+- 本轮不改 FlowGram 前端连线协议，不新增 P0 action schema，不引入第二套 API。
+
 ## 第 57 轮 Runtime RestCall / LogMessage 补充
 
 - 后端新增 `IMicroflowRuntimeHttpClient`、`MicroflowRuntimeHttpClient`、`MicroflowRestSecurityPolicy`、`MicroflowRestRequestBuilder`、`MicroflowRestResponseHandler` 与专用 `RestCallActionExecutor`。

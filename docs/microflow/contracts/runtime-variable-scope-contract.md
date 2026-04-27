@@ -1,5 +1,12 @@
 # Runtime Variable Scope Contract v2
 
+## 第 58 轮 Error Scope / Latest Variables
+
+- 进入 custom error handler 前 Runtime push `errorHandler` scope，写 readonly/system 的 `$latestError`。
+- RestCall 失败进入 custom handler 时写 `$latestHttpResponse`，`sourceKind=restResponse`；rollback 与 continue 不暴露该变量。
+- WebService 失败的 `$latestSoapFault` 已作为变量和 scope 预留，完整 SOAP Fault 解析留后续 Connector 专项。
+- error handler scope dispose 后 latest variables 不可见；nested handler 允许 shadow 最新错误变量。
+
 ## 权威模型
 
 - `MicroflowAuthoringSchema` 是唯一业务主模型。

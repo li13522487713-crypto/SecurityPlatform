@@ -1,5 +1,12 @@
 # Runtime Trace / Debug Session 契约
 
+## 第 58 轮 ErrorHandling Trace / RuntimeLog
+
+- 错误处理会生成 `TraceFrame.output.errorHandling`，字段包含 mode、sourceObjectId、sourceActionId、sourceActionKind、enteredErrorHandler、errorHandlerFlowId、errorHandlerTargetObjectId、transactionRolledBack、continued、latestErrorWritten、latestHttpResponseWritten、latestSoapFaultWritten、errorDepth、handled、diagnostics。
+- `TraceFrame.error` 使用统一 `MicroflowRuntimeErrorDto`，ErrorEvent 使用 `RUNTIME_ERROR_EVENT_REACHED`，cause 保留原始 `$latestError`。
+- RuntimeLog 记录 rollback、进入 handler、handler completed、continue after error、ErrorEvent outside error context 等关键步骤。
+- DebugPanel 可直接展示 output JSON 与 errors tab；FlowGram 高亮只依赖 `incomingFlowId/outgoingFlowId/errorHandlerVisited`，不读取 FlowGram JSON。
+
 ## 第 57 轮 RestCall / RuntimeLog Trace 补充
 
 - RestCall 成功帧的 `output.restCall` 包含 method、urlPreview、headersPreview、queryPreview、bodyPreview、allowRealHttp、securityDecision、statusCode、responsePreview、responseHandling、producedVariables、durationMs、truncated 与 connectorCapabilities。

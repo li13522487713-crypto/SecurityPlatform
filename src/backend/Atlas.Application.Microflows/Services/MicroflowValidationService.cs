@@ -762,11 +762,29 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
     private static void ValidateErrorHandling(MicroflowValidationContext context)
     {
+        var objects = context.SchemaModel.Objects.ToDictionary(obj => obj.Id, StringComparer.Ordinal);
         foreach (var obj in context.SchemaModel.Objects.Where(o => o.Action is not null))
         {
             var action = obj.Action!;
             var errorHandling = MicroflowSchemaReader.ReadString(action.Raw, "errorHandlingType") ?? MicroflowSchemaReader.ReadStringByPath(action.Raw, "errorHandling", "type");
             var errorFlows = Outgoing(context, obj.Id).Where(f => f.IsErrorHandler).ToArray();
+            if (errorFlows.Length > 1)
+            {
+                Add(context, MicroflowValidationCodes.ErrorHandlerDuplicated, "同一 source 只能配置一条 errorHandler flow。", "errorHandling", action.FieldPath, objectId: obj.Id, actionId: action.Id, relatedFlowIds: errorFlows.Select(f => f.Id).ToArray());
+            }
+
+            foreach (var flow in errorFlows)
+            {
+                if (string.IsNullOrWhiteSpace(flow.DestinationObjectId) || !objects.ContainsKey(flow.DestinationObjectId))
+                {
+                    Add(context, MicroflowValidationCodes.FlowDestinationMissing, "errorHandler flow 的目标对象不存在。", "errorHandling", action.FieldPath, objectId: obj.Id, actionId: action.Id, flowId: flow.Id);
+                }
+                else if (objects.TryGetValue(flow.DestinationObjectId!, out var target) && IsKind(target, "startEvent"))
+                {
+                    Add(context, MicroflowValidationCodes.ErrorHandlerSourceUnsupported, "errorHandler flow 不能指向 StartEvent。", "errorHandling", action.FieldPath, objectId: obj.Id, actionId: action.Id, flowId: flow.Id);
+                }
+            }
+
             if (string.Equals(errorHandling, "rollback", StringComparison.OrdinalIgnoreCase) && errorFlows.Length > 0)
             {
                 Add(context, MicroflowValidationCodes.ErrorHandlerRollbackHasFlow, "rollback error handling 不应配置 errorHandler flow。", "errorHandling", action.FieldPath, objectId: obj.Id, actionId: action.Id, relatedFlowIds: errorFlows.Select(f => f.Id).ToArray(), severity: "warning");
@@ -805,7 +823,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                 continue;
             }
 
-            foreach (var flow in context.SchemaModel.Flows.Where(f => !f.IsErrorHandler && f.OriginObjectId == id && !string.IsNullOrWhiteSpace(f.DestinationObjectId)))
+            foreach (var flow in context.SchemaModel.Flows.Where(f => f.OriginObjectId == id && !string.IsNullOrWhiteSpace(f.DestinationObjectId)))
             {
                 queue.Enqueue(flow.DestinationObjectId!);
             }
@@ -836,6 +854,8 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         variables["currentUser"] = new VariableInfo("currentUser", MicroflowSeedMetadataCatalog.Type("object"), "system.$currentUser", null, null, true);
         variables["currentIndex"] = new VariableInfo("currentIndex", MicroflowSeedMetadataCatalog.Type("integer"), "system.$currentIndex", null, null, true);
         variables["latestError"] = new VariableInfo("latestError", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestError", null, null, true);
+        variables["latestHttpResponse"] = new VariableInfo("latestHttpResponse", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestHttpResponse", null, null, true);
+        variables["latestSoapFault"] = new VariableInfo("latestSoapFault", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestSoapFault", null, null, true);
 
         foreach (var obj in context.SchemaModel.Objects.Where(o => o.Action is not null))
         {

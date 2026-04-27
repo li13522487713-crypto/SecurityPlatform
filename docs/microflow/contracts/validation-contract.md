@@ -1,5 +1,14 @@
 # 校验：MicroflowValidationIssue 契约
 
+## 第 58 轮 ErrorHandling 校验补充
+
+- `rollback` 不应配置 errorHandler flow，返回 `MF_ERROR_HANDLER_ROLLBACK_HAS_FLOW` warning。
+- `customWithRollback` / `customWithoutRollback` 必须配置 errorHandler flow，缺失返回 `MF_ERROR_HANDLER_WITH_ROLLBACK_MISSING_FLOW`。
+- 同一 source 多条 errorHandler flow 返回 `MF_ERROR_HANDLER_DUPLICATED`。
+- errorHandler flow 目标不存在返回 `MF_FLOW_DESTINATION_MISSING`，目标为 StartEvent 返回 `MF_ERROR_HANDLER_SOURCE_UNSUPPORTED`。
+- `continue` 仅允许 Runtime policy 标记支持的 action；当前后端校验与 Runtime 对齐为 `callMicroflow`、`restCall`，其它 action 返回 `MF_ERROR_HANDLER_CONTINUE_NOT_ALLOWED`。
+- `$latestError`、`$latestHttpResponse`、`$latestSoapFault` 只允许 error handler scope；完整静态路径收窄仍继续沿 VariableIndex hardening 推进。
+
 ## 第 57 轮 RestCall / LogMessage 校验补充
 
 - RestCall 校验 `request.method`、`request.urlExpression`、headers/query key、headers/query value expression、body expression/form fields、`timeoutSeconds > 0`、string/json/importMapping response 的 `outputVariableName`、status/header variable name。

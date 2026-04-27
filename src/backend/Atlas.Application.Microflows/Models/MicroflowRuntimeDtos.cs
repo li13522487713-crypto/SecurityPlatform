@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Transactions;
 
 namespace Atlas.Application.Microflows.Models;
@@ -117,6 +118,9 @@ public sealed record MicroflowRunSessionDto
 
     [JsonPropertyName("transactionSummary")]
     public MicroflowRuntimeTransactionSummary? TransactionSummary { get; init; }
+
+    [JsonPropertyName("errorHandlingSummary")]
+    public MicroflowErrorHandlingSummary? ErrorHandlingSummary { get; init; }
 
     [JsonPropertyName("childRuns")]
     public IReadOnlyList<MicroflowRunSessionDto> ChildRuns { get; init; } = Array.Empty<MicroflowRunSessionDto>();
@@ -350,6 +354,12 @@ public static class RuntimeErrorCode
     public const string RuntimeConnectorRequired = "RUNTIME_CONNECTOR_REQUIRED";
     public const string RuntimeLogMessageFailed = "RUNTIME_LOG_MESSAGE_FAILED";
     public const string RuntimeTransactionRolledBack = "RUNTIME_TRANSACTION_ROLLED_BACK";
+    public const string RuntimeRollbackFailed = "RUNTIME_ROLLBACK_FAILED";
+    public const string RuntimeErrorHandlerNotFound = "RUNTIME_ERROR_HANDLER_NOT_FOUND";
+    public const string RuntimeErrorHandlerFailed = "RUNTIME_ERROR_HANDLER_FAILED";
+    public const string RuntimeErrorHandlerRecursion = "RUNTIME_ERROR_HANDLER_RECURSION";
+    public const string RuntimeErrorHandlerMaxDepthExceeded = "RUNTIME_ERROR_HANDLER_MAX_DEPTH_EXCEEDED";
+    public const string RuntimeContinueNotAllowed = "RUNTIME_CONTINUE_NOT_ALLOWED";
     public const string RuntimeLoopSourceNotFound = "RUNTIME_LOOP_SOURCE_NOT_FOUND";
     public const string RuntimeLoopSourceNotList = "RUNTIME_LOOP_SOURCE_NOT_LIST";
     public const string RuntimeLoopIteratorInvalid = "RUNTIME_LOOP_ITERATOR_INVALID";

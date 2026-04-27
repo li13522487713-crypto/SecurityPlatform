@@ -90,6 +90,23 @@ async function api(path: string, body: unknown, expectSuccess = true): Promise<J
   return envelope;
 }
 
+async function createTempMicroflow(name: string, schema: Json): Promise<string> {
+  const uniqueName = `${name}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const created = await api("/api/microflows", {
+    workspaceId,
+    input: {
+      name: uniqueName,
+      displayName: uniqueName,
+      moduleId: "verify-module",
+      moduleName: "Verify",
+      schema,
+    },
+  });
+  const id = String(created.data?.id ?? "");
+  assert(id.length > 0, "created microflow id missing");
+  return id;
+}
+
 async function appHostAvailable(): Promise<boolean> {
   try {
     const response = await fetch(`${baseUrl}/internal/health/ready`, { headers });
@@ -117,8 +134,10 @@ async function runRuntimeSmoke(): Promise<void> {
       headersVariableName: "headers",
     },
   };
-  const restRun = await api("/api/microflows/verify-rest/test-run", {
-    schema: schemaWithAction("VerifyRestMock", restAction),
+  const restSchema = schemaWithAction("VerifyRestMock", restAction);
+  const restId = await createTempMicroflow("VerifyRestMock", restSchema);
+  const restRun = await api(`/api/microflows/${restId}/test-run`, {
+    schema: restSchema,
     input: { url: "https://example.com/api", token: "Bearer secret" },
     options: { allowRealHttp: false },
   });
@@ -129,8 +148,7 @@ async function runRuntimeSmoke(): Promise<void> {
   assert(JSON.stringify(restFrame?.output ?? {}).includes("***redacted***"), "sensitive header should be redacted");
   assert(JSON.stringify(restFrame?.variablesSnapshot ?? {}).includes("statusCode"), "statusCode variable missing");
 
-  const logRun = await api("/api/microflows/verify-log/test-run", {
-    schema: schemaWithAction("VerifyLog", {
+  const logSchema = schemaWithAction("VerifyLog", {
       id: "log-1",
       kind: "logMessage",
       officialType: "Microflows$LogMessageAction",
@@ -139,19 +157,25 @@ async function runRuntimeSmoke(): Promise<void> {
       template: { text: "URL={0}", arguments: ["$url"] },
       includeTraceId: true,
       includeContextVariables: true,
-    }),
+    });
+  const logId = await createTempMicroflow("VerifyLog", logSchema);
+  const logRun = await api(`/api/microflows/${logId}/test-run`, {
+    schema: logSchema,
     input: { url: "https://example.com", token: "secret" },
   });
   const logSession = logRun.data?.session ?? logRun.session;
   assert(logSession?.logs?.some((log: Json) => log.logNodeName === "VerifyLogNode" && String(log.message).includes("URL=https://example.com")), "structured LogMessage log missing");
 
-  const errorRun = await api("/api/microflows/verify-rest-error/test-run", {
-    schema: schemaWithAction("VerifyRestError", restAction, true),
+  const errorSchema = schemaWithAction("VerifyRestError", { ...restAction, errorHandlingType: "customWithoutRollback" }, true);
+  const errorId = await createTempMicroflow("VerifyRestError", errorSchema);
+  const errorRun = await api(`/api/microflows/${errorId}/test-run`, {
+    schema: errorSchema,
     input: { url: "https://example.com/api", token: "Bearer secret" },
     options: { simulateRestError: true },
   });
   const errorSession = errorRun.data?.session ?? errorRun.session;
-  assert(JSON.stringify(errorSession).includes("$latestHttpResponse"), "latestHttpResponse should be visible in error handler scope");
+  const errorSessionJson = JSON.stringify(errorSession);
+  assert(errorSessionJson.includes("latestHttpResponse"), "latestHttpResponse should be visible in error handler scope");
 }
 
 async function main(): Promise<void> {

@@ -6,6 +6,7 @@ using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Calls;
+using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Transactions;
 
@@ -18,6 +19,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
     private readonly IMicroflowClock _clock;
     private readonly IMicroflowExpressionEvaluator _expressionEvaluator;
     private readonly IMicroflowTransactionManager _transactionManager;
+    private readonly IMicroflowErrorHandlingService _errorHandlingService;
     private readonly IMicroflowActionExecutorRegistry _actionExecutorRegistry;
     private readonly IMicroflowRuntimeConnectorRegistry _connectorRegistry;
 
@@ -26,6 +28,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         IMicroflowClock clock,
         IMicroflowExpressionEvaluator expressionEvaluator,
         IMicroflowTransactionManager transactionManager,
+        IMicroflowErrorHandlingService errorHandlingService,
         IMicroflowActionExecutorRegistry actionExecutorRegistry,
         IMicroflowRuntimeConnectorRegistry connectorRegistry)
     {
@@ -33,6 +36,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         _clock = clock;
         _expressionEvaluator = expressionEvaluator;
         _transactionManager = transactionManager;
+        _errorHandlingService = errorHandlingService;
         _actionExecutorRegistry = actionExecutorRegistry;
         _connectorRegistry = connectorRegistry;
     }
@@ -40,7 +44,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
     public Task<MicroflowRunSessionDto> RunAsync(MicroflowMockRuntimeRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var context = new MockRuntimeContext(request, _schemaReader.Read(request.Schema), _clock, _expressionEvaluator, _transactionManager, _actionExecutorRegistry, _connectorRegistry);
+        var context = new MockRuntimeContext(request, _schemaReader.Read(request.Schema), _clock, _expressionEvaluator, _transactionManager, _errorHandlingService, _actionExecutorRegistry, _connectorRegistry);
         context.SeedInputVariables();
 
         var start = context.Model.Objects.SingleOrDefault(o => !o.InsideLoop && IsKind(o, "startEvent"));
@@ -122,13 +126,20 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
 
             if (IsKind(obj, "errorEvent"))
             {
+                context.RuntimeContext.VariableStore.TryGet("$latestError", out var latestErrorValue);
                 var error = new MicroflowRuntimeErrorDto
                 {
-                    Code = RuntimeErrorCode.RuntimeUnknownError,
+                    Code = RuntimeErrorCode.RuntimeErrorEventReached,
                     Message = obj.Caption ?? "Microflow ErrorEvent reached.",
                     ObjectId = obj.Id,
-                    FlowId = incoming
+                    FlowId = incoming,
+                    Cause = latestErrorValue?.RawValueJson
                 };
+                context.RuntimeContext.RecordErrorEvent(error);
+                if (context.RuntimeContext.ErrorStack.Count == 0)
+                {
+                    context.AddLog("warning", obj.Id, null, "ErrorEvent reached outside an error handler context.");
+                }
                 context.AddFrame(obj, incoming, null, "failed", input: FrameInput(obj), error: error, loopIteration: loopIteration, message: "ErrorEvent reached.");
                 return ExecutionSignal.Failed(error);
             }
@@ -231,48 +242,85 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                 if (!outcome.Succeeded)
                 {
                     var actionError = outcome.Error ?? UnknownActionError(obj, incoming);
-                    var handling = ReadErrorHandling(obj.Action?.Raw);
-                    var errorFlow = context.ErrorHandlerFlow(obj.Id);
-                    if (string.Equals(handling, "continue", StringComparison.OrdinalIgnoreCase))
+                    var node = context.ResolveExecutionNode(obj);
+                    var normalFlow = context.NextNormalFlow(obj.Id);
+                    var result = context.ErrorHandlingService.Handle(new MicroflowErrorHandlingContext
                     {
-                        context.TransactionManager.ContinueAfterError(context.RuntimeContext, actionError);
-                        context.DrainTransactionLogs();
-                        context.AddLog("warning", obj.Id, obj.Action?.Id, $"Action failed and continued: {actionError.Code}");
-                        var continued = context.NextNormalFlow(obj.Id);
-                        if (continued is null)
+                        RuntimeContext = context.RuntimeContext,
+                        Plan = context.RuntimeContext.ExecutionPlan,
+                        SourceNode = node,
+                        ActionResult = new MicroflowActionExecutionResult
+                        {
+                            Status = MicroflowActionExecutionStatus.Failed,
+                            Error = actionError,
+                            LatestHttpResponse = outcome.LatestHttpResponse,
+                            ShouldEnterErrorHandler = true,
+                            ShouldStopRun = true,
+                            ShouldContinueNormalFlow = false
+                        },
+                        Error = actionError,
+                        ErrorHandlerFlow = context.RuntimeContext.ExecutionPlan.ErrorHandlerFlows.FirstOrDefault(flow => string.Equals(flow.OriginObjectId, obj.Id, StringComparison.Ordinal)),
+                        ErrorHandlingType = node.ErrorHandling?.ErrorHandlingType ?? ReadErrorHandling(obj.Action?.Raw),
+                        SourceObjectId = obj.Id,
+                        SourceActionId = obj.Action?.Id,
+                        CollectionId = obj.CollectionId,
+                        IncomingFlowId = incoming,
+                        NormalOutgoingFlowId = normalFlow?.Id,
+                        LatestHttpResponse = outcome.LatestHttpResponse,
+                        ErrorDepth = context.RuntimeContext.ErrorStack.Count,
+                        IsInsideErrorHandler = context.RuntimeContext.ErrorStack.Count > 0,
+                        LoopIteration = loopIteration,
+                        CancellationToken = cancellationToken
+                    });
+                    context.DrainTransactionLogs();
+                    context.AddLogs(result.Logs);
+                    context.AddErrorHandlingFrame(obj, incoming, result.NextFlowId, result, loopIteration);
+                    if (result.ShouldContinueNormalFlow)
+                    {
+                        if (normalFlow is null)
                         {
                             return ExecutionSignal.Failed(context.EndNotReached(obj, incoming));
                         }
 
-                        currentObjectId = continued.DestinationObjectId!;
-                        incoming = continued.Id;
+                        context.AddLog("warning", obj.Id, obj.Action?.Id, $"Action failed and continued: {actionError.Code}");
+                        currentObjectId = normalFlow.DestinationObjectId!;
+                        incoming = normalFlow.Id;
                         continue;
                     }
 
-                    if ((string.Equals(handling, "customWithRollback", StringComparison.OrdinalIgnoreCase)
-                            || string.Equals(handling, "customWithoutRollback", StringComparison.OrdinalIgnoreCase))
-                        && errorFlow is not null)
+                    if (string.Equals(result.Status, MicroflowErrorHandlingStatus.EnteredErrorHandler, StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(result.NextObjectId))
                     {
-                        if (string.Equals(handling, "customWithRollback", StringComparison.OrdinalIgnoreCase))
+                        context.AddLog("warning", obj.Id, obj.Action?.Id, $"Entering error handler: {result.NextFlowId}");
+                        using var errorScope = context.PushErrorHandlerScope(actionError, result.NextFlowId, outcome.LatestHttpResponse);
+                        var handled = ExecutePath(context, result.NextObjectId!, result.NextFlowId, loopIteration, cancellationToken);
+                        if (handled.Kind == ExecutionSignalKind.Success)
                         {
-                            context.TransactionManager.PrepareCustomWithRollback(context.RuntimeContext, actionError);
-                            context.DrainTransactionLogs();
-                            context.AddLog("warning", obj.Id, obj.Action?.Id, "Mock transaction rolled back before custom error handler.");
-                        }
-                        else
-                        {
-                            context.TransactionManager.PrepareCustomWithoutRollback(context.RuntimeContext, actionError);
-                            context.DrainTransactionLogs();
+                            var completion = context.ErrorHandlingService.CompleteHandler(new MicroflowErrorHandlingContext
+                            {
+                                RuntimeContext = context.RuntimeContext,
+                                Plan = context.RuntimeContext.ExecutionPlan,
+                                SourceNode = node,
+                                Error = actionError,
+                                ErrorHandlingType = node.ErrorHandling?.ErrorHandlingType ?? ReadErrorHandling(obj.Action?.Raw),
+                                SourceObjectId = obj.Id,
+                                SourceActionId = obj.Action?.Id,
+                                CollectionId = obj.CollectionId,
+                                IncomingFlowId = incoming,
+                                LatestHttpResponse = outcome.LatestHttpResponse,
+                                ErrorDepth = context.RuntimeContext.ErrorStack.Count,
+                                IsInsideErrorHandler = true,
+                                LoopIteration = loopIteration,
+                                CancellationToken = cancellationToken
+                            }, "success", result.NextObjectId, "endEvent");
+                            context.AddErrorHandlingFrame(obj, incoming, result.NextFlowId, completion, loopIteration);
+                            context.AddLog("info", obj.Id, obj.Action?.Id, "Error handler completed.");
                         }
 
-                        using var errorScope = context.PushErrorHandlerScope(actionError, errorFlow.Id, outcome.LatestHttpResponse);
-                        var handled = ExecutePath(context, errorFlow.DestinationObjectId!, errorFlow.Id, loopIteration, cancellationToken);
-                        return handled.Kind == ExecutionSignalKind.Error ? handled : ExecutionSignal.Success(handled.Output);
+                        return handled.Kind == ExecutionSignalKind.Error ? handled : handled;
                     }
 
-                    context.TransactionManager.RollbackForError(context.RuntimeContext, actionError, obj.Id, obj.Action?.Id);
-                    context.DrainTransactionLogs();
-                    return ExecutionSignal.Failed(actionError);
+                    return ExecutionSignal.Failed(result.Error ?? actionError);
                 }
 
                 var next = context.NextNormalFlow(obj.Id);
@@ -1372,6 +1420,14 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             ? ReadString(action.Value, "errorHandlingType") ?? ReadStringByPath(action.Value, "errorHandling", "type") ?? "rollback"
             : "rollback";
 
+    private static MicroflowRuntimeErrorHandlingDto? ReadErrorHandlingDto(MicroflowObjectModel obj)
+    {
+        var handling = ReadErrorHandling(obj.Action?.Raw);
+        return string.IsNullOrWhiteSpace(handling)
+            ? null
+            : new MicroflowRuntimeErrorHandlingDto { ErrorHandlingType = handling, ScopeObjectId = obj.Id };
+    }
+
     private static int CountArray(JsonElement element, string propertyName)
         => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Array ? value.GetArrayLength() : 0;
 
@@ -1561,6 +1617,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             IMicroflowClock clock,
             IMicroflowExpressionEvaluator expressionEvaluator,
             IMicroflowTransactionManager transactionManager,
+            IMicroflowErrorHandlingService errorHandlingService,
             IMicroflowActionExecutorRegistry actionExecutorRegistry,
             IMicroflowRuntimeConnectorRegistry connectorRegistry)
         {
@@ -1573,6 +1630,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             Flows = model.Flows.ToArray();
             StartedAt = clock.UtcNow;
             TransactionManager = transactionManager;
+            ErrorHandlingService = errorHandlingService;
             ActionExecutorRegistry = actionExecutorRegistry;
             ConnectorRegistry = connectorRegistry;
             var sharedTransaction = request.ParentRuntimeContext is not null
@@ -1632,6 +1690,8 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         public IMicroflowExpressionEvaluator ExpressionEvaluator { get; }
 
         public IMicroflowTransactionManager TransactionManager { get; }
+
+        public IMicroflowErrorHandlingService ErrorHandlingService { get; }
 
         public IMicroflowActionExecutorRegistry ActionExecutorRegistry { get; }
 
@@ -1722,6 +1782,21 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         public MicroflowFlowModel? ErrorHandlerFlow(string objectId)
             => Flows.FirstOrDefault(flow => flow.OriginObjectId == objectId && flow.IsErrorHandler);
 
+        public MicroflowExecutionNode ResolveExecutionNode(MicroflowObjectModel obj)
+            => _runtimeContext.ExecutionPlan.Nodes.FirstOrDefault(node => string.Equals(node.ObjectId, obj.Id, StringComparison.Ordinal))
+               ?? new MicroflowExecutionNode
+               {
+                   ObjectId = obj.Id,
+                   ActionId = obj.Action?.Id,
+                   CollectionId = obj.CollectionId,
+                   ParentLoopObjectId = obj.ParentLoopObjectId,
+                   Kind = obj.Kind,
+                   Caption = obj.Caption,
+                   ActionKind = obj.Action?.Kind,
+                   ConfigJson = obj.Action?.Raw,
+                   ErrorHandling = ReadErrorHandlingDto(obj)
+               };
+
         public (MicroflowFlowModel? Flow, JsonElement? CaseValue) SelectCaseFlow(string objectId, string selectedValue)
         {
             var candidates = Flows.Where(flow => flow.OriginObjectId == objectId && !flow.IsErrorHandler && !IsAnnotationFlow(flow)).ToArray();
@@ -1804,6 +1879,23 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                 ErrorHandlerVisited = IsErrorHandlerFlow(incomingFlowId) || IsErrorHandlerFlow(outgoingFlowId)
             });
         }
+
+        public void AddErrorHandlingFrame(
+            MicroflowObjectModel obj,
+            string? incomingFlowId,
+            string? outgoingFlowId,
+            MicroflowErrorHandlingResult result,
+            JsonElement? loopIteration)
+            => AddFrame(
+                obj,
+                incomingFlowId,
+                outgoingFlowId,
+                result.ShouldStopRun ? "failed" : "success",
+                input: FrameInput(obj),
+                output: result.Output,
+                error: result.Error,
+                loopIteration: loopIteration,
+                message: result.Message);
 
         private bool IsErrorHandlerFlow(string? flowId)
             => !string.IsNullOrWhiteSpace(flowId)
@@ -1987,6 +2079,10 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             {
                 output = MergeOutput(output.Value, new { transactionSummary });
             }
+            if (output.HasValue)
+            {
+                output = MergeOutput(output.Value, new { errorHandlingSummary = _runtimeContext.ErrorHandlingSummary });
+            }
 
             return new MicroflowRunSessionDto
             {
@@ -2013,6 +2109,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                     Variables = frame.VariablesSnapshot?.Values.ToArray() ?? Array.Empty<MicroflowRuntimeVariableValueDto>()
                 }).ToArray(),
                 TransactionSummary = transactionSummary,
+                ErrorHandlingSummary = _runtimeContext.ErrorHandlingSummary,
                 ChildRuns = ChildRuns,
                 ChildRunIds = ChildRuns.Select(child => child.Id).ToArray()
             };
@@ -2092,7 +2189,34 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             };
 
         private static MicroflowExecutionPlan BuildFallbackExecutionPlan(MicroflowMockRuntimeRequest request, MicroflowSchemaModel model)
-            => new()
+        {
+            var nodes = model.Objects
+                .Where(obj => !string.IsNullOrWhiteSpace(obj.Id))
+                .Select(obj => new MicroflowExecutionNode
+                {
+                    ObjectId = obj.Id,
+                    ActionId = obj.Action?.Id,
+                    CollectionId = obj.CollectionId,
+                    ParentLoopObjectId = obj.ParentLoopObjectId,
+                    Kind = obj.Kind,
+                    Caption = obj.Caption,
+                    ActionKind = obj.Action?.Kind,
+                    ConfigJson = obj.Action?.Raw,
+                    ErrorHandling = ReadErrorHandlingDto(obj)
+                })
+                .ToArray();
+            var flows = model.Flows.Select(flow => new MicroflowExecutionFlow
+            {
+                FlowId = flow.Id,
+                CollectionId = flow.CollectionId,
+                EdgeKind = flow.EdgeKind,
+                ControlFlow = flow.IsErrorHandler ? "errorHandler" : "normal",
+                OriginObjectId = flow.OriginObjectId,
+                DestinationObjectId = flow.DestinationObjectId,
+                CaseValues = flow.CaseValues.Select(value => value.Clone()).ToArray(),
+                IsErrorHandler = flow.IsErrorHandler
+            }).ToArray();
+            return new()
             {
                 Id = Guid.NewGuid().ToString("N"),
                 SchemaId = request.SchemaId,
@@ -2100,6 +2224,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                 Version = request.Version,
                 SchemaVersion = model.SchemaVersion,
                 StartNodeId = model.Objects.FirstOrDefault(o => IsKind(o, "startEvent"))?.Id ?? string.Empty,
+                EndNodeIds = model.Objects.Where(o => IsKind(o, "endEvent")).Select(o => o.Id).ToArray(),
                 Parameters = model.Parameters.Select(parameter => new MicroflowExecutionParameter
                 {
                     Id = parameter.Id,
@@ -2108,8 +2233,13 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                     Required = ReadBool(parameter.Raw, "required"),
                     Documentation = ReadString(parameter.Raw, "documentation") ?? ReadString(parameter.Raw, "description")
                 }).ToArray(),
+                Nodes = nodes,
+                Flows = flows,
+                NormalFlows = flows.Where(flow => string.Equals(flow.ControlFlow, "normal", StringComparison.Ordinal)).ToArray(),
+                ErrorHandlerFlows = flows.Where(flow => string.Equals(flow.ControlFlow, "errorHandler", StringComparison.Ordinal)).ToArray(),
                 CreatedAt = DateTimeOffset.UtcNow
             };
+        }
     }
 
     private sealed record ActionOutcome(bool Succeeded, MicroflowRuntimeErrorDto? Error, JsonElement? LatestHttpResponse = null)

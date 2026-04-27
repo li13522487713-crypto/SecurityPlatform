@@ -1,5 +1,17 @@
 # Runtime Test Scenarios
 
+## 第 58 轮 ErrorHandling 场景
+
+自动化入口：`npx tsx scripts/verify-microflow-error-handling-runtime.ts`。
+
+1. rollback：action failure 后 run failed、transaction rolledBack、error handler 不进入、trace 有 `output.errorHandling.transactionRolledBack=true`。
+2. customWithRollback：先 rollback 再进入 handler，`$latestError` / RestCall `$latestHttpResponse` 在 handler scope 可见，handler 到 EndEvent 为 success handled，ErrorEvent 为 failed。
+3. customWithoutRollback：不 rollback，transaction 保持 active，handler 到 EndEvent 为 success handled。
+4. continue：支持 action 沿 normal flow 继续，不进 handler，不 rollback；不支持 action 返回 `RUNTIME_CONTINUE_NOT_ALLOWED`。
+5. RestCall：HTTP 500、timeout、security blocked、simulateRestError 均通过 `latestHttpResponse` 暴露给 custom handler。
+6. Loop / CallMicroflow：loopIteration 与 child error cause 保留在 trace/error 中，parent errorHandlingType 决定传播策略。
+7. Recursion guard：同一 handler flow 重入与 max depth 超限必须 failed。
+
 ## 第 57 轮 RestCall / LogMessage 场景
 
 自动化入口：`npx tsx scripts/verify-microflow-restcall-logmessage-runtime.ts`。

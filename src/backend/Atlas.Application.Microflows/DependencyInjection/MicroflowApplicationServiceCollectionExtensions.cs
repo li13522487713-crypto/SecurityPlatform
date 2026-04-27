@@ -4,6 +4,7 @@ using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Actions.Http;
 using Atlas.Application.Microflows.Runtime.Calls;
+using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Loops;
 using Atlas.Application.Microflows.Runtime.Metadata;
@@ -37,6 +38,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowEntityAccessService, MicroflowEntityAccessService>();
         services.TryAddScoped<IMicroflowRuntimeObjectMetadataService, MicroflowRuntimeObjectMetadataService>();
         services.TryAddScoped<IMicroflowTransactionManager, MicroflowTransactionManager>();
+        services.TryAddScoped<IMicroflowErrorHandlingService, MicroflowErrorHandlingService>();
         services.TryAddTransient<IMicroflowUnitOfWork, MicroflowUnitOfWork>();
         services.TryAddScoped<IMicroflowActionExecutorRegistry, MicroflowActionExecutorRegistry>();
         services.TryAddScoped<CallMicroflowActionExecutor>();

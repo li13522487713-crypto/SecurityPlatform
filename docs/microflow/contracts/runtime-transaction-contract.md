@@ -1,5 +1,13 @@
 # Runtime Transaction Contract
 
+## 第 58 轮 ErrorHandling 事务策略
+
+- `rollback` 与 `customWithRollback` 必须调用 `TransactionManager.Rollback` 路径；本实现通过 `RollbackForError` / `PrepareCustomWithRollback` 写 transaction log 与 snapshot。
+- `customWithoutRollback` 不 rollback，transaction 保持 active；若 handler 到 EndEvent，后续 run 正常结束策略可继续 commit 当前 staged changes。
+- `continue` 不 rollback、不建 error scope，仅写 `ErrorHandlingContinue` transaction log 并沿 normal flow 继续。
+- ErrorEvent 不擅自二次 rollback；它保持 upstream errorHandling 已决定的 transaction 状态，并导致 run failed。
+- 本事务模型仍为 Runtime 内存 UnitOfWork，不是分布式事务或真实 DB 补偿事务。
+
 本仓库前端不实现真实事务；Mock Runtime 只生成 transaction preview，用于 Trace/DebugPanel 与后端契约对齐。
 
 ## 第 53 轮 Runtime TransactionManager / UnitOfWork

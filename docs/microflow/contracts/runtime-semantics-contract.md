@@ -1,5 +1,14 @@
 # Runtime Semantics Contract v2
 
+## 第 58 轮 ErrorHandling 语义补充
+
+- Runtime ErrorHandling 的唯一后端入口为 `IMicroflowErrorHandlingService`；FlowGram JSON 不进入错误处理输出，trace 只用 objectId/actionId/flowId/collectionId 定位。
+- 四类模式固定为 `rollback`、`customWithRollback`、`customWithoutRollback`、`continue`。custom 模式必须有 ErrorHandlerFlow；rollback 与 continue 不执行 ErrorHandlerFlow。
+- `$latestError` 只在 error handler scope 可见；RestCall 自定义 handler 额外暴露 `$latestHttpResponse`；WebService 预留 `$latestSoapFault`。
+- Loop body 中 action 自身 error handler 优先；没有 action handler 时可由后续 loop handler 硬化继续接入。当前 trace 会保留 `loopIteration`。
+- CallMicroflow 子调用失败冒泡为 parent action failure，parent 的 errorHandlingType 决定 rollback/custom/continue，cause 可携带 child error 摘要。
+- RunSession 输出 `errorHandlingSummary`，用于 DebugPanel 展示 handled/continued/rollback/errorEvent 计数。
+
 ## 第 57 轮 RestCall / LogMessage 语义补充
 
 - `RestCallActionExecutor` 通过 `ActionExecutorRegistry` 执行，不绕过 `ExpressionEvaluator`、`VariableStore` 或 HTTP security policy。

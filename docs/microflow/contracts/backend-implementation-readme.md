@@ -1,5 +1,13 @@
 # 后端实现指引与 Skeleton 现状
 
+## 第 58 轮 Runtime ErrorHandling 实现现状
+
+- 新增 `src/backend/Atlas.Application.Microflows/Runtime/ErrorHandling`，统一承载 rollback、customWithRollback、customWithoutRollback、continue、ErrorHandlerFlow resolver、continue policy、diagnostic 与 summary。
+- `AddAtlasApplicationMicroflows()` 注册 `IMicroflowErrorHandlingService`，Runner 通过服务联动 `TransactionManager`，ActionExecutor 不直接跳转错误分支。
+- `RuntimeExecutionContext` 维护 error scope、`$latestError`、`$latestHttpResponse`、`$latestSoapFault` 预留与 `errorHandlingSummary`。
+- ErrorEvent 后端错误码统一为 `RUNTIME_ERROR_EVENT_REACHED`，cause 保留当前 `$latestError`。
+- 不新增数据库表，不改 Resource / Publish / Metadata / References / Coze 兼容接口。
+
 ## 第 57 轮 Runtime RestCall / LogMessage 实现现状
 
 - `Atlas.Application.Microflows` 已新增 Runtime HTTP 抽象与实现：`IMicroflowRuntimeHttpClient`、`MicroflowRuntimeHttpClient`、`MicroflowRestSecurityPolicy`、`MicroflowRestRequestBuilder`、`MicroflowRestResponseHandler`、`RestCallActionExecutor`、`LogMessageActionExecutor`。
