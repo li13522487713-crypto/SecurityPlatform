@@ -1,4 +1,4 @@
-import { Select, Typography } from "@douyinfe/semi-ui";
+import { Button, Select, Space, Typography } from "@douyinfe/semi-ui";
 import { resolveStoredEntityQualifiedName, searchEntities, useMicroflowMetadata } from "../../metadata";
 
 const { Text } = Typography;
@@ -20,7 +20,7 @@ export function EntitySelector({
   disabled?: boolean;
   placeholder?: string;
 }) {
-  const { catalog, loading, error, version } = useMicroflowMetadata();
+  const { catalog, loading, error, reload, version } = useMicroflowMetadata();
   const mockCatalog = catalog?.version?.startsWith("mock") ?? false;
   const resolvedValue = catalog && value ? resolveStoredEntityQualifiedName(catalog, value) : value;
   const entities = catalog
@@ -31,9 +31,10 @@ export function EntitySelector({
     : [];
   if (error) {
     return (
-      <div style={{ width: "100%" }}>
+      <Space vertical align="start" spacing={4} style={{ width: "100%" }}>
         <Text type="danger" size="small">元数据加载失败：{error.message}</Text>
-      </div>
+        <Button size="small" onClick={() => void reload()}>Retry metadata</Button>
+      </Space>
     );
   }
   if (loading && !catalog) {
@@ -44,7 +45,7 @@ export function EntitySelector({
       <Select
         style={{ width: "100%" }}
         disabled={disabled}
-        placeholder={!catalog ? "元数据未加载" : "暂无实体元数据"}
+        placeholder={!catalog ? "元数据未加载" : "No entities available"}
       />
     );
   }
@@ -68,7 +69,7 @@ export function EntitySelector({
       style={{ width: "100%" }}
       placeholder={placeholder}
       optionList={entities.map(entity => ({
-        label: `${entity.name} (${entity.qualifiedName})${entity.isSystemEntity ? " [system]" : ""}${entity.generalization ? " [inherited]" : ""}`,
+        label: `${entity.name} (${entity.qualifiedName})${entity.isSystemEntity ? " [system]" : ""}${entity.generalization ? " [inherited]" : ""}${entity.attributes.length ? ` - ${entity.attributes.map(attribute => attribute.name).join(", ")}` : ""}`,
         value: entity.qualifiedName,
       }))}
       onChange={selected => onChange(selected ? String(selected) : undefined)}

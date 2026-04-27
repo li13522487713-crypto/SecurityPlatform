@@ -172,6 +172,9 @@ function collectVariableNames(schema: MicroflowSchema): Set<string> {
     if (object.kind === "actionActivity" && object.action.kind === "createVariable") {
       names.add(object.action.variableName.toLocaleLowerCase());
     }
+    if (object.kind === "actionActivity" && (object.action.kind === "createObject" || object.action.kind === "retrieve") && object.action.outputVariableName) {
+      names.add(object.action.outputVariableName.toLocaleLowerCase());
+    }
     if (object.kind === "actionActivity" && object.action.kind === "createList") {
       const name = object.action.outputListVariableName || object.action.listVariableName;
       if (name) {
@@ -301,6 +304,12 @@ export function duplicateObject(schema: MicroflowSchema, objectId: string): Micr
     copy.action = { ...copy.action, id: uniqueSchemaId(schema, `action-${copy.action.kind}-copy`) } as MicroflowAction;
     if (copy.action.kind === "createVariable" && object.kind === "actionActivity" && object.action.kind === "createVariable") {
       copy.action.variableName = nextVariableCopyName(schema, object.action.variableName);
+    }
+    if (copy.action.kind === "createObject" && object.kind === "actionActivity" && object.action.kind === "createObject" && object.action.outputVariableName) {
+      copy.action.outputVariableName = nextVariableCopyName(schema, object.action.outputVariableName);
+    }
+    if (copy.action.kind === "retrieve" && object.kind === "actionActivity" && object.action.kind === "retrieve" && object.action.outputVariableName) {
+      copy.action.outputVariableName = nextVariableCopyName(schema, object.action.outputVariableName);
     }
     if (copy.action.kind === "createList" && object.kind === "actionActivity" && object.action.kind === "createList") {
       const nextName = nextVariableCopyName(schema, object.action.outputListVariableName || object.action.listVariableName);

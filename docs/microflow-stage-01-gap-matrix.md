@@ -70,6 +70,15 @@
 | 33 | Loop variable 基础索引 | Stage 17 已完成：Loop iterator 从当前 schema 派生进入 `schema.variables.loopVariables`，source=`loopIterator`、scope=`loop`；严格拓扑作用域校验后置 Stage 20 |
 | 34 | Loop body / exit flow 基础保存刷新恢复 | Stage 17 已完成：Loop body 使用 `originConnectionIndex=2`，after/exit 使用 `originConnectionIndex=1`，FlowEdgeForm 可识别与设置；刷新后由 handle/index 恢复 |
 | 35 | Break/Continue 合法性 warning | Stage 17 已完成：无 Loop、未处于 Loop body、target stale、多 Loop ambiguous、存在 outgoing flow 均显示 warning；不实现完整拓扑执行顺序分析 |
+| 36 | List / Collection 节点属性配置 | Stage 18 已完成 Create List / Change List / Aggregate List / List Operation 基础属性面板；字段写回当前 active microflow schema |
+| 37 | Create List / Change List / Aggregate List / List Operation 基础能力 | Stage 18 已完成集合变量创建、List selector、聚合 result variable、List Operation output variable 基础建模；不执行表达式或集合运行逻辑 |
+| 38 | List variable index | Stage 18 已完成 `createList`、`aggregateList`、`listOperation` 变量索引扩展；selector 仅显示当前 schema 的 List 类型变量 |
+| 39 | 集合变量保存刷新恢复 | Stage 18 已完成 schema 字段与派生 `variables` 同步；保存仍复用 `PUT /api/microflows/{activeMicroflowId}/schema`，A/B 微流索引隔离通过测试覆盖 |
+| 40 | Object Activity 节点属性配置 | Stage 19 已完成：Create/Retrieve/Change/Commit/Delete/Rollback Object 基础属性表单写回当前 active schema，保存仍复用 `PUT /api/microflows/{activeMicroflowId}/schema` |
+| 41 | Domain Model 实体绑定 | Stage 19 已完成：Object Activity Entity selector 使用真实 `GET /api/microflow-metadata` catalog，不 fallback mock，不新增 mock API |
+| 42 | 字段 / 关联 / 枚举 metadata 绑定 | Stage 19 已完成：memberChanges 支持 attribute/association selector，enumeration attribute 支持 enum value selector，metadata 缺失时保留 stale 配置并 warning |
+| 43 | Object variable index | Stage 19 已完成：Create Object 输出 Object(entity)，Retrieve Object 根据 range 输出 Object(entity) 或 List<Object(entity)>；Commit/Delete/Rollback selector 过滤 Object/List<Object> |
+| 44 | Create/Retrieve/Change/Commit/Delete Object 基础保存刷新恢复 | Stage 19 已完成 schema helper 与测试覆盖；A/B 微流基于当前 schema 重建 index，Object Activity 配置不跨微流污染 |
 
 ---
 

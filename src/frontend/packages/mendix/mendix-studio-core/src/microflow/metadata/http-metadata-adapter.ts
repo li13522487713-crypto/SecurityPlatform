@@ -35,8 +35,12 @@ export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadat
   return {
     getMetadataCatalog: load,
     refreshMetadataCatalog: load,
-    getEntity: qualifiedName => client.get(`/api/microflow-metadata/entities/${encodeURIComponent(qualifiedName)}`),
-    getEnumeration: qualifiedName => client.get(`/api/microflow-metadata/enumerations/${encodeURIComponent(qualifiedName)}`),
+    getEntity: qualifiedName => client.get(`/api/microflow-metadata/entities/${encodeURIComponent(qualifiedName)}`, {
+      workspaceId: options.workspaceId,
+    }),
+    getEnumeration: qualifiedName => client.get(`/api/microflow-metadata/enumerations/${encodeURIComponent(qualifiedName)}`, {
+      workspaceId: options.workspaceId,
+    }),
     getMicroflowRefs: request => client.get("/api/microflow-metadata/microflows", {
       workspaceId: request?.workspaceId ?? options.workspaceId,
       moduleId: request?.moduleId,

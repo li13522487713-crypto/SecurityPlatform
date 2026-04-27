@@ -1,7 +1,7 @@
 import { Select, Typography } from "@douyinfe/semi-ui";
 import { useMemo } from "react";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMicroflowMetadata } from "../../metadata";
-import type { MicroflowAuthoringSchema, MicroflowDataType } from "../../schema";
+import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowVariableSymbol } from "../../schema";
 import {
   buildVariableIndex,
   getAvailableVariablesAtField,
@@ -27,6 +27,7 @@ export function VariableSelector({
   includeErrorContext = true,
   includeReadonly = true,
   writableOnly = false,
+  variableFilter,
   disabled,
   placeholder = "Select variable",
   scopeMode = "available",
@@ -46,6 +47,7 @@ export function VariableSelector({
   includeErrorContext?: boolean;
   includeReadonly?: boolean;
   writableOnly?: boolean;
+  variableFilter?: (symbol: MicroflowVariableSymbol) => boolean;
   disabled?: boolean;
   placeholder?: string;
   scopeMode?: "available" | "index";
@@ -74,8 +76,9 @@ export function VariableSelector({
       .filter(symbol => includeReadonly ? true : !symbol.readonly)
       .filter(symbol => writableOnly ? !symbol.readonly : true)
       .filter(symbol => !allowedTypeKinds?.length || allowedTypeKinds.includes(symbol.dataType.kind))
-      .filter(symbol => !allowedTypes?.length || allowedTypes.some(type => type.kind === symbol.dataType.kind));
-  }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, objectId, schema, scopeMode, variableIndex, writableOnly]);
+      .filter(symbol => !allowedTypes?.length || allowedTypes.some(type => type.kind === symbol.dataType.kind))
+      .filter(symbol => variableFilter ? variableFilter(symbol) : true);
+  }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, objectId, schema, scopeMode, variableFilter, variableIndex, writableOnly]);
   const current = value
     ? scopeMode === "index"
       ? variables.find(symbol => symbol.name === value)

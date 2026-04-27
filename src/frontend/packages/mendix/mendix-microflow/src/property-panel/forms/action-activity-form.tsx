@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { Button, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
-import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowDatabaseRetrieveSource, MicroflowExpression, MicroflowSortItem, MicroflowVariableSymbol } from "../../schema";
-import { EMPTY_MICROFLOW_METADATA_CATALOG, getAssociationByQualifiedName, getAttributeByQualifiedName, getMicroflowById, getTargetEntityByAssociation, useMetadataStatus, useMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
-import { buildVariableIndex, getObjectEntityQualifiedName, getVariableNameConflicts, getVariableReferences, resolveVariableReferenceFromIndex } from "../../variables";
+import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowDatabaseRetrieveSource, MicroflowExpression, MicroflowMemberChange, MicroflowSortItem, MicroflowVariableSymbol } from "../../schema";
+import { EMPTY_MICROFLOW_METADATA_CATALOG, getAssociationByQualifiedName, getAttributeByQualifiedName, getEnumerationByQualifiedName, getMicroflowById, getTargetEntityByAssociation, useMetadataStatus, useMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
+import { buildObjectActionWarnings, buildVariableIndex, getObjectEntityQualifiedName, getVariableNameConflicts, getVariableReferences, resolveVariableReferenceFromIndex } from "../../variables";
 import { ErrorHandlingEditor, FieldError, FieldRow, OutputVariableEditor, VariableNameInput } from "../common";
 import { ExpressionEditor } from "../expression";
-import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelector, MicroflowSelector, VariableSelector } from "../selectors";
+import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelector, EnumerationValueSelector, MicroflowSelector, VariableSelector } from "../selectors";
 import type { MicroflowNodePatch, MicroflowPropertyPanelProps } from "../types";
 import { getIssuesForField, getIssuesForObject } from "../utils";
 import { dataTypeLabel, expression, Field, updateAction } from "../panel-shared";
@@ -24,6 +24,30 @@ const listOperationKinds = ["filter", "sort", "map", "distinct", "take", "skip",
 
 function RequiredConfigWarning({ visible, children }: { visible: boolean; children: string }) {
   return visible ? <Text type="warning" size="small">{children}</Text> : null;
+}
+
+function isObjectOrListObjectVariable(symbol: MicroflowVariableSymbol): boolean {
+  return symbol.dataType.kind === "object" || (symbol.dataType.kind === "list" && symbol.dataType.itemType.kind === "object");
+}
+
+function memberEntityQualifiedName(action: Extract<MicroflowAction, { kind: "createObject" | "changeMembers" }>, selectedMemberEntity?: string): string | undefined {
+  return action.kind === "createObject" ? action.entityQualifiedName : selectedMemberEntity;
+}
+
+function memberExpectedType(change: MicroflowMemberChange, catalog: MicroflowMetadataCatalog): MicroflowDataType | undefined {
+  if (change.memberKind === "attribute") {
+    return getAttributeByQualifiedName(catalog, change.memberQualifiedName)?.type;
+  }
+  const association = getAssociationByQualifiedName(catalog, change.memberQualifiedName);
+  if (!association) {
+    return undefined;
+  }
+  const itemType: MicroflowDataType = { kind: "object", entityQualifiedName: association.targetEntityQualifiedName };
+  return change.memberKind === "associationReferenceSet" ? { kind: "list", itemType } : itemType;
+}
+
+function enumValueFromExpression(expressionValue?: MicroflowExpression): string | undefined {
+  return expressionValue?.raw.replace(/^['"]|['"]$/g, "") || undefined;
 }
 
 function retrieveOutputDataType(action: Extract<MicroflowAction, { kind: "retrieve" }>, catalog: MicroflowMetadataCatalog): MicroflowDataType {
@@ -70,6 +94,7 @@ export function ActionActivityForm({
   const { version: metadataVersion } = useMetadataStatus();
   const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
   const variableIndex = useMemo(() => buildVariableIndex(schema, effectiveCatalog), [schema, effectiveCatalog, metadataVersion]);
+  const objectActionWarnings = useMemo(() => buildObjectActionWarnings(schema, object.id, effectiveCatalog), [effectiveCatalog, object.id, schema]);
   const variableEntity = (variableName?: string) => variableName
     ? getObjectEntityQualifiedName(resolveVariableReferenceFromIndex(schema, variableIndex, { objectId: object.id }, variableName)?.dataType)
     : undefined;
@@ -123,6 +148,13 @@ export function ActionActivityForm({
           onChange={errorHandlingType => patchObject(updateAction(object, { errorHandlingType }))}
         />
       </FieldRow>
+      {objectActionWarnings.length > 0 ? (
+        <Space vertical align="start" spacing={4} style={{ width: "100%" }}>
+          {objectActionWarnings.map(warning => (
+            <Text key={warning} type="warning" size="small">{warning}</Text>
+          ))}
+        </Space>
+      ) : null}
 
       {action.kind === "retrieve" ? (
         <>
@@ -347,8 +379,10 @@ export function ActionActivityForm({
               objectId={object.id}
               fieldPath="action.objectOrListVariableName"
               allowedTypeKinds={["object", "list"]}
+              variableFilter={isObjectOrListObjectVariable}
               value={action.objectOrListVariableName}
               disabled={readonly}
+              emptyMessage="No Object or List<Object> variables available."
               onChange={objectOrListVariableName => patchObject(updateAction(object, { objectOrListVariableName: objectOrListVariableName ?? "" }))}
             />
             <FieldError issues={getIssuesForField(issues, "action.objectOrListVariableName")} />
@@ -430,46 +464,90 @@ export function ActionActivityForm({
               {action.kind === "changeMembers" ? (
                 <EntitySelector value={memberEntity} disabled={readonly} onChange={setMemberEntity} placeholder="Select changed object entity" />
               ) : null}
-              {action.memberChanges.map((change, index) => (
-                <div key={change.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px minmax(0, 1fr) auto", gap: 6, width: "100%" }}>
-                  <AttributeSelector
-                    entityQualifiedName={action.kind === "createObject" ? action.entityQualifiedName : memberEntity}
-                    value={change.memberQualifiedName}
-                    disabled={readonly}
-                    writableOnly
-                    onChange={memberQualifiedName => patchObject(updateAction(object, {
-                      memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, memberQualifiedName: memberQualifiedName ?? "" } : row),
-                    }))}
-                  />
-                  <Select
-                    value={change.assignmentKind}
-                    disabled={readonly}
-                    optionList={["set", "add", "remove", "clear"].map(value => ({ label: value, value }))}
-                    onChange={assignmentKind => patchObject(updateAction(object, {
-                      memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, assignmentKind: String(assignmentKind) as typeof row.assignmentKind } : row),
-                    }))}
-                  />
-                  <ExpressionEditor
-                    value={change.valueExpression ?? expression("")}
-                    schema={schema}
-                    metadata={effectiveCatalog}
-                    variableIndex={variableIndex}
-                    objectId={object.id}
-                    actionId={action.id}
-                    fieldPath={`action.memberChanges.${index}.valueExpression`}
-                    expectedType={getAttributeByQualifiedName(effectiveCatalog, change.memberQualifiedName)?.type}
-                    required={change.assignmentKind !== "clear"}
-                    readonly={readonly || change.assignmentKind === "clear"}
-                    placeholder="Expression"
-                    onChange={valueExpression => patchObject(updateAction(object, {
-                      memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression } : row),
-                    }))}
-                  />
-                  <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
-                    memberChanges: action.memberChanges.filter((_, rowIndex) => rowIndex !== index),
-                  }))}>Delete</Button>
-                </div>
-              ))}
+              {action.memberChanges.map((change, index) => {
+                const selectedEntity = memberEntityQualifiedName(action, memberEntity);
+                const selectedAttribute = change.memberKind === "attribute" ? getAttributeByQualifiedName(effectiveCatalog, change.memberQualifiedName) : undefined;
+                const selectedEnumeration = selectedAttribute?.type.kind === "enumeration" ? getEnumerationByQualifiedName(effectiveCatalog, selectedAttribute.type.enumerationQualifiedName) : undefined;
+                const staleMember = Boolean(change.memberQualifiedName) && !memberExpectedType(change, effectiveCatalog);
+                return (
+                  <Space key={change.id} vertical align="start" spacing={4} style={{ width: "100%" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "150px minmax(0, 1fr) 90px minmax(0, 1fr) auto", gap: 6, width: "100%" }}>
+                      <Select
+                        value={change.memberKind}
+                        disabled={readonly}
+                        optionList={[
+                          { label: "Attribute", value: "attribute" },
+                          { label: "Association", value: "associationReference" },
+                          { label: "Association Set", value: "associationReferenceSet" },
+                        ]}
+                        onChange={memberKind => patchObject(updateAction(object, {
+                          memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, memberKind: String(memberKind) as MicroflowMemberChange["memberKind"], memberQualifiedName: "" } : row),
+                        }))}
+                      />
+                      {change.memberKind === "attribute" ? (
+                        <AttributeSelector
+                          entityQualifiedName={selectedEntity}
+                          value={change.memberQualifiedName}
+                          disabled={readonly}
+                          writableOnly
+                          onChange={memberQualifiedName => patchObject(updateAction(object, {
+                            memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, memberQualifiedName: memberQualifiedName ?? "" } : row),
+                          }))}
+                        />
+                      ) : (
+                        <AssociationSelector
+                          startEntityQualifiedName={selectedEntity}
+                          value={change.memberQualifiedName}
+                          disabled={readonly}
+                          onChange={memberQualifiedName => patchObject(updateAction(object, {
+                            memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, memberQualifiedName: memberQualifiedName ?? "" } : row),
+                          }))}
+                        />
+                      )}
+                      <Select
+                        value={change.assignmentKind}
+                        disabled={readonly}
+                        optionList={["set", "add", "remove", "clear"].map(value => ({ label: value, value }))}
+                        onChange={assignmentKind => patchObject(updateAction(object, {
+                          memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, assignmentKind: String(assignmentKind) as typeof row.assignmentKind } : row),
+                        }))}
+                      />
+                      {selectedEnumeration && change.assignmentKind !== "clear" ? (
+                        <EnumerationValueSelector
+                          enumerationQualifiedName={selectedEnumeration.qualifiedName}
+                          value={enumValueFromExpression(change.valueExpression)}
+                          disabled={readonly}
+                          onChange={value => patchObject(updateAction(object, {
+                            memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression: expression(value ? `'${value}'` : "", selectedAttribute?.type) } : row),
+                          }))}
+                        />
+                      ) : (
+                        <ExpressionEditor
+                          value={change.valueExpression ?? expression("")}
+                          schema={schema}
+                          metadata={effectiveCatalog}
+                          variableIndex={variableIndex}
+                          objectId={object.id}
+                          actionId={action.id}
+                          fieldPath={`action.memberChanges.${index}.valueExpression`}
+                          expectedType={memberExpectedType(change, effectiveCatalog)}
+                          required={change.assignmentKind !== "clear"}
+                          readonly={readonly || change.assignmentKind === "clear"}
+                          placeholder="Expression"
+                          onChange={valueExpression => patchObject(updateAction(object, {
+                            memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression } : row),
+                          }))}
+                        />
+                      )}
+                      <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
+                        memberChanges: action.memberChanges.filter((_, rowIndex) => rowIndex !== index),
+                      }))}>Delete</Button>
+                    </div>
+                    {staleMember ? <Text type="warning" size="small">Metadata unavailable / stale member: {change.memberQualifiedName}</Text> : null}
+                    {selectedAttribute?.isReadonly ? <Text type="warning" size="small">Selected attribute is readonly or calculated.</Text> : null}
+                  </Space>
+                );
+              })}
               <Button disabled={readonly || (action.kind === "createObject" ? !action.entityQualifiedName : !memberEntity)} onClick={() => patchObject(updateAction(object, {
                 memberChanges: [...action.memberChanges, {
                   id: `member-change-${Date.now()}`,
