@@ -198,6 +198,26 @@
 - MockRuntimeRunner 已接入 CreateVariable、ChangeVariable、EndEvent、LogMessage、RestCall request preview；FlowNavigator 已接入 Boolean Decision 表达式且保留 options override。
 - 自动化验证入口：`scripts/verify-microflow-expression-evaluator.ts` 与 `MicroflowExpressionEvaluatorTests`。
 
+## 第 52 轮后端 Runtime MetadataResolver + EntityAccess Stub
+
+- 新增 `Runtime/Metadata`：`IMicroflowMetadataResolver`、`MicroflowMetadataResolver`、`MicroflowMetadataResolutionContext`、resolved models、structured diagnostics 与 `MicroflowMetadataResolutionReport`。
+- 新增 `Runtime/Security`：`MicroflowRuntimeSecurityContext`、`IMicroflowEntityAccessService`、`MicroflowEntityAccessService`、`MicroflowEntityAccessDecision` 与可配置 stub policy。
+- `Microflow:Runtime:EntityAccessMode` 支持 `AllowAll`、`RoleBasedStub`、`DenyUnknownEntity`；Development 未显式配置时使用 AllowAll，Production 默认 DenyUnknownEntity。
+- 新增 `Runtime/Objects` metadata-only operation plan，为第 54 轮 Object CRUD Actions 复用 resolver + access decision，不执行业务数据库写入。
+- 新增 `POST /api/microflows/runtime/metadata/resolve` 与 `scripts/verify-microflow-metadata-resolver-entity-access.ts`，覆盖 metadata resolution、member path、dataType、EntityAccess stub 和不泄漏 FlowGram JSON。
+
+## 第 53 轮后端 Runtime TransactionManager / UnitOfWork
+
+- 新增 `Runtime/Transactions`：事务常量、上下文、选项、changed/committed/rolledBack object、operation、log、diagnostic、savepoint、snapshot、summary、exception。
+- 新增 `IMicroflowTransactionManager` / `MicroflowTransactionManager`，提供 begin/commit/rollback/savepoint/rollbackToSavepoint/trackCreate/trackUpdate/trackDelete/trackRollbackObject/trackCommitAction/snapshot 以及 ErrorHandling rollback 基础接口。
+- 新增 `IMicroflowUnitOfWork` / `MicroflowUnitOfWork`，仅维护内存 staged changes 与 operations，不访问业务数据库。
+- `RuntimeExecutionContext` 新增强类型 `Transaction`、`UnitOfWork`、`TransactionManager`、`TransactionOptions`、`CurrentTransactionId` 与 `TransactionDiagnostics`。
+- MockRuntimeRunner 对 P0 object actions 写 transaction change set、trace preview 和 runtime logs；成功 run 自动 commit，失败 rollback，`customWithoutRollback` / `continue` 不 rollback。
+- `MicroflowRunSessionDto` 新增 `transactionSummary`；持久化 extra 同步保存 summary，成功输出可见 `output.transactionSummary`。
+- `.http` 已补 Round 53 TestRun 示例；自动化验证入口：`scripts/verify-microflow-transaction-manager.ts`。
+- 本轮不做真实业务表 CRUD、不调用 ORM SaveChanges、不执行 object events、refresh client、完整 ErrorHandling 或 EntityAccess enforcement。
+- 第 54 轮 Object CRUD Actions 应复用本轮 TransactionManager 作为唯一运行时对象变更日志入口。
+
 ## 未知项
 
 - 多区域复制与**最终一致**的 catalog 版本传播（可后续在 `metadata` 上扩展 ETag）。

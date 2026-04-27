@@ -91,3 +91,26 @@
 - MockRuntimeRunner 低风险接入 CreateVariable、ChangeVariable、EndEvent、LogMessage、RestCall preview；不做真实 CRUD、真实 REST、真实事务或 CallMicroflow 执行。
 - 自动化验证：`dotnet test tests/Atlas.AppHost.Tests/Atlas.AppHost.Tests.csproj --filter "FullyQualifiedName~MicroflowExpressionEvaluatorTests" -p:BaseOutputPath=artifacts/test-bin/`，或 `npx tsx scripts/verify-microflow-expression-evaluator.ts`。
 - 下一轮建议：第 52 轮 MetadataResolver + EntityAccess Stub，在现有 expression/metadata/type 边界上补实体继承、访问权限和真实对象解析 stub。
+
+## 第 52 轮 MetadataResolver + EntityAccess Stub
+
+- 新增 Runtime metadata resolver、resolution context、resolved entity/attribute/association/enumeration/enumeration value/microflow ref/dataType/memberPath model 与 plan metadataRefs 预解析 report。
+- 新增 `MicroflowRuntimeSecurityContext` 与 `IMicroflowEntityAccessService` stub，支持 `AllowAll`、`RoleBasedStub`、`DenyUnknownEntity`，`Strict` 仅作为预留模式。
+- 新增 `IMicroflowRuntimeObjectMetadataService`，只构建 Retrieve/Create/Change/Commit/Delete 的 metadata + access plan，不执行真实数据库 CRUD、不创建真实事务。
+- 自动化验证入口：`scripts/verify-microflow-metadata-resolver-entity-access.ts`；诊断 API：`POST /api/microflows/runtime/metadata/resolve`。
+- 下一轮建议仍是 TransactionManager / UnitOfWork；本轮不做真实事务。
+
+## 第 53 轮 Runtime TransactionManager / UnitOfWork
+
+- 后端新增 Runtime transaction 模型、`IMicroflowTransactionManager`、`MicroflowTransactionManager`、`IMicroflowUnitOfWork` 与 `MicroflowUnitOfWork`。
+- `RuntimeExecutionContext` 挂载强类型 `Transaction`、`UnitOfWork`、`TransactionManager`、`TransactionOptions` 和 `TransactionDiagnostics`。
+- MockRuntimeRunner 的 P0 object actions 已接入事务日志：
+  - `CreateObject` -> `TrackCreate`，可记录 implicit commit。
+  - `ChangeMembers` -> `TrackUpdate`，记录 changed members 与 `validateObject`。
+  - `CommitAction` -> `TrackCommitAction`，记录提交动作但不写 DB。
+  - `DeleteAction` -> `TrackDelete`。
+  - `RollbackAction` -> `TrackRollbackObject`，不等同 transaction rollback。
+- `TraceFrame.output.transaction` 输出对象变更 preview；`RuntimeLog` 写入 `transaction.*` 短文本；`RunSession.transactionSummary` 输出最终状态与计数。
+- ErrorHandling 仅提供 rollback/customWithRollback/customWithoutRollback/continue 的事务基础接口，不执行完整 error handler 语义。
+- 自动化验证：`npx tsx scripts/verify-microflow-transaction-manager.ts`（需 AppHost 已运行）。
+- 下一轮建议：第 54 轮 Object CRUD Actions，通过本轮 TransactionManager 记录真实对象 CRUD 的运行时 change set。

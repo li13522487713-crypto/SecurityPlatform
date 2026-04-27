@@ -39,6 +39,16 @@ public sealed class MicroflowRuntimeMetadataController : MicroflowApiControllerB
     {
         var security = request.SecurityContext
             ?? MicroflowRuntimeSecurityContext.FromRequestContext(_requestContextAccessor.Current);
+        var entityAccessService = string.IsNullOrWhiteSpace(request.EntityAccessMode)
+                                  && request.EntityRequiredRoles.Count == 0
+                                  && request.MicroflowRequiredRoles.Count == 0
+            ? _entityAccessService
+            : new MicroflowEntityAccessService(new MicroflowEntityAccessOptions
+            {
+                EntityAccessMode = request.EntityAccessMode,
+                EntityRequiredRoles = request.EntityRequiredRoles.ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase),
+                MicroflowRequiredRoles = request.MicroflowRequiredRoles.ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase)
+            });
         var plan = await BuildPlanAsync(request, cancellationToken);
         var context = await _metadataResolver.CreateContextAsync(plan, security, cancellationToken);
         var report = _metadataResolver.ResolvePlanMetadataRefs(context);
@@ -74,13 +84,13 @@ public sealed class MicroflowRuntimeMetadataController : MicroflowApiControllerB
         var accessDecisions = new List<MicroflowEntityAccessDecision>();
         foreach (var entity in entities)
         {
-            accessDecisions.Add(await _entityAccessService.CanReadAsync(security, entity, cancellationToken));
-            accessDecisions.Add(await _entityAccessService.CanCreateAsync(security, entity, cancellationToken));
+            accessDecisions.Add(await entityAccessService.CanReadAsync(security, entity, cancellationToken));
+            accessDecisions.Add(await entityAccessService.CanCreateAsync(security, entity, cancellationToken));
         }
 
         foreach (var microflow in microflows)
         {
-            accessDecisions.Add(await _entityAccessService.CanExecuteMicroflowAsync(security, microflow, cancellationToken));
+            accessDecisions.Add(await entityAccessService.CanExecuteMicroflowAsync(security, microflow, cancellationToken));
         }
 
         return MicroflowOk(new MicroflowRuntimeMetadataResolveResponse

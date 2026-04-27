@@ -13,6 +13,87 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
+### Runtime metadata resolver - valid refs, member path, allowAll
+POST {{host}}/api/microflows/runtime/metadata/resolve
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "refs": [
+    { "kind": "entity", "qualifiedName": "Sales.Order", "required": true },
+    { "kind": "attribute", "qualifiedName": "Sales.Order.Status", "required": true },
+    { "kind": "association", "qualifiedName": "Sales.Order_Customer", "required": true },
+    { "kind": "enumeration", "qualifiedName": "Sales.OrderStatus", "required": true }
+  ],
+  "entities": ["Sales.Order"],
+  "attributes": [{ "qualifiedName": "Status", "entityQualifiedName": "Sales.Order" }],
+  "associations": [{ "qualifiedName": "Customer", "entityQualifiedName": "Sales.Order" }],
+  "enumerations": ["Sales.OrderStatus"],
+  "enumerationValues": [{ "enumerationQualifiedName": "Sales.OrderStatus", "value": "New" }],
+  "dataTypes": [
+    { "kind": "object", "entityQualifiedName": "Sales.Order" },
+    { "kind": "list", "itemType": { "kind": "object", "entityQualifiedName": "Sales.Order" } },
+    { "kind": "enumeration", "enumerationQualifiedName": "Sales.OrderStatus" }
+  ],
+  "memberPaths": [
+    { "rootType": { "kind": "object", "entityQualifiedName": "Sales.Order" }, "memberPath": ["Status"] },
+    { "rootType": { "kind": "object", "entityQualifiedName": "Sales.Order" }, "memberPath": ["Customer", "Name"] }
+  ],
+  "entityAccessMode": "AllowAll",
+  "securityContext": {
+    "userId": "{{userId}}",
+    "roles": ["SalesReader"],
+    "workspaceId": "{{workspaceId}}",
+    "tenantId": "{{tenantId}}",
+    "applyEntityAccess": true
+  }
+}
+
+### Runtime metadata resolver - unknown metadata
+POST {{host}}/api/microflows/runtime/metadata/resolve
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "refs": [
+    { "kind": "entity", "qualifiedName": "Sales.DoesNotExist", "required": true },
+    { "kind": "attribute", "qualifiedName": "Sales.Order.DoesNotExist", "required": true }
+  ],
+  "entities": ["Sales.DoesNotExist"],
+  "attributes": [{ "qualifiedName": "DoesNotExist", "entityQualifiedName": "Sales.Order" }],
+  "memberPaths": [
+    { "rootType": { "kind": "object", "entityQualifiedName": "Sales.Order" }, "memberPath": ["DoesNotExist"] }
+  ],
+  "entityAccessMode": "DenyUnknownEntity"
+}
+
+### Runtime metadata resolver - roleBasedStub deny
+POST {{host}}/api/microflows/runtime/metadata/resolve
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "entities": ["Sales.Order"],
+  "entityAccessMode": "RoleBasedStub",
+  "entityRequiredRoles": { "Sales.Order": ["AdminOnly"] },
+  "securityContext": {
+    "userId": "{{userId}}",
+    "roles": ["SalesReader"],
+    "workspaceId": "{{workspaceId}}",
+    "tenantId": "{{tenantId}}",
+    "applyEntityAccess": true
+  }
+}
+
 ### Microflow list
 GET {{host}}/api/microflows?pageIndex=1&pageSize=20
 X-Workspace-Id: {{workspaceId}}
@@ -1015,6 +1096,135 @@ X-Trace-Id: {{traceId}}
       { "id": "flow-rest-end", "originObjectId": "rest-1", "destinationObjectId": "end-1" },
       { "id": "flow-rest-handler", "originObjectId": "rest-1", "destinationObjectId": "handler-log", "isErrorHandler": true },
       { "id": "flow-handler-end", "originObjectId": "handler-log", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 53 - transaction object actions
+# Expected JSON paths:
+# - data.session.trace[*].output.transaction
+# - data.session.output.transactionSummary
+# - data.session.transactionSummary.status == committed
+# - data.session.logs[*].message contains transaction.stageCreate / stageUpdate / stageDelete / commit
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "maxSteps": 80 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound53Transaction",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        { "id": "create-order", "kind": "actionActivity", "action": { "id": "create-order-action", "kind": "createObject", "entityQualifiedName": "Sales.Order", "outputVariableName": "order", "memberChanges": [{ "memberQualifiedName": "Sales.Order.Number", "valueExpression": "'ORD-1'" }], "commit": { "enabled": true }, "withEvents": true, "refreshInClient": true } },
+        { "id": "change-order", "kind": "actionActivity", "action": { "id": "change-order-action", "kind": "changeMembers", "changeVariableName": "order", "memberChanges": [{ "memberQualifiedName": "Sales.Order.Status", "valueExpression": "'Paid'" }], "commit": { "enabled": true }, "validateObject": true } },
+        { "id": "commit-order", "kind": "actionActivity", "action": { "id": "commit-order-action", "kind": "commit", "objectOrListVariableName": "order", "withEvents": true, "refreshInClient": true } },
+        { "id": "delete-order", "kind": "actionActivity", "action": { "id": "delete-order-action", "kind": "delete", "objectOrListVariableName": "order", "deleteBehavior": "deleteOnly", "withEvents": true } },
+        { "id": "rollback-order", "kind": "actionActivity", "action": { "id": "rollback-order-action", "kind": "rollback", "objectOrListVariableName": "order", "refreshInClient": true } },
+        { "id": "end-1", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-start-create", "originObjectId": "start-1", "destinationObjectId": "create-order" },
+      { "id": "flow-create-change", "originObjectId": "create-order", "destinationObjectId": "change-order" },
+      { "id": "flow-change-commit", "originObjectId": "change-order", "destinationObjectId": "commit-order" },
+      { "id": "flow-commit-delete", "originObjectId": "commit-order", "destinationObjectId": "delete-order" },
+      { "id": "flow-delete-rollback", "originObjectId": "delete-order", "destinationObjectId": "rollback-order" },
+      { "id": "flow-rollback-end", "originObjectId": "rollback-order", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 53 - transaction rollback error handling
+# Expected JSON paths:
+# - data.session.status == failed
+# - data.session.transactionSummary.status == rolledBack
+# - data.session.logs[*].message contains transaction.rollback
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "simulateRestError": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound53Rollback",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        { "id": "create-order", "kind": "actionActivity", "action": { "id": "create-order-action", "kind": "createObject", "entityQualifiedName": "Sales.Order", "outputVariableName": "order" } },
+        { "id": "rest-1", "kind": "actionActivity", "action": { "id": "rest-action-1", "kind": "restCall", "errorHandlingType": "rollback" } },
+        { "id": "end-1", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-start-create", "originObjectId": "start-1", "destinationObjectId": "create-order" },
+      { "id": "flow-create-rest", "originObjectId": "create-order", "destinationObjectId": "rest-1" },
+      { "id": "flow-rest-end", "originObjectId": "rest-1", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 53 - transaction customWithoutRollback
+# Expected JSON paths:
+# - data.session.status == success
+# - data.session.transactionSummary.status == committed
+# - data.session.logs[*].message contains customWithoutRollback kept transaction active
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "simulateRestError": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound53CustomWithoutRollback",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        { "id": "create-order", "kind": "actionActivity", "action": { "id": "create-order-action", "kind": "createObject", "entityQualifiedName": "Sales.Order", "outputVariableName": "order" } },
+        { "id": "rest-1", "kind": "actionActivity", "action": { "id": "rest-action-1", "kind": "restCall", "errorHandlingType": "customWithoutRollback" } },
+        { "id": "handled-end", "kind": "endEvent" },
+        { "id": "normal-end", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-start-create", "originObjectId": "start-1", "destinationObjectId": "create-order" },
+      { "id": "flow-create-rest", "originObjectId": "create-order", "destinationObjectId": "rest-1" },
+      { "id": "flow-rest-normal", "originObjectId": "rest-1", "destinationObjectId": "normal-end" },
+      { "id": "flow-rest-handler", "originObjectId": "rest-1", "destinationObjectId": "handled-end", "isErrorHandler": true, "editor": { "edgeKind": "errorHandler" } }
     ],
     "variables": {}
   }

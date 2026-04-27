@@ -87,3 +87,36 @@
 5. Unknown variable、type mismatch、divide by zero、unsupported function 均返回结构化错误。
 6. Runtime integration 覆盖 Decision expression、CreateVariable initialValue、ChangeVariable newValue、End returnValue、LogMessage arguments、RestCall request preview。
 7. TraceFrame output/error 必须包含 `expressionResult` 或诊断详情，且表达式结果不得携带 FlowGram JSON。
+
+## 第 52 轮 MetadataResolver + EntityAccess 场景
+
+自动化入口：`scripts/verify-microflow-metadata-resolver-entity-access.ts`。
+
+覆盖场景：
+
+1. Resolve entity / attribute / association / enumeration / enumeration value / microflow ref。
+2. Resolve object、list<object>、enumeration 与 unknown dataType。
+3. Resolve `$Order/Status`、`$Order/Customer/Name`，并对一对多 list traversal 输出 diagnostic。
+4. Plan `metadataRefs` 预解析输出 missing 与 unsupported refs。
+5. EntityAccess `AllowAll`、`DenyUnknownEntity`、`RoleBasedStub`、system context 与 `applyEntityAccess=false`。
+6. Diagnostic API 与 response 不保存、不回传 FlowGram JSON。
+
+## 第 53 轮 TransactionManager / UnitOfWork 场景
+
+自动化入口：`scripts/verify-microflow-transaction-manager.ts`。
+
+覆盖场景：
+
+1. Begin 创建 active `singleRunTransaction`，并生成 begin log。
+2. 成功 TestRun 自动 commit，`RunSession.transactionSummary.status=committed`。
+3. ErrorHandling `rollback` 或 failed run 自动 rollback，`status=rolledBack`。
+4. `customWithRollback` rollback 后进入 handler path，成功会话仍保留 `rolledBack` transaction summary。
+5. `customWithoutRollback` 与 `continue` 不 rollback，成功结束后可 commit。
+6. `CreateObject` trace 有 `output.transaction.operation=createObject` 与 `stageCreate` log。
+7. `ChangeMembers` trace 有 update preview、changed members 和 `validateObject` 标记。
+8. `CommitAction` 生成 commit transaction log，并可标记匹配 staged changes 为 committed。
+9. `DeleteAction` 生成 delete change 与 `stageDelete` log。
+10. `RollbackAction` 生成对象级 rollback operation，不等同 transaction rollback。
+11. savepoint 可创建，TestRun 默认创建 `run-start` savepoint；`RollbackToSavepoint` 为后续 ErrorHandling 深化保留基础能力。
+12. TraceFrame / RuntimeLog / RunSession summary 均不得包含 FlowGram JSON 或大 raw object。
+13. 本轮不验证真实数据库 CRUD、真实对象持久化、真实 REST 或 EntityAccess enforcement。

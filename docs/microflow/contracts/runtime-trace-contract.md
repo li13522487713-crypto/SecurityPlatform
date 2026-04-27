@@ -59,3 +59,19 @@ FlowNavigator 生成 `MicroflowNavigationStep` 与 `MicroflowNavigationTraceFram
 - Decision 表达式成功时，trace 同时写入 `selectedCaseValue` 与 `output.expressionResult`；失败时写入 `error.code=RUNTIME_EXPRESSION_ERROR` 和表达式 diagnostics。
 - CreateVariable / ChangeVariable / EndEvent / LogMessage / RestCall preview 的 Mock trace output 保留表达式结果预览；RestCall error 的 `details` 可包含 `requestPreview`。
 - DebugPanel 无需新增协议即可显示 output JSON 与 error code/message；表达式结果不得包含 FlowGram JSON。
+
+## 第 53 轮 Transaction Trace / Log Output
+
+- P0 object action 的 `TraceFrame.output` 可包含 `transaction` object：
+  - `transactionId`
+  - `status`
+  - `operation`
+  - `changedObjectCount`
+  - `committedObjectCount`
+  - `rolledBackObjectCount`
+  - `changedObjectsPreview`
+  - `diagnostics`
+- `RunSession.transactionSummary` 与成功 `RunSession.output.transactionSummary` 输出事务最终摘要。
+- `RuntimeLog.message` 以 `transaction.{operation}: {message}` 形式展示事务日志；当前不扩展独立结构化 log payload。
+- DebugPanel 继续按 JSON output 展示 transaction，无需复杂事务可视化。
+- Trace/log 只保存短 preview 与计数，不保存 FlowGram JSON、WorkflowJSON 或大 raw object。

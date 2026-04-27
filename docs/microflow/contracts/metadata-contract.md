@@ -51,6 +51,14 @@
 - 当前限制：Page / Workflow 第一版可为空；完整 Domain Model 后端服务尚未接入；seed catalog 后续会被真实模型服务替代。
 - 详见 [backend-api-contract.md](./backend-api-contract.md)、[request-response-examples.md](./request-response-examples.md)。
 
+## 第 52 轮 Runtime MetadataResolver + EntityAccess Stub
+
+- 后端新增 `IMicroflowMetadataResolver` / `MicroflowMetadataResolver`，唯一 catalog 来源是 `IMicroflowMetadataService.GetCatalogAsync`，不引用前端 mock metadata，不依赖 FlowGram JSON，不修改 `MicroflowAuthoringSchema`。
+- Resolver 创建 `MicroflowMetadataResolutionContext` 时会建立 entity / attribute / association / enumeration / microflow / page / workflow / connector 索引，并保留 `ExecutionPlan.metadataRefs`、`catalogVersion`、`updatedAt` 与 `MicroflowRuntimeSecurityContext`。
+- 支持解析 entity、attribute、association、enumeration、enumeration value、microflow ref、object/list/enumeration dataType、member path 与基础 inheritance/specialization。
+- `ResolvePlanMetadataRefs` 会把 required missing 记为 error、optional missing 记为 warning，并输出 missingEntities / missingAttributes / missingAssociations / missingEnumerations / missingMicroflows / unsupportedRefs。
+- 新增 diagnostic API `POST /api/microflows/runtime/metadata/resolve` 仅用于 Runtime metadata/access 验证，不引入第二套业务 API 契约。
+
 ## 宿主（app-web）边界
 
 - app-web **不**维护实体/枚举列表，**不**构造 `MicroflowMetadataCatalog`；仅通过 `@atlas/mendix-studio-core` 使用微流能力，并可选择传入 **`metadataAdapter`**（或预加载的 `metadataCatalog` 由 core 注入 Provider）。

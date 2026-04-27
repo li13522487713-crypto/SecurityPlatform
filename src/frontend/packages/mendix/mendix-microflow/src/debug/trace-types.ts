@@ -51,6 +51,16 @@ export interface MicroflowRuntimeLog {
   message: string;
 }
 
+export interface MicroflowRuntimeTransactionSummary {
+  transactionId?: string;
+  status: "none" | "active" | "committed" | "rolledBack" | "failed";
+  changedObjectCount: number;
+  committedObjectCount: number;
+  rolledBackObjectCount: number;
+  logCount: number;
+  diagnosticsCount: number;
+}
+
 export interface MicroflowTraceFrame {
   id: string;
   frameId?: string;
@@ -106,6 +116,7 @@ export interface MicroflowRunSession {
   trace: MicroflowTraceFrame[];
   logs: MicroflowRuntimeLog[];
   variables: MicroflowRunSessionVariableSnapshot[];
+  transactionSummary?: MicroflowRuntimeTransactionSummary;
 }
 
 export interface MicroflowTestRunOptions {

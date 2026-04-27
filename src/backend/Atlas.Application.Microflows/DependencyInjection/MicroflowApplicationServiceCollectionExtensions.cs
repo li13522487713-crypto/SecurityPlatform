@@ -5,6 +5,7 @@ using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Metadata;
 using Atlas.Application.Microflows.Runtime.Objects;
 using Atlas.Application.Microflows.Runtime.Security;
+using Atlas.Application.Microflows.Runtime.Transactions;
 using Atlas.Application.Microflows.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -31,6 +32,8 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowMetadataResolver, MicroflowMetadataResolver>();
         services.TryAddScoped<IMicroflowEntityAccessService, MicroflowEntityAccessService>();
         services.TryAddScoped<IMicroflowRuntimeObjectMetadataService, MicroflowRuntimeObjectMetadataService>();
+        services.TryAddScoped<IMicroflowTransactionManager, MicroflowTransactionManager>();
+        services.TryAddTransient<IMicroflowUnitOfWork, MicroflowUnitOfWork>();
         services.TryAddScoped<IMicroflowTestRunService, MicroflowTestRunService>();
         services.TryAddScoped<IMicroflowVersionDiffService, MicroflowVersionDiffService>();
         services.TryAddScoped<IMicroflowPublishImpactService, MicroflowPublishImpactService>();

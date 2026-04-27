@@ -38,8 +38,11 @@ public static class MicroflowSeedMetadataCatalog
                     ],
                     [
                         AssociationRef("Sales.Order_OrderLine", "Sales.OrderLine", "sourceToTarget", "oneToMany"),
+                        AssociationRef("Sales.Order_Customer", "Sales.Customer", "sourceToTarget", "manyToOne"),
                         AssociationRef("Sales.Order_Operator", "System.User", "sourceToTarget", "manyToOne")
                     ]),
+                Entity("sales-customer", "Customer", "Sales.Customer", "Sales", false, null,
+                    [("Id", Type("string"), null), ("Name", Type("string"), null), ("Email", Type("string"), null)]),
                 Entity("sales-order-line", "OrderLine", "Sales.OrderLine", "Sales", false, null,
                     [("Id", Type("string"), null), ("Quantity", Type("integer"), null), ("Price", Type("decimal"), null)],
                     [AssociationRef("Sales.OrderLine_Product", "Sales.Product", "sourceToTarget", "manyToOne")]),
@@ -56,6 +59,7 @@ public static class MicroflowSeedMetadataCatalog
             Associations =
             [
                 Association("sales-order-order-line", "Order_OrderLine", "Sales.Order_OrderLine", "Sales.Order", "Sales.OrderLine", "Sales.Order", "oneToMany"),
+                Association("sales-order-customer", "Order_Customer", "Sales.Order_Customer", "Sales.Order", "Sales.Customer", "Sales.Order", "manyToOne"),
                 Association("sales-order-line-product", "OrderLine_Product", "Sales.OrderLine_Product", "Sales.OrderLine", "Sales.Product", "Sales.OrderLine", "manyToOne"),
                 Association("sales-order-operator", "Order_Operator", "Sales.Order_Operator", "Sales.Order", "System.User", "Sales.Order", "manyToOne")
             ],

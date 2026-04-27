@@ -2,6 +2,7 @@ using System.Text.Json;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime.Security;
+using Atlas.Application.Microflows.Runtime.Transactions;
 
 namespace Atlas.Application.Microflows.Runtime;
 
@@ -48,7 +49,13 @@ public sealed class RuntimeExecutionContext
     public Stack<string> CallStack { get; } = new();
     public Stack<MicroflowVariableScopeFrame> LoopStack { get; } = new();
     public Stack<MicroflowVariableScopeFrame> ErrorStack { get; } = new();
-    public object? TransactionContext { get; init; }
+    public MicroflowRuntimeTransactionContext? Transaction { get; set; }
+    public IMicroflowUnitOfWork? UnitOfWork { get; set; }
+    public IMicroflowTransactionManager? TransactionManager { get; set; }
+    public MicroflowRuntimeTransactionOptions? TransactionOptions { get; set; }
+    public string? CurrentTransactionId => Transaction?.Id;
+    public IReadOnlyList<MicroflowRuntimeTransactionDiagnostic> TransactionDiagnostics => Transaction?.Diagnostics.ToArray() ?? Array.Empty<MicroflowRuntimeTransactionDiagnostic>();
+    public object? TransactionContext => Transaction;
     public MicroflowRequestContext SecurityContext { get; init; } = new();
     public MicroflowRuntimeSecurityContext RuntimeSecurityContext { get; init; } = MicroflowRuntimeSecurityContext.System();
     public string? MetadataVersion { get; init; }
@@ -61,18 +68,27 @@ public sealed class RuntimeExecutionContext
         string mode,
         IReadOnlyDictionary<string, JsonElement>? input,
         MicroflowRequestContext? securityContext,
-        DateTimeOffset startedAt)
+        DateTimeOffset startedAt,
+        IMicroflowTransactionManager? transactionManager = null,
+        MicroflowRuntimeTransactionOptions? transactionOptions = null)
     {
         var store = new MicroflowVariableStore(() => DateTimeOffset.UtcNow);
         var context = new RuntimeExecutionContext(runId, executionPlan, store, startedAt)
         {
             Mode = mode,
             SecurityContext = securityContext ?? new MicroflowRequestContext(),
-            RuntimeSecurityContext = MicroflowRuntimeSecurityContext.FromRequestContext(securityContext, applyEntityAccess: true)
+            RuntimeSecurityContext = MicroflowRuntimeSecurityContext.FromRequestContext(securityContext, applyEntityAccess: true),
+            TransactionManager = transactionManager,
+            TransactionOptions = transactionOptions
         };
 
         context.InitializeParameters(input ?? new Dictionary<string, JsonElement>());
         context.InitializeSystemVariables();
+        if (transactionManager is not null && (transactionOptions ?? new MicroflowRuntimeTransactionOptions()).AutoBegin)
+        {
+            transactionManager.Begin(context, transactionOptions ?? new MicroflowRuntimeTransactionOptions());
+        }
+
         return context;
     }
 
@@ -202,6 +218,23 @@ public sealed class RuntimeExecutionContext
             IncludeRawValue = includeRawValue,
             MaxValuePreviewLength = 200
         });
+
+    public MicroflowRuntimeTransactionSnapshot CreateTransactionSnapshot(
+        string? operation = null,
+        int maxChangedObjectPreviewCount = 10)
+        => TransactionManager?.CreateSnapshot(
+            this,
+            new MicroflowRuntimeTransactionSnapshotOptions
+            {
+                Operation = operation,
+                MaxChangedObjectPreviewCount = maxChangedObjectPreviewCount
+            })
+           ?? new MicroflowRuntimeTransactionSnapshot
+           {
+               Operation = operation,
+               Status = MicroflowRuntimeTransactionStatus.None,
+               Mode = MicroflowRuntimeTransactionMode.None
+           };
 
     private void InitializeParameters(IReadOnlyDictionary<string, JsonElement> input)
     {

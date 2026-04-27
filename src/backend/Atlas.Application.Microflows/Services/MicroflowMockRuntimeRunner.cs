@@ -5,6 +5,7 @@ using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Expressions;
+using Atlas.Application.Microflows.Runtime.Transactions;
 
 namespace Atlas.Application.Microflows.Services;
 
@@ -20,21 +21,24 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
     private readonly IMicroflowSchemaReader _schemaReader;
     private readonly IMicroflowClock _clock;
     private readonly IMicroflowExpressionEvaluator _expressionEvaluator;
+    private readonly IMicroflowTransactionManager _transactionManager;
 
     public MicroflowMockRuntimeRunner(
         IMicroflowSchemaReader schemaReader,
         IMicroflowClock clock,
-        IMicroflowExpressionEvaluator expressionEvaluator)
+        IMicroflowExpressionEvaluator expressionEvaluator,
+        IMicroflowTransactionManager transactionManager)
     {
         _schemaReader = schemaReader;
         _clock = clock;
         _expressionEvaluator = expressionEvaluator;
+        _transactionManager = transactionManager;
     }
 
     public Task<MicroflowRunSessionDto> RunAsync(MicroflowMockRuntimeRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var context = new MockRuntimeContext(request, _schemaReader.Read(request.Schema), _clock, _expressionEvaluator);
+        var context = new MockRuntimeContext(request, _schemaReader.Read(request.Schema), _clock, _expressionEvaluator, _transactionManager);
         context.SeedInputVariables();
 
         var start = context.Model.Objects.SingleOrDefault(o => !o.InsideLoop && IsKind(o, "startEvent"));
@@ -203,6 +207,8 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                     var errorFlow = context.ErrorHandlerFlow(obj.Id);
                     if (string.Equals(handling, "continue", StringComparison.OrdinalIgnoreCase))
                     {
+                        context.TransactionManager.ContinueAfterError(context.RuntimeContext, actionError);
+                        context.DrainTransactionLogs();
                         context.AddLog("warning", obj.Id, obj.Action?.Id, $"Action failed and continued: {actionError.Code}");
                         var continued = context.NextNormalFlow(obj.Id);
                         if (continued is null)
@@ -221,7 +227,14 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                     {
                         if (string.Equals(handling, "customWithRollback", StringComparison.OrdinalIgnoreCase))
                         {
+                            context.TransactionManager.PrepareCustomWithRollback(context.RuntimeContext, actionError);
+                            context.DrainTransactionLogs();
                             context.AddLog("warning", obj.Id, obj.Action?.Id, "Mock transaction rolled back before custom error handler.");
+                        }
+                        else
+                        {
+                            context.TransactionManager.PrepareCustomWithoutRollback(context.RuntimeContext, actionError);
+                            context.DrainTransactionLogs();
                         }
 
                         using var errorScope = context.PushErrorHandlerScope(actionError, errorFlow.Id, outcome.LatestHttpResponse);
@@ -229,6 +242,8 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                         return handled.Kind == ExecutionSignalKind.Error ? handled : ExecutionSignal.Success(handled.Output);
                     }
 
+                    context.TransactionManager.RollbackForError(context.RuntimeContext, actionError, obj.Id, obj.Action?.Id);
+                    context.DrainTransactionLogs();
                     return ExecutionSignal.Failed(actionError);
                 }
 
@@ -360,10 +375,10 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             {
                 "retrieve" => MockRetrieve(context, obj, action),
                 "createObject" => MockCreateObject(context, obj, action),
-                "changeMembers" => MockChangeMembers(context, action),
-                "commit" => JsonObj(new { committed = true, variableName = ReadString(action.Raw, "objectOrListVariableName") }),
-                "delete" => JsonObj(new { deleted = true, variableName = ReadString(action.Raw, "objectOrListVariableName") }),
-                "rollback" => JsonObj(new { rolledBack = true, variableName = ReadString(action.Raw, "objectOrListVariableName") }),
+                "changeMembers" => MockChangeMembers(context, obj, action),
+                "commit" => MockCommit(context, obj, action),
+                "delete" => MockDelete(context, obj, action),
+                "rollback" => MockRollback(context, obj, action),
                 "createVariable" => MockCreateVariable(context, obj, action),
                 "changeVariable" => MockChangeVariable(context, obj, action),
                 "callMicroflow" => MockCallMicroflow(context, obj, action),
@@ -405,7 +420,8 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             return ActionOutcome.Failed(error);
         }
 
-        context.AddFrame(obj, incomingFlowId, context.NextNormalFlow(obj.Id)?.Id, "success", input: FrameInput(obj), output: output, loopIteration: loopIteration);
+        context.DrainTransactionLogs();
+        context.AddFrame(obj, incomingFlowId, context.NextNormalFlow(obj.Id)?.Id, "success", input: FrameInput(obj), output: context.WithTransactionPreview(output, action.Kind), loopIteration: loopIteration);
         return ActionOutcome.Success();
     }
 
@@ -422,14 +438,154 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
     {
         var variableName = ReadString(action.Raw, "outputVariableName") ?? "createdObject";
         var entity = ReadString(action.Raw, "entityQualifiedName") ?? "Mock.Entity";
-        var changes = CountArray(action.Raw, "memberChanges");
-        var value = JsonObj(new { id = Guid.NewGuid().ToString("N"), entityQualifiedName = entity, changedMembers = changes });
+        var members = ReadMemberChanges(action.Raw);
+        var changes = members.Count;
+        var runtimeObjectId = $"runtime-object-{Guid.NewGuid():N}";
+        var value = JsonObj(new { id = runtimeObjectId, entityQualifiedName = entity, changedMembers = changes });
         context.SetVariable(variableName, Type("object"), value, "createObject", obj.Id, action.Id, obj.CollectionId);
+        context.TransactionManager.TrackCreate(
+            context.RuntimeContext,
+            new MicroflowRuntimeObjectChangeInput
+            {
+                EntityQualifiedName = entity,
+                ObjectId = runtimeObjectId,
+                VariableName = variableName,
+                SourceObjectId = obj.Id,
+                SourceActionId = action.Id,
+                CollectionId = obj.CollectionId,
+                AfterJson = value.GetRawText(),
+                ChangedMembers = members,
+                WithEvents = ReadBool(action.Raw, "withEvents"),
+                RefreshInClient = ReadBool(action.Raw, "refreshInClient"),
+                ValidateObject = ReadBool(action.Raw, "validateObject"),
+                Preview = $"create {entity} -> ${variableName}"
+            });
+        if (ReadBoolByPath(action.Raw, "commit", "enabled"))
+        {
+            context.TransactionManager.TrackCommitAction(
+                context.RuntimeContext,
+                new MicroflowRuntimeCommitActionInput
+                {
+                    ObjectOrListVariableName = variableName,
+                    SourceObjectId = obj.Id,
+                    SourceActionId = action.Id,
+                    CollectionId = obj.CollectionId,
+                    WithEvents = ReadBool(action.Raw, "withEvents"),
+                    RefreshInClient = ReadBool(action.Raw, "refreshInClient"),
+                    Reason = "implicit createObject commit"
+                });
+        }
+
         return JsonObj(new { outputVariableName = variableName, entityQualifiedName = entity, changedMembers = changes });
     }
 
-    private static JsonElement MockChangeMembers(MockRuntimeContext context, MicroflowActionModel action)
-        => JsonObj(new { variableName = ReadString(action.Raw, "changeVariableName"), changedMembers = CountArray(action.Raw, "memberChanges") });
+    private static JsonElement MockChangeMembers(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var variableName = ReadString(action.Raw, "changeVariableName") ?? ReadString(action.Raw, "objectVariableName");
+        var before = !string.IsNullOrWhiteSpace(variableName) && context.Variables.TryGetValue(variableName!, out var value)
+            ? value.RawValueJson
+            : null;
+        var members = ReadMemberChanges(action.Raw);
+        var entity = TryReadEntityFromVariable(context, variableName) ?? ReadString(action.Raw, "entityQualifiedName") ?? "Mock.Entity";
+        var after = JsonObj(new { variableName, entityQualifiedName = entity, changedMembers = members.Count, mockedUpdate = true });
+        context.TransactionManager.TrackUpdate(
+            context.RuntimeContext,
+            new MicroflowRuntimeObjectChangeInput
+            {
+                EntityQualifiedName = entity,
+                ObjectId = TryReadObjectIdFromVariable(context, variableName),
+                VariableName = variableName,
+                SourceObjectId = obj.Id,
+                SourceActionId = action.Id,
+                CollectionId = obj.CollectionId,
+                BeforeJson = before,
+                AfterJson = after.GetRawText(),
+                ChangedMembers = members,
+                WithEvents = ReadBool(action.Raw, "withEvents"),
+                RefreshInClient = ReadBool(action.Raw, "refreshInClient"),
+                ValidateObject = ReadBool(action.Raw, "validateObject"),
+                Preview = $"update {entity} from ${variableName ?? "unknown"}"
+            });
+        if (ReadBoolByPath(action.Raw, "commit", "enabled"))
+        {
+            context.TransactionManager.TrackCommitAction(
+                context.RuntimeContext,
+                new MicroflowRuntimeCommitActionInput
+                {
+                    ObjectOrListVariableName = variableName,
+                    SourceObjectId = obj.Id,
+                    SourceActionId = action.Id,
+                    CollectionId = obj.CollectionId,
+                    WithEvents = ReadBool(action.Raw, "withEvents"),
+                    RefreshInClient = ReadBool(action.Raw, "refreshInClient"),
+                    Reason = "implicit changeMembers commit"
+                });
+        }
+
+        return JsonObj(new { variableName, changedMembers = members.Count });
+    }
+
+    private static JsonElement MockCommit(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var variableName = ReadString(action.Raw, "objectOrListVariableName");
+        context.TransactionManager.TrackCommitAction(
+            context.RuntimeContext,
+            new MicroflowRuntimeCommitActionInput
+            {
+                ObjectOrListVariableName = variableName,
+                SourceObjectId = obj.Id,
+                SourceActionId = action.Id,
+                CollectionId = obj.CollectionId,
+                WithEvents = ReadBool(action.Raw, "withEvents"),
+                RefreshInClient = ReadBool(action.Raw, "refreshInClient"),
+                Reason = "CommitAction"
+            });
+        return JsonObj(new { committed = true, variableName });
+    }
+
+    private static JsonElement MockDelete(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var variableName = ReadString(action.Raw, "objectOrListVariableName");
+        var before = !string.IsNullOrWhiteSpace(variableName) && context.Variables.TryGetValue(variableName!, out var value)
+            ? value.RawValueJson
+            : null;
+        var entity = TryReadEntityFromVariable(context, variableName) ?? ReadString(action.Raw, "entityQualifiedName") ?? "Mock.Entity";
+        context.TransactionManager.TrackDelete(
+            context.RuntimeContext,
+            new MicroflowRuntimeObjectChangeInput
+            {
+                EntityQualifiedName = entity,
+                ObjectId = TryReadObjectIdFromVariable(context, variableName),
+                VariableName = variableName,
+                SourceObjectId = obj.Id,
+                SourceActionId = action.Id,
+                CollectionId = obj.CollectionId,
+                BeforeJson = before,
+                WithEvents = ReadBool(action.Raw, "withEvents"),
+                Preview = $"delete {entity} from ${variableName ?? "unknown"}"
+            });
+        return JsonObj(new { deleted = true, variableName, deleteBehavior = ReadString(action.Raw, "deleteBehavior") });
+    }
+
+    private static JsonElement MockRollback(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var variableName = ReadString(action.Raw, "objectOrListVariableName");
+        var entity = TryReadEntityFromVariable(context, variableName) ?? ReadString(action.Raw, "entityQualifiedName") ?? "Mock.Entity";
+        context.TransactionManager.TrackRollbackObject(
+            context.RuntimeContext,
+            new MicroflowRuntimeObjectChangeInput
+            {
+                EntityQualifiedName = entity,
+                ObjectId = TryReadObjectIdFromVariable(context, variableName),
+                VariableName = variableName,
+                SourceObjectId = obj.Id,
+                SourceActionId = action.Id,
+                CollectionId = obj.CollectionId,
+                RefreshInClient = ReadBool(action.Raw, "refreshInClient"),
+                Preview = $"rollback object {entity} from ${variableName ?? "unknown"}"
+            });
+        return JsonObj(new { rolledBack = true, variableName });
+    }
 
     private static JsonElement MockCreateVariable(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
     {
@@ -687,6 +843,20 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
     private static bool ReadBool(JsonElement element, string propertyName)
         => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.True;
 
+    private static bool ReadBoolByPath(JsonElement element, params string[] path)
+    {
+        var current = element;
+        foreach (var part in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out current))
+            {
+                return false;
+            }
+        }
+
+        return current.ValueKind == JsonValueKind.True;
+    }
+
     private static string ReadErrorHandling(JsonElement? action)
         => action.HasValue
             ? ReadString(action.Value, "errorHandlingType") ?? ReadStringByPath(action.Value, "errorHandling", "type") ?? "rollback"
@@ -694,6 +864,77 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
 
     private static int CountArray(JsonElement element, string propertyName)
         => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Array ? value.GetArrayLength() : 0;
+
+    private static IReadOnlyList<MicroflowRuntimeChangedMember> ReadMemberChanges(JsonElement element)
+    {
+        if (!element.TryGetProperty("memberChanges", out var changes) || changes.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<MicroflowRuntimeChangedMember>();
+        }
+
+        return changes.EnumerateArray()
+            .Select((change, index) =>
+            {
+                var member = ReadString(change, "memberQualifiedName")
+                    ?? ReadString(change, "attributeQualifiedName")
+                    ?? ReadString(change, "associationQualifiedName")
+                    ?? ReadString(change, "memberName")
+                    ?? $"member[{index}]";
+                var expression = ReadExpressionTextByPath(change, "value", "expression")
+                    ?? ReadExpressionText(change, "valueExpression")
+                    ?? ReadExpressionText(change, "value")
+                    ?? ReadString(change, "valuePreview");
+                return new MicroflowRuntimeChangedMember
+                {
+                    MemberQualifiedName = member,
+                    MemberKind = ReadBool(change, "isAssociation") || !string.IsNullOrWhiteSpace(ReadString(change, "associationQualifiedName")) ? "association" : "attribute",
+                    AssignmentKind = ReadString(change, "assignmentKind") ?? ReadString(change, "type") ?? "set",
+                    AfterValueJson = expression is null ? null : JsonSerializer.Serialize(expression, JsonOptions),
+                    ValuePreview = expression is null ? null : MicroflowVariableStore.TrimPreview(expression, 120)
+                };
+            })
+            .ToArray();
+    }
+
+    private static string? TryReadObjectIdFromVariable(MockRuntimeContext context, string? variableName)
+    {
+        if (string.IsNullOrWhiteSpace(variableName)
+            || !context.Variables.TryGetValue(variableName!, out var variable)
+            || string.IsNullOrWhiteSpace(variable.RawValueJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(variable.RawValueJson);
+            return ReadString(document.RootElement, "id");
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? TryReadEntityFromVariable(MockRuntimeContext context, string? variableName)
+    {
+        if (string.IsNullOrWhiteSpace(variableName)
+            || !context.Variables.TryGetValue(variableName!, out var variable)
+            || string.IsNullOrWhiteSpace(variable.RawValueJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(variable.RawValueJson);
+            return ReadString(document.RootElement, "entityQualifiedName");
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     private static string? ReadExpressionText(JsonElement element)
     {
@@ -756,6 +997,33 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
     private static JsonElement JsonObj<T>(T value)
         => JsonSerializer.SerializeToElement(value, JsonOptions);
 
+    private static bool ShouldAttachTransaction(string operation)
+        => operation is "createObject" or "changeMembers" or "commit" or "delete" or "rollback";
+
+    private static JsonElement MergeOutput<TExtra>(JsonElement output, TExtra extra)
+    {
+        var merged = new Dictionary<string, object?>(StringComparer.Ordinal);
+        if (output.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in output.EnumerateObject())
+            {
+                merged[property.Name] = property.Value.Clone();
+            }
+        }
+        else
+        {
+            merged["value"] = output.Clone();
+        }
+
+        var extraElement = JsonSerializer.SerializeToElement(extra, JsonOptions);
+        foreach (var property in extraElement.EnumerateObject())
+        {
+            merged[property.Name] = property.Value.Clone();
+        }
+
+        return JsonSerializer.SerializeToElement(merged, JsonOptions);
+    }
+
     private static string Preview(JsonElement element)
         => element.ValueKind switch
         {
@@ -771,13 +1039,15 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         private readonly string _runId = Guid.NewGuid().ToString("N");
         private readonly MicroflowMockRuntimeRequest _request;
         private readonly RuntimeExecutionContext _runtimeContext;
+        private int _transactionLogCursor;
         private int _steps;
 
         public MockRuntimeContext(
             MicroflowMockRuntimeRequest request,
             MicroflowSchemaModel model,
             IMicroflowClock clock,
-            IMicroflowExpressionEvaluator expressionEvaluator)
+            IMicroflowExpressionEvaluator expressionEvaluator,
+            IMicroflowTransactionManager transactionManager)
         {
             _request = request;
             Model = model;
@@ -787,13 +1057,26 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             Objects = model.Objects.Where(o => !string.IsNullOrWhiteSpace(o.Id)).ToDictionary(o => o.Id, StringComparer.Ordinal);
             Flows = model.Flows.ToArray();
             StartedAt = clock.UtcNow;
+            TransactionManager = transactionManager;
             _runtimeContext = RuntimeExecutionContext.Create(
                 _runId,
                 request.ExecutionPlan ?? BuildFallbackExecutionPlan(request, model),
                 MicroflowRuntimeExecutionMode.TestRun,
                 request.Input,
                 request.RequestContext,
-                StartedAt);
+                StartedAt,
+                transactionManager,
+                new MicroflowRuntimeTransactionOptions
+                {
+                    Mode = MicroflowRuntimeTransactionMode.SingleRunTransaction,
+                    AutoBegin = true,
+                    TraceTransactions = true,
+                    RecordBeforeImage = true,
+                    RecordAfterImage = true,
+                    CreateSavepoints = true
+                });
+            transactionManager.CreateSavepoint(_runtimeContext, "run-start");
+            DrainTransactionLogs();
         }
 
         public MicroflowSchemaModel Model { get; }
@@ -809,6 +1092,10 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         public string RunId => _runId;
 
         public IMicroflowExpressionEvaluator ExpressionEvaluator { get; }
+
+        public IMicroflowTransactionManager TransactionManager { get; }
+
+        public RuntimeExecutionContext RuntimeContext => _runtimeContext;
 
         public MicroflowMetadataCatalogDto? Metadata => _request.Metadata;
 
@@ -985,6 +1272,31 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             });
         }
 
+        public void DrainTransactionLogs()
+        {
+            var transaction = _runtimeContext.Transaction;
+            if (transaction is null || _transactionLogCursor >= transaction.Logs.Count)
+            {
+                return;
+            }
+
+            Logs.AddRange(transaction.Logs.Skip(_transactionLogCursor).Select(log => log.ToRuntimeLogDto()));
+            _transactionLogCursor = transaction.Logs.Count;
+        }
+
+        public JsonElement WithTransactionPreview(JsonElement output, string operation)
+        {
+            if (!ShouldAttachTransaction(operation))
+            {
+                return output;
+            }
+
+            return MergeOutput(output, new
+            {
+                transaction = _runtimeContext.CreateTransactionSnapshot(operation, maxChangedObjectPreviewCount: 8)
+            });
+        }
+
         public void SetVariable(
             string name,
             JsonElement type,
@@ -1080,7 +1392,26 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         public MicroflowRunSessionDto BuildSession(string status, MicroflowRuntimeErrorDto? error)
         {
             var endedAt = _clock.UtcNow;
+            if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(_runtimeContext.Transaction?.Status, MicroflowRuntimeTransactionStatus.Active, StringComparison.OrdinalIgnoreCase))
+            {
+                TransactionManager.Commit(_runtimeContext, "run completed");
+            }
+            else if (!string.Equals(status, "success", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(_runtimeContext.Transaction?.Status, MicroflowRuntimeTransactionStatus.Active, StringComparison.OrdinalIgnoreCase))
+            {
+                TransactionManager.Rollback(_runtimeContext, "run failed", error);
+            }
+
+            DrainTransactionLogs();
+            var transactionSummary = BuildTransactionSummary();
             var lastOutputFrame = Frames.LastOrDefault(frame => frame.Output.HasValue);
+            var output = status == "success" ? lastOutputFrame?.Output : null;
+            if (output.HasValue && transactionSummary is not null)
+            {
+                output = MergeOutput(output.Value, new { transactionSummary });
+            }
+
             return new MicroflowRunSessionDto
             {
                 Id = _runId,
@@ -1091,7 +1422,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                 EndedAt = endedAt,
                 Status = status,
                 Input = _request.Input,
-                Output = status == "success" ? lastOutputFrame?.Output : null,
+                Output = output,
                 Error = error,
                 Trace = Frames,
                 Logs = Logs,
@@ -1100,7 +1431,28 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                     FrameId = frame.Id,
                     ObjectId = frame.ObjectId,
                     Variables = frame.VariablesSnapshot?.Values.ToArray() ?? Array.Empty<MicroflowRuntimeVariableValueDto>()
-                }).ToArray()
+                }).ToArray(),
+                TransactionSummary = transactionSummary
+            };
+        }
+
+        private MicroflowRuntimeTransactionSummary? BuildTransactionSummary()
+        {
+            var transaction = _runtimeContext.Transaction;
+            if (transaction is null)
+            {
+                return null;
+            }
+
+            return new MicroflowRuntimeTransactionSummary
+            {
+                TransactionId = transaction.Id,
+                Status = transaction.Status,
+                ChangedObjectCount = transaction.ChangedObjects.Count,
+                CommittedObjectCount = transaction.CommittedObjects.Count,
+                RolledBackObjectCount = transaction.RolledBackObjects.Count,
+                LogCount = transaction.Logs.Count,
+                DiagnosticsCount = transaction.Diagnostics.Count
             };
         }
 

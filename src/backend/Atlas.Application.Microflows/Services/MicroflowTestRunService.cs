@@ -5,6 +5,7 @@ using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
+using Atlas.Application.Microflows.Runtime.Transactions;
 using Atlas.Domain.Microflows.Entities;
 
 namespace Atlas.Application.Microflows.Services;
@@ -255,7 +256,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             Mode = "testRun",
             TraceFrameCount = session.Trace.Count,
             LogCount = session.Logs.Count,
-            ExtraJson = JsonSerializer.Serialize(new { session.Version, variables = session.Variables }, JsonOptions)
+            ExtraJson = JsonSerializer.Serialize(new { session.Version, variables = session.Variables, transactionSummary = session.TransactionSummary }, JsonOptions)
         };
 
         var frames = session.Trace.Select((frame, index) => new MicroflowRunTraceFrameEntity
@@ -321,7 +322,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             Error = error,
             Trace = frames.Select(ToFrameDto).ToArray(),
             Logs = logs.Select(ToLogDto).ToArray(),
-            Variables = extra.Variables
+            Variables = extra.Variables,
+            TransactionSummary = extra.TransactionSummary
         };
     }
 
@@ -398,6 +400,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         public string Version { get; init; } = string.Empty;
 
         public IReadOnlyList<MicroflowVariableSnapshotDto> Variables { get; init; } = Array.Empty<MicroflowVariableSnapshotDto>();
+
+        public MicroflowRuntimeTransactionSummary? TransactionSummary { get; init; }
     }
 
     private static TraceFrameExtra ReadTraceFrameExtra(string? json)

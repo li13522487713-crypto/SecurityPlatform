@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Atlas.Application.Microflows.Runtime.Transactions;
 
 namespace Atlas.Application.Microflows.Models;
 
@@ -98,6 +99,9 @@ public sealed record MicroflowRunSessionDto
 
     [JsonPropertyName("variables")]
     public IReadOnlyList<MicroflowVariableSnapshotDto> Variables { get; init; } = Array.Empty<MicroflowVariableSnapshotDto>();
+
+    [JsonPropertyName("transactionSummary")]
+    public MicroflowRuntimeTransactionSummary? TransactionSummary { get; init; }
 }
 
 public sealed record MicroflowTraceFrameDto

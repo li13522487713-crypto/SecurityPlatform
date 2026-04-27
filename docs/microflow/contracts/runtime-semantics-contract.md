@@ -64,3 +64,22 @@ VariableStore 是真实 Runtime 的变量读写地基，位于 `ExecutionPlan ->
 - MockRuntimeRunner 已接入 CreateVariable `initialValue`、ChangeVariable `newValueExpression`、EndEvent `returnValue`、LogMessage template arguments 与 RestCall URL/Header/Query/Body preview。
 - RestCall 仍不发送真实 HTTP，只把表达式结果写入 `requestPreview`；Retrieve/Create/Commit/Delete 仍不做真实 CRUD，事务语义仍留后续轮次。
 - 表达式失败会进入 failed trace/error，`TraceFrame.output.expressionResult` 包含 valuePreview、rawValueJson、valueType、diagnostics 和 referenced variables/members。
+
+## 第 53 轮 TransactionManager / UnitOfWork 运行语义
+
+TransactionManager 是真实 Runtime 引擎的第六块地基，链路为 `RuntimeExecutionContext -> TransactionManager -> UnitOfWork -> changed/committed/rolledBack objects -> Trace/Log/RunSession diagnostics`。
+
+- TestRun Mock Runtime 默认以 `singleRunTransaction` 自动 begin，并创建 `run-start` savepoint。
+- 成功结束时，active transaction 自动 commit；失败且仍 active 时自动 rollback。
+- `CreateObject`、`ChangeMembers`、`CommitAction`、`DeleteAction`、`RollbackAction` 只写运行时 change set 与 transaction log，不写业务表。
+- `RollbackAction` 是对象级 rollback operation；ErrorHandling `rollback` / `customWithRollback` 才是 transaction rollback 基础接口。
+- `customWithoutRollback` 与 `continue` 不 rollback，后续导航成功时仍可提交当前运行事务。
+- savepoint 本轮不复制大对象 JSON，不回滚 VariableStore；后续完整 ErrorHandling 可在此基础上扩展。
+- Trace / RunSession 只保存 transaction summary 与对象短 preview，不保存 FlowGram JSON。
+
+## 第 52 轮 Metadata / Access 运行语义
+
+- Runtime 执行前可通过 `MetadataResolver.CreateContextAsync(plan, securityContext)` 固化本次 run 的 metadata catalog、索引、plan refs 与安全上下文。
+- ExpressionEvaluator、Object CRUD metadata plan 与后续 CallMicroflow 均复用同一个 resolution context，unknown metadata 返回 diagnostic，不抛 NullReference。
+- EntityAccess 当前只做 stub decision：system context 与 `applyEntityAccess=false` 可 bypass 但必须记录 decision source；普通 user 由 configured mode 判断。
+- 本轮不做完整权限系统、真实 CRUD、真实事务、真实 REST、完整 Domain Model 管理器。

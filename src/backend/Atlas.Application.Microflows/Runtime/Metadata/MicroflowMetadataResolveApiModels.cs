@@ -44,6 +44,12 @@ public sealed record MicroflowRuntimeMetadataResolveRequest
 
     [JsonPropertyName("entityAccessMode")]
     public string? EntityAccessMode { get; init; }
+
+    [JsonPropertyName("entityRequiredRoles")]
+    public IReadOnlyDictionary<string, string[]> EntityRequiredRoles { get; init; } = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+
+    [JsonPropertyName("microflowRequiredRoles")]
+    public IReadOnlyDictionary<string, string[]> MicroflowRequiredRoles { get; init; } = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed record MicroflowMetadataResolveRefRequest

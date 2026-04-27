@@ -49,3 +49,9 @@
 - 变量引用 `$Name` 会按 `Name` 与 `$Name` 两种运行时存储形式查找，以兼容参数变量和系统变量。
 - `$currentIndex` 仅在 loop scope 内由 VariableStore 暴露；`$latestError/$latestHttpResponse` 仅在 error handler scope 内暴露，离开 scope 后表达式会得到 `RUNTIME_VARIABLE_NOT_FOUND`。
 - CreateVariable/ChangeVariable 的写入仍由 VariableStore 拦截 readonly/system 变量；ExpressionEvaluator 只产出可序列化 value/result。
+
+## 第 52 轮 MetadataResolver 变量类型预览
+
+- `MicroflowRuntimeVariableValue` 增加 `typePreview`，用于 DebugPanel 更友好展示 `Object<Sales.Order>`、`List<Sales.Order>`、`Enum<Sales.OrderStatus>`。
+- VariableStore 仍不访问 MetadataService、不修改 rawValueJson；metadata 缺失只形成诊断或 unknown preview，不导致 NullReference。
+- Object/list/enumeration 的强校验由 `MicroflowMetadataResolver.ResolveDataType` 提供，VariableStore 保持运行时变量边界。
