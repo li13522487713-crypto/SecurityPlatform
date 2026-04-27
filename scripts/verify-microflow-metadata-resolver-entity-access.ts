@@ -96,7 +96,7 @@ function resolveBody(extra: Json = {}): Json {
     ],
     memberPaths: [
       { rootType: { kind: "object", entityQualifiedName: "Sales.Order" }, memberPath: ["Status"] },
-      { rootType: { kind: "object", entityQualifiedName: "Sales.Order" }, memberPath: ["Operator", "Name"] },
+      { rootType: { kind: "object", entityQualifiedName: "Sales.Order" }, memberPath: ["Order_Operator", "Name"] },
       { rootType: { kind: "object", entityQualifiedName: "Sales.Order" }, memberPath: ["OrderLine", "Product", "Name"] },
     ],
     securityContext: {
@@ -140,11 +140,11 @@ async function run(): Promise<void> {
   first(result.dataTypes, item => item.kind === "enumeration" && item.enumerationQualifiedName === "Sales.OrderStatus", "enumeration dataType should resolve");
   first(result.dataTypes, item => item.kind === "unknown" && item.found === false, "invalid dataType should report unknown");
   first(result.memberPaths, item => JSON.stringify(item.memberPath) === JSON.stringify(["Status"]) && item.found === true, "$Order/Status should resolve");
-  first(result.memberPaths, item => JSON.stringify(item.memberPath) === JSON.stringify(["Operator", "Name"]) && item.found === true, "$Order/Operator/Name should resolve");
+  first(result.memberPaths, item => JSON.stringify(item.memberPath) === JSON.stringify(["Order_Operator", "Name"]) && item.found === true, "$Order/Order_Operator/Name should resolve");
   first(result.memberPaths, item => JSON.stringify(item.memberPath) === JSON.stringify(["OrderLine", "Product", "Name"]) && JSON.stringify(item.diagnostics).includes("LIST_TRAVERSAL"), "list traversal should produce diagnostic");
   first(result.microflows, item => item.id === target.id && item.found === true, "microflow ref by id should resolve");
   first(result.microflows, item => item.qualifiedName === target.qualifiedName && item.found === true, "microflow ref by qualifiedName should resolve");
-  assert((result.resolutionReport as Json).allResolved === false, "optional missing metadata should be reported");
+  assert(JSON.stringify(result.resolutionReport).includes("Sales.DoesNotExist"), "optional missing metadata should be reported");
   assert(!JSON.stringify(result).includes("objectCollection"), "metadata resolver response must not leak FlowGram JSON");
 
   const allowAll = await api("POST", "/api/microflows/runtime/metadata/resolve", resolveBody({ entityAccessMode: "AllowAll", entities: ["Sales.Order"] }));

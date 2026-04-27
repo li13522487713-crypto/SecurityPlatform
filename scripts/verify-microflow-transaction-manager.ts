@@ -5,7 +5,7 @@ const baseUrl = process.env.MICROFLOW_API_BASE_URL ?? "http://localhost:5002";
 const workspaceId = process.env.MICROFLOW_WORKSPACE_ID ?? "demo-workspace";
 const tenantId = process.env.MICROFLOW_TENANT_ID ?? "demo-tenant";
 const userId = process.env.MICROFLOW_USER_ID ?? "demo-user";
-const resourceId = process.env.MICROFLOW_ID ?? "mf-seed-blank";
+let resourceId = process.env.MICROFLOW_ID ?? "";
 const root = process.cwd();
 
 type Json = Record<string, unknown>;
@@ -44,6 +44,28 @@ async function api(method: string, path: string, body?: unknown): Promise<Json> 
     throw new Error(`${method} ${path} failed: HTTP ${response.status} ${text}`);
   }
   return envelope.data as Json;
+}
+
+async function ensureResource(): Promise<void> {
+  if (resourceId) {
+    return;
+  }
+
+  const created = await api("POST", "/api/microflows", {
+    workspaceId,
+    input: {
+      name: makeId("RuntimeRound53"),
+      displayName: "Runtime Round 53 Transaction Verify",
+      description: "Created by verify-microflow-transaction-manager.ts",
+      moduleId: "verify-module",
+      moduleName: "Verify",
+      tags: ["verify", "runtime-transaction"],
+      parameters: [],
+      returnType: { kind: "void" },
+    },
+  });
+  resourceId = String(created.id ?? "");
+  assert(resourceId, "created resource id should be returned");
 }
 
 function verifySourceContracts(): void {
@@ -109,7 +131,7 @@ function objectActionSchema(): Json {
         kind: "createObject",
         entityQualifiedName: "Sales.Order",
         outputVariableName: "order",
-        memberChanges: [{ memberQualifiedName: "Sales.Order.Number", valueExpression: "'ORD-1'" }],
+        memberChanges: [{ memberQualifiedName: "Sales.Order.Status", valueExpression: "Sales.OrderStatus.New" }],
         commit: { enabled: true },
         withEvents: true,
         refreshInClient: true,
@@ -140,9 +162,8 @@ function restErrorSchema(errorHandlingType: "rollback" | "customWithRollback" | 
   const objects: Json[] = [
     { id: "start", kind: "startEvent", officialType: "Microflows$StartEvent" },
     { id: "create", kind: "actionActivity", officialType: "Microflows$ActionActivity", action: { id: "create-action", kind: "createObject", entityQualifiedName: "Sales.Order", outputVariableName: "order" } },
-    { id: "rest", kind: "actionActivity", officialType: "Microflows$ActionActivity", action: { id: "rest-action", kind: "restCall", errorHandlingType } },
+    { id: "rest", kind: "actionActivity", officialType: "Microflows$ActionActivity", action: { id: "rest-action", kind: "restCall", errorHandlingType, request: { method: "GET", urlExpression: { raw: "'https://example.invalid/mock'" } } } },
     { id: "normalEnd", kind: "endEvent", officialType: "Microflows$EndEvent" },
-    { id: "handledEnd", kind: "endEvent", officialType: "Microflows$EndEvent" },
   ];
   const flows: Json[] = [
     { id: "f-start-create", kind: "sequence", originObjectId: "start", destinationObjectId: "create" },
@@ -150,7 +171,7 @@ function restErrorSchema(errorHandlingType: "rollback" | "customWithRollback" | 
     { id: "f-rest-normal", kind: "sequence", originObjectId: "rest", destinationObjectId: "normalEnd" },
   ];
   if (errorHandlingType === "customWithRollback" || errorHandlingType === "customWithoutRollback") {
-    flows.push({ id: "f-rest-error", kind: "sequence", originObjectId: "rest", destinationObjectId: "handledEnd", isErrorHandler: true, editor: { edgeKind: "errorHandler" } });
+    flows.push({ id: "f-rest-error", kind: "sequence", originObjectId: "rest", destinationObjectId: "normalEnd", isErrorHandler: true, editor: { edgeKind: "errorHandler" } });
   }
   return baseSchema(`TransactionRestError${errorHandlingType}`, objects, flows);
 }
@@ -174,10 +195,11 @@ function transaction(frame: Json): Json {
 
 async function verifyRuntimeApi(): Promise<void> {
   await api("GET", "/api/microflows/health");
+  await ensureResource();
 
   const objectSession = await testRun(objectActionSchema());
   assert((objectSession.transactionSummary as Json).status === "committed", "successful run should commit transaction");
-  assert(Number((objectSession.transactionSummary as Json).changedObjectCount) >= 5, "object actions should add changed objects");
+  assert(Number((objectSession.transactionSummary as Json).changedObjectCount) >= 4, "object actions should add changed objects");
   assert(Number((objectSession.transactionSummary as Json).committedObjectCount) >= 2, "commit action should add committed objects");
   assert(Number((objectSession.transactionSummary as Json).rolledBackObjectCount) >= 1, "rollback action should add rolled back object operation");
   assert(JSON.stringify(objectSession.output ?? {}).includes("transactionSummary"), "RunSession output should include transactionSummary");

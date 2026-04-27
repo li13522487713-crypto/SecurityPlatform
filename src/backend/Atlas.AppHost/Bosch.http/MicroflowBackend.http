@@ -25,12 +25,12 @@ X-Trace-Id: {{traceId}}
   "refs": [
     { "kind": "entity", "qualifiedName": "Sales.Order", "required": true },
     { "kind": "attribute", "qualifiedName": "Sales.Order.Status", "required": true },
-    { "kind": "association", "qualifiedName": "Sales.Order_Customer", "required": true },
+    { "kind": "association", "qualifiedName": "Sales.Order_Operator", "required": true },
     { "kind": "enumeration", "qualifiedName": "Sales.OrderStatus", "required": true }
   ],
   "entities": ["Sales.Order"],
   "attributes": [{ "qualifiedName": "Status", "entityQualifiedName": "Sales.Order" }],
-  "associations": [{ "qualifiedName": "Customer", "entityQualifiedName": "Sales.Order" }],
+  "associations": [{ "qualifiedName": "Operator", "entityQualifiedName": "Sales.Order" }],
   "enumerations": ["Sales.OrderStatus"],
   "enumerationValues": [{ "enumerationQualifiedName": "Sales.OrderStatus", "value": "New" }],
   "dataTypes": [
@@ -40,7 +40,7 @@ X-Trace-Id: {{traceId}}
   ],
   "memberPaths": [
     { "rootType": { "kind": "object", "entityQualifiedName": "Sales.Order" }, "memberPath": ["Status"] },
-    { "rootType": { "kind": "object", "entityQualifiedName": "Sales.Order" }, "memberPath": ["Customer", "Name"] }
+    { "rootType": { "kind": "object", "entityQualifiedName": "Sales.Order" }, "memberPath": ["Order_Operator", "Name"] }
   ],
   "entityAccessMode": "AllowAll",
   "securityContext": {
@@ -1128,7 +1128,7 @@ X-Trace-Id: {{traceId}}
       "id": "root-collection",
       "objects": [
         { "id": "start-1", "kind": "startEvent" },
-        { "id": "create-order", "kind": "actionActivity", "action": { "id": "create-order-action", "kind": "createObject", "entityQualifiedName": "Sales.Order", "outputVariableName": "order", "memberChanges": [{ "memberQualifiedName": "Sales.Order.Number", "valueExpression": "'ORD-1'" }], "commit": { "enabled": true }, "withEvents": true, "refreshInClient": true } },
+        { "id": "create-order", "kind": "actionActivity", "action": { "id": "create-order-action", "kind": "createObject", "entityQualifiedName": "Sales.Order", "outputVariableName": "order", "memberChanges": [{ "memberQualifiedName": "Sales.Order.Status", "valueExpression": "Sales.OrderStatus.New" }], "commit": { "enabled": true }, "withEvents": true, "refreshInClient": true } },
         { "id": "change-order", "kind": "actionActivity", "action": { "id": "change-order-action", "kind": "changeMembers", "changeVariableName": "order", "memberChanges": [{ "memberQualifiedName": "Sales.Order.Status", "valueExpression": "'Paid'" }], "commit": { "enabled": true }, "validateObject": true } },
         { "id": "commit-order", "kind": "actionActivity", "action": { "id": "commit-order-action", "kind": "commit", "objectOrListVariableName": "order", "withEvents": true, "refreshInClient": true } },
         { "id": "delete-order", "kind": "actionActivity", "action": { "id": "delete-order-action", "kind": "delete", "objectOrListVariableName": "order", "deleteBehavior": "deleteOnly", "withEvents": true } },
@@ -1175,7 +1175,7 @@ X-Trace-Id: {{traceId}}
       "objects": [
         { "id": "start-1", "kind": "startEvent" },
         { "id": "create-order", "kind": "actionActivity", "action": { "id": "create-order-action", "kind": "createObject", "entityQualifiedName": "Sales.Order", "outputVariableName": "order" } },
-        { "id": "rest-1", "kind": "actionActivity", "action": { "id": "rest-action-1", "kind": "restCall", "errorHandlingType": "rollback" } },
+        { "id": "rest-1", "kind": "actionActivity", "action": { "id": "rest-action-1", "kind": "restCall", "errorHandlingType": "rollback", "request": { "method": "GET", "urlExpression": { "raw": "'https://example.invalid/mock'" } } } },
         { "id": "end-1", "kind": "endEvent" }
       ]
     },
@@ -1215,8 +1215,7 @@ X-Trace-Id: {{traceId}}
       "objects": [
         { "id": "start-1", "kind": "startEvent" },
         { "id": "create-order", "kind": "actionActivity", "action": { "id": "create-order-action", "kind": "createObject", "entityQualifiedName": "Sales.Order", "outputVariableName": "order" } },
-        { "id": "rest-1", "kind": "actionActivity", "action": { "id": "rest-action-1", "kind": "restCall", "errorHandlingType": "customWithoutRollback" } },
-        { "id": "handled-end", "kind": "endEvent" },
+        { "id": "rest-1", "kind": "actionActivity", "action": { "id": "rest-action-1", "kind": "restCall", "errorHandlingType": "customWithoutRollback", "request": { "method": "GET", "urlExpression": { "raw": "'https://example.invalid/mock'" } } } },
         { "id": "normal-end", "kind": "endEvent" }
       ]
     },
@@ -1224,7 +1223,7 @@ X-Trace-Id: {{traceId}}
       { "id": "flow-start-create", "originObjectId": "start-1", "destinationObjectId": "create-order" },
       { "id": "flow-create-rest", "originObjectId": "create-order", "destinationObjectId": "rest-1" },
       { "id": "flow-rest-normal", "originObjectId": "rest-1", "destinationObjectId": "normal-end" },
-      { "id": "flow-rest-handler", "originObjectId": "rest-1", "destinationObjectId": "handled-end", "isErrorHandler": true, "editor": { "edgeKind": "errorHandler" } }
+      { "id": "flow-rest-handler", "originObjectId": "rest-1", "destinationObjectId": "normal-end", "isErrorHandler": true, "editor": { "edgeKind": "errorHandler" } }
     ],
     "variables": {}
   }

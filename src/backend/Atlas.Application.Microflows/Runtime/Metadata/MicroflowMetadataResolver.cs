@@ -677,9 +677,7 @@ public sealed class MicroflowMetadataResolver : IMicroflowMetadataResolver
             }
 
             association = sourceEntity.Associations.FirstOrDefault(item =>
-                string.Equals(item.AssociationQualifiedName, segment, StringComparison.OrdinalIgnoreCase)
-                || item.AssociationQualifiedName.EndsWith($".{segment}", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(item.AssociationQualifiedName.Split('.').LastOrDefault(), segment, StringComparison.OrdinalIgnoreCase)
+                AssociationMatchesSegment(item.AssociationQualifiedName, segment)
                 || string.Equals(item.TargetEntityQualifiedName.Split('.').LastOrDefault(), segment, StringComparison.OrdinalIgnoreCase))!;
             if (association is not null)
             {
@@ -697,6 +695,16 @@ public sealed class MicroflowMetadataResolver : IMicroflowMetadataResolver
     private static bool ReturnsList(string? multiplicity)
         => multiplicity?.Contains("many", StringComparison.OrdinalIgnoreCase) == true
            && !multiplicity.Contains("ToOne", StringComparison.OrdinalIgnoreCase);
+
+    private static bool AssociationMatchesSegment(string associationQualifiedName, string segment)
+    {
+        var shortName = associationQualifiedName.Split('.').LastOrDefault() ?? associationQualifiedName;
+        var roleName = shortName.Split('_').LastOrDefault() ?? shortName;
+        return string.Equals(associationQualifiedName, segment, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(shortName, segment, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(roleName, segment, StringComparison.OrdinalIgnoreCase)
+               || associationQualifiedName.EndsWith($".{segment}", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string NormalizeKind(string kind)
         => kind switch
