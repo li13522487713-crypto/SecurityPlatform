@@ -8,6 +8,7 @@ import type {
 import { sampleOrderProcessingMicroflow } from "@atlas/microflow";
 import type { MicroflowSchema } from "@atlas/microflow";
 import { SAMPLE_PROCUREMENT_APP, SAMPLE_RUNTIME_OBJECT } from "./sample-app";
+import type { StudioMicroflowDefinitionView } from "./microflow/studio/studio-microflow-types";
 
 export type MendixStudioTab =
   | "domainModel"
@@ -40,6 +41,16 @@ type StudioState = {
   microflowSchema: MicroflowSchema;
   microflowImmersive: boolean;
 
+  /** Studio 上下文字段（由 MendixStudioApp 在渲染时写入） */
+  workspaceId?: string;
+  appId?: string;
+
+  /** 微流资产索引（仅存放展示层视图，不存 MicroflowAuthoringSchema） */
+  activeModuleId?: string;
+  activeMicroflowId?: string;
+  microflowResourcesById: Record<string, StudioMicroflowDefinitionView>;
+  microflowIdsByModuleId: Record<string, string[]>;
+
   setAppSchema: (schema: LowCodeAppSchema) => void;
   setActiveTab: (tab: MendixStudioTab) => void;
   setActiveTabId: (id: ActiveTabId) => void;
@@ -56,6 +67,15 @@ type StudioState = {
   setMicroflowSchema: (schema: MicroflowSchema) => void;
   setMicroflowImmersive: (immersive: boolean) => void;
   loadSampleApp: () => void;
+
+  /** Studio 上下文 action */
+  setStudioContext: (input: { workspaceId?: string; appId?: string }) => void;
+  setActiveModuleId: (moduleId?: string) => void;
+  setActiveMicroflowId: (microflowId?: string) => void;
+
+  /** 微流资产 CRUD action（仅更新 store 索引，不调用 API） */
+  upsertStudioMicroflow: (resource: StudioMicroflowDefinitionView) => void;
+  removeStudioMicroflow: (id: string) => void;
 };
 
 const INITIAL_MICROFLOW_SCHEMA: MicroflowSchema = {
@@ -63,7 +83,7 @@ const INITIAL_MICROFLOW_SCHEMA: MicroflowSchema = {
   version: "1.0.0"
 };
 
-export const useMendixStudioStore = create<StudioState>(set => ({
+export const useMendixStudioStore = create<StudioState>((set, get) => ({
   appSchema: SAMPLE_PROCUREMENT_APP,
   activeTab: "pageBuilder",
   activeTabId: "page",
@@ -76,6 +96,9 @@ export const useMendixStudioStore = create<StudioState>(set => ({
   validationErrors: [],
   microflowSchema: INITIAL_MICROFLOW_SCHEMA,
   microflowImmersive: false,
+
+  microflowResourcesById: {},
+  microflowIdsByModuleId: {},
 
   setAppSchema: appSchema => set({ appSchema }),
   setActiveTab: activeTab => set({ activeTab }),
@@ -96,5 +119,38 @@ export const useMendixStudioStore = create<StudioState>(set => ({
     set({
       appSchema: JSON.parse(JSON.stringify(SAMPLE_PROCUREMENT_APP)) as LowCodeAppSchema,
       runtimeObject: { ...SAMPLE_RUNTIME_OBJECT }
-    })
+    }),
+
+  setStudioContext: ({ workspaceId, appId }) => set({ workspaceId, appId }),
+  setActiveModuleId: activeModuleId => set({ activeModuleId }),
+  setActiveMicroflowId: activeMicroflowId => set({ activeMicroflowId }),
+
+  upsertStudioMicroflow: resource => {
+    const { microflowResourcesById, microflowIdsByModuleId } = get();
+    const nextById = { ...microflowResourcesById, [resource.id]: resource };
+    const existingIds = microflowIdsByModuleId[resource.moduleId] ?? [];
+    const nextModuleIds = existingIds.includes(resource.id)
+      ? existingIds
+      : [...existingIds, resource.id];
+    set({
+      microflowResourcesById: nextById,
+      microflowIdsByModuleId: { ...microflowIdsByModuleId, [resource.moduleId]: nextModuleIds }
+    });
+  },
+
+  removeStudioMicroflow: id => {
+    const { microflowResourcesById, microflowIdsByModuleId } = get();
+    const resource = microflowResourcesById[id];
+    const nextById = { ...microflowResourcesById };
+    delete nextById[id];
+    if (!resource) {
+      set({ microflowResourcesById: nextById });
+      return;
+    }
+    const filteredIds = (microflowIdsByModuleId[resource.moduleId] ?? []).filter(mid => mid !== id);
+    set({
+      microflowResourcesById: nextById,
+      microflowIdsByModuleId: { ...microflowIdsByModuleId, [resource.moduleId]: filteredIds }
+    });
+  },
 }));

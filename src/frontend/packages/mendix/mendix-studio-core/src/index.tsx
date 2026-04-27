@@ -1,9 +1,13 @@
 import "./studio.css";
 
+import { useEffect, useMemo } from "react";
 import { Button, Card, Space, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconArrowRight, IconFullScreenStroked } from "@douyinfe/semi-icons";
 import { MicroflowEditor } from "@atlas/microflow";
 
+import type { MicroflowAdapterFactoryConfig } from "./microflow/config/microflow-adapter-config";
+import type { MicroflowAdapterBundle } from "./microflow/adapter/microflow-adapter-factory";
+import { createMicroflowAdapterBundle } from "./microflow/adapter/microflow-adapter-factory";
 import { StudioHeader } from "./components/studio-header";
 import { AppExplorer } from "./components/app-explorer";
 import { ExplorerSplitLayout } from "./components/explorer-split-layout";
@@ -18,14 +22,52 @@ import { BottomPanel } from "./components/bottom-panel";
 import { RuntimePreview } from "./components/runtime-preview";
 import { useMendixStudioStore } from "./store";
 
+export interface MendixStudioAppProps {
+  appId?: string;
+  workspaceId?: string;
+  tenantId?: string;
+  currentUser?: MicroflowAdapterFactoryConfig["currentUser"];
+  adapterConfig?: MicroflowAdapterFactoryConfig;
+  adapterBundle?: MicroflowAdapterBundle;
+}
+
 const { Text } = Typography;
 
-export function MendixStudioApp({ appId }: { appId?: string }) {
+export function MendixStudioApp({
+  appId,
+  workspaceId,
+  tenantId,
+  currentUser,
+  adapterConfig,
+  adapterBundle,
+}: MendixStudioAppProps) {
   const activeTab = useMendixStudioStore(state => state.activeTab);
   const microflowSchema = useMendixStudioStore(state => state.microflowSchema);
   const microflowImmersive = useMendixStudioStore(state => state.microflowImmersive);
   const setMicroflowSchema = useMendixStudioStore(state => state.setMicroflowSchema);
   const setMicroflowImmersive = useMendixStudioStore(state => state.setMicroflowImmersive);
+  const setStudioContext = useMendixStudioStore(state => state.setStudioContext);
+
+  // 创建 adapter bundle；如果构建失败，仅 console.warn，不阻断页面渲染。
+  const _resolvedBundle = useMemo<MicroflowAdapterBundle | undefined>(() => {
+    if (adapterBundle) return adapterBundle;
+    try {
+      return createMicroflowAdapterBundle({
+        ...adapterConfig,
+        workspaceId: adapterConfig?.workspaceId ?? workspaceId,
+        tenantId: adapterConfig?.tenantId ?? tenantId,
+        currentUser: adapterConfig?.currentUser ?? currentUser,
+      });
+    } catch (err) {
+      console.warn("[MendixStudioApp] Failed to create microflow adapter bundle:", err);
+      return undefined;
+    }
+  }, [adapterBundle, adapterConfig, workspaceId, tenantId, currentUser]);
+
+  // 把 appId/workspaceId 同步到 store 基础上下文（不触发 API 请求）。
+  useEffect(() => {
+    setStudioContext({ appId, workspaceId });
+  }, [appId, workspaceId, setStudioContext]);
 
   const isMicroflow = activeTab === "microflowDesigner";
 

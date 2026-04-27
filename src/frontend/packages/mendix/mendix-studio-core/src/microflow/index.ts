@@ -10,4 +10,5 @@ export * from "./references";
 export * from "./resource";
 export * from "./routes";
 export * from "./schema";
+export * from "./studio";
 export * from "./versions";
