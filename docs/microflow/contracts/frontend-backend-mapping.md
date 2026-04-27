@@ -6,6 +6,10 @@
 
 第 32 轮起，生产 runtime policy 固定为 `defaultMode=http` 且禁止 `mock/local/enableMockFallback/local validation`。后端不可用时 HTTP adapter 抛统一错误，UI 展示服务未连接或 API 错误，不静默展示 mock/local 数据。
 
+第 33 轮起，HTTP 错误统一抛 `MicroflowApiException`：401/403 会触发宿主回调，404/409/422/5xx/network 会映射到 `MicroflowApiErrorCode`。`error.validationIssues` 由编辑器合并进 ProblemPanel；Publish blocked 留在 PublishModal 内展示；Runtime API 错误进入 DebugPanel 服务错误态。
+
+第 34 轮起，Contract Mock 使用 MSW 拦截上述 HTTP 请求，返回与后端契约一致的 `MicroflowApiResponse<T>`。该模式不是 `mock/local` adapter：`app-web` 仍传 `mode=http` 与 `apiBaseUrl`，不读取 mock store、不 import handler。
+
 ## ResourceAdapter
 
 | 方法 | HTTP | 请求 | 响应 data |
@@ -58,3 +62,4 @@
 ## 本地 adapter
 
 - `local-microflow-resource-adapter` 直接返回 DTO，**不**包 `MicroflowApiResponse`；`listMicroflows` 在提供 `pageIndex`+`pageSize` 时给出 `hasMore`；`tags` 为 OR 语义；`getMicroflowReferences` 支持 query 过滤。
+- Contract Mock 位于 `mendix-studio-core/src/microflow/contracts/mock-api`，只服务 development/test/contract；生产路径不启动 MSW。

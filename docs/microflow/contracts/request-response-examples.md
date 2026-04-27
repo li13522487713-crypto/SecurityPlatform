@@ -100,8 +100,11 @@ Body: `{ "reason": "rollback to stable" }`
   "success": false,
   "error": {
     "code": "MICROFLOW_NOT_FOUND",
-    "message": "Microflow not found"
+    "message": "Microflow not found",
+    "httpStatus": 404,
+    "traceId": "00-demo"
   },
+  "traceId": "00-demo",
   "timestamp": "2026-04-27T00:00:00.000Z"
 }
 ```
@@ -109,3 +112,23 @@ Body: `{ "reason": "rollback to stable" }`
 ## 12. 校验失败
 
 `error.code` 为 `MICROFLOW_VALIDATION_FAILED`，且 `error.validationIssues` 为 `MicroflowValidationIssue[]`（见 `api-examples` 中 `exampleValidationErrorEnvelope`）。
+
+## 13. HTTP 错误展示策略
+
+- `401` → `MICROFLOW_UNAUTHORIZED`，触发宿主 `onUnauthorized`。
+- `403` → `MICROFLOW_PERMISSION_DENIED`，触发宿主 `onForbidden`。
+- `404` → EditorPage 显示资源不存在。
+
+## 14. Contract Mock 错误模拟
+
+在 MSW Contract Mock 模式下，任意 API 可加 header 或 query：
+
+```http
+GET /api/microflows?mockError=version-conflict
+x-microflow-mock-error: version-conflict
+```
+
+支持 `unauthorized`、`forbidden`、`not-found`、`version-conflict`、`validation-failed`、`publish-blocked`、`reference-blocked`、`service-unavailable`、`network`。响应仍为 `MicroflowApiResponse<never>`，network 场景使用 MSW network-like error。
+- `409` → 保存/发布显示版本冲突，保留本地 dirty schema。
+- `422` → `MICROFLOW_VALIDATION_FAILED`，`validationIssues` 进入 ProblemPanel。
+- `5xx/network/timeout` → ResourceTab / Metadata selector / DebugPanel 显示服务不可用并提供重试。

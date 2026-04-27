@@ -24,9 +24,12 @@
 20. **边界检查脚本**：执行 `pnpm run verify:microflow-adapter-modes`，确认 app-web 不直接 fetch、不直接触碰微流 localStorage、不 import adapter 内部实现。
 21. **生产禁 mock**：执行 `pnpm run verify:microflow-no-production-mock`，确认生产策略默认 http、禁止 mock/local/fallback，HTTP adapter 不 import mock/local。
 22. **模式提示**：开发环境资源库工具栏和编辑器 header 可看到 `mock/local/http` 当前模式；mock/local 显示“本地模拟数据”，http 显示 base url。
-23. **P0 属性面板**：Retrieve/CreateObject/ChangeMembers/Commit/Delete/Rollback/CreateVariable/ChangeVariable/CallMicroflow/RestCall/LogMessage 均使用强类型字段，不出现 generic config 或 raw JSON dump。
-24. **字段级错误**：清空输出变量、REST URL、CallMicroflow 参数或 Loop iterator 时，字段下方显示对应 `ValidationIssue.fieldPath`。
-25. **变量联动**：修改 Retrieve/CreateObject/CreateVariable/CallMicroflow/RestCall 输出变量后，下游 VariableSelector 可见，重复名提示错误。
+23. **HTTP 错误处理**：执行 `pnpm run verify:microflow-http-error-handling`；401/403 回调触发，404/409/422/network 均有明确 UI。
+24. **ProblemPanel 桥接**：后端返回 `error.validationIssues` 时，保存/校验/发布/test-run 能进入 ProblemPanel，不只 toast。
+25. **抽屉错误态**：VersionsDrawer / ReferencesDrawer API 失败显示错误态和重试按钮，不显示假空数据。
+26. **P0 属性面板**：Retrieve/CreateObject/ChangeMembers/Commit/Delete/Rollback/CreateVariable/ChangeVariable/CallMicroflow/RestCall/LogMessage 均使用强类型字段，不出现 generic config 或 raw JSON dump。
+27. **字段级错误**：清空输出变量、REST URL、CallMicroflow 参数或 Loop iterator 时，字段下方显示对应 `ValidationIssue.fieldPath`。
+28. **变量联动**：修改 Retrieve/CreateObject/CreateVariable/CallMicroflow/RestCall 输出变量后，下游 VariableSelector 可见，重复名提示错误。
 26. **FlowGram 同步**：修改 caption、REST method/url、Log level、CallMicroflow target、输出变量、Loop iterator 后，节点标题或副标题同步更新且视口不跳回原点。
 27. **变量作用域 v2**：Retrieve 输出在节点前不可见、节点后可见；Decision 分支变量在 Merge 后显示 maybe；Loop 内可见 iterator 与 `$currentIndex`，Loop 外不可见。
 28. **ErrorHandler 变量**：REST error handler 内可见 `$latestError` 与 `$latestHttpResponse`，主路径不可见；WebService error handler 内可见 `$latestSoapFault`。
@@ -51,3 +54,19 @@
 - `pnpm --filter @atlas/microflow run typecheck`
 - `pnpm run verify:microflow-adapter-modes`
 - `pnpm run verify:microflow-no-production-mock`
+- `pnpm run verify:microflow-http-error-handling`
+- `pnpm run verify:microflow-contract-mock`
+
+## Contract Mock HTTP 模式
+
+1. 设置 `VITE_MICROFLOW_API_MOCK=msw`、`VITE_MICROFLOW_ADAPTER_MODE=http`、`VITE_MICROFLOW_API_BASE_URL=/api`，启动 `pnpm run dev:app-web`。
+2. ResourceTab 通过 HTTP mock 加载资源列表，支持搜索、状态、发布状态、收藏、模块、标签、排序与分页。
+3. 新建微流后进入 EditorPage，刷新详情与 schema 不丢。
+4. 保存 schema 走 `PUT /api/microflows/{id}/schema`，已发布资源保存后变为 `changedAfterPublish`。
+5. Metadata selectors 走 `GET /api/microflow-metadata` 及 entity/enumeration 子路径。
+6. 手动校验走 `POST /api/microflows/{id}/validate`，ProblemPanel 展示返回 issues。
+7. PublishModal 走 publish API；validation error、high impact、重复版本均被阻止。
+8. VersionsDrawer / VersionDetailDrawer 走 versions API，rollback 与 duplicate version 可用。
+9. ReferencesDrawer 走 references API，PublishModal impact summary 走 impact API。
+10. DebugPanel 走 test-run、get run、trace、cancel API，展示 RunSession 与 trace/logs。
+11. 使用 `x-microflow-mock-error` 或 `?mockError=` 分别验证 404、403、409、validation failed、publish blocked、runtime service unavailable 与 network-like error。

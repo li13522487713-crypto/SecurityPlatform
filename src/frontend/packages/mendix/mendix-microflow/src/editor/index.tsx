@@ -90,6 +90,14 @@ const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest",
 
 type MicroflowSchemaChangeSource = "propertyPanel" | "flowgram" | "nodePanel" | "autolayout" | "history" | "runtime";
 
+interface MicroflowApiErrorLike {
+  code?: string;
+  message?: string;
+  details?: string;
+  validationIssues?: MicroflowValidationIssue[];
+  traceId?: string;
+}
+
 interface MicroflowSchemaChangeOptions {
   pushHistory?: boolean;
   historyLabel?: string;
@@ -141,6 +149,32 @@ function isMicroflowHistoryReason(value: string): value is MicroflowHistoryReaso
 
 function isEditableElement(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function getApiErrorLike(error: unknown): MicroflowApiErrorLike | undefined {
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
+  const maybe = error as { apiError?: MicroflowApiErrorLike };
+  return maybe.apiError;
+}
+
+function getEditorApiErrorMessage(error: unknown): string {
+  const apiError = getApiErrorLike(error);
+  if (apiError?.message) {
+    return apiError.traceId ? `${apiError.message} (Trace ${apiError.traceId})` : apiError.message;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+function applyApiValidationIssues(error: unknown, setIssues: (issues: MicroflowValidationIssue[]) => void, openProblems: () => void): boolean {
+  const issues = getApiErrorLike(error)?.validationIssues;
+  if (!issues?.length) {
+    return false;
+  }
+  setIssues(issues);
+  openProblems();
+  return true;
 }
 
 function selectionExists(schema: MicroflowSchema, selection?: MicroflowHistorySelection): MicroflowHistorySelection {
@@ -1014,6 +1048,7 @@ function ProblemPanel({
 
 function DebugPanel({
   session,
+  serviceError,
   activeFrameId,
   onSelectFrame,
   onSelectFlow,
@@ -1022,6 +1057,7 @@ function DebugPanel({
   onRerun,
 }: {
   session?: MicroflowRunSession;
+  serviceError?: string;
   activeFrameId?: string;
   onSelectFrame: (frame: MicroflowTraceFrame) => void;
   onSelectFlow: (flowId: string) => void;
@@ -1032,6 +1068,9 @@ function DebugPanel({
   const [variableKeyword, setVariableKeyword] = useState("");
   const [logObjectFilter, setLogObjectFilter] = useState("all");
   const activeFrame = activeFrameId ? session?.trace.find(frame => frame.id === activeFrameId) : session?.trace.at(-1);
+  if (serviceError) {
+    return <Empty title="运行服务不可用" description={serviceError} />;
+  }
   if (!session || session.trace.length === 0) {
     return <Empty title="No trace" description="Run a test to see object/flow trace frames." />;
   }
@@ -1216,6 +1255,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   });
   const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
   const [runSession, setRunSession] = useState<MicroflowRunSession>();
+  const [runtimeServiceError, setRuntimeServiceError] = useState<string>();
   const [activeTraceFrameId, setActiveTraceFrameId] = useState<string>();
   const [testRunModalOpen, setTestRunModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1430,17 +1470,31 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       refreshHistoryState();
       setDirty(false);
       Toast.success(`Saved ${response.version}`);
+    } catch (error) {
+      applyApiValidationIssues(error, setIssues, () => {
+        setBottomOpen(true);
+        setBottomTab("problems");
+      });
+      Toast.error(getEditorApiErrorMessage(error));
     } finally {
       setSaving(false);
     }
   };
 
   const handleValidate = async () => {
-    runValidationNow(schema);
-    const response = await apiClient.validateMicroflow({ schema });
-    setIssues(response.issues);
-    props.onValidateComplete?.(response);
-    Toast[response.valid ? "success" : "warning"](response.valid ? "Validation passed" : `${response.issues.length} issue(s)`);
+    try {
+      runValidationNow(schema);
+      const response = await apiClient.validateMicroflow({ schema });
+      setIssues(response.issues);
+      props.onValidateComplete?.(response);
+      Toast[response.valid ? "success" : "warning"](response.valid ? "Validation passed" : `${response.issues.length} issue(s)`);
+    } catch (error) {
+      applyApiValidationIssues(error, setIssues, () => {
+        setBottomOpen(true);
+        setBottomTab("problems");
+      });
+      Toast.error(getEditorApiErrorMessage(error));
+    }
   };
 
   const handleTestRun = async () => {
@@ -1462,6 +1516,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRunning(true);
     try {
       const response = await apiClient.testRunMicroflow({ microflowId: schema.id, input: input.parameters, options: input.options, schema });
+      setRuntimeServiceError(undefined);
       setRunSession(response.session);
       setTraceFrames(response.frames);
       setActiveTraceFrameId(response.frames[0]?.id);
@@ -1470,6 +1525,18 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setBottomTab("debug");
       props.onTestRunComplete?.(response);
       Toast[response.status === "succeeded" ? "success" : "error"](response.status);
+    } catch (error) {
+      applyApiValidationIssues(error, setIssues, () => {
+        setBottomOpen(true);
+        setBottomTab("problems");
+      });
+      setRunSession(undefined);
+      setTraceFrames([]);
+      setActiveTraceFrameId(undefined);
+      setRuntimeServiceError(getEditorApiErrorMessage(error));
+      setBottomOpen(true);
+      setBottomTab("debug");
+      Toast.error(getEditorApiErrorMessage(error));
     } finally {
       setRunning(false);
     }
@@ -1477,6 +1544,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const clearTestRun = () => {
     setRunSession(undefined);
+    setRuntimeServiceError(undefined);
     setTraceFrames([]);
     setActiveTraceFrameId(undefined);
   };
@@ -1956,6 +2024,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
                 <DebugPanel
                   session={runSession}
+                  serviceError={runtimeServiceError}
                   activeFrameId={activeTraceFrameId}
                   onSelectFrame={selectTraceFrame}
                   onSelectFlow={selectTraceFlow}

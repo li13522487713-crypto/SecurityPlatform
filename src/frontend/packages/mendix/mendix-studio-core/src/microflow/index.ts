@@ -1,5 +1,6 @@
 export * from "./adapter";
 export * from "./config";
+export * from "./components";
 export * from "./context";
 export * from "./contracts";
 export * from "./metadata";

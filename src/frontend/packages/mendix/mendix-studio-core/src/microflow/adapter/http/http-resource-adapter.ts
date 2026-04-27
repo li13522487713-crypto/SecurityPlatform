@@ -17,6 +17,7 @@ import type {
 import type { MicroflowVersionDetail, MicroflowVersionDiff, MicroflowVersionSummary } from "../../versions/microflow-version-types";
 import type { GetMicroflowReferencesRequest } from "../../contracts/api/microflow-reference-api-contract";
 import type { MicroflowApiPageResult } from "../../contracts/api/api-envelope";
+import type { SaveMicroflowSchemaResponse } from "../../contracts/api/microflow-schema-api-contract";
 import type { MicroflowResourceAdapter, SaveMicroflowSchemaOptions } from "../microflow-resource-adapter";
 import { MicroflowApiClient, type MicroflowApiClientOptions, type MicroflowQuery } from "./microflow-api-client";
 
@@ -61,7 +62,8 @@ export function createHttpMicroflowResourceAdapter(options: HttpMicroflowResourc
       return client.patch<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}`, { patch });
     },
     async saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema, saveOptions?: SaveMicroflowSchemaOptions) {
-      return client.put<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}/schema`, { schema, ...saveOptions });
+      const response = await client.put<SaveMicroflowSchemaResponse>(`/api/microflows/${encodeURIComponent(id)}/schema`, { schema, ...saveOptions });
+      return response.resource;
     },
     async duplicateMicroflow(id: string, input?: MicroflowDuplicateInput) {
       return client.post<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}/duplicate`, input ?? {});

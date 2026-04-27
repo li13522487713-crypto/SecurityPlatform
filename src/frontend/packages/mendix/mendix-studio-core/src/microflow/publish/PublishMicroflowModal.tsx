@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Checkbox, Input, Modal, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { validateMicroflowSchema, type MicroflowValidationIssue } from "@atlas/microflow";
 
+import { getMicroflowApiError, getMicroflowErrorUserMessage, isPublishBlockedError, isValidationFailedError, isVersionConflictError } from "../adapter/http/microflow-api-error";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import type { MicroflowValidationAdapter } from "../adapter/microflow-validation-adapter";
+import { MicroflowErrorState } from "../components/error";
 import { nextMicroflowVersion } from "../resource/resource-utils";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MicroflowReferenceImpactTag } from "../references/MicroflowReferenceImpactTag";
@@ -34,6 +36,7 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
   const [impact, setImpact] = useState<MicroflowPublishImpactAnalysis>();
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [apiError, setApiError] = useState<unknown>();
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [confirmBreakingChanges, setConfirmBreakingChanges] = useState(false);
   const [versionMessage, setVersionMessage] = useState<string>();
@@ -53,6 +56,7 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
     setDescription("");
     setConfirmPublish(false);
     setConfirmBreakingChanges(false);
+    setApiError(undefined);
   }, [resource, visible]);
 
   useEffect(() => {
@@ -60,6 +64,7 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
       return;
     }
     setLoading(true);
+    setApiError(undefined);
     Promise.all([
       validationAdapter
         ? validationAdapter.validate({ resourceId: resource.id, schema: resource.schema, mode: "publish" })
@@ -76,7 +81,14 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
         setVersionMessage(versionResult.message ?? versionResult.warning);
         setImpact(nextImpact);
       })
-      .catch(error => Toast.error(error instanceof Error ? error.message : String(error)))
+      .catch(error => {
+        setApiError(error);
+        const normalized = getMicroflowApiError(error);
+        if (normalized.validationIssues?.length) {
+          setIssues(normalized.validationIssues);
+        }
+        Toast.error(getMicroflowErrorUserMessage(error));
+      })
       .finally(() => setLoading(false));
   }, [adapter, description, resource, version, visible]);
 
@@ -88,6 +100,7 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
       return;
     }
     setPublishing(true);
+    setApiError(undefined);
     try {
       const result = await adapter.publishMicroflow(resource.id, {
         version: version.trim(),
@@ -98,7 +111,17 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
       onPublished(result.resource);
       onClose();
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : String(error));
+      setApiError(error);
+      const normalized = getMicroflowApiError(error);
+      if (normalized.validationIssues?.length) {
+        setIssues(normalized.validationIssues);
+        onViewProblems?.(normalized.validationIssues);
+      }
+      if (isPublishBlockedError(error) || isValidationFailedError(error) || isVersionConflictError(error)) {
+        Toast.warning(getMicroflowErrorUserMessage(error));
+      } else {
+        Toast.error(getMicroflowErrorUserMessage(error));
+      }
     } finally {
       setPublishing(false);
     }
@@ -130,6 +153,7 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
           {versionMessage ? <Text type={versionMessage.includes("不推荐") ? "warning" : "danger"}>{versionMessage}</Text> : null}
           <Input.TextArea value={description} onChange={setDescription} placeholder="发布说明" rows={3} />
           {loading ? <Spin /> : null}
+          {apiError ? <MicroflowErrorState error={apiError} title="发布检查失败" compact /> : null}
           <PublishValidationSummary summary={validationSummary} onViewProblems={onViewProblems ? () => onViewProblems(issues) : undefined} />
           <PublishImpactSummary impact={impact} />
           <PublishBreakingChanges changes={impact?.breakingChanges ?? []} />

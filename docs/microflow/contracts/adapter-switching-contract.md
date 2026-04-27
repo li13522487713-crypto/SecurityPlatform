@@ -26,6 +26,7 @@
 
 - `VITE_MICROFLOW_ADAPTER_MODE` / `MICROFLOW_ADAPTER_MODE`：`mock`、`local`、`http`。
 - `VITE_MICROFLOW_API_BASE_URL` / `MICROFLOW_API_BASE_URL`：HTTP adapter base url。
+- `VITE_MICROFLOW_API_MOCK` / `MICROFLOW_API_MOCK`：`msw` 时仅在 dev/test 启动 Contract Mock worker，adapter 仍强制为 `http`。
 - `VITE_API_BASE`：未设置微流专用 base url 时的 app-web fallback。
 
 ## app-web 接入
@@ -49,12 +50,15 @@
 - 将 HTTP error / API error 统一转换为 `MicroflowApiClientError`。
 - 触发 `onUnauthorized`、`onForbidden`、`onApiError` 回调。
 
+第 33 轮起，`MicroflowApiClientError` 兼容并继承 `MicroflowApiException`；`MicroflowApiError` 固定携带 `httpStatus`、`traceId`、`raw`。错误工具提供 `isUnauthorizedError`、`isForbiddenError`、`isNotFoundError`、`isVersionConflictError`、`isValidationFailedError`、`isPublishBlockedError`、`isNetworkError` 与统一用户提示。
+
 入口 UI 行为：
 
 - ResourceTab：列表失败显示“微流服务未连接”、`apiBaseUrl`、错误消息和重试按钮。
 - EditorPage：按 404/403/409/服务异常显示明确错误，并提供返回资源库。
 - Metadata selector：元数据加载失败时禁用并显示“元数据加载失败”。
 - Validation / Publish / TestRun：HTTP validation 或 runtime API 失败时阻止发布/运行，不生成 mock trace。
+- VersionsDrawer / ReferencesDrawer：加载失败显示错误态和重试按钮，回滚/复制/比较失败只提示并保留当前状态。
 
 ## 联调步骤
 
@@ -63,6 +67,10 @@
 3. 进入资源库微流 Tab，确认列表、详情、保存、发布、版本、引用、校验、测试运行均走 HTTP。
 4. 后端 mock API server 可使用同一契约返回 `MicroflowApiResponse<T>`，前端无需改代码，只切换 base url。
 
+## Contract Mock
+
+第 34 轮起，`@atlas/mendix-studio-core` 提供 `startMicroflowContractMockWorker()`。app-web 仅在 `MICROFLOW_API_MOCK=msw` 且非生产时调用该公开 helper；Resource/Metadata/Runtime/Validation 仍由 HTTP Adapter 发请求，MSW 返回标准 `MicroflowApiResponse<T>`。详见 `contract-mock-readme.md`。
+
 ## 边界验证
 
 执行：
@@ -70,6 +78,7 @@
 ```bash
 pnpm run verify:microflow-adapter-modes
 pnpm run verify:microflow-no-production-mock
+pnpm run verify:microflow-contract-mock
 ```
 
 这些脚本检查三种 bundle 工厂、runtime policy、HTTP adapters、ValidationAdapter、app-web 边界、生产默认不回 mock，以及生产路径没有微流 mock/local import。

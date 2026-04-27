@@ -9,7 +9,17 @@ import { initializeAppRuntime } from "./app/runtime-init";
 
 initializeAppRuntime();
 
+function shouldStartMicroflowContractMock(): boolean {
+  const env = import.meta.env;
+  const mockMode = env.VITE_MICROFLOW_API_MOCK ?? env.MICROFLOW_API_MOCK;
+  return mockMode === "msw" && env.PROD !== true;
+}
+
 async function bootstrap() {
+  if (shouldStartMicroflowContractMock()) {
+    const { startMicroflowContractMockWorker } = await import("@atlas/mendix-studio-core");
+    await startMicroflowContractMockWorker();
+  }
   const { AppRoot } = await import("./app/app");
   const container = document.getElementById("app");
   if (!container) {

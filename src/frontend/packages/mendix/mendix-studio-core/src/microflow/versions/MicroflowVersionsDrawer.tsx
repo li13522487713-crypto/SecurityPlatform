@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Button, Drawer, Empty, Modal, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 
+import { getMicroflowErrorUserMessage } from "../adapter/http/microflow-api-error";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
+import { MicroflowErrorState } from "../components/error";
 import type { MicroflowResource } from "../resource/resource-types";
 import type { MicroflowVersionDetail, MicroflowVersionSummary } from "./microflow-version-types";
 import { formatVersionStatus, versionStatusColor } from "./microflow-version-utils";
@@ -21,6 +23,7 @@ export interface MicroflowVersionsDrawerProps {
 export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, onResourceChange, onCreated }: MicroflowVersionsDrawerProps) {
   const [versions, setVersions] = useState<MicroflowVersionSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<unknown>();
   const [detail, setDetail] = useState<MicroflowVersionDetail>();
   const [detailOpen, setDetailOpen] = useState(false);
 
@@ -29,8 +32,11 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
       return;
     }
     setLoading(true);
+    setError(undefined);
     try {
       setVersions(await adapter.getMicroflowVersions(resource.id));
+    } catch (caught) {
+      setError(caught);
     } finally {
       setLoading(false);
     }
@@ -46,10 +52,14 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
     if (!resource) {
       return;
     }
-    const next = await adapter.getMicroflowVersionDetail(resource.id, version.id);
-    if (next) {
-      setDetail(next);
-      setDetailOpen(true);
+    try {
+      const next = await adapter.getMicroflowVersionDetail(resource.id, version.id);
+      if (next) {
+        setDetail(next);
+        setDetailOpen(true);
+      }
+    } catch (caught) {
+      Toast.error(getMicroflowErrorUserMessage(caught));
     }
   }
 
@@ -57,12 +67,16 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
     if (!resource) {
       return;
     }
-    const created = await adapter.duplicateMicroflowVersion(resource.id, version.id, {
-      displayName: `${resource.displayName || resource.name} (${version.version}) Copy`
-    });
-    Toast.success("已复制为新草稿");
-    onCreated?.(created);
-    await loadVersions();
+    try {
+      const created = await adapter.duplicateMicroflowVersion(resource.id, version.id, {
+        displayName: `${resource.displayName || resource.name} (${version.version}) Copy`
+      });
+      Toast.success("已复制为新草稿");
+      onCreated?.(created);
+      await loadVersions();
+    } catch (caught) {
+      Toast.error(getMicroflowErrorUserMessage(caught));
+    }
   }
 
   function rollbackVersion(version: MicroflowVersionSummary | MicroflowVersionDetail) {
@@ -73,10 +87,14 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
       title: "确认回滚",
       content: `确认将当前微流回滚到 ${version.version}？回滚后资源会进入草稿状态。`,
       onOk: async () => {
-        const next = await adapter.rollbackMicroflowVersion(resource.id, version.id);
-        Toast.success("已回滚到历史版本");
-        onResourceChange(next);
-        await loadVersions();
+        try {
+          const next = await adapter.rollbackMicroflowVersion(resource.id, version.id);
+          Toast.success("已回滚到历史版本");
+          onResourceChange(next);
+          await loadVersions();
+        } catch (caught) {
+          Toast.error(getMicroflowErrorUserMessage(caught));
+        }
       }
     });
   }
@@ -85,11 +103,15 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
     if (!resource) {
       return;
     }
-    const diff = await adapter.compareMicroflowVersion(resource.id, version.id);
-    Modal.info({
-      title: `比较当前版本与 ${version.version}`,
-      content: `参数 +${diff.addedParameters.length}/-${diff.removedParameters.length}，节点 +${diff.addedObjects.length}/-${diff.removedObjects.length}，破坏性变更 ${diff.breakingChanges.length} 个。`
-    });
+    try {
+      const diff = await adapter.compareMicroflowVersion(resource.id, version.id);
+      Modal.info({
+        title: `比较当前版本与 ${version.version}`,
+        content: `参数 +${diff.addedParameters.length}/-${diff.removedParameters.length}，节点 +${diff.addedObjects.length}/-${diff.removedObjects.length}，破坏性变更 ${diff.breakingChanges.length} 个。`
+      });
+    } catch (caught) {
+      Toast.error(getMicroflowErrorUserMessage(caught));
+    }
   }
 
   return (
@@ -99,6 +121,8 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
           <Empty title="未选择微流" />
         ) : loading ? (
           <Spin />
+        ) : error ? (
+          <MicroflowErrorState error={error} title="版本服务不可用" compact onRetry={() => void loadVersions()} />
         ) : versions.length === 0 ? (
           <Empty title="暂无版本" description="发布后会生成历史版本和快照。" />
         ) : (

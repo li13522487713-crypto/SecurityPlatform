@@ -2,23 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Empty, Spin, Toast } from "@douyinfe/semi-ui";
 
 import { createMicroflowAdapterBundle, type MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
-import { isMicroflowApiClientError } from "../adapter/http/microflow-api-error";
+import { isForbiddenError, isNotFoundError, isUnauthorizedError, isVersionConflictError } from "../adapter/http/microflow-api-error";
+import { MicroflowErrorState } from "../components/error";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import type { MicroflowAdapterFactoryConfig } from "../config/microflow-adapter-config";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MendixMicroflowEditorEntry } from "./MendixMicroflowEditorEntry";
 
 function getEditorLoadErrorTitle(error: Error): string {
-  if (!isMicroflowApiClientError(error)) {
-    return "加载微流失败";
-  }
-  if (error.status === 404) {
+  if (isNotFoundError(error)) {
     return "微流不存在";
   }
-  if (error.status === 403 || error.status === 401) {
+  if (isForbiddenError(error) || isUnauthorizedError(error)) {
     return "无权限访问该微流";
   }
-  if (error.status === 409) {
+  if (isVersionConflictError(error)) {
     return "微流版本冲突";
   }
   return "微流服务异常";
@@ -76,10 +74,7 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
 
   if (error) {
     return (
-      <Empty title={getEditorLoadErrorTitle(error)} description={error.message} style={{ padding: 80 }}>
-        <Button onClick={() => void load()}>重试</Button>
-        {onBack ? <Button onClick={onBack} style={{ marginLeft: 8 }}>返回资源库</Button> : null}
-      </Empty>
+      <MicroflowErrorState error={error} title={getEditorLoadErrorTitle(error)} onRetry={() => void load()} onBack={onBack} />
     );
   }
 

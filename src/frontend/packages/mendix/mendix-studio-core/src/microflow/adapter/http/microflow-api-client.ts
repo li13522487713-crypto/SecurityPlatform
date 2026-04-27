@@ -3,7 +3,7 @@
  * Uses backend API contracts and MicroflowApiResponse envelope.
  */
 import type { MicroflowApiError, MicroflowApiResponse } from "../../contracts/api/api-envelope";
-import { MicroflowApiClientError } from "./microflow-api-error";
+import { MicroflowApiException, mapHttpStatusToMicroflowErrorCode, normalizeMicroflowApiError } from "./microflow-api-error";
 
 export interface MicroflowApiClientOptions {
   apiBaseUrl: string;
@@ -58,25 +58,18 @@ function isApiResponse<T>(value: unknown): value is MicroflowApiResponse<T> {
   return isRecord(value) && typeof value.success === "boolean";
 }
 
-function buildApiError(status: number, statusText: string, payload: unknown): MicroflowApiError {
+function buildApiError(status: number, statusText: string, payload: unknown, traceId?: string): MicroflowApiError {
   if (isApiResponse<unknown>(payload) && payload.error) {
-    return payload.error;
+    return normalizeMicroflowApiError(payload.error, status, payload.traceId ?? traceId);
   }
   if (isRecord(payload) && isRecord(payload.error)) {
-    const error = payload.error as Partial<MicroflowApiError>;
-    return {
-      code: error.code ?? "MICROFLOW_UNKNOWN_ERROR",
-      message: error.message ?? statusText,
-      details: error.details,
-      fieldErrors: error.fieldErrors,
-      validationIssues: error.validationIssues,
-      retryable: error.retryable,
-    };
+    return normalizeMicroflowApiError(payload.error, status, traceId);
   }
-  return {
-    code: status === 404 ? "MICROFLOW_NOT_FOUND" : status === 409 ? "MICROFLOW_VERSION_CONFLICT" : status === 401 || status === 403 ? "MICROFLOW_PERMISSION_DENIED" : "MICROFLOW_UNKNOWN_ERROR",
+  return normalizeMicroflowApiError({
+    code: mapHttpStatusToMicroflowErrorCode(status),
     message: statusText || `HTTP ${status}`,
-  };
+    raw: payload,
+  }, status, traceId);
 }
 
 export class MicroflowApiClient {
@@ -115,13 +108,21 @@ export class MicroflowApiClient {
     const url = new URL(`${this.baseUrl}${normalizePath(path)}`);
     appendQuery(url, query);
 
-    const response = await this.fetchFn(url.toString(), {
-      method,
-      signal,
-      headers: this.createHeaders(body !== undefined),
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await this.fetchFn(url.toString(), {
+        method,
+        signal,
+        headers: this.createHeaders(body !== undefined),
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch (caught) {
+      const apiError = normalizeMicroflowApiError(caught);
+      this.options.onApiError?.(apiError);
+      throw new MicroflowApiException(apiError.message, { apiError });
+    }
     const payload = await this.readPayload(response);
+    const traceId = isApiResponse<unknown>(payload) ? payload.traceId : response.headers.get("X-Trace-Id") ?? response.headers.get("traceparent") ?? undefined;
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -130,25 +131,35 @@ export class MicroflowApiClient {
       if (response.status === 403) {
         this.options.onForbidden?.();
       }
-      const apiError = buildApiError(response.status, response.statusText, payload);
+      const apiError = buildApiError(response.status, response.statusText, payload, traceId);
       this.options.onApiError?.(apiError);
-      throw new MicroflowApiClientError(apiError.message, {
+      throw new MicroflowApiException(apiError.message, {
         status: response.status,
-        traceId: isApiResponse<unknown>(payload) ? payload.traceId : undefined,
+        traceId,
         apiError,
       });
     }
 
     if (isApiResponse<T>(payload)) {
       if (!payload.success || payload.data === undefined) {
-        const apiError = payload.error ?? { code: "MICROFLOW_UNKNOWN_ERROR", message: "Microflow API response missing data." };
+        const apiError = normalizeMicroflowApiError(payload.error ?? { code: "MICROFLOW_UNKNOWN_ERROR", message: "Microflow API response missing data." }, response.status, traceId);
         this.options.onApiError?.(apiError);
-        throw new MicroflowApiClientError(apiError.message, { status: response.status, traceId: payload.traceId, apiError });
+        throw new MicroflowApiException(apiError.message, { status: response.status, traceId, apiError });
       }
       return payload.data;
     }
 
-    return payload as T;
+    if (payload === undefined) {
+      return undefined as T;
+    }
+
+    const apiError = normalizeMicroflowApiError({
+      code: "MICROFLOW_UNKNOWN_ERROR",
+      message: "Microflow API response is not a valid envelope.",
+      raw: payload,
+    }, response.status, traceId);
+    this.options.onApiError?.(apiError);
+    throw new MicroflowApiException(apiError.message, { status: response.status, traceId, apiError });
   }
 
   private createHeaders(hasBody: boolean): HeadersInit {

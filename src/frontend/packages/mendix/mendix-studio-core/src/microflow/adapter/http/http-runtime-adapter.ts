@@ -18,6 +18,7 @@ import type {
 import type { MicroflowRunSession, MicroflowTraceFrame } from "@atlas/microflow";
 
 import type { MicroflowResource } from "../../resource/resource-types";
+import type { GetMicroflowSchemaResponse, SaveMicroflowSchemaResponse } from "../../contracts/api/microflow-schema-api-contract";
 import { MicroflowApiClient, type MicroflowApiClientOptions } from "./microflow-api-client";
 
 export interface HttpMicroflowRuntimeAdapterOptions extends MicroflowApiClientOptions {
@@ -83,21 +84,22 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
     },
     async saveMicroflow(request: SaveMicroflowRequest): Promise<SaveMicroflowResponse> {
       const schema = request.schema as MicroflowSchema;
-      const saved = await client.put<MicroflowResource>(`/api/microflows/${encodeURIComponent(schema.id)}/schema`, {
+      const saved = await client.put<SaveMicroflowSchemaResponse>(`/api/microflows/${encodeURIComponent(schema.id)}/schema`, {
         schema,
         saveReason: request.comment,
       });
+      const resource = saved.resource;
       return {
-        microflowId: saved.id,
-        version: saved.version,
-        savedAt: saved.updatedAt,
-        nodeCount: saved.schema.objectCollection.objects.length,
-        edgeCount: saved.schema.flows.length,
+        microflowId: resource.id,
+        version: resource.version,
+        savedAt: resource.updatedAt,
+        nodeCount: resource.schema.objectCollection.objects.length,
+        edgeCount: resource.schema.flows.length,
       };
     },
     async loadMicroflow(id: string) {
-      const resource = await client.get<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}`);
-      return resource.schema;
+      const response = await client.get<GetMicroflowSchemaResponse>(`/api/microflows/${encodeURIComponent(id)}/schema`);
+      return response.schema;
     },
     async validateMicroflow(request) {
       const id = request.schema.id;

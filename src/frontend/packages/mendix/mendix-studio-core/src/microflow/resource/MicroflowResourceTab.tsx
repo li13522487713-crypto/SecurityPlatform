@@ -3,7 +3,9 @@ import { Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Spin, Tag, 
 import { IconCode, IconCopy, IconDelete, IconEdit, IconMore, IconPlus, IconSearch, IconStar, IconStarStroked } from "@douyinfe/semi-icons";
 
 import { createMicroflowAdapterBundle, type MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
+import { getMicroflowErrorUserMessage } from "../adapter/http/microflow-api-error";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
+import { MicroflowErrorState } from "../components/error";
 import type { MicroflowAdapterFactoryConfig } from "../config/microflow-adapter-config";
 import { PublishMicroflowModal } from "../publish/PublishMicroflowModal";
 import { MicroflowReferencesDrawer } from "../references/MicroflowReferencesDrawer";
@@ -85,6 +87,8 @@ function CreateMicroflowModal({ visible, onClose, onSubmit }: CreateMicroflowMod
         template: "blank"
       });
       onClose();
+    } catch (caught) {
+      Toast.error(getMicroflowErrorUserMessage(caught));
     } finally {
       setSubmitting(false);
     }
@@ -220,16 +224,24 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
   }, [allItems]);
 
   async function refreshAfter(action: Promise<unknown>, message: string) {
-    await action;
-    Toast.success(message);
-    await reload();
+    try {
+      await action;
+      Toast.success(message);
+      await reload();
+    } catch (caught) {
+      Toast.error(getMicroflowErrorUserMessage(caught));
+    }
   }
 
   async function handleCreate(input: MicroflowCreateInput) {
-    const resource = await adapter.createMicroflow(input);
-    Toast.success("微流已创建");
-    await reload();
-    onOpenMicroflow?.(resource.id);
+    try {
+      const resource = await adapter.createMicroflow(input);
+      Toast.success("微流已创建");
+      await reload();
+      onOpenMicroflow?.(resource.id);
+    } catch (caught) {
+      throw caught;
+    }
   }
 
   function openPublish(resource: MicroflowResource) {
@@ -315,9 +327,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 48 }}><Spin /></div>
         ) : error ? (
-          <Empty title="微流服务未连接" description={`${bundle?.apiBaseUrl ? `API: ${bundle.apiBaseUrl}。` : ""}${error.message || "请检查微流 HTTP 服务或切换到本地模式。"}`} style={{ padding: 48 }}>
-            <Button onClick={() => void reload()}>重试</Button>
-          </Empty>
+          <MicroflowErrorState error={error} title={bundle?.apiBaseUrl ? `微流服务未连接：${bundle.apiBaseUrl}` : "微流服务未连接"} onRetry={() => void reload()} />
         ) : items.length === 0 ? (
           <Empty title="暂无微流" description="新建微流后可在这里管理版本、发布和引用关系。" style={{ padding: 48 }} />
         ) : view === "card" ? (

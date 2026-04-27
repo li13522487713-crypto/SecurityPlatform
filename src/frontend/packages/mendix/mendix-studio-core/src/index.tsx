@@ -285,5 +285,7 @@ export function MendixStudioIndexPage({
 export { useMendixStudioStore };
 export { SAMPLE_PROCUREMENT_APP } from "./sample-app";
 export * from "./microflow";
+export { startMicroflowContractMockWorker, startMicroflowMockWorker, stopMicroflowMockWorker } from "./microflow/contracts/mock-api/browser";
+export { createMicroflowContractMockHandlers, microflowContractMockOpenApiPaths } from "./microflow/contracts/mock-api";
 /** 微流编辑器由 @atlas/microflow 实现，经本包再导出以作为统一对外 API。 */
 export { MicroflowEditor, type MicroflowEditorProps } from "@atlas/microflow";

@@ -3,6 +3,7 @@ import { Button, Drawer, Empty, Input, Select, Space, Spin, Tag, Typography } fr
 import { IconExport, IconSearch } from "@douyinfe/semi-icons";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
+import { MicroflowErrorState } from "../components/error";
 import type { MicroflowResource } from "../resource/resource-types";
 import type { MicroflowImpactLevel, MicroflowReference } from "./microflow-reference-types";
 import { MicroflowReferenceImpactTag } from "./MicroflowReferenceImpactTag";
@@ -25,6 +26,7 @@ export interface MicroflowReferencesDrawerProps {
 export function MicroflowReferencesDrawer({ visible, resource, adapter, onClose }: MicroflowReferencesDrawerProps) {
   const [references, setReferences] = useState<MicroflowReference[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<unknown>();
   const [keyword, setKeyword] = useState("");
   const [impact, setImpact] = useState<"all" | MicroflowImpactLevel>("all");
 
@@ -33,8 +35,10 @@ export function MicroflowReferencesDrawer({ visible, resource, adapter, onClose 
       return;
     }
     setLoading(true);
+    setError(undefined);
     adapter.getMicroflowReferences(resource.id)
       .then(setReferences)
+      .catch(setError)
       .finally(() => setLoading(false));
   }, [adapter, resource, visible]);
 
@@ -80,6 +84,15 @@ export function MicroflowReferencesDrawer({ visible, resource, adapter, onClose 
           </Space>
           {loading ? (
             <Spin />
+          ) : error ? (
+            <MicroflowErrorState error={error} title="引用服务不可用" compact onRetry={() => {
+              if (!resource) {
+                return;
+              }
+              setLoading(true);
+              setError(undefined);
+              adapter.getMicroflowReferences(resource.id).then(setReferences).catch(setError).finally(() => setLoading(false));
+            }} />
           ) : filtered.length === 0 ? (
             <Empty title="暂无引用" description="当前筛选条件下没有引用来源。" />
           ) : (

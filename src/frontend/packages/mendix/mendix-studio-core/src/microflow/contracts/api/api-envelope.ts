@@ -23,6 +23,9 @@ export interface MicroflowApiError {
   validationIssues?: MicroflowValidationIssue[];
   /** 可重试（限流/临时存储失败等）。 */
   retryable?: boolean;
+  httpStatus?: number;
+  traceId?: string;
+  raw?: unknown;
 }
 
 /**

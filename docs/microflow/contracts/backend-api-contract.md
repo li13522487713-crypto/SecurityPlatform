@@ -5,6 +5,7 @@
 - **不存储 FlowGram JSON**：仅 `MicroflowAuthoringSchema` / Runtime DTO / Trace 等，见 `storage-model-contract.md`。
 - **分页**：`pageIndex` **1-based**；`MicroflowResourceQuery` 与 `ListMicroflowsRequest` 对齐；多选 `status` / `publishStatus` / `tags` 均为 **OR** 语义；`sortBy` 推荐：`name`、`updatedAt`、`createdAt`、`version`、`referenceCount`。
 - **前端 HTTP 客户端**：`MicroflowApiClient` 统一附加 `X-Workspace-Id`、`X-Tenant-Id`、`X-User-Id`，解析 `MicroflowApiResponse<T>` 后再交给 Resource / Metadata / Runtime / Validation Adapter。
+- **Contract Mock**：第 34 轮提供 MSW mock server，路径与本文件及 `openapi-draft.yaml` 对齐；前端仍使用 `mode=http`，不回退到旧 mock/local adapter。
 
 ## 资源
 
@@ -79,3 +80,4 @@
 ## OpenAPI
 
 - 见同目录 `openapi-draft.yaml`。
+- Contract Mock 说明见 `contract-mock-readme.md`；校验脚本为 `pnpm run verify:microflow-contract-mock`。
