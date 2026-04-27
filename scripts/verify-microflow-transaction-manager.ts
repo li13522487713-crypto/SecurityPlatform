@@ -87,7 +87,7 @@ function verifySourceContracts(): void {
   assert(unitOfWork.includes("MarkCommitted") && unitOfWork.includes("MarkRolledBack"), "UnitOfWork commit/rollback semantics are missing");
   assert(models.includes("MicroflowRuntimeTransactionContext"), "TransactionContext model is missing");
   assert(context.includes("TransactionDiagnostics"), "RuntimeExecutionContext transaction diagnostics are missing");
-  assert(runner.includes("WithTransactionPreview"), "MockRuntimeRunner transaction preview is missing");
+  assert(runner.includes("BuildTransactionSummary") && runner.includes("transactionSummary"), "MockRuntimeRunner transaction summary is missing");
   assert(models.includes("ErrorHandlingKeepActive") && models.includes("ErrorHandlingContinue"), "non-rollback error handling transaction logs are missing");
   assert(manager.includes("RequireCommittable") && manager.includes("RUNTIME_TRANSACTION_ALREADY_COMMITTED"), "commit invalid-state diagnostics are missing");
   assert(manager.includes("MicroflowRuntimeObjectChangeOperation.Commit"), "TrackCommitAction should record a commit operation change");

@@ -264,3 +264,19 @@
 ## 未知项
 
 - 多区域复制与**最终一致**的 catalog 版本传播（可后续在 `metadata` 上扩展 ETag）。
+
+## 第 60 轮全链路 E2E 回归基线
+
+- 新增总控脚本：`scripts/verify-microflow-round60-full-e2e.ts`，串联前端 adapter 门禁、Resource/Schema、Metadata、Validation、Publish/Version/References/TestRun、Runtime 深度脚本与 hardening 脚本。
+- 新增 hardening 脚本：`scripts/verify-microflow-runtime-hardening.ts`，覆盖 RunSession / TraceFrame / RunLog 查询、cancel、maxSteps、maxIterations、REST security/timeout 保护与静态源码契约。
+- Seed/reset 仅处理 `R60_E2E_` / `E2E_MF_` 前缀资源，避免误删真实资源。
+- 报告输出到 `artifacts/microflow-e2e/round60/`，包括 `e2e-summary.json`、`e2e-summary.md`、`failed-cases.json`、`coverage-matrix.json` 与逐用例日志。
+- 详见 `docs/microflow/e2e/round60-full-e2e-report.md`、`round60-known-limitations.md`、`round60-inner-test-readiness.md`。
+
+## 第 61 轮生产准备补充
+
+- 生产配置模板：`src/backend/Atlas.AppHost/appsettings.Production.json`，默认禁用 metadata seed、seed data、真实 RestCall、private network 与 internal debug API。
+- 生产访问守卫：`MicroflowProductionGuardFilter` 在非 Development 环境对非 health 微流 API 执行认证与 `X-Workspace-Id` 检查。
+- 新增 runtime health：`GET /api/microflows/runtime/health`，用于检查 ActionExecutorRegistry、runtime limits 与 RestCall 安全默认值。
+- 新增门禁脚本：`scripts/verify-microflow-production-no-mock.ts`、`scripts/verify-microflow-production-readiness.ts`。
+- 运维与准入文档入口：`docs/microflow/release/round61-production-readiness.md`。

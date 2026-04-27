@@ -83,17 +83,21 @@ const checks: Check[] = [
   },
 ];
 
-let failed = 0;
-for (const check of checks) {
-  try {
-    await check.run();
-    console.log(`PASS ${check.name}`);
-  } catch (error) {
-    failed += 1;
-    console.error(`FAIL ${check.name}: ${error instanceof Error ? error.message : String(error)}`);
+async function main(): Promise<void> {
+  let failed = 0;
+  for (const check of checks) {
+    try {
+      await check.run();
+      console.log(`PASS ${check.name}`);
+    } catch (error) {
+      failed += 1;
+      console.error(`FAIL ${check.name}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (failed > 0) {
+    process.exitCode = 1;
   }
 }
 
-if (failed > 0) {
-  process.exitCode = 1;
-}
+void main();

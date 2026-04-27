@@ -625,7 +625,11 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         var outputName = ReadString(config, "outputVariableName")
             ?? ReadString(config, "resultVariableName")
             ?? ReadStringByPath(config, "returnValue", "outputVariableName")
-            ?? ReadStringByPath(config, "response", "handling", "outputVariableName");
+            ?? ReadStringByPath(config, "response", "handling", "outputVariableName")
+            ?? ReadStringByPath(config, "action", "outputVariableName")
+            ?? ReadStringByPath(config, "action", "resultVariableName")
+            ?? ReadStringByPath(config, "action", "returnValue", "outputVariableName")
+            ?? ReadStringByPath(config, "action", "response", "handling", "outputVariableName");
         if (string.IsNullOrWhiteSpace(outputName))
         {
             return;

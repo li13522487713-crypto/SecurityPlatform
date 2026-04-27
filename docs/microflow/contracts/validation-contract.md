@@ -144,3 +144,10 @@ P0 字段路径使用 AuthoringSchema 路径，数组使用点号下标：`actio
 - loop body 仍禁止 StartEvent / EndEvent；Runtime 若遇到缺失 body entry 或 dead-end 返回 `RUNTIME_LOOP_BODY_NOT_FOUND` / `RUNTIME_LOOP_DEAD_END`。
 - Break / Continue 必须位于 loop 内且不允许 outgoing；Runtime 兜底错误码为 `RUNTIME_LOOP_CONTROL_OUT_OF_SCOPE`。
 - loop internal flow 不能跨 collection；testRun / publish mode 下 loop 相关阻断类问题保持 error。
+
+## 第 60 轮 Validation / ProblemPanel 回归
+
+- 自动化入口：`scripts/verify-microflow-validation-integration.ts`，由 Round60 总控脚本调用。
+- 必须覆盖 edit/save/publish/testRun mode、missing Start、FlowGram JSON 拒绝、missing action fieldPath、invalid metadata reference、expression/loop/errorHandling/unsupported action。
+- 前端 ProblemPanel 必须显示后端 issues；点击 issue 定位 object/flow，字段错误按 `fieldPath` 进入 FieldError。
+- Publish/TestRun 前置校验失败必须阻止发布或运行，不生成假成功 session。

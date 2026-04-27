@@ -59,3 +59,15 @@ Flow 协议：Runtime action execution 只跟随 `sequence` / `decisionCondition
 | callMicroflow | MicroflowSelector、参数 ExpressionEditor、return OutputVariableEditor | `action.returnValue.outputVariableName` |
 | restCall | method/url/header/query/body/response/timeout | response/status/headers 变量 |
 | logMessage | level、log node、template、arguments | 无 |
+
+## 第 60 轮回归要求
+
+- `scripts/verify-microflow-round60-full-e2e.ts` 必须调用 `scripts/verify-microflow-action-executors-full-coverage.ts`，并把结果写入 `coverage-matrix.json`。
+- ActionExecutor 回归不得新增 actionKind 或 connector 平台；失败时按 blocker/critical/major/minor 分类，connector-backed 缺 capability 仍应返回 `RUNTIME_CONNECTOR_REQUIRED`。
+- `RestCall`、`LogMessage`、`CallMicroflow`、Loop 与 ErrorHandling 的专项脚本作为全量矩阵的行为证据。
+
+## 第 61 轮生产健康要求
+
+- 本轮不新增 ActionExecutor。
+- `GET /api/microflows/runtime/health` 必须能报告 `actionExecutorRegistry` 检查，descriptor count 大于 0。
+- readiness gate 只验证 coverage 脚本与健康检查可用，不改变 connector-backed / unsupported / RuntimeCommand 既有语义。

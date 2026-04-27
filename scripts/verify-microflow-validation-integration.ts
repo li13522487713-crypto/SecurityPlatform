@@ -2,7 +2,7 @@ const baseUrl = process.env.MICROFLOW_API_BASE_URL ?? "http://localhost:5002";
 const workspaceId = process.env.MICROFLOW_WORKSPACE_ID ?? "demo-workspace";
 const tenantId = process.env.MICROFLOW_TENANT_ID ?? "demo-tenant";
 const userId = process.env.MICROFLOW_USER_ID ?? "demo-user";
-const microflowId = process.env.MICROFLOW_ID ?? "mf-seed-blank";
+let microflowId = process.env.MICROFLOW_ID ?? "";
 
 type ValidationMode = "edit" | "save" | "publish" | "testRun";
 
@@ -20,6 +20,26 @@ async function request(path: string, body?: unknown): Promise<{ status: number; 
   });
   const text = await response.text();
   return { status: response.status, body: text ? JSON.parse(text) : undefined };
+}
+
+async function api(method: string, path: string, body?: unknown): Promise<any> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-Workspace-Id": workspaceId,
+      "X-Tenant-Id": tenantId,
+      "X-User-Id": userId,
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await response.text();
+  const envelope = text ? JSON.parse(text) : undefined;
+  if (!response.ok || envelope?.success !== true) {
+    throw new Error(`${method} ${path} failed: HTTP ${response.status} ${text}`);
+  }
+  return envelope.data;
 }
 
 function expectValidationEnvelope(result: { status: number; body: any }): any {
@@ -52,6 +72,35 @@ function schema(name: string, objects: any[], flows: any[] = []) {
     variables: {},
     validation: { issues: [] },
   };
+}
+
+async function ensureSavedSchema(): Promise<void> {
+  if (microflowId) {
+    return;
+  }
+  const name = `R60_E2E_Validation_${Date.now()}`;
+  const resource = await api("POST", "/api/microflows", {
+    workspaceId,
+    input: {
+      name,
+      displayName: name,
+      moduleId: "verify-module",
+      moduleName: "Verify",
+      tags: ["verify", "round60", "validation"],
+      parameters: [],
+      returnType: { kind: "void" },
+    },
+  });
+  microflowId = String(resource.id);
+  await api("PUT", `/api/microflows/${encodeURIComponent(microflowId)}/schema`, {
+    saveReason: "verify validation baseline",
+    schema: schema(name, [
+      { id: "start", kind: "startEvent", officialType: "Microflows$StartEvent" },
+      { id: "end", kind: "endEvent", officialType: "Microflows$EndEvent" },
+    ], [
+      { id: "f-start-end", kind: "sequence", originObjectId: "start", destinationObjectId: "end" },
+    ]),
+  });
 }
 
 async function validate(mode: ValidationMode, inlineSchema?: unknown) {
@@ -104,7 +153,7 @@ const checks: Array<{ name: string; run: () => Promise<void> }> = [
         { id: "f1", kind: "sequence", originObjectId: "start", destinationObjectId: "retrieve1" },
         { id: "f2", kind: "sequence", originObjectId: "retrieve1", destinationObjectId: "end" },
       ]));
-      if (!data.issues.some((issue: any) => issue.objectId === "retrieve1" && issue.fieldPath === "action.retrieveSource.entityQualifiedName")) {
+      if (!data.issues.some((issue: any) => issue.objectId === "retrieve1" && String(issue.fieldPath ?? "").endsWith("action.retrieveSource.entityQualifiedName"))) {
         throw new Error("缺少 action.retrieveSource.entityQualifiedName 字段级 issue");
       }
     },
@@ -123,17 +172,22 @@ const checks: Array<{ name: string; run: () => Promise<void> }> = [
   },
 ];
 
-let failed = 0;
-for (const check of checks) {
-  try {
-    await check.run();
-    console.log(`PASS ${check.name}`);
-  } catch (error) {
-    failed += 1;
-    console.error(`FAIL ${check.name}: ${error instanceof Error ? error.message : String(error)}`);
+async function main(): Promise<void> {
+  await ensureSavedSchema();
+  let failed = 0;
+  for (const check of checks) {
+    try {
+      await check.run();
+      console.log(`PASS ${check.name}`);
+    } catch (error) {
+      failed += 1;
+      console.error(`FAIL ${check.name}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (failed > 0) {
+    process.exitCode = 1;
   }
 }
 
-if (failed > 0) {
-  process.exitCode = 1;
-}
+void main();

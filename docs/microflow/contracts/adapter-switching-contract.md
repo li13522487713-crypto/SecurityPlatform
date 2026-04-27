@@ -88,3 +88,17 @@ pnpm run verify:microflow-contract-mock
 这些脚本检查三种 bundle 工厂、runtime policy、HTTP adapters、ValidationAdapter、app-web 边界、生产默认不回 mock，以及生产路径没有微流 mock/local import。
 
 真实联调可补充执行仓库根目录 `scripts/verify-microflow-metadata-integration.ts` 与 `scripts/verify-microflow-validation-integration.ts`，或按 `MicroflowBackend.http` 的 Metadata / Validation 段手工回归。
+
+## 第 60 轮 Adapter 回归
+
+- Round60 总控脚本会先运行 `verify:microflow-adapter-modes`、`verify:microflow-no-production-mock` 与 `verify:microflow-http-error-handling`。
+- 前端生产路径必须保持 `mode=http`，断开后端时显示错误态，不允许自动回退 mock/local。
+- `VITE_MICROFLOW_API_MOCK=msw` 仅用于非生产 contract mock，语义仍是 HTTP adapter 发请求并由 MSW 返回 `MicroflowApiResponse<T>`。
+- 证据输出见 `artifacts/microflow-e2e/round60/e2e-summary.md`。
+
+## 第 61 轮生产 no-mock 门禁
+
+- 根目录脚本：`scripts/verify-microflow-production-no-mock.ts`。
+- 检查 app-web 不 import mock/local resource adapter、不读写微流 resource localStorage key、不在 production 启动 MSW。
+- 检查 `mendix-studio-core` production runtime policy 默认 `http`，禁止 mock/local 及 fallback。
+- 检查后端生产配置禁用 metadata seed、seed data、真实 RestCall、private network 与 internal debug API。

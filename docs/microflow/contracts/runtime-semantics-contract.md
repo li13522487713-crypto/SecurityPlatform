@@ -137,3 +137,17 @@ Runtime 从 P0 placeholder 扩展为全量 action 行为分派：
 - 返回绑定读取 child EndEvent output；`returnValue.storeResult=true` 时必须配置 `outputVariableName`，void target 不允许 store result，成功后以 `MicroflowReturn` 写回父 `VariableStore`。
 - CallStack 默认 `maxCallDepth=10`，禁止直接/间接递归；命中时返回 `RUNTIME_CALL_RECURSION_DETECTED` 或 `RUNTIME_CALL_STACK_OVERFLOW`，diagnostics 包含 call chain。
 - child failure 不会被吞掉：父 `CallMicroflowAction` failed，并可进入父 error handler；child error cause、childRunId 与 childTraceSummary 写入父 trace。
+
+## 第 60 轮回归收敛语义
+
+- Round60 不新增 Runtime 语义，只验证第 48～58 轮已经实现的 ExecutionPlan、导航、变量、表达式、metadata/access、事务、ActionExecutor、Loop、CallMicroflow、RestCall、LogMessage、ErrorHandling 与 limits。
+- 总控脚本 `scripts/verify-microflow-round60-full-e2e.ts` 以真实 HTTP API 为主入口，禁止通过内部 service 绕过控制器。
+- `scripts/verify-microflow-runtime-hardening.ts` 补充验证 cancel、maxSteps、maxIterations、REST security/timeout、RunSession / TraceFrame / RunLog 落库与不保存 FlowGram JSON。
+- 已知限制与内测风险记录在 `docs/microflow/e2e/round60-known-limitations.md`。
+
+## 第 61 轮生产语义冻结
+
+- 本轮不新增 Runtime 语义。
+- Runtime limits 以生产配置和既有 runner/navigator 限制为准，默认 `MaxSteps=5000`、`RunTimeoutSeconds=300`、`ActionTimeoutSeconds=60`。
+- RestCall 生产默认不真实出网，不允许 private network；显式开启必须走 allowlist 和 release gate。
+- 协作式运行中取消仍为 post-61 限制，内测用 timeout / maxSteps / cancel session 状态共同兜底。

@@ -189,12 +189,14 @@ async function run(): Promise<void> {
     schema: modeledOnlySchema(makeId("VerifyModeledOnly")),
     options: { mode: "validateOnly", failOnUnsupported: false },
   })).data as Json;
-  assert((modeledPlan.unsupportedActions as Json[]).some(item => item.supportLevel === "modeledOnly"), "modeledOnly action should appear in unsupportedActions");
+  assert((modeledPlan.nodes as Json[]).some(item => item.actionKind === "showPage" && item.supportLevel === "supported"), "showPage should be represented as supported runtime command action");
+  assert(!(modeledPlan.unsupportedActions as Json[]).some(item => item.actionKind === "showPage"), "showPage should not appear in unsupportedActions");
 
-  await api("POST", "/api/microflows/runtime/plan", {
+  const modeledStrict = (await api("POST", "/api/microflows/runtime/plan", {
     schema: modeledOnlySchema(makeId("VerifyFailUnsupported")),
     options: { mode: "validateOnly", failOnUnsupported: true },
-  }, false);
+  })).data as Json;
+  assert((modeledStrict.nodes as Json[]).some(item => item.actionKind === "showPage" && item.supportLevel === "supported"), "runtimeCommand action should not fail unsupported gate");
 
   const invalidPlan = (await api("POST", "/api/microflows/runtime/plan", {
     schema: invalidFlowSchema(makeId("VerifyInvalidFlow")),

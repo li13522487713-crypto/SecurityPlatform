@@ -62,3 +62,10 @@
 ## 宿主（app-web）边界
 
 - app-web **不**维护实体/枚举列表，**不**构造 `MicroflowMetadataCatalog`；仅通过 `@atlas/mendix-studio-core` 使用微流能力，并可选择传入 **`metadataAdapter`**（或预加载的 `metadataCatalog` 由 core 注入 Provider）。
+
+## 第 60 轮 Metadata / Selector 回归
+
+- 自动化入口：`scripts/verify-microflow-metadata-integration.ts`，由 `scripts/verify-microflow-round60-full-e2e.ts` 调用。
+- 必须验证 `GET /api/microflow-metadata`、entity、enumeration、microflow refs、`includeSystem=false` 与 unknown metadata 404 envelope。
+- Selector UI 回归要求 EntitySelector、AttributeSelector、AssociationSelector、EnumerationSelector、EnumerationValueSelector、MicroflowSelector 使用后端 catalog；Page/Workflow selector 空数组不白屏。
+- Metadata 加载失败必须显示错误态，不 fallback 到前端 mock metadata。

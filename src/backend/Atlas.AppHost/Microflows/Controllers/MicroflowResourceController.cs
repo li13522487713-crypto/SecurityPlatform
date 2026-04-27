@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
+using Atlas.Application.Microflows.Runtime.Actions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +22,9 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
     private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;
     private readonly IMicroflowFlowNavigator _flowNavigator;
     private readonly IMicroflowStorageDiagnosticsService _storageDiagnosticsService;
+    private readonly IMicroflowActionExecutorRegistry _actionExecutorRegistry;
+    private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
 
     public MicroflowResourceController(
         IMicroflowResourceService resourceService,
@@ -31,6 +36,9 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         IMicroflowExecutionPlanLoader executionPlanLoader,
         IMicroflowFlowNavigator flowNavigator,
         IMicroflowStorageDiagnosticsService storageDiagnosticsService,
+        IMicroflowActionExecutorRegistry actionExecutorRegistry,
+        IConfiguration configuration,
+        IHostEnvironment environment,
         IMicroflowRequestContextAccessor requestContextAccessor)
         : base(requestContextAccessor)
     {
@@ -43,6 +51,9 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         _executionPlanLoader = executionPlanLoader;
         _flowNavigator = flowNavigator;
         _storageDiagnosticsService = storageDiagnosticsService;
+        _actionExecutorRegistry = actionExecutorRegistry;
+        _configuration = configuration;
+        _environment = environment;
     }
 
     [HttpPost("{id}/publish")]
@@ -273,14 +284,58 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowHealthDto>), StatusCodes.Status200OK)]
     public ActionResult<MicroflowApiResponse<MicroflowHealthDto>> GetHealth()
     {
+        var started = Stopwatch.GetTimestamp();
         var traceId = TraceId;
         return MicroflowOk(new MicroflowHealthDto
         {
             Status = "ok",
             Service = "microflows",
-            Version = "backend-skeleton",
+            Version = "round61-production-readiness",
             Timestamp = DateTimeOffset.UtcNow,
-            TraceId = traceId
+            TraceId = traceId,
+            DurationMs = Stopwatch.GetElapsedTime(started).Milliseconds,
+            Environment = _environment.EnvironmentName,
+            Checks =
+            [
+                new MicroflowHealthCheckDto { Name = "process", Status = "healthy", Summary = "Microflow API process is alive." },
+                new MicroflowHealthCheckDto { Name = "runtimeOptions", Status = "healthy", Summary = "Runtime safe defaults are loaded from code and configuration." }
+            ]
+        });
+    }
+
+    [HttpGet("runtime/health")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowHealthDto>), StatusCodes.Status200OK)]
+    public ActionResult<MicroflowApiResponse<MicroflowHealthDto>> GetRuntimeHealth()
+    {
+        var started = Stopwatch.GetTimestamp();
+        var traceId = TraceId;
+        var descriptorCount = _actionExecutorRegistry.ListAll().Count;
+        var maxSteps = _configuration.GetValue("Microflow:Runtime:MaxSteps", 5000);
+        var runTimeout = _configuration.GetValue("Microflow:Runtime:RunTimeoutSeconds", 300);
+        var allowRealHttp = _configuration.GetValue("Microflow:Runtime:Rest:AllowRealHttp", false);
+        var allowPrivateNetwork = _configuration.GetValue("Microflow:Runtime:Rest:AllowPrivateNetwork", false);
+        var checks = new List<MicroflowHealthCheckDto>
+        {
+            new() { Name = "actionExecutorRegistry", Status = descriptorCount > 0 ? "healthy" : "unhealthy", Summary = $"{descriptorCount} action descriptors registered." },
+            new() { Name = "runtimeLimits", Status = maxSteps > 0 && runTimeout > 0 ? "healthy" : "unhealthy", Summary = $"MaxSteps={maxSteps}; RunTimeoutSeconds={runTimeout}." },
+            new() { Name = "restSecurity", Status = !allowRealHttp && !allowPrivateNetwork ? "healthy" : "degraded", Summary = $"AllowRealHttp={allowRealHttp}; AllowPrivateNetwork={allowPrivateNetwork}." }
+        };
+        var status = checks.Any(static check => check.Status == "unhealthy")
+            ? "unhealthy"
+            : checks.Any(static check => check.Status == "degraded")
+                ? "degraded"
+                : "healthy";
+
+        return MicroflowOk(new MicroflowHealthDto
+        {
+            Status = status,
+            Service = "microflows-runtime",
+            Version = "round61-production-readiness",
+            Timestamp = DateTimeOffset.UtcNow,
+            TraceId = traceId,
+            DurationMs = Stopwatch.GetElapsedTime(started).Milliseconds,
+            Environment = _environment.EnvironmentName,
+            Checks = checks
         });
     }
 

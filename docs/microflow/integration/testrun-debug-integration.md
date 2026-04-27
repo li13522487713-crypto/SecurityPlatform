@@ -39,3 +39,9 @@ RunSession / TraceFrame / RunLog 从数据库读取；TestRun 不修改 Authorin
 
 - 手工：`src/backend/Atlas.AppHost/Bosch.http/MicroflowBackend.http` 的 TestRun / Debug 段。
 - 自动：`scripts/verify-microflow-publish-version-references-testrun-debug-integration.ts`。
+
+## 第 60 轮回归补充
+
+- Round60 总控脚本会继续执行 TestRun / Debug 综合脚本，并新增 `scripts/verify-microflow-runtime-hardening.ts` 验证 RunSession / TraceFrame / RunLog 回读、cancel、maxSteps、maxIterations 与 REST security/timeout。
+- DebugPanel 内测准入要求 trace、logs、variables、cancelled / failed / timeout / rejected 状态可解释，错误态不白屏。
+- 同步 TestRun 的运行中协作取消仍是 known limitation；第 61 轮应结合异步 runtime / job queue 深化。

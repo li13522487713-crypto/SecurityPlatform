@@ -19,6 +19,7 @@ public static class MicroflowBackendServiceCollectionExtensions
         services.AddSingleton(restOptions);
         services.AddScoped<IMicroflowRequestContextAccessor, HttpMicroflowRequestContextAccessor>();
         services.AddScoped<MicroflowApiExceptionFilter>();
+        services.AddScoped<MicroflowProductionGuardFilter>();
 
         return services;
     }

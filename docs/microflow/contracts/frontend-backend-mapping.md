@@ -75,3 +75,9 @@
 
 - `local-microflow-resource-adapter` 直接返回 DTO，**不**包 `MicroflowApiResponse`；`listMicroflows` 在提供 `pageIndex`+`pageSize` 时给出 `hasMore`；`tags` 为 OR 语义；`getMicroflowReferences` 支持 query 过滤。
 - Contract Mock 位于 `mendix-studio-core/src/microflow/contracts/mock-api`，只服务 development/test/contract；生产路径不启动 MSW。
+
+## 第 60 轮映射回归
+
+- 总控脚本覆盖 ResourceAdapter、RuntimeAdapter、MicroflowMetadataAdapter 与错误码映射；结果写入 `artifacts/microflow-e2e/round60/coverage-matrix.json`。
+- 前端 `app-web` 仍只负责路由、workspaceId、adapterConfig 与页面编排，不手写微流 fetch、不直接保存 FlowGram JSON。
+- 当前资源库打开编辑器的产品路径为 `/microflow/:microflowId/editor`；`createWorkspaceMicroflowEditorPath` 尚未在 app-web 路由中接通，作为 Round60 known limitation 记录。

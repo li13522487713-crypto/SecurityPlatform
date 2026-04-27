@@ -7,6 +7,7 @@ namespace Atlas.AppHost.Microflows.Controllers;
 
 [ApiController]
 [ServiceFilter(typeof(MicroflowApiExceptionFilter))]
+[ServiceFilter(typeof(MicroflowProductionGuardFilter))]
 public abstract class MicroflowApiControllerBase : ControllerBase
 {
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;

@@ -2209,7 +2209,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             {
                 FlowId = flow.Id,
                 CollectionId = flow.CollectionId,
-                EdgeKind = flow.EdgeKind,
+                EdgeKind = string.IsNullOrWhiteSpace(flow.EdgeKind) ? "sequence" : flow.EdgeKind!,
                 ControlFlow = flow.IsErrorHandler ? "errorHandler" : "normal",
                 OriginObjectId = flow.OriginObjectId,
                 DestinationObjectId = flow.DestinationObjectId,

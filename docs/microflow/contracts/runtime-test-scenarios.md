@@ -189,3 +189,32 @@
 7. direct recursion 与 indirect recursion 被 `RUNTIME_CALL_RECURSION_DETECTED` 阻止，maxCallDepth 超限返回 `RUNTIME_CALL_STACK_OVERFLOW`。
 8. child failure 传播为父 CallMicroflow action failure，父 error handler 可继续沿用既有 `custom/continue` 骨架。
 9. trace / output 不包含 FlowGram JSON。
+
+## 第 60 轮全链路 E2E 回归场景
+
+自动化入口：`scripts/verify-microflow-round60-full-e2e.ts`。
+
+覆盖重点：
+
+1. Resource / Schema / Metadata / Validation / Publish / References / TestRun / Trace 真实 HTTP 闭环。
+2. ExecutionPlanLoader、FlowNavigator、VariableStore、ExpressionEvaluator、MetadataResolver、EntityAccess Stub、TransactionManager、ActionExecutor 全量覆盖。
+3. Loop / Break / Continue、CallMicroflow / CallStack、RestCall / LogMessage、ErrorHandling 四模式。
+4. Cancel、maxSteps、maxIterations、REST security/timeout、RunSession / TraceFrame / RunLog 落库。
+5. 100+ 节点 seed 样例用于大图 load/save/validate/runtime plan 回归。
+6. 总控报告输出到 `artifacts/microflow-e2e/round60/`，失败用例按 blocker / critical / major / minor / known limitation 分级。
+7. Round60 不新增 Runtime 语义、不保存 FlowGram JSON、不引入第二套 API envelope。
+
+## 第 61 轮生产验证场景
+
+自动化入口：`scripts/verify-microflow-production-readiness.ts`。
+
+覆盖重点：
+
+1. 前端 production build。
+2. 后端 Release build。
+3. no mock/local production verify。
+4. api/storage/metadata/runtime health。
+5. appsettings production safe defaults。
+6. retention、audit、observability 配置文档存在。
+7. FlowGram JSON persistence grep。
+8. `.http` production readiness 段存在。

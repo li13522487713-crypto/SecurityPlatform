@@ -32,3 +32,9 @@
 
 - 手工：`src/backend/Atlas.AppHost/Bosch.http/MicroflowBackend.http` 的 Publish / Version / References 段。
 - 自动：`scripts/verify-microflow-publish-version-references-testrun-debug-integration.ts`。
+
+## 第 60 轮回归补充
+
+- Round60 总控脚本继续调用 `scripts/verify-microflow-publish-version-references-testrun-debug-integration.ts`，并把结果纳入 blocker/critical 门禁。
+- `.http` 顶部 Round60 区域提供 Publish / Version / References / Impact 的最小可执行段落。
+- 失败时需区分 `MICROFLOW_VERSION_CONFLICT`、`MICROFLOW_PUBLISH_BLOCKED`、`MICROFLOW_REFERENCE_BLOCKED` 与服务不可用，不能用 409 默认文案掩盖具体语义。

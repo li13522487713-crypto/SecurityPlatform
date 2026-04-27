@@ -62,6 +62,13 @@
 - `pnpm run verify:microflow-http-error-handling`
 - `pnpm run verify:microflow-contract-mock`
 
+## 第 60 轮内测准入补充
+
+1. 执行 `npx tsx scripts/verify-microflow-round60-full-e2e.ts`，确认 `artifacts/microflow-e2e/round60/e2e-summary.md` 中前端 adapter、Resource/Schema、Metadata、Validation、Publish、Debug 相关用例为 pass。
+2. `app-web` 微流资源库和编辑器必须使用真实 HTTP 后端；生产路径不得显示 mock/local 样例或 fallback 数据。
+3. ProblemPanel、DebugPanel、PublishModal、VersionsDrawer、ReferencesDrawer 的失败态必须展示服务端 `code/message/traceId` 或前端归一化错误，不白屏、不污染 dirty schema。
+4. 大图样例 `R60_E2E_LargeGraph*` 至少完成加载、保存、校验和 runtime plan；若浏览器性能超阈值，在 Round60 报告中标记 major risk。
+
 ## Contract Mock HTTP 模式
 
 1. 设置 `VITE_MICROFLOW_API_MOCK=msw`、`VITE_MICROFLOW_ADAPTER_MODE=http`、`VITE_MICROFLOW_API_BASE_URL=/api`，启动 `pnpm run dev:app-web`。
@@ -93,3 +100,11 @@
 4. ResourceCard / ResourceTable / EditorHeader 显示 `status`、`publishStatus`、`latestPublishedVersion`、`changedAfterPublish`。
 5. TestRunModal 使用后端 `mode=testRun` precheck，DebugPanel 使用持久化 get run/get trace，Cancel Run 可用。
 6. FlowGram runtime highlight 使用后端 trace 的 object/flow/errorHandler/loop/decision 字段，清除运行不修改 AuthoringSchema。
+
+## 第 61 轮生产构建准入
+
+1. `pnpm --dir src/frontend run build:app-web` 必须通过。
+2. `npx tsx scripts/verify-microflow-production-no-mock.ts` 必须通过，生产路径不得启用 MSW、mock adapter、local adapter 或 localStorage resource。
+3. `VITE_MICROFLOW_ADAPTER_MODE` 生产值必须为 `http` 或留空使用默认 `http`。
+4. 生产环境不设置 `VITE_MICROFLOW_API_MOCK`；开发态 Contract Mock 仅允许 `VITE_MICROFLOW_API_MOCK=msw` 且非 production。
+5. 服务未连接、无权限、认证过期和 traceId 展示策略按 `docs/microflow/release/security-configuration.md` 与 `known-limitations.md` 执行。

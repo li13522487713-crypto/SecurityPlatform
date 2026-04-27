@@ -74,7 +74,7 @@ function listParam(): Json {
   return {
     id: "param-items",
     name: "items",
-    dataType: { kind: "list", itemType: { kind: "object", entityQualifiedName: "Sales.Order" } },
+      type: { kind: "list", itemType: { kind: "object", entityQualifiedName: "Sales.Order" } },
     required: true,
   };
 }
@@ -108,7 +108,7 @@ function iterableLoopSchema(innerObjects: Json[], innerFlows: Json[], loopSource
 function continueBody(): { objects: Json[]; flows: Json[] } {
   return {
     objects: [
-      { id: "loop-log", kind: "actionActivity", officialType: "Microflows$ActionActivity", action: { id: "loop-log-action", kind: "logMessage", text: "loop item" } },
+      { id: "loop-log", kind: "actionActivity", officialType: "Microflows$ActionActivity", action: { id: "loop-log-action", kind: "logMessage", level: "info", template: { text: "loop item" } } },
       { id: "loop-continue", kind: "continueEvent", officialType: "Microflows$ContinueEvent" },
     ],
     flows: [

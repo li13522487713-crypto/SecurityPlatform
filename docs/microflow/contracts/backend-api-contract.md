@@ -155,3 +155,16 @@
 
 - 见同目录 `openapi-draft.yaml`。
 - Contract Mock 说明见 `contract-mock-readme.md`；校验脚本为 `pnpm run verify:microflow-contract-mock`。
+
+## 第 60 轮 API 回归段
+
+- `.http` 文件 `src/backend/Atlas.AppHost/Bosch.http/MicroflowBackend.http` 已增加 Round60 全链路区域，覆盖 Health、Resource/Schema、Metadata、Validation、Publish/Version、References、Runtime Plan、TestRun、Run/Trace、Cancel、Negative Cases、Cleanup。
+- 总控脚本 `scripts/verify-microflow-round60-full-e2e.ts` 调用全部微流 verify 子脚本，并要求所有 API 响应保持 `MicroflowApiResponse<T>`。
+- 当前微流实际路由仍为 `api/microflows` / `api/microflow-metadata`；Round60 不新增 `/api/v1` 镜像，避免产生第二套契约。
+
+## 第 61 轮生产 readiness API
+
+- `GET /api/microflows/runtime/health` — 返回 `MicroflowHealthDto`，`data.status` 为 `healthy` / `degraded` / `unhealthy`，`checks` 包含 runtime limits、ActionExecutorRegistry 与 RestCall 安全默认值。
+- `GET /api/microflows/health` 保留 `status=ok` 兼容既有 Round60 脚本，同时补充 `durationMs`、`environment` 与 `checks`。
+- 生产环境非 health 微流 API 由 `MicroflowProductionGuardFilter` 要求认证与 `X-Workspace-Id`；未认证返回 `MICROFLOW_UNAUTHORIZED`，缺 workspace 返回 `MICROFLOW_PERMISSION_DENIED`。
+- `.http` 文件已追加 `Round 61 - Production Readiness` 段，覆盖 health、storage、metadata、runtime、list、validate、publish、test-run、get run、trace、cancel 与 negative smoke。

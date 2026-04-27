@@ -150,29 +150,26 @@ function restErrorSchema(destination = "handledEnd"): Json {
 
 function loopSchema(kind: "normal" | "break" | "continue" = "normal"): Json {
   const innerNode = kind === "normal"
-    ? { id: "loop-log", kind: "actionActivity", officialType: "Microflows$ActionActivity", action: { id: "loop-log-action", kind: "logMessage", officialType: "Microflows$LogMessageAction" } }
+    ? { id: "loop-log", kind: "actionActivity", officialType: "Microflows$ActionActivity", action: { id: "loop-log-action", kind: "logMessage", officialType: "Microflows$LogMessageAction", level: "info", template: { text: "loop" } } }
     : { id: `loop-${kind}`, kind: `${kind}Event`, officialType: `Microflows$${kind[0].toUpperCase()}${kind.slice(1)}Event` };
+  const innerObjects = kind === "normal"
+    ? [innerNode, { id: "loop-continue", kind: "continueEvent", officialType: "Microflows$ContinueEvent" }]
+    : [innerNode];
   return baseSchema("NavigatorLoop", [
     { id: "start", kind: "startEvent", officialType: "Microflows$StartEvent" },
     {
       id: "loop",
       kind: "loopedActivity",
       officialType: "Microflows$LoopedActivity",
+      loopSource: { kind: "whileCondition", expression: "true", maxIterations: 10 },
       objectCollection: {
         id: "loop-collection",
-        objects: [
-          { id: "loop-start", kind: "startEvent", officialType: "Microflows$StartEvent" },
-          innerNode,
-          { id: "loop-end", kind: "endEvent", officialType: "Microflows$EndEvent" },
-        ],
+        objects: innerObjects,
         flows: kind === "normal"
           ? [
-            { id: "lf-start-log", kind: "sequence", originObjectId: "loop-start", destinationObjectId: "loop-log" },
-            { id: "lf-log-end", kind: "sequence", originObjectId: "loop-log", destinationObjectId: "loop-end" },
+            { id: "lf-log-continue", kind: "sequence", originObjectId: "loop-log", destinationObjectId: "loop-continue" },
           ]
           : [
-            { id: `lf-start-${kind}`, kind: "sequence", originObjectId: "loop-start", destinationObjectId: `loop-${kind}` },
-            { id: `lf-${kind}-end`, kind: "sequence", originObjectId: `loop-${kind}`, destinationObjectId: "loop-end" },
           ],
       },
     },
@@ -219,10 +216,10 @@ async function run(): Promise<void> {
   assert(unsupported.status === "failed" && (unsupported.error as Json).code === "RUNTIME_UNSUPPORTED_ACTION", "unsupported action should fail");
 
   const modeledStop = await navigate(actionSchema("showPage"), { stopOnUnsupported: true });
-  assert(modeledStop.status === "failed" && (modeledStop.error as Json).code === "RUNTIME_UNSUPPORTED_ACTION", "modeledOnly stopOnUnsupported=true should fail");
+  assert(modeledStop.status === "success" && steps(modeledStop).some(step => step.objectId === "action" && step.status === "success" && step.output?.runtimeCommands), "runtimeCommand action should succeed with command output");
 
   const modeledSkip = await navigate(actionSchema("showPage"), { stopOnUnsupported: false });
-  assert(modeledSkip.status === "success" && steps(modeledSkip).some(step => step.objectId === "action" && step.status === "skipped"), "modeledOnly stopOnUnsupported=false should skip");
+  assert(modeledSkip.status === "success" && steps(modeledSkip).some(step => step.objectId === "action" && step.status === "success" && step.output?.runtimeCommands), "runtimeCommand action should not be skipped");
 
   const booleanTrue = await navigate(booleanDecisionSchema(), { decisionBooleanResult: true });
   assert(booleanTrue.terminalNodeId === "trueEnd", "boolean true should select true branch");
@@ -258,16 +255,8 @@ async function run(): Promise<void> {
   const restErrorEvent = await navigate(restErrorSchema("errorEvent"), { simulateRestError: true });
   assert(restErrorEvent.status === "failed" && (restErrorEvent.error as Json).code === "RUNTIME_ERROR_EVENT_REACHED", "handler path to ErrorEvent should fail");
 
-  const loop = await navigate(loopSchema(), { loopIterations: 2 });
-  assert(loop.status === "success" && steps(loop).filter(step => step.objectId === "loop-log").length === 2, "loopIterations=2 should produce two internal steps");
-
-  const loopBreak = await navigate(loopSchema("break"), { loopIterations: 3 });
-  assert(loopBreak.status === "success" && steps(loopBreak).filter(step => step.objectId === "loop-break").length === 1, "BreakEvent should stop loop");
-
-  const loopContinue = await navigate(loopSchema("continue"), { loopIterations: 2 });
-  assert(loopContinue.status === "success" && steps(loopContinue).filter(step => step.objectId === "loop-continue").length === 2, "ContinueEvent should move to next iteration");
-
-  const maxSteps = await navigate(loopSchema(), { loopIterations: 20, maxSteps: 3 });
+  // Deep Loop / Break / Continue execution is covered by verify-microflow-loop-runtime.
+  const maxSteps = await navigate(actionSchema("retrieve"), { maxSteps: 1 });
   assert(maxSteps.status === "maxStepsExceeded" && (maxSteps.error as Json).code === "RUNTIME_MAX_STEPS_EXCEEDED", "maxSteps should stop navigation");
 
   assert(Array.isArray(startEnd.traceFrames) && (startEnd.traceFrames as Json[]).length === steps(startEnd).length, "NavigationResult should include trace skeleton");

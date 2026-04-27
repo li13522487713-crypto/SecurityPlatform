@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.Microflows;
 
@@ -39,6 +40,14 @@ public sealed class MicroflowMetadataSeedHostedService : IHostedService
         }
 
         using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetService<ISqlSugarClient>();
+        if (db is not null && !db.DbMaintenance.IsAnyTable("MicroflowMetadataCache", false))
+        {
+            _logger.LogWarning(
+                "[MicroflowMetadataSeed] Metadata cache table does not exist yet; skip seed until schema migration is completed.");
+            return;
+        }
+
         var repository = scope.ServiceProvider.GetRequiredService<IMicroflowMetadataCacheRepository>();
         var workspaceId = _configuration.GetValue<string?>("Microflows:Metadata:SeedWorkspaceId") ?? "demo-workspace";
         var tenantId = _configuration.GetValue<string?>("Microflows:Metadata:SeedTenantId") ?? "demo-tenant";

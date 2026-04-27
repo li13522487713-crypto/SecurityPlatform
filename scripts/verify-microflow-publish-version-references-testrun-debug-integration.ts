@@ -149,10 +149,14 @@ async function run(): Promise<void> {
   await api("GET", "/api/microflows/runs/not-found", undefined, false);
 }
 
-try {
-  await run();
-  console.log("PASS microflow publish/version/references + testrun/debug integration");
-} catch (error) {
-  console.error(`FAIL microflow integration: ${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
+async function main(): Promise<void> {
+  try {
+    await run();
+    console.log("PASS microflow publish/version/references + testrun/debug integration");
+  } catch (error) {
+    console.error(`FAIL microflow integration: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
 }
+
+void main();

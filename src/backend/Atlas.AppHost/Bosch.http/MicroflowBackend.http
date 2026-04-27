@@ -1,3 +1,223 @@
+### Runtime Round 60 - Full E2E regression / inner test readiness
+# Scope: Resource -> Schema -> Metadata -> Validation -> Publish -> References -> TestRun -> Trace -> Runtime hardening.
+# Command:
+#   npx tsx scripts/verify-microflow-round60-full-e2e.ts
+# Evidence:
+#   artifacts/microflow-e2e/round60/e2e-summary.json
+#   artifacts/microflow-e2e/round60/e2e-summary.md
+#   artifacts/microflow-e2e/round60/failed-cases.json
+#   artifacts/microflow-e2e/round60/coverage-matrix.json
+# Safety:
+# - Round60 seed/reset only deletes names starting with R60_E2E_ or E2E_MF_.
+# - Requests below use AuthoringSchema only; FlowGram JSON must not be persisted.
+
+### Round 60 - Health / Environment
+# Expected JSON path:
+# - $.success=true
+# - $.data.status="ok"
+GET {{host}}/api/microflows/health
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 60 - Resource / Schema create R60 blank
+# @name round60CreateBlank
+# Expected JSON path:
+# - $.success=true
+# - $.data.name startsWith "R60_E2E_"
+POST {{host}}/api/microflows
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "workspaceId": "{{workspaceId}}",
+  "input": {
+    "name": "R60_E2E_Blank_{{$timestamp}}",
+    "displayName": "R60_E2E_Blank_{{$timestamp}}",
+    "description": "Round60 .http seed resource",
+    "moduleId": "verify-module",
+    "moduleName": "Verify",
+    "tags": ["round60", "e2e"],
+    "parameters": [],
+    "returnType": { "kind": "void" }
+  }
+}
+
+### Round 60 - Save AuthoringSchema
+# Expected JSON path:
+# - $.success=true
+# - $.data.resource.schemaId exists
+PUT {{host}}/api/microflows/{{microflowId}}/schema
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "saveReason": "round60-http-regression",
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{microflowId}}",
+    "stableId": "{{microflowId}}",
+    "name": "R60_E2E_Blank",
+    "displayName": "R60_E2E_Blank",
+    "moduleId": "verify-module",
+    "moduleName": "Verify",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-end", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": [],
+    "variables": {},
+    "validation": { "issues": [] }
+  }
+}
+
+### Round 60 - Metadata
+# Expected JSON path:
+# - $.success=true
+# - $.data.entities is array
+# - $.data.enumerations is array
+GET {{host}}/api/microflow-metadata
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 60 - Validation publish mode
+# Expected JSON path:
+# - $.success=true
+# - $.data.summary.errorCount=0
+POST {{host}}/api/microflows/{{microflowId}}/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "publish",
+  "includeWarnings": true
+}
+
+### Round 60 - Publish version
+# Expected JSON path:
+# - $.success=true
+# - $.data.version.version="60.0.0"
+POST {{host}}/api/microflows/{{microflowId}}/publish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "version": "60.0.0",
+  "description": "Round60 .http regression publish",
+  "confirmBreakingChanges": true
+}
+
+### Round 60 - Versions / References / Impact
+GET {{host}}/api/microflows/{{microflowId}}/versions
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+###
+GET {{host}}/api/microflows/{{microflowId}}/references?includeInactive=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+###
+GET {{host}}/api/microflows/{{microflowId}}/impact?version=60.0.1&includeBreakingChanges=true&includeReferences=true
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 60 - Runtime Plan
+# Expected JSON path:
+# - $.success=true
+# - $.data.nodes exists
+GET {{host}}/api/microflows/{{microflowId}}/runtime/plan?mode=validateOnly&failOnUnsupported=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 60 - TestRun Basic
+# @name round60TestRun
+# Expected JSON path:
+# - $.success=true
+# - $.data.session.status="success"
+# - $.data.session.trace is array
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "maxSteps": 50, "allowRealHttp": false }
+}
+
+### Round 60 - Run / Trace
+GET {{host}}/api/microflows/runs/{{runId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+###
+GET {{host}}/api/microflows/runs/{{runId}}/trace
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 60 - Cancel / Timeout / Limits
+# Expected: completed runs can be marked cancelled; long-running cooperative cancellation is a known limitation in sync TestRun.
+POST {{host}}/api/microflows/runs/{{runId}}/cancel
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 60 - Negative Cases
+# 404 run not found
+GET {{host}}/api/microflows/runs/R60_E2E_not_found/trace
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 60 - Cleanup prefixed resource
+# Safe cleanup: delete only the resource id created for R60_E2E_*.
+DELETE {{host}}/api/microflows/{{microflowId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Runtime Round 58 - ErrorHandling complete semantics
 # Covers rollback, customWithRollback, customWithoutRollback, continue, RestCall latestHttpResponse,
 # ErrorEvent rethrow, recursion guard, Loop/CallMicroflow propagation, trace output.errorHandling, and run errorHandlingSummary.
@@ -2301,6 +2521,158 @@ X-Trace-Id: {{traceId}}
     "flows": []
   }
 }
+
+### Round 61 - Production Readiness / api health
+# Expected JSON path:
+# - $.success=true
+# - $.data.status in ["ok","healthy"]
+GET {{host}}/api/microflows/health
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / storage health
+# Expected JSON path:
+# - $.success=true
+# - $.data.tables[*].exists=true
+GET {{host}}/api/microflows/storage/health
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / metadata health
+# Expected JSON path:
+# - $.success=true
+# - $.data.status in ["ok","healthy","degraded"]
+GET {{host}}/api/microflow-metadata/health?workspaceId={{workspaceId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / runtime health
+# Expected JSON path:
+# - $.success=true
+# - $.data.status in ["healthy","degraded"]
+GET {{host}}/api/microflows/runtime/health
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / list resources
+# Expected JSON path:
+# - $.success=true
+# - $.data.items is array
+GET {{host}}/api/microflows?workspaceId={{workspaceId}}&pageIndex=1&pageSize=10
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / validate sample
+# Expected JSON path:
+# - $.success=true
+# - $.data.summary exists
+POST {{host}}/api/microflows/{{microflowId}}/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "publish"
+}
+
+### Round 61 - Production Readiness / publish sample
+# Expected JSON path:
+# - success=true or error.code="MICROFLOW_PUBLISH_BLOCKED"
+POST {{host}}/api/microflows/{{microflowId}}/publish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "version": "61.0.{{$timestamp}}",
+  "notes": "Round61 readiness publish smoke",
+  "confirmBreakingChanges": false
+}
+
+### Round 61 - Production Readiness / test-run sample
+# Expected JSON path:
+# - $.success=true
+# - $.data.sessionId exists
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": {
+    "maxSteps": 100,
+    "collectTrace": true
+  }
+}
+
+### Round 61 - Production Readiness / get run
+# Expected JSON path:
+# - $.success=true
+# - $.data.id="{{runId}}"
+GET {{host}}/api/microflows/runs/{{runId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / get trace paged
+# Expected JSON path:
+# - $.success=true
+# - $.data.frames is array
+GET {{host}}/api/microflows/runs/{{runId}}/trace?pageIndex=1&pageSize=50
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / cancel run
+# Expected JSON path:
+# - $.success=true or $.error.code="MICROFLOW_NOT_FOUND"
+POST {{host}}/api/microflows/runs/{{runId}}/cancel
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / readiness negative - missing workspace
+# Expected JSON path in Production:
+# - $.success=false
+# - $.error.code="MICROFLOW_PERMISSION_DENIED"
+GET {{host}}/api/microflows
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / metadata seed status
+# Expected:
+# - Production config keeps Microflows:Metadata:SeedEnabled=false.
+# - No sensitive config is returned by this endpoint.
+GET {{host}}/api/microflow-metadata/health?workspaceId={{workspaceId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Round 61 - Production Readiness / retention dry run
+# No public cleanup endpoint is exposed in Round61.
+# Use docs/microflow/release/ops-runbook.md cleanup procedure and only delete test resources with R60_E2E_ / E2E_MF_ / R61_SMOKE_ prefixes.
 
 ### Runtime ExpressionEvaluator P0 - Decision expression selects true branch
 # Expected JSON paths:

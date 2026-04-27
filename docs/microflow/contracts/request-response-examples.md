@@ -392,3 +392,18 @@ x-microflow-mock-error: version-conflict
 - Publish / Version / References 示例见 `MicroflowBackend.http`：publish、duplicate version conflict、impact、rollback、duplicate historical version、references rebuild、reference blocked。
 - TestRun / Debug 示例见 `MicroflowBackend.http`：validate `mode=testRun`、success、decision true/false、loopIterations、simulateRestError、get run、get trace、cancel、unsupported action、max steps exceeded。
 - 自动脚本：`scripts/verify-microflow-publish-version-references-testrun-debug-integration.ts`。
+
+## 16. 第 60 轮全链路示例
+
+- `.http`：`src/backend/Atlas.AppHost/Bosch.http/MicroflowBackend.http` 顶部 Round60 区域。
+- 自动脚本：`scripts/verify-microflow-round60-full-e2e.ts`。
+- 报告：`artifacts/microflow-e2e/round60/e2e-summary.md`。
+- Seed/reset 前缀：`R60_E2E_` / `E2E_MF_`，清理逻辑不得删除非测试资源。
+
+## 17. 第 61 轮生产 readiness 示例
+
+- `.http`：`src/backend/Atlas.AppHost/Bosch.http/MicroflowBackend.http` 中 `Round 61 - Production Readiness` 区域。
+- 自动脚本：`scripts/verify-microflow-production-readiness.ts`。
+- no mock：`scripts/verify-microflow-production-no-mock.ts`。
+- 报告：`artifacts/microflow-release/round61/readiness-summary.md`。
+- Negative smoke：生产环境缺 `X-Workspace-Id` 应返回 `MICROFLOW_PERMISSION_DENIED`；无认证访问非 health API 应返回 `MICROFLOW_UNAUTHORIZED`。
