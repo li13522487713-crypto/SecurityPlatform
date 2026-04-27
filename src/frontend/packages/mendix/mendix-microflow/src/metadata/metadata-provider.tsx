@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { MicroflowMetadataCatalog } from "./metadata-catalog";
-import { createMockMicroflowMetadataAdapter, type MicroflowMetadataAdapter } from "./metadata-adapter";
+import type { MicroflowMetadataAdapter } from "./metadata-adapter";
 
 export interface MicroflowMetadataContextValue {
   catalog: MicroflowMetadataCatalog | null;
@@ -10,6 +10,8 @@ export interface MicroflowMetadataContextValue {
   reload: () => Promise<void>;
   refresh: () => Promise<void>;
   adapter: MicroflowMetadataAdapter | undefined;
+  workspaceId?: string;
+  moduleId?: string;
 }
 
 const fallbackReload = async () => undefined;
@@ -27,7 +29,7 @@ const defaultContextValue: MicroflowMetadataContextValue = {
 export const MicroflowMetadataContext = createContext<MicroflowMetadataContextValue>(defaultContextValue);
 
 export interface MicroflowMetadataProviderProps {
-  /** 未传时使用 {@link createMockMicroflowMetadataAdapter}。 */
+  /** 生产路径必须注入真实 adapter；缺失时显示错误，不回落 mock metadata。 */
   adapter?: MicroflowMetadataAdapter;
   /** 若已持有 catalog，可同步注入并跳过首次 adapter 请求。 */
   initialCatalog?: MicroflowMetadataCatalog;
@@ -43,10 +45,7 @@ export function MicroflowMetadataProvider({
   moduleId,
   children,
 }: MicroflowMetadataProviderProps) {
-  const adapter = useMemo(
-    () => adapterProp ?? createMockMicroflowMetadataAdapter(),
-    [adapterProp],
-  );
+  const adapter = useMemo(() => adapterProp, [adapterProp]);
 
   const [catalog, setCatalog] = useState<MicroflowMetadataCatalog | null>(initialCatalog ?? null);
   const [loading, setLoading] = useState<boolean>(initialCatalog === undefined);
@@ -61,6 +60,12 @@ export function MicroflowMetadataProvider({
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    if (!adapter) {
+      setCatalog(null);
+      setError(new Error("Microflow metadata adapter is not configured."));
+      setLoading(false);
+      return;
+    }
     try {
       const next = await adapter.getMetadataCatalog(request);
       setCatalog(next);
@@ -96,6 +101,12 @@ export function MicroflowMetadataProvider({
   }, [load]);
 
   const refresh = useCallback(async () => {
+    if (!adapter) {
+      setCatalog(null);
+      setError(new Error("Microflow metadata adapter is not configured."));
+      setLoading(false);
+      return;
+    }
     if (adapter.refreshMetadataCatalog) {
       setLoading(true);
       setError(null);
@@ -123,8 +134,10 @@ export function MicroflowMetadataProvider({
       reload,
       refresh,
       adapter: adapterProp,
+      workspaceId,
+      moduleId,
     }),
-    [adapterProp, catalog, error, loading, reload, refresh, version],
+    [adapterProp, catalog, error, loading, reload, refresh, version, workspaceId, moduleId],
   );
 
   return (

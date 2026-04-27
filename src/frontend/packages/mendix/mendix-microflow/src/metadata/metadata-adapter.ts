@@ -35,7 +35,7 @@ export interface GetWorkflowRefsRequest extends GetMicroflowMetadataRequest {
 /**
  * 元数据唯一异步加载入口（不依赖 React / app-web）。
  * 生产环境通过 {@link createHttpMicroflowMetadataAdapter} 或业务 Adapter 注入；
- * 本地开发默认 {@link createMockMicroflowMetadataAdapter}。
+ * Provider 不会在缺失 adapter 或请求失败时回落 mock metadata。
  */
 export interface MicroflowMetadataAdapter {
   getMetadataCatalog(request?: GetMicroflowMetadataRequest): Promise<MicroflowMetadataCatalog>;

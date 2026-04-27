@@ -441,10 +441,13 @@ function makeAction(node: Extract<LegacyMicroflowNode, { type: "activity" }>): M
       kind: "callMicroflow",
       officialType: "Microflows$MicroflowCallAction",
       targetMicroflowId: config.targetMicroflowId ?? "",
+      targetMicroflowName: config.targetMicroflowName ?? "",
+      targetMicroflowQualifiedName: config.targetMicroflowQualifiedName ?? "",
       parameterMappings: (config.parameterMappings ?? []).map(item => ({
         parameterName: item.parameterName,
         parameterType: { kind: "unknown", reason: "legacy mapping" },
-        argumentExpression: item.expression
+        argumentExpression: item.expression,
+        sourceVariableName: item.sourceVariableName
       })),
       returnValue: {
         storeResult: Boolean(config.resultVariableName),

@@ -324,6 +324,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
 
         await _schemaSnapshotRepository.InsertAsync(snapshot, cancellationToken);
         await _resourceRepository.InsertAsync(resource, cancellationToken);
+        await TryRebuildOutgoingReferencesAsync(resource.Id, cancellationToken);
         return MicroflowResourceMapper.ToDto(resource, snapshot);
     }
 

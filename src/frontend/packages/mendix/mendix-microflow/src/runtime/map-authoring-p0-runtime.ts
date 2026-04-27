@@ -111,6 +111,7 @@ export function tryMapP0ActionToDiscriminatedDto(action: MicroflowAction): Micro
         errorHandlingType: eh,
         config: {
           targetMicroflowId: action.targetMicroflowId,
+          targetMicroflowName: action.targetMicroflowName,
           targetMicroflowQualifiedName: action.targetMicroflowQualifiedName,
           parameterMappings: action.parameterMappings,
           returnValue: action.returnValue,

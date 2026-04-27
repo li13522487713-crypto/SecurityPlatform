@@ -172,6 +172,21 @@ function collectVariableNames(schema: MicroflowSchema): Set<string> {
     if (object.kind === "actionActivity" && object.action.kind === "createVariable") {
       names.add(object.action.variableName.toLocaleLowerCase());
     }
+    if (object.kind === "actionActivity" && object.action.kind === "createList") {
+      const name = object.action.outputListVariableName || object.action.listVariableName;
+      if (name) {
+        names.add(name.toLocaleLowerCase());
+      }
+    }
+    if (object.kind === "actionActivity" && (object.action.kind === "aggregateList" || object.action.kind === "listOperation")) {
+      const name = object.action.outputVariableName;
+      if (name) {
+        names.add(name.toLocaleLowerCase());
+      }
+    }
+    if (object.kind === "loopedActivity" && object.loopSource.kind === "iterableList" && object.loopSource.iteratorVariableName) {
+      names.add(object.loopSource.iteratorVariableName.toLocaleLowerCase());
+    }
   }
   return names;
 }
@@ -287,6 +302,24 @@ export function duplicateObject(schema: MicroflowSchema, objectId: string): Micr
     if (copy.action.kind === "createVariable" && object.kind === "actionActivity" && object.action.kind === "createVariable") {
       copy.action.variableName = nextVariableCopyName(schema, object.action.variableName);
     }
+    if (copy.action.kind === "createList" && object.kind === "actionActivity" && object.action.kind === "createList") {
+      const nextName = nextVariableCopyName(schema, object.action.outputListVariableName || object.action.listVariableName);
+      copy.action.outputListVariableName = nextName;
+      copy.action.listVariableName = nextName;
+      copy.action.listVariableId = copy.action.id;
+    }
+    if (copy.action.kind === "aggregateList" && object.kind === "actionActivity" && object.action.kind === "aggregateList" && object.action.outputVariableName) {
+      const nextName = nextVariableCopyName(schema, object.action.outputVariableName);
+      copy.action.outputVariableName = nextName;
+      copy.action.resultVariableName = nextName;
+      copy.action.resultVariableId = copy.action.id;
+    }
+    if (copy.action.kind === "listOperation" && object.kind === "actionActivity" && object.action.kind === "listOperation" && object.action.outputVariableName) {
+      const nextName = nextVariableCopyName(schema, object.action.outputVariableName);
+      copy.action.outputVariableName = nextName;
+      copy.action.outputListVariableName = nextName;
+      copy.action.targetListVariableId = copy.action.id;
+    }
   }
   if (copy.kind === "parameterObject") {
     const sourceParameterId = object.kind === "parameterObject" ? object.parameterId : undefined;
@@ -311,6 +344,12 @@ export function duplicateObject(schema: MicroflowSchema, objectId: string): Micr
     ];
   }
   if (copy.kind === "loopedActivity") {
+    if (copy.loopSource.kind === "iterableList" && object.kind === "loopedActivity" && object.loopSource.kind === "iterableList") {
+      copy.loopSource = {
+        ...copy.loopSource,
+        iteratorVariableName: nextVariableCopyName(schema, object.loopSource.iteratorVariableName)
+      };
+    }
     copy.objectCollection = {
       ...copy.objectCollection,
       id: uniqueSchemaId(schema, "loop-collection-copy"),
@@ -502,7 +541,7 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
         kind: "iterableList",
         officialType: "Microflows$IterableList",
         listVariableName: String(config.iterableVariableName ?? ""),
-        iteratorVariableName: String(config.itemVariableName ?? "currentItem"),
+        iteratorVariableName: String(config.itemVariableName ?? ""),
         currentIndexVariableName: "$currentIndex"
       },
       objectCollection: {
@@ -654,6 +693,8 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       kind: "callMicroflow",
       officialType: "Microflows$MicroflowCallAction",
       targetMicroflowId: String(config.targetMicroflowId ?? ""),
+      targetMicroflowName: String(config.targetMicroflowName ?? ""),
+      targetMicroflowQualifiedName: String(config.targetMicroflowQualifiedName ?? ""),
       parameterMappings: [],
       returnValue: { storeResult: false },
       callMode: "sync"

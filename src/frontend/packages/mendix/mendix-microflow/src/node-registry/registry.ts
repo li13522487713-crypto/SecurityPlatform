@@ -466,7 +466,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     iconKey: "loop",
     availability: "supported",
     availabilityReason: undefined,
-    defaultConfig: { iterableVariableName: "", itemVariableName: "currentItem", loopType: "forEach", indexVariableName: "currentIndex" },
+    defaultConfig: { iterableVariableName: "", itemVariableName: "", loopType: "forEach", indexVariableName: "$currentIndex" },
     ports: [sequenceIn, sequenceOut, port("bodyIn", "Body In", "output", "loopBodyIn", "one", ["sequence"]), port("bodyOut", "Body Out", "input", "loopBodyOut", "zeroOrMore", ["sequence"]), errorOut],
     documentation: doc("Runs child microflow elements for every list item or while an expression is true."),
     supportedErrorHandlingTypes: ["rollback", "customWithRollback", "customWithoutRollback", "continue"],

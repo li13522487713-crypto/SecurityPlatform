@@ -12,6 +12,7 @@ import { CreateMicroflowModal } from "../microflow/resource/CreateMicroflowModal
 import { RenameMicroflowModal } from "../microflow/resource/RenameMicroflowModal";
 import { DuplicateMicroflowModal } from "../microflow/resource/DuplicateMicroflowModal";
 import type { MicroflowCreateInput, MicroflowDuplicateInput, MicroflowReference } from "../microflow/resource/resource-types";
+import { MicroflowReferencesDrawer } from "../microflow/references/MicroflowReferencesDrawer";
 
 interface TreeNode {
   key: string;
@@ -36,6 +37,7 @@ interface TreeNode {
   moduleId?: string;
   microflowId?: string;
   resourceId?: string;
+  referenceCount?: number;
   readonly?: boolean;
   dynamic?: boolean;
   title?: string;
@@ -48,6 +50,7 @@ interface TreeNode {
 interface AppExplorerProps {
   adapterBundle?: MicroflowAdapterBundle;
   workspaceId?: string;
+  refreshToken?: number;
 }
 
 type MicroflowLoadStatus = "idle" | "loading" | "success" | "error";
@@ -259,6 +262,7 @@ function createMicroflowStateChildren(
     moduleId: resource.moduleId,
     microflowId: resource.id,
     resourceId: resource.id,
+    referenceCount: resource.referenceCount,
     dynamic: true,
     title: resource.qualifiedName
   }));
@@ -368,6 +372,22 @@ function ExplorerTreeNode({ node, depth, selectedId, searchText, onSelect, rende
       >
         {node.label}
       </span>
+      {node.kind === "microflow" && typeof node.referenceCount === "number" && node.referenceCount > 0 ? (
+        <span
+          style={{
+            marginLeft: 4,
+            padding: "0 5px",
+            borderRadius: 10,
+            fontSize: 10,
+            lineHeight: "16px",
+            background: "var(--semi-color-warning-light-default)",
+            color: "var(--semi-color-warning)"
+          }}
+          title={`${node.referenceCount} active or indexed references`}
+        >
+          ref {node.referenceCount}
+        </span>
+      ) : null}
 
       {node.action === "retryMicroflows" && (
         <Button
@@ -409,7 +429,7 @@ function ExplorerTreeNode({ node, depth, selectedId, searchText, onSelect, rende
   );
 }
 
-export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
+export function AppExplorer({ adapterBundle, workspaceId, refreshToken }: AppExplorerProps) {
   const [searchText, setSearchText] = useState("");
   const [microflowStatus, setMicroflowStatus] = useState<MicroflowLoadStatus>("idle");
   const [microflowError, setMicroflowError] = useState<string>();
@@ -421,6 +441,8 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
   const [deleteReferences, setDeleteReferences] = useState<MicroflowReference[]>();
   const [deleteReferenceError, setDeleteReferenceError] = useState<string>();
   const [deleteReferencesLoading, setDeleteReferencesLoading] = useState(false);
+  const [referencesTarget, setReferencesTarget] = useState<StudioMicroflowDefinitionView>();
+  const [referencesDrawerSeed, setReferencesDrawerSeed] = useState(0);
   const [crudAction, setCrudAction] = useState<MicroflowCrudAction>();
   const lastRequestKeyRef = useRef<string>();
   const selectedExplorerNodeId = useMendixStudioStore(state => state.selectedExplorerNodeId);
@@ -504,6 +526,12 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
     void loadMicroflows();
   }, [loadMicroflows]);
 
+  useEffect(() => {
+    if (typeof refreshToken === "number" && refreshToken > 0) {
+      void loadMicroflows(true);
+    }
+  }, [loadMicroflows, refreshToken]);
+
   const syncResourceToExplorer = useCallback((resource: Parameters<typeof mapMicroflowResourceToStudioDefinitionView>[0]) => {
     const view = mapMicroflowResourceToStudioDefinitionView(resource);
     upsertStudioMicroflow(view);
@@ -570,10 +598,14 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
       renameMicroflowWorkbenchTab(view.id, view.displayName || view.name);
       Toast.success("微流已重命名");
       await loadMicroflows(true);
+      if (referencesTarget?.id === view.id) {
+        setReferencesTarget(view);
+        setReferencesDrawerSeed(seed => seed + 1);
+      }
     } finally {
       setCrudAction(undefined);
     }
-  }, [adapterBundle, loadMicroflows, microflows, renameMicroflowWorkbenchTab, renamingMicroflow, syncResourceToExplorer]);
+  }, [adapterBundle, loadMicroflows, microflows, referencesTarget?.id, renameMicroflowWorkbenchTab, renamingMicroflow, syncResourceToExplorer]);
 
   const handleDuplicateMicroflow = useCallback(async (input: MicroflowDuplicateInput) => {
     if (!duplicatingMicroflow) {
@@ -600,6 +632,7 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
       syncResourceToExplorer(duplicated);
       Toast.success("微流已复制");
       await loadMicroflows(true);
+      setReferencesDrawerSeed(seed => seed + 1);
     } finally {
       setCrudAction(undefined);
     }
@@ -633,6 +666,13 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
     const activeReferences = (deleteReferences ?? []).filter(reference => reference.active !== false);
     if (activeReferences.length > 0) {
       Toast.warning("该微流正在被其他对象引用，不能直接删除。");
+      setReferencesTarget(deleteTarget);
+      setReferencesDrawerSeed(seed => seed + 1);
+      setDeleteTarget(undefined);
+      return;
+    }
+    if (deleteReferenceError) {
+      Toast.error("无法验证引用关系，请稍后重试。");
       return;
     }
     if (!adapterBundle?.resourceAdapter) {
@@ -652,6 +692,11 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
       const apiError = getMicroflowApiError(caught);
       if (apiError.code === "MICROFLOW_REFERENCE_BLOCKED" || apiError.httpStatus === 409) {
         Toast.error(apiError.message || "该微流正在被其他对象引用，不能直接删除。");
+        setReferencesTarget(deleteTarget);
+        setReferencesDrawerSeed(seed => seed + 1);
+        void adapterBundle.resourceAdapter.getMicroflowReferences(deleteTarget.id, { includeInactive: true })
+          .then(setDeleteReferences)
+          .catch(error => setDeleteReferenceError(getMicroflowErrorUserMessage(error)));
       } else {
         Toast.error(getMicroflowErrorUserMessage(caught));
       }
@@ -666,6 +711,11 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
     removeStudioMicroflow,
     setSelectedExplorerNodeId
   ]);
+
+  const openReferencesDrawer = useCallback((resource: StudioMicroflowDefinitionView) => {
+    setReferencesTarget(resource);
+    setReferencesDrawerSeed(seed => seed + 1);
+  }, []);
 
   const treeData = useMemo(
     () => withMicroflowChildren(TREE_DATA, createMicroflowStateChildren(microflowStatus, microflows, microflowError)),
@@ -768,6 +818,12 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
           Refresh
         </Dropdown.Item>
         <Dropdown.Item
+          disabled={Boolean(missingReason) || busy}
+          onClick={() => openReferencesDrawer(resource)}
+        >
+          View References
+        </Dropdown.Item>
+        <Dropdown.Item
           type="danger"
           disabled={Boolean(missingReason) || busy}
           onClick={() => openDeleteDialog(resource)}
@@ -857,13 +913,25 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
             </Space>
           ) : deleteReferenceError ? (
             <Text type="warning">
-              引用关系预检查失败：{deleteReferenceError}。仍可继续确认，最终以后端引用保护校验为准。
+              引用关系预检查失败：{deleteReferenceError}。为避免误删，请稍后重试；最终以后端引用保护校验为准。
             </Text>
           ) : (
             <Text type="tertiary">未发现 active 引用，删除时仍以后端校验为准。</Text>
           )}
         </Space>
       </Modal>
+      {referencesTarget && adapterBundle?.resourceAdapter ? (
+        <MicroflowReferencesDrawer
+          key={`${referencesTarget.id}:${referencesDrawerSeed}`}
+          visible={Boolean(referencesTarget)}
+          resource={referencesTarget}
+          adapter={adapterBundle.resourceAdapter}
+          resourceIndex={microflowResourcesById}
+          onOpenMicroflow={openMicroflowWorkbenchTab}
+          onRefreshResourceList={() => loadMicroflows(true)}
+          onClose={() => setReferencesTarget(undefined)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import type { MicroflowFlow, MicroflowSequenceFlow } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../../flowgram/adapters/flowgram-case-options";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
-import { getDecisionBranchConflicts } from "../../schema/utils";
+import { collectLoopObjects, getDecisionBranchConflicts, getLoopFlowKind } from "../../schema/utils";
 import { ValidationIssueList } from "../common";
 import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "../types";
 import { Header, PropertyTabs, Field, flowPatch, getFlowTabs, issuesFor, objectName } from "../panel-shared";
@@ -83,6 +83,8 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
   }, [flow.id, tabs]);
   const issues = issuesFor(props, undefined, flow.id);
   const patch = (next: MicroflowFlow) => props.onFlowChange?.(flow.id, next);
+  const loopFlowKind = getLoopFlowKind(props.schema, flow);
+  const loopSources = collectLoopObjects(props.schema).filter(loop => loop.id === flow.originObjectId);
   return (
     <>
       <Header
@@ -113,6 +115,31 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
         </Field>
         <Field label="Runtime Effect">
           <Input value={flow.kind === "annotation" ? "annotationOnly" : flow.kind === "sequence" && flow.isErrorHandler ? "errorFlow" : "controlFlow"} disabled />
+        </Field>
+        <Field label="Loop Flow Role">
+          {flow.kind === "sequence" && loopSources.length ? (
+            <Select
+              value={loopFlowKind === "body" || loopFlowKind === "exit" ? loopFlowKind : undefined}
+              disabled={props.readonly}
+              placeholder="Not a loop body/exit flow"
+              style={{ width: "100%" }}
+              optionList={[
+                { label: "Body", value: "body" },
+                { label: "After / Exit", value: "exit" },
+              ]}
+              onChange={value => {
+                const role = String(value) === "body" ? "body" : "exit";
+                patch(flowPatch(flow, {
+                  originConnectionIndex: role === "body" ? 2 : 1,
+                  editor: { ...flow.editor, label: role === "body" ? "Body" : "After" },
+                } as MicroflowEdgePatch));
+              }}
+            />
+          ) : (
+            <Input value={loopFlowKind === "none" ? "Not a Loop body/exit flow" : loopFlowKind} disabled />
+          )}
+          {loopFlowKind === "body" ? <Text type="tertiary" size="small">Stored as originConnectionIndex=2 (Loop body handle).</Text> : null}
+          {loopFlowKind === "exit" ? <Text type="tertiary" size="small">Stored as originConnectionIndex=1 (Loop after/exit handle).</Text> : null}
         </Field>
         <Field label="Origin Connection Index">
           <InputNumber value={flow.originConnectionIndex ?? 0} disabled />

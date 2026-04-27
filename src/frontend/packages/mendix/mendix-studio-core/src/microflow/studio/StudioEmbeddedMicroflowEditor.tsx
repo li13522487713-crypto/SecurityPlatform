@@ -5,6 +5,7 @@ import type { MicroflowAdapterBundle } from "../adapter/microflow-adapter-factor
 import { getMicroflowErrorUserMessage, isNotFoundError } from "../adapter/http/microflow-api-error";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MendixMicroflowEditorEntry } from "../editor/MendixMicroflowEditorEntry";
+import type { StudioMicroflowDefinitionView } from "./studio-microflow-types";
 
 export interface StudioEmbeddedMicroflowEditorProps {
   microflowId?: string;
@@ -13,6 +14,9 @@ export interface StudioEmbeddedMicroflowEditorProps {
   adapterBundle?: MicroflowAdapterBundle;
   onResourceUpdated?: (resource: MicroflowResource) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onOpenMicroflow?: (microflowId: string) => void;
+  onRefreshResourceList?: () => void | Promise<void>;
+  microflowResourceIndex?: Record<string, StudioMicroflowDefinitionView>;
 }
 
 const { Text } = Typography;
@@ -37,9 +41,13 @@ function getErrorTitle(error: Error): string {
 export function StudioEmbeddedMicroflowEditor({
   microflowId,
   workspaceId,
+  moduleId,
   adapterBundle,
   onResourceUpdated,
-  onDirtyChange
+  onDirtyChange,
+  onOpenMicroflow,
+  onRefreshResourceList,
+  microflowResourceIndex
 }: StudioEmbeddedMicroflowEditorProps) {
   const requestSeqRef = useRef(0);
   const [resource, setResource] = useState<MicroflowResource>();
@@ -157,11 +165,16 @@ export function StudioEmbeddedMicroflowEditor({
       key={`${microflowId}:${resource.schemaId}:${resource.version}`}
       resource={resource}
       adapter={adapterBundle.resourceAdapter}
+      workspaceId={workspaceId}
+      moduleId={moduleId ?? resource.moduleId}
       metadataAdapter={adapterBundle.metadataAdapter}
       validationAdapter={adapterBundle.validationAdapter}
       adapterMode={adapterBundle.mode}
       apiBaseUrl={adapterBundle.apiBaseUrl}
       onDirtyChange={onDirtyChange}
+      onOpenMicroflow={onOpenMicroflow}
+      onRefreshResourceList={onRefreshResourceList}
+      microflowResourceIndex={microflowResourceIndex}
       onSave={saved => {
         setResource(saved);
         onDirtyChange?.(false);

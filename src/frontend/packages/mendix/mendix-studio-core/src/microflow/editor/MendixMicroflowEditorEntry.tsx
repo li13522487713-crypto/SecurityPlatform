@@ -11,6 +11,7 @@ import { PublishMicroflowModal } from "../publish/PublishMicroflowModal";
 import { MicroflowReferencesDrawer } from "../references/MicroflowReferencesDrawer";
 import { MicroflowVersionsDrawer } from "../versions/MicroflowVersionsDrawer";
 import type { MicroflowResource } from "../resource/resource-types";
+import type { StudioMicroflowDefinitionView } from "../studio/studio-microflow-types";
 import { formatMicroflowDate, microflowPublishStatusLabel, microflowStatusColor, microflowStatusLabel } from "../resource/resource-utils";
 import { createMicroflowEditorApiClient } from "./editor-save-bridge";
 
@@ -19,6 +20,8 @@ const { Text } = Typography;
 export interface MendixMicroflowEditorEntryProps {
   resource: MicroflowResource;
   adapter: MicroflowResourceAdapter;
+  workspaceId?: string;
+  moduleId?: string;
   metadataAdapter?: MicroflowMetadataAdapter;
   metadataCatalog?: MicroflowMetadataCatalog;
   runtimeAdapter?: MicroflowApiClient;
@@ -28,11 +31,14 @@ export interface MendixMicroflowEditorEntryProps {
   onSave?: (resource: MicroflowResource) => void;
   onPublish?: (resource: MicroflowResource) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onOpenMicroflow?: (microflowId: string) => void;
+  onRefreshResourceList?: () => void | Promise<void>;
+  microflowResourceIndex?: Record<string, StudioMicroflowDefinitionView>;
   onBack?: () => void;
   readonly?: boolean;
 }
 
-export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onBack, readonly }: MendixMicroflowEditorEntryProps) {
+export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly }: MendixMicroflowEditorEntryProps) {
   const [schema, setSchema] = useState<MicroflowSchema>(resource.schema);
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -55,6 +61,8 @@ export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter,
         apiClient={apiClient}
         metadataAdapter={metadataAdapter}
         metadataCatalog={metadataCatalog}
+        metadataWorkspaceId={workspaceId}
+        metadataModuleId={moduleId ?? currentResource.moduleId}
         validationAdapter={validationAdapter}
         readonly={effectiveReadonly}
         onSchemaChange={nextSchema => {
@@ -128,7 +136,16 @@ export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter,
         }}
         onCreated={() => undefined}
       />
-      <MicroflowReferencesDrawer visible={referencesOpen} resource={currentResource} adapter={adapter} onClose={() => setReferencesOpen(false)} />
+      <MicroflowReferencesDrawer
+        visible={referencesOpen}
+        resource={currentResource}
+        adapter={adapter}
+        resourceIndex={microflowResourceIndex}
+        getCurrentSchema={() => schema}
+        onOpenMicroflow={onOpenMicroflow}
+        onRefreshResourceList={onRefreshResourceList}
+        onClose={() => setReferencesOpen(false)}
+      />
     </div>
   );
 }

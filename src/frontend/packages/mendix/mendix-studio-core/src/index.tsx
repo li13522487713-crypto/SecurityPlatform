@@ -1,6 +1,6 @@
 import "./studio.css";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Space, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconArrowRight } from "@douyinfe/semi-icons";
 
@@ -50,6 +50,9 @@ export function MendixStudioApp({
   const setStudioContext = useMendixStudioStore(state => state.setStudioContext);
   const updateStudioMicroflowFromResource = useMendixStudioStore(state => state.updateStudioMicroflowFromResource);
   const markWorkbenchTabDirty = useMendixStudioStore(state => state.markWorkbenchTabDirty);
+  const openMicroflowWorkbenchTab = useMendixStudioStore(state => state.openMicroflowWorkbenchTab);
+  const microflowResourcesById = useMendixStudioStore(state => state.microflowResourcesById);
+  const [microflowResourceRefreshToken, setMicroflowResourceRefreshToken] = useState(0);
 
   // 创建 adapter bundle；如果构建失败，仅 console.warn，不阻断页面渲染。
   const _resolvedBundle = useMemo<MicroflowAdapterBundle | undefined>(() => {
@@ -83,6 +86,11 @@ export function MendixStudioApp({
     }
   }, [activeWorkbenchTab?.id, markWorkbenchTabDirty]);
 
+  const handleMicroflowResourceUpdated = useCallback((resource: Parameters<typeof updateStudioMicroflowFromResource>[0]) => {
+    updateStudioMicroflowFromResource(resource);
+    setMicroflowResourceRefreshToken(token => token + 1);
+  }, [updateStudioMicroflowFromResource]);
+
   return (
     <div
       className="mendix-studio-root"
@@ -110,7 +118,7 @@ export function MendixStudioApp({
           overflow: "hidden"
         }}
       >
-        <ExplorerSplitLayout explorer={<AppExplorer adapterBundle={_resolvedBundle} workspaceId={workspaceId} />}>
+        <ExplorerSplitLayout explorer={<AppExplorer adapterBundle={_resolvedBundle} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} />}>
           <div
             style={{
               display: "flex",
@@ -145,8 +153,11 @@ export function MendixStudioApp({
                       workspaceId={workspaceId}
                       moduleId={activeWorkbenchTab.moduleId}
                       adapterBundle={_resolvedBundle}
-                      onResourceUpdated={updateStudioMicroflowFromResource}
+                      onResourceUpdated={handleMicroflowResourceUpdated}
                       onDirtyChange={handleMicroflowDirtyChange}
+                      onOpenMicroflow={openMicroflowWorkbenchTab}
+                      onRefreshResourceList={() => setMicroflowResourceRefreshToken(token => token + 1)}
+                      microflowResourceIndex={microflowResourcesById}
                     />
                   ) : (
                     <div

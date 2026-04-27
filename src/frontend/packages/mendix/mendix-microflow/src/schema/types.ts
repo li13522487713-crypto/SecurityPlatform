@@ -355,8 +355,11 @@ export interface LegacyMicroflowActivityConfig {
   listVariableName?: string;
   variableName?: string;
   variableType?: MicroflowTypeRef;
+  elementType?: MicroflowDataType;
   valueExpression?: MicroflowExpression;
   targetMicroflowId?: string;
+  targetMicroflowName?: string;
+  targetMicroflowQualifiedName?: string;
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url?: string;
   headers?: Array<{ key: string; value: string }>;
@@ -364,6 +367,8 @@ export interface LegacyMicroflowActivityConfig {
   bodyExpression?: MicroflowExpression;
   timeoutMs?: number;
   resultVariableName?: string;
+  outputVariableName?: string;
+  outputListVariableName?: string;
   logLevel?: "trace" | "debug" | "info" | "warn" | "error";
   messageExpression?: MicroflowExpression;
   pageName?: string;
@@ -386,7 +391,7 @@ export interface LegacyMicroflowActivityConfig {
   rollbackScope?: "object" | "list" | "transaction";
   readonly?: boolean;
   callMode?: "sync" | "async";
-  parameterMappings?: Array<{ id: string; parameterName: string; expression: MicroflowExpression }>;
+  parameterMappings?: Array<{ id: string; parameterName: string; expression: MicroflowExpression; sourceVariableName?: string }>;
   bodyType?: "none" | "json" | "form" | "text";
   responseMapping?: string;
   logContextVariables?: boolean;
@@ -401,8 +406,13 @@ export interface LegacyMicroflowActivityConfig {
   customErrorMicroflowId?: string;
   connectorId?: string;
   operation?: string;
+  aggregateFunction?: string;
   sourceVariableName?: string;
+  sourceListVariableName?: string;
+  targetListVariableName?: string;
+  leftListVariableName?: string;
   targetEntity?: string;
+  entityQualifiedName?: string;
   targetMember?: string;
   metricName?: string;
   workflowInstanceVariable?: string;
@@ -613,17 +623,21 @@ export interface MicroflowErrorEvent extends MicroflowObjectBase {
 export interface MicroflowBreakEvent extends MicroflowObjectBase {
   kind: "breakEvent";
   officialType: "Microflows$BreakEvent";
+  targetLoopObjectId?: string;
 }
 
 export interface MicroflowContinueEvent extends MicroflowObjectBase {
   kind: "continueEvent";
   officialType: "Microflows$ContinueEvent";
+  targetLoopObjectId?: string;
 }
 
 export interface MicroflowParameterMapping {
   parameterName: string;
   parameterType?: MicroflowDataType;
   argumentExpression: MicroflowExpression;
+  sourceVariableName?: string;
+  sourceVariableId?: string;
 }
 
 export interface MicroflowExclusiveSplit extends MicroflowObjectBase {
@@ -851,6 +865,7 @@ export interface MicroflowCallMicroflowAction extends MicroflowActionBase {
   kind: "callMicroflow";
   officialType: "Microflows$MicroflowCallAction";
   targetMicroflowId: string;
+  targetMicroflowName?: string;
   targetMicroflowQualifiedName?: string;
   parameterMappings: MicroflowParameterMapping[];
   returnValue: {
@@ -875,6 +890,74 @@ export interface MicroflowChangeVariableAction extends MicroflowActionBase {
   officialType: "Microflows$ChangeVariableAction";
   targetVariableName: string;
   newValueExpression: MicroflowExpression;
+}
+
+export type MicroflowChangeListOperation = "add" | "addRange" | "remove" | "removeWhere" | "clear" | "set";
+export type MicroflowAggregateListFunction = "count" | "sum" | "average" | "min" | "max";
+export type MicroflowListOperationKind = "filter" | "sort" | "map" | "distinct" | "take" | "skip" | "union" | "intersect";
+
+export interface MicroflowCreateListAction extends MicroflowActionBase {
+  kind: "createList";
+  officialType: "Microflows$CreateListAction";
+  outputListVariableName: string;
+  listVariableId?: string;
+  listVariableName?: string;
+  elementType: MicroflowDataType;
+  itemType?: MicroflowDataType;
+  listType: "mutable" | "readonly";
+  entityQualifiedName?: string;
+  initialItemsExpression?: MicroflowExpression;
+  description?: string;
+}
+
+export interface MicroflowChangeListAction extends MicroflowActionBase {
+  kind: "changeList";
+  officialType: "Microflows$ChangeListAction";
+  targetListVariableName: string;
+  targetListVariableId?: string;
+  operation: MicroflowChangeListOperation;
+  itemExpression?: MicroflowExpression;
+  itemsExpression?: MicroflowExpression;
+  conditionExpression?: MicroflowExpression;
+  indexExpression?: MicroflowExpression;
+}
+
+export interface MicroflowAggregateListAction extends MicroflowActionBase {
+  kind: "aggregateList";
+  officialType: "Microflows$AggregateListAction";
+  listVariableName: string;
+  sourceListVariableName?: string;
+  sourceListVariableId?: string;
+  aggregateFunction: MicroflowAggregateListFunction;
+  attributeQualifiedName?: string;
+  member?: string;
+  aggregateExpression?: MicroflowExpression;
+  outputVariableName: string;
+  resultVariableId?: string;
+  resultVariableName?: string;
+  resultType?: MicroflowDataType;
+}
+
+export interface MicroflowListOperationAction extends MicroflowActionBase {
+  kind: "listOperation";
+  officialType: "Microflows$ListOperationAction";
+  leftListVariableName: string;
+  sourceListVariableName?: string;
+  sourceListVariableId?: string;
+  operation: MicroflowListOperationKind;
+  rightListVariableName?: string;
+  targetListVariableName?: string;
+  targetListVariableId?: string;
+  objectVariableName?: string;
+  expression?: MicroflowExpression;
+  filterExpression?: MicroflowExpression;
+  sortExpression?: MicroflowExpression;
+  limit?: number;
+  offset?: number;
+  distinct?: boolean;
+  outputVariableName: string;
+  outputListVariableName?: string;
+  outputElementType?: MicroflowDataType;
 }
 
 export interface MicroflowRestCallAction extends MicroflowActionBase {
@@ -947,6 +1030,10 @@ export interface MicroflowGenericAction extends MicroflowActionBase {
     | MicroflowCallMicroflowAction["kind"]
     | MicroflowCreateVariableAction["kind"]
     | MicroflowChangeVariableAction["kind"]
+    | MicroflowCreateListAction["kind"]
+    | MicroflowChangeListAction["kind"]
+    | MicroflowAggregateListAction["kind"]
+    | MicroflowListOperationAction["kind"]
     | MicroflowRestCallAction["kind"]
     | MicroflowLogMessageAction["kind"]
   >;
@@ -964,6 +1051,10 @@ export type MicroflowAction =
   | MicroflowCallMicroflowAction
   | MicroflowCreateVariableAction
   | MicroflowChangeVariableAction
+  | MicroflowCreateListAction
+  | MicroflowChangeListAction
+  | MicroflowAggregateListAction
+  | MicroflowListOperationAction
   | MicroflowRestCallAction
   | MicroflowLogMessageAction
   | MicroflowGenericAction;
@@ -985,6 +1076,7 @@ export interface MicroflowIterableListLoopSource {
   officialType: "Microflows$IterableList";
   listVariableName: string;
   iteratorVariableName: string;
+  iteratorVariableDataType?: MicroflowDataType;
   currentIndexVariableName: "$currentIndex";
 }
 
@@ -1150,6 +1242,9 @@ export type MicroflowVariableSource =
   | { kind: "parameter"; parameterId: string }
   | { kind: "actionOutput"; objectId: string; actionId: string; actionKind?: MicroflowActionKind }
   | { kind: "createVariable"; objectId: string; actionId: string }
+  | { kind: "createList"; objectId: string; actionId: string }
+  | { kind: "aggregateList"; objectId: string; actionId: string }
+  | { kind: "listOperation"; objectId: string; actionId: string }
   | { kind: "localVariable"; objectId: string; actionId: string }
   | { kind: "loopIterator"; loopObjectId: string }
   | { kind: "system"; name: "$currentUser" | "$currentIndex" }
@@ -1648,6 +1743,7 @@ export type RuntimeCallMicroflowP0Dto = RuntimeP0Base & {
   errorHandlingType: MicroflowErrorHandlingType;
   config: {
     targetMicroflowId: string;
+    targetMicroflowName?: string;
     targetMicroflowQualifiedName?: string;
     parameterMappings: MicroflowParameterMapping[];
     returnValue: MicroflowCallMicroflowAction["returnValue"];

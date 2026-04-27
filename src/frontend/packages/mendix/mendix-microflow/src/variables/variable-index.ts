@@ -253,27 +253,58 @@ function nestedStringField(action: MicroflowAction, key: string, nestedKey: stri
   return typeof nested === "string" && nested.trim() ? nested : undefined;
 }
 
-function genericOutputType(action: MicroflowAction): MicroflowDataType | undefined {
+function listVariableByName(index: MicroflowVariableIndex, name?: string): MicroflowVariableSymbol | undefined {
+  return name ? (index.byName?.[name] ?? []).find(symbol => symbol.dataType.kind === "list") : undefined;
+}
+
+function createListElementType(action: Extract<MicroflowAction, { kind: "createList" }>): MicroflowDataType {
+  return action.elementType
+    ?? action.itemType
+    ?? (action.entityQualifiedName ? { kind: "object", entityQualifiedName: action.entityQualifiedName } : undefined)
+    ?? { kind: "string" };
+}
+
+function aggregateResultType(action: Extract<MicroflowAction, { kind: "aggregateList" }>, index: MicroflowVariableIndex): MicroflowDataType {
+  if (action.resultType) {
+    return action.resultType;
+  }
+  if (action.aggregateFunction === "count") {
+    return { kind: "integer" };
+  }
+  if (action.aggregateFunction === "sum" || action.aggregateFunction === "average") {
+    return { kind: "decimal" };
+  }
+  const source = listVariableByName(index, action.listVariableName || action.sourceListVariableName);
+  return source?.dataType.kind === "list" ? source.dataType.itemType : { kind: "unknown", reason: "aggregate list result type" };
+}
+
+function listOperationOutputType(action: Extract<MicroflowAction, { kind: "listOperation" }>, index: MicroflowVariableIndex): MicroflowDataType {
+  if (action.outputElementType) {
+    return { kind: "list", itemType: action.outputElementType };
+  }
+  const source = listVariableByName(index, action.leftListVariableName || action.sourceListVariableName);
+  return source?.dataType.kind === "list"
+    ? { kind: "list", itemType: source.dataType.itemType }
+    : { kind: "list", itemType: { kind: "unknown", reason: "list operation source type" } };
+}
+
+function genericOutputType(action: MicroflowAction, index: MicroflowVariableIndex): MicroflowDataType | undefined {
   if (action.kind === "cast") {
     const entityQualifiedName = stringField(action, "targetEntityQualifiedName");
     return entityQualifiedName ? { kind: "object", entityQualifiedName } : { kind: "unknown", reason: "cast target entity missing" };
   }
   if (action.kind === "aggregateList") {
-    return stringField(action, "aggregateFunction") === "count" ? { kind: "integer" } : { kind: "decimal" };
+    return aggregateResultType(action, index);
   }
   if (action.kind === "createList") {
-    const entityQualifiedName = stringField(action, "entityQualifiedName");
-    return { kind: "list", itemType: entityQualifiedName ? { kind: "object", entityQualifiedName } : { kind: "unknown", reason: "createList entity missing" } };
+    return { kind: "list", itemType: createListElementType(action) };
   }
   if (action.kind === "listOperation") {
     const operation = stringField(action, "operation");
-    if (operation === "equals" || operation === "contains") {
+    if (operation === "contains") {
       return { kind: "boolean" };
     }
-    if (operation === "find" || operation === "head") {
-      return { kind: "unknown", reason: "list operation object result" };
-    }
-    return { kind: "list", itemType: { kind: "unknown", reason: "list operation item type" } };
+    return listOperationOutputType(action, index);
   }
   if (action.kind === "exportXml") {
     return stringField(action, "outputType") === "fileDocument" ? { kind: "object", entityQualifiedName: "System.FileDocument" } : { kind: "string" };
@@ -318,9 +349,81 @@ function genericOutputName(action: MicroflowAction): { name: string; fieldPath: 
   return undefined;
 }
 
+function addListActionOutputs(index: MicroflowVariableIndex, object: MicroflowActionActivity, collectionId: string): boolean {
+  const action = object.action;
+  const downstream: MicroflowVariableScope = { kind: "downstream", collectionId, startObjectId: object.id };
+  if (action.kind === "createList") {
+    const name = action.outputListVariableName || action.listVariableName || "";
+    if (!name.trim()) {
+      validateOutputName(index, name, object.id, action.id, "action.outputListVariableName");
+      return true;
+    }
+    const elementType = createListElementType(action);
+    addOutput(index, createSymbol({
+      name,
+      kind: "listOutput",
+      dataType: { kind: "list", itemType: elementType },
+      source: { kind: "createList", objectId: object.id, actionId: action.id },
+      scope: downstream,
+      readonly: action.listType === "readonly",
+      documentation: action.description || action.documentation,
+    }), "action.outputListVariableName");
+    if (elementType.kind === "object" && !elementType.entityQualifiedName.trim()) {
+      addDiagnostic(index, {
+        severity: "warning",
+        code: "MF_LIST_ENTITY_METADATA_PENDING",
+        message: "Create List uses an object element type without entity metadata. Entity metadata will be connected in Stage 19.",
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.elementType",
+        variableName: name,
+      });
+    }
+    return true;
+  }
+  if (action.kind === "aggregateList") {
+    const name = action.outputVariableName || action.resultVariableName || "";
+    if (!name.trim()) {
+      validateOutputName(index, name, object.id, action.id, "action.outputVariableName");
+      return true;
+    }
+    addOutput(index, createSymbol({
+      name,
+      kind: "primitiveOutput",
+      dataType: aggregateResultType(action, index),
+      source: { kind: "aggregateList", objectId: object.id, actionId: action.id },
+      scope: downstream,
+      readonly: false,
+      documentation: action.documentation,
+    }), "action.outputVariableName");
+    return true;
+  }
+  if (action.kind === "listOperation") {
+    const name = action.outputVariableName || action.outputListVariableName || "";
+    if (!name.trim()) {
+      validateOutputName(index, name, object.id, action.id, "action.outputVariableName");
+      return true;
+    }
+    addOutput(index, createSymbol({
+      name,
+      kind: "listOutput",
+      dataType: listOperationOutputType(action, index),
+      source: { kind: "listOperation", objectId: object.id, actionId: action.id },
+      scope: downstream,
+      readonly: false,
+      documentation: action.documentation,
+    }), "action.outputVariableName");
+    return true;
+  }
+  return false;
+}
+
 function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowActionActivity, collectionId: string, metadata: MicroflowMetadataCatalog): void {
   const action = object.action;
   const downstream: MicroflowVariableScope = { kind: "downstream", collectionId, startObjectId: object.id };
+  if (addListActionOutputs(index, object, collectionId)) {
+    return;
+  }
   if (action.kind === "retrieve") {
     const dataType = retrieveOutputType(action, metadata, index);
     addOutput(index, createSymbol({
@@ -486,7 +589,7 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
     }
   }
   const genericName = genericOutputName(action);
-  const genericType = genericOutputType(action);
+  const genericType = genericOutputType(action, index);
   if (genericName && genericType) {
     addOutput(index, createSymbol({
       name: genericName.name,
@@ -512,9 +615,21 @@ function addLoopVariables(index: MicroflowVariableIndex, object: Extract<Microfl
   if (object.loopSource.kind !== "iterableList") {
     return;
   }
+  if (!object.loopSource.iteratorVariableName.trim()) {
+    addDiagnostic(index, {
+      severity: "warning",
+      code: "MF_VARIABLE_LOOP_ITERATOR_REQUIRED",
+      message: "Loop iterator variable name is required.",
+      objectId: object.id,
+      fieldPath: "loopSource.iteratorVariableName",
+    });
+    return;
+  }
   const listVariable = (index.byName?.[object.loopSource.listVariableName] ?? []).find(symbol => symbol.dataType.kind === "list");
   const iteratorType = listVariable?.dataType.kind === "list"
     ? listVariable.dataType.itemType
+    : object.loopSource.iteratorVariableDataType
+      ? object.loopSource.iteratorVariableDataType
     : { kind: "unknown", reason: object.loopSource.listVariableName } satisfies MicroflowDataType;
   addSymbol(index, createSymbol({
     name: object.loopSource.iteratorVariableName,
@@ -573,6 +688,12 @@ function finalizeDiagnostics(index: MicroflowVariableIndex): void {
     }
     if (symbol.source.kind === "createVariable") {
       return "action.variableName";
+    }
+    if (symbol.source.kind === "createList") {
+      return "action.outputListVariableName";
+    }
+    if (symbol.source.kind === "aggregateList" || symbol.source.kind === "listOperation") {
+      return "action.outputVariableName";
     }
     if (symbol.source.kind === "microflowReturn") {
       return "action.returnValue.outputVariableName";

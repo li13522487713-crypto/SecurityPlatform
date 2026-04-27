@@ -36,6 +36,19 @@ export interface MicroflowReference {
   canNavigate?: boolean;
 }
 
+export interface StudioMicroflowCalleeView {
+  sourceMicroflowId: string;
+  sourceNodeId: string;
+  sourceNodeName?: string;
+  targetMicroflowId?: string;
+  targetMicroflowName?: string;
+  targetMicroflowQualifiedName?: string;
+  targetModuleId?: string;
+  referenceKind: "callMicroflow";
+  stale: boolean;
+  staleReason?: "missingTargetId" | "targetNotFound" | "selfCall";
+}
+
 export interface MicroflowReferenceImpactSummary {
   total: number;
   none: number;

@@ -144,26 +144,44 @@ const genericActionDefaults: Partial<Record<MicroflowActionKind, GenericActionCo
   },
   aggregateList: {
     listVariableName: "",
+    sourceListVariableName: "",
     aggregateFunction: "count",
     attributeQualifiedName: "",
-    outputVariableName: ""
+    outputVariableName: "",
+    resultVariableName: "",
+    resultType: integerType
   },
   createList: {
     entityQualifiedName: "",
-    outputListVariableName: ""
+    outputListVariableName: "",
+    listVariableName: "",
+    elementType: stringType,
+    itemType: stringType,
+    listType: "mutable",
+    initialItemsExpression: expression("", { kind: "list", itemType: stringType }),
+    description: ""
   },
   changeList: {
     targetListVariableName: "",
     operation: "add",
-    objectVariableName: ""
+    objectVariableName: "",
+    itemExpression: expression(""),
+    itemsExpression: expression("", { kind: "list", itemType: unknownType }),
+    conditionExpression: expression("", booleanType),
+    indexExpression: expression("", integerType)
   },
   listOperation: {
     leftListVariableName: "",
+    sourceListVariableName: "",
     operation: "filter",
     rightListVariableName: "",
     objectVariableName: "",
     expression: expression("", booleanType),
-    outputVariableName: ""
+    filterExpression: expression("", booleanType),
+    sortExpression: expression(""),
+    outputVariableName: "",
+    outputListVariableName: "",
+    outputElementType: stringType
   },
   callJavaAction: {
     javaActionQualifiedName: "",
@@ -435,6 +453,8 @@ function createConcreteAction(item: MicroflowActionRegistryItem, id: string, con
       kind: "callMicroflow",
       officialType: "Microflows$MicroflowCallAction",
       targetMicroflowId: String(config.targetMicroflowId ?? ""),
+      targetMicroflowName: "",
+      targetMicroflowQualifiedName: String(config.targetMicroflowQualifiedName ?? ""),
       parameterMappings: [],
       returnValue: { storeResult: false },
       callMode: "sync"
@@ -458,6 +478,74 @@ function createConcreteAction(item: MicroflowActionRegistryItem, id: string, con
       officialType: "Microflows$ChangeVariableAction",
       targetVariableName: String(config.variableName ?? ""),
       newValueExpression: expression("")
+    };
+  }
+  if (item.actionKind === "createList") {
+    const elementType = typeof config.elementType === "object" && config.elementType
+      ? config.elementType as MicroflowDataType
+      : stringType;
+    const outputListVariableName = String(config.listVariableName ?? config.outputListVariableName ?? "");
+    return {
+      ...base,
+      kind: "createList",
+      officialType: "Microflows$CreateListAction",
+      outputListVariableName,
+      listVariableName: outputListVariableName,
+      listVariableId: id,
+      elementType,
+      itemType: elementType,
+      listType: "mutable",
+      entityQualifiedName: String(config.entity ?? config.entityQualifiedName ?? ""),
+      initialItemsExpression: expression("", { kind: "list", itemType: elementType }),
+      description: ""
+    };
+  }
+  if (item.actionKind === "changeList") {
+    return {
+      ...base,
+      kind: "changeList",
+      officialType: "Microflows$ChangeListAction",
+      targetListVariableName: String(config.listVariableName ?? config.targetListVariableName ?? ""),
+      operation: String(config.operation ?? "add") as "add",
+      itemExpression: expression(""),
+      itemsExpression: expression("", { kind: "list", itemType: unknownType }),
+      conditionExpression: expression("", booleanType),
+      indexExpression: expression("", integerType)
+    };
+  }
+  if (item.actionKind === "aggregateList") {
+    return {
+      ...base,
+      kind: "aggregateList",
+      officialType: "Microflows$AggregateListAction",
+      listVariableName: String(config.listVariableName ?? config.sourceListVariableName ?? ""),
+      sourceListVariableName: String(config.listVariableName ?? config.sourceListVariableName ?? ""),
+      aggregateFunction: String(config.operation ?? config.aggregateFunction ?? "count") as "count",
+      attributeQualifiedName: "",
+      aggregateExpression: expression(""),
+      outputVariableName: String(config.resultVariableName ?? config.outputVariableName ?? ""),
+      resultVariableName: String(config.resultVariableName ?? config.outputVariableName ?? ""),
+      resultType: integerType
+    };
+  }
+  if (item.actionKind === "listOperation") {
+    const sourceListVariableName = String(config.listVariableName ?? config.leftListVariableName ?? config.sourceListVariableName ?? "");
+    const outputVariableName = String(config.resultVariableName ?? config.outputVariableName ?? config.outputListVariableName ?? "");
+    return {
+      ...base,
+      kind: "listOperation",
+      officialType: "Microflows$ListOperationAction",
+      leftListVariableName: sourceListVariableName,
+      sourceListVariableName,
+      operation: String(config.operation ?? "filter") as "filter",
+      rightListVariableName: "",
+      objectVariableName: "",
+      expression: expression("", booleanType),
+      filterExpression: expression("", booleanType),
+      sortExpression: expression(""),
+      outputVariableName,
+      outputListVariableName: outputVariableName,
+      outputElementType: stringType
     };
   }
   if (item.actionKind === "restCall") {
@@ -510,6 +598,24 @@ function validateAction(action: MicroflowAction): MicroflowValidationIssue[] {
   }
   if (action.kind === "createVariable" && !action.variableName) {
     return [issue("MF_ACTION_VARIABLE_NAME_REQUIRED", "Create variable action requires variableName.", action.id)];
+  }
+  if (action.kind === "createList" && !action.outputListVariableName.trim()) {
+    return [issue("MF_ACTION_CREATE_LIST_NAME_MISSING", "Create List action requires a list variable name.", action.id, "warning")];
+  }
+  if (action.kind === "changeList" && !action.targetListVariableName.trim()) {
+    return [issue("MF_ACTION_CHANGE_LIST_TARGET_MISSING", "Change List action requires a target list variable.", action.id, "warning")];
+  }
+  if (action.kind === "aggregateList" && !action.listVariableName.trim()) {
+    return [issue("MF_ACTION_AGGREGATE_LIST_SOURCE_MISSING", "Aggregate List action requires a source list variable.", action.id, "warning")];
+  }
+  if (action.kind === "aggregateList" && !action.outputVariableName.trim()) {
+    return [issue("MF_ACTION_AGGREGATE_LIST_RESULT_MISSING", "Aggregate List action requires a result variable.", action.id, "warning")];
+  }
+  if (action.kind === "listOperation" && !action.leftListVariableName.trim()) {
+    return [issue("MF_ACTION_LIST_OPERATION_SOURCE_MISSING", "List Operation action requires a source list variable.", action.id, "warning")];
+  }
+  if (action.kind === "listOperation" && !action.outputVariableName.trim()) {
+    return [issue("MF_ACTION_LIST_OPERATION_OUTPUT_MISSING", "List Operation action requires an output list variable.", action.id, "warning")];
   }
   return [];
 }

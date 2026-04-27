@@ -208,10 +208,12 @@ export interface MicroflowEditorProps {
   onValidateComplete?: (response: ValidateMicroflowResponse) => void;
   onTestRunComplete?: (response: TestRunMicroflowResponse) => void;
   onSchemaChange?: (schema: MicroflowSchema) => void;
-  /** 未传时 Provider 内默认使用 mock adapter。 */
+  /** 生产路径必须由宿主注入真实 metadata adapter；缺失时不回落 mock。 */
   metadataAdapter?: MicroflowMetadataAdapter;
   /** 同步注入目录时可跳过首次异步加载。 */
   metadataCatalog?: MicroflowMetadataCatalog;
+  metadataWorkspaceId?: string;
+  metadataModuleId?: string;
   /** http/local/mock 校验统一入口；http mode 下由宿主注入后端 ValidationAdapter。 */
   validationAdapter?: MicroflowValidationAdapterLike;
 }
@@ -2231,9 +2233,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 }
 
 export function MicroflowEditor(props: MicroflowEditorProps) {
-  const { metadataAdapter, metadataCatalog, ...rest } = props;
+  const { metadataAdapter, metadataCatalog, metadataWorkspaceId, metadataModuleId, ...rest } = props;
   return (
-    <MicroflowMetadataProvider adapter={metadataAdapter} initialCatalog={metadataCatalog}>
+    <MicroflowMetadataProvider adapter={metadataAdapter} initialCatalog={metadataCatalog} workspaceId={metadataWorkspaceId} moduleId={metadataModuleId}>
       <MicroflowEditorInner {...rest} metadataAdapter={metadataAdapter} metadataCatalog={metadataCatalog} />
     </MicroflowMetadataProvider>
   );

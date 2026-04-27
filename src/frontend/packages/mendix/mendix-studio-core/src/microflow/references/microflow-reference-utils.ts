@@ -1,4 +1,14 @@
-import type { MicroflowReference } from "../resource/resource-types";
+import type { MicroflowAuthoringSchema, MicroflowObject, MicroflowObjectCollection } from "@atlas/microflow";
+
+import type { StudioMicroflowDefinitionView } from "../studio/studio-microflow-types";
+import type {
+  MicroflowImpactLevel,
+  MicroflowReference,
+  MicroflowReferenceImpactSummary,
+  MicroflowReferenceKind,
+  MicroflowReferenceSourceType,
+  StudioMicroflowCalleeView
+} from "./microflow-reference-types";
 
 export function groupMicroflowReferencesByType(references: MicroflowReference[]) {
   return references.reduce<Record<MicroflowReference["sourceType"], MicroflowReference[]>>((groups, reference) => {
@@ -6,13 +16,6 @@ export function groupMicroflowReferencesByType(references: MicroflowReference[])
     return groups;
   }, {} as Record<MicroflowReference["sourceType"], MicroflowReference[]>);
 }
-import type {
-  MicroflowImpactLevel,
-  MicroflowReference,
-  MicroflowReferenceImpactSummary,
-  MicroflowReferenceKind,
-  MicroflowReferenceSourceType
-} from "./microflow-reference-types";
 
 export function groupReferencesBySourceType(references: MicroflowReference[]): Record<MicroflowReferenceSourceType, MicroflowReference[]> {
   const groups: Record<MicroflowReferenceSourceType, MicroflowReference[]> = {
@@ -87,4 +90,87 @@ export function getImpactLevelColor(level: MicroflowImpactLevel): "grey" | "blue
     return "blue";
   }
   return "grey";
+}
+
+export function isMicroflowReferenced(references: MicroflowReference[]): boolean {
+  return references.some(reference => reference.active !== false);
+}
+
+export function canDeleteMicroflowFromReferences(references: MicroflowReference[]): boolean {
+  return !isMicroflowReferenced(references);
+}
+
+export function resolveReferenceDisplayName(
+  reference: MicroflowReference,
+  resourceIndex?: Record<string, StudioMicroflowDefinitionView>
+): string {
+  if (reference.sourceType === "microflow" && reference.sourceId && resourceIndex?.[reference.sourceId]) {
+    const resource = resourceIndex[reference.sourceId];
+    return resource.displayName || resource.name;
+  }
+
+  return reference.sourceName || reference.sourceId || reference.id;
+}
+
+function flattenObjects(collection: MicroflowObjectCollection | undefined): MicroflowObject[] {
+  if (!collection) {
+    return [];
+  }
+
+  return collection.objects.flatMap(object => [
+    object,
+    ...("objectCollection" in object ? flattenObjects(object.objectCollection) : [])
+  ]);
+}
+
+export function parseMicroflowCallees(
+  schema: MicroflowAuthoringSchema | undefined,
+  sourceMicroflowId: string,
+  resourceIndex?: Record<string, StudioMicroflowDefinitionView>
+): StudioMicroflowCalleeView[] {
+  if (!schema) {
+    return [];
+  }
+
+  return flattenObjects(schema.objectCollection)
+    .filter(object => object.kind === "actionActivity" && object.action.kind === "callMicroflow")
+    .map(object => {
+      const targetMicroflowId = object.action.targetMicroflowId?.trim() || undefined;
+      const targetResource = targetMicroflowId ? resourceIndex?.[targetMicroflowId] : undefined;
+      const targetMicroflowQualifiedName = object.action.targetMicroflowQualifiedName?.trim() || undefined;
+      const staleReason = !targetMicroflowId
+        ? "missingTargetId"
+        : targetMicroflowId === sourceMicroflowId
+          ? "selfCall"
+          : targetResource
+            ? undefined
+            : "targetNotFound";
+
+      return {
+        sourceMicroflowId,
+        sourceNodeId: object.id,
+        sourceNodeName: object.caption || object.action.caption,
+        targetMicroflowId,
+        targetMicroflowName: targetResource?.displayName || targetResource?.name,
+        targetMicroflowQualifiedName: targetResource?.qualifiedName || targetMicroflowQualifiedName,
+        targetModuleId: targetResource?.moduleId,
+        referenceKind: "callMicroflow" as const,
+        stale: Boolean(staleReason),
+        staleReason
+      };
+    });
+}
+
+export function buildStaleCallReferenceWarnings(callees: StudioMicroflowCalleeView[]): string[] {
+  return callees
+    .filter(callee => callee.stale)
+    .map(callee => {
+      if (callee.staleReason === "missingTargetId") {
+        return `${callee.sourceNodeName || callee.sourceNodeId}: missing targetMicroflowId`;
+      }
+      if (callee.staleReason === "selfCall") {
+        return `${callee.sourceNodeName || callee.sourceNodeId}: direct self call`;
+      }
+      return `${callee.sourceNodeName || callee.sourceNodeId}: target microflow not found`;
+    });
 }

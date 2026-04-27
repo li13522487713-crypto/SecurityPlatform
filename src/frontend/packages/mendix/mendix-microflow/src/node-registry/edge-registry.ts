@@ -371,7 +371,9 @@ export function canConnectPortsV2(input: MicroflowCanConnectPortsInput, sourcePo
   const locations = objectLocationMap(schema);
   const sourceLocation = locations.get(source.id);
   const targetLocation = locations.get(target.id);
-  if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId) {
+  const isLoopBodyEntry = source.kind === "loopedActivity" && sourcePort.kind === "loopBodyIn" && targetLocation?.parentLoopObjectId === source.id;
+  const isLoopBodyReturn = target.kind === "loopedActivity" && targetPort.kind === "loopBodyOut" && sourceLocation?.parentLoopObjectId === target.id;
+  if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId && !isLoopBodyEntry && !isLoopBodyReturn) {
     return fail(
       "MF_CONNECT_LOOP_BOUNDARY",
       "Flows cannot directly cross Loop objectCollection boundaries.",

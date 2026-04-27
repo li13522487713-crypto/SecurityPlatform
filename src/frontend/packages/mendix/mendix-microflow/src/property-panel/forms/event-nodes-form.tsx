@@ -1,8 +1,8 @@
-import { Input, Select, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Input, Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
-import { collectFlowsRecursive, updateEndEventReturnValue, updateMicroflowReturnType } from "../../schema/utils";
+import { collectFlowsRecursive, collectLoopObjects, getBreakContinueWarnings, updateEndEventReturnValue, updateMicroflowReturnType } from "../../schema/utils";
 import { FieldError } from "../common";
 import { ExpressionEditor } from "../expression";
 import { DataTypeSelector } from "../selectors";
@@ -111,7 +111,36 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
     );
   }
   if (object.kind === "breakEvent" || object.kind === "continueEvent") {
-    return <Text type="tertiary" size="small">This control event is valid only inside a loop body.</Text>;
+    const loopObjects = collectLoopObjects(props.schema);
+    const warnings = getBreakContinueWarnings(props.schema, object.id);
+    const outgoingSummaryForControl = flows.filter(flow => flow.originObjectId === object.id).map(flow => `${flow.id}: ${flow.destinationObjectId}`).join("\n");
+    return (
+      <>
+        <Field label="Incoming Flows">
+          <TextArea value={incomingSummary || "No incoming flow"} autosize disabled />
+        </Field>
+        <Field label="Outgoing Flows">
+          <TextArea value={outgoingSummaryForControl || "No outgoing flow"} autosize disabled />
+        </Field>
+        <Field label="Target Loop">
+          <Select
+            value={object.targetLoopObjectId}
+            disabled={props.readonly || loopObjects.length === 0}
+            showClear
+            style={{ width: "100%" }}
+            placeholder={loopObjects.length === 1 ? `Implicit: ${loopObjects[0].caption ?? loopObjects[0].id}` : "Select target loop"}
+            onClear={() => patch({ ...object, targetLoopObjectId: undefined })}
+            onChange={targetLoopObjectId => patch({ ...object, targetLoopObjectId: targetLoopObjectId ? String(targetLoopObjectId) : undefined })}
+            optionList={loopObjects.map(loop => ({ label: loop.caption ?? loop.id, value: loop.id }))}
+          />
+        </Field>
+        <Field label="Legal State">
+          <Space vertical align="start" spacing={4}>
+            {warnings.length ? warnings.map(warning => <Text key={warning} type="warning" size="small">{warning}</Text>) : <Text type="tertiary" size="small">Break / Continue target is valid for Stage 17 foundation checks.</Text>}
+          </Space>
+        </Field>
+      </>
+    );
   }
   return null;
 }

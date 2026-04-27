@@ -159,7 +159,11 @@ export function getVariableNameConflicts(schema: MicroflowAuthoringSchema, varia
   }
   for (const symbol of getMicroflowVariables(schema)) {
     const sourceId = symbol.source.kind === "createVariable" ? symbol.source.actionId : symbol.id;
+    const loopSourceId = symbol.source.kind === "loopIterator" ? symbol.source.loopObjectId : undefined;
     if (sourceId !== excludeVariableId && normalizeName(symbol.name) === normalized && !symbol.name.startsWith("$")) {
+      if (loopSourceId && (excludeVariableId === loopSourceId || excludeVariableId === `loopIterator:${loopSourceId}`)) {
+        continue;
+      }
       conflicts.push(`Conflicts with variable "${symbol.name}".`);
     }
   }

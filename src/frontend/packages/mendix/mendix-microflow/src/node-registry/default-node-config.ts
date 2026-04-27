@@ -47,21 +47,48 @@ export function createDefaultActionConfig(
     case "cast":
       return { objectVariableName: "" };
     case "aggregateList":
-      return { listVariableName: "", operation: "count", resultVariableName: "" };
+      return { listVariableName: "", sourceListVariableName: "", operation: "count", aggregateFunction: "count", resultVariableName: "", outputVariableName: "" };
     case "createList":
-      return { entity: "", listVariableName: "" };
+      return {
+        entity: "",
+        entityQualifiedName: "",
+        listVariableName: "",
+        outputListVariableName: "",
+        elementType: stringType,
+        itemType: stringType,
+        listType: "mutable",
+        initialItemsExpression: createDefaultExpression("", { kind: "list", itemType: stringType }),
+        description: ""
+      };
     case "changeList":
-      return { listVariableName: "", operation: "add", objectVariableName: "" };
+      return {
+        listVariableName: "",
+        targetListVariableName: "",
+        operation: "add",
+        objectVariableName: "",
+        itemExpression: createDefaultExpression(""),
+        itemsExpression: createDefaultExpression("", { kind: "list", itemType: unknownType }),
+        conditionExpression: createDefaultExpression("", booleanType),
+        indexExpression: createDefaultExpression("", integerType)
+      };
     case "listOperation":
       return {
         listVariableName: "",
+        leftListVariableName: "",
+        sourceListVariableName: "",
         operation: "filter",
         expression: createDefaultExpression("", booleanType),
-        resultVariableName: ""
+        filterExpression: createDefaultExpression("", booleanType),
+        sortExpression: createDefaultExpression(""),
+        resultVariableName: "",
+        outputVariableName: "",
+        outputListVariableName: "",
+        outputElementType: stringType
       };
     case "callMicroflow":
       return {
         targetMicroflowId: "",
+        targetMicroflowName: "",
         targetMicroflowQualifiedName: "",
         parameterMappings: [],
         returnValueTarget: "",

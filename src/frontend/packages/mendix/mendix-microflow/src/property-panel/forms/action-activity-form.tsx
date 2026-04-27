@@ -10,6 +10,12 @@ import type { MicroflowNodePatch, MicroflowPropertyPanelProps } from "../types";
 import { getIssuesForField, getIssuesForObject } from "../utils";
 import { dataTypeFromKey, dataTypeLabel, expression, Field, updateAction } from "../panel-shared";
 import { GenericActionFields } from "./generic-action-fields-form";
+import {
+  isVoidMicroflowReturn,
+  updateCallMicroflowParameterMapping,
+  updateCallMicroflowReturnBinding,
+  updateCallMicroflowTarget,
+} from "../utils/call-microflow-config";
 
 const { Text, Title } = Typography;
 
@@ -766,25 +772,15 @@ export function ActionActivityForm({
           <Field label="Target Microflow">
             <MicroflowSelector
               value={action.targetMicroflowId}
+              currentMicroflowId={schema.id}
               disabled={readonly}
               onChange={targetMicroflowId => {
                 const target = getMicroflowById(effectiveCatalog, targetMicroflowId);
-                patchObject(updateAction(object, {
-                  targetMicroflowId: targetMicroflowId ?? "",
-                  targetMicroflowQualifiedName: target?.qualifiedName,
-                  returnValue: { ...action.returnValue, dataType: target?.returnType, storeResult: target?.returnType.kind === "void" ? false : action.returnValue.storeResult },
-                  parameterMappings: target
-                    ? target.parameters.map(parameter => action.parameterMappings.find(mapping => mapping.parameterName === parameter.name) ?? {
-                        parameterName: parameter.name,
-                        parameterType: parameter.type,
-                        argumentExpression: expression(""),
-                      })
-                    : action.parameterMappings,
-                }));
+                patchObject(updateAction(object, updateCallMicroflowTarget(action, target)));
               }}
             />
             <FieldError issues={getIssuesForField(issues, "action.targetMicroflowId")} />
-            <RequiredConfigWarning visible={!action.targetMicroflowId.trim()}>Target Microflow 未配置；真实微流选择留到后续阶段。</RequiredConfigWarning>
+            <RequiredConfigWarning visible={!action.targetMicroflowId.trim()}>Target Microflow 未配置；请选择真实 metadata API 返回的微流。</RequiredConfigWarning>
           </Field>
           {selectedMicroflow ? (
             <Field label="Target Signature">
@@ -798,30 +794,68 @@ export function ActionActivityForm({
           <FieldRow label="Parameter Mappings" fieldPath="action.parameterMappings" tooltip="Rows are generated from target microflow metadata.">
             <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
               {action.parameterMappings.map((mapping, index) => (
-                <div key={mapping.parameterName} style={{ display: "grid", gridTemplateColumns: "160px minmax(0, 1fr)", gap: 8, width: "100%" }}>
+                <div key={mapping.parameterName} style={{ display: "grid", gap: 6, width: "100%" }}>
                   <Tag color="blue">{mapping.parameterName}: {dataTypeLabel(mapping.parameterType)}</Tag>
-                  <ExpressionEditor
-                    value={mapping.argumentExpression}
-                    schema={schema}
-                    metadata={effectiveCatalog}
-                    variableIndex={variableIndex}
-                    objectId={object.id}
-                    actionId={action.id}
-                    fieldPath={`action.parameterMappings.${index}.argumentExpression`}
-                    expectedType={mapping.parameterType}
-                    required
-                    readonly={readonly}
-                    onChange={argumentExpression => patchObject(updateAction(object, {
-                      parameterMappings: action.parameterMappings.map((row, rowIndex) => rowIndex === index ? { ...row, argumentExpression } : row),
-                    }))}
-                  />
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 180px) minmax(0, 1fr)", gap: 8, width: "100%" }}>
+                    <VariableSelector
+                      schema={schema}
+                      objectId={object.id}
+                      fieldPath={`action.parameterMappings.${index}.sourceVariableName`}
+                      allowedTypeKinds={mapping.parameterType ? [mapping.parameterType.kind] : undefined}
+                      value={mapping.sourceVariableName}
+                      disabled={readonly}
+                      placeholder="Source variable"
+                      scopeMode="index"
+                      onChange={sourceVariableName => patchObject(updateAction(object, updateCallMicroflowParameterMapping(action, index, {
+                        sourceVariableName,
+                        argumentExpression: expression(sourceVariableName ?? "", mapping.parameterType),
+                      })))}
+                    />
+                    <ExpressionEditor
+                      value={mapping.argumentExpression}
+                      schema={schema}
+                      metadata={effectiveCatalog}
+                      variableIndex={variableIndex}
+                      objectId={object.id}
+                      actionId={action.id}
+                      fieldPath={`action.parameterMappings.${index}.argumentExpression`}
+                      expectedType={mapping.parameterType}
+                      required
+                      readonly={readonly}
+                      onChange={argumentExpression => patchObject(updateAction(object, updateCallMicroflowParameterMapping(action, index, {
+                        argumentExpression,
+                        sourceVariableName: argumentExpression.raw.trim() === mapping.sourceVariableName ? mapping.sourceVariableName : undefined,
+                      })))}
+                    />
+                  </div>
+                  {selectedMicroflow?.parameters.find(parameter => parameter.name === mapping.parameterName)?.required && !mapping.argumentExpression.raw.trim() ? (
+                    <Text type="warning" size="small">Required parameter has no mapping.</Text>
+                  ) : null}
+                  {!selectedMicroflow?.parameters.some(parameter => parameter.name === mapping.parameterName) ? (
+                    <Text type="warning" size="small">Mapping is stale because the target parameter no longer exists.</Text>
+                  ) : null}
                 </div>
               ))}
               {action.parameterMappings.length === 0 ? <Tag color="grey">No parameters</Tag> : null}
             </Space>
           </FieldRow>
           <Field label="Store Result">
-            <Switch checked={action.returnValue.storeResult} disabled={readonly || selectedMicroflow?.returnType.kind === "void"} onChange={storeResult => patchObject(updateAction(object, { returnValue: { ...action.returnValue, storeResult } }))} />
+            <Switch checked={action.returnValue.storeResult} disabled={readonly || isVoidMicroflowReturn(selectedMicroflow?.returnType)} onChange={storeResult => patchObject(updateAction(object, { returnValue: { ...action.returnValue, storeResult, outputVariableName: storeResult ? action.returnValue.outputVariableName : undefined } }))} />
+            {isVoidMicroflowReturn(selectedMicroflow?.returnType) ? <Text type="tertiary" size="small">Target microflow has no return value.</Text> : null}
+          </Field>
+          <Field label="Existing Return Variable">
+            <VariableSelector
+              schema={schema}
+              objectId={object.id}
+              fieldPath="action.returnValue.outputVariableName"
+              allowedTypeKinds={selectedMicroflow?.returnType ? [selectedMicroflow.returnType.kind] : undefined}
+              value={action.returnValue.outputVariableName}
+              disabled={readonly || isVoidMicroflowReturn(selectedMicroflow?.returnType)}
+              includeSystem={false}
+              includeReadonly={false}
+              scopeMode="index"
+              onChange={outputVariableName => patchObject(updateAction(object, updateCallMicroflowReturnBinding(action, outputVariableName)))}
+            />
           </Field>
           <FieldRow label="Return Variable Name" fieldPath="action.returnValue.outputVariableName" required={action.returnValue.storeResult} issues={getIssuesForField(issues, "action.returnValue.outputVariableName")}>
             <OutputVariableEditor
@@ -832,7 +866,7 @@ export function ActionActivityForm({
               fieldPath="action.returnValue.outputVariableName"
               suggestedBaseName="MicroflowResult"
               dataType={selectedMicroflow?.returnType ?? action.returnValue.dataType}
-              readonly={readonly || !action.returnValue.storeResult || selectedMicroflow?.returnType.kind === "void"}
+              readonly={readonly || !action.returnValue.storeResult || isVoidMicroflowReturn(selectedMicroflow?.returnType)}
               required={action.returnValue.storeResult}
               issues={getIssuesForField(issues, "action.returnValue.outputVariableName")}
               onChange={outputVariableName => patchObject(updateAction(object, { returnValue: { ...action.returnValue, outputVariableName } }))}

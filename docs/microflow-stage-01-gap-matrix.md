@@ -13,15 +13,15 @@
 | 2 | Adapter Bundle 创建与保存 | MendixStudioApp 内未创建 bundle | 无法按真实 workspace/tenant 路由到正确后端 | **Stage 02** |
 | 3 | Studio Microflow 视图模型 | 无 | 缺少 StudioMicroflowDefinitionView 展示层类型 | **Stage 02** |
 | 4 | Store 微流资产索引骨架 | 无 | Store 中无 microflowResourcesById / idsByModuleId 索引 | **Stage 02** |
-| 5 | App Explorer 中 Microflows 分组真实管理多个微流 | Stage 04 已完成真实列表 + CRUD 入口；Stage 05-06 已接 Workbench 与真实编辑器 | Call Microflow metadata 等深度能力仍在后续阶段 | Stage 03-06 分阶段完成 |
+| 5 | App Explorer 中 Microflows 分组真实管理多个微流 | Stage 04 已完成真实列表 + CRUD 入口；Stage 05-06 已接 Workbench 与真实编辑器；Stage 15 已接 Call Microflow 真实 metadata 目标列表 | Domain Model metadata 等深度能力仍在后续阶段 | Stage 03-06 / Stage 15 分阶段完成 |
 | 6 | 微流 CRUD 入口 | Stage 04 已完成 | 新建 / 重命名 / 复制 / 删除均已通过真实 Microflow Resource API 接入 App Explorer | **Stage 04** |
 | 7 | 点击微流真实打开指定 microflowId 的画布 | Stage 06 已完成：activeMicroflowId 打开嵌入式真实 MicroflowEditor | 深度属性与 metadata 仍在后续阶段 | **Stage 06** |
 | 8 | 画布按 microflowId 保存和加载 | Stage 06 已完成：GET resource/schema，PUT schema 保存 | 未保存切换 guard 待后续增强 | **Stage 06** |
 | 9 | 节点拖拽后真实进入当前微流定义 | Stage 08 已完成专项验收与修复：NodePanel payload -> FlowGram drop -> authoring schema objectCollection | 不新增节点类型 | **Stage 08** |
 | 10 | 节点位置、类型、名称、配置真实保存 | Stage 09 已完成节点移动/删除/复制/重命名基础编辑持久化；随 Stage 06 save bridge 保存 | 节点属性深度增强留到后续阶段 | **Stage 09 / 后续增强** |
 | 11 | 连接线可以创建、删除、保存 | Stage 10 已完成：FlowGram connect/delete 真实写回当前 microflow authoring schema，保存进入 `PUT /api/microflows/{id}/schema` | 复杂属性表单与运行语义留到后续阶段 | **Stage 10** |
-| 12 | 节点属性面板可以编辑并保存 | Stage 11 已完成：selectedObject/selectedFlow 属性加载、node/action/flow 基础表单分发、caption/documentation/action config/edge config 写回当前 schema | Call Microflow 真实 metadata 与 Domain Model metadata 仍在后续阶段 | **Stage 11** |
-| 13 | Call Microflow 目标选择 | Stage 07 已治理默认引用：新拖入节点 target 为空并标记待配置 | 真实微流列表选择仍未接入 | 后续阶段 |
+| 12 | 节点属性面板可以编辑并保存 | Stage 11 已完成基础表单；Stage 15 已完成 Call Microflow 真实 target、parameterMappings、return binding 写回当前 schema | Domain Model metadata 仍在后续阶段 | **Stage 11 / Stage 15** |
+| 13 | Call Microflow 目标选择 | Stage 15 已完成真实目标微流选择与 `targetMicroflowId` / `targetMicroflowQualifiedName` / `targetMicroflowName` 保存；Stage 16 已验证 target rename 后以 `targetMicroflowId` 保持稳定 | 后端执行器不在 Stage 16 范围 | Stage 15 / Stage 16 |
 | 14 | 执行引擎 / Trace | 未接入 | runtimeAdapter 链路未作为本轮目标接入 | 后续阶段 |
 | 15 | 节点工具箱分类和节点注册表 | Stage 07 已完成：Events / Parameters / Flow Control / Variables / Objects / Lists / Integration / Documentation / Other 稳定分类 | 后续可继续接入上下文级 availability 规则 | **Stage 07** |
 | 16 | Object/List/Variable/REST 默认配置治理 | Stage 07 已完成：默认 entity/list/target/url 为空或安全待配置值 | Domain Model metadata 绑定和深度属性编辑仍在后续阶段 | **Stage 07** |
@@ -40,7 +40,7 @@
 
 | # | 能力项 | Gap |
 |---|---|---|
-| 10 | 删除前引用预检查 | Stage 04 已完成：App Explorer 删除前调用 references API；后端 `EnsureNoActiveTargetReferencesAsync` 仍作为最终保护（见注 B） |
+| 10 | 删除前引用预检查 | Stage 16 已增强：App Explorer 删除前展示 callers，active callers 阻止删除；预检查失败不放行；DELETE 409 打开 references drawer 并保留树节点（见注 B） |
 | 11 | 版本历史查看 | 版本列表 UI 未实现 |
 | 12 | 发布状态更新 | publishStatus 更新 UI 未实现 |
 | 13 | 历史 schema demo 值迁移 | Stage 07 明确不做 migration；已保存 schema 中的旧 `Sales.*` 值打开时保留 | 如需治理历史数据，后续单独设计迁移与用户确认 |
@@ -58,6 +58,18 @@
 | 25 | true / false 出边规则 | Stage 14 已完成 `caseValues` true/false helper、重复 case warning、FlowEdgeForm selector 编辑与删除 flow 后 case 清理 |
 | 26 | Merge 节点属性配置 | Stage 14 已完成 ExclusiveMerge `firstArrived` 策略展示/编辑、incoming/outgoing summary 与 warning |
 | 27 | 分支建模基础保存刷新恢复 | Stage 14 已完成 Decision expression、flow label/caseValues、connection index、Merge behavior 的 schema 级测试；保存仍复用 `PUT /api/microflows/{activeMicroflowId}/schema` |
+| 28 | Call Microflow 参数映射 | Stage 15 已完成：目标参数来自真实 metadata API，mapping expression/source variable 写入当前 schema，required 缺失有 warning |
+| 29 | Call Microflow 返回值绑定 | Stage 15 已完成：returnType 展示，当前变量/新变量基础绑定写入 `returnValue.outputVariableName`，Void return 禁用并清空 |
+| 30 | Call Microflow 引用关系基础写入 | Stage 15 已完成：schema 中保留 `kind=callMicroflow`、`targetMicroflowId`、`targetMicroflowQualifiedName`，供后端 reference scanner 重建 |
+| 31 | mock metadata 替换为真实 metadata | Stage 15 已完成：mendix-studio 嵌入路径通过 HTTP metadata adapter 调用真实 metadata API；Provider 缺 adapter/失败不 fallback mock |
+| 28 | MicroflowReference 引用关系保存、查询、删除保护 | Stage 16 已完成 callers 查询与展示、schema 保存后后端重建、duplicate 后重建新 source outgoing refs、删除保护 UI 与 409 处理；callees 当前从 schema 解析 |
+| 29 | Call Microflow target 重命名后引用稳定 | Stage 16 已完成：`targetMicroflowId` 为权威，qualifiedName 仅作显示快照；资源列表刷新后 UI 用最新 target 名称展示 |
+| 30 | 被引用提示 / referenceCount 展示 | Stage 16 已完成 App Explorer 后端 `referenceCount` badge；保存、重命名、复制、删除后重新拉取资源列表，不伪造计数 |
+| 31 | Loop 节点属性配置 | Stage 17 已完成：`loopedActivity.loopSource` 支持 forEach / while、source list expression、condition expression、iterator name/type、flow summary 与 warning；保存仍复用当前 active microflow 的 schema PUT |
+| 32 | Break / Continue 节点属性配置 | Stage 17 已完成：`breakEvent` / `continueEvent` 支持 caption/documentation、`targetLoopObjectId`、incoming/outgoing summary 与合法性 warning |
+| 33 | Loop variable 基础索引 | Stage 17 已完成：Loop iterator 从当前 schema 派生进入 `schema.variables.loopVariables`，source=`loopIterator`、scope=`loop`；严格拓扑作用域校验后置 Stage 20 |
+| 34 | Loop body / exit flow 基础保存刷新恢复 | Stage 17 已完成：Loop body 使用 `originConnectionIndex=2`，after/exit 使用 `originConnectionIndex=1`，FlowEdgeForm 可识别与设置；刷新后由 handle/index 恢复 |
+| 35 | Break/Continue 合法性 warning | Stage 17 已完成：无 Loop、未处于 Loop body、target stale、多 Loop ambiguous、存在 outgoing flow 均显示 warning；不实现完整拓扑执行顺序分析 |
 
 ---
 
@@ -73,17 +85,18 @@
 后端 `MicroflowResourceService.DeleteAsync` 已调用 `EnsureNoActiveTargetReferencesAsync`，
 因此**后端具备被引用保护**。
 
-前端缺口已在 **Stage 04** 补齐：App Explorer 删除入口会先调用
-`GET /api/microflows/{id}/references` 做 active references 预检查；
+前端缺口已在 **Stage 16** 增强：App Explorer 删除入口会先调用
+`GET /api/microflows/{id}/references` 做 active callers 预检查；
+如果存在 active callers，前端打开 references drawer 并禁止调用 DELETE。
 若后端 `DELETE /api/microflows/{id}` 仍返回 409 / `MICROFLOW_REFERENCE_BLOCKED`，
-前端会展示友好错误并保留树节点。
+前端会展示后端错误、打开 references drawer、刷新引用关系并保留树节点。
 
 ### 注 D：Stage 04 已覆盖的 CRUD 缺口
 
 - “新建微流真实创建 MicroflowResource”：已完成，入口位于 App Explorer 的 `Microflows` 分组右键菜单，调用 `resourceAdapter.createMicroflow`。
 - “微流重命名”：已完成，入口位于真实微流节点右键菜单，调用 `resourceAdapter.renameMicroflow`，resource id 保持不变。
 - “复制微流”：已完成，入口位于真实微流节点右键菜单，调用 `resourceAdapter.duplicateMicroflow`，返回新 resource id。
-- “删除微流前检查是否被其他微流引用”：已完成，删除确认前调用 `resourceAdapter.getMicroflowReferences`，后端 409 作为最终保护。
+- “删除微流前检查是否被其他微流引用”：Stage 16 已增强，删除确认前调用 `resourceAdapter.getMicroflowReferences`，active callers 会阻止删除并展示来源；后端 409 作为最终保护且不会移除前端树节点。
 
 ### 注 C：Stage 02 边界（修正）
 
