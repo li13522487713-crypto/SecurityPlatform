@@ -3,7 +3,8 @@ import { Input, InputNumber, Select, Switch, TextArea, Typography } from "@douyi
 import type { MicroflowFlow, MicroflowSequenceFlow } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../../flowgram/adapters/flowgram-case-options";
-import { useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
+import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
+import { getDecisionBranchConflicts } from "../../schema/utils";
 import { ValidationIssueList } from "../common";
 import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "../types";
 import { Header, PropertyTabs, Field, flowPatch, getFlowTabs, issuesFor, objectName } from "../panel-shared";
@@ -20,32 +21,24 @@ function CaseValueField({ props, flow, patch }: {
   const caseKind = getCaseEditorKind(props.schema, flow.originObjectId);
   if (!caseKind || flow.isErrorHandler || flow.editor.edgeKind === "sequence") {
     return (
-      <Field label="Case Values">
-        <TextArea
-          autosize
-          disabled={props.readonly}
-          value={flow.caseValues.map(item => item.kind === "boolean" ? item.persistedValue : item.kind === "enumeration" ? item.value : item.kind === "inheritance" ? item.entityQualifiedName : item.kind).join("\n")}
-          onChange={value => patch(flowPatch(flow, {
-            caseValues: value.split("\n").map(item => item.trim()).filter(Boolean).map(item => item === "true" || item === "false"
-              ? { kind: "boolean" as const, officialType: "Microflows$EnumerationCase" as const, value: item === "true", persistedValue: item as "true" | "false" }
-              : { kind: "enumeration" as const, officialType: "Microflows$EnumerationCase" as const, enumerationQualifiedName: "", value: item })
-          }))}
-        />
+      <Field label="Branch Case">
+        <Input value={flow.isErrorHandler ? "Error handler" : "Not a Decision branch"} disabled />
       </Field>
     );
   }
-  if (metadataError) {
+  if (caseKind !== "boolean" && metadataError) {
     return <Text type="danger">元数据加载失败，无法配置分支条件。</Text>;
   }
-  if (metadataLoading && !catalog) {
+  if (caseKind !== "boolean" && metadataLoading && !catalog) {
     return <Text type="tertiary">元数据加载中…</Text>;
   }
-  if (!catalog) {
+  if (caseKind !== "boolean" && !catalog) {
     return <Text type="warning">元数据未加载</Text>;
   }
-  const options = getCaseOptionsForSource(props.schema, flow.originObjectId, flow.id, catalog);
+  const options = getCaseOptionsForSource(props.schema, flow.originObjectId, flow.id, catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG);
   const current = flow.caseValues[0];
   const currentKey = current ? caseValueKey(current) : undefined;
+  const conflicts = getDecisionBranchConflicts(props.schema, flow.originObjectId).filter(item => item.flowIds.includes(flow.id));
   return (
     <Field label={caseKind === "enumeration" ? "Enumeration Case" : caseKind === "objectType" ? "Object Type Case" : "Boolean Case"}>
       <Select
@@ -72,6 +65,8 @@ function CaseValueField({ props, flow, patch }: {
           disabled: option.disabled,
         }))}
       />
+      {!current || current.kind === "noCase" ? <Text type="warning" size="small">Branch case is not configured.</Text> : null}
+      {conflicts.length ? <Text type="warning" size="small">Duplicate branch case: {conflicts.map(item => item.key).join(", ")}</Text> : null}
     </Field>
   );
 }

@@ -448,7 +448,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     iconKey: "merge",
     availability: "supported",
     availabilityReason: undefined,
-    defaultConfig: { strategy: "firstAvailable" },
+    defaultConfig: { strategy: "firstArrived" },
     ports: [sequenceIn, sequenceOut],
     documentation: doc("Merge is not a parallel synchronizer; it continues when any incoming branch arrives."),
     render: { iconKey: "merge", shape: "diamond", tone: "info", width: 112, height: 84 },

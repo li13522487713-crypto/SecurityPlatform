@@ -54,6 +54,10 @@
 | 21 | 微流变量索引 | Stage 13 已完成 `buildMicroflowVariableIndex` helper 与派生 `MicroflowVariableIndex`；包含 parameters、Create Variable 与既有 action outputs |
 | 22 | 后续节点变量选择 | Stage 13 已完成 Change Variable `scopeMode=index` selector；严格拓扑作用域校验留到后续 Stage 20 |
 | 23 | 变量保存刷新恢复 | Stage 13 已完成变量节点/action config/schema.variables 同步测试；保存仍复用 `PUT /api/microflows/{activeMicroflowId}/schema` |
+| 24 | Decision / If 节点属性配置 | Stage 14 已完成 ExclusiveSplit expression/resultType/rule 基础配置、branch summary 与空表达式/缺分支 warning |
+| 25 | true / false 出边规则 | Stage 14 已完成 `caseValues` true/false helper、重复 case warning、FlowEdgeForm selector 编辑与删除 flow 后 case 清理 |
+| 26 | Merge 节点属性配置 | Stage 14 已完成 ExclusiveMerge `firstArrived` 策略展示/编辑、incoming/outgoing summary 与 warning |
+| 27 | 分支建模基础保存刷新恢复 | Stage 14 已完成 Decision expression、flow label/caseValues、connection index、Merge behavior 的 schema 级测试；保存仍复用 `PUT /api/microflows/{activeMicroflowId}/schema` |
 
 ---
 

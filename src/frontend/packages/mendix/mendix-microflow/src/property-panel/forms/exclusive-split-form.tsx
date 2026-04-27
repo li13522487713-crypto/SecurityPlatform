@@ -1,8 +1,10 @@
 import { Input, Select, TextArea, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
+import type { MicroflowCaseValue } from "../../schema/types";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
+import { getDecisionBranchConflicts } from "../../schema/utils";
 import { FieldError } from "../common";
 import { ExpressionEditor } from "../expression";
 import { EnumerationSelector } from "../selectors";
@@ -23,6 +25,17 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
   if (object.kind !== "exclusiveSplit") {
     return null;
   }
+  const outgoing = collectFlowsRecursive(props.schema).filter(flow => flow.originObjectId === object.id);
+  const branchSummary = outgoing
+    .map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(caseValue => caseValue.kind === "boolean" ? String(caseValue.value) : caseValue.kind === "enumeration" ? caseValue.value : caseValue.kind).join(", ") || "pending" : flow.kind}${flow.editor.label ? ` | ${flow.editor.label}` : ""}`)
+    .join("\n");
+  const booleanCases = outgoing
+    .filter(flow => flow.kind === "sequence")
+    .flatMap(flow => flow.kind === "sequence" ? flow.caseValues : [])
+    .filter((caseValue): caseValue is Extract<MicroflowCaseValue, { kind: "boolean" }> => caseValue.kind === "boolean");
+  const hasTrue = booleanCases.some(caseValue => caseValue.value);
+  const hasFalse = booleanCases.some(caseValue => !caseValue.value);
+  const conflicts = getDecisionBranchConflicts(props.schema, object.id);
   return (
     <>
       <Field label="Decision Type">
@@ -36,7 +49,7 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
               ...object,
               splitCondition: nextKind === "rule"
                 ? { kind: "rule", ruleQualifiedName: "", parameterMappings: [], resultType: "boolean" }
-                : { kind: "expression", expression: expression("true", { kind: "boolean" }), resultType: "boolean" },
+                : { kind: "expression", expression: expression("", { kind: "boolean" }), resultType: "boolean" },
             });
           }}
           optionList={[{ label: "expression", value: "expression" }, { label: "rule", value: "rule" }]}
@@ -111,11 +124,11 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
             <TextArea
               disabled
               autosize
-              value={collectFlowsRecursive(props.schema)
-                .filter(flow => flow.originObjectId === object.id)
-                .map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(caseValue => caseValue.kind === "boolean" ? String(caseValue.value) : caseValue.kind === "enumeration" ? caseValue.value : caseValue.kind).join(", ") || "pending" : flow.kind}`)
-                .join("\n") || (object.splitCondition.resultType === "boolean" ? "Expected: true / false branches" : "Expected: enumeration value branches")}
+              value={branchSummary || (object.splitCondition.resultType === "boolean" ? "Expected: true / false branches" : "Expected: enumeration value branches")}
             />
+            {outgoing.length === 0 ? <Text type="warning" size="small">Decision has no outgoing branches.</Text> : null}
+            {object.splitCondition.resultType === "boolean" && (!hasTrue || !hasFalse) ? <Text type="warning" size="small">Boolean Decision should have both true and false branches.</Text> : null}
+            {conflicts.length ? <Text type="warning" size="small">Duplicate branch case: {conflicts.map(item => item.key).join(", ")}</Text> : null}
           </Field>
         </>
       ) : (
