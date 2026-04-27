@@ -8,6 +8,7 @@ export type { MicroflowValidationCode };
 export interface MicroflowValidatorContext {
   metadata: MicroflowMetadataCatalog;
   variableIndex: MicroflowVariableIndex;
+  mode: NonNullable<MicroflowValidationOptions["mode"]>;
 }
 
 export interface MicroflowValidator {

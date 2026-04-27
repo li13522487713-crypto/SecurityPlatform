@@ -3,7 +3,7 @@ import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { flattenObjects, issue } from "./shared";
 import type { MicroflowValidatorContext } from "./validator-types";
 
-export function validateReachability(schema: MicroflowSchema, _context: MicroflowValidatorContext): MicroflowValidationIssue[] {
+export function validateReachability(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const objects = flattenObjects(schema.objectCollection).map(item => item.object);
   const flows = collectFlowsRecursive(schema);
   const start = objects.find(object => object.kind === "startEvent");
@@ -24,15 +24,15 @@ export function validateReachability(schema: MicroflowSchema, _context: Microflo
   }
   const issues = objects
     .filter(object => !["annotation", "parameterObject"].includes(object.kind) && object.kind !== "startEvent" && !visited.has(object.id))
-    .map(object => issue("MF_OBJECT_UNREACHABLE", "Executable object is not reachable from StartEvent.", { objectId: object.id }, "warning"));
+    .map(object => issue("MF_OBJECT_UNREACHABLE", "Executable object is not reachable from StartEvent.", { objectId: object.id }, context.mode === "edit" ? "warning" : "error"));
 
   const terminalIds = new Set(
     objects
-      .filter(object => object.kind === "endEvent" || object.kind === "errorEvent")
+      .filter(object => object.kind === "endEvent" || object.kind === "errorEvent" || object.kind === "breakEvent" || object.kind === "continueEvent")
       .map(object => object.id)
   );
   const outgoingByOrigin = new Map<string, string[]>();
-  for (const flow of flows.filter(item => item.kind === "sequence")) {
+  for (const flow of flows.filter(item => item.kind === "sequence" && !item.isErrorHandler)) {
     outgoingByOrigin.set(flow.originObjectId, [...(outgoingByOrigin.get(flow.originObjectId) ?? []), flow.destinationObjectId]);
   }
   const canReachTerminal = new Map<string, boolean>();
@@ -53,11 +53,15 @@ export function validateReachability(schema: MicroflowSchema, _context: Microflo
     return result;
   };
   for (const object of objects) {
-    if (["annotation", "parameterObject", "endEvent", "errorEvent"].includes(object.kind)) {
+    if (["annotation", "parameterObject", "endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(object.kind)) {
+      continue;
+    }
+    if (visited.has(object.id) && (outgoingByOrigin.get(object.id) ?? []).length === 0) {
+      issues.push(issue("MF_OBJECT_DEAD_END", "Executable object has no normal outgoing flow and is not terminal.", { objectId: object.id }, context.mode === "edit" ? "warning" : "error"));
       continue;
     }
     if (!dfs(object.id)) {
-      issues.push(issue("MF_OBJECT_TERMINAL_UNREACHABLE", "Object path cannot reach EndEvent or ErrorEvent.", { objectId: object.id }, "warning"));
+      issues.push(issue("MF_OBJECT_TERMINAL_UNREACHABLE", "Object path cannot reach EndEvent or ErrorEvent.", { objectId: object.id }, context.mode === "edit" ? "warning" : "error"));
     }
   }
   return issues;

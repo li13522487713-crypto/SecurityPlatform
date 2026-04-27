@@ -82,14 +82,35 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
       continue;
     }
     const action = object.action;
-    if (action.kind === "retrieve" && action.retrieveSource.kind === "database" && action.retrieveSource.xPathConstraint) {
-      targets.push({
-        expression: action.retrieveSource.xPathConstraint,
-        objectId: object.id,
-        actionId: action.id,
-        fieldPath: "action.retrieveSource.xPathConstraint",
-        expectedType: { kind: "boolean" },
-      });
+    if (action.kind === "retrieve" && action.retrieveSource.kind === "database") {
+      if (action.retrieveSource.xPathConstraint) {
+        targets.push({
+          expression: action.retrieveSource.xPathConstraint,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.retrieveSource.xPathConstraint",
+          expectedType: { kind: "boolean" },
+        });
+      }
+      if (action.retrieveSource.range.kind === "custom") {
+        targets.push({
+          expression: action.retrieveSource.range.limitExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.retrieveSource.range.limitExpression",
+          expectedType: { kind: "integer" },
+          required: true,
+        });
+        if (action.retrieveSource.range.offsetExpression) {
+          targets.push({
+            expression: action.retrieveSource.range.offsetExpression,
+            objectId: object.id,
+            actionId: action.id,
+            fieldPath: "action.retrieveSource.range.offsetExpression",
+            expectedType: { kind: "integer" },
+          });
+        }
+      }
     }
     if (action.kind === "changeMembers" || action.kind === "createObject") {
       action.memberChanges.forEach((change, index) => {
@@ -138,6 +159,15 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
           expectedType: action.request.body.kind === "json" ? { kind: "json" } : { kind: "string" },
         });
       }
+      if (action.request.body.kind === "form") {
+        action.request.body.fields.forEach((field, index) => targets.push({
+          expression: field.valueExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: `action.request.body.fields.${index}.valueExpression`,
+          expectedType: { kind: "string" },
+        }));
+      }
     }
     if (action.kind === "logMessage") {
       targets.push({
@@ -147,6 +177,12 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
         fieldPath: "action.template.text",
         expectedType: { kind: "string" },
       });
+      action.template.arguments.forEach((argument, index) => targets.push({
+        expression: argument,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: `action.template.arguments.${index}`,
+      }));
     }
     if (action.kind === "createVariable" && action.initialValue) {
       targets.push({

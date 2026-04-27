@@ -63,3 +63,10 @@ TypeScript 定义见 `@atlas/microflow`（`schema/types.ts`）中的 `MicroflowA
 - `VariableIndex` 是派生结构，禁止作为业务主存储；构建必须显式接收 `MicroflowMetadataCatalog`，不得直接依赖 mock metadata。
 - FlowGraph 分析基于 AuthoringSchema：AnnotationFlow 不参与 normal graph，ErrorHandlerFlow 只参与 error scope，Loop nested collection 单独建图。
 - P0 Action 输出类型规则见 `runtime-variable-scope-contract.md`；GenericAction 只允许 modeledOnly/unknown 输出并产生 warning。
+
+## 第 28 轮表达式与校验契约
+
+- `MicroflowExpression.raw/text` 是 AuthoringSchema 内的表达式主载荷；解析结果 AST/tokens 只作为派生诊断结构。
+- 表达式 P0 子集见 `runtime-expression-contract.md`，不声明支持完整 Mendix 表达式语言。
+- Validator 必须显式接收 MetadataCatalog 和 VariableIndex，不得从 schema 内部或 app-web 回落 mock。
+- `ValidationIssue.fieldPath` 必须使用 AuthoringSchema 字段路径，与 PropertyPanel `FieldError` 对齐。

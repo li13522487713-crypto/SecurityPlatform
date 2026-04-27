@@ -1,4 +1,6 @@
 import type { MicroflowDataType, MicroflowExpressionDiagnostic } from "../schema/types";
+import type { MicroflowExpressionAstNode } from "./expression-ast";
+import type { MicroflowExpressionToken } from "./expression-tokenizer";
 
 export interface TextRange {
   start: number;
@@ -34,6 +36,8 @@ export type ExpressionReference =
 
 export interface ExpressionParseResult {
   raw: string;
+  ast?: MicroflowExpressionAstNode;
+  tokens?: MicroflowExpressionToken[];
   references: ExpressionReference[];
   diagnostics: ExpressionDiagnostic[];
   variables: string[];
@@ -44,6 +48,7 @@ export interface ExpressionTypeInferenceResult {
   inferredType: MicroflowDataType;
   confidence: "high" | "medium" | "low";
   diagnostics: ExpressionDiagnostic[];
+  references?: ExpressionReference[];
 }
 
 export interface ExpressionValidationResult extends ExpressionTypeInferenceResult {

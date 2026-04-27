@@ -43,14 +43,44 @@ function severityRank(severity: MicroflowValidationIssue["severity"]): number {
 
 function normalizeIssues(issues: MicroflowValidationIssue[]): MicroflowValidationIssue[] {
   const byId = new Map<string, MicroflowValidationIssue>();
-  for (const item of issues) {
-    byId.set(item.id, item);
+  for (const [index, item] of issues.entries()) {
+    const key = [
+      item.id,
+      item.message,
+      item.flowId,
+      item.relatedFlowIds?.join(","),
+      index,
+    ].filter(Boolean).join(":");
+    byId.set(key, item);
   }
   return [...byId.values()].sort((a, b) =>
     severityRank(a.severity) - severityRank(b.severity) ||
     (a.objectId ?? a.flowId ?? a.actionId ?? "").localeCompare(b.objectId ?? b.flowId ?? b.actionId ?? "") ||
     a.code.localeCompare(b.code)
   );
+}
+
+function applyMode(issues: MicroflowValidationIssue[], mode: MicroflowValidatorContext["mode"]): MicroflowValidationIssue[] {
+  return issues.map(item => {
+    if (mode === "edit") {
+      if (item.code === "MF_ACTION_REQUIRED_FIELD_MISSING" || item.code.endsWith("_MISSING")) {
+        return { ...item, severity: "warning" };
+      }
+      return item;
+    }
+    if (mode === "publish" || mode === "testRun") {
+      if (
+        item.code === "MF_METADATA_CATALOG_MISSING" ||
+        item.code.startsWith("MF_METADATA_") ||
+        item.code === "MF_ACTION_NANOFLOW_ONLY" ||
+        item.code === "MF_ACTION_REQUIRES_CONNECTOR" ||
+        (mode === "testRun" && (item.code === "MF_ACTION_MODELED_ONLY" || item.code === "MF_VARIABLE_OUTPUT_MODELED_ONLY" || item.code === "MF_EXPR_UNKNOWN_TYPE"))
+      ) {
+        return { ...item, severity: "error" };
+      }
+    }
+    return item;
+  });
 }
 
 function runValidators(schema: MicroflowAuthoringSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
@@ -118,10 +148,11 @@ export function validateMicroflowSchema(input: MicroflowAuthoringSchema | Microf
     const schema = normalizeMicroflowSchema(input.schema as unknown);
     const metadata = input.metadata;
     const variableIndex = input.variableIndex ?? buildVariableIndex(schema, metadata);
-    const context: MicroflowValidatorContext = { metadata, variableIndex };
+    const mode = input.options?.mode ?? "edit";
+    const context: MicroflowValidatorContext = { metadata, variableIndex, mode };
     const includeWarnings = input.options?.includeWarnings !== false;
     const includeInfo = input.options?.includeInfo === true;
-    const issues = runValidators(schema, context).filter(item =>
+    const issues = applyMode(runValidators(schema, context), mode).filter(item =>
       item.severity === "error" ||
       (item.severity === "warning" && includeWarnings) ||
       (item.severity === "info" && includeInfo),

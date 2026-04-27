@@ -28,6 +28,10 @@
 24. **VariableSelector v2**：显示变量名、类型、来源、scope、visibility、readonly/unknown tag；ChangeVariable 不显示 readonly/system，Commit/Delete/Rollback 只显示 object/list。
 25. **ExpressionEditor v2**：插入菜单使用同一 VariableIndex；object 可插属性，list<object> 提示需循环访问成员，maybe/unknown 有提示。
 26. **Runtime 契约**：`toRuntimeDto().variables.all` 与 `toExecutionPlan().variableDeclarations` 非空且数量一致。
+27. **Expression v2**：`$order/Status = Sales.OrderStatus.New`、`not empty($order)`、`if $order/TotalAmount > 100 then true else false` 可解析并显示 inferredType。
+28. **Validator mode**：edit/save/publish/testRun 四种模式下 severity 差异符合 `validation-contract.md`，testRun 对 modeledOnly 报 error。
+29. **P0 表达式字段**：Retrieve custom range、REST form body、LogMessage arguments、CallMicroflow mappings 均进入统一 `validateExpressions`。
+30. **ProblemPanel 联动**：点击 issue 选中 object/flow；字段错误通过稳定 `fieldPath` 在属性面板显示。
 
 ## 自动化补充
 

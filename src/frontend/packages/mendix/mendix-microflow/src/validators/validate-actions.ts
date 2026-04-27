@@ -1,4 +1,5 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import { getMicroflowById } from "../metadata";
 import { isMicroflowP0ActionStronglyTyped, isP0ActionKind } from "../schema/authoring/p0-action-guards";
 import { flattenObjects, issue } from "./shared";
 import type { MicroflowValidatorContext } from "./validator-types";
@@ -31,7 +32,7 @@ function required(issueList: MicroflowValidationIssue[], code: string, message: 
   }
 }
 
-export function validateActions(schema: MicroflowSchema, _context: MicroflowValidatorContext): MicroflowValidationIssue[] {
+export function validateActions(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   for (const { object } of flattenObjects(schema.objectCollection)) {
     if (object.kind !== "actionActivity") {
@@ -67,7 +68,13 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
       }
     }
     if (action.editor.availability === "nanoflowOnlyDisabled") {
-      issues.push(issue("MF_ACTION_NANOFLOW_ONLY", `${action.officialType} is Nanoflow-only and cannot be used in a Microflow.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }));
+      issues.push(issue("MF_ACTION_NANOFLOW_ONLY", `${action.officialType} is Nanoflow-only and cannot be used in a Microflow.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "edit" ? "warning" : "error"));
+    }
+    if (action.editor.availability === "requiresConnector") {
+      issues.push(issue("MF_ACTION_REQUIRES_CONNECTOR", `${action.officialType} requires connector runtime support.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "publish" || context.mode === "testRun" ? "error" : "warning"));
+    }
+    if (!isP0ActionKind(action.kind)) {
+      issues.push(issue("MF_ACTION_MODELED_ONLY", `${action.officialType} is modeled-only for the P0 runtime contract.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "testRun" ? "error" : "warning"));
     }
     if (action.editor.availability === "deprecated") {
       issues.push(issue("MF_ACTION_DEPRECATED", `${action.officialType} is deprecated.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, "warning"));
@@ -84,6 +91,24 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
       if (action.memberChanges.length === 0) {
         issues.push(issue("MF_CHANGE_OBJECT_NO_MEMBERS", "ChangeMembersAction.memberChanges must include at least one member change.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }));
       }
+      action.memberChanges.forEach((change, index) => {
+        if (!change.memberQualifiedName.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Member change requires memberQualifiedName.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.memberQualifiedName` }));
+        }
+        if (change.assignmentKind !== "clear" && !expressionText(change.valueExpression)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Member change requires valueExpression unless assignmentKind is clear.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.valueExpression` }));
+        }
+      });
+    }
+    if (action.kind === "createObject") {
+      action.memberChanges.forEach((change, index) => {
+        if (!change.memberQualifiedName.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Member change requires memberQualifiedName.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.memberQualifiedName` }));
+        }
+        if (change.assignmentKind !== "clear" && !expressionText(change.valueExpression)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Member change requires valueExpression unless assignmentKind is clear.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.valueExpression` }));
+        }
+      });
     }
     if (action.kind === "commit" || action.kind === "delete" || action.kind === "rollback") {
       if (!action.objectOrListVariableName.trim()) {
@@ -97,8 +122,14 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
       }
     }
     if (action.kind === "callMicroflow") {
+      const target = getMicroflowById(context.metadata, action.targetMicroflowId);
       if (!action.targetMicroflowId.trim()) {
         issues.push(issue("MF_CALL_MICROFLOW_TARGET_MISSING", "MicroflowCallAction.targetMicroflowId is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId" }));
+      }
+      for (const parameter of target?.parameters ?? []) {
+        if (parameter.required && !action.parameterMappings.some(mapping => mapping.parameterName === parameter.name)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", `Required parameter "${parameter.name}" is not mapped.`, { objectId: object.id, actionId: action.id, fieldPath: "action.parameterMappings" }));
+        }
       }
       action.parameterMappings.forEach((mapping, index) => {
         if (!expressionText(mapping.argumentExpression)) {
@@ -107,6 +138,9 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
       });
       if (action.returnValue.storeResult && !action.returnValue.outputVariableName?.trim()) {
         issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "MicroflowCallAction.returnValue.outputVariableName is required when storeResult=true.", { objectId: object.id, actionId: action.id, fieldPath: "action.returnValue.outputVariableName" }));
+      }
+      if (action.returnValue.storeResult && target?.returnType.kind === "void") {
+        issues.push(issue("MF_ACTION_RETURN_VOID_STORE_RESULT", "Void microflow return cannot be stored.", { objectId: object.id, actionId: action.id, fieldPath: "action.returnValue.outputVariableName" }));
       }
     }
     if (action.kind === "aggregateList") {
@@ -170,6 +204,34 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
     }
     if (action.kind === "restCall" && !(action.request.urlExpression.raw ?? action.request.urlExpression.text ?? "").trim()) {
       issues.push(issue("MF_REST_URL_MISSING", "RestCallAction.request.urlExpression is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.request.urlExpression" }));
+    }
+    if (action.kind === "restCall") {
+      action.request.headers.forEach((header, index) => {
+        if (!header.key.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST header key is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.headers.${index}.key` }));
+        }
+        if (!expressionText(header.valueExpression)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST header value expression is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.headers.${index}.valueExpression` }));
+        }
+      });
+      action.request.queryParameters.forEach((parameter, index) => {
+        if (!parameter.key.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST query key is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.queryParameters.${index}.key` }));
+        }
+        if (!expressionText(parameter.valueExpression)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST query value expression is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.queryParameters.${index}.valueExpression` }));
+        }
+      });
+      if (action.request.body.kind === "form") {
+        action.request.body.fields.forEach((field, index) => {
+          if (!field.key.trim()) {
+            issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST form body field key is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.body.fields.${index}.key` }));
+          }
+          if (!expressionText(field.valueExpression)) {
+            issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST form body field value expression is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.body.fields.${index}.valueExpression` }));
+          }
+        });
+      }
     }
     if (action.kind === "restCall" && action.timeoutSeconds <= 0) {
       issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "RestCallAction.timeoutSeconds must be greater than 0.", { objectId: object.id, actionId: action.id, fieldPath: "action.timeoutSeconds" }));

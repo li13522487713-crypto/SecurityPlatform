@@ -1,6 +1,6 @@
 import { Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
-import { useEffect, useMemo, useState } from "react";
-import { getEntityAttributes, type MicroflowMetadataCatalog } from "../../metadata";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getEntityAttributes, getEnumerationValues, type MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../../schema";
 import { createMicroflowExpression, expressionRaw, expressionTypeLabel, validateExpression } from "../../expressions";
 import { getVariablesForExpressionFromIndex, type MicroflowExpressionScopeContext } from "../../variables";
@@ -60,6 +60,7 @@ export function ExpressionEditor({
   mode?: "inline" | "multiline";
 }) {
   const raw = expressionRaw(value);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const debouncedRaw = useDebouncedValue(raw, 200);
   const context: MicroflowExpressionScopeContext = { objectId: objectId ?? "", actionId, fieldPath };
   const variables = useMemo(() => objectId ? getVariablesForExpressionFromIndex(schema, variableIndex, context) : [], [actionId, fieldPath, objectId, schema, variableIndex]);
@@ -70,7 +71,8 @@ export function ExpressionEditor({
     variableIndex,
     context: { objectId, actionId, flowId, fieldPath, expectedType, required },
   }), [actionId, debouncedRaw, expectedType, fieldPath, flowId, metadata, objectId, required, schema, variableIndex]);
-  const insertOptions = useMemo(() => variables.flatMap(variable => {
+  const insertOptions = useMemo(() => {
+    const variableOptions = variables.flatMap(variable => {
     const suffix = [
       expressionTypeLabel(variable.dataType),
       variable.visibility === "maybe" ? "maybe" : undefined,
@@ -100,11 +102,25 @@ export function ExpressionEditor({
         value: `$${variable.name}/${attribute.name}`,
       })),
     ];
-  }), [metadata, variables]);
+    });
+    const enumOptions = expectedType?.kind === "enumeration"
+      ? getEnumerationValues(metadata, expectedType.enumerationQualifiedName).map(value => ({
+          label: `${expectedType.enumerationQualifiedName}.${value.key} (enum)`,
+          value: `${expectedType.enumerationQualifiedName}.${value.key}`,
+        }))
+      : [];
+    const functionOptions = [
+      { label: "empty($variable)", value: "empty()" },
+      { label: "not empty($variable)", value: "not empty()" },
+      { label: "if condition then value else value", value: "if true then  else " },
+    ];
+    return [...variableOptions, ...enumOptions, ...functionOptions];
+  }, [expectedType, metadata, variables]);
   const nextExpression = (nextRaw: string) => onChange(createMicroflowExpression(nextRaw, validation.inferredType));
   return (
     <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
       <TextArea
+        ref={inputRef}
         value={raw}
         disabled={readonly}
         autosize={mode === "multiline" ? { minRows } : { minRows: 1, maxRows: 3 }}
@@ -128,7 +144,7 @@ export function ExpressionEditor({
       <Text size="small" type="tertiary">
         Expected: {expressionTypeLabel(expectedType)} · Inferred: {expressionTypeLabel(validation.inferredType)}
       </Text>
-      <ExpressionDiagnostics diagnostics={validation.diagnostics} />
+      <ExpressionDiagnostics diagnostics={validation.diagnostics} onDiagnosticClick={() => inputRef.current?.focus()} />
     </Space>
   );
 }

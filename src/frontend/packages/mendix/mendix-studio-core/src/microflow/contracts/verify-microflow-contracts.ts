@@ -7,6 +7,7 @@ import type { MicroflowAction } from "@atlas/microflow/schema/types";
 import { collectObjectsRecursive } from "@atlas/microflow/schema/utils";
 import { validateMicroflowSchema } from "@atlas/microflow/validators";
 import { buildVariableIndex, getVariablesAfterObject, getVariablesBeforeObject } from "@atlas/microflow/variables";
+import { inferExpressionType, parseExpression, validateExpression } from "@atlas/microflow/expressions";
 
 import { toExecutionPlan, toExecutionPlanFromSchema } from "./runtime-semantics";
 import { microflowSampleManifest } from "./sample-manifest";
@@ -51,12 +52,72 @@ function p0OutputNames(action: MicroflowAction): string[] {
   return [];
 }
 
+function verifyExpressionContracts(errors: string[]): void {
+  const metadata = getDefaultMockMetadataCatalog();
+  const schema = microflowSampleManifest.find(item => item.key === "sample-order-processing")?.createSchema() ?? microflowSampleManifest[0].createSchema();
+  const variableIndex = buildVariableIndex(schema, metadata);
+  const parseSamples = [
+    "$order/Status = Sales.OrderStatus.New",
+    "$order/TotalAmount > 100",
+    "not empty($order)",
+    "if $order/TotalAmount > 100 then true else false",
+  ];
+  for (const sample of parseSamples) {
+    const parsed = parseExpression(sample);
+    if (parsed.ast.kind === "unknown" || parsed.diagnostics.some(item => item.severity === "error")) {
+      errors.push(`expression parse failed: ${sample}`);
+    }
+  }
+  const inferred = inferExpressionType({
+    expression: "$order/TotalAmount > 100",
+    schema,
+    metadata,
+    variableIndex,
+    objectId: "change-order",
+    expectedType: { kind: "boolean" },
+  });
+  if (inferred.inferredType.kind !== "boolean") {
+    errors.push("expression infer failed: comparison should be boolean");
+  }
+  const unknown = validateExpression({
+    expression: "$NotExist",
+    schema,
+    metadata,
+    variableIndex,
+    context: { objectId: "change-order", fieldPath: "test", expectedType: { kind: "boolean" } },
+  });
+  if (!unknown.diagnostics.some(item => item.code === "MF_EXPR_UNKNOWN_VARIABLE")) {
+    errors.push("expression validate failed: unknown variable should report MF_EXPR_UNKNOWN_VARIABLE");
+  }
+  const badMember = validateExpression({
+    expression: "$order/BadField",
+    schema,
+    metadata,
+    variableIndex,
+    context: { objectId: "change-order", fieldPath: "test" },
+  });
+  if (!badMember.diagnostics.some(item => item.code === "MF_EXPR_MEMBER_NOT_FOUND")) {
+    errors.push("expression validate failed: unknown member should report MF_EXPR_MEMBER_NOT_FOUND");
+  }
+  const loopOut = validateExpression({
+    expression: "$currentIndex > 0",
+    schema,
+    metadata,
+    variableIndex,
+    context: { objectId: "change-order", fieldPath: "test", expectedType: { kind: "boolean" } },
+  });
+  if (!loopOut.diagnostics.some(item => item.code === "MF_EXPR_LOOP_VARIABLE_OUT_OF_SCOPE")) {
+    errors.push("expression validate failed: $currentIndex outside loop should report scope error");
+  }
+}
+
 /**
  * 纯函数验收：样例可校验、可转 FlowGram、可转 Runtime DTO、变量索引可建；不访问网络。
  */
 export function verifyMicroflowContracts(): MicroflowContractVerificationResult {
   const errors: string[] = [];
   const sampleKeys: string[] = [];
+  verifyExpressionContracts(errors);
 
   for (const item of microflowSampleManifest) {
     sampleKeys.push(item.key);

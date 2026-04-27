@@ -1,4 +1,7 @@
 export * from "./expression-types";
+export * from "./expression-ast";
+export * from "./expression-tokenizer";
+export * from "./expression-parser";
 export * from "./expression-reference-parser";
 export * from "./expression-type-inference";
 export * from "./expression-validator";

@@ -75,15 +75,18 @@ export function validateMetadataReferences(schema: MicroflowSchema, context: Mic
         if (action.retrieveSource.entityQualifiedName && !entity) {
           issues.push(issue("MF_METADATA_ENTITY_NOT_FOUND", "Retrieve entity does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.entityQualifiedName" }));
         }
-        for (const sortItem of action.retrieveSource.sortItemList.items) {
+        for (const [index, sortItem] of action.retrieveSource.sortItemList.items.entries()) {
           const attribute = getAttributeByQualifiedName(catalog, sortItem.attributeQualifiedName);
           if (!attribute || attribute.qualifiedName.split(".").slice(0, -1).join(".") !== action.retrieveSource.entityQualifiedName) {
-            issues.push(issue("MF_METADATA_ATTRIBUTE_NOT_FOUND", "Retrieve sort attribute must belong to the selected entity.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.sortItemList" }));
+            issues.push(issue("MF_METADATA_ATTRIBUTE_NOT_FOUND", "Retrieve sort attribute must belong to the selected entity.", { objectId: object.id, actionId: action.id, fieldPath: `action.retrieveSource.sortItemList.items.${index}.attributeQualifiedName` }));
           }
         }
       }
-      if (action.retrieveSource.kind === "association" && action.retrieveSource.associationQualifiedName && !getAssociationByQualifiedName(catalog, action.retrieveSource.associationQualifiedName)) {
-        issues.push(issue("MF_METADATA_ASSOCIATION_NOT_FOUND", "Retrieve association does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.associationQualifiedName" }));
+      if (action.retrieveSource.kind === "association" && action.retrieveSource.associationQualifiedName) {
+        const association = getAssociationByQualifiedName(catalog, action.retrieveSource.associationQualifiedName);
+        if (!association) {
+          issues.push(issue("MF_METADATA_ASSOCIATION_NOT_FOUND", "Retrieve association does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.associationQualifiedName" }));
+        }
       }
     }
 
@@ -91,23 +94,31 @@ export function validateMetadataReferences(schema: MicroflowSchema, context: Mic
       if (action.entityQualifiedName && !getEntityByQualifiedName(catalog, action.entityQualifiedName)) {
         issues.push(issue("MF_METADATA_ENTITY_NOT_FOUND", "CreateObject entity does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: "action.entityQualifiedName" }));
       }
-      for (const change of action.memberChanges) {
+      for (const [index, change] of action.memberChanges.entries()) {
         if (change.memberQualifiedName && !getAttributeByQualifiedName(catalog, change.memberQualifiedName)) {
-          issues.push(issue("MF_METADATA_ATTRIBUTE_NOT_FOUND", "Member change attribute does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }));
+          issues.push(issue("MF_METADATA_ATTRIBUTE_NOT_FOUND", "Member change attribute does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.memberQualifiedName` }));
         }
       }
     }
 
     if (action.kind === "changeMembers") {
-      for (const change of action.memberChanges) {
+      for (const [index, change] of action.memberChanges.entries()) {
         if (change.memberQualifiedName && !getAttributeByQualifiedName(catalog, change.memberQualifiedName)) {
-          issues.push(issue("MF_METADATA_ATTRIBUTE_NOT_FOUND", "Member change attribute does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }));
+          issues.push(issue("MF_METADATA_ATTRIBUTE_NOT_FOUND", "Member change attribute does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.memberQualifiedName` }));
         }
       }
     }
 
-    if (action.kind === "callMicroflow" && action.targetMicroflowId && !getMicroflowById(catalog, action.targetMicroflowId)) {
-      issues.push(issue("MF_METADATA_MICROFLOW_NOT_FOUND", "Target microflow does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId" }));
+    if (action.kind === "callMicroflow" && action.targetMicroflowId) {
+      const target = getMicroflowById(catalog, action.targetMicroflowId);
+      if (!target) {
+        issues.push(issue("MF_METADATA_MICROFLOW_NOT_FOUND", "Target microflow does not exist in metadata catalog.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId" }));
+      }
+      action.parameterMappings.forEach((mapping, index) => {
+        if (target && !target.parameters.some(parameter => parameter.name === mapping.parameterName)) {
+          issues.push(issue("MF_METADATA_MICROFLOW_PARAMETER_NOT_FOUND", "Mapped microflow parameter does not exist on target microflow.", { objectId: object.id, actionId: action.id, fieldPath: `action.parameterMappings.${index}.parameterName` }));
+        }
+      });
     }
 
     if (action.kind === "createVariable") {

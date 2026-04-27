@@ -2,6 +2,7 @@ import {
   getAssociationByQualifiedName,
   getAttributeByQualifiedName,
   getEntityByQualifiedName,
+  getEnumerationByQualifiedName,
   getMicroflowById,
   getTargetEntityByAssociation,
   EMPTY_MICROFLOW_METADATA_CATALOG,
@@ -9,7 +10,8 @@ import {
 } from "../metadata/metadata-catalog";
 import type { MicroflowDataType, MicroflowExpression, MicroflowSchema, MicroflowVariableIndex, MicroflowVariableSymbol } from "../schema/types";
 import { buildVariableIndex, resolveVariableReferenceFromIndex } from "../variables";
-import { parseExpressionReferences } from "./expression-reference-parser";
+import type { MicroflowExpressionAstNode } from "./expression-ast";
+import { parseExpression } from "./expression-parser";
 import { expressionDiagnostic, type ExpressionTypeInferenceResult } from "./expression-types";
 
 export function sameMicroflowDataType(left: MicroflowDataType | undefined, right: MicroflowDataType | undefined): boolean {
@@ -59,6 +61,153 @@ function inferMemberType(variable: MicroflowVariableSymbol, memberName: string, 
   return { kind: "unknown", reason: `${entityQn}/${memberName}` };
 }
 
+function isNumberType(dataType: MicroflowDataType): boolean {
+  return dataType.kind === "integer" || dataType.kind === "long" || dataType.kind === "decimal";
+}
+
+function inferEnumValueType(raw: string, expectedType: MicroflowDataType | undefined, metadata: MicroflowMetadataCatalog): MicroflowDataType {
+  if (expectedType?.kind === "enumeration") {
+    const expected = getEnumerationByQualifiedName(metadata, expectedType.enumerationQualifiedName);
+    const valueName = raw.split(".").pop() ?? raw;
+    if (!expected || expected.values.some(value => value.key === valueName)) {
+      return expectedType;
+    }
+  }
+  for (const enumeration of metadata.enumerations) {
+    if (raw.startsWith(`${enumeration.qualifiedName}.`)) {
+      return { kind: "enumeration", enumerationQualifiedName: enumeration.qualifiedName };
+    }
+  }
+  return { kind: "unknown", reason: `enum ${raw}` };
+}
+
+function inferAstType(input: {
+  ast: MicroflowExpressionAstNode;
+  schema: MicroflowSchema;
+  metadata: MicroflowMetadataCatalog;
+  variableIndex: MicroflowVariableIndex;
+  objectId?: string;
+  actionId?: string;
+  fieldPath?: string;
+  expectedType?: MicroflowDataType;
+  diagnostics: ExpressionTypeInferenceResult["diagnostics"];
+}): MicroflowDataType {
+  const { ast, metadata, diagnostics } = input;
+  switch (ast.kind) {
+    case "literal":
+      if (ast.literalKind === "boolean") {
+        return { kind: "boolean" };
+      }
+      if (ast.literalKind === "integer") {
+        return { kind: "integer" };
+      }
+      if (ast.literalKind === "decimal") {
+        return { kind: "decimal" };
+      }
+      if (ast.literalKind === "string") {
+        return { kind: "string" };
+      }
+      return { kind: "unknown", reason: ast.literalKind };
+    case "variable": {
+      const variable = input.objectId
+        ? resolveVariableReferenceFromIndex(input.schema, input.variableIndex, { objectId: input.objectId, actionId: input.actionId, fieldPath: input.fieldPath }, ast.variableName)
+        : null;
+      return variable?.dataType ?? { kind: "unknown", reason: ast.variableName };
+    }
+    case "memberAccess": {
+      const variable = input.objectId
+        ? resolveVariableReferenceFromIndex(input.schema, input.variableIndex, { objectId: input.objectId, actionId: input.actionId, fieldPath: input.fieldPath }, ast.variableName)
+        : null;
+      if (!variable) {
+        return { kind: "unknown", reason: ast.variableName };
+      }
+      if (variable.dataType.kind === "list") {
+        diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_LIST_MEMBER_ACCESS",
+          message: "List variables cannot access attributes directly. Use a loop first.",
+          severity: "warning",
+          range: ast.range,
+          variableName: ast.variableName,
+          memberName: ast.path[0],
+        }));
+        return { kind: "unknown", reason: "list member access" };
+      }
+      const first = inferMemberType(variable, ast.path[0], metadata);
+      if (ast.path.length > 1) {
+        diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_PARTIAL_PATH_INFERENCE",
+          message: "Only the first member path segment is inferred in this editor version.",
+          severity: "warning",
+          range: ast.range,
+        }));
+        return { kind: "unknown", reason: "multi-level path" };
+      }
+      return first;
+    }
+    case "binary": {
+      const left = inferAstType({ ...input, ast: ast.left });
+      const right = inferAstType({ ...input, ast: ast.right });
+      if (["=", "!=", ">", "<", ">=", "<="].includes(ast.operator)) {
+        return { kind: "boolean" };
+      }
+      if (ast.operator === "and" || ast.operator === "or") {
+        return { kind: "boolean" };
+      }
+      if (!isNumberType(left) || !isNumberType(right)) {
+        diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_ARITHMETIC_TYPE_MISMATCH",
+          message: "Arithmetic operators require number operands.",
+          severity: "warning",
+          range: ast.range,
+          actualType: left.kind === "unknown" ? right : left,
+        }));
+      }
+      return left.kind === "integer" && right.kind === "integer" ? { kind: "integer" } : { kind: "decimal" };
+    }
+    case "unary": {
+      const argument = inferAstType({ ...input, ast: ast.argument });
+      if (ast.operator === "not") {
+        return { kind: "boolean" };
+      }
+      return isNumberType(argument) ? argument : { kind: "unknown", reason: "unary number" };
+    }
+    case "functionCall":
+      if (ast.functionName === "empty") {
+        return { kind: "boolean" };
+      }
+      if (ast.functionName === "toString") {
+        return { kind: "string" };
+      }
+      diagnostics.push(expressionDiagnostic({
+        code: "MF_EXPR_UNSUPPORTED_FUNCTION",
+        message: `Function "${ast.functionName}" is not supported by the P0 expression subset.`,
+        severity: "warning",
+        range: ast.range,
+      }));
+      return { kind: "unknown", reason: ast.functionName };
+    case "if": {
+      const thenType = inferAstType({ ...input, ast: ast.thenBranch });
+      const elseType = inferAstType({ ...input, ast: ast.elseBranch });
+      if (sameMicroflowDataType(thenType, elseType)) {
+        return thenType.kind === "unknown" ? elseType : thenType;
+      }
+      diagnostics.push(expressionDiagnostic({
+        code: "MF_EXPR_IF_BRANCH_TYPE_MISMATCH",
+        message: "Then and else branches have different types.",
+        severity: "warning",
+        range: ast.range,
+        expectedType: thenType,
+        actualType: elseType,
+      }));
+      return { kind: "unknown", reason: "if branches" };
+    }
+    case "enumValue":
+      return inferEnumValueType(ast.qualifiedName, input.expectedType, metadata);
+    default:
+      return { kind: "unknown", reason: ast.reason };
+  }
+}
+
 export function inferExpressionType(input: {
   expression: MicroflowExpression | string | undefined;
   schema: MicroflowSchema;
@@ -67,6 +216,7 @@ export function inferExpressionType(input: {
   objectId?: string;
   actionId?: string;
   fieldPath?: string;
+    collectionId?: string;
   expectedType?: MicroflowDataType;
 }): ExpressionTypeInferenceResult;
 export function inferExpressionType(expression: MicroflowExpression | undefined, variables: MicroflowVariableSymbol[]): MicroflowDataType;
@@ -79,6 +229,7 @@ export function inferExpressionType(
     objectId?: string;
     actionId?: string;
     fieldPath?: string;
+    collectionId?: string;
     expectedType?: MicroflowDataType;
   } | MicroflowExpression | undefined,
   legacyVariables?: MicroflowVariableSymbol[]
@@ -118,52 +269,32 @@ export function inferExpressionType(
   if (!raw) {
     return { inferredType: { kind: "unknown", reason: "empty expression" }, confidence: "low", diagnostics };
   }
-  if (/^(true|false)$/i.test(raw) || /[<>=!]=?| and | or |^not\(|^empty\(/i.test(raw)) {
-    return { inferredType: { kind: "boolean" }, confidence: "high", diagnostics };
-  }
-  if (/^'.*'$|^".*"$/.test(raw)) {
-    return { inferredType: { kind: "string" }, confidence: "high", diagnostics };
-  }
-  if (/^\d+$/.test(raw)) {
-    return { inferredType: { kind: "integer" }, confidence: "high", diagnostics };
-  }
-  if (/^\d+\.\d+$/.test(raw)) {
-    return { inferredType: { kind: "decimal" }, confidence: "high", diagnostics };
-  }
-  const parse = parseExpressionReferences(raw);
-  const memberAccess = parse.references.find(reference => reference.kind === "memberAccess");
-  if (memberAccess && inputOrExpression.objectId) {
-    const { schema, actionId, fieldPath } = inputOrExpression;
-    const objectId = inputOrExpression.objectId;
-    const variable = resolveVariableReferenceFromIndex(schema, index, { objectId, actionId, fieldPath }, memberAccess.variableName);
-    if (!variable) {
-      return { inferredType: { kind: "unknown", reason: memberAccess.variableName }, confidence: "low", diagnostics };
-    }
-    const inferredType = inferMemberType(variable, memberAccess.memberName, metadata);
-    if (memberAccess.path.length > 1) {
-      diagnostics.push(expressionDiagnostic({
-        code: "MF_EXPR_PARTIAL_PATH_INFERENCE",
-        message: "Only the first member path segment is inferred in this editor version.",
-        severity: "warning",
-        range: memberAccess.range,
-      }));
-      return { inferredType: { kind: "unknown", reason: "multi-level path" }, confidence: "low", diagnostics };
-    }
-    return { inferredType, confidence: inferredType.kind === "unknown" ? "low" : "high", diagnostics };
-  }
-  const variableOnly = raw.match(/^\$([A-Za-z_][A-Za-z0-9_]*)$/);
-  if (variableOnly && inputOrExpression.objectId) {
-    const { schema, actionId, fieldPath } = inputOrExpression;
-    const objectId = inputOrExpression.objectId;
-    const variable = resolveVariableReferenceFromIndex(schema, index, { objectId, actionId, fieldPath }, variableOnly[1]);
-    return { inferredType: variable?.dataType ?? { kind: "unknown", reason: variableOnly[1] }, confidence: variable ? "high" : "low", diagnostics };
-  }
-  if (inputOrExpression.expectedType?.kind === "enumeration" && /^[A-Za-z_][A-Za-z0-9_.]*$|^'.*'$/.test(raw)) {
-    return { inferredType: inputOrExpression.expectedType, confidence: "medium", diagnostics };
+  const parse = parseExpression(raw);
+  diagnostics.push(...parse.diagnostics);
+  const inferredType = inferAstType({
+    ast: parse.ast,
+    schema: inputOrExpression.schema,
+    metadata,
+    variableIndex: index,
+    objectId: inputOrExpression.objectId,
+    actionId: inputOrExpression.actionId,
+    fieldPath: inputOrExpression.fieldPath,
+    expectedType: inputOrExpression.expectedType,
+    diagnostics,
+  });
+  if (inferredType.kind !== "unknown") {
+    return { inferredType, confidence: diagnostics.some(item => item.severity === "warning" || item.severity === "error") ? "medium" : "high", diagnostics, references: parse.references };
   }
   const microflow = getMicroflowById(metadata, raw);
   if (microflow) {
-    return { inferredType: microflow.returnType, confidence: "medium", diagnostics };
+    return { inferredType: microflow.returnType, confidence: "medium", diagnostics, references: parse.references };
   }
-  return { inferredType: inputOrExpression.expression && typeof inputOrExpression.expression !== "string" ? inputOrExpression.expression.inferredType ?? { kind: "unknown", reason: "expression" } : { kind: "unknown", reason: "expression" }, confidence: "low", diagnostics };
+  return {
+    inferredType: inputOrExpression.expression && typeof inputOrExpression.expression !== "string"
+      ? inputOrExpression.expression.inferredType ?? inferredType
+      : inferredType,
+    confidence: "low",
+    diagnostics,
+    references: parse.references,
+  };
 }

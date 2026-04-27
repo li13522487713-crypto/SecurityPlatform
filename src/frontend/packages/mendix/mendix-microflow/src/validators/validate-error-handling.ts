@@ -9,6 +9,10 @@ export function validateErrorHandling(schema: MicroflowSchema, _context: Microfl
   const errorFlows = collectFlowsRecursive(schema).filter(item => item.kind === "sequence" && item.isErrorHandler);
   for (const flow of errorFlows) {
     const source = objects.get(flow.originObjectId);
+    const target = objects.get(flow.destinationObjectId);
+    if (!target || target.kind === "annotation" || target.kind === "parameterObject" || target.kind === "startEvent") {
+      issues.push(issue("MF_ERROR_HANDLER_TARGET_INVALID", "Error handler flow target must be an executable object.", { objectId: source?.id, flowId: flow.id }));
+    }
     if (source?.kind === "actionActivity") {
       if (source.action.errorHandlingType === "rollback") {
         issues.push(issue("MF_ERROR_HANDLER_ROLLBACK", "rollback must not have error handler flow.", { objectId: source.id, flowId: flow.id, actionId: source.action.id }));
@@ -22,8 +26,12 @@ export function validateErrorHandling(schema: MicroflowSchema, _context: Microfl
     }
   }
   for (const object of objects.values()) {
+    const outgoingErrorFlows = errorFlows.filter(flow => flow.originObjectId === object.id);
+    if (outgoingErrorFlows.length > 1) {
+      issues.push(issue("MF_ERROR_HANDLER_DUPLICATED", "Each object can define at most one error handler flow.", { objectId: object.id, relatedFlowIds: outgoingErrorFlows.map(flow => flow.id) }));
+    }
     if (object.kind === "actionActivity") {
-      const hasErrorFlow = errorFlows.some(flow => flow.originObjectId === object.id);
+      const hasErrorFlow = outgoingErrorFlows.length > 0;
       if (["customWithRollback", "customWithoutRollback"].includes(object.action.errorHandlingType) && !hasErrorFlow) {
         issues.push(issue("MF_ERROR_HANDLER_MISSING", "Custom error handling requires an error handler SequenceFlow.", { objectId: object.id, actionId: object.action.id }));
       }
@@ -32,7 +40,7 @@ export function validateErrorHandling(schema: MicroflowSchema, _context: Microfl
       }
     }
     if (object.kind === "loopedActivity") {
-      const hasErrorFlow = errorFlows.some(flow => flow.originObjectId === object.id);
+      const hasErrorFlow = outgoingErrorFlows.length > 0;
       if (["customWithRollback", "customWithoutRollback"].includes(object.errorHandlingType) && !hasErrorFlow) {
         issues.push(issue("MF_ERROR_HANDLER_MISSING", "Custom loop error handling requires an error handler SequenceFlow.", { objectId: object.id }));
       }
