@@ -21,3 +21,11 @@
 ## 后端 test-run 响应建议
 
 与 `TestRunMicroflowResponse` 对齐：`runId`、`status`、`frames[]`、`session`、`error?`。
+
+## 第 42 轮后端 Mock Trace
+
+- `POST /api/microflows/{id}/test-run` 已返回 `MicroflowApiResponse<{ session }>`；`session.trace/logs/variables/error` 与 DebugPanel 契约同构。
+- TraceFrame 按执行顺序持久化，字段包含 `objectId`、`actionId`、`collectionId`、incoming/outgoing flow、`selectedCaseValue`、`loopIteration`、input/output/error、`variablesSnapshot` 与 message。
+- RuntimeLog 单独持久化并按 timestamp 查询；LogMessage action 会生成对应 log。
+- Mock Runtime 不是真实 Runtime，不执行数据库 Retrieve/Commit/Delete，不调用外部 REST；RestCall success/error 只产生契约级输出与错误路径。
+- 第 48 轮真实 `ExecutionPlanLoader` 接入后，应继续复用本轮 DTO 与持久化结构。

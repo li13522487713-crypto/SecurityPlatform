@@ -69,7 +69,13 @@ export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter
       return loaded.schema;
     },
     async saveMicroflow(request: SaveMicroflowRequest): Promise<SaveMicroflowResponse> {
-      const saved = await adapter.saveMicroflowSchema(resource.id, request.schema);
+      if (resource.archived || resource.permissions?.canEdit === false) {
+        throw new Error("归档或无编辑权限的微流不可保存。");
+      }
+      const saved = await adapter.saveMicroflowSchema(resource.id, request.schema, {
+        baseVersion: resource.schemaId || resource.version,
+        saveReason: "editor-save",
+      });
       return {
         microflowId: saved.id,
         version: saved.version,

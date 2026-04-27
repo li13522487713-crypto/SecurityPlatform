@@ -40,6 +40,12 @@
 - `PUT /api/microflows/{id}/schema`：保存 AuthoringSchema，并新增 SchemaSnapshot；已发布资源保存后 `publishStatus=changedAfterPublish`。
 - `POST /duplicate`、`/rename`、`/favorite`、`/archive`、`/restore` 与 `DELETE` 已实现真实持久化。
 
+第 43 轮联调回归修正：
+
+- Resource 列表 `tags` 过滤按契约使用 OR 语义，与前端 `MicroflowResourceQuery.tags` 保持一致。
+- `src/frontend/scripts/verify-microflow-resource-schema-integration.mjs` 可对真实 AppHost 执行 Resource / Schema 闭环验证；默认 base url 为 `http://localhost:5002`，也可通过 `MICROFLOW_API_BASE_URL` 覆盖。
+- `.http` 中 `MicroflowBackend.http` 已补齐 Resource / Schema 回归段落，包括保存后读取、FlowGram JSON 拒绝、冲突、删除后 not found。
+
 第 38 轮已补充 Version / Publish Snapshot：
 
 - `POST /api/microflows/{id}/publish`：执行基础版本号校验、AuthoringSchema 校验、impact analysis，占用 high breaking changes 时要求 `confirmBreakingChanges=true`。
@@ -57,10 +63,36 @@
 - `catalog.microflows` 由 `MicroflowResource` 表动态生成，并读取当前 AuthoringSchema 中的 `parameters` / `returnType`；不解析 FlowGram。
 - Page / Workflow 第一版可为空数组，完整领域模型/页面/工作流元数据服务后续接入。
 
+第 40 轮已补充 Validation API：
+
+- `POST /api/microflows/{id}/validate` 已由 `MicroflowValidationService` 实现，不再返回空 skeleton。
+- 支持 `edit/save/publish/testRun` mode、inline schema 校验与读取当前保存 schema。
+- 后端轻量 `MicroflowSchemaReader` 从 AuthoringSchema 提取 root、parameters、objects、flows、loop collection、action 与 caseValues。
+- P0 规则覆盖 root、objectCollection、flows、events、decisions、loop、P0 actions、metadata references、基础 variables、基础 expressions、error handling、reachability。
+- Validation 使用后端 MetadataService，不依赖前端 mock metadata；表达式执行器和完整变量作用域图仍留后续 Runtime 前深化。
+
+第 41 轮已补充 References / Impact Analysis 深化：
+
+- 新增 `IMicroflowReferenceIndexer` / `MicroflowReferenceIndexer`，基于 `MicroflowAuthoringSchema` 扫描 `callMicroflow` action 与 `exposure.url`，不解析 FlowGram JSON。
+- 新增 `IMicroflowReferenceService` / `MicroflowReferenceService`，暴露 `GET /api/microflows/{id}/references` 与 `POST /api/microflows/{id}/references/rebuild`，所有响应仍包 `MicroflowApiResponse<T>`。
+- `IMicroflowReferenceRepository` 支持按 target、source、query 过滤、count、source upsert 与批量插入；`Active=false` 默认过滤。
+- `PUT /schema` 成功后同步重建 outgoing references；回滚/复制历史版本后尝试重建新 current schema 的 references。
+- `VersionDiffService` 扩展 breaking changes：参数删除/类型/required、returnType、URL path、microflow/workflow action exposure disabled、node/flow removed。
+- `PublishImpactService` 结合 active references 与 schema diff 计算 impact；发布 high impact 且未确认仍返回 `MICROFLOW_PUBLISH_BLOCKED`。
+- 删除/归档 target 微流前检查 active references，存在引用时返回 `MICROFLOW_REFERENCE_BLOCKED`；Page / Workflow / Schedule 引用作为模型扩展入口，真实资源系统后续接入。
+
+第 42 轮已补充 TestRun Mock API + Trace 存储：
+
+- `POST /api/microflows/{id}/test-run`、`POST /api/microflows/runs/{runId}/cancel`、`GET /api/microflows/runs/{runId}`、`GET /api/microflows/runs/{runId}/trace` 已接入真实后端服务。
+- `MicroflowTestRunService` 负责读取资源与草稿/已保存 schema、调用 Validation `mode=testRun`、执行 MockRunner、保存 RunSession/TraceFrame/RunLog，并更新 `LastRunStatus/LastRunAt`。
+- `MicroflowMockRuntimeRunner` 基于 `MicroflowSchemaReader` 的 AuthoringSchema 模型执行契约级 mock，不依赖 FlowGram JSON，不访问业务数据库，不调用外部 REST，不实现完整表达式引擎。
+- RunSession、TraceFrame、RunLog 通过既有 SqlSugar Repository 持久化；failed run 也保存，validation failed 不生成成功 run。
+- 支持 `simulateRestError`、decision/object type case、loop iterations、max steps、LogMessage、unsupported action、RestCall error handler 的基础 trace。
+
 并发与删除策略：
 
 - `baseVersion` 可匹配 `resource.version`、`resource.concurrencyStamp`、当前 snapshot id 或 snapshot schemaVersion；不匹配返回 `MICROFLOW_VERSION_CONFLICT`。
-- 删除采用物理删除资源行、保留历史 SchemaSnapshot 的第一版策略；后续如需审计可改为软删除。
+- 删除采用物理删除资源行、保留历史 SchemaSnapshot 的第一版策略；第 41 轮后被 active references 引用的资源会被阻止删除/归档，源资源删除时清理 outgoing references。
 - 保存前做最小 AuthoringSchema 结构校验，拒绝根级 `nodes`、`edges`、`workflowJson`、`flowgram` 等 FlowGram-only JSON。
 
 请求上下文支持 `X-Workspace-Id`、`X-Tenant-Id`、`X-User-Id`、`X-Locale`、`X-Trace-Id`，并会把 traceId 写入 Envelope 与 `X-Trace-Id` 响应头。`.http` 示例见 `src/backend/Atlas.AppHost/Bosch.http/MicroflowBackend.http`。
@@ -68,7 +100,6 @@
 后续建议：
 
 - 第 40 轮：Validation API。
-- 第 41 轮：References / Impact Analysis 深化。
 - 第 42 轮：TestRun Mock API + Trace 存储。
 
 当前实现仍坚持不保存 FlowGram JSON，后端只围绕 `MicroflowAuthoringSchema` / Runtime DTO / Trace 等契约概念展开。

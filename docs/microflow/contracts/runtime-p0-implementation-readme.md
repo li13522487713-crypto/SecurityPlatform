@@ -34,3 +34,16 @@
 - Decision/ObjectType 分支只从 `plan.decisionFlows[].caseValues` 选择。
 - RestCall `simulateRestError=true` 使用 `plan.errorHandlerFlows` 进入错误路径，并在 trace 中标记 `errorHandlerVisited`。
 - Unsupported/modeledOnly 到达时产生 `RUNTIME_UNSUPPORTED_ACTION` 或 `RUNTIME_CONNECTOR_REQUIRED`。
+
+## 第 40 轮后端 Validation 补充
+
+- 后端 `MicroflowValidationService` 已实现 P0 action 必填字段、metadata reference、基础变量和基础表达式校验，可作为保存/发布/运行前权威校验入口。
+- 当前后端仍不执行 Runtime，也不实现完整表达式执行器；`testRun` mode 会把 unsupported/modeledOnly 等运行前阻断问题返回为 error，供第 42 轮 TestRun Mock API 复用。
+
+## 第 42 轮后端 Mock Runtime 补充
+
+- 后端 TestRun 已从 skeleton 升级为契约级 Mock Runner：输入是 `MicroflowAuthoringSchema` 或当前保存 schema，输出是 `MicroflowRunSession`、`MicroflowTraceFrame`、`RuntimeLog` 与变量快照。
+- P0 mock 覆盖 Start/End、Decision、ObjectTypeDecision、Merge、Loop、Break、Continue、ErrorHandler flow，以及 retrieve/create/change/commit/delete/rollback/createVariable/changeVariable/callMicroflow/restCall/logMessage 等 action 的模拟输出。
+- `simulateRestError` 只模拟 REST 失败和 `$latestError` / `$latestHttpResponse`，不发送真实 HTTP；Retrieve/Commit/Delete 只生成 mock output，不访问业务数据库。
+- max steps 默认 500，超过后返回 `RUNTIME_MAX_STEPS_EXCEEDED` failed session。
+- 第 48 轮真实 Runtime 应从 `ExecutionPlanLoader` 接管导航与执行，但沿用本轮 DTO、错误码和持久化表。

@@ -12,10 +12,10 @@ export function createAppMicroflowAdapterConfig(input: {
   const mode = parseMicroflowAdapterMode(import.meta.env.VITE_MICROFLOW_ADAPTER_MODE ?? import.meta.env.MICROFLOW_ADAPTER_MODE);
   const contractMockEnabled = isMicroflowContractMockEnabled();
   return {
-    mode: contractMockEnabled ? "http" : mode,
+    mode: contractMockEnabled ? "http" : (mode ?? "http"),
     apiBaseUrl: contractMockEnabled
       ? (import.meta.env.VITE_MICROFLOW_API_BASE_URL ?? import.meta.env.MICROFLOW_API_BASE_URL ?? "/api")
-      : (import.meta.env.VITE_MICROFLOW_API_BASE_URL ?? import.meta.env.MICROFLOW_API_BASE_URL ?? import.meta.env.VITE_API_BASE),
+      : (import.meta.env.VITE_MICROFLOW_API_BASE_URL ?? import.meta.env.MICROFLOW_API_BASE_URL ?? import.meta.env.VITE_API_BASE ?? "/api"),
     workspaceId: input.workspaceId,
     tenantId: input.tenantId,
     currentUser: input.currentUser,

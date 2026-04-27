@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconCode, IconCopy, IconDelete, IconEdit, IconMore, IconPlus, IconSearch, IconStar, IconStarStroked } from "@douyinfe/semi-icons";
 
@@ -60,6 +60,12 @@ interface CreateMicroflowModalProps {
   onSubmit: (input: MicroflowCreateInput) => Promise<void>;
 }
 
+interface RenameMicroflowModalProps {
+  resource?: MicroflowResource;
+  onClose: () => void;
+  onSubmit: (resource: MicroflowResource, name: string, displayName?: string) => Promise<void>;
+}
+
 function CreateMicroflowModal({ visible, onClose, onSubmit }: CreateMicroflowModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -101,6 +107,46 @@ function CreateMicroflowModal({ visible, onClose, onSubmit }: CreateMicroflowMod
         <Input value={description} onChange={setDescription} placeholder="描述" prefix="描述" />
         <Input value={moduleId} onChange={setModuleId} placeholder="sales" prefix="模块" />
         <Input value={tags} onChange={setTags} placeholder="order, crm" prefix="标签" />
+      </Space>
+    </Modal>
+  );
+}
+
+function RenameMicroflowModal({ resource, onClose, onSubmit }: RenameMicroflowModalProps) {
+  const [name, setName] = useState(resource?.name ?? "");
+  const [displayName, setDisplayName] = useState(resource?.displayName ?? "");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setName(resource?.name ?? "");
+    setDisplayName(resource?.displayName ?? "");
+  }, [resource]);
+
+  async function handleSubmit() {
+    if (!resource) {
+      return;
+    }
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      Toast.warning("请输入微流 name");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onSubmit(resource, trimmedName, displayName.trim() || trimmedName);
+      onClose();
+    } catch (caught) {
+      Toast.error(getMicroflowErrorUserMessage(caught));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={Boolean(resource)} title="重命名微流" onCancel={onClose} onOk={() => void handleSubmit()} confirmLoading={submitting}>
+      <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+        <Input value={name} onChange={setName} placeholder="OrderProcessing" prefix="Name" />
+        <Input value={displayName} onChange={setDisplayName} placeholder="订单处理" prefix="显示名" />
       </Space>
     </Modal>
   );
@@ -217,6 +263,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [selectedResource, setSelectedResource] = useState<MicroflowResource>();
+  const [renamingResource, setRenamingResource] = useState<MicroflowResource>();
 
   const tagOptions = useMemo(() => {
     const tags = [...new Set(allItems.flatMap(item => item.tags))].sort();
@@ -244,6 +291,12 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
     }
   }
 
+  async function handleRename(resource: MicroflowResource, name: string, displayName?: string) {
+    await adapter.renameMicroflow(resource.id, name, displayName);
+    Toast.success("微流已重命名");
+    await reload();
+  }
+
   function openPublish(resource: MicroflowResource) {
     setSelectedResource(resource);
     setPublishOpen(true);
@@ -268,11 +321,16 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
     return (
       <Dropdown.Menu>
         <Dropdown.Item icon={<IconEdit />} onClick={() => onOpenMicroflow?.(resource.id)}>编辑</Dropdown.Item>
+        <Dropdown.Item onClick={() => setRenamingResource(resource)} disabled={!canRunMicroflowAction(resource, "canEdit")}>重命名</Dropdown.Item>
         <Dropdown.Item icon={<IconCopy />} disabled={!canRunMicroflowAction(resource, "canDuplicate")} onClick={() => void refreshAfter(adapter.duplicateMicroflow(resource.id), "已复制微流")}>复制</Dropdown.Item>
         <Dropdown.Item disabled={!canRunMicroflowAction(resource, "canPublish")} onClick={() => openPublish(resource)}>发布</Dropdown.Item>
         <Dropdown.Item onClick={() => openVersions(resource)}>查看版本</Dropdown.Item>
         <Dropdown.Item onClick={() => openReferences(resource)}>查看引用</Dropdown.Item>
-        <Dropdown.Item disabled={!canRunMicroflowAction(resource, "canArchive")} onClick={() => void refreshAfter(adapter.archiveMicroflow(resource.id), "已归档微流")}>归档</Dropdown.Item>
+        {resource.archived ? (
+          <Dropdown.Item onClick={() => void refreshAfter(adapter.restoreMicroflow(resource.id), "已恢复微流")}>恢复</Dropdown.Item>
+        ) : (
+          <Dropdown.Item disabled={!canRunMicroflowAction(resource, "canArchive")} onClick={() => void refreshAfter(adapter.archiveMicroflow(resource.id), "已归档微流")}>归档</Dropdown.Item>
+        )}
         <Dropdown.Item type="danger" icon={<IconDelete />} disabled={!canRunMicroflowAction(resource, "canDelete")} onClick={() => {
           Modal.confirm({
             title: "确认删除微流",
@@ -319,6 +377,14 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
             ]}
           />
           <Select value={query.tags?.[0] ?? ""} onChange={value => setQuery(current => ({ ...current, tags: value ? [String(value)] : undefined }))} style={{ width: 120 }} optionList={tagOptions} />
+          <Button
+            icon={<IconStar />}
+            type={query.favoriteOnly ? "primary" : "tertiary"}
+            theme={query.favoriteOnly ? "solid" : "borderless"}
+            onClick={() => setQuery(current => ({ ...current, favoriteOnly: current.favoriteOnly ? undefined : true }))}
+          >
+            仅收藏
+          </Button>
           <Button icon={<IconPlus />} type="primary" theme="solid" onClick={() => setCreateOpen(true)}>新建微流</Button>
         </Space>
       </div>
@@ -342,6 +408,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
       </div>
 
       <CreateMicroflowModal visible={createOpen} onClose={() => setCreateOpen(false)} onSubmit={handleCreate} />
+      <RenameMicroflowModal resource={renamingResource} onClose={() => setRenamingResource(undefined)} onSubmit={handleRename} />
       <PublishMicroflowModal
         visible={publishOpen}
         resource={selectedResource}

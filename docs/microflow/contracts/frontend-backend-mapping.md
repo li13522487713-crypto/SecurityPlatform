@@ -10,6 +10,8 @@
 
 第 34 轮起，Contract Mock 使用 MSW 拦截上述 HTTP 请求，返回与后端契约一致的 `MicroflowApiResponse<T>`。该模式不是 `mock/local` adapter：`app-web` 仍传 `mode=http` 与 `apiBaseUrl`，不读取 mock store、不 import handler。
 
+第 43 轮 Resource / Schema 真实联调回归要求 `app-web` 微流资源库与编辑器默认走 HTTP adapter：`apiBaseUrl=/api` 会通过前端 dev proxy 命中 AppHost，`http://localhost:5002` 与 `http://localhost:5002/api` 也必须解析到同一组 `/api/microflows` 路径。ResourceTab 的 list/create/rename/favorite/duplicate/archive/restore/delete 与 Editor 保存均只经 `MicroflowResourceAdapter`，不直接 fetch、不读取微流 localStorage，后端不可用时显示错误态而不回退 mock/local。
+
 ## ResourceAdapter
 
 | 方法 | HTTP | 请求 | 响应 data |
@@ -34,7 +36,7 @@
 | `compareMicroflowVersion` | `GET /api/.../compare-current` | — | `MicroflowVersionDiff` |
 | `analyzeMicroflowPublishImpact` | `GET /api/microflows/{id}/impact` | `AnalyzeMicroflowImpactRequest` 或对齐 `MicroflowPublishInput.version` 等 | `MicroflowPublishImpactAnalysis` |
 
-第 37 轮后端已实现 ResourceAdapter 的资源 CRUD 与 Schema 保存/加载真实 DB 路径。第 38 轮已实现 publish / versions / rollback / duplicate version / compare-current / impact 的真实后端路径；references 仍是基础表读取，完整引用分析留第 41 轮。Schema 保存通过 `PUT /api/microflows/{id}/schema` 新增快照，已发布资源保存后 `publishStatus=changedAfterPublish`，PublishModal 可通过 impact API 决定是否要求 `confirmBreakingChanges`。
+第 37 轮后端已实现 ResourceAdapter 的资源 CRUD 与 Schema 保存/加载真实 DB 路径。第 38 轮已实现 publish / versions / rollback / duplicate version / compare-current / impact 的真实后端路径。第 41 轮后 references 已接入真实后端索引：保存 schema 后会重建 outgoing references，ReferencesDrawer 可调用 `GET /api/microflows/{targetId}/references` 展示来源；PublishModal 可调用 impact API 获取 `referenceCount`、`breakingChanges` 与 `impactLevel`。Schema 保存通过 `PUT /api/microflows/{id}/schema` 新增快照，已发布资源保存后 `publishStatus=changedAfterPublish`，high impact 发布需 `confirmBreakingChanges=true`。
 
 ## RuntimeAdapter
 
@@ -45,6 +47,10 @@
 | `cancelMicroflowRun` | `POST /api/microflows/runs/{runId}/cancel` | — |
 | `getMicroflowRunTrace` | `GET /api/microflows/runs/{runId}/trace` | 返回 `trace[]` 或从 `GetMicroflowRunTraceResponse` 拆 `trace`（若客户端已返回合并结构）。 |
 | `toRuntimeDto` | 本地/边缘 | 无需 HTTP；`MicroflowRuntimeDto` 不持久化为 FlowGram。 |
+
+第 40 轮后端已实现 `validateMicroflow` 真实 HTTP 路径。前端即时校验仍可本地执行，保存/发布/运行前校验应以该后端 API 为权威；`errorCount/warningCount/infoCount` 与 `MicroflowValidationIssue.fieldPath` 可直接供 ProblemPanel 和字段错误使用。
+
+第 42 轮后端已实现 RuntimeAdapter 所需 Mock TestRun HTTP 路径：`testRunMicroflow` 返回 `data.session`，DebugPanel 可直接展示 `session.trace/logs/variables/error`；`getMicroflowRunTrace` 读取持久化 trace/logs；`cancelMicroflowRun` 返回 cancelled 状态。该路径仍是契约级 Mock Runtime，不是真实 Mendix 执行引擎，不访问业务库或外部 REST。
 
 ## MicroflowMetadataAdapter
 

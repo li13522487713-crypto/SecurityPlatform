@@ -48,6 +48,24 @@ Content-Type: application/json
 
 第 37 轮真实后端会为每次保存新增 `MicroflowSchemaSnapshot`，并拒绝根级 `nodes` / `edges` / `workflowJson` / `flowgram` 这类 FlowGram-only JSON。
 
+第 43 轮前端编辑器保存会把最近加载资源的 `schemaId` 作为 `baseVersion` 传入；保存成功后重新读取资源并更新标题、`updatedAt` 与 dirty 状态。若返回 `MICROFLOW_VERSION_CONFLICT`，前端必须保留本地 dirty schema，不覆盖为远端版本。
+
+```json
+{
+  "baseVersion": "current-schema-snapshot-id",
+  "saveReason": "editor-save",
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "mf-1",
+    "name": "OrderFlow",
+    "objectCollection": { "id": "root-collection", "objects": [] },
+    "flows": [],
+    "parameters": [],
+    "returnType": { "kind": "void" }
+  }
+}
+```
+
 ## 4. 校验
 
 `POST /api/microflows/{id}/validate`
@@ -61,16 +79,94 @@ Content-Type: application/json
 }
 ```
 
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "issues": [
+      {
+        "id": "stable-hash",
+        "severity": "error",
+        "code": "MF_START_MISSING",
+        "message": "root collection 必须包含一个 StartEvent。",
+        "fieldPath": "objectCollection.objects",
+        "source": "event"
+      }
+    ],
+    "summary": { "errorCount": 1, "warningCount": 0, "infoCount": 0 },
+    "serverValidatedAt": "2026-04-27T00:00:00Z"
+  }
+}
+```
+
+不传 `schema` 时后端读取当前保存的 `MicroflowSchemaSnapshot`；传入 `schema` 时校验 inline AuthoringSchema。后端 validator 不接受 FlowGram-only 根字段。
+
 ## 5. 测试运行
 
 `POST /api/microflows/{id}/test-run`
 
 ```json
 {
-  "schema": { "id": "mf-1" },
-  "input": { "orderId": "O-1" }
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "mf-1",
+    "name": "OrderFlow",
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent" },
+        { "id": "end", "kind": "endEvent" }
+      ]
+    },
+    "flows": [{ "id": "flow-start-end", "originObjectId": "start", "destinationObjectId": "end" }],
+    "parameters": [],
+    "returnType": { "kind": "void" }
+  },
+  "input": { "orderId": "O-1" },
+  "options": {
+    "simulateRestError": false,
+    "decisionBooleanResult": true,
+    "loopIterations": 2,
+    "maxSteps": 500
+  }
 }
 ```
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "session": {
+      "id": "run-id",
+      "schemaId": "snapshot-or-current-id",
+      "resourceId": "mf-1",
+      "version": "0.1.0",
+      "status": "success",
+      "input": { "orderId": "O-1" },
+      "trace": [
+        {
+          "id": "frame-id",
+          "runId": "run-id",
+          "objectId": "start",
+          "outgoingFlowId": "flow-start-end",
+          "status": "success",
+          "startedAt": "2026-04-27T00:00:00Z",
+          "endedAt": "2026-04-27T00:00:00Z",
+          "durationMs": 0
+        }
+      ],
+      "logs": [],
+      "variables": []
+    }
+  }
+}
+```
+
+后端第 42 轮会先调用 Validation `mode=testRun`；如有 error，返回 `MICROFLOW_VALIDATION_FAILED`，`error.validationIssues` 可进入 ProblemPanel。Mock Runtime 不执行真实数据库或外部 REST。
 
 ## 6. 发布
 
@@ -81,6 +177,69 @@ Content-Type: application/json
   "version": "1.1.0",
   "description": "Fix params",
   "confirmBreakingChanges": true
+}
+```
+
+## 7. 引用查询与重建
+
+`POST /api/microflows/{sourceId}/references/rebuild` 会基于当前保存的 `MicroflowAuthoringSchema` 重建 source 微流的 outgoing references；`GET /api/microflows/{targetId}/references` 返回引用 target 的来源列表。
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "ref-1",
+      "targetMicroflowId": "mf-notify-user",
+      "sourceType": "microflow",
+      "sourceId": "mf-order-process",
+      "sourceName": "Order Process",
+      "sourcePath": "Sales.OrderProcess",
+      "sourceVersion": "0.1.0",
+      "referencedVersion": null,
+      "referenceKind": "callMicroflow",
+      "impactLevel": "medium",
+      "description": "Microflow call from Sales.OrderProcess to mf-notify-user",
+      "canNavigate": true
+    }
+  ],
+  "error": null
+}
+```
+
+## 8. Impact Analysis
+
+`GET /api/microflows/{id}/impact?includeBreakingChanges=true&includeReferences=true` 会返回引用数量、breaking changes 与综合 impact level。没有发布快照时 `impactLevel=none`，但 summary 仍可带 reference count。
+
+```json
+{
+  "success": true,
+  "data": {
+    "resourceId": "mf-notify-user",
+    "currentVersion": "1.0.0",
+    "nextVersion": "1.1.0",
+    "references": [],
+    "breakingChanges": [
+      {
+        "id": "stable-id",
+        "severity": "high",
+        "code": "PARAMETER_REMOVED",
+        "message": "参数 userId 已删除。",
+        "fieldPath": "parameters.userId",
+        "before": "userId",
+        "after": null
+      }
+    ],
+    "impactLevel": "high",
+    "summary": {
+      "referenceCount": 1,
+      "breakingChangeCount": 1,
+      "highImpactCount": 1,
+      "mediumImpactCount": 0,
+      "lowImpactCount": 0
+    }
+  },
+  "error": null
 }
 ```
 

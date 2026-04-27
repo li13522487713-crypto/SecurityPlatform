@@ -20,6 +20,13 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
+### Microflow list favorite only sorted
+GET {{host}}/api/microflows?pageIndex=1&pageSize=20&favoriteOnly=true&sortBy=updatedAt&sortOrder=desc
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Microflow create
 POST {{host}}/api/microflows
 Content-Type: application/json
@@ -110,6 +117,13 @@ X-Trace-Id: {{traceId}}
   }
 }
 
+### Microflow schema load after save
+GET {{host}}/api/microflows/{{microflowId}}/schema
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Microflow duplicate
 POST {{host}}/api/microflows/{{microflowId}}/duplicate
 Content-Type: application/json
@@ -164,12 +178,22 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
-### Microflow delete
-DELETE {{host}}/api/microflows/{{microflowId}}
+### Microflow invalid schema save rejects FlowGram JSON
+PUT {{host}}/api/microflows/{{microflowId}}/schema
+Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
+
+{
+  "baseVersion": "0.1.0",
+  "saveReason": "should reject FlowGram JSON",
+  "schema": {
+    "nodes": [],
+    "edges": []
+  }
+}
 
 ### Microflow schema conflict
 PUT {{host}}/api/microflows/{{microflowId}}/schema
@@ -192,6 +216,20 @@ X-Trace-Id: {{traceId}}
   }
 }
 
+### Microflow delete
+DELETE {{host}}/api/microflows/{{microflowId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow get deleted/not found
+GET {{host}}/api/microflows/{{microflowId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Microflow publish 1.0.0
 POST {{host}}/api/microflows/{{microflowId}}/publish
 Content-Type: application/json
@@ -206,6 +244,194 @@ X-Trace-Id: {{traceId}}
   "confirmBreakingChanges": false,
   "force": false
 }
+
+### References Round 41 - create target B
+POST {{host}}/api/microflows
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "workspaceId": "{{workspaceId}}",
+  "input": {
+    "name": "NotifyUserRound41",
+    "displayName": "Notify User Round 41",
+    "moduleId": "demo-module",
+    "moduleName": "Demo",
+    "parameters": [{ "name": "userId", "dataType": "String", "required": true }],
+    "returnType": { "kind": "void" }
+  }
+}
+
+### References Round 41 - create source A
+POST {{host}}/api/microflows
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "workspaceId": "{{workspaceId}}",
+  "input": {
+    "name": "OrderProcessRound41",
+    "displayName": "Order Process Round 41",
+    "moduleId": "demo-module",
+    "moduleName": "Demo",
+    "parameters": [],
+    "returnType": { "kind": "void" }
+  }
+}
+
+### References Round 41 - save A schema that calls B
+# Replace {{sourceMicroflowId}} and {{targetMicroflowId}} with ids from the two create responses.
+PUT {{host}}/api/microflows/{{sourceMicroflowId}}/schema
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "saveReason": "round 41 callMicroflow reference",
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{sourceMicroflowId}}",
+    "stableId": "{{sourceMicroflowId}}",
+    "name": "OrderProcessRound41",
+    "displayName": "Order Process Round 41",
+    "moduleId": "demo-module",
+    "moduleName": "Demo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        {
+          "id": "call-1",
+          "kind": "actionActivity",
+          "action": {
+            "kind": "callMicroflow",
+            "targetMicroflowId": "{{targetMicroflowId}}",
+            "targetMicroflowQualifiedName": "Demo.NotifyUserRound41",
+            "parameterMappings": [{ "parameterName": "userId", "expression": "'demo-user'" }]
+          }
+        },
+        { "id": "end-1", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-1", "originObjectId": "start-1", "destinationObjectId": "call-1" },
+      { "id": "flow-2", "originObjectId": "call-1", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### References Round 41 - rebuild A outgoing references
+POST {{host}}/api/microflows/{{sourceMicroflowId}}/references/rebuild
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### References Round 41 - get B target references
+GET {{host}}/api/microflows/{{targetMicroflowId}}/references?includeInactive=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### References Round 41 - publish B 1.0.0
+POST {{host}}/api/microflows/{{targetMicroflowId}}/publish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "version": "1.0.0",
+  "description": "Round 41 baseline publish",
+  "confirmBreakingChanges": false
+}
+
+### References Round 41 - save B schema with removed parameter to produce breaking change
+PUT {{host}}/api/microflows/{{targetMicroflowId}}/schema
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "saveReason": "round 41 breaking parameter removal",
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{targetMicroflowId}}",
+    "stableId": "{{targetMicroflowId}}",
+    "name": "NotifyUserRound41",
+    "displayName": "Notify User Round 41",
+    "moduleId": "demo-module",
+    "moduleName": "Demo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        { "id": "end-1", "kind": "endEvent" }
+      ]
+    },
+    "flows": [{ "id": "flow-1", "originObjectId": "start-1", "destinationObjectId": "end-1" }],
+    "variables": {}
+  }
+}
+
+### References Round 41 - get B impact with references and breaking changes
+GET {{host}}/api/microflows/{{targetMicroflowId}}/impact?version=1.1.0&includeBreakingChanges=true&includeReferences=true
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### References Round 41 - blocked publish without confirmation
+POST {{host}}/api/microflows/{{targetMicroflowId}}/publish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "version": "1.1.0",
+  "description": "Should be blocked by high impact",
+  "confirmBreakingChanges": false
+}
+
+### References Round 41 - confirmed publish
+POST {{host}}/api/microflows/{{targetMicroflowId}}/publish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "version": "1.1.0",
+  "description": "Confirmed high impact publish",
+  "confirmBreakingChanges": true
+}
+
+### References Round 41 - delete referenced target should be blocked
+DELETE {{host}}/api/microflows/{{targetMicroflowId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
 
 ### Microflow versions
 GET {{host}}/api/microflows/{{microflowId}}/versions
@@ -414,7 +640,507 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
-### Microflow validation skeleton
+### TestRun Round 42 - create runnable sample
+POST {{host}}/api/microflows
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "workspaceId": "{{workspaceId}}",
+  "input": {
+    "name": "RuntimeRound42Demo",
+    "displayName": "Runtime Round 42 Demo",
+    "moduleId": "demo-module",
+    "moduleName": "Demo",
+    "parameters": [{ "id": "p-name", "name": "name", "dataType": "String" }],
+    "returnType": { "kind": "void" }
+  }
+}
+
+### TestRun Round 42 - success with draft schema
+# Replace {{runtimeMicroflowId}} with the id from the create response.
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": { "name": "demo" },
+  "options": { "maxSteps": 50 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "stableId": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound42Demo",
+    "displayName": "Runtime Round 42 Demo",
+    "moduleId": "demo-module",
+    "parameters": [{ "id": "p-name", "name": "name", "dataType": "String" }],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "log-1",
+          "kind": "actionActivity",
+          "officialType": "Microflows$ActionActivity",
+          "action": {
+            "id": "action-log-1",
+            "kind": "logMessage",
+            "officialType": "Microflows$LogMessageAction",
+            "template": { "text": "Round 42 backend mock run" },
+            "level": "info"
+          }
+        },
+        { "id": "end-1", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-start-log", "kind": "sequence", "originObjectId": "start-1", "destinationObjectId": "log-1" },
+      { "id": "flow-log-end", "kind": "sequence", "originObjectId": "log-1", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 42 - decision true
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "decisionBooleanResult": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound42Decision",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        { "id": "decision-1", "kind": "exclusiveSplit", "splitCondition": { "resultType": "boolean", "expression": { "raw": "true" } } },
+        { "id": "true-log", "kind": "actionActivity", "action": { "id": "true-log-action", "kind": "logMessage", "template": { "text": "true branch" } } },
+        { "id": "false-log", "kind": "actionActivity", "action": { "id": "false-log-action", "kind": "logMessage", "template": { "text": "false branch" } } },
+        { "id": "end-1", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-start-decision", "originObjectId": "start-1", "destinationObjectId": "decision-1" },
+      { "id": "flow-decision-true", "originObjectId": "decision-1", "destinationObjectId": "true-log", "caseValues": [{ "kind": "boolean", "value": "true" }] },
+      { "id": "flow-decision-false", "originObjectId": "decision-1", "destinationObjectId": "false-log", "caseValues": [{ "kind": "boolean", "value": "false" }] },
+      { "id": "flow-true-end", "originObjectId": "true-log", "destinationObjectId": "end-1" },
+      { "id": "flow-false-end", "originObjectId": "false-log", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 42 - decision false
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "decisionBooleanResult": false },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound42Decision",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        { "id": "decision-1", "kind": "exclusiveSplit", "splitCondition": { "resultType": "boolean", "expression": { "raw": "true" } } },
+        { "id": "true-log", "kind": "actionActivity", "action": { "id": "true-log-action", "kind": "logMessage", "template": { "text": "true branch" } } },
+        { "id": "false-log", "kind": "actionActivity", "action": { "id": "false-log-action", "kind": "logMessage", "template": { "text": "false branch" } } },
+        { "id": "end-1", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-start-decision", "originObjectId": "start-1", "destinationObjectId": "decision-1" },
+      { "id": "flow-decision-true", "originObjectId": "decision-1", "destinationObjectId": "true-log", "caseValues": [{ "kind": "boolean", "value": "true" }] },
+      { "id": "flow-decision-false", "originObjectId": "decision-1", "destinationObjectId": "false-log", "caseValues": [{ "kind": "boolean", "value": "false" }] },
+      { "id": "flow-true-end", "originObjectId": "true-log", "destinationObjectId": "end-1" },
+      { "id": "flow-false-end", "originObjectId": "false-log", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 42 - loopIterations=2
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "loopIterations": 2 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound42Loop",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        {
+          "id": "loop-1",
+          "kind": "loopedActivity",
+          "loopSource": { "kind": "whileCondition", "expression": { "raw": "true" }, "iteratorVariableName": "item" },
+          "objectCollection": {
+            "id": "loop-collection",
+            "objects": [
+              { "id": "loop-log", "kind": "actionActivity", "action": { "id": "loop-log-action", "kind": "logMessage", "template": { "text": "loop item" } } },
+              { "id": "loop-continue", "kind": "continueEvent" }
+            ],
+            "flows": [{ "id": "flow-loop-log-continue", "originObjectId": "loop-log", "destinationObjectId": "loop-continue" }]
+          }
+        },
+        { "id": "end-1", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-start-loop", "originObjectId": "start-1", "destinationObjectId": "loop-1" },
+      { "id": "flow-loop-end", "originObjectId": "loop-1", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 42 - rest success
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "simulateRestError": false },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound42Rest",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        { "id": "rest-1", "kind": "actionActivity", "action": { "id": "rest-action-1", "kind": "restCall", "request": { "method": "GET", "urlExpression": { "raw": "'https://example.invalid/mock'" } }, "response": { "handling": { "outputVariableName": "restResponse" } } } },
+        { "id": "end-1", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-start-rest", "originObjectId": "start-1", "destinationObjectId": "rest-1" },
+      { "id": "flow-rest-end", "originObjectId": "rest-1", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 42 - rest error with error handler
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "simulateRestError": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound42RestError",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start-1", "kind": "startEvent" },
+        { "id": "rest-1", "kind": "actionActivity", "action": { "id": "rest-action-1", "kind": "restCall", "errorHandlingType": "customWithoutRollback", "request": { "method": "GET", "urlExpression": { "raw": "'https://example.invalid/mock'" } } } },
+        { "id": "handler-log", "kind": "actionActivity", "action": { "id": "handler-log-action", "kind": "logMessage", "template": { "text": "rest error handled" } } },
+        { "id": "end-1", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "flow-start-rest", "originObjectId": "start-1", "destinationObjectId": "rest-1" },
+      { "id": "flow-rest-end", "originObjectId": "rest-1", "destinationObjectId": "end-1" },
+      { "id": "flow-rest-handler", "originObjectId": "rest-1", "destinationObjectId": "handler-log", "isErrorHandler": true },
+      { "id": "flow-handler-end", "originObjectId": "handler-log", "destinationObjectId": "end-1" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 42 - get run session
+GET {{host}}/api/microflows/runs/{{runId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### TestRun Round 42 - get run trace
+GET {{host}}/api/microflows/runs/{{runId}}/trace
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### TestRun Round 42 - cancel run
+POST {{host}}/api/microflows/runs/{{runId}}/cancel
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### TestRun Round 42 - invalid schema validation failed
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "InvalidRuntimeRound42",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": { "id": "root-collection", "objects": [] },
+    "flows": [],
+    "variables": {}
+  }
+}
+
+### TestRun Round 42 - run not found
+GET {{host}}/api/microflows/runs/not-exist-run
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### TestRun Round 42 - resource not found
+POST {{host}}/api/microflows/not-exist-resource/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{ "input": {} }
+
+### Microflow validation saved schema edit
+POST {{host}}/api/microflows/{{microflowId}}/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "edit",
+  "includeWarnings": true,
+  "includeInfo": false
+}
+
+### Microflow validation saved schema save
+POST {{host}}/api/microflows/{{microflowId}}/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "save",
+  "includeWarnings": true
+}
+
+### Microflow validation inline publish missing start
+POST {{host}}/api/microflows/{{microflowId}}/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "publish",
+  "includeWarnings": true,
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{microflowId}}",
+    "name": "MissingStartDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": []
+    },
+    "flows": []
+  }
+}
+
+### Microflow validation inline testRun action field missing
+POST {{host}}/api/microflows/{{microflowId}}/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "testRun",
+  "includeWarnings": true,
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{microflowId}}",
+    "name": "ActionMissingFieldDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "retrieve1",
+          "kind": "actionActivity",
+          "officialType": "Microflows$ActionActivity",
+          "action": {
+            "id": "a1",
+            "kind": "retrieve",
+            "officialType": "Microflows$RetrieveAction",
+            "retrieveSource": { "kind": "database", "entityQualifiedName": "" }
+          }
+        },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f1", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "retrieve1" },
+        { "id": "f2", "kind": "sequence", "originObjectId": "retrieve1", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Microflow validation inline invalid metadata reference
+POST {{host}}/api/microflows/{{microflowId}}/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "save",
+  "includeWarnings": true,
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{microflowId}}",
+    "name": "InvalidMetadataDemo",
+    "parameters": [
+      { "id": "p1", "name": "order", "type": { "kind": "object", "entityQualifiedName": "Sales.NotExists" } }
+    ],
+    "returnType": { "kind": "void" },
+    "objectCollection": { "id": "root-collection", "objects": [], "flows": [] },
+    "flows": []
+  }
+}
+
+### Microflow validation inline modeledOnly testRun
+POST {{host}}/api/microflows/{{microflowId}}/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "testRun",
+  "includeWarnings": true,
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{microflowId}}",
+    "name": "ModeledOnlyDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "generic1",
+          "kind": "actionActivity",
+          "officialType": "Microflows$ActionActivity",
+          "action": { "id": "g1", "kind": "modeledOnly", "officialType": "Microflows$GenericAction" }
+        },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f1", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "generic1" },
+        { "id": "f2", "kind": "sequence", "originObjectId": "generic1", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Microflow validation invalid schema
+POST {{host}}/api/microflows/{{microflowId}}/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "edit",
+  "schema": {
+    "nodes": [],
+    "edges": []
+  }
+}
+
+### Microflow validation not found resource
 POST {{host}}/api/microflows/not-exist/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}

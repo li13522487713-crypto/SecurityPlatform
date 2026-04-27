@@ -20,17 +20,23 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
 
     private readonly IMicroflowResourceRepository _resourceRepository;
     private readonly IMicroflowSchemaSnapshotRepository _schemaSnapshotRepository;
+    private readonly IMicroflowReferenceRepository _referenceRepository;
+    private readonly IMicroflowReferenceIndexer _referenceIndexer;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowClock _clock;
 
     public MicroflowResourceService(
         IMicroflowResourceRepository resourceRepository,
         IMicroflowSchemaSnapshotRepository schemaSnapshotRepository,
+        IMicroflowReferenceRepository referenceRepository,
+        IMicroflowReferenceIndexer referenceIndexer,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowClock clock)
     {
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
+        _referenceRepository = referenceRepository;
+        _referenceIndexer = referenceIndexer;
         _requestContextAccessor = requestContextAccessor;
         _clock = clock;
     }
@@ -258,6 +264,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
 
         Touch(resource, context);
         await _resourceRepository.UpdateAsync(resource, cancellationToken);
+        await TryRebuildOutgoingReferencesAsync(resource.Id, cancellationToken);
 
         return new SaveMicroflowSchemaResponseDto
         {
@@ -368,6 +375,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     public async Task<MicroflowResourceDto> ArchiveAsync(string id, CancellationToken cancellationToken)
     {
         var resource = await LoadResourceAsync(id, cancellationToken);
+        await EnsureNoActiveTargetReferencesAsync(resource.Id, cancellationToken);
         if (!resource.Archived)
         {
             resource.Archived = true;
@@ -395,7 +403,40 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     public async Task DeleteAsync(string id, CancellationToken cancellationToken)
     {
         _ = await LoadResourceAsync(id, cancellationToken);
+        await EnsureNoActiveTargetReferencesAsync(id, cancellationToken);
         await _resourceRepository.DeleteAsync(id, cancellationToken);
+        await _referenceRepository.DeleteBySourceAsync("microflow", id, cancellationToken);
+    }
+
+    private async Task EnsureNoActiveTargetReferencesAsync(string resourceId, CancellationToken cancellationToken)
+    {
+        var count = await _referenceRepository.CountByTargetMicroflowIdAsync(
+            resourceId,
+            new MicroflowReferenceQuery { IncludeInactive = false },
+            cancellationToken);
+        if (count > 0)
+        {
+            throw new MicroflowApiException(
+                MicroflowApiErrorCode.MicroflowReferenceBlocked,
+                $"当前微流仍被 {count} 个 active reference 引用，不能删除或归档。",
+                409);
+        }
+    }
+
+    private async Task TryRebuildOutgoingReferencesAsync(string resourceId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _referenceIndexer.RebuildReferencesForMicroflowAsync(resourceId, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // 引用索引失败不阻断 schema 保存；手动 rebuild API 可用于恢复。
+        }
     }
 
     private async Task<MicroflowResourceEntity> LoadResourceAsync(string id, CancellationToken cancellationToken)

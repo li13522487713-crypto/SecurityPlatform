@@ -201,6 +201,9 @@ public sealed record MicroflowReferenceDto
     [JsonPropertyName("id")]
     public string Id { get; init; } = string.Empty;
 
+    [JsonPropertyName("targetMicroflowId")]
+    public string TargetMicroflowId { get; init; } = string.Empty;
+
     [JsonPropertyName("sourceType")]
     public string SourceType { get; init; } = "unknown";
 
@@ -210,8 +213,26 @@ public sealed record MicroflowReferenceDto
     [JsonPropertyName("sourceName")]
     public string SourceName { get; init; } = string.Empty;
 
+    [JsonPropertyName("sourcePath")]
+    public string? SourcePath { get; init; }
+
+    [JsonPropertyName("sourceVersion")]
+    public string? SourceVersion { get; init; }
+
+    [JsonPropertyName("referencedVersion")]
+    public string? ReferencedVersion { get; init; }
+
+    [JsonPropertyName("referenceKind")]
+    public string ReferenceKind { get; init; } = "unknown";
+
     [JsonPropertyName("impactLevel")]
     public string ImpactLevel { get; init; } = "none";
+
+    [JsonPropertyName("description")]
+    public string? Description { get; init; }
+
+    [JsonPropertyName("canNavigate")]
+    public bool CanNavigate { get; init; }
 }
 
 public sealed record MicroflowPublishImpactSummaryDto
@@ -263,4 +284,19 @@ public sealed record AnalyzeMicroflowImpactRequestDto
 
     [JsonPropertyName("includeBreakingChanges")]
     public bool IncludeBreakingChanges { get; init; } = true;
+
+    [JsonPropertyName("includeReferences")]
+    public bool IncludeReferences { get; init; } = true;
+}
+
+public sealed record GetMicroflowReferencesRequestDto
+{
+    [JsonPropertyName("includeInactive")]
+    public bool IncludeInactive { get; init; }
+
+    [JsonPropertyName("sourceType")]
+    public IReadOnlyList<string> SourceType { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("impactLevel")]
+    public IReadOnlyList<string> ImpactLevel { get; init; } = Array.Empty<string>();
 }

@@ -6,6 +6,7 @@
 - **分页**：`pageIndex` **1-based**；`MicroflowResourceQuery` 与 `ListMicroflowsRequest` 对齐；多选 `status` / `publishStatus` / `tags` 均为 **OR** 语义；`sortBy` 推荐：`name`、`updatedAt`、`createdAt`、`version`、`referenceCount`。
 - **前端 HTTP 客户端**：`MicroflowApiClient` 统一附加 `X-Workspace-Id`、`X-Tenant-Id`、`X-User-Id`，解析 `MicroflowApiResponse<T>` 后再交给 Resource / Metadata / Runtime / Validation Adapter。
 - **Contract Mock**：第 34 轮提供 MSW mock server，路径与本文件及 `openapi-draft.yaml` 对齐；前端仍使用 `mode=http`，不回退到旧 mock/local adapter。
+- **第 43 轮联调回归**：Resource / Schema 链路以真实 `/api/microflows` 为准，`app-web` 默认 `mode=http`、`apiBaseUrl=/api`；`apiBaseUrl` 可为站点根、相对 `/api` 或带 `/api` 的绝对地址，前端 HTTP client 不得拼出 `/api/api/*`。
 
 ## 资源
 
@@ -48,22 +49,49 @@
 
 - `POST /api/microflows/{id}/validate` — `ValidateMicroflowRequest`（`mode`：`edit` | `save` | `publish` | `testRun`）→ `ValidateMicroflowResponse`。
 - `publish` 模式规则更严；`testRun` 要求无 error 方可运行。
+- 第 40 轮后端已实现真实 P0 Validation API：支持 inline schema 和读取当前保存 schema；返回 `MicroflowValidationIssue[]`、summary、`serverValidatedAt`。
+- 后端 validator 覆盖 root/object/flow/event/decision/loop/P0 action/metadata reference/basic variables/basic expressions/error handling/reachability，不实现完整 Mendix 表达式执行器或真实 Runtime。
+- Validation 使用第 39 轮 MetadataService 提供的 catalog；metadata 引用错误返回 `MF_METADATA_*` issue，API 本身仍返回成功 envelope，由前端 ProblemPanel 展示 issues。
 
 ## 运行 / Trace
 
-- `POST /api/microflows/{id}/test-run` — 可选 `schema`（草稿）；否则用已保存版本（P0 可先只支持带 `schema`）。
+- `POST /api/microflows/{id}/test-run` — `TestRunMicroflowApiRequest`，可选 `schema`（草稿）；否则读取当前保存的 `MicroflowSchemaSnapshot`。
 - `POST /api/microflows/runs/{runId}/cancel` — `{ runId, status: "cancelled" }`。
 - `GET /api/microflows/runs/{runId}` — `MicroflowRunSession`。
 - `GET /api/microflows/runs/{runId}/trace` — `{ runId, trace, logs }`；帧须含 `objectId` 与可解析的 `actionId` 等，见 `MicroflowTraceFrame`。
 
+第 42 轮后端实现说明：
+
+- TestRun 已接入真实后端 Mock Runtime：运行前调用 Validation API，`mode=testRun` 且 `errorCount>0` 时返回 `MICROFLOW_VALIDATION_FAILED`，不执行 runner。
+- Mock Runner 只基于 `MicroflowAuthoringSchema` / 后端轻量 schema model 导航，不解析、不保存 FlowGram JSON，也不访问业务数据库或外部 REST。
+- `RunSession`、`TraceFrame`、`RuntimeLog` 落库到 `MicroflowRunSession`、`MicroflowRunTraceFrame`、`MicroflowRunLog`；failed run 也会保存。
+- `options` 支持 `simulateRestError`、`decisionBooleanResult`、`enumerationCaseValue`、`objectTypeCase`、`loopIterations`、`maxSteps`。
+- Decision/ObjectType trace 写入 `selectedCaseValue`，Loop trace 写入 `loopIteration`，RestCall 可通过 `simulateRestError=true` 进入 error handler mock path。
+- `Resource.LastRunStatus` / `LastRunAt` 会更新；TestRun 不修改 `CurrentSchemaSnapshotId`、dirty/publishStatus 或 AuthoringSchema。
+
 ## 发布
 
 - `POST /api/microflows/{id}/publish` — `PublishMicroflowApiRequest` → `MicroflowPublishResult`。
+- `GET /api/microflows/{id}/impact?version=&includeBreakingChanges=&includeReferences=` — `MicroflowPublishImpactAnalysis`。
 - 流程：加载资源 → 校验（有 error 则 `MICROFLOW_PUBLISH_BLOCKED`）→ 影响分析（高影响且未 `confirmBreakingChanges` 时阻塞）→ 创建**不可变**发布快照（含 `MicroflowAuthoringSchema`）→ 更新 `MicroflowVersionSummary` 与 `MicroflowResource` 的 `status` / `publishStatus` / `latestPublishedVersion`。
 - 第 38 轮后端已实现真实发布：发布会新增 `MicroflowSchemaSnapshot`、`MicroflowPublishSnapshot`、`MicroflowVersion`，并在同一 SqlSugar 事务中更新 `MicroflowResource.status=published`、`publishStatus=published`、`version`、`latestPublishedVersion`。
 - `version` 必须符合 semver-like 格式（如 `1.0.0`、`1.0.0-beta.1`），同一资源下重复版本返回 `MICROFLOW_VERSION_CONFLICT`，格式错误返回 `MICROFLOW_VALIDATION_FAILED` 且带 `fieldErrors.version`。
 - 发布前基础 validation 会检查 AuthoringSchema 必填根字段并拒绝 FlowGram-only 根字段；失败返回 `MICROFLOW_PUBLISH_BLOCKED` 且填充 `validationIssues`。
-- 基础 breaking changes：参数删除、参数类型变更、返回类型变更为 high；暴露 URL path 变更为 medium；已发布对象删除为 low。high 且未传 `confirmBreakingChanges=true` 会阻止发布。
+- 第 41 轮 impact 会读取 `MicroflowReferenceRepository` 的 active target references，并结合 `VersionDiffService` breaking changes：参数删除/类型变更/返回类型变更/关闭 microflow action exposure 为 high，URL path 变更、required 变更、关闭 workflow action exposure 为 medium，节点/连线删除为 low。high 且未传 `confirmBreakingChanges=true` 会阻止发布，成功发布会把 `impactAnalysisJson` 写入 `MicroflowPublishSnapshot`。
+
+## 引用 / References
+
+| 方法 | 路径 | 请求 | 响应 `data` |
+|------|------|------|-------------|
+| GET | `/api/microflows/{id}/references` | `includeInactive`、`sourceType[]`、`impactLevel[]` query | `MicroflowReferenceDto[]` |
+| POST | `/api/microflows/{id}/references/rebuild` | — | `MicroflowReferenceDto[]`（当前 source 微流新生成的 outgoing references） |
+
+第 41 轮实现状态：
+
+- 后端基于 `MicroflowAuthoringSchema.objectCollection.objects[].action.kind=callMicroflow` 扫描 CallMicroflow 引用，读取 `targetMicroflowId` 或 `targetMicroflowQualifiedName`，不解析 FlowGram JSON。
+- `exposure.url.enabled=true` 或存在 `exposure.url.path` 时生成 `sourceType=api`、`referenceKind=apiExposure` 的 self reference，Page / Workflow / Schedule 引用仅保留 DTO/Repository 扩展入口。
+- `PUT /api/microflows/{id}/schema` 成功后同步重建当前 source 微流 outgoing references；重建失败不阻断 schema 保存，可通过 rebuild API 手动恢复。
+- 删除或归档 target 微流前会检查 active references；存在引用时返回 `MICROFLOW_REFERENCE_BLOCKED`，源微流被删除时会清理 outgoing references。
 
 ## 版本
 

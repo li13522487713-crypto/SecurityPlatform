@@ -50,6 +50,13 @@
 
 `SchemaJson` 与发布快照中的 `SchemaJson` 只保存 `MicroflowAuthoringSchema` JSON；当前不会保存 FlowGram JSON。发布快照表按不可变写入模型设计，后续发布服务只能新增行，不应覆盖已有快照。Trace 按 `MicroflowRunSession` 主表、`MicroflowRunTraceFrame` 与 `MicroflowRunLog` 从表保存，`RunId` 已建查询索引。
 
+第 41 轮 References / Impact 存储策略：
+
+- `MicroflowReference` 作为引用索引表，核心字段为 `TargetMicroflowId`、`SourceType`、`SourceId`、`SourcePath`、`ReferenceKind`、`ImpactLevel`、`Active`，并预留 `WorkspaceId` / `TenantId` / `ExtraJson`。
+- `IMicroflowReferenceRepository.UpsertReferencesForSourceAsync` 语义为先删除 source 旧引用再插入新引用；当前 `MicroflowReferenceIndexer` 对 microflow source 会同步清理 `sourceType=microflow` 与 `sourceType=api` 的旧索引。
+- active references 默认参与查询和删除/归档阻断；`includeInactive=true` 仅用于诊断或兼容历史引用。
+- Page / Workflow / Schedule / API 真实资源系统暂未落地，DTO 与 Repository 字段已经预留，后续对应服务接入后可写入同一索引表。
+
 第 38 轮发布/版本落地策略：
 
 - 发布时新增 `MicroflowSchemaSnapshot` 作为发布时刻的 schema 固化点，`MicroflowVersion.SchemaSnapshotId` 与 `MicroflowPublishSnapshot.SchemaSnapshotId` 均指向该快照。

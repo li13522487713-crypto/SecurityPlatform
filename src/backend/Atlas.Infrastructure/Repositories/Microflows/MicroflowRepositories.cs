@@ -114,14 +114,30 @@ public sealed class MicroflowReferenceRepository : IMicroflowReferenceRepository
         string targetMicroflowId,
         bool includeInactive,
         CancellationToken cancellationToken)
+        => await ListByTargetMicroflowIdAsync(
+            targetMicroflowId,
+            new MicroflowReferenceQuery { IncludeInactive = includeInactive },
+            cancellationToken);
+
+    public async Task<IReadOnlyList<MicroflowReferenceEntity>> ListByTargetMicroflowIdAsync(
+        string targetMicroflowId,
+        MicroflowReferenceQuery query,
+        CancellationToken cancellationToken)
     {
         var q = _db.Queryable<MicroflowReferenceEntity>().Where(x => x.TargetMicroflowId == targetMicroflowId);
-        if (!includeInactive)
-        {
-            q = q.Where(x => x.Active);
-        }
-
+        q = ApplyReferenceFilters(q, query);
         return await q.OrderBy(x => x.UpdatedAt, OrderByType.Desc).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MicroflowReferenceEntity>> ListBySourceAsync(
+        string sourceType,
+        string sourceId,
+        CancellationToken cancellationToken)
+    {
+        return await _db.Queryable<MicroflowReferenceEntity>()
+            .Where(x => x.SourceType == sourceType && x.SourceId == sourceId)
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task UpsertReferencesAsync(
@@ -130,16 +146,66 @@ public sealed class MicroflowReferenceRepository : IMicroflowReferenceRepository
         CancellationToken cancellationToken)
     {
         await DeleteByTargetMicroflowIdAsync(targetMicroflowId, cancellationToken);
-        if (references.Count > 0)
-        {
-            await _db.Insertable(references.ToList()).ExecuteCommandAsync(cancellationToken);
-        }
+        await InsertManyAsync(references, cancellationToken);
     }
+
+    public async Task UpsertReferencesForSourceAsync(
+        string sourceType,
+        string sourceId,
+        IReadOnlyList<MicroflowReferenceEntity> references,
+        CancellationToken cancellationToken)
+    {
+        await DeleteBySourceAsync(sourceType, sourceId, cancellationToken);
+        await InsertManyAsync(references, cancellationToken);
+    }
+
+    public Task InsertManyAsync(IReadOnlyList<MicroflowReferenceEntity> references, CancellationToken cancellationToken)
+        => references.Count == 0
+            ? Task.CompletedTask
+            : _db.Insertable(references.ToList()).ExecuteCommandAsync(cancellationToken);
+
+    public Task<int> CountByTargetMicroflowIdAsync(
+        string targetMicroflowId,
+        MicroflowReferenceQuery query,
+        CancellationToken cancellationToken)
+    {
+        var q = _db.Queryable<MicroflowReferenceEntity>().Where(x => x.TargetMicroflowId == targetMicroflowId);
+        return ApplyReferenceFilters(q, query).CountAsync(cancellationToken);
+    }
+
+    public Task DeleteBySourceAsync(string sourceType, string sourceId, CancellationToken cancellationToken)
+        => _db.Deleteable<MicroflowReferenceEntity>()
+            .Where(x => x.SourceType == sourceType && x.SourceId == sourceId)
+            .ExecuteCommandAsync(cancellationToken);
 
     public Task DeleteByTargetMicroflowIdAsync(string targetMicroflowId, CancellationToken cancellationToken)
         => _db.Deleteable<MicroflowReferenceEntity>()
             .Where(x => x.TargetMicroflowId == targetMicroflowId)
             .ExecuteCommandAsync(cancellationToken);
+
+    private static ISugarQueryable<MicroflowReferenceEntity> ApplyReferenceFilters(
+        ISugarQueryable<MicroflowReferenceEntity> q,
+        MicroflowReferenceQuery query)
+    {
+        if (!query.IncludeInactive)
+        {
+            q = q.Where(x => x.Active);
+        }
+
+        var sourceTypes = query.SourceType.Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (sourceTypes.Length > 0)
+        {
+            q = q.Where(x => SqlFunc.ContainsArray(sourceTypes, x.SourceType));
+        }
+
+        var impactLevels = query.ImpactLevel.Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (impactLevels.Length > 0)
+        {
+            q = q.Where(x => SqlFunc.ContainsArray(impactLevels, x.ImpactLevel));
+        }
+
+        return q;
+    }
 }
 
 public sealed class MicroflowRunRepository : IMicroflowRunRepository
@@ -157,6 +223,26 @@ public sealed class MicroflowRunRepository : IMicroflowRunRepository
     public Task<MicroflowRunSessionEntity?> GetSessionAsync(string runId, CancellationToken cancellationToken)
         => _db.Queryable<MicroflowRunSessionEntity>().Where(x => x.Id == runId).FirstAsync(cancellationToken)!;
 
+    public async Task<IReadOnlyList<MicroflowRunSessionEntity>> ListSessionsByResourceIdAsync(
+        string resourceId,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken)
+        => await _db.Queryable<MicroflowRunSessionEntity>()
+            .Where(x => x.ResourceId == resourceId)
+            .OrderBy(x => x.StartedAt, OrderByType.Desc)
+            .ToPageListAsync(pageIndex <= 0 ? 1 : pageIndex, pageSize <= 0 ? 20 : pageSize, cancellationToken);
+
+    public Task InsertTraceFramesAsync(string runId, IReadOnlyList<MicroflowRunTraceFrameEntity> frames, CancellationToken cancellationToken)
+    {
+        foreach (var frame in frames)
+        {
+            frame.RunId = runId;
+        }
+
+        return InsertTraceFramesAsync(frames, cancellationToken);
+    }
+
     public Task InsertTraceFramesAsync(IReadOnlyList<MicroflowRunTraceFrameEntity> frames, CancellationToken cancellationToken)
         => frames.Count == 0
             ? Task.CompletedTask
@@ -168,6 +254,16 @@ public sealed class MicroflowRunRepository : IMicroflowRunRepository
             .OrderBy(x => x.Sequence, OrderByType.Asc)
             .ToListAsync(cancellationToken);
 
+    public Task InsertLogsAsync(string runId, IReadOnlyList<MicroflowRunLogEntity> logs, CancellationToken cancellationToken)
+    {
+        foreach (var log in logs)
+        {
+            log.RunId = runId;
+        }
+
+        return InsertLogsAsync(logs, cancellationToken);
+    }
+
     public Task InsertLogsAsync(IReadOnlyList<MicroflowRunLogEntity> logs, CancellationToken cancellationToken)
         => logs.Count == 0
             ? Task.CompletedTask
@@ -178,6 +274,17 @@ public sealed class MicroflowRunRepository : IMicroflowRunRepository
             .Where(x => x.RunId == runId)
             .OrderBy(x => x.Timestamp, OrderByType.Asc)
             .ToListAsync(cancellationToken);
+
+    public Task UpdateSessionStatusAsync(
+        string runId,
+        string status,
+        DateTimeOffset? endedAt,
+        CancellationToken cancellationToken)
+        => _db.Updateable<MicroflowRunSessionEntity>()
+            .SetColumns(x => x.Status == status)
+            .SetColumns(x => x.EndedAt == endedAt)
+            .Where(x => x.Id == runId)
+            .ExecuteCommandAsync(cancellationToken);
 }
 
 public sealed class MicroflowMetadataCacheRepository : IMicroflowMetadataCacheRepository

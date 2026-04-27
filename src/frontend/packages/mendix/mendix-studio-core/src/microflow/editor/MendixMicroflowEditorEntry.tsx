@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconArrowLeft } from "@douyinfe/semi-icons";
 import { MicroflowEditor, type MicroflowApiClient, type MicroflowSchema } from "@atlas/microflow";
@@ -37,8 +37,13 @@ export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter,
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [currentResource, setCurrentResource] = useState(resource);
-  const apiClient = useMemo(() => createMicroflowEditorApiClient(adapter, resource, runtimeAdapter), [adapter, resource, runtimeAdapter]);
+  const apiClient = useMemo(() => createMicroflowEditorApiClient(adapter, currentResource, runtimeAdapter), [adapter, currentResource, runtimeAdapter]);
   const effectiveReadonly = readonly || currentResource.archived || !(currentResource.permissions?.canEdit ?? true);
+
+  useEffect(() => {
+    setCurrentResource(resource);
+    setSchema(resource.schema);
+  }, [resource]);
 
   return (
     <div style={{ height: "100%", minHeight: 720, overflow: "hidden", background: "var(--semi-color-bg-0)" }}>

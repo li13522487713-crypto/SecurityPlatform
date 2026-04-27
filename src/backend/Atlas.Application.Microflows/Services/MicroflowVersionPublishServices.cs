@@ -16,12 +16,18 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
     {
         var beforeParameters = ReadParameters(beforeSchema);
         var afterParameters = ReadParameters(afterSchema);
+        var beforeRequired = ReadParameterRequiredFlags(beforeSchema);
+        var afterRequired = ReadParameterRequiredFlags(afterSchema);
         var removedParameters = beforeParameters.Keys.Except(afterParameters.Keys).Order().ToArray();
         var addedParameters = afterParameters.Keys.Except(beforeParameters.Keys).Order().ToArray();
         var changedParameters = beforeParameters.Keys.Intersect(afterParameters.Keys)
             .Where(name => !string.Equals(beforeParameters[name], afterParameters[name], StringComparison.Ordinal))
             .Order()
             .Select(name => new MicroflowChangedParameterDto(name, beforeParameters[name], afterParameters[name]))
+            .ToArray();
+        var requiredChangedParameters = beforeRequired.Keys.Intersect(afterRequired.Keys)
+            .Where(name => beforeRequired[name] != afterRequired[name])
+            .Order()
             .ToArray();
 
         var beforeReturnType = ReadCompactJson(beforeSchema, "returnType");
@@ -59,7 +65,11 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
             breakingChanges.Add(Breaking("medium", "EXPOSED_URL_CHANGED", "对外暴露 URL 路径已变更。", "exposure.url.path", beforePath, afterPath));
         }
 
+        AddExposureDisabledChange(breakingChanges, beforeSchema, afterSchema, "asMicroflowAction", "MICROFLOW_ACTION_EXPOSURE_DISABLED", "微流 Action 暴露已关闭。", "high");
+        AddExposureDisabledChange(breakingChanges, beforeSchema, afterSchema, "asWorkflowAction", "WORKFLOW_ACTION_EXPOSURE_DISABLED", "工作流 Action 暴露已关闭。", "medium");
+        breakingChanges.AddRange(requiredChangedParameters.Select(name => Breaking("medium", "PARAMETER_REQUIRED_CHANGED", $"参数 {name} 必填属性已变更。", $"parameters.{name}.required", beforeRequired[name].ToString(), afterRequired[name].ToString())));
         breakingChanges.AddRange(removedObjects.Select(id => Breaking("low", "PUBLISHED_NODE_REMOVED", $"对象 {id} 已删除。", $"objectCollection.objects.{id}", id, null)));
+        breakingChanges.AddRange(removedFlows.Select(id => Breaking("low", "FLOW_REMOVED", $"连线 {id} 已删除。", $"flows.{id}", id, null)));
 
         return new MicroflowVersionDiffDto
         {
@@ -90,6 +100,20 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
             .ToDictionary(g => g.Key, g => g.First().DataType, StringComparer.Ordinal);
     }
 
+    private static Dictionary<string, bool> ReadParameterRequiredFlags(JsonElement schema)
+    {
+        if (!schema.TryGetProperty("parameters", out var parameters) || parameters.ValueKind != JsonValueKind.Array)
+        {
+            return new Dictionary<string, bool>(StringComparer.Ordinal);
+        }
+
+        return parameters.EnumerateArray()
+            .Select(p => new { Name = ReadString(p, "name"), Required = ReadBool(p, "required") })
+            .Where(p => !string.IsNullOrWhiteSpace(p.Name))
+            .GroupBy(p => p.Name!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Required, StringComparer.Ordinal);
+    }
+
     private static Dictionary<string, string> ReadObjects(JsonElement schema)
     {
         if (!schema.TryGetProperty("objectCollection", out var collection)
@@ -108,20 +132,57 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
 
     private static Dictionary<string, string> ReadFlows(JsonElement schema)
     {
-        if (!schema.TryGetProperty("flows", out var flows) || flows.ValueKind != JsonValueKind.Array)
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        AddFlows(result, schema.TryGetProperty("flows", out var rootFlows) ? rootFlows : default);
+        if (schema.TryGetProperty("objectCollection", out var collection))
         {
-            return new Dictionary<string, string>(StringComparer.Ordinal);
+            AddFlowsFromCollection(result, collection);
         }
 
-        return flows.EnumerateArray()
+        return result;
+    }
+
+    private static void AddFlowsFromCollection(Dictionary<string, string> result, JsonElement collection)
+    {
+        if (collection.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        AddFlows(result, collection.TryGetProperty("flows", out var flows) ? flows : default);
+        if (!collection.TryGetProperty("objects", out var objects) || objects.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var obj in objects.EnumerateArray())
+        {
+            if (obj.TryGetProperty("objectCollection", out var nested)
+                || obj.TryGetProperty("containedObjectCollection", out nested)
+                || obj.TryGetProperty("loopObjectCollection", out nested))
+            {
+                AddFlowsFromCollection(result, nested);
+            }
+        }
+    }
+
+    private static void AddFlows(Dictionary<string, string> result, JsonElement flows)
+    {
+        if (flows.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var flow in flows.EnumerateArray()
             .Select(f => new
             {
                 Id = ReadString(f, "id"),
                 Shape = $"{ReadString(f, "originObjectId")}|{ReadString(f, "destinationObjectId")}|{ReadString(f, "edgeKind")}|{ReadCompactJson(f, "caseValues")}|{ReadBool(f, "isErrorHandler")}"
             })
-            .Where(f => !string.IsNullOrWhiteSpace(f.Id))
-            .GroupBy(f => f.Id!, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First().Shape, StringComparer.Ordinal);
+            .Where(f => !string.IsNullOrWhiteSpace(f.Id)))
+        {
+            result.TryAdd(flow.Id!, flow.Shape);
+        }
     }
 
     private static string ReadDataType(JsonElement parameter)
@@ -152,6 +213,37 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
     private static bool ReadBool(JsonElement element, string propertyName)
         => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.True;
 
+    private static bool ReadBoolByPath(JsonElement element, params string[] path)
+    {
+        var current = element;
+        foreach (var part in path)
+        {
+            if (!current.TryGetProperty(part, out current))
+            {
+                return false;
+            }
+        }
+
+        return current.ValueKind == JsonValueKind.True;
+    }
+
+    private static void AddExposureDisabledChange(
+        List<MicroflowBreakingChangeDto> changes,
+        JsonElement beforeSchema,
+        JsonElement afterSchema,
+        string exposureKind,
+        string code,
+        string message,
+        string severity)
+    {
+        var beforeEnabled = ReadBoolByPath(beforeSchema, "exposure", exposureKind, "enabled");
+        var afterEnabled = ReadBoolByPath(afterSchema, "exposure", exposureKind, "enabled");
+        if (beforeEnabled && !afterEnabled)
+        {
+            changes.Add(Breaking(severity, code, message, $"exposure.{exposureKind}.enabled", "true", "false"));
+        }
+    }
+
     private static MicroflowBreakingChangeDto Breaking(string severity, string code, string message, string fieldPath, string? before, string? after)
         => new()
         {
@@ -178,6 +270,23 @@ public sealed class MicroflowPublishImpactService : IMicroflowPublishImpactServi
         IReadOnlyList<MicroflowReferenceEntity> references,
         string nextVersion)
     {
+        if (!latestPublishedSchema.HasValue)
+        {
+            return new MicroflowPublishImpactAnalysisDto
+            {
+                ResourceId = resource.Id,
+                CurrentVersion = resource.LatestPublishedVersion,
+                NextVersion = nextVersion,
+                References = references.Select(MicroflowReferenceService.ToDto).ToArray(),
+                BreakingChanges = Array.Empty<MicroflowBreakingChangeDto>(),
+                ImpactLevel = "none",
+                Summary = new MicroflowPublishImpactSummaryDto
+                {
+                    ReferenceCount = references.Count
+                }
+            };
+        }
+
         var breakingChanges = latestPublishedSchema.HasValue
             ? _diffService.Compare(latestPublishedSchema.Value, currentSchema).BreakingChanges
             : Array.Empty<MicroflowBreakingChangeDto>();
@@ -185,14 +294,21 @@ public sealed class MicroflowPublishImpactService : IMicroflowPublishImpactServi
         var high = breakingChanges.Count(x => string.Equals(x.Severity, "high", StringComparison.OrdinalIgnoreCase));
         var medium = breakingChanges.Count(x => string.Equals(x.Severity, "medium", StringComparison.OrdinalIgnoreCase));
         var low = breakingChanges.Count(x => string.Equals(x.Severity, "low", StringComparison.OrdinalIgnoreCase));
-        var impactLevel = high > 0 ? "high" : medium > 0 ? "medium" : low > 0 ? "low" : "none";
+        var referenceCount = references.Count;
+        var impactLevel = high > 0
+            ? "high"
+            : medium > 0 || (referenceCount > 0 && breakingChanges.Count > 0)
+                ? "medium"
+                : low > 0 || referenceCount > 0
+                    ? "low"
+                    : "none";
 
         return new MicroflowPublishImpactAnalysisDto
         {
             ResourceId = resource.Id,
             CurrentVersion = resource.LatestPublishedVersion,
             NextVersion = nextVersion,
-            References = references.Select(ToReferenceDto).ToArray(),
+            References = references.Select(MicroflowReferenceService.ToDto).ToArray(),
             BreakingChanges = breakingChanges,
             ImpactLevel = impactLevel,
             Summary = new MicroflowPublishImpactSummaryDto
@@ -206,15 +322,6 @@ public sealed class MicroflowPublishImpactService : IMicroflowPublishImpactServi
         };
     }
 
-    private static MicroflowReferenceDto ToReferenceDto(MicroflowReferenceEntity entity)
-        => new()
-        {
-            Id = entity.Id,
-            SourceType = entity.SourceType,
-            SourceId = entity.SourceId,
-            SourceName = entity.SourceName,
-            ImpactLevel = entity.ImpactLevel
-        };
 }
 
 public sealed class MicroflowPublishService : IMicroflowPublishService
@@ -360,7 +467,12 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         var latestPublished = await _publishSnapshotRepository.GetLatestByResourceIdAsync(resource.Id, cancellationToken);
         var latestPublishedSchema = latestPublished is null ? (JsonElement?)null : MicroflowSchemaJsonHelper.ParseRequired(latestPublished.SchemaJson);
         var references = await _referenceRepository.ListByTargetMicroflowIdAsync(resource.Id, includeInactive: false, cancellationToken);
-        return _impactService.Analyze(resource, currentSchema, latestPublishedSchema, references, request.Version ?? resource.Version);
+        var impact = _impactService.Analyze(resource, currentSchema, latestPublishedSchema, references, request.Version ?? resource.Version);
+        return impact with
+        {
+            References = request.IncludeReferences ? impact.References : Array.Empty<MicroflowReferenceDto>(),
+            BreakingChanges = request.IncludeBreakingChanges ? impact.BreakingChanges : Array.Empty<MicroflowBreakingChangeDto>()
+        };
     }
 
     internal static MicroflowVersionSummaryDto ToVersionSummary(MicroflowVersionEntity entity)
@@ -505,6 +617,7 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
     private readonly IMicroflowVersionRepository _versionRepository;
     private readonly IMicroflowPublishSnapshotRepository _publishSnapshotRepository;
     private readonly IMicroflowVersionDiffService _diffService;
+    private readonly IMicroflowReferenceIndexer _referenceIndexer;
     private readonly IMicroflowStorageTransaction _transaction;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowClock _clock;
@@ -515,6 +628,7 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
         IMicroflowVersionRepository versionRepository,
         IMicroflowPublishSnapshotRepository publishSnapshotRepository,
         IMicroflowVersionDiffService diffService,
+        IMicroflowReferenceIndexer referenceIndexer,
         IMicroflowStorageTransaction transaction,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowClock clock)
@@ -524,6 +638,7 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
         _versionRepository = versionRepository;
         _publishSnapshotRepository = publishSnapshotRepository;
         _diffService = diffService;
+        _referenceIndexer = referenceIndexer;
         _transaction = transaction;
         _requestContextAccessor = requestContextAccessor;
         _clock = clock;
@@ -582,6 +697,7 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
             await _resourceRepository.UpdateAsync(resource, cancellationToken);
         }, cancellationToken);
 
+        await TryRebuildOutgoingReferencesAsync(resource.Id, cancellationToken);
         return MicroflowResourceMapper.ToDto(resource, newSnapshot);
     }
 
@@ -655,6 +771,7 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
             await _resourceRepository.InsertAsync(entity, cancellationToken);
         }, cancellationToken);
 
+        await TryRebuildOutgoingReferencesAsync(entity.Id, cancellationToken);
         return MicroflowResourceMapper.ToDto(entity, schemaSnapshot);
     }
 
@@ -704,5 +821,21 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
         resource.UpdatedBy = context.UserId;
         resource.UpdatedAt = now;
         resource.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+    }
+
+    private async Task TryRebuildOutgoingReferencesAsync(string resourceId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _referenceIndexer.RebuildReferencesForMicroflowAsync(resourceId, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // 引用索引失败不阻断版本回滚/复制，后续可通过 rebuild API 修复。
+        }
     }
 }

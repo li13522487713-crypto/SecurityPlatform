@@ -32,6 +32,18 @@ function normalizePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+function getUrlBase(): string {
+  return typeof window === "undefined" ? "http://localhost" : window.location.origin;
+}
+
+function joinBaseAndPath(apiBaseUrl: string, path: string): string {
+  const normalizedPath = normalizePath(path);
+  if (apiBaseUrl.endsWith("/api") && normalizedPath.startsWith("/api/")) {
+    return `${apiBaseUrl}${normalizedPath.slice("/api".length)}`;
+  }
+  return `${apiBaseUrl}${normalizedPath}`;
+}
+
 function appendQuery(url: URL, query?: MicroflowQuery): void {
   if (!query) {
     return;
@@ -105,7 +117,7 @@ export class MicroflowApiClient {
   }
 
   private async request<T>(method: string, path: string, body?: unknown, query?: MicroflowQuery, signal?: AbortSignal): Promise<T> {
-    const url = new URL(`${this.baseUrl}${normalizePath(path)}`);
+    const url = new URL(joinBaseAndPath(this.baseUrl, path), getUrlBase());
     appendQuery(url, query);
 
     let response: Response;

@@ -27,7 +27,11 @@
 23. **HTTP 错误处理**：执行 `pnpm run verify:microflow-http-error-handling`；401/403 回调触发，404/409/422/network 均有明确 UI。
 24. **ProblemPanel 桥接**：后端返回 `error.validationIssues` 时，保存/校验/发布/test-run 能进入 ProblemPanel，不只 toast。
 25. **抽屉错误态**：VersionsDrawer / ReferencesDrawer API 失败显示错误态和重试按钮，不显示假空数据。
+26. **Resource / Schema 真实联调**：执行 `pnpm run verify:microflow-resource-schema-integration`，覆盖 health、list、create、detail、schema load/save、rename、favorite、duplicate、archive、restore、delete、404、schema invalid、version conflict、archived save blocked。
+27. **HTTP 模式无回退**：`app-web` 微流资源库和编辑器默认 `mode=http`、`apiBaseUrl=/api`；断开后端时显示服务错误，不显示 mock sample 或 localStorage 数据。
 26. **HTTP Metadata**：`VITE_MICROFLOW_ADAPTER_MODE=http` 时 MetadataProvider 调用 `/api/microflow-metadata`，EntitySelector / AttributeSelector / EnumerationSelector / MicroflowSelector 显示后端 seed/cache 与真实 resource 生成的数据。
+27. **HTTP Validation**：ValidationAdapter 调用 `/api/microflows/{id}/validate`；制造 missing start、invalid metadata reference、missing action field 后，ProblemPanel 显示后端 `MicroflowValidationIssue`，字段错误按 `fieldPath` 定位。
+28. **HTTP References / Impact**：创建 A/B 两个微流，A 的 CallMicroflowAction 指向 B；保存 A 后 `GET /api/microflows/{B}/references` 在 ReferencesDrawer 显示来自 A 的 `callMicroflow` 引用。发布 B 后修改参数或 returnType，PublishModal 的 impact API 显示 high breaking change；未确认发布被阻止，确认后发布成功。被引用的 B 删除/归档返回 `MICROFLOW_REFERENCE_BLOCKED`。
 26. **P0 属性面板**：Retrieve/CreateObject/ChangeMembers/Commit/Delete/Rollback/CreateVariable/ChangeVariable/CallMicroflow/RestCall/LogMessage 均使用强类型字段，不出现 generic config 或 raw JSON dump。
 27. **字段级错误**：清空输出变量、REST URL、CallMicroflow 参数或 Loop iterator 时，字段下方显示对应 `ValidationIssue.fieldPath`。
 28. **变量联动**：修改 Retrieve/CreateObject/CreateVariable/CallMicroflow/RestCall 输出变量后，下游 VariableSelector 可见，重复名提示错误。
@@ -71,3 +75,12 @@
 9. ReferencesDrawer 走 references API，PublishModal impact summary 走 impact API。
 10. DebugPanel 走 test-run、get run、trace、cancel API，展示 RunSession 与 trace/logs。
 11. 使用 `x-microflow-mock-error` 或 `?mockError=` 分别验证 404、403、409、validation failed、publish blocked、runtime service unavailable 与 network-like error。
+
+## 第 42 轮真实后端 TestRun 验收
+
+1. `VITE_MICROFLOW_ADAPTER_MODE=http` 且 `apiBaseUrl=/api` 时，点击测试运行命中 `POST /api/microflows/{id}/test-run`，返回 `data.session`。
+2. DebugPanel 展示后端 `RunSession`，包括 `trace`、`logs`、`variables` 与 failed `error.code`。
+3. FlowGram 高亮使用后端 trace 的 `objectId`、incoming/outgoing flow、`actionId`；Decision 显示 `selectedCaseValue`，Loop 显示 `loopIteration.index`。
+4. `simulateRestError=true` 的 RestCall 样例应显示 failed rest frame 和 error handler 后续 frame；LogMessage 应出现在 logs。
+5. `GET /api/microflows/runs/{runId}` 与 `/trace` 可刷新同一 run；cancel API 可返回 cancelled。
+6. validation failed test-run 应进入 ProblemPanel，不生成 success session。

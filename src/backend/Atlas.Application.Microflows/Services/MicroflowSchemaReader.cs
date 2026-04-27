@@ -28,6 +28,10 @@ public sealed class MicroflowSchemaReader : IMicroflowSchemaReader
         if (schema.TryGetProperty("objectCollection", out var collection))
         {
             ReadCollection(collection, model, parentLoopObjectId: null, insideLoop: false, path: "objectCollection");
+            if (schema.TryGetProperty("flows", out var topLevelFlows))
+            {
+                model.Flows.AddRange(ReadFlows(topLevelFlows, ReadString(collection, "id") ?? "root", false, "flows"));
+            }
         }
         else if (schema.TryGetProperty("flows", out var rootFlows))
         {

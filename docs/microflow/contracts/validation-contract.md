@@ -101,3 +101,14 @@ P0 字段路径使用 AuthoringSchema 路径，数组使用点号下标：`actio
 ## 后端建议
 
 持久化或 CI 可返回 **相同 JSON 结构**，前端 ProblemPanel 即可复用。
+
+## 第 40 轮后端实现
+
+- 已实现 `POST /api/microflows/{id}/validate`，响应为 `MicroflowApiResponse<ValidateMicroflowResponse>`。
+- 支持 `schema` inline 校验；未传 `schema` 时读取后端当前 `MicroflowSchemaSnapshot.SchemaJson`。
+- 后端 validator 基于 `MicroflowAuthoringSchema`，拒绝根级 `nodes` / `edges` / `workflowJson` / `flowgram`，不读取 FlowGram JSON。
+- 校验依赖第 39 轮 `IMicroflowMetadataService` 获取 `MicroflowMetadataCatalog`，不依赖前端 mock metadata。
+- P0 覆盖 root、objectCollection、flows、events、decisions、loop、P0 action、metadata references、variables、expressions、error handling、reachability。
+- `issue.id` 由 `code + objectId + flowId + actionId + parameterId + collectionId + fieldPath` 哈希生成，保持相对稳定。
+- 当前表达式与变量作用域是基础版：扫描 `$variable` / `$object/member`、必填表达式、未闭合字符串和未知变量/成员；完整表达式执行器和变量作用域图留 Runtime 前深化。
+- `edit/save/publish/testRun` mode 已生效：`edit` 对部分未完成配置降级 warning；`testRun` 对 unsupported/modeledOnly P0 执行阻断类问题按 error 返回。

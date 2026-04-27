@@ -8,7 +8,7 @@
 - `local`：local development/offline only；Resource 使用本地存储，Metadata 使用本地目录，Runtime 使用本地 mock runner，Validation 使用本地校验。
 - `http`：integration/production path；Resource/Metadata/Runtime/Validation 通过 HTTP API，不自动 fallback 到 mock。
 
-生产模式默认 `http`，开发模式默认 `local`。`http` 必须配置 `apiBaseUrl`；服务不可用时 UI 显示“微流服务未连接”或具体 API 错误。
+生产模式默认 `http`，开发模式默认 `local`。`app-web` 产品入口在第 43 轮 Resource / Schema 联调后默认显式传入 `mode=http` 与 `apiBaseUrl=/api`，避免资源库和编辑器静默落回 local。`http` 必须配置 `apiBaseUrl`；服务不可用时 UI 显示“微流服务未连接”或具体 API 错误。
 
 ## Runtime Policy
 
@@ -27,7 +27,7 @@
 - `VITE_MICROFLOW_ADAPTER_MODE` / `MICROFLOW_ADAPTER_MODE`：`mock`、`local`、`http`。
 - `VITE_MICROFLOW_API_BASE_URL` / `MICROFLOW_API_BASE_URL`：HTTP adapter base url。
 - `VITE_MICROFLOW_API_MOCK` / `MICROFLOW_API_MOCK`：`msw` 时仅在 dev/test 启动 Contract Mock worker，adapter 仍强制为 `http`。
-- `VITE_API_BASE`：未设置微流专用 base url 时的 app-web fallback。
+- `VITE_API_BASE`：未设置微流专用 base url 时的 app-web fallback；若也未设置，app-web 微流入口使用 `/api`。
 
 ## app-web 接入
 
@@ -64,7 +64,7 @@
 
 1. 后端启动并提供 `/api/microflows`、`/api/microflow-metadata`、validate、test-run、runs/trace 等契约接口。
 2. app-web 设置 `VITE_MICROFLOW_ADAPTER_MODE=http` 与 `VITE_MICROFLOW_API_BASE_URL`。
-3. 进入资源库微流 Tab，确认列表、详情、保存、发布、版本、引用、校验、测试运行均走 HTTP。
+3. 进入资源库微流 Tab，确认列表、创建、重命名、收藏、复制、归档、恢复、删除、详情加载与 Schema 保存均走 HTTP。
 4. 后端 mock API server 可使用同一契约返回 `MicroflowApiResponse<T>`，前端无需改代码，只切换 base url。
 
 第 39 轮起，Metadata HTTP 路径已可真实联调：`MetadataProvider` 通过 `GET /api/microflow-metadata` 加载后端 catalog，Entity / Enumeration / Microflow selector 可通过子资源 API 读取；服务不可用或返回 `MICROFLOW_METADATA_*` 错误时，selector 展示错误态，不 fallback 到前端 mock metadata。

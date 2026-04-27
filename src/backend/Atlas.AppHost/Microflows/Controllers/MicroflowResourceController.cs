@@ -15,7 +15,8 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
     private readonly IMicroflowPublishService _publishService;
     private readonly IMicroflowVersionService _versionService;
     private readonly IMicroflowValidationService _validationService;
-    private readonly IMicroflowRuntimeSkeletonService _runtimeService;
+    private readonly IMicroflowReferenceService _referenceService;
+    private readonly IMicroflowTestRunService _testRunService;
     private readonly IMicroflowStorageDiagnosticsService _storageDiagnosticsService;
 
     public MicroflowResourceController(
@@ -23,7 +24,8 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         IMicroflowPublishService publishService,
         IMicroflowVersionService versionService,
         IMicroflowValidationService validationService,
-        IMicroflowRuntimeSkeletonService runtimeService,
+        IMicroflowReferenceService referenceService,
+        IMicroflowTestRunService testRunService,
         IMicroflowStorageDiagnosticsService storageDiagnosticsService,
         IMicroflowRequestContextAccessor requestContextAccessor)
         : base(requestContextAccessor)
@@ -32,7 +34,8 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         _publishService = publishService;
         _versionService = versionService;
         _validationService = validationService;
-        _runtimeService = runtimeService;
+        _referenceService = referenceService;
+        _testRunService = testRunService;
         _storageDiagnosticsService = storageDiagnosticsService;
     }
 
@@ -53,12 +56,44 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         string id,
         [FromQuery] string? version,
         [FromQuery] bool includeBreakingChanges = true,
+        [FromQuery] bool includeReferences = true,
         CancellationToken cancellationToken = default)
     {
         var result = await _publishService.AnalyzeImpactAsync(
             id,
-            new AnalyzeMicroflowImpactRequestDto { Version = version, IncludeBreakingChanges = includeBreakingChanges },
+            new AnalyzeMicroflowImpactRequestDto { Version = version, IncludeBreakingChanges = includeBreakingChanges, IncludeReferences = includeReferences },
             cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/references")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<IReadOnlyList<MicroflowReferenceDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<IReadOnlyList<MicroflowReferenceDto>>>> GetReferences(
+        string id,
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] string[]? sourceType = null,
+        [FromQuery] string[]? impactLevel = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _referenceService.GetReferencesAsync(
+            id,
+            new GetMicroflowReferencesRequestDto
+            {
+                IncludeInactive = includeInactive,
+                SourceType = sourceType ?? Array.Empty<string>(),
+                ImpactLevel = impactLevel ?? Array.Empty<string>()
+            },
+            cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpPost("{id}/references/rebuild")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<IReadOnlyList<MicroflowReferenceDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<IReadOnlyList<MicroflowReferenceDto>>>> RebuildReferences(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _referenceService.RebuildReferencesAsync(id, cancellationToken);
         return MicroflowOk(result);
     }
 
@@ -312,14 +347,14 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
     }
 
     [HttpPost("{id}/test-run")]
-    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<MicroflowApiResponse<object>>> TestRun(
+    [ProducesResponseType(typeof(MicroflowApiResponse<TestRunMicroflowApiResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<TestRunMicroflowApiResponse>>> TestRun(
         string id,
-        [FromBody] TestRunMicroflowRequestDto request,
+        [FromBody] TestRunMicroflowApiRequest request,
         CancellationToken cancellationToken)
     {
-        await _runtimeService.TestRunAsync(id, request, cancellationToken);
-        return MicroflowOk<object>(new { id });
+        var result = await _testRunService.TestRunAsync(id, request, cancellationToken);
+        return MicroflowOk(result);
     }
 
     [HttpGet("runs/{runId}")]
@@ -329,29 +364,29 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         string runId,
         CancellationToken cancellationToken)
     {
-        var result = await _runtimeService.GetRunAsync(runId, cancellationToken);
+        var result = await _testRunService.GetRunSessionAsync(runId, cancellationToken);
         return MicroflowOk(result);
     }
 
     [HttpGet("runs/{runId}/trace")]
-    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowRunTraceResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<GetMicroflowRunTraceResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<MicroflowApiResponse<MicroflowRunTraceResponseDto>>> GetTrace(
+    public async Task<ActionResult<MicroflowApiResponse<GetMicroflowRunTraceResponse>>> GetTrace(
         string runId,
         CancellationToken cancellationToken)
     {
-        var result = await _runtimeService.GetTraceAsync(runId, cancellationToken);
+        var result = await _testRunService.GetRunTraceAsync(runId, cancellationToken);
         return MicroflowOk(result);
     }
 
     [HttpPost("runs/{runId}/cancel")]
-    [ProducesResponseType(typeof(MicroflowApiResponse<CancelMicroflowRunResponseDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<MicroflowApiResponse<CancelMicroflowRunResponseDto>>> Cancel(
+    [ProducesResponseType(typeof(MicroflowApiResponse<CancelMicroflowRunResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MicroflowApiResponse<CancelMicroflowRunResponse>>> Cancel(
         string runId,
         CancellationToken cancellationToken)
     {
-        var result = await _runtimeService.CancelAsync(runId, cancellationToken);
+        var result = await _testRunService.CancelAsync(runId, cancellationToken);
         return MicroflowOk(result);
     }
 }

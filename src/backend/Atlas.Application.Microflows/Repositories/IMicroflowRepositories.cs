@@ -15,6 +15,8 @@ public interface IMicroflowResourceRepository
 
     Task UpdateAsync(MicroflowResourceEntity entity, CancellationToken cancellationToken);
 
+    Task UpdateLastRunAsync(string id, string status, DateTimeOffset lastRunAt, CancellationToken cancellationToken);
+
     Task DeleteAsync(string id, CancellationToken cancellationToken);
 
     Task<bool> ExistsByNameAsync(string? workspaceId, string name, CancellationToken cancellationToken);
@@ -63,9 +65,33 @@ public interface IMicroflowReferenceRepository
 {
     Task<IReadOnlyList<MicroflowReferenceEntity>> ListByTargetMicroflowIdAsync(string targetMicroflowId, bool includeInactive, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<MicroflowReferenceEntity>> ListByTargetMicroflowIdAsync(
+        string targetMicroflowId,
+        MicroflowReferenceQuery query,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MicroflowReferenceEntity>> ListBySourceAsync(string sourceType, string sourceId, CancellationToken cancellationToken);
+
     Task UpsertReferencesAsync(string targetMicroflowId, IReadOnlyList<MicroflowReferenceEntity> references, CancellationToken cancellationToken);
 
+    Task UpsertReferencesForSourceAsync(string sourceType, string sourceId, IReadOnlyList<MicroflowReferenceEntity> references, CancellationToken cancellationToken);
+
+    Task InsertManyAsync(IReadOnlyList<MicroflowReferenceEntity> references, CancellationToken cancellationToken);
+
+    Task<int> CountByTargetMicroflowIdAsync(string targetMicroflowId, MicroflowReferenceQuery query, CancellationToken cancellationToken);
+
+    Task DeleteBySourceAsync(string sourceType, string sourceId, CancellationToken cancellationToken);
+
     Task DeleteByTargetMicroflowIdAsync(string targetMicroflowId, CancellationToken cancellationToken);
+}
+
+public sealed record MicroflowReferenceQuery
+{
+    public bool IncludeInactive { get; init; }
+
+    public IReadOnlyList<string> SourceType { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> ImpactLevel { get; init; } = Array.Empty<string>();
 }
 
 public interface IMicroflowRunRepository
@@ -76,13 +102,35 @@ public interface IMicroflowRunRepository
 
     Task<MicroflowRunSessionEntity?> GetSessionAsync(string runId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<MicroflowRunSessionEntity>> ListSessionsByResourceIdAsync(
+        string resourceId,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken);
+
+    Task InsertTraceFramesAsync(
+        string runId,
+        IReadOnlyList<MicroflowRunTraceFrameEntity> frames,
+        CancellationToken cancellationToken);
+
     Task InsertTraceFramesAsync(IReadOnlyList<MicroflowRunTraceFrameEntity> frames, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<MicroflowRunTraceFrameEntity>> ListTraceFramesAsync(string runId, CancellationToken cancellationToken);
 
+    Task InsertLogsAsync(
+        string runId,
+        IReadOnlyList<MicroflowRunLogEntity> logs,
+        CancellationToken cancellationToken);
+
     Task InsertLogsAsync(IReadOnlyList<MicroflowRunLogEntity> logs, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<MicroflowRunLogEntity>> ListLogsAsync(string runId, CancellationToken cancellationToken);
+
+    Task UpdateSessionStatusAsync(
+        string runId,
+        string status,
+        DateTimeOffset? endedAt,
+        CancellationToken cancellationToken);
 }
 
 public interface IMicroflowMetadataCacheRepository

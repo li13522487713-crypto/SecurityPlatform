@@ -51,6 +51,15 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
         return _db.Updateable(entity).Where(x => x.Id == entity.Id).ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task UpdateLastRunAsync(string id, string status, DateTimeOffset lastRunAt, CancellationToken cancellationToken)
+    {
+        return _db.Updateable<MicroflowResourceEntity>()
+            .SetColumns(x => x.LastRunStatus == status)
+            .SetColumns(x => x.LastRunAt == lastRunAt)
+            .Where(x => x.Id == id)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public Task DeleteAsync(string id, CancellationToken cancellationToken)
     {
         return _db.Deleteable<MicroflowResourceEntity>().Where(x => x.Id == id).ExecuteCommandAsync(cancellationToken);
@@ -140,10 +149,20 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
             q = q.Where(x => x.UpdatedAt <= query.UpdatedTo.Value);
         }
 
-        foreach (var tag in query.Tags.Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+        var tagTokens = query.Tags
+            .Where(static x => !string.IsNullOrWhiteSpace(x))
+            .Select(static x => $"\"{x.Trim()}\"")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (tagTokens.Length > 0)
         {
-            var token = $"\"{tag.Trim()}\"";
-            q = q.Where(x => x.TagsJson.Contains(token));
+            var expression = Expressionable.Create<MicroflowResourceEntity>();
+            foreach (var token in tagTokens)
+            {
+                expression.Or(x => x.TagsJson.Contains(token));
+            }
+
+            q = q.Where(expression.ToExpression());
         }
 
         q = q.Where(x => x.ExtraJson == null || !x.ExtraJson.Contains("\"deleted\":true"));
