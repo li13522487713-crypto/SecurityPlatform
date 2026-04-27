@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteObject, duplicateObject, moveObject, toEditorGraph, updateObject } from "./adapters";
+import { addFlow, applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteFlow, deleteObject, duplicateObject, moveObject, toEditorGraph, updateFlow, updateObject } from "./adapters";
 import {
   addMicroflowObjectFromDragPayload,
   canConnectPorts,
@@ -176,6 +176,100 @@ describe("microflow editor interactions", () => {
 
     expect(renamed.objectCollection.objects.find(object => object.id === end.id)?.caption).toBe("End_Validate");
     expect(toEditorGraph(renamed).nodes.find(node => node.objectId === end.id)?.title).toBe("End_Validate");
+  });
+
+  it("creates sequence flows with source, target, connection indexes, and unique ids", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "flow-start");
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 0 }, "flow-retrieve");
+    const base = schemaWith([start, retrieve]);
+    const graph = toEditorGraph(base);
+    const sourcePort = graph.nodes.find(node => node.objectId === start.id)?.ports.find(port => port.direction === "output");
+    const targetPort = graph.nodes.find(node => node.objectId === retrieve.id)?.ports.find(port => port.direction === "input");
+    if (!sourcePort || !targetPort) {
+      throw new Error("Expected source and target ports.");
+    }
+
+    const flow = createMicroflowFlowFromPorts(base, sourcePort, targetPort);
+    const next = addFlow(base, flow);
+
+    expect(next.flows).toHaveLength(1);
+    expect(next.flows[0]).toMatchObject({
+      originObjectId: start.id,
+      destinationObjectId: retrieve.id,
+      originConnectionIndex: sourcePort.connectionIndex,
+      destinationConnectionIndex: targetPort.connectionIndex,
+    });
+    expect(next.flows[0]?.id).toBeTruthy();
+    expect(next.flows[0]?.id).not.toBe(start.id);
+    expect(addFlow(next, flow).flows).toHaveLength(1);
+  });
+
+  it("persists decision true and false branches as caseValues and connection indexes", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "branch-decision");
+    const trueTarget = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "branch-true");
+    const falseTarget = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 80 }, "branch-false");
+    const base = schemaWith([decision, trueTarget, falseTarget]);
+    const graph = toEditorGraph(base);
+    const decisionNode = graph.nodes.find(node => node.objectId === decision.id);
+    const truePort = decisionNode?.ports.find(port => port.label.toLowerCase() === "true");
+    const falsePort = decisionNode?.ports.find(port => port.label.toLowerCase() === "false");
+    const trueTargetPort = graph.nodes.find(node => node.objectId === trueTarget.id)?.ports.find(port => port.direction === "input");
+    const falseTargetPort = graph.nodes.find(node => node.objectId === falseTarget.id)?.ports.find(port => port.direction === "input");
+    if (!truePort || !falsePort || !trueTargetPort || !falseTargetPort) {
+      throw new Error("Expected decision and target ports.");
+    }
+
+    const trueFlow = createMicroflowFlowFromPorts(base, truePort, trueTargetPort);
+    const withTrue = addFlow(base, trueFlow);
+    const falseFlow = createMicroflowFlowFromPorts(withTrue, falsePort, falseTargetPort);
+    const withBranches = addFlow(withTrue, falseFlow);
+    const flows = withBranches.flows as Extract<MicroflowSchema["flows"][number], { kind: "sequence" }>[];
+
+    expect(flows.find(flow => flow.id === trueFlow.id)?.caseValues[0]).toMatchObject({ kind: "boolean", value: true, persistedValue: "true" });
+    expect(flows.find(flow => flow.id === falseFlow.id)?.caseValues[0]).toMatchObject({ kind: "boolean", value: false, persistedValue: "false" });
+    expect(flows.find(flow => flow.id === trueFlow.id)?.originConnectionIndex).toBe(truePort.connectionIndex);
+    expect(flows.find(flow => flow.id === falseFlow.id)?.originConnectionIndex).toBe(falsePort.connectionIndex);
+    const flowGram = authoringToFlowGram(withBranches, [], []);
+    expect(flowGram.edges.find(edge => (edge as { id?: string }).id === trueFlow.id)?.sourcePortID).toBe(truePort.id);
+    expect(flowGram.edges.find(edge => (edge as { id?: string }).id === falseFlow.id)?.sourcePortID).toBe(falsePort.id);
+  });
+
+  it("deletes and updates flows through schema helpers", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "delete-flow-start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "delete-flow-end");
+    const flow = createSequenceFlow({ originObjectId: start.id, destinationObjectId: end.id });
+    const schema = {
+      ...schemaWith([start, end], [flow]),
+      editor: { ...sampleMicroflowSchema.editor, selection: { objectId: undefined, flowId: flow.id } }
+    };
+    const labelled = updateFlow(schema, flow.id, item => item.kind === "sequence"
+      ? { ...item, editor: { ...item.editor, label: "Ready" } }
+      : item);
+    const deleted = deleteFlow(labelled, flow.id);
+
+    expect(labelled.flows[0]?.editor.label).toBe("Ready");
+    expect(deleted.flows).toHaveLength(0);
+    expect(deleted.editor.selection.flowId).toBeUndefined();
+  });
+
+  it("keeps flow creation isolated between separate microflow schemas", () => {
+    const aStart = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "a-flow-start");
+    const aEnd = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "a-flow-end");
+    const bStart = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "b-flow-start");
+    const bEnd = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "b-flow-end");
+    const schemaA = schemaWith([aStart, aEnd]);
+    const schemaB = schemaWith([bStart, bEnd]);
+    const graphA = toEditorGraph(schemaA);
+    const sourceA = graphA.nodes.find(node => node.objectId === aStart.id)?.ports.find(port => port.direction === "output");
+    const targetA = graphA.nodes.find(node => node.objectId === aEnd.id)?.ports.find(port => port.direction === "input");
+    if (!sourceA || !targetA) {
+      throw new Error("Expected A ports.");
+    }
+    const updatedA = addFlow(schemaA, createMicroflowFlowFromPorts(schemaA, sourceA, targetA));
+
+    expect(updatedA.flows).toHaveLength(1);
+    expect(schemaB.flows).toHaveLength(0);
+    expect(schemaB.objectCollection.objects.map(object => object.id)).toEqual([bStart.id, bEnd.id]);
   });
 
   it("keeps move, delete, duplicate, and rename isolated between separate schemas", () => {

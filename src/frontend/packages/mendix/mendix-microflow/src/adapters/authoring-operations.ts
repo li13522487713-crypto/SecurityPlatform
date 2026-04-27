@@ -318,6 +318,17 @@ export function resizeObject(schema: MicroflowSchema, objectId: string, size: Mi
 }
 
 export function addFlow(schema: MicroflowSchema, flow: MicroflowFlow): MicroflowSchema {
+  const duplicate = collectFlowsRecursive(schema).some(item =>
+    item.originObjectId === flow.originObjectId &&
+    item.destinationObjectId === flow.destinationObjectId &&
+    (item.originConnectionIndex ?? 0) === (flow.originConnectionIndex ?? 0) &&
+    (item.destinationConnectionIndex ?? 0) === (flow.destinationConnectionIndex ?? 0) &&
+    item.kind === flow.kind &&
+    (item.kind === "annotation" || flow.kind === "annotation" || item.editor.edgeKind === flow.editor.edgeKind)
+  );
+  if (duplicate) {
+    return schema;
+  }
   const sourceLocation = findObjectWithCollection(schema, flow.originObjectId);
   const targetLocation = findObjectWithCollection(schema, flow.destinationObjectId);
   const collectionId = sourceLocation && targetLocation && sourceLocation.collectionId === targetLocation.collectionId
@@ -340,29 +351,26 @@ export function updateFlow(schema: MicroflowSchema, flowId: string, mapper: (flo
 
 export function deleteFlow(schema: MicroflowSchema, flowId: string): MicroflowSchema {
   const location = findFlowWithCollection(schema, flowId);
-  if (location && location.collectionId !== schema.objectCollection.id) {
-    return refreshDerivedState({
-      ...removeFlowFromCollection(schema, location.collectionId, flowId),
-      editor: {
-        ...schema.editor,
-        selection: {
-          ...schema.editor.selection,
-          flowId: schema.editor.selection.flowId === flowId ? undefined : schema.editor.selection.flowId
-        }
-      }
-    });
-  }
-  return refreshDerivedState({
-    ...schema,
-    flows: schema.flows.filter(flow => flow.id !== flowId),
+  const clearSelection = (target: MicroflowSchema): MicroflowSchema => ({
+    ...target,
     editor: {
-      ...schema.editor,
+      ...target.editor,
       selection: {
-        ...schema.editor.selection,
-        flowId: schema.editor.selection.flowId === flowId ? undefined : schema.editor.selection.flowId
-      }
+        ...target.editor.selection,
+        flowId: target.editor.selection.flowId === flowId ? undefined : target.editor.selection.flowId,
+        collectionId: target.editor.selection.flowId === flowId ? undefined : target.editor.selection.collectionId
+      },
+      selectedFlowId: target.editor.selectedFlowId === flowId ? undefined : target.editor.selectedFlowId,
+      selectedCollectionId: target.editor.selectedFlowId === flowId ? undefined : target.editor.selectedCollectionId
     }
   });
+  if (location && location.collectionId !== schema.objectCollection.id) {
+    return refreshDerivedState(clearSelection(removeFlowFromCollection(schema, location.collectionId, flowId)));
+  }
+  return refreshDerivedState(clearSelection({
+    ...schema,
+    flows: schema.flows.filter(flow => flow.id !== flowId)
+  }));
 }
 
 export function splitFlowWithObject(schema: MicroflowSchema, flowId: string, object: MicroflowObject): MicroflowSchema {
@@ -690,7 +698,7 @@ export function createSequenceFlow(input: {
   label?: string;
   description?: string;
 }): MicroflowSequenceFlow {
-  const id = `flow-${Date.now()}-${Math.round(Math.random() * 10000)}`;
+  const id = createStableId("flow");
   return {
     id,
     stableId: id,
@@ -717,7 +725,7 @@ export function createAnnotationFlow(input: {
   label?: string;
   description?: string;
 }): MicroflowAnnotationFlow {
-  const id = `flow-${Date.now()}-${Math.round(Math.random() * 10000)}`;
+  const id = createStableId("annotation-flow");
   return {
     id,
     stableId: id,

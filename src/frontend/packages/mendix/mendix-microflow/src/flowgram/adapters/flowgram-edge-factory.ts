@@ -14,7 +14,7 @@ export function defaultCaseValuesForPorts(sourcePort: MicroflowEditorPort, sourc
     return [noCaseValue()];
   }
   if (sourcePort.kind === "decisionOut") {
-    const value = sourcePort.label !== "false";
+    const value = sourcePort.label.toLowerCase() !== "false";
     return [booleanCaseValue(value)];
   }
   if (source?.kind === "inheritanceSplit") {
