@@ -60,6 +60,51 @@ function normalizeIssues(issues: MicroflowValidationIssue[]): MicroflowValidatio
   );
 }
 
+function cloneValidationInput<T>(value: T): T {
+  if (typeof globalThis.structuredClone === "function") {
+    return globalThis.structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function collectRawSchemaShapeIssues(input: unknown): MicroflowValidationIssue[] {
+  if (input == null || typeof input !== "object") {
+    return [issue(
+      "MF_ROOT_SCHEMA_INVALID",
+      "Microflow schema must be an object.",
+      { source: "schema", fieldPath: "schema" },
+      "error",
+    )];
+  }
+  const record = input as Partial<MicroflowAuthoringSchema>;
+  const issues: MicroflowValidationIssue[] = [];
+  if (!record.objectCollection || typeof record.objectCollection !== "object") {
+    issues.push(issue(
+      "MF_OBJECT_COLLECTION_MISSING",
+      "Microflow must have objectCollection.",
+      { source: "schema", fieldPath: "objectCollection" },
+      "error",
+    ));
+  }
+  if (!Array.isArray(record.flows)) {
+    issues.push(issue(
+      "MF_FLOWS_MISSING",
+      "Microflow must have flows array.",
+      { source: "schema", fieldPath: "flows" },
+      "error",
+    ));
+  }
+  if (!Array.isArray(record.parameters)) {
+    issues.push(issue(
+      "MF_PARAMETERS_MISSING",
+      "Microflow must have parameters array.",
+      { source: "parameter", fieldPath: "parameters" },
+      "error",
+    ));
+  }
+  return issues;
+}
+
 function applyMode(issues: MicroflowValidationIssue[], mode: MicroflowValidatorContext["mode"]): MicroflowValidationIssue[] {
   return issues.map(item => {
     if (mode === "edit") {
@@ -106,7 +151,7 @@ function runValidators(schema: MicroflowAuthoringSchema, context: MicroflowValid
       issues.push(issue(
         "MF_ROOT_SCHEMA_INVALID",
         "Validator failed while checking this microflow schema.",
-        { source: "root", details: error instanceof Error ? error.message : String(error) },
+        { source: "schema", details: error instanceof Error ? error.message : String(error) },
         "error",
       ));
     }
@@ -121,9 +166,9 @@ function isValidationInput(value: unknown): value is MicroflowValidationInput {
 function metadataCatalogMissingIssue(): MicroflowValidationIssue {
   return issue(
     "MF_METADATA_CATALOG_MISSING",
-    "元数据目录未加载。请通过 MicroflowMetadataProvider / Adapter 注入后再校验。",
-    { source: "root", fieldPath: "metadata" },
-    "error",
+    "元数据目录未加载。结构校验会继续运行，但实体、成员、枚举和引用 stale 检查只能在 metadata 可用后完成。",
+    { source: "domainModel", fieldPath: "metadata" },
+    "warning",
   );
 }
 
@@ -135,24 +180,33 @@ export function validateMicroflowSchema(input: MicroflowValidationInput): Microf
 export function validateMicroflowSchema(schema: MicroflowAuthoringSchema): MicroflowValidationIssue[];
 export function validateMicroflowSchema(input: MicroflowAuthoringSchema | MicroflowValidationInput | unknown): MicroflowValidationResult | MicroflowValidationIssue[] {
   if (isValidationInput(input)) {
+    const rawShapeIssues = collectRawSchemaShapeIssues(input.schema);
+    const schema = normalizeMicroflowSchema(cloneValidationInput(input.schema) as unknown);
     if (input.metadata == null) {
       const missing = metadataCatalogMissingIssue();
-      const schema = normalizeMicroflowSchema(input.schema as unknown);
       const variableIndex = input.variableIndex ?? buildVariableIndex(schema, EMPTY_MICROFLOW_METADATA_CATALOG);
+      const mode = input.options?.mode ?? "edit";
+      const context: MicroflowValidatorContext = { metadata: EMPTY_MICROFLOW_METADATA_CATALOG, variableIndex, mode };
+      const includeWarnings = input.options?.includeWarnings !== false;
+      const includeInfo = input.options?.includeInfo === true;
+      const issues = applyMode(normalizeIssues([...rawShapeIssues, missing, ...runValidators(schema, context)]), mode).filter(item =>
+        item.severity === "error" ||
+        (item.severity === "warning" && includeWarnings) ||
+        (item.severity === "info" && includeInfo),
+      );
       return {
-        issues: [missing],
+        issues,
         variableIndex,
-        summary: summarizeIssues([missing]),
+        summary: summarizeIssues(issues),
       };
     }
-    const schema = normalizeMicroflowSchema(input.schema as unknown);
     const metadata = input.metadata;
     const variableIndex = input.variableIndex ?? buildVariableIndex(schema, metadata);
     const mode = input.options?.mode ?? "edit";
     const context: MicroflowValidatorContext = { metadata, variableIndex, mode };
     const includeWarnings = input.options?.includeWarnings !== false;
     const includeInfo = input.options?.includeInfo === true;
-    const issues = applyMode(runValidators(schema, context), mode).filter(item =>
+    const issues = applyMode(normalizeIssues([...rawShapeIssues, ...runValidators(schema, context)]), mode).filter(item =>
       item.severity === "error" ||
       (item.severity === "warning" && includeWarnings) ||
       (item.severity === "info" && includeInfo),
@@ -163,7 +217,6 @@ export function validateMicroflowSchema(input: MicroflowAuthoringSchema | Microf
       summary: summarizeIssues(issues),
     };
   }
-  const legacySchema = normalizeMicroflowSchema(input as MicroflowAuthoringSchema);
   return [metadataCatalogMissingIssue()];
 }
 

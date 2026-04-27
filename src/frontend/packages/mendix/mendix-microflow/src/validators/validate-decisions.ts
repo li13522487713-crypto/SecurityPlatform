@@ -26,7 +26,7 @@ export function validateDecisions(schema: MicroflowSchema, context: MicroflowVal
     if (object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit") {
       const outgoing = flows.filter(flow => flow.kind === "sequence" && flow.originObjectId === object.id && !flow.isErrorHandler);
       if (outgoing.length < 2) {
-        issues.push(issue("MF_DECISION_BRANCH_MISSING", "Decision must have at least two outgoing SequenceFlows.", { objectId: object.id }));
+        issues.push(issue("MF_DECISION_BRANCH_MISSING", "Decision should have at least two outgoing SequenceFlows.", { objectId: object.id }, "warning"));
       }
       const keys = outgoing.flatMap(flow => flow.kind === "sequence" ? (flow.caseValues ?? []).map(caseKey) : []);
       if (new Set(keys).size !== keys.length) {
@@ -35,7 +35,7 @@ export function validateDecisions(schema: MicroflowSchema, context: MicroflowVal
       const seenCaseFlowIds = new Map<string, string>();
       for (const flow of outgoing) {
         if ((flow.caseValues ?? []).length === 0) {
-          issues.push(issue("MF_DECISION_CASE_MISSING", "Decision branch must define caseValues.", { flowId: flow.id, objectId: object.id, fieldPath: "caseValues" }));
+          issues.push(issue("MF_DECISION_CASE_MISSING", "Decision branch should define caseValues.", { flowId: flow.id, objectId: object.id, fieldPath: "caseValues" }, "warning"));
         }
         for (const caseValue of flow.caseValues ?? []) {
           const key = caseKey(caseValue);
@@ -56,8 +56,11 @@ export function validateDecisions(schema: MicroflowSchema, context: MicroflowVal
           }
         }
         const bools = new Set(outgoing.flatMap(flow => flow.kind === "sequence" ? (flow.caseValues ?? []) : []).filter((item): item is Extract<MicroflowCaseValue, { kind: "boolean" }> => item !== undefined && item.kind === "boolean").map(item => item.value));
-        if (!bools.has(true) || !bools.has(false)) {
-          issues.push(issue("MF_DECISION_BRANCH_MISSING", "Boolean ExclusiveSplit must have true and false cases.", { objectId: object.id }));
+        if (!bools.has(true)) {
+          issues.push(issue("MF_DECISION_BOOLEAN_TRUE_MISSING", "Boolean ExclusiveSplit should have a true case.", { objectId: object.id }, "warning"));
+        }
+        if (!bools.has(false)) {
+          issues.push(issue("MF_DECISION_BOOLEAN_FALSE_MISSING", "Boolean ExclusiveSplit should have a false case.", { objectId: object.id }, "warning"));
         }
       }
       if (object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression" && object.splitCondition.resultType === "enumeration") {
@@ -112,10 +115,10 @@ export function validateDecisions(schema: MicroflowSchema, context: MicroflowVal
       const incoming = flows.filter(flow => flow.kind === "sequence" && flow.destinationObjectId === object.id);
       const outgoing = flows.filter(flow => flow.kind === "sequence" && flow.originObjectId === object.id);
       if (incoming.length < 2) {
-        issues.push(issue("MF_DECISION_BRANCH_MISSING", "ExclusiveMerge must have at least two incoming SequenceFlows.", { objectId: object.id }));
+        issues.push(issue("MF_DECISION_BRANCH_MISSING", "ExclusiveMerge should have at least two incoming SequenceFlows.", { objectId: object.id }, "warning"));
       }
       if (outgoing.length < 1) {
-        issues.push(issue("MF_DECISION_BRANCH_MISSING", "ExclusiveMerge must have one outgoing SequenceFlow.", { objectId: object.id }));
+        issues.push(issue("MF_DECISION_BRANCH_MISSING", "ExclusiveMerge should have one outgoing SequenceFlow.", { objectId: object.id }, "warning"));
       }
     }
   }

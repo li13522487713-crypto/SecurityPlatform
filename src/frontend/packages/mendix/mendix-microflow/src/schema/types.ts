@@ -1851,7 +1851,26 @@ export interface MicroflowValidationIssue {
   collectionId?: string;
   fieldPath?: string;
   code: string;
-  source?: "root" | "objectCollection" | "flow" | "event" | "decision" | "loop" | "action" | "metadata" | "variable" | "expression" | "errorHandling" | "reachability";
+  source?:
+    | "schema"
+    | "node"
+    | "flow"
+    | "parameter"
+    | "variable"
+    | "callMicroflow"
+    | "domainModel"
+    | "loop"
+    | "server"
+    | "root"
+    | "objectCollection"
+    | "event"
+    | "decision"
+    | "action"
+    | "metadata"
+    | "expression"
+    | "errorHandling"
+    | "reachability";
+  quickFixAvailable?: boolean;
   quickFixes?: MicroflowQuickFix[];
   relatedObjectIds?: string[];
   relatedFlowIds?: string[];

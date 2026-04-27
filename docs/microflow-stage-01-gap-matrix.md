@@ -33,6 +33,12 @@
 | 22 | 不同 nodeType/actionKind 可渲染对应基础表单 | Stage 11 已完成：事件、参数、注释、Decision、Merge、Loop、ActionActivity、Flow 分发到基础表单；unknown action 只读 fallback 不崩溃 | 深度 metadata selector 留到后续 | **Stage 11** |
 | 23 | 空配置节点不崩溃 | Stage 11 已完成：Call Microflow target、Object/List entity、REST url、Decision expression、Parameter name 等空配置保留待配置状态并显示 warning | 完整 validate/quick fix 留到后续 | **Stage 11** |
 | 24 | 属性修改 dirty/save/reload 闭环 | Stage 11 已完成 schema-bound helper 与测试覆盖；运行时保存复用 Stage 06 save bridge | 浏览器 Network 手工验收需在运行环境确认 | **Stage 11** |
+| 25 | 保存校验 / Save Gate | Stage 20 已完成：Save 前先本地 validation，本地无 error 后接后端 validate，error 阻止 `PUT /api/microflows/{id}/schema`，warning 展示但允许保存 | 后端执行引擎不在本阶段 | **Stage 20** |
+| 26 | Problems 面板 | Stage 20 已完成：底部 Problems panel 展示 error/warning/info，支持 severity/source/keyword 筛选、source 分组、空状态与点击定位 | 字段级滚动高亮仍可后续增强 | **Stage 20** |
+| 27 | 端口规则 / 未连接节点提示 | Stage 20 已完成：悬挂连线、非法 source/target/port、重复连线、Start 无出边、不可达/死路节点均进入 validation issues | 复杂端口运行语义后续增强 | **Stage 20** |
+| 28 | 重复名称 / 空 target 提示 | Stage 20 已完成：重复参数、重复变量、参数/变量冲突、Change Variable/List/Object/Call Microflow 空 target 可见 | warning/error 策略按保存门禁执行 | **Stage 20** |
+| 29 | 无效 entity / 引用失效提示 | Stage 20 已完成：Domain Model entity/member/association/enumeration stale、Call Microflow stale/not found 进入统一 issue model | metadata 缺失时不 fallback mock | **Stage 20** |
+| 30 | 分支缺失 / 循环非法提示 | Stage 20 已完成：Decision missing true/false、duplicate true/false、Merge 入/出不足、Loop body/exit 缺失、Break/Continue outside loop/target stale 可见 | 不做完整循环调用图算法 | **Stage 20** |
 
 ---
 

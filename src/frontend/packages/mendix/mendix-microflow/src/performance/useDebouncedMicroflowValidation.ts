@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { validateMicroflowSchema } from "../schema/validator";
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
@@ -38,10 +38,10 @@ export interface UseDebouncedMicroflowValidationOptions {
 
 function createValidationServiceIssue(error: unknown, severity: MicroflowValidationIssue["severity"] = "warning"): MicroflowValidationIssue {
   return {
-    id: `MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE:${Date.now()}`,
+    id: `MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE:edit`,
     code: "MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE",
     severity,
-    source: "root",
+    source: "server",
     fieldPath: "validation",
     message: error instanceof Error ? `校验服务不可用：${error.message}` : "校验服务不可用，请检查后端服务或网络。",
   };
@@ -53,53 +53,63 @@ export function useDebouncedMicroflowValidation({
   trigger,
   delayMs = 400,
   initialIssues = schema.validation.issues ?? [],
-  validationAdapter,
   resourceId,
 }: UseDebouncedMicroflowValidationOptions) {
-  const [issues, setIssues] = useState<MicroflowValidationIssue[]>(initialIssues);
-  const [status, setStatus] = useState<MicroflowValidationStatus>("idle");
-  const [lastValidatedAt, setLastValidatedAt] = useState<Date>();
+  const activeMicroflowId = resourceId ?? schema.id;
+  const [issuesByMicroflowId, setIssuesByMicroflowId] = useState<Record<string, MicroflowValidationIssue[]>>({ [activeMicroflowId]: initialIssues });
+  const [statusByMicroflowId, setStatusByMicroflowId] = useState<Record<string, MicroflowValidationStatus>>({ [activeMicroflowId]: "idle" });
+  const [lastValidatedAtByMicroflowId, setLastValidatedAtByMicroflowId] = useState<Record<string, Date | undefined>>({});
   const latestSchemaRef = useRef(schema);
+  const requestIdsByMicroflowIdRef = useRef<Record<string, number>>({});
+  const issuesByMicroflowIdRef = useRef(issuesByMicroflowId);
   latestSchemaRef.current = schema;
+  issuesByMicroflowIdRef.current = issuesByMicroflowId;
+  const issues = useMemo(() => issuesByMicroflowId[activeMicroflowId] ?? [], [activeMicroflowId, issuesByMicroflowId]);
+  const status = statusByMicroflowId[activeMicroflowId] ?? "idle";
+  const lastValidatedAt = lastValidatedAtByMicroflowId[activeMicroflowId];
+
+  const setIssues = useCallback((nextIssues: MicroflowValidationIssue[]) => {
+    const targetId = resourceId ?? latestSchemaRef.current.id;
+    setIssuesByMicroflowId(current => ({ ...current, [targetId]: nextIssues }));
+  }, [resourceId]);
 
   const runNow = useCallback(async (targetSchema: MicroflowSchema = latestSchemaRef.current) => {
-    setStatus("validating");
+    const targetId = resourceId ?? targetSchema.id;
+    const requestId = (requestIdsByMicroflowIdRef.current[targetId] ?? 0) + 1;
+    requestIdsByMicroflowIdRef.current[targetId] = requestId;
+    setStatusByMicroflowId(current => ({ ...current, [targetId]: "validating" }));
     try {
-      const result = validationAdapter
-        ? await validationAdapter.validate({
-            resourceId: resourceId ?? targetSchema.id,
-            schema: targetSchema,
-            metadata,
-            mode: "edit",
-            includeWarnings: true,
-            includeInfo: true,
-          })
-        : validateMicroflowSchema({ schema: targetSchema, metadata });
+      const result = validateMicroflowSchema({ schema: targetSchema, metadata });
       const nextIssues = result.issues;
-      const validatedAt = "serverValidatedAt" in result && result.serverValidatedAt ? new Date(result.serverValidatedAt) : new Date();
-      setIssues(nextIssues);
-      setLastValidatedAt(validatedAt);
-      setStatus(nextIssues.some(issue => issue.severity === "error") ? "invalid" : "valid");
+      const validatedAt = new Date();
+      if (requestIdsByMicroflowIdRef.current[targetId] !== requestId || latestSchemaRef.current.id !== targetSchema.id) {
+        return issuesByMicroflowIdRef.current[targetId] ?? [];
+      }
+      setIssuesByMicroflowId(current => ({ ...current, [targetId]: nextIssues }));
+      setLastValidatedAtByMicroflowId(current => ({ ...current, [targetId]: validatedAt }));
+      setStatusByMicroflowId(current => ({ ...current, [targetId]: nextIssues.some(issue => issue.severity === "error") ? "invalid" : "valid" }));
       return nextIssues;
     } catch (error) {
       const failureIssue = createValidationServiceIssue(error, "warning");
-      setIssues([failureIssue]);
-      setLastValidatedAt(new Date());
-      setStatus("failed");
+      if (requestIdsByMicroflowIdRef.current[targetId] !== requestId || latestSchemaRef.current.id !== targetSchema.id) {
+        return issuesByMicroflowIdRef.current[targetId] ?? [];
+      }
+      setIssuesByMicroflowId(current => ({ ...current, [targetId]: [failureIssue] }));
+      setLastValidatedAtByMicroflowId(current => ({ ...current, [targetId]: new Date() }));
+      setStatusByMicroflowId(current => ({ ...current, [targetId]: "failed" }));
       return [failureIssue];
     }
-  }, [metadata, resourceId, validationAdapter]);
+  }, [metadata, resourceId]);
 
   useEffect(() => {
-    if (trigger === 0) {
-      return undefined;
-    }
-    setStatus("validating");
+    const targetId = resourceId ?? schema.id;
+    setIssuesByMicroflowId(current => current[targetId] ? current : { ...current, [targetId]: initialIssues });
+    setStatusByMicroflowId(current => ({ ...current, [targetId]: "validating" }));
     const timer = window.setTimeout(() => {
       void runNow(latestSchemaRef.current);
     }, delayMs);
     return () => window.clearTimeout(timer);
-  }, [delayMs, runNow, trigger]);
+  }, [activeMicroflowId, delayMs, metadata?.version, resourceId, runNow, schema.id, trigger]);
 
   return {
     issues,

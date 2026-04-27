@@ -61,7 +61,10 @@ function updateObjectAction<TKind extends MicroflowAction["kind"]>(
 
 export function buildObjectVariableIndex(schema: MicroflowAuthoringSchema): MicroflowVariableSymbol[] {
   const index = buildMicroflowVariableIndex(schema);
-  return [...Object.values(index.objectOutputs), ...Object.values(index.listOutputs).filter(symbol => symbol.dataType.itemType.kind === "object")];
+  return [
+    ...Object.values(index.objectOutputs),
+    ...Object.values(index.listOutputs).filter(symbol => symbol.dataType.kind === "list" && symbol.dataType.itemType.kind === "object"),
+  ];
 }
 
 export function getObjectVariables(schema: MicroflowAuthoringSchema, entityQualifiedName?: string): MicroflowVariableSymbol[] {

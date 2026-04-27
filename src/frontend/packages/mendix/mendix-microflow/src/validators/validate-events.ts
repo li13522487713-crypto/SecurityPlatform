@@ -17,7 +17,7 @@ export function validateEvents(schema: MicroflowSchema, _context: MicroflowValid
     issues.push(issue("MF_START_DUPLICATED", "Microflow must contain only one StartEvent."));
   }
   if (ends.length === 0) {
-    issues.push(issue("MF_END_MISSING", "Microflow must contain at least one EndEvent."));
+    issues.push(issue("MF_END_MISSING", "Microflow should contain at least one EndEvent.", {}, "warning"));
   }
   for (const item of flattened) {
     const incoming = flows.filter(flow => flow.destinationObjectId === item.object.id);
@@ -27,7 +27,7 @@ export function validateEvents(schema: MicroflowSchema, _context: MicroflowValid
         issues.push(issue("MF_START_HAS_INCOMING", "StartEvent cannot have incoming flows.", { objectId: item.object.id }));
       }
       if (!outgoing.some(flow => flow.kind === "sequence" && !flow.isErrorHandler)) {
-        issues.push(issue("MF_START_NO_OUTGOING", "StartEvent must have at least one non-error SequenceFlow outgoing.", { objectId: item.object.id }));
+        issues.push(issue("MF_START_NO_OUTGOING", "StartEvent should have at least one non-error SequenceFlow outgoing.", { objectId: item.object.id }, "warning"));
       }
       if (item.loopObjectId) {
         issues.push(issue("MF_START_IN_LOOP", "StartEvent cannot be placed inside Loop.", { objectId: item.object.id }));
@@ -41,13 +41,13 @@ export function validateEvents(schema: MicroflowSchema, _context: MicroflowValid
         issues.push(issue("MF_END_IN_LOOP", "EndEvent cannot be placed inside Loop.", { objectId: item.object.id }));
       }
       if (schema.returnType.kind === "void" && item.object.returnValue) {
-        issues.push(issue("MF_END_RETURN_TYPE_MISMATCH", "Void microflow EndEvent must not have returnValue.", { objectId: item.object.id, fieldPath: "returnValue" }));
+        issues.push(issue("MF_END_RETURN_TYPE_MISMATCH", "Void microflow EndEvent should not have returnValue.", { objectId: item.object.id, fieldPath: "returnValue" }, "warning"));
       }
       if (schema.returnType.kind !== "void" && !item.object.returnValue) {
-        issues.push(issue("MF_END_RETURN_TYPE_MISMATCH", "Non-void microflow EndEvent must have returnValue.", { objectId: item.object.id, fieldPath: "returnValue" }));
+        issues.push(issue("MF_END_RETURN_TYPE_MISMATCH", "Non-void microflow EndEvent should have returnValue.", { objectId: item.object.id, fieldPath: "returnValue" }, "warning"));
       }
       if (schema.returnType.kind !== "void" && item.object.returnValue?.inferredType && item.object.returnValue.inferredType.kind !== schema.returnType.kind) {
-        issues.push(issue("MF_END_RETURN_TYPE_MISMATCH", "EndEvent.returnValue inferredType must be compatible with microflow returnType.", { objectId: item.object.id, fieldPath: "returnValue.inferredType" }));
+        issues.push(issue("MF_END_RETURN_TYPE_MISMATCH", "EndEvent.returnValue inferredType should be compatible with microflow returnType.", { objectId: item.object.id, fieldPath: "returnValue.inferredType" }, "warning"));
       }
     }
     if (item.object.kind === "errorEvent") {

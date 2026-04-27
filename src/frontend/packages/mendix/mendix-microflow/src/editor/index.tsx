@@ -254,13 +254,53 @@ const defaultLabels: MicroflowEditorLabels = {
 
 function createValidationServiceIssue(error: unknown, mode: MicroflowValidationMode): MicroflowValidationIssue {
   return {
-    id: `MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE:${mode}:${Date.now()}`,
+    id: `MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE:${mode}`,
     code: "MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE",
     severity: mode === "edit" ? "warning" : "error",
-    source: "root",
+    source: "server",
     fieldPath: "validation",
     message: error instanceof Error ? `校验服务不可用：${error.message}` : "校验服务不可用，请检查后端服务或网络。",
   };
+}
+
+function summarizeValidationIssues(issues: MicroflowValidationIssue[]) {
+  return {
+    errorCount: issues.filter(issue => issue.severity === "error").length,
+    warningCount: issues.filter(issue => issue.severity === "warning").length,
+    infoCount: issues.filter(issue => issue.severity === "info").length,
+  };
+}
+
+function asServerValidationIssue(issue: MicroflowValidationIssue): MicroflowValidationIssue {
+  return {
+    ...issue,
+    id: issue.id.startsWith("server:") ? issue.id : `server:${issue.id}`,
+    source: "server",
+  };
+}
+
+function issueSourceLabel(source?: MicroflowValidationIssue["source"]): string {
+  const labels: Record<string, string> = {
+    schema: "Schema",
+    root: "Schema",
+    node: "Nodes",
+    objectCollection: "Nodes",
+    event: "Nodes",
+    flow: "Flows",
+    parameter: "Parameters",
+    variable: "Variables",
+    callMicroflow: "Call Microflow",
+    domainModel: "Domain Model",
+    metadata: "Domain Model",
+    loop: "Loop",
+    decision: "Decision",
+    action: "Actions",
+    expression: "Expressions",
+    errorHandling: "Error Handling",
+    reachability: "Reachability",
+    server: "Server",
+  };
+  return source ? labels[source] ?? source : "Schema";
 }
 
 function readFavoriteNodeKeys(): string[] {
@@ -989,6 +1029,14 @@ function ProblemPanel({
       return severityMatched && sourceMatched && keywordMatched;
     });
   }, [issues, keyword, severityFilter, sourceFilter]);
+  const groupedIssues = useMemo(() => {
+    const groups = new Map<string, MicroflowValidationIssue[]>();
+    for (const issue of filteredIssues) {
+      const key = issueSourceLabel(issue.source);
+      groups.set(key, [...(groups.get(key) ?? []), issue]);
+    }
+    return [...groups.entries()];
+  }, [filteredIssues]);
 
   return (
     <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
@@ -1027,35 +1075,47 @@ function ProblemPanel({
             style={{ width: 150 }}
             optionList={[
               { label: "All sources", value: "all" },
-              ...sources.map(source => ({ label: source, value: source })),
+              ...sources.map(source => ({ label: issueSourceLabel(source as MicroflowValidationIssue["source"]), value: source })),
             ]}
           />
         </Space>
       </Space>
       {status === "validating" && issues.length === 0 ? <Empty title="Validating" description="Schema validation is running in the background." /> : null}
-      {status !== "validating" && issues.length === 0 ? <Empty title="No problems" description="Schema validation passed." /> : null}
+      {status !== "validating" && issues.length === 0 ? <Empty title="No problems found" description="Schema validation passed." /> : null}
       {issues.length > 0 && filteredIssues.length === 0 ? <Empty title="No matching problems" description="Adjust filters to see validation issues." /> : null}
-      {filteredIssues.map(issue => (
-        <div key={issue.id} role="button" tabIndex={0} onClick={() => onSelect(issue)} onKeyDown={event => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onSelect(issue);
-          }
-        }}>
-          <Card shadows="hover" style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
-            <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
-              <div style={{ minWidth: 0 }}>
-                <Text strong>{issue.code}</Text>
-                <br />
-                <Text size="small" type="secondary">{issue.message}</Text>
-                <br />
-                <Text size="small" type="tertiary">
-                  {[issue.source, issue.objectId ?? issue.flowId ?? issue.actionId, issue.fieldPath].filter(Boolean).join(" · ")}
-                </Text>
+      {groupedIssues.map(([source, sourceIssues]) => (
+        <div key={source} style={{ width: "100%" }}>
+          <Text strong>{source}</Text>
+          <Space vertical align="start" spacing={8} style={{ width: "100%", marginTop: 8 }}>
+            {sourceIssues.map(issue => (
+              <div key={issue.id} role="button" tabIndex={0} style={{ width: "100%" }} onClick={() => onSelect(issue)} onKeyDown={event => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(issue);
+                }
+              }}>
+                <Card shadows="hover" style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+                  <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <Space spacing={6}>
+                        <Tag color={issue.severity === "error" ? "red" : issue.severity === "warning" ? "orange" : "blue"}>{issue.severity}</Tag>
+                        <Text strong>{issue.code}</Text>
+                      </Space>
+                      <br />
+                      <Text size="small" type="secondary">{issue.message}</Text>
+                      <br />
+                      <Text size="small" type="tertiary">
+                        {[issue.objectId ?? issue.flowId ?? issue.actionId ?? issue.parameterId, issue.fieldPath].filter(Boolean).join(" · ") || "Global"}
+                      </Text>
+                    </div>
+                    <Tag color={issue.flowId || issue.edgeId ? "purple" : issue.objectId || issue.nodeId ? "blue" : "grey"}>
+                      {issue.flowId || issue.edgeId ? "flow" : issue.objectId || issue.nodeId ? "node" : "global"}
+                    </Tag>
+                  </Space>
+                </Card>
               </div>
-              <Tag color={issue.severity === "error" ? "red" : issue.severity === "warning" ? "orange" : "blue"}>{issue.severity}</Tag>
-            </Space>
-          </Card>
+            ))}
+          </Space>
         </div>
       ))}
     </Space>
@@ -1338,22 +1398,32 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const validateForMode = useCallback(async (targetSchema: MicroflowSchema, mode: MicroflowValidationMode) => {
     try {
-      const result = props.validationAdapter
-        ? await props.validationAdapter.validate({
-            resourceId: targetSchema.id,
-            schema: targetSchema,
-            metadata: loadedMetadata,
-            mode,
-            includeWarnings: true,
-            includeInfo: true,
-          })
-        : validateMicroflowSchema({
-            schema: targetSchema,
-            metadata: loadedMetadata,
-            options: { mode, includeWarnings: true, includeInfo: true },
-          });
-      setIssues(result.issues);
-      return result;
+      const localResult = validateMicroflowSchema({
+        schema: targetSchema,
+        metadata: loadedMetadata,
+        options: { mode, includeWarnings: true, includeInfo: true },
+      });
+      setIssues(localResult.issues);
+      if (localResult.summary.errorCount > 0 || !props.validationAdapter) {
+        return localResult;
+      }
+      const serverResult = await props.validationAdapter.validate({
+        resourceId: targetSchema.id,
+        schema: targetSchema,
+        metadata: loadedMetadata,
+        mode,
+        includeWarnings: true,
+        includeInfo: true,
+      });
+      const serverIssues = serverResult.issues.map(asServerValidationIssue);
+      const issues = [...localResult.issues, ...serverIssues];
+      const summary = summarizeValidationIssues(issues);
+      setIssues(issues);
+      return {
+        ...serverResult,
+        issues,
+        summary,
+      };
     } catch (error) {
       const issue = createValidationServiceIssue(error, mode);
       setIssues([issue]);
@@ -1554,6 +1624,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast.error(`Save blocked by ${validation.summary.errorCount} validation error(s).`);
       return;
     }
+    if (validation.summary.warningCount > 0) {
+      setBottomOpen(true);
+      setBottomTab("problems");
+      Toast.warning(`Save allowed with ${validation.summary.warningCount} warning(s).`);
+    }
     setSaving(true);
     try {
       const response = await apiClient.saveMicroflow({ schema });
@@ -1562,6 +1637,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       historyManager.replaceCurrent(schema, "bulkUpdate");
       refreshHistoryState();
       setDirty(false);
+      void runValidationNow(schema);
       Toast.success(`Saved ${response.version}`);
     } catch (error) {
       applyApiValidationIssues(error, setIssues, () => {
@@ -1708,6 +1784,35 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         );
       }
     }
+  };
+
+  const viewportCenteredOn = (target?: { x: number; y: number }): MicroflowSchema["editor"]["viewport"] | undefined => {
+    if (!target) {
+      return undefined;
+    }
+    const zoom = Math.max(0.6, schema.editor.viewport?.zoom ?? 1);
+    return {
+      x: Math.round(360 - target.x * zoom),
+      y: Math.round(260 - target.y * zoom),
+      zoom,
+    };
+  };
+
+  const viewportForProblemIssue = (issue: MicroflowValidationIssue): MicroflowSchema["editor"]["viewport"] | undefined => {
+    const flowId = issue.flowId ?? issue.edgeId;
+    if (flowId) {
+      const edge = graph.edges.find(item => item.flowId === flowId);
+      const source = edge ? graph.nodes.find(item => item.objectId === edge.sourceObjectId) : undefined;
+      const target = edge ? graph.nodes.find(item => item.objectId === edge.targetObjectId) : undefined;
+      if (source && target) {
+        return viewportCenteredOn({
+          x: (source.position.x + target.position.x) / 2,
+          y: (source.position.y + target.position.y) / 2,
+        });
+      }
+    }
+    const objectId = issue.objectId ?? issue.nodeId;
+    return viewportCenteredOn(graph.nodes.find(item => item.objectId === objectId)?.position);
   };
 
   const handleUndo = () => {
@@ -2136,7 +2241,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                         : issue.collectionId;
                     setRightOpen(true);
                     applyPatch(
-                      { selectedObjectId, selectedFlowId, selectedCollectionId },
+                      { selectedObjectId, selectedFlowId, selectedCollectionId, viewport: viewportForProblemIssue(issue) },
                       { pushHistory: false, skipDirty: true, skipValidate: true },
                     );
                   }}

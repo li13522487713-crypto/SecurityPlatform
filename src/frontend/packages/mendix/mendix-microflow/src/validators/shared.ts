@@ -1,17 +1,20 @@
 import type { MicroflowObject, MicroflowObjectCollection, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 
 function sourceFromCode(code: string): NonNullable<MicroflowValidationIssue["source"]> {
-  if (code.startsWith("MF_ROOT") || code.startsWith("MF_PARAMETER")) {
-    return "root";
+  if (code.startsWith("MF_ROOT") || code === "MF_OBJECT_COLLECTION_MISSING" || code === "MF_FLOWS_MISSING" || code.startsWith("MF_SELECTION")) {
+    return "schema";
+  }
+  if (code.startsWith("MF_PARAMETER")) {
+    return "parameter";
   }
   if (code.startsWith("MF_OBJECT_")) {
-    return "objectCollection";
+    return "node";
   }
   if (code.startsWith("MF_FLOW") || code.startsWith("MF_SEQUENCE") || code.startsWith("MF_ANNOTATION_FLOW")) {
     return "flow";
   }
   if (code.startsWith("MF_START") || code.startsWith("MF_END") || code.startsWith("MF_ERROR_EVENT") || code.startsWith("MF_BREAK") || code.startsWith("MF_CONTINUE")) {
-    return "event";
+    return "node";
   }
   if (code.startsWith("MF_DECISION") || code.startsWith("MF_OBJECT_TYPE")) {
     return "decision";
@@ -19,11 +22,17 @@ function sourceFromCode(code: string): NonNullable<MicroflowValidationIssue["sou
   if (code.startsWith("MF_LOOP")) {
     return "loop";
   }
+  if (code.startsWith("MF_CALL_MICROFLOW") || code.startsWith("MF_METADATA_MICROFLOW")) {
+    return "callMicroflow";
+  }
   if (code.startsWith("MF_METADATA")) {
-    return "metadata";
+    return "domainModel";
   }
   if (code.startsWith("MF_VARIABLE") || code.startsWith("MF_CURRENT") || code.startsWith("MF_LATEST")) {
     return "variable";
+  }
+  if (code.startsWith("MF_CREATE_OBJECT") || code.startsWith("MF_CHANGE_OBJECT") || code.startsWith("MF_COMMIT") || code.startsWith("MF_DELETE") || code.startsWith("MF_ROLLBACK")) {
+    return "domainModel";
   }
   if (code.startsWith("MF_EXPR") || code.startsWith("MF_EXPRESSION")) {
     return "expression";

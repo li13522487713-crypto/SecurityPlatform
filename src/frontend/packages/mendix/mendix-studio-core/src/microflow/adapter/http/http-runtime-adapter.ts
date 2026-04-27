@@ -109,9 +109,14 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
         includeWarnings: true,
         includeInfo: true,
       });
+      const issues = response.issues.map(issue => ({
+        ...issue,
+        id: issue.id.startsWith("server:") ? issue.id : `server:${issue.id}`,
+        source: "server" as const,
+      }));
       return {
-        valid: response.summary ? response.summary.errorCount === 0 : response.issues.every(issue => issue.severity !== "error"),
-        issues: response.issues,
+        valid: response.summary ? response.summary.errorCount === 0 : issues.every(issue => issue.severity !== "error"),
+        issues,
       };
     },
     async testRunMicroflow(request): Promise<TestRunMicroflowResponse> {

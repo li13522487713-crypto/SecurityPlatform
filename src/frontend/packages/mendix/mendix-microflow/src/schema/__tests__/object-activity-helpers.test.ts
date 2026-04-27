@@ -16,12 +16,16 @@ import {
   upsertObjectMemberChange,
 } from "../../variables";
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../../metadata";
-import { expression } from "../../property-panel/panel-shared";
 import {
   sampleMicroflowSchema,
+  type MicroflowExpression,
   type MicroflowObject,
   type MicroflowSchema,
 } from "../index";
+
+function expression(raw: string): MicroflowExpression {
+  return { raw, text: raw, language: "mendix" };
+}
 
 function registry(key: string) {
   const item = defaultMicroflowNodeRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key || entry.type === key);
@@ -86,7 +90,7 @@ describe("microflow object activity foundation", () => {
   });
 
   it("infers Retrieve Object output type from range", () => {
-    const retrieve = actionObject("activity:retrieve", "retrieve-object");
+    const retrieve = actionObject("activity:objectRetrieve", "retrieve-object");
     const source = {
       kind: "database" as const,
       officialType: "Microflows$DatabaseRetrieveSource" as const,
@@ -112,7 +116,7 @@ describe("microflow object activity foundation", () => {
 
   it("Commit and Delete selectors can be backed by only Object or List<Object> variables", () => {
     const createObject = actionObject("activity:objectCreate", "create-object");
-    const retrieve = actionObject("activity:retrieve", "retrieve-object");
+    const retrieve = actionObject("activity:objectRetrieve", "retrieve-object");
     const commit = actionObject("activity:objectCommit", "commit-object");
     const del = actionObject("activity:objectDelete", "delete-object");
     const retrieveSource = {
@@ -170,7 +174,7 @@ describe("microflow object activity foundation", () => {
 
   it("removes and duplicates Create/Retrieve Object output variables with isolated names", () => {
     const createObject = actionObject("activity:objectCreate", "create-object");
-    const retrieve = actionObject("activity:retrieve", "retrieve-object");
+    const retrieve = actionObject("activity:objectRetrieve", "retrieve-object");
     const retrieveSource = {
       kind: "database" as const,
       officialType: "Microflows$DatabaseRetrieveSource" as const,
@@ -202,7 +206,7 @@ describe("microflow object activity foundation", () => {
   it("does not introduce Sales demo defaults in new object activity nodes", () => {
     const serialized = JSON.stringify([
       actionObject("activity:objectCreate", "create-object"),
-      actionObject("activity:retrieve", "retrieve-object"),
+      actionObject("activity:objectRetrieve", "retrieve-object"),
       actionObject("activity:objectChange", "change-object"),
       actionObject("activity:objectCommit", "commit-object"),
       actionObject("activity:objectDelete", "delete-object"),

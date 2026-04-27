@@ -19,7 +19,34 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
   const objects = objectMap(schema);
   const locations = objectLocationMap(schema);
   const outgoingCaseKeys = new Map<string, Map<string, string>>();
-  for (const flow of collectFlowsRecursive(schema)) {
+  const allFlows = collectFlowsRecursive(schema);
+  const flowIds = new Set<string>();
+  const exactFlowKeys = new Map<string, string>();
+  for (const flow of allFlows) {
+    if (flowIds.has(flow.id)) {
+      issues.push(issue("MF_FLOW_ID_DUPLICATED", `Flow "${flow.id}" is duplicated.`, { flowId: flow.id }));
+    }
+    flowIds.add(flow.id);
+    const exactKey = [
+      flow.kind,
+      flow.originObjectId,
+      flow.destinationObjectId,
+      flow.originConnectionIndex,
+      flow.destinationConnectionIndex,
+      flow.kind === "sequence" ? flow.editor.edgeKind : "annotation",
+      flow.kind === "sequence" ? flow.caseValues.map(caseValueKey).join("|") : "",
+    ].join(":");
+    const duplicatedFlowId = exactFlowKeys.get(exactKey);
+    if (duplicatedFlowId) {
+      issues.push(issue("MF_FLOW_DUPLICATED", "Flow duplicates another flow with the same source, target, ports and case values.", {
+        flowId: flow.id,
+        relatedFlowIds: [duplicatedFlowId],
+      }, "warning"));
+    } else {
+      exactFlowKeys.set(exactKey, flow.id);
+    }
+  }
+  for (const flow of allFlows) {
     const flowCollectionId = findFlowWithCollection(schema, flow.id)?.collectionId;
     const source = objects.get(flow.originObjectId);
     const target = objects.get(flow.destinationObjectId);
@@ -27,9 +54,11 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
     const targetLocation = target ? locations.get(target.id) : undefined;
     if (!source) {
       issues.push(issue("MF_FLOW_ORIGIN_MISSING", "Flow originObjectId must reference an object.", { flowId: flow.id, fieldPath: "originObjectId", collectionId: flowCollectionId }));
+      issues.push(issue("MF_FLOW_INVALID_SOURCE", "Flow source node does not exist.", { flowId: flow.id, fieldPath: "originObjectId", collectionId: flowCollectionId }));
     }
     if (!target) {
       issues.push(issue("MF_FLOW_DESTINATION_MISSING", "Flow destinationObjectId must reference an object.", { flowId: flow.id, fieldPath: "destinationObjectId", collectionId: flowCollectionId }));
+      issues.push(issue("MF_FLOW_INVALID_TARGET", "Flow target node does not exist.", { flowId: flow.id, fieldPath: "destinationObjectId", collectionId: flowCollectionId }));
     }
     if (flow.kind === "annotation") {
       if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId) {
@@ -101,7 +130,7 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
     }
     if (source?.kind === "exclusiveSplit" && flow.editor.edgeKind === "decisionCondition") {
       if (flow.caseValues.length === 0) {
-        issues.push(issue("MF_DECISION_CASE_MISSING", "Decision condition flow must define a case value.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
+        issues.push(issue("MF_DECISION_CASE_MISSING", "Decision condition flow should define a case value.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }, "warning"));
       }
       for (const caseValue of flow.caseValues) {
         if (caseValue.kind === "noCase") {
@@ -109,7 +138,7 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
             flowId: flow.id,
             objectId: source.id,
             fieldPath: "caseValues",
-          }, context.mode === "edit" ? "warning" : "error"));
+          }, "warning"));
         }
         const key = caseValueKey(caseValue);
         const perSource = outgoingCaseKeys.get(source.id) ?? new Map<string, string>();
@@ -150,7 +179,7 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
         issues.push(issue("MF_OBJECT_TYPE_GENERALIZATION_MISSING", "InheritanceSplit must define generalizedEntityQualifiedName.", { objectId: source.id, fieldPath: "entity.generalizedEntityQualifiedName" }));
       }
       if (flow.caseValues.length === 0) {
-        issues.push(issue("MF_OBJECT_TYPE_CASE_MISSING", "Object type condition flow must define a case value.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
+        issues.push(issue("MF_OBJECT_TYPE_CASE_MISSING", "Object type condition flow should define a case value.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }, "warning"));
       }
       for (const caseValue of flow.caseValues) {
         if (caseValue.kind === "noCase") {
@@ -158,7 +187,7 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
             flowId: flow.id,
             objectId: source.id,
             fieldPath: "caseValues",
-          }, context.mode === "edit" ? "warning" : "error"));
+          }, "warning"));
         }
         const key = caseValueKey(caseValue);
         const perSource = outgoingCaseKeys.get(source.id) ?? new Map<string, string>();

@@ -89,7 +89,7 @@ export function validateActions(schema: MicroflowSchema, context: MicroflowValid
         issues.push(issue("MF_CHANGE_OBJECT_TARGET_MISSING", "ChangeMembersAction.changeVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.changeVariableName" }));
       }
       if (action.memberChanges.length === 0) {
-        issues.push(issue("MF_CHANGE_OBJECT_NO_MEMBERS", "ChangeMembersAction.memberChanges must include at least one member change.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }));
+        issues.push(issue("MF_CHANGE_OBJECT_NO_MEMBERS", "ChangeMembersAction.memberChanges should include at least one member change.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }, "warning"));
       }
       action.memberChanges.forEach((change, index) => {
         if (!change.memberQualifiedName.trim()) {
@@ -101,6 +101,9 @@ export function validateActions(schema: MicroflowSchema, context: MicroflowValid
       });
     }
     if (action.kind === "createObject") {
+      if (action.memberChanges.length === 0) {
+        issues.push(issue("MF_CREATE_OBJECT_NO_MEMBERS", "CreateObjectAction.memberChanges is empty.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }, "warning"));
+      }
       action.memberChanges.forEach((change, index) => {
         if (!change.memberQualifiedName.trim()) {
           issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Member change requires memberQualifiedName.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.memberQualifiedName` }));
@@ -124,20 +127,26 @@ export function validateActions(schema: MicroflowSchema, context: MicroflowValid
     if (action.kind === "callMicroflow") {
       const target = getMicroflowById(context.metadata, action.targetMicroflowId);
       if (!action.targetMicroflowId.trim()) {
-        issues.push(issue("MF_CALL_MICROFLOW_TARGET_MISSING", "MicroflowCallAction.targetMicroflowId is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId" }));
+        issues.push(issue("MF_CALL_MICROFLOW_TARGET_MISSING", "MicroflowCallAction.targetMicroflowId is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId", source: "callMicroflow" }));
+      }
+      if (action.targetMicroflowId && action.targetMicroflowId === schema.id) {
+        issues.push(issue("MF_CALL_MICROFLOW_SELF_REFERENCE", "MicroflowCallAction cannot target the current microflow.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId", source: "callMicroflow" }));
+      }
+      if (target && action.targetMicroflowQualifiedName && target.qualifiedName && action.targetMicroflowQualifiedName !== target.qualifiedName) {
+        issues.push(issue("MF_CALL_MICROFLOW_QUALIFIED_NAME_STALE", "MicroflowCallAction target qualified name is stale; targetMicroflowId still resolves to a different current name.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowQualifiedName", source: "callMicroflow" }, "warning"));
       }
       for (const parameter of target?.parameters ?? []) {
         if (parameter.required && !action.parameterMappings.some(mapping => mapping.parameterName === parameter.name)) {
-          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", `Required parameter "${parameter.name}" is not mapped.`, { objectId: object.id, actionId: action.id, fieldPath: "action.parameterMappings" }));
+          issues.push(issue("MF_CALL_MICROFLOW_PARAMETER_REQUIRED", `Required parameter "${parameter.name}" is not mapped.`, { objectId: object.id, actionId: action.id, fieldPath: "action.parameterMappings", source: "callMicroflow" }));
         }
       }
       action.parameterMappings.forEach((mapping, index) => {
         if (!expressionText(mapping.argumentExpression)) {
-          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", `MicroflowCallAction parameter "${mapping.parameterName}" requires an argument expression.`, { objectId: object.id, actionId: action.id, fieldPath: `action.parameterMappings.${index}.argumentExpression` }));
+          issues.push(issue("MF_CALL_MICROFLOW_MAPPING_EXPRESSION_MISSING", `MicroflowCallAction parameter "${mapping.parameterName}" requires an argument expression.`, { objectId: object.id, actionId: action.id, fieldPath: `action.parameterMappings.${index}.argumentExpression`, source: "callMicroflow" }));
         }
       });
       if (action.returnValue.storeResult && !action.returnValue.outputVariableName?.trim()) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "MicroflowCallAction.returnValue.outputVariableName is required when storeResult=true.", { objectId: object.id, actionId: action.id, fieldPath: "action.returnValue.outputVariableName" }));
+        issues.push(issue("MF_CALL_MICROFLOW_RETURN_TARGET_MISSING", "MicroflowCallAction.returnValue.outputVariableName is required when storeResult=true.", { objectId: object.id, actionId: action.id, fieldPath: "action.returnValue.outputVariableName", source: "callMicroflow" }));
       }
       if (action.returnValue.storeResult && target?.returnType.kind === "void") {
         issues.push(issue("MF_ACTION_RETURN_VOID_STORE_RESULT", "Void microflow return cannot be stored.", { objectId: object.id, actionId: action.id, fieldPath: "action.returnValue.outputVariableName" }));
@@ -158,6 +167,7 @@ export function validateActions(schema: MicroflowSchema, context: MicroflowValid
       required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ChangeListAction.targetListVariableName is required.", object.id, action.id, "action.targetListVariableName", Boolean(textField(action, "targetListVariableName")));
     }
     if (action.kind === "listOperation") {
+      required(issues, "MF_LIST_OPERATION_SOURCE_MISSING", "ListOperationAction source list is required.", object.id, action.id, "action.leftListVariableName", Boolean(textField(action, "leftListVariableName") || textField(action, "sourceListVariableName")));
       required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ListOperationAction.operation is required.", object.id, action.id, "action.operation", Boolean(textField(action, "operation")));
       required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ListOperationAction.outputVariableName is required.", object.id, action.id, "action.outputVariableName", Boolean(textField(action, "outputVariableName")));
     }
