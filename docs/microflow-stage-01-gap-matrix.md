@@ -88,6 +88,18 @@
 
 ---
 
+## P2 Gap（运行入口 / 运行契约）
+
+| # | 能力项 | Gap |
+|---|---|---|
+| 45 | 运行输入面板 | Stage 21 已完成：编辑器 toolbar Run 打开真实 Run input panel，读取当前 active microflow 的 `schema.parameters`，无 schema-level parameters 时仅 fallback Parameter nodes 并显示 warning |
+| 46 | 运行 API 契约 | Stage 21 已完成：Workbench 嵌入编辑器传入 HTTP `runtimeAdapter`，Run 调用真实 `POST /api/microflows/{activeMicroflowId}/test-run`；当前后端无独立 `/run`，本轮不新增重复 endpoint |
+| 47 | 参数输入 DTO | Stage 21 已完成：请求以 `{ schema, input, options }` 对齐后端 `TestRunMicroflowApiRequest`，前端 request 同时保留 `microflowId` 用于 active path，`input` key 使用参数名且 value 先完成类型转换 |
+| 48 | 运行结果面板基础展示 | Stage 21 已完成：Run 面板和底部 Debug 面板展示真实后端 session、runId、status、duration、output、error、logs 与 trace frame output 摘要，不伪造 success |
+| 49 | validation gate 阻止运行 | Stage 21 已完成：工具栏 Run 和面板 Run 都复用 Stage 20 `testRun` validation；本地/服务端 error、required 缺失、类型转换错误均阻止调用 run API；dirty schema 采用 Save & Run 策略 |
+
+---
+
 ## 注记（Stage 02 修正版）
 
 ### 注 A：Local Adapter 持久化边界

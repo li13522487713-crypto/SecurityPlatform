@@ -5,3 +5,4 @@ export * from "./trace-highlighting";
 export * from "./mock-execution-plan-runner";
 export * from "./mock-test-runner";
 export * from "./MicroflowTestRunModal";
+export * from "./run-input-model";

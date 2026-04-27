@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Input, InputNumber, Modal, Select, Space, Switch, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Card, Input, Modal, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
 
-import type { MicroflowDataType, MicroflowParameter, MicroflowSchema } from "../schema";
-import type { MicroflowTestRunInput, MicroflowTestRunOptions } from "./trace-types";
+import type { MicroflowDataType, MicroflowSchema } from "../schema";
+import { buildDefaultRunInputValues, buildRunInputModel, validateRunInputs, type MicroflowRunInputField } from "./run-input-model";
+import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTestRunOptions } from "./trace-types";
 
 const { Text } = Typography;
 
@@ -10,57 +11,86 @@ export interface MicroflowTestRunModalProps {
   visible: boolean;
   schema: MicroflowSchema;
   running?: boolean;
+  dirty?: boolean;
+  validationErrorCount?: number;
+  values?: Record<string, unknown>;
+  lastSession?: MicroflowRunSession;
+  serviceError?: string;
   onCancel: () => void;
+  onValuesChange?: (values: Record<string, unknown>) => void;
   onRun: (input: MicroflowTestRunInput) => void;
 }
 
 export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
-  const defaults = useMemo(() => buildDefaultParameters(props.schema.parameters), [props.schema.parameters]);
-  const [parameters, setParameters] = useState<Record<string, unknown>>(defaults);
+  const model = useMemo(() => buildRunInputModel(props.schema), [props.schema]);
+  const defaults = useMemo(() => buildDefaultRunInputValues(model), [model]);
+  const parameters = props.values ?? defaults;
   const [options, setOptions] = useState<MicroflowTestRunOptions>({ decisionBooleanResult: true, loopIterations: 2 });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (props.visible) {
-      setParameters(defaults);
       setOptions({ decisionBooleanResult: true, loopIterations: 2 });
       setErrors({});
     }
-  }, [defaults, props.visible]);
+  }, [props.visible]);
+
+  useEffect(() => {
+    if (props.visible && props.values === undefined) {
+      props.onValuesChange?.(defaults);
+    }
+  }, [defaults, props.onValuesChange, props.values, props.visible]);
 
   const run = () => {
-    const nextErrors = validateParameters(props.schema.parameters, parameters);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) {
+    const validation = validateRunInputs(model, parameters);
+    setErrors(validation.errors);
+    if (!validation.valid) {
       return;
     }
-    props.onRun({ parameters, options });
+    props.onRun({ parameters: validation.values, options });
+  };
+
+  const updateParameter = (name: string, value: unknown) => {
+    props.onValuesChange?.({ ...parameters, [name]: value });
   };
 
   return (
     <Modal
-      title="测试运行输入"
+      title="Run Microflow"
       visible={props.visible}
       onCancel={props.onCancel}
       footer={null}
-      width={720}
+      width={860}
       maskClosable={!props.running}
     >
       <Space vertical align="start" spacing={14} style={{ width: "100%" }}>
-        <Text type="secondary">参数将提交给当前运行适配器；HTTP 模式会通过后端 Mock Runtime 生成持久化 RunSession 与 Trace。</Text>
-        {props.schema.parameters.length === 0 ? <Text type="tertiary">当前微流没有输入参数。</Text> : null}
-        {props.schema.parameters.map(parameter => (
+        <Space wrap>
+          <Tag color="blue">{props.schema.displayName || props.schema.name}</Tag>
+          <Tag>{model.microflowId}</Tag>
+          <Tag>{model.schemaVersion}</Tag>
+          {props.dirty ? <Tag color="orange">dirty - Save & Run</Tag> : <Tag color="green">saved draft</Tag>}
+          {props.validationErrorCount ? <Tag color="red">{props.validationErrorCount} validation errors</Tag> : <Tag color="green">validation gate ready</Tag>}
+        </Space>
+        <Text type="secondary">Run 会先执行 Stage 20 validation；无 error 后调用真实后端 POST /api/microflows/{model.microflowId}/test-run，并提交当前 schema draft 与输入参数。</Text>
+        {model.warnings.map(warning => <Text key={warning} type="warning" size="small">{warning}</Text>)}
+        {model.fields.length === 0 ? <Text type="tertiary">当前微流没有输入参数。</Text> : null}
+        {model.fields.map(field => (
           <ParameterField
-            key={parameter.id}
-            parameter={parameter}
-            value={parameters[parameter.name]}
-            error={errors[parameter.name]}
-            onChange={value => setParameters(current => ({ ...current, [parameter.name]: value }))}
+            key={field.parameter.id}
+            field={field}
+            value={parameters[field.parameter.name]}
+            error={errors[field.parameter.name]}
+            onChange={value => updateParameter(field.parameter.name, value)}
           />
         ))}
         <div style={{ width: "100%", borderTop: "1px solid var(--semi-color-border)", paddingTop: 12 }}>
-          <Text strong>Mock Options</Text>
+          <Text strong>Runtime options</Text>
           <Space vertical align="start" spacing={10} style={{ width: "100%", marginTop: 10 }}>
+            <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <Switch checked={Boolean(options.allowRealHttp)} onChange={allowRealHttp => setOptions(current => ({ ...current, allowRealHttp }))} />
+              <Text>allowRealHttp</Text>
+              <Text size="small" type="tertiary">默认关闭，后端策略不允许时会真实返回错误。</Text>
+            </label>
             <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <Switch checked={Boolean(options.simulateRestError)} onChange={simulateRestError => setOptions(current => ({ ...current, simulateRestError }))} />
               <Text>simulateRestError</Text>
@@ -84,17 +114,18 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
             </label>
             <label style={{ display: "grid", gap: 6, width: 220 }}>
               <Text size="small" strong>loopIterations</Text>
-              <InputNumber min={0} max={50} value={options.loopIterations ?? 2} onChange={value => setOptions(current => ({ ...current, loopIterations: typeof value === "number" ? value : 2 }))} />
+              <Input value={String(options.loopIterations ?? 2)} onChange={value => setOptions(current => ({ ...current, loopIterations: Number.isFinite(Number(value)) ? Number(value) : 2 }))} />
             </label>
             <label style={{ display: "grid", gap: 6, width: 220 }}>
               <Text size="small" strong>maxSteps</Text>
-              <InputNumber min={1} max={1000} value={options.maxSteps ?? 200} onChange={value => setOptions(current => ({ ...current, maxSteps: typeof value === "number" ? value : 200 }))} />
+              <Input value={String(options.maxSteps ?? 200)} onChange={value => setOptions(current => ({ ...current, maxSteps: Number.isFinite(Number(value)) ? Number(value) : 200 }))} />
             </label>
           </Space>
         </div>
+        <RunResultPreview session={props.lastSession} serviceError={props.serviceError} />
         <Space style={{ width: "100%", justifyContent: "flex-end" }}>
           <Button onClick={props.onCancel} disabled={props.running}>取消</Button>
-          <Button type="primary" loading={props.running} onClick={run}>运行</Button>
+          <Button type="primary" loading={props.running} onClick={run}>{props.dirty ? "Save & Run" : "Run"}</Button>
         </Space>
       </Space>
     </Modal>
@@ -102,16 +133,21 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
 }
 
 function ParameterField(props: {
-  parameter: MicroflowParameter;
+  field: MicroflowRunInputField;
   value: unknown;
   error?: string;
   onChange: (value: unknown) => void;
 }) {
+  const parameter = props.field.parameter;
   return (
     <label style={{ display: "grid", gap: 6, width: "100%" }}>
-      <Text size="small" strong>{props.parameter.name}{props.parameter.required ? " *" : ""}</Text>
-      {renderInput(props.parameter.dataType, props.value, props.onChange)}
-      {props.parameter.documentation || props.parameter.description ? <Text type="tertiary" size="small">{props.parameter.documentation ?? props.parameter.description}</Text> : null}
+      <Space>
+        <Text size="small" strong>{parameter.name}{parameter.required ? " *" : ""}</Text>
+        <Tag size="small">{props.field.typeLabel}</Tag>
+      </Space>
+      {renderInput(parameter.dataType, props.value, props.onChange)}
+      {parameter.documentation || parameter.description ? <Text type="tertiary" size="small">{parameter.documentation ?? parameter.description}</Text> : null}
+      {props.field.warning ? <Text type="warning" size="small">{props.field.warning}</Text> : null}
       {props.error ? <Text type="danger" size="small">{props.error}</Text> : null}
     </label>
   );
@@ -128,61 +164,51 @@ function renderInput(dataType: MicroflowDataType, value: unknown, onChange: (val
     );
   }
   if (dataType.kind === "integer" || dataType.kind === "long" || dataType.kind === "decimal") {
-    return <InputNumber value={typeof value === "number" ? value : undefined} onChange={next => onChange(typeof next === "number" ? next : undefined)} />;
+    return <Input value={value === undefined || value === null ? "" : String(value)} placeholder="输入数字" onChange={onChange} />;
+  }
+  if (dataType.kind === "dateTime") {
+    return <Input value={String(value ?? "")} placeholder="2026-04-28T10:00:00Z" onChange={onChange} />;
   }
   if (dataType.kind === "object" || dataType.kind === "list" || dataType.kind === "json") {
-    return <TextArea autosize value={typeof value === "string" ? value : JSON.stringify(value ?? "", null, 2)} onChange={text => onChange(parseJsonLike(text))} />;
+    return <TextArea autosize value={typeof value === "string" ? value : JSON.stringify(value ?? "", null, 2)} onChange={onChange} />;
   }
   if (dataType.kind === "enumeration") {
     return <Input value={String(value ?? "")} placeholder={dataType.enumerationQualifiedName} onChange={onChange} />;
   }
+  if (dataType.kind === "void" || dataType.kind === "binary") {
+    return <Input disabled value="" placeholder="不可作为运行输入" />;
+  }
   return <Input value={String(value ?? "")} onChange={onChange} />;
 }
 
-function buildDefaultParameters(parameters: MicroflowParameter[]): Record<string, unknown> {
-  return Object.fromEntries(parameters.map(parameter => [parameter.name, defaultValue(parameter.dataType, parameter.exampleValue)]));
-}
-
-function defaultValue(dataType: MicroflowDataType, example?: string): unknown {
-  if (example !== undefined) {
-    return example;
+function RunResultPreview({ session, serviceError }: { session?: MicroflowRunSession; serviceError?: string }) {
+  if (serviceError) {
+    return <Card style={{ width: "100%" }} bodyStyle={{ padding: 12 }}><Text type="danger">{serviceError}</Text></Card>;
   }
-  if (dataType.kind === "boolean") {
-    return false;
+  if (!session) {
+    return <Text type="tertiary">运行结果会显示在这里，并同步到底部 Debug 面板。</Text>;
   }
-  if (dataType.kind === "integer" || dataType.kind === "long" || dataType.kind === "decimal") {
-    return 0;
-  }
-  if (dataType.kind === "object" || dataType.kind === "json") {
-    return {};
-  }
-  if (dataType.kind === "list") {
-    return [];
-  }
-  return "";
-}
-
-function validateParameters(parameters: MicroflowParameter[], values: Record<string, unknown>): Record<string, string> {
-  const errors: Record<string, string> = {};
-  for (const parameter of parameters) {
-    if (!parameter.required) {
-      continue;
-    }
-    const value = values[parameter.name];
-    if (value === undefined || value === null || value === "") {
-      errors[parameter.name] = "必填参数不能为空";
-    }
-  }
-  return errors;
-}
-
-function parseJsonLike(text: string): unknown {
-  if (!text.trim()) {
-    return "";
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+  const durationMs = session.endedAt ? Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) : undefined;
+  const nodeOutputs = session.trace.filter(frame => frame.output !== undefined).map(frame => ({
+    objectId: frame.objectId,
+    status: frame.status,
+    output: frame.output,
+  }));
+  return (
+    <Card style={{ width: "100%" }} bodyStyle={{ padding: 12 }}>
+      <Space vertical align="start" style={{ width: "100%" }}>
+        <Space wrap>
+          <Tag color={session.status === "success" ? "green" : session.status === "failed" ? "red" : "orange"}>{session.status}</Tag>
+          <Tag>runId {session.id}</Tag>
+          {durationMs !== undefined ? <Tag>{durationMs}ms</Tag> : null}
+          <Tag>{session.trace.length} frames</Tag>
+          <Tag>{session.logs.length} logs</Tag>
+        </Space>
+        {session.error ? <Text type="danger">{session.error.code}: {session.error.message}</Text> : null}
+        <pre style={{ whiteSpace: "pre-wrap", margin: 0, maxHeight: 220, overflow: "auto", width: "100%" }}>
+          {JSON.stringify({ output: session.output, nodeOutputs, logs: session.logs }, null, 2)}
+        </pre>
+      </Space>
+    </Card>
+  );
 }

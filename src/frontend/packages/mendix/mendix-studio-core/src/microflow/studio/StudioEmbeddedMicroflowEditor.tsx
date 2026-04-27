@@ -160,6 +160,20 @@ export function StudioEmbeddedMicroflowEditor({
     );
   }
 
+  if (!adapterBundle) {
+    return (
+      <Empty
+        title="Microflow adapter not ready"
+        description="缺少 adapterBundle，无法打开真实微流编辑器。"
+        style={{ padding: 80 }}
+      >
+        <Button type="primary" onClick={() => void load()}>
+          Retry
+        </Button>
+      </Empty>
+    );
+  }
+
   return (
     <MendixMicroflowEditorEntry
       key={`${microflowId}:${resource.schemaId}:${resource.version}`}
@@ -169,6 +183,7 @@ export function StudioEmbeddedMicroflowEditor({
       moduleId={moduleId ?? resource.moduleId}
       metadataAdapter={adapterBundle.metadataAdapter}
       validationAdapter={adapterBundle.validationAdapter}
+      runtimeAdapter={adapterBundle.runtimeAdapter}
       adapterMode={adapterBundle.mode}
       apiBaseUrl={adapterBundle.apiBaseUrl}
       onDirtyChange={onDirtyChange}

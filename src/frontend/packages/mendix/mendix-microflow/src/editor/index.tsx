@@ -57,7 +57,7 @@ import {
 } from "../metadata";
 import { validateMicroflowSchema } from "../schema/validator";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
-import { MicroflowTestRunModal, type MicroflowRunSession, type MicroflowRuntimeLog, type MicroflowTestRunInput } from "../debug";
+import { MicroflowTestRunModal, buildRunRequest, shouldBlockRun, type MicroflowRunSession, type MicroflowRuntimeLog, type MicroflowTestRunInput } from "../debug";
 import { useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
 import { useMicroflowShortcuts } from "./shortcuts";
 import type {
@@ -1370,6 +1370,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [runtimeServiceError, setRuntimeServiceError] = useState<string>();
   const [activeTraceFrameId, setActiveTraceFrameId] = useState<string>();
   const [testRunModalOpen, setTestRunModalOpen] = useState(false);
+  const [runInputsByMicroflowId, setRunInputsByMicroflowId] = useState<Record<string, Record<string, unknown>>>({});
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -1616,13 +1617,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
   };
 
-  const handleSave = async () => {
+  const saveCurrentSchema = async (reason: "save" | "saveAndRun" = "save"): Promise<boolean> => {
     const validation = await validateForMode(schema, "save");
     if (validation.summary.errorCount > 0) {
       setBottomOpen(true);
       setBottomTab("problems");
-      Toast.error(`Save blocked by ${validation.summary.errorCount} validation error(s).`);
-      return;
+      Toast.error(`${reason === "saveAndRun" ? "Save & Run" : "Save"} blocked by ${validation.summary.errorCount} validation error(s).`);
+      return false;
     }
     if (validation.summary.warningCount > 0) {
       setBottomOpen(true);
@@ -1639,15 +1640,21 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setDirty(false);
       void runValidationNow(schema);
       Toast.success(`Saved ${response.version}`);
+      return true;
     } catch (error) {
       applyApiValidationIssues(error, setIssues, () => {
         setBottomOpen(true);
         setBottomTab("problems");
       });
       Toast.error(getEditorApiErrorMessage(error));
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    await saveCurrentSchema("save");
   };
 
   const handleValidate = async () => {
@@ -1669,11 +1676,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const handleTestRun = async () => {
+    if (saving || running || props.readonly || !schema.id) {
+      return;
+    }
     const validation = await validateForMode(schema, "testRun");
     if (validation.summary.errorCount > 0) {
       setBottomOpen(true);
       setBottomTab("problems");
-      Toast.error(`Test run blocked by ${validation.summary.errorCount} validation error(s).`);
+      Toast.error("Fix validation errors before running.");
       return;
     }
     if (validation.summary.warningCount > 0) {
@@ -1683,9 +1693,25 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const handleExecuteTestRun = async (input: MicroflowTestRunInput) => {
+    const validation = await validateForMode(schema, "testRun");
+    const gate = shouldBlockRun(validation.issues, {}, dirty, "saveAndRun");
+    if (gate.blocked) {
+      if (gate.reason === "validation") {
+        setBottomOpen(true);
+        setBottomTab("problems");
+        Toast.error("Fix validation errors before running.");
+      }
+      return;
+    }
+    if (dirty) {
+      const saved = await saveCurrentSchema("saveAndRun");
+      if (!saved) {
+        return;
+      }
+    }
     setRunning(true);
     try {
-      const response = await apiClient.testRunMicroflow({ microflowId: schema.id, input: input.parameters, options: input.options, schema });
+      const response = await apiClient.testRunMicroflow(buildRunRequest(schema, input.parameters, input.options));
       const persistedSession = await apiClient.getMicroflowRunSession(response.runId);
       const persistedTrace = await apiClient.getMicroflowRunTrace(response.runId);
       const session = { ...persistedSession, trace: persistedTrace };
@@ -1697,7 +1723,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setBottomOpen(true);
       setBottomTab("debug");
       props.onTestRunComplete?.({ ...response, session, frames: persistedTrace });
-      Toast[response.status === "succeeded" ? "success" : "error"](response.status);
+      Toast[response.status === "succeeded" ? "success" : "error"](`Run ${response.status}`);
     } catch (error) {
       applyApiValidationIssues(error, setIssues, () => {
         setBottomOpen(true);
@@ -1991,8 +2017,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           <Tooltip content={labels.validate}>
             <Button aria-label={labels.validate} icon={<IconRefresh />} loading={validationStatus === "validating"} onClick={handleValidate}>{labels.validate}</Button>
           </Tooltip>
-          <Tooltip content={labels.testRun}>
-            <Button aria-label={labels.testRun} icon={<IconPlay />} loading={running} onClick={handleTestRun}>{labels.testRun}</Button>
+          <Tooltip content={dirty ? "Save & Run opens the input panel" : labels.testRun}>
+            <Button aria-label={labels.testRun} icon={<IconPlay />} loading={running} disabled={saving || props.readonly || !schema.id} onClick={handleTestRun}>
+              {dirty ? "Save & Run" : labels.testRun}
+            </Button>
           </Tooltip>
           <Tooltip content={dirty ? labels.save : "No unsaved changes"}>
             <Button aria-label={labels.save} icon={<IconSave />} loading={saving} type="primary" onClick={handleSave}>{labels.save}</Button>
@@ -2330,7 +2358,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         visible={testRunModalOpen}
         schema={schema}
         running={running}
+        dirty={dirty}
+        validationErrorCount={issues.filter(issue => issue.severity === "error").length}
+        values={runInputsByMicroflowId[schema.id]}
+        lastSession={runSession}
+        serviceError={runtimeServiceError}
         onCancel={() => setTestRunModalOpen(false)}
+        onValuesChange={values => setRunInputsByMicroflowId(current => ({ ...current, [schema.id]: values }))}
         onRun={handleExecuteTestRun}
       />
     </div>
