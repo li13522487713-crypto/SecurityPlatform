@@ -1,4 +1,5 @@
 import { applyEditorGraphPatchToAuthoring, flattenObjectCollection } from "../adapters";
+import { createStableId } from "../schema/utils/ids";
 import { findObjectWithCollection, getObjectCollectionById } from "../schema/utils/object-utils";
 import type {
   MicroflowEditorGraphPatch,
@@ -39,6 +40,56 @@ function nextParameterName(schema: MicroflowSchema): string {
     index += 1;
   }
   return `parameter${index}`;
+}
+
+function sanitizeIdPrefix(value: string): string {
+  return value
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase() || "object";
+}
+
+function collectSchemaIds(schema: MicroflowSchema): Set<string> {
+  const ids = new Set<string>([
+    schema.id,
+    schema.stableId,
+    schema.objectCollection.id,
+    ...schema.parameters.flatMap(parameter => [parameter.id, parameter.stableId].filter((value): value is string => Boolean(value))),
+    ...schema.flows.flatMap(flow => [flow.id, flow.stableId].filter((value): value is string => Boolean(value))),
+  ].filter((value): value is string => Boolean(value)));
+
+  for (const object of flattenObjectCollection(schema.objectCollection)) {
+    ids.add(object.id);
+    ids.add(object.stableId);
+    if (object.kind === "actionActivity") {
+      ids.add(object.action.id);
+    }
+    if (object.kind === "loopedActivity") {
+      ids.add(object.objectCollection.id);
+      for (const flow of object.objectCollection.flows ?? []) {
+        ids.add(flow.id);
+        ids.add(flow.stableId);
+      }
+    }
+  }
+
+  return ids;
+}
+
+export function createUniqueMicroflowObjectId(schema: MicroflowSchema, prefix: string): string {
+  const existingIds = collectSchemaIds(schema);
+  const normalizedPrefix = sanitizeIdPrefix(prefix);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const id = createStableId(normalizedPrefix);
+    if (!existingIds.has(id)) {
+      return id;
+    }
+  }
+  throw new Error(`Unable to generate unique microflow object id for prefix ${normalizedPrefix}.`);
+}
+
+function createUniqueParameterId(schema: MicroflowSchema): string {
+  return createUniqueMicroflowObjectId(schema, "param");
 }
 
 function availabilityWarning(payload: MicroflowNodeDragPayload): string | undefined {
@@ -113,7 +164,8 @@ export function addMicroflowObjectFromDragPayload(
   const warnings = [availabilityWarning(payload)].filter((warning): warning is string => Boolean(warning));
   if (payload.objectKind === "parameterObject") {
     const parameterName = nextParameterName(schema);
-    const parameterId = `param-${Date.now()}`;
+    const parameterId = createUniqueParameterId(schema);
+    const objectId = createUniqueMicroflowObjectId(schema, `parameter-object-${parameterName}`);
     const parameter: MicroflowParameter = {
       id: parameterId,
       stableId: parameterId,
@@ -126,7 +178,7 @@ export function addMicroflowObjectFromDragPayload(
     const { object } = createObjectFromNodeRegistry({
       registryKey: payload.registryKey,
       position,
-      id: `parameter-object-${parameterId}`,
+      id: objectId,
       overrides: {
         caption: parameterName,
         parameterId,
@@ -141,8 +193,16 @@ export function addMicroflowObjectFromDragPayload(
   }
 
   const object = payload.registryKind === "action" && payload.actionKind
-    ? createActionActivityFromActionRegistry({ actionRegistryKey: payload.actionKind, position })
-    : createObjectFromNodeRegistry({ registryKey: payload.registryKey, position }).object;
+    ? createActionActivityFromActionRegistry({
+        actionRegistryKey: payload.actionKind,
+        position,
+        id: createUniqueMicroflowObjectId(schema, `activity-${payload.actionKind}`)
+      })
+    : createObjectFromNodeRegistry({
+        registryKey: payload.registryKey,
+        position,
+        id: createUniqueMicroflowObjectId(schema, payload.registryKey)
+      }).object;
   const nextSchema = applyEditorGraphPatchToAuthoring(schema, {
     addObject: { object, parentLoopObjectId },
     ...selectCreatedObject(object.id),

@@ -17,14 +17,15 @@
 | 6 | 微流 CRUD 入口 | Stage 04 已完成 | 新建 / 重命名 / 复制 / 删除均已通过真实 Microflow Resource API 接入 App Explorer | **Stage 04** |
 | 7 | 点击微流真实打开指定 microflowId 的画布 | Stage 06 已完成：activeMicroflowId 打开嵌入式真实 MicroflowEditor | 深度属性与 metadata 仍在后续阶段 | **Stage 06** |
 | 8 | 画布按 microflowId 保存和加载 | Stage 06 已完成：GET resource/schema，PUT schema 保存 | 未保存切换 guard 待后续增强 | **Stage 06** |
-| 9 | 节点拖拽后真实进入当前微流定义 | Stage 06 已完成：编辑器修改当前 microflowId 的 authoring schema | 不新增节点类型 | **Stage 06** |
-| 10 | 节点位置、类型、名称、配置真实保存 | Stage 06 基础完成：随 MicroflowAuthoringSchema 保存 | 节点属性深度增强留到后续阶段 | **Stage 06 / 后续增强** |
+| 9 | 节点拖拽后真实进入当前微流定义 | Stage 08 已完成专项验收与修复：NodePanel payload -> FlowGram drop -> authoring schema objectCollection | 不新增节点类型 | **Stage 08** |
+| 10 | 节点位置、类型、名称、配置真实保存 | Stage 08 已完成：id/schema position/caption/config 写入当前 schema，并随 Stage 06 save bridge 保存 | 节点属性深度增强留到后续阶段 | **Stage 08 / 后续增强** |
 | 11 | 连接线可以创建、删除、保存 | Stage 06 已完成：连接线随当前微流 schema 保存 | 高级引用重建优化留到后续阶段 | **Stage 06** |
-| 12 | 节点属性面板可以编辑并保存 | Stage 06 基础完成；Stage 07 已保证空 target/entity/list/url 默认配置不崩溃 | Call Microflow 真实 metadata 与深度属性体验仍未接入 | 后续阶段 |
+| 12 | 节点属性面板可以编辑并保存 | Stage 08 已确认拖入节点会被选中并进入属性面板；Stage 07 已保证空 target/entity/list/url 默认配置不崩溃 | Call Microflow 真实 metadata 与深度属性体验仍未接入 | 后续阶段 |
 | 13 | Call Microflow 目标选择 | Stage 07 已治理默认引用：新拖入节点 target 为空并标记待配置 | 真实微流列表选择仍未接入 | 后续阶段 |
 | 14 | 执行引擎 / Trace | 未接入 | runtimeAdapter 链路未作为本轮目标接入 | 后续阶段 |
 | 15 | 节点工具箱分类和节点注册表 | Stage 07 已完成：Events / Parameters / Flow Control / Variables / Objects / Lists / Integration / Documentation / Other 稳定分类 | 后续可继续接入上下文级 availability 规则 | **Stage 07** |
 | 16 | Object/List/Variable/REST 默认配置治理 | Stage 07 已完成：默认 entity/list/target/url 为空或安全待配置值 | Domain Model metadata 绑定和深度属性编辑仍在后续阶段 | **Stage 07** |
+| 17 | 不同微流节点不互相污染 | Stage 08 已补测试验证 A/B schema 分别 add node 不互相污染；运行时隔离继续依赖 Stage 05/06 tab/schema remount | 快速切换未保存 guard 仍可后续增强 | **Stage 08** |
 
 ---
 

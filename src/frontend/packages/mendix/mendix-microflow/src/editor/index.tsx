@@ -19,6 +19,7 @@ import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatc
 import {
   addMicroflowObjectFromDragPayload,
   createDragPayloadFromRegistryItem,
+  createUniqueMicroflowObjectId,
   getMicroflowNodeRegistryKey,
   microflowNodeRegistryByKey,
   type MicroflowNodeDragPayload,
@@ -1513,7 +1514,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     const payload = options?.payload ?? createDragPayloadFromRegistryItem(item);
     if (options?.insertFlowId) {
-      const object = createObjectFromRegistry(item, authoringPosition);
+      const object = createObjectFromRegistry(
+        item,
+        authoringPosition,
+        createUniqueMicroflowObjectId(schema, getMicroflowNodeRegistryKey(item))
+      );
       const flow = collectFlowsRecursive(schema).find(item => item.id === options.insertFlowId);
       if (flow?.kind === "annotation") {
         Toast.warning("AnnotationFlow 暂不支持插入节点");
@@ -1923,6 +1928,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               onAddNode={(item, options) => handleAddNode(item, options)}
               onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
               labels={props.nodePanelLabels}
+              createContext={{ microflowId: schema.id, moduleId: schema.moduleId, metadataAvailable: Boolean(loadedMetadata) }}
             />
           </div>
         ) : (

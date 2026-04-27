@@ -30,6 +30,7 @@ import {
   findObjectWithCollection,
   removeFlowFromCollection,
 } from "../schema/utils/object-utils";
+import { createStableId } from "../schema/utils/ids";
 import { emptyVariableIndex, flattenObjectCollection, toEditorGraph } from "./microflow-adapters";
 
 function clone<T>(value: T): T {
@@ -272,7 +273,7 @@ export function splitFlowWithObject(schema: MicroflowSchema, flowId: string, obj
   });
 }
 
-export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, position: MicroflowPoint, id = `${getMicroflowNodeRegistryKey(entry).replace(":", "-")}-${Date.now()}`): MicroflowObject {
+export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, position: MicroflowPoint, id = createStableId(getMicroflowNodeRegistryKey(entry).replace(":", "-"))): MicroflowObject {
   const config = entry.defaultConfig as Record<string, unknown>;
   const base = {
     id,

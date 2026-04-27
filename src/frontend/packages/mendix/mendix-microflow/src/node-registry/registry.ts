@@ -23,6 +23,7 @@ import type {
 } from "../schema/types";
 import { defaultMicroflowActionRegistry, microflowActionRegistryByActivityType, type MicroflowActionRegistryItem } from "./action-registry";
 import { createDefaultActivityConfig, type MicroflowNodeCreateContext } from "./default-node-config";
+import { createStableId } from "../schema/utils/ids";
 
 export type MicroflowNodePanelCategoryKey =
   | "events"
@@ -776,7 +777,7 @@ export function createMicroflowNodeFromRegistry(
   maybePosition?: MicroflowPosition | string
 ): LegacyMicroflowNode {
   if (typeof registryKeyOrEntry !== "string") {
-    const id = typeof maybePosition === "string" ? maybePosition : `${getMicroflowNodeRegistryKey(registryKeyOrEntry).replace(":", "-")}-${Date.now()}`;
+    const id = typeof maybePosition === "string" ? maybePosition : createStableId(getMicroflowNodeRegistryKey(registryKeyOrEntry).replace(":", "-"));
     return createNodeFromRegistry(registryKeyOrEntry, id, idOrPosition as MicroflowPosition);
   }
   const registryKey = registryKeyOrEntry;

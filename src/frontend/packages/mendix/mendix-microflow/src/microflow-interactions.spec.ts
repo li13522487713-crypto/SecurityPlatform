@@ -10,6 +10,7 @@ import {
 } from "./node-registry";
 import { sampleMicroflowSchema, validateMicroflowSchema } from "./schema";
 import { createNoCaseValue, getCaseDisplayLabel, isCaseValueDuplicate, updateFlowCaseValue } from "./schema/utils";
+import { collectFlowsRecursive } from "./schema/utils/object-utils";
 import { buildVariableIndex } from "./variables";
 import { authoringToFlowGram } from "./flowgram/adapters/authoring-to-flowgram";
 import { createMicroflowFlowFromPorts } from "./flowgram/adapters/flowgram-edge-factory";
@@ -64,6 +65,48 @@ describe("microflow editor interactions", () => {
     });
     expect(JSON.stringify(createDefaultActionConfig("createObject"))).not.toContain("Sales");
     expect(createDefaultActionConfig("restCall")).toMatchObject({ method: "GET", url: "" });
+  });
+
+  it("adds dragged nodes into the supplied AuthoringSchema with unique ids and safe config", () => {
+    const base = schemaWith([]);
+    const first = addMicroflowObjectFromDragPayload({
+      schema: base,
+      payload: createDragPayloadFromRegistryItem(registry("activity:callMicroflow")),
+      position: { x: 160, y: 96 },
+    });
+    const second = addMicroflowObjectFromDragPayload({
+      schema: first.schema,
+      payload: createDragPayloadFromRegistryItem(registry("activity:callMicroflow")),
+      position: { x: 320, y: 192 },
+    });
+    const objects = second.schema.objectCollection.objects;
+    const ids = new Set(objects.map(object => object.id));
+
+    expect(base.objectCollection.objects).toHaveLength(0);
+    expect(objects).toHaveLength(2);
+    expect(ids.size).toBe(objects.length);
+    expect(objects[0]?.relativeMiddlePoint).toEqual({ x: 160, y: 96 });
+    expect(second.schema.editor.selection.objectId).toBe(objects[1]?.id);
+    expect(JSON.stringify(objects)).not.toMatch(/Sales|MF_ValidateOrder|ProcessOrder|CheckInventory|NotifyUser|api\.example\.com/i);
+  });
+
+  it("keeps dragged node creation isolated between separate microflow schemas", () => {
+    const microflowA = addMicroflowObjectFromDragPayload({
+      schema: { ...schemaWith([]), id: "MF_A", stableId: "MF_A" },
+      payload: createDragPayloadFromRegistryItem(registry("activity:objectCreate")),
+      position: { x: 100, y: 100 },
+    });
+    const microflowB = addMicroflowObjectFromDragPayload({
+      schema: { ...schemaWith([]), id: "MF_B", stableId: "MF_B" },
+      payload: createDragPayloadFromRegistryItem(registry("decision")),
+      position: { x: 400, y: 200 },
+    });
+
+    expect(microflowA.schema.objectCollection.objects).toHaveLength(1);
+    expect(microflowB.schema.objectCollection.objects).toHaveLength(1);
+    expect(microflowA.schema.objectCollection.objects[0]?.id).not.toBe(microflowB.schema.objectCollection.objects[0]?.id);
+    expect(microflowA.schema.objectCollection.objects[0]?.kind).toBe("actionActivity");
+    expect(microflowB.schema.objectCollection.objects[0]?.kind).toBe("exclusiveSplit");
   });
 
   it("creates concrete objects from registry entries", () => {
@@ -333,7 +376,7 @@ describe("microflow editor interactions", () => {
       selectedFlowId: flow.id,
       selectedObjectId: undefined,
     });
-    expect(next.flows.some(item => item.id === flow.id && item.originObjectId === first.id && item.destinationObjectId === second.id)).toBe(true);
+    expect(collectFlowsRecursive(next).some(item => item.id === flow.id && item.originObjectId === first.id && item.destinationObjectId === second.id)).toBe(true);
     expect(next.editor.selection.flowId).toBe(flow.id);
     expect(validateMicroflowSchema({ schema: next, metadata: mockMeta }).issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(false);
   });
