@@ -32,6 +32,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowReferenceIndexer, MicroflowReferenceIndexer>();
         services.TryAddScoped<IMicroflowReferenceService, MicroflowReferenceService>();
         services.TryAddScoped<IMicroflowMockRuntimeRunner, MicroflowMockRuntimeRunner>();
+        services.TryAddScoped<IMicroflowRuntimeEngine, MicroflowRuntimeEngine>();
         services.TryAddScoped<IMicroflowVariableStore, MicroflowVariableStore>();
         services.TryAddScoped<IMicroflowExpressionEvaluator, MicroflowExpressionEvaluator>();
         services.TryAddScoped<IMicroflowMetadataResolver, MicroflowMetadataResolver>();

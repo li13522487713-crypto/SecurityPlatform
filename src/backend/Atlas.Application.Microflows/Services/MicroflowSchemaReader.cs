@@ -164,7 +164,7 @@ public sealed class MicroflowSchemaReader : IMicroflowSchemaReader
             "String" or "string" => MicroflowSeedMetadataCatalog.Type("string"),
             "Integer" or "integer" or "Int" => MicroflowSeedMetadataCatalog.Type("integer"),
             "Long" or "long" => MicroflowSeedMetadataCatalog.Type("long"),
-            "Decimal" or "decimal" => MicroflowSeedMetadataCatalog.Type("decimal"),
+            "Number" or "number" or "Decimal" or "decimal" => MicroflowSeedMetadataCatalog.Type("decimal"),
             "Boolean" or "boolean" => MicroflowSeedMetadataCatalog.Type("boolean"),
             "DateTime" or "dateTime" => MicroflowSeedMetadataCatalog.Type("dateTime"),
             _ => MicroflowSeedMetadataCatalog.UnknownType($"unsupported dataType: {dataType}")

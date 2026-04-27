@@ -97,6 +97,13 @@
 | 47 | 参数输入 DTO | Stage 21 已完成：请求以 `{ schema, input, options }` 对齐后端 `TestRunMicroflowApiRequest`，前端 request 同时保留 `microflowId` 用于 active path，`input` key 使用参数名且 value 先完成类型转换 |
 | 48 | 运行结果面板基础展示 | Stage 21 已完成：Run 面板和底部 Debug 面板展示真实后端 session、runId、status、duration、output、error、logs 与 trace frame output 摘要，不伪造 success |
 | 49 | validation gate 阻止运行 | Stage 21 已完成：工具栏 Run 和面板 Run 都复用 Stage 20 `testRun` validation；本地/服务端 error、required 缺失、类型转换错误均阻止调用 run API；dirty schema 采用 Save & Run 策略 |
+| 50 | 后端执行引擎基础 | Stage 22 已完成：`POST /api/microflows/{id}/test-run` 接入 `MicroflowRuntimeEngine`，从 MicroflowAuthoringSchema 构建 flow graph，按 sequence flow 执行并防 MaxStepCount 死循环 |
+| 51 | Start / End 执行 | Stage 22 已完成：Start 要求唯一 outgoing flow，End 读取 `returnValue` / `returnValueExpression` 并返回真实 `session.output` |
+| 52 | Parameter 输入绑定 | Stage 22 已完成：schema-level parameters 从请求 `input` 绑定到 runtime Variables，支持 String / Number / Integer / Decimal / Boolean / DateTime 基础转换，required 缺失和类型错误返回 failed |
+| 53 | Variable 执行 | Stage 22 已完成：Create Variable 与 Change Variable 可在 run context 内创建/更新变量，End 可返回变量值；target 不存在或表达式失败返回 failed |
+| 54 | Decision true/false 执行 | Stage 22 已完成：Decision / If 使用受限表达式 evaluator 求 boolean，按 true/false `caseValues` 选择分支，缺失/重复匹配返回 failed |
+| 55 | Run 面板真实返回 | Stage 22 已完成：前端继续通过 HTTP runtime adapter 消费真实后端 session，显示 output、error、trace/nodeResults、logs 与 duration；failed 不显示为 success |
+| 56 | Unsupported node 真实错误 | Stage 22 已完成：Call Microflow、Loop/List/Object/REST 等未支持节点命中执行路径时返回 `RUNTIME_UNSUPPORTED_ACTION`，错误包含 node id/name/type，不跳过、不假成功 |
 
 ---
 

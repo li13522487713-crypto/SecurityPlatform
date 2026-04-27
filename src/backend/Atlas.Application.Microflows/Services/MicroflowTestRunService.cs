@@ -5,6 +5,7 @@ using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
+using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Transactions;
 using Atlas.Domain.Microflows.Entities;
 
@@ -20,7 +21,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private readonly IMicroflowStorageTransaction _storageTransaction;
     private readonly IMicroflowValidationService _validationService;
     private readonly IMicroflowMetadataService _metadataService;
-    private readonly IMicroflowMockRuntimeRunner _runner;
+    private readonly IMicroflowRuntimeEngine _runner;
     private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowClock _clock;
@@ -32,7 +33,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         IMicroflowStorageTransaction storageTransaction,
         IMicroflowValidationService validationService,
         IMicroflowMetadataService metadataService,
-        IMicroflowMockRuntimeRunner runner,
+        IMicroflowRuntimeEngine runner,
         IMicroflowExecutionPlanLoader executionPlanLoader,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowClock clock)

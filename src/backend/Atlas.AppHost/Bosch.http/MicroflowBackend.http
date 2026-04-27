@@ -179,6 +179,61 @@ X-Trace-Id: {{traceId}}
   "options": { "maxSteps": 50, "allowRealHttp": false }
 }
 
+### Stage 22 - Runtime MVP Decision / Variable
+# Expected JSON path:
+# - $.success=true
+# - $.data.session.status="success"
+# - $.data.session.output="L2"
+# - $.data.session.trace[*].objectId contains start, decision, create, change, endTrue
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": { "amount": 150, "userName": "alice" },
+  "options": { "maxSteps": 50 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{microflowId}}",
+    "stableId": "{{microflowId}}",
+    "name": "Stage22RuntimeMvp",
+    "displayName": "Stage 22 Runtime MVP",
+    "moduleId": "demo-module",
+    "parameters": [
+      { "id": "p-amount", "name": "amount", "dataType": "Number", "required": true },
+      { "id": "p-userName", "name": "userName", "dataType": "String", "required": true }
+    ],
+    "returnType": { "kind": "string" },
+    "objectCollection": {
+      "id": "root",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "caption": "Start" },
+        { "id": "decision", "kind": "exclusiveSplit", "caption": "amount > 100", "splitCondition": { "expression": "amount > 100", "resultType": "boolean" } },
+        { "id": "create", "kind": "actionActivity", "caption": "Create approvalLevel", "action": { "id": "create-action", "kind": "createVariable", "variableName": "approvalLevel", "dataType": { "kind": "string" }, "initialValue": "\"L1\"" } },
+        { "id": "change", "kind": "actionActivity", "caption": "Change approvalLevel", "action": { "id": "change-action", "kind": "changeVariable", "targetVariableName": "approvalLevel", "newValueExpression": "\"L2\"" } },
+        { "id": "endTrue", "kind": "endEvent", "caption": "End True", "returnValue": "approvalLevel" },
+        { "id": "endFalse", "kind": "endEvent", "caption": "End False", "returnValue": "\"rejected\"" }
+      ]
+    },
+    "flows": [
+      { "id": "f-start-decision", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "decision", "caseValues": [], "isErrorHandler": false, "editor": { "edgeKind": "sequence" } },
+      { "id": "f-true-create", "kind": "sequence", "originObjectId": "decision", "destinationObjectId": "create", "caseValues": [{ "kind": "boolean", "value": true, "persistedValue": "true" }], "isErrorHandler": false, "editor": { "edgeKind": "decisionCondition" } },
+      { "id": "f-create-change", "kind": "sequence", "originObjectId": "create", "destinationObjectId": "change", "caseValues": [], "isErrorHandler": false, "editor": { "edgeKind": "sequence" } },
+      { "id": "f-change-end", "kind": "sequence", "originObjectId": "change", "destinationObjectId": "endTrue", "caseValues": [], "isErrorHandler": false, "editor": { "edgeKind": "sequence" } },
+      { "id": "f-false-end", "kind": "sequence", "originObjectId": "decision", "destinationObjectId": "endFalse", "caseValues": [{ "kind": "boolean", "value": false, "persistedValue": "false" }], "isErrorHandler": false, "editor": { "edgeKind": "decisionCondition" } }
+    ],
+    "security": {},
+    "concurrency": {},
+    "exposure": {},
+    "validation": {},
+    "editor": {},
+    "audit": {}
+  }
+}
+
 ### Round 60 - Run / Trace
 GET {{host}}/api/microflows/runs/{{runId}}
 X-Workspace-Id: {{workspaceId}}
