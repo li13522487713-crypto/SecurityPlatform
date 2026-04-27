@@ -11,11 +11,12 @@ public static class MicroflowApplicationServiceCollectionExtensions
     public static IServiceCollection AddAtlasApplicationMicroflows(this IServiceCollection services)
     {
         services.TryAddSingleton<IMicroflowClock, SystemMicroflowClock>();
+        services.TryAddScoped<IMicroflowSchemaReader, MicroflowSchemaReader>();
         services.TryAddScoped<IMicroflowResourceService, MicroflowResourceService>();
         services.TryAddScoped<IMicroflowMetadataService, MicroflowMetadataService>();
         services.TryAddScoped<IMicroflowResourceQueryService, InMemoryMicroflowResourceQueryService>();
         services.TryAddScoped<IMicroflowMetadataQueryService, InMemoryMicroflowMetadataQueryService>();
-        services.TryAddScoped<IMicroflowValidationService, SkeletonMicroflowValidationService>();
+        services.TryAddScoped<IMicroflowValidationService, MicroflowValidationService>();
         services.TryAddScoped<IMicroflowRuntimeSkeletonService, SkeletonMicroflowRuntimeService>();
         services.TryAddScoped<IMicroflowVersionDiffService, MicroflowVersionDiffService>();
         services.TryAddScoped<IMicroflowPublishImpactService, MicroflowPublishImpactService>();

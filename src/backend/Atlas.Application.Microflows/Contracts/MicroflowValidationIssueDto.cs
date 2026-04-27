@@ -37,6 +37,24 @@ public sealed record MicroflowValidationIssueDto
     [JsonPropertyName("source")]
     public string? Source { get; init; }
 
+    [JsonPropertyName("quickFixes")]
+    public IReadOnlyList<MicroflowValidationQuickFixDto> QuickFixes { get; init; } = Array.Empty<MicroflowValidationQuickFixDto>();
+
+    [JsonPropertyName("relatedObjectIds")]
+    public IReadOnlyList<string> RelatedObjectIds { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("relatedFlowIds")]
+    public IReadOnlyList<string> RelatedFlowIds { get; init; } = Array.Empty<string>();
+
     [JsonPropertyName("details")]
     public string? Details { get; init; }
+}
+
+public sealed record MicroflowValidationQuickFixDto
+{
+    [JsonPropertyName("title")]
+    public string Title { get; init; } = string.Empty;
+
+    [JsonPropertyName("patch")]
+    public string? Patch { get; init; }
 }
