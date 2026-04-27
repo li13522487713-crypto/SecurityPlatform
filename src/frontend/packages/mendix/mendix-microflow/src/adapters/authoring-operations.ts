@@ -408,17 +408,17 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       caption: entry.defaultCaption
     });
   }
-  const kind = registryAction?.kind ?? "logMessage";
+  const kind = (config.actionKind as MicroflowAction["kind"] | undefined) ?? "logMessage";
   const base = {
     id: `action-${objectId}`,
-    officialType: registryAction?.officialType ?? "Microflows$LogMessageAction",
+    officialType: "Microflows$LogMessageAction",
     kind,
     errorHandlingType: "rollback" as const,
     documentation: entry.documentation.summary,
     editor: {
-      category: registryAction?.category ?? "logging",
-      iconKey: registryAction?.iconKey ?? entry.iconKey,
-      availability: registryAction?.availability ?? "supported"
+      category: "logging" as const,
+      iconKey: entry.iconKey,
+      availability: "supported" as const
     }
   };
   if (kind === "retrieve") {
@@ -557,7 +557,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
   return {
     ...base,
     kind,
-    officialType: registryAction?.officialType ?? "Microflows$GenericAction"
+    officialType: "Microflows$GenericAction"
   } as MicroflowAction;
 }
 

@@ -13,7 +13,10 @@ export interface MicroflowNodeCreateContext {
   metadataAvailable?: boolean;
 }
 
+type SafeDefaultActivityConfig = Partial<LegacyMicroflowActivityConfig> & Record<string, unknown>;
+
 const stringType: MicroflowDataType = { kind: "string" };
+const stringTypeRef = { kind: "primitive" as const, name: "String" };
 const integerType: MicroflowDataType = { kind: "integer" };
 const booleanType: MicroflowDataType = { kind: "boolean" };
 const unknownType: MicroflowDataType = { kind: "unknown", reason: "registry default" };
@@ -31,7 +34,7 @@ export function createDefaultExpression(raw = "", inferredType?: MicroflowDataTy
 export function createDefaultActionConfig(
   actionKind: MicroflowActionKind,
   _context?: MicroflowNodeCreateContext
-): LegacyMicroflowActivityConfig {
+): SafeDefaultActivityConfig {
   switch (actionKind) {
     case "retrieve":
       return { entity: "", resultVariableName: "" };
@@ -71,7 +74,7 @@ export function createDefaultActionConfig(
     case "callNanoflow":
       return { targetMicroflowId: "", parameterMappings: [], returnValue: { storeResult: false, outputVariableName: "" } };
     case "createVariable":
-      return { variableName: "newVariable", variableType: stringType, initialValueExpression: "" };
+      return { variableName: "newVariable", variableType: stringTypeRef, initialValueExpression: "" };
     case "changeVariable":
       return { variableName: "", newValueExpression: "" };
     case "restCall":
@@ -137,7 +140,6 @@ export function createDefaultActionConfig(
     case "sendExternalObject":
       return { objectVariableName: "", operation: "" };
     case "synchronize":
-    case "synchronizeToDevice":
     case "showHomePage":
       return {};
     default:
@@ -148,7 +150,7 @@ export function createDefaultActionConfig(
 export function createDefaultActivityConfig(
   activityType: MicroflowActivityType,
   context?: MicroflowNodeCreateContext
-): LegacyMicroflowActivityConfig {
+): SafeDefaultActivityConfig {
   if (activityType === "queryExternalDatabase") {
     return { connectorId: "", operation: "query" };
   }
@@ -171,7 +173,7 @@ export function createDefaultActivityConfig(
     variableCreate: "createVariable",
     variableChange: "changeVariable",
     callRest: "restCall",
-    callWebService: "callWebService",
+    callWebService: "webServiceCall",
     callExternalAction: "callExternalAction",
     importWithMapping: "importXml",
     exportWithMapping: "exportXml",
@@ -182,7 +184,7 @@ export function createDefaultActivityConfig(
     downloadFile: "downloadFile",
     showHomePage: "showHomePage",
     showMessage: "showMessage",
-    synchronizeToDevice: "synchronizeToDevice",
+    synchronizeToDevice: "synchronize",
     validationFeedback: "validationFeedback",
     synchronize: "synchronize",
     generateDocument: "generateDocument",

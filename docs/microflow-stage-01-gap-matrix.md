@@ -20,9 +20,11 @@
 | 9 | 节点拖拽后真实进入当前微流定义 | Stage 06 已完成：编辑器修改当前 microflowId 的 authoring schema | 不新增节点类型 | **Stage 06** |
 | 10 | 节点位置、类型、名称、配置真实保存 | Stage 06 基础完成：随 MicroflowAuthoringSchema 保存 | 节点属性深度增强留到后续阶段 | **Stage 06 / 后续增强** |
 | 11 | 连接线可以创建、删除、保存 | Stage 06 已完成：连接线随当前微流 schema 保存 | 高级引用重建优化留到后续阶段 | **Stage 06** |
-| 12 | 节点属性面板可以编辑并保存 | Stage 06 基础完成：已有属性面板改动随 schema 保存 | Call Microflow metadata 与深度属性体验仍未接入 | 后续阶段 |
-| 13 | Call Microflow 目标选择 | 静态 | 节点属性面板未接入真实微流列表 | 后续阶段 |
+| 12 | 节点属性面板可以编辑并保存 | Stage 06 基础完成；Stage 07 已保证空 target/entity/list/url 默认配置不崩溃 | Call Microflow 真实 metadata 与深度属性体验仍未接入 | 后续阶段 |
+| 13 | Call Microflow 目标选择 | Stage 07 已治理默认引用：新拖入节点 target 为空并标记待配置 | 真实微流列表选择仍未接入 | 后续阶段 |
 | 14 | 执行引擎 / Trace | 未接入 | runtimeAdapter 链路未作为本轮目标接入 | 后续阶段 |
+| 15 | 节点工具箱分类和节点注册表 | Stage 07 已完成：Events / Parameters / Flow Control / Variables / Objects / Lists / Integration / Documentation / Other 稳定分类 | 后续可继续接入上下文级 availability 规则 | **Stage 07** |
+| 16 | Object/List/Variable/REST 默认配置治理 | Stage 07 已完成：默认 entity/list/target/url 为空或安全待配置值 | Domain Model metadata 绑定和深度属性编辑仍在后续阶段 | **Stage 07** |
 
 ---
 
@@ -33,6 +35,7 @@
 | 10 | 删除前引用预检查 | Stage 04 已完成：App Explorer 删除前调用 references API；后端 `EnsureNoActiveTargetReferencesAsync` 仍作为最终保护（见注 B） |
 | 11 | 版本历史查看 | 版本列表 UI 未实现 |
 | 12 | 发布状态更新 | publishStatus 更新 UI 未实现 |
+| 13 | 历史 schema demo 值迁移 | Stage 07 明确不做 migration；已保存 schema 中的旧 `Sales.*` 值打开时保留 | 如需治理历史数据，后续单独设计迁移与用户确认 |
 
 ---
 
