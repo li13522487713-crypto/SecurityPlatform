@@ -32,6 +32,38 @@ import { ParameterObjectForm } from "./parameter-object-form";
 
 const { Text } = Typography;
 
+function p0OutputSummary(action: MicroflowAction): string {
+  if (action.kind === "retrieve") {
+    return `${action.outputVariableName || "(missing)"}: inferred retrieve result`;
+  }
+  if (action.kind === "createObject") {
+    return `${action.outputVariableName || "(missing)"}: object:${action.entityQualifiedName || "unknown"}`;
+  }
+  if (action.kind === "createVariable") {
+    return `${action.variableName || "(missing)"}: ${dataTypeLabel(action.dataType)}`;
+  }
+  if (action.kind === "callMicroflow") {
+    return action.returnValue.storeResult ? `${action.returnValue.outputVariableName || "(missing)"}: ${dataTypeLabel(action.returnValue.dataType)}` : "该节点不产生变量";
+  }
+  if (action.kind === "restCall") {
+    const rows: string[] = [];
+    if (action.response.handling.kind !== "ignore") {
+      rows.push(`${action.response.handling.outputVariableName || "(missing)"}: ${action.response.handling.kind}`);
+    }
+    if (action.response.statusCodeVariableName) {
+      rows.push(`${action.response.statusCodeVariableName}: integer`);
+    }
+    if (action.response.headersVariableName) {
+      rows.push(`${action.response.headersVariableName}: json`);
+    }
+    return rows.length ? rows.join("\n") : "该节点不产生变量";
+  }
+  if (action.kind === "logMessage" || action.kind === "commit" || action.kind === "delete" || action.kind === "rollback" || action.kind === "changeMembers" || action.kind === "changeVariable") {
+    return "该节点不产生变量";
+  }
+  return genericOutputSummary(action) ?? "该节点不产生变量";
+}
+
 export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   const object = props.selectedObject;
   if (!object) {
@@ -66,7 +98,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         {activeTab === "properties" ? (
           <>
             <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
-            <EventNodesForm props={props} object={object} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
+            <EventNodesForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
             <ExclusiveSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
             <InheritanceSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} patch={patch} />
             <MergeNodeForm props={props} object={object} />
@@ -113,10 +145,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         ) : null}
         {activeTab === "output" ? (
           <>
-            {object.kind === "actionActivity" && object.action.kind === "retrieve" ? <Field label="Output Variable"><Input value={object.action.outputVariableName} disabled /></Field> : null}
-            {object.kind === "actionActivity" && object.action.kind === "createVariable" ? <Field label="Output Variable"><Input value={object.action.variableName} disabled /></Field> : null}
-            {object.kind === "actionActivity" && object.action.kind === "restCall" && object.action.response.handling.kind !== "ignore" ? <Field label="Output Variable"><Input value={object.action.response.handling.outputVariableName} disabled /></Field> : null}
-            {object.kind === "actionActivity" && genericOutputSummary(object.action) ? <Field label="Output Spec"><Input value={genericOutputSummary(object.action)} disabled /></Field> : null}
+            {object.kind === "actionActivity" ? <Field label="Output Spec"><TextArea value={p0OutputSummary(object.action)} disabled autosize /></Field> : null}
             {object.kind === "parameterObject" ? <Field label="Parameter"><Input value={`${parameter?.name ?? object.parameterName ?? ""}: ${dataTypeLabel(parameter?.dataType)}`} disabled /></Field> : null}
             {object.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? <Field label="Loop Variables"><Input value={`${object.loopSource.iteratorVariableName}, ${object.loopSource.currentIndexVariableName}`} disabled /></Field> : null}
             {object.kind === "endEvent" ? <Field label="Return Value"><Input value={object.returnValue?.raw ?? ""} disabled /></Field> : null}

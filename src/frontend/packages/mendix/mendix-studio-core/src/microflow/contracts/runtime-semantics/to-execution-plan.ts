@@ -1,5 +1,5 @@
-import { collectRuntimeFlows, collectRuntimeObjects, getStartEvent } from "@atlas/microflow/debug";
-import { toRuntimeDto } from "@atlas/microflow/adapters";
+import { collectRuntimeFlows, collectRuntimeObjects, getStartEvent } from "@atlas/microflow/debug/trace-utils";
+import { toRuntimeDto } from "@atlas/microflow/adapters/runtime";
 import { tryMapP0ActionToDiscriminatedDto } from "@atlas/microflow/runtime";
 import type {
   MicroflowAction,
@@ -9,7 +9,7 @@ import type {
   MicroflowObjectCollection,
   MicroflowRuntimeDto,
   MicroflowSequenceFlow,
-} from "@atlas/microflow/schema";
+} from "@atlas/microflow/schema/types";
 import type { MicroflowRuntimeMetadataRefDto } from "../runtime-dto-contract";
 import { resolveActionRuntimeSupportLevel } from "./runtime-action-support";
 import type {

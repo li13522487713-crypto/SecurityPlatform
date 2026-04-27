@@ -2,15 +2,18 @@ import { Input, Select, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
+import { FieldError } from "../common";
 import { ExpressionEditor } from "../expression";
 import type { MicroflowPropertyPanelProps } from "../types";
+import { getIssuesForField, getIssuesForObject } from "../utils";
 import { dataTypeLabel, expression, Field } from "../panel-shared";
 
 const { Text } = Typography;
 
-export function EventNodesForm({ props, object, metadata, variableIndex, patch }: {
+export function EventNodesForm({ props, object, issues, metadata, variableIndex, patch }: {
   props: MicroflowPropertyPanelProps;
   object: MicroflowObject;
+  issues: ReturnType<typeof getIssuesForObject>;
   metadata: MicroflowMetadataCatalog;
   variableIndex: MicroflowVariableIndex;
   patch: (next: MicroflowObject) => void;
@@ -47,6 +50,7 @@ export function EventNodesForm({ props, object, metadata, variableIndex, patch }
             readonly={props.readonly || props.schema.returnType.kind === "void"}
             onChange={returnValue => patch({ ...object, returnValue })}
           />
+          <FieldError issues={getIssuesForField(issues, "returnValue")} />
         </Field>
       </>
     );
@@ -58,7 +62,18 @@ export function EventNodesForm({ props, object, metadata, variableIndex, patch }
           <Input value={object.error.sourceVariableName} disabled />
         </Field>
         <Field label="Message Expression">
-          <Input value={object.error.messageExpression?.raw ?? ""} disabled={props.readonly} onChange={raw => patch({ ...object, error: { ...object.error, messageExpression: raw ? expression(raw, { kind: "string" }) : undefined } })} />
+          <ExpressionEditor
+            value={object.error.messageExpression ?? expression("", { kind: "string" })}
+            schema={props.schema}
+            metadata={metadata}
+            variableIndex={variableIndex}
+            objectId={object.id}
+            fieldPath="error.messageExpression"
+            expectedType={{ kind: "string" }}
+            readonly={props.readonly}
+            onChange={messageExpression => patch({ ...object, error: { ...object.error, messageExpression } })}
+          />
+          <FieldError issues={getIssuesForField(issues, "error.messageExpression")} />
         </Field>
       </>
     );

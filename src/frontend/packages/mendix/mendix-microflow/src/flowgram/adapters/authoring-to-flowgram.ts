@@ -1,30 +1,38 @@
 import type { WorkflowEdgeJSON, WorkflowJSON, WorkflowNodeJSON } from "@flowgram-adapter/free-layout-editor";
 
-import { flattenObjectCollection, toEditorGraph } from "../../adapters";
+import { flattenObjectCollection, toEditorGraph } from "../../adapters/microflow-adapters";
 import type { MicroflowTraceFrame } from "../../debug/trace-types";
 import type {
   MicroflowAuthoringPersistedTraceFrame,
   MicroflowAuthoringSchema,
+  MicroflowAction,
+  MicroflowEditorPort,
   MicroflowFlow,
   MicroflowObject,
   MicroflowObjectCollection,
   MicroflowValidationIssue,
-} from "../../schema";
+} from "../../schema/types";
 
 type MicroflowFlowGramTraceRow = MicroflowTraceFrame | MicroflowAuthoringPersistedTraceFrame;
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
-import { microflowActionRegistryByKind } from "../../node-registry";
 import { flowCaseLabel } from "./flowgram-case-options";
-import { microflowPortsToFlowGramPorts } from "./flowgram-port-factory";
 import { validationStateFromIssues } from "./flowgram-validation-sync";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowIssueIndex, FlowGramMicroflowNodeData } from "../FlowGramMicroflowTypes";
+
+function authoringPortsToFlowGramPorts(ports: MicroflowEditorPort[]) {
+  return ports.map(port => ({
+    type: port.direction,
+    portID: port.id,
+    disabled: port.cardinality === "none",
+  }));
+}
 
 function titleForObject(object: MicroflowObject): string {
   if ("caption" in object && object.caption) {
     return object.caption;
   }
   if (object.kind === "actionActivity") {
-    return object.action.caption || microflowActionRegistryByKind.get(object.action.kind)?.titleZh || object.action.kind;
+    return object.action.caption || object.action.kind;
   }
   if (object.kind === "parameterObject") {
     return object.parameterName ?? object.parameterId;
@@ -34,23 +42,43 @@ function titleForObject(object: MicroflowObject): string {
 
 function subtitleForObject(object: MicroflowObject): string | undefined {
   if (object.kind === "actionActivity") {
-    const registry = microflowActionRegistryByKind.get(object.action.kind);
-    const output = [
-      "outputVariableName",
-      "outputListVariableName",
-      "outputWorkflowVariableName",
-      "returnVariableName",
-      "outputFileDocumentVariableName"
-    ].map(key => {
-      const value = (object.action as unknown as Record<string, unknown>)[key];
-      return typeof value === "string" && value.trim() ? value : undefined;
-    }).find(Boolean);
-    return [registry?.category ?? object.action.editor.category, output ? `out: ${output}` : undefined].filter(Boolean).join(" · ");
+    const output = outputSummaryForAction(object.action);
+    const actionSummary = actionSubtitleSummary(object.action);
+    return [object.action.editor.category, actionSummary, output ? `out: ${output}` : undefined].filter(Boolean).join(" · ");
   }
   if (object.kind === "loopedActivity") {
     return object.loopSource.kind === "iterableList" ? `iterator: ${object.loopSource.iteratorVariableName}` : "While condition";
   }
   return object.officialType;
+}
+
+function outputSummaryForAction(action: MicroflowAction): string | undefined {
+  if (action.kind === "retrieve" || action.kind === "createObject") {
+    return action.outputVariableName || undefined;
+  }
+  if (action.kind === "createVariable") {
+    return action.variableName || undefined;
+  }
+  if (action.kind === "callMicroflow" && action.returnValue.storeResult) {
+    return action.returnValue.outputVariableName || undefined;
+  }
+  if (action.kind === "restCall" && action.response.handling.kind !== "ignore") {
+    return action.response.handling.outputVariableName || undefined;
+  }
+  return undefined;
+}
+
+function actionSubtitleSummary(action: MicroflowAction): string | undefined {
+  if (action.kind === "restCall") {
+    return `${action.request.method} ${action.request.urlExpression.raw}`;
+  }
+  if (action.kind === "logMessage") {
+    return action.level;
+  }
+  if (action.kind === "callMicroflow") {
+    return action.targetMicroflowQualifiedName || action.targetMicroflowId || undefined;
+  }
+  return undefined;
 }
 
 function collectCollectionObjectIds(collection: MicroflowObjectCollection): Set<string> {
@@ -186,7 +214,7 @@ export function authoringToFlowGram(
         size: node.size,
         nodeDTOType: data.objectKind,
         useDynamicPort: true,
-        defaultPorts: microflowPortsToFlowGramPorts(node.ports),
+        defaultPorts: authoringPortsToFlowGramPorts(node.ports),
         parentObjectId: node.parentObjectId,
         collectionId: node.collectionId,
       },

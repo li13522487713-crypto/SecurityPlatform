@@ -22,6 +22,7 @@ export function VariableSelector({
   includeMaybe = true,
   includeSystem = true,
   includeErrorContext = true,
+  includeReadonly = true,
   disabled,
   placeholder = "Select variable",
 }: {
@@ -36,6 +37,7 @@ export function VariableSelector({
   includeMaybe?: boolean;
   includeSystem?: boolean;
   includeErrorContext?: boolean;
+  includeReadonly?: boolean;
   disabled?: boolean;
   placeholder?: string;
 }) {
@@ -50,8 +52,9 @@ export function VariableSelector({
       .filter(symbol => includeMaybe || symbol.visibility !== "maybe")
       .filter(symbol => includeSystem || symbol.kind !== "system")
       .filter(symbol => includeErrorContext || (symbol.kind !== "errorContext" && symbol.kind !== "restResponse" && symbol.kind !== "soapFault"))
+      .filter(symbol => includeReadonly || !symbol.readonly)
       .filter(symbol => filterVariableByType(symbol, allowedTypeKinds));
-  }, [allowedTypeKinds, fieldPath, includeErrorContext, includeMaybe, includeSystem, objectId, schema, variableIndex]);
+  }, [allowedTypeKinds, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, objectId, schema, variableIndex]);
   const current = value && objectId
     ? resolveVariableReferenceFromIndex(schema, variableIndex, { objectId, fieldPath }, value)
     : null;

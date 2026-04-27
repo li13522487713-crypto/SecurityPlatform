@@ -1,5 +1,5 @@
 import { findEntity, getEnumerationValueKeys, type MicroflowMetadataCatalog } from "../../metadata";
-import { flattenObjectCollection } from "../../adapters";
+import { flattenObjectCollection } from "../../adapters/microflow-adapters";
 import type {
   MicroflowCaseValue,
   MicroflowExclusiveSplit,
@@ -7,7 +7,7 @@ import type {
   MicroflowInheritanceSplit,
   MicroflowObject,
   MicroflowSchema,
-} from "../../schema";
+} from "../../schema/types";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 
 export type MicroflowCaseEditorKind = "boolean" | "enumeration" | "objectType";

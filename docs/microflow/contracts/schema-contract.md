@@ -48,3 +48,9 @@ TypeScript 定义见 `@atlas/microflow`（`schema/types.ts`）中的 `MicroflowA
 
 - 以 **AuthoringSchema JSON** 为真相源；发布时再存 **只读 snapshot JSON**。
 - 资源行级元数据（名称、工作区、标签、权限）可拆表，与 `schemaId` 关联。
+
+## 第 26 轮 P0 表单字段契约
+
+- P0 属性面板字段必须直接回写 `MicroflowAuthoringSchema` 中的强类型 action 字段，禁止以 FlowGram JSON、generic config 或 raw JSON dump 作为主数据。
+- 稳定 `fieldPath` 以 `action.*` 为准：Retrieve `action.retrieveSource.*` / `action.outputVariableName`，CreateObject `action.entityQualifiedName` / `action.memberChanges.*`，CallMicroflow `action.parameterMappings.*.argumentExpression` / `action.returnValue.outputVariableName`，RestCall `action.request.*` / `action.response.*`。
+- 输出变量统一进入 VariableIndex：Retrieve、CreateObject、CreateVariable、CallMicroflow return、RestCall response/status/headers；重复名、非法名和空名必须挂到对应 `fieldPath`。

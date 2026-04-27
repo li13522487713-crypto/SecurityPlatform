@@ -1,5 +1,4 @@
-import { microflowActionRegistryByKind, type MicroflowRegistryAvailability } from "@atlas/microflow/node-registry";
-import type { MicroflowActionKind } from "@atlas/microflow/schema";
+import type { MicroflowActionKind } from "@atlas/microflow/schema/types";
 import type {
   MicroflowRuntimeSupportLevel,
   MicroflowUnsupportedActionReason,
@@ -21,8 +20,9 @@ export const MICROFLOW_P0_ACTION_KINDS: ReadonlySet<MicroflowActionKind> = new S
 ]);
 
 /**
- * 将注册表能力映射为运行期支持级；P0 集合优先为 supported。
+ * 将动作类型映射为运行期支持级；P0 集合优先为 supported。
  * Validator 的 publish / testRun 策略以文档为准，本函数供 ExecutionPlan 与测试引用。
+ * 注意：这里不导入 UI 节点注册表，避免纯契约测试加载 Semi 图标/CSS。
  */
 export function resolveActionRuntimeSupportLevel(
   actionKind: MicroflowActionKind
@@ -33,52 +33,6 @@ export function resolveActionRuntimeSupportLevel(
 } {
   if (MICROFLOW_P0_ACTION_KINDS.has(actionKind)) {
     return { supportLevel: "supported", message: "P0 supported action." };
-  }
-
-  const reg = microflowActionRegistryByKind.get(actionKind);
-  if (!reg) {
-    return {
-      supportLevel: "unsupported",
-      reason: "notImplemented",
-      message: `Action kind "${actionKind}" is not in the default registry.`
-    };
-  }
-
-  const av = reg.availability as MicroflowRegistryAvailability;
-  if (av === "hidden") {
-    return {
-      supportLevel: "modeledOnly",
-      reason: "modeledOnly",
-      message: "内部/隐藏能力，运行期默认不执行。"
-    };
-  }
-  if (av === "nanoflowOnlyDisabled") {
-    return {
-      supportLevel: "nanoflowOnly",
-      reason: "nanoflowOnly",
-      message: reg.availabilityReason ?? "Microflow 不支持此 Nanoflow 专用动作。"
-    };
-  }
-  if (av === "requiresConnector") {
-    return {
-      supportLevel: "requiresConnector",
-      reason: "requiresConnector",
-      message: reg.availabilityReason ?? "需要 Connector。"
-    };
-  }
-  if (av === "deprecated") {
-    return {
-      supportLevel: "deprecated",
-      reason: "deprecated",
-      message: reg.availabilityReason ?? "已弃用，运行期按产品策略可拒绝。"
-    };
-  }
-  if (av === "beta") {
-    return {
-      supportLevel: "modeledOnly",
-      reason: "modeledOnly",
-      message: "Beta：默认 modeledOnly，直至后端显式实现。"
-    };
   }
 
   return {

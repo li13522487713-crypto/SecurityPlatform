@@ -176,7 +176,7 @@ export function updateObjectDocumentation(object: MicroflowObject, documentation
 }
 
 export function updateObjectAdvanced(object: MicroflowObject, patch: Record<string, unknown>): MicroflowObject {
-  return {
+  return ({
     ...object,
     editor: {
       ...object.editor,
@@ -185,7 +185,7 @@ export function updateObjectAdvanced(object: MicroflowObject, patch: Record<stri
         ...patch,
       },
     },
-  } as MicroflowObject;
+  } as unknown) as MicroflowObject;
 }
 
 export function dataTypeLabel(dataType?: MicroflowDataType): string {
@@ -199,7 +199,7 @@ export function dataTypeLabel(dataType?: MicroflowDataType): string {
     return `object:${dataType.entityQualifiedName}`;
   }
   if (dataType.kind === "list") {
-    return `list:${dataType.elementType.kind}`;
+    return `list:${dataTypeLabel(dataType.itemType)}`;
   }
   return dataType.kind;
 }

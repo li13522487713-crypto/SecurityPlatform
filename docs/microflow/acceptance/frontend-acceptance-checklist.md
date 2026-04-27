@@ -19,7 +19,12 @@
 15. **快捷键**：与 microflow 包内快捷键表一致，无与全局热键严重冲突。
 16. **app-web 边界**：除路由与 `workspaceId` 外，不手写 schema 校验/Runtime DTO（见代码检索）。
 17. **其他 Tab / 工作流 / Coze**：不回归破坏资源库其他 Tab 与工作流/Coze 入口。
+18. **P0 属性面板**：Retrieve/CreateObject/ChangeMembers/Commit/Delete/Rollback/CreateVariable/ChangeVariable/CallMicroflow/RestCall/LogMessage 均使用强类型字段，不出现 generic config 或 raw JSON dump。
+19. **字段级错误**：清空输出变量、REST URL、CallMicroflow 参数或 Loop iterator 时，字段下方显示对应 `ValidationIssue.fieldPath`。
+20. **变量联动**：修改 Retrieve/CreateObject/CreateVariable/CallMicroflow/RestCall 输出变量后，下游 VariableSelector 可见，重复名提示错误。
+21. **FlowGram 同步**：修改 caption、REST method/url、Log level、CallMicroflow target、输出变量、Loop iterator 后，节点标题或副标题同步更新且视口不跳回原点。
 
 ## 自动化补充
 
 - `pnpm --filter @atlas/mendix-studio-core run verify-contracts`
+- `pnpm --filter @atlas/microflow run typecheck`

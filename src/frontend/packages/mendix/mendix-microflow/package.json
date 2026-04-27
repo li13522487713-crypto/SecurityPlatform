@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
+    "./schema/types": "./src/schema/types.ts",
     "./schema/authoring": "./src/schema/authoring/index.ts",
     "./schema/legacy": "./src/schema/legacy/index.ts",
     "./schema/compat": "./src/schema/compat/index.ts",
@@ -21,6 +22,7 @@
     "./property-forms": "./src/property-forms/index.tsx",
     "./runtime-adapter": "./src/runtime-adapter/index.ts",
     "./adapters": "./src/adapters/index.ts",
+    "./adapters/runtime": "./src/adapters/microflow-adapters.ts",
     "./resource": "./src/resource/index.ts",
     "./flowgram": "./src/flowgram/index.ts",
     "./flowgram/authoring-to-flowgram": "./src/flowgram/adapters/authoring-to-flowgram.ts",
@@ -31,6 +33,7 @@
     "./expressions": "./src/expressions/index.ts",
     "./validators": "./src/validators/index.ts",
     "./debug": "./src/debug/index.ts",
+    "./debug/trace-utils": "./src/debug/trace-utils.ts",
     "./versioning": "./src/versioning/index.ts",
     "./samples": "./src/samples/index.ts",
     "./mendix-compat": "./src/mendix-compat/index.ts",

@@ -18,3 +18,11 @@
 ## P0 动作
 
 retrieve、createObject、changeMembers、commit、delete、rollback、createVariable、changeVariable、callMicroflow、restCall、logMessage — 由执行器按 `action.kind` 消费；未覆盖动作为 `modeledOnly` / executor `unsupported` 策略（与节点注册表一致）。
+
+## 第 26 轮字段对齐
+
+- `retrieve` DTO 包含 `retrieveSource`、`outputVariableName`、`errorHandlingType`；source 内保留 database/association、sort、range 的完整结构。
+- `createObject` / `changeMembers` DTO 保留 entity/target、memberChanges、commit、validateObject，字段与属性面板逐项同名。
+- `callMicroflow` DTO 保留 target、metadata 驱动的 `parameterMappings`、`returnValue`、`callMode`。
+- `restCall` DTO 保留 request method/url/headers/query/body、response handling/status/headers、timeoutSeconds。
+- `logMessage` DTO 保留 level、logNodeName、template.text、template.arguments、includeContextVariables、includeTraceId。

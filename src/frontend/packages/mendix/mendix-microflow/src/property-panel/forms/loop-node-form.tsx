@@ -3,7 +3,7 @@ import type { MicroflowIterableListLoopSource, MicroflowObject, MicroflowWhileLo
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
-import { FieldError } from "../common";
+import { FieldError, FieldRow, VariableNameInput } from "../common";
 import { ExpressionEditor } from "../expression";
 import { VariableSelector } from "../selectors";
 import type { MicroflowPropertyPanelProps } from "../types";
@@ -52,7 +52,17 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
             <FieldError issues={getIssuesForField(issues, "loopSource.listVariableName")} />
           </Field>
           <Field label="Iterator Variable">
-            <Input value={object.loopSource.iteratorVariableName} disabled={props.readonly} onChange={iteratorVariableName => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableName } as MicroflowIterableListLoopSource })} />
+            <VariableNameInput
+              value={object.loopSource.iteratorVariableName}
+              schema={props.schema}
+              objectId={object.id}
+              fieldPath="loopSource.iteratorVariableName"
+              suggestedBaseName="Item"
+              readonly={props.readonly}
+              required
+              issues={getIssuesForField(issues, "loopSource.iteratorVariableName")}
+              onChange={iteratorVariableName => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableName: iteratorVariableName ?? "" } as MicroflowIterableListLoopSource })}
+            />
           </Field>
           <Field label="Current Index Variable">
             <Input value={object.loopSource.currentIndexVariableName} disabled />
@@ -88,6 +98,15 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
           disabled
         />
       </Field>
+      <FieldRow label="Error Handling" fieldPath="errorHandlingType" issues={getIssuesForField(issues, "errorHandlingType")}>
+        <Select
+          value={object.errorHandlingType}
+          disabled={props.readonly}
+          style={{ width: "100%" }}
+          onChange={errorHandlingType => patch({ ...object, errorHandlingType: String(errorHandlingType) as typeof object.errorHandlingType })}
+          optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+        />
+      </FieldRow>
     </>
   );
 }

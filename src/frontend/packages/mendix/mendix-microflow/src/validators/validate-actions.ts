@@ -100,6 +100,11 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
       if (!action.targetMicroflowId.trim()) {
         issues.push(issue("MF_CALL_MICROFLOW_TARGET_MISSING", "MicroflowCallAction.targetMicroflowId is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId" }));
       }
+      action.parameterMappings.forEach((mapping, index) => {
+        if (!expressionText(mapping.argumentExpression)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", `MicroflowCallAction parameter "${mapping.parameterName}" requires an argument expression.`, { objectId: object.id, actionId: action.id, fieldPath: `action.parameterMappings.${index}.argumentExpression` }));
+        }
+      });
       if (action.returnValue.storeResult && !action.returnValue.outputVariableName?.trim()) {
         issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "MicroflowCallAction.returnValue.outputVariableName is required when storeResult=true.", { objectId: object.id, actionId: action.id, fieldPath: "action.returnValue.outputVariableName" }));
       }
@@ -168,6 +173,9 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
     }
     if (action.kind === "restCall" && action.timeoutSeconds <= 0) {
       issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "RestCallAction.timeoutSeconds must be greater than 0.", { objectId: object.id, actionId: action.id, fieldPath: "action.timeoutSeconds" }));
+    }
+    if (action.kind === "restCall" && action.response.handling.kind !== "ignore" && !action.response.handling.outputVariableName.trim()) {
+      issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "RestCallAction.response.handling.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.response.handling.outputVariableName" }));
     }
     if (action.kind === "createVariable") {
       if (!action.variableName.trim()) {

@@ -455,6 +455,27 @@ function addErrorContextVariables(index: MicroflowVariableIndex, schema: Microfl
 }
 
 function finalizeDiagnostics(index: MicroflowVariableIndex): void {
+  const fieldPathForSymbol = (symbol: MicroflowVariableSymbol): string => {
+    if (symbol.source.kind === "parameter") {
+      return "parameters";
+    }
+    if (symbol.source.kind === "createVariable") {
+      return "action.variableName";
+    }
+    if (symbol.source.kind === "microflowReturn") {
+      return "action.returnValue.outputVariableName";
+    }
+    if (symbol.source.kind === "restResponse") {
+      if (symbol.source.responseKind === "statusCode") {
+        return "action.response.statusCodeVariableName";
+      }
+      if (symbol.source.responseKind === "headers") {
+        return "action.response.headersVariableName";
+      }
+      return "action.response.handling.outputVariableName";
+    }
+    return "action.outputVariableName";
+  };
   for (const [name, symbols] of Object.entries(index.byName ?? {})) {
     const userSymbols = symbols.filter(symbol => !symbol.name.startsWith("$"));
     if (userSymbols.length > 1) {
@@ -465,7 +486,7 @@ function finalizeDiagnostics(index: MicroflowVariableIndex): void {
           message: `Variable "${name}" is duplicated in the current microflow scope.`,
           objectId: "objectId" in symbol.source ? symbol.source.objectId : undefined,
           actionId: "actionId" in symbol.source ? symbol.source.actionId : undefined,
-          fieldPath: symbol.source.kind === "parameter" ? "parameters" : "action.outputVariableName",
+          fieldPath: fieldPathForSymbol(symbol),
           variableName: name,
         });
       }

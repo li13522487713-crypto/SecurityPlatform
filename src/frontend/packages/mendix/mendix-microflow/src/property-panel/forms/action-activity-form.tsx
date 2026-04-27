@@ -1,17 +1,32 @@
 import { useMemo, useState } from "react";
-import { Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowDatabaseRetrieveSource, MicroflowExpression, MicroflowSortItem } from "../../schema";
-import { EMPTY_MICROFLOW_METADATA_CATALOG, getAssociationByQualifiedName, getAttributeByQualifiedName, getMicroflowById, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
+import { EMPTY_MICROFLOW_METADATA_CATALOG, getAssociationByQualifiedName, getAttributeByQualifiedName, getMicroflowById, getTargetEntityByAssociation, useMetadataStatus, useMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
 import { buildVariableIndex, getObjectEntityQualifiedName, resolveVariableReferenceFromIndex } from "../../variables";
-import { FieldError } from "../common";
+import { ErrorHandlingEditor, FieldError, FieldRow, OutputVariableEditor, VariableNameInput } from "../common";
 import { ExpressionEditor } from "../expression";
 import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelector, MicroflowSelector, VariableSelector } from "../selectors";
 import type { MicroflowNodePatch, MicroflowPropertyPanelProps } from "../types";
 import { getIssuesForField, getIssuesForObject } from "../utils";
-import { dataTypeFromKey, expression, Field, updateAction } from "../panel-shared";
+import { dataTypeFromKey, dataTypeLabel, expression, Field, updateAction } from "../panel-shared";
 import { GenericActionFields } from "./generic-action-fields-form";
 
 const { Title } = Typography;
+
+function retrieveOutputDataType(action: Extract<MicroflowAction, { kind: "retrieve" }>, catalog: MicroflowMetadataCatalog): MicroflowDataType {
+  if (action.retrieveSource.kind === "database") {
+    const itemType: MicroflowDataType = action.retrieveSource.entityQualifiedName
+      ? { kind: "object", entityQualifiedName: action.retrieveSource.entityQualifiedName }
+      : { kind: "unknown", reason: "Retrieve entity missing" };
+    return action.retrieveSource.range.kind === "first" ? itemType : { kind: "list", itemType };
+  }
+  const association = getAssociationByQualifiedName(catalog, action.retrieveSource.associationQualifiedName ?? undefined);
+  const target = getTargetEntityByAssociation(catalog, action.retrieveSource.associationQualifiedName ?? undefined);
+  const itemType: MicroflowDataType = target
+    ? { kind: "object", entityQualifiedName: target.qualifiedName }
+    : { kind: "unknown", reason: "Retrieve association target missing" };
+  return association?.multiplicity === "oneToMany" || association?.multiplicity === "manyToMany" ? { kind: "list", itemType } : itemType;
+}
 
 export function ActionActivityForm({
   schema,
@@ -44,6 +59,7 @@ export function ActionActivityForm({
   const inferredMemberEntity = action.kind === "changeMembers" ? variableEntity(action.changeVariableName) : undefined;
   const [memberEntity, setMemberEntity] = useState<string | undefined>(inferredMemberEntity ?? firstMemberEntity);
   const selectedMicroflow = action.kind === "callMicroflow" ? getMicroflowById(effectiveCatalog, action.targetMicroflowId) : undefined;
+  const restFormBody = action.kind === "restCall" && action.request.body.kind === "form" ? action.request.body : undefined;
   const patchObject = (next: MicroflowActionActivity) => onPatch({ object: next });
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -62,22 +78,36 @@ export function ActionActivityForm({
           optionList={["default", "blue", "green", "orange", "red", "purple", "gray"].map(value => ({ label: value, value }))}
         />
       </Field>
-      <Field label="Error Handling">
-        <Select
+      <FieldRow label="Error Handling" fieldPath="action.errorHandlingType" issues={getIssuesForField(issues, "action.errorHandlingType")}>
+        <ErrorHandlingEditor
           value={action.errorHandlingType}
-          disabled={readonly || action.kind === "rollback"}
-          style={{ width: "100%" }}
-          onChange={value => patchObject(updateAction(object, { errorHandlingType: String(value) as MicroflowAction["errorHandlingType"] }))}
-          optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+          readonly={readonly || action.kind === "rollback"}
+          actionKind={action.kind}
+          fieldPath="action.errorHandlingType"
+          issues={getIssuesForField(issues, "action.errorHandlingType")}
+          supportedTypes={action.kind === "logMessage" ? ["rollback"] : action.kind === "callMicroflow" ? ["rollback", "customWithRollback", "customWithoutRollback", "continue"] : ["rollback", "customWithRollback", "customWithoutRollback"]}
+          onChange={errorHandlingType => patchObject(updateAction(object, { errorHandlingType }))}
         />
-      </Field>
+      </FieldRow>
 
       {action.kind === "retrieve" ? (
         <>
           <Title heading={6} style={{ margin: "10px 0 0" }}>Retrieve Source</Title>
-          <Field label="Output Variable">
-            <Input value={action.outputVariableName} disabled={readonly} onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName }))} />
-          </Field>
+          <FieldRow label="Output Variable" fieldPath="action.outputVariableName" required issues={getIssuesForField(issues, "action.outputVariableName")}>
+            <OutputVariableEditor
+              value={action.outputVariableName}
+              schema={schema}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.outputVariableName"
+              suggestedBaseName="RetrievedObjects"
+              dataType={retrieveOutputDataType(action, effectiveCatalog)}
+              readonly={readonly}
+              required
+              issues={getIssuesForField(issues, "action.outputVariableName")}
+              onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "" }))}
+            />
+          </FieldRow>
           <Field label="Source Type">
             <Select
               value={action.retrieveSource.kind}
@@ -139,6 +169,51 @@ export function ActionActivityForm({
                   optionList={[{ label: "All", value: "all" }, { label: "First", value: "first" }, { label: "Custom", value: "custom" }]}
                 />
               </Field>
+              {action.retrieveSource.range.kind === "custom" ? (
+                <>
+                  <FieldRow label="Limit Expression" fieldPath="action.retrieveSource.range.limitExpression" required issues={getIssuesForField(issues, "action.retrieveSource.range.limitExpression")}>
+                    <ExpressionEditor
+                      value={action.retrieveSource.range.limitExpression}
+                      schema={schema}
+                      metadata={effectiveCatalog}
+                      variableIndex={variableIndex}
+                      objectId={object.id}
+                      actionId={action.id}
+                      fieldPath="action.retrieveSource.range.limitExpression"
+                      expectedType={{ kind: "integer" }}
+                      required
+                      readonly={readonly}
+                      onChange={limitExpression => {
+                        const source = action.retrieveSource;
+                        if (source.kind !== "database" || source.range.kind !== "custom") {
+                          return;
+                        }
+                        patchObject(updateAction(object, { retrieveSource: { ...source, range: { ...source.range, limitExpression } } }));
+                      }}
+                    />
+                  </FieldRow>
+                  <FieldRow label="Offset Expression" fieldPath="action.retrieveSource.range.offsetExpression" issues={getIssuesForField(issues, "action.retrieveSource.range.offsetExpression")}>
+                    <ExpressionEditor
+                      value={action.retrieveSource.range.offsetExpression}
+                      schema={schema}
+                      metadata={effectiveCatalog}
+                      variableIndex={variableIndex}
+                      objectId={object.id}
+                      actionId={action.id}
+                      fieldPath="action.retrieveSource.range.offsetExpression"
+                      expectedType={{ kind: "integer" }}
+                      readonly={readonly}
+                      onChange={offsetExpression => {
+                        const source = action.retrieveSource;
+                        if (source.kind !== "database" || source.range.kind !== "custom") {
+                          return;
+                        }
+                        patchObject(updateAction(object, { retrieveSource: { ...source, range: { ...source.range, offsetExpression } } }));
+                      }}
+                    />
+                  </FieldRow>
+                </>
+              ) : null}
               <Field label="Sort Items (one per line: Entity.Attribute asc)">
                 <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
                   {(action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items.map((item, index) => (
@@ -253,6 +328,20 @@ export function ActionActivityForm({
               <Switch checked={action.refreshInClient} disabled={readonly} onChange={refreshInClient => patchObject(updateAction(object, { refreshInClient }))} />
             </Field>
           ) : null}
+          {action.kind === "delete" ? (
+            <FieldRow label="Delete Behavior" fieldPath="action.deleteBehavior" tooltip="Deleting objects may invalidate downstream references.">
+              <Select
+                value={action.deleteBehavior}
+                disabled={readonly}
+                style={{ width: "100%" }}
+                optionList={[{ label: "deleteOnly", value: "deleteOnly" }, { label: "deleteAndRefreshClient", value: "deleteAndRefreshClient" }]}
+                onChange={deleteBehavior => patchObject(updateAction(object, { deleteBehavior: String(deleteBehavior) as typeof action.deleteBehavior }))}
+              />
+            </FieldRow>
+          ) : null}
+          {action.kind === "rollback" ? (
+            <Tag color="orange">Rollback Object only reverts the selected object/list, not the whole error-handling transaction.</Tag>
+          ) : null}
         </>
       ) : null}
 
@@ -265,9 +354,21 @@ export function ActionActivityForm({
                 <EntitySelector value={action.entityQualifiedName} disabled={readonly} onChange={entityQualifiedName => patchObject(updateAction(object, { entityQualifiedName: entityQualifiedName ?? "" }))} />
                 <FieldError issues={getIssuesForField(issues, "action.entityQualifiedName")} />
               </Field>
-              <Field label="Output Variable">
-                <Input value={action.outputVariableName} disabled={readonly} onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName }))} />
-              </Field>
+              <FieldRow label="Output Variable" fieldPath="action.outputVariableName" required issues={getIssuesForField(issues, "action.outputVariableName")}>
+                <OutputVariableEditor
+                  value={action.outputVariableName}
+                  schema={schema}
+                  objectId={object.id}
+                  actionId={action.id}
+                  fieldPath="action.outputVariableName"
+                  suggestedBaseName="NewObject"
+                  dataType={action.entityQualifiedName ? { kind: "object", entityQualifiedName: action.entityQualifiedName } : { kind: "unknown", reason: "CreateObject entity missing" }}
+                  readonly={readonly}
+                  required
+                  issues={getIssuesForField(issues, "action.outputVariableName")}
+                  onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "" }))}
+                />
+              </FieldRow>
             </>
           ) : (
             <Field label="Change Variable">
@@ -388,7 +489,7 @@ export function ActionActivityForm({
               onChange={urlExpression => patchObject(updateAction(object, { request: { ...action.request, urlExpression } }))}
             />
           </Field>
-          <Field label="Timeout Seconds">
+          <Field label="Timeout Seconds" issues={getIssuesForField(issues, "action.timeoutSeconds")}>
             <InputNumber value={action.timeoutSeconds} disabled={readonly} onChange={timeoutSeconds => patchObject(updateAction(object, { timeoutSeconds: Number(timeoutSeconds) }))} />
           </Field>
           <Field label="Headers">
@@ -487,6 +588,41 @@ export function ActionActivityForm({
               />
             </Field>
           ) : null}
+          {restFormBody ? (
+            <Field label="Form Fields">
+              <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+                {restFormBody.fields.map((field, index) => (
+                  <div key={field.id} style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr) auto", gap: 6, width: "100%" }}>
+                    <Input value={field.key} disabled={readonly} placeholder="Field" onChange={key => patchObject(updateAction(object, { request: { ...action.request, body: { ...restFormBody, fields: restFormBody.fields.map((row, rowIndex) => rowIndex === index ? { ...row, key } : row) } } }))} />
+                    <ExpressionEditor
+                      value={field.valueExpression}
+                      schema={schema}
+                      metadata={effectiveCatalog}
+                      variableIndex={variableIndex}
+                      objectId={object.id}
+                      actionId={action.id}
+                      fieldPath={`action.request.body.fields.${index}.valueExpression`}
+                      expectedType={{ kind: "string" }}
+                      readonly={readonly}
+                      onChange={valueExpression => patchObject(updateAction(object, { request: { ...action.request, body: { ...restFormBody, fields: restFormBody.fields.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression } : row) } } }))}
+                    />
+                    <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, { request: { ...action.request, body: { ...restFormBody, fields: restFormBody.fields.filter((_, rowIndex) => rowIndex !== index) } } }))}>Delete</Button>
+                  </div>
+                ))}
+                <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { request: { ...action.request, body: { ...restFormBody, fields: [...restFormBody.fields, { id: `form-${Date.now()}`, key: "", valueExpression: expression("", { kind: "string" }) }] } } }))}>Add form field</Button>
+              </Space>
+            </Field>
+          ) : null}
+          {action.request.body.kind === "mapping" ? (
+            <FieldRow label="Export Mapping" fieldPath="action.request.body.exportMappingQualifiedName">
+              <Input
+                value={action.request.body.exportMappingQualifiedName}
+                disabled={readonly}
+                placeholder="Module.ExportMapping"
+                onChange={exportMappingQualifiedName => patchObject(updateAction(object, { request: { ...action.request, body: { ...action.request.body, exportMappingQualifiedName } } }))}
+              />
+            </FieldRow>
+          ) : null}
           <Field label="Response Handling">
             <Select
               value={action.response.handling.kind}
@@ -504,14 +640,50 @@ export function ActionActivityForm({
             />
           </Field>
           {action.response.handling.kind !== "ignore" ? (
-            <Field label="Response Output Variable">
-              <Input
+            <FieldRow label="Response Output Variable" fieldPath="action.response.handling.outputVariableName" required issues={getIssuesForField(issues, "action.response.handling.outputVariableName")}>
+              <OutputVariableEditor
                 value={action.response.handling.outputVariableName}
-                disabled={readonly}
-                onChange={outputVariableName => patchObject(updateAction(object, { response: { ...action.response, handling: { ...action.response.handling, outputVariableName } } }))}
+                schema={schema}
+                objectId={object.id}
+                actionId={action.id}
+                fieldPath="action.response.handling.outputVariableName"
+                suggestedBaseName="RestResponse"
+                dataType={action.response.handling.kind === "string" ? { kind: "string" } : action.response.handling.kind === "json" ? { kind: "json" } : { kind: "unknown", reason: "REST import mapping" }}
+                readonly={readonly}
+                required
+                issues={getIssuesForField(issues, "action.response.handling.outputVariableName")}
+                onChange={outputVariableName => patchObject(updateAction(object, { response: { ...action.response, handling: { ...action.response.handling, outputVariableName: outputVariableName ?? "" } } }))}
               />
-            </Field>
+            </FieldRow>
           ) : null}
+          <FieldRow label="Status Code Variable" fieldPath="action.response.statusCodeVariableName" issues={getIssuesForField(issues, "action.response.statusCodeVariableName")}>
+            <VariableNameInput
+              value={action.response.statusCodeVariableName}
+              schema={schema}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.response.statusCodeVariableName"
+              suggestedBaseName="StatusCode"
+              dataType={{ kind: "integer" }}
+              readonly={readonly}
+              issues={getIssuesForField(issues, "action.response.statusCodeVariableName")}
+              onChange={statusCodeVariableName => patchObject(updateAction(object, { response: { ...action.response, statusCodeVariableName } }))}
+            />
+          </FieldRow>
+          <FieldRow label="Headers Variable" fieldPath="action.response.headersVariableName" issues={getIssuesForField(issues, "action.response.headersVariableName")}>
+            <VariableNameInput
+              value={action.response.headersVariableName}
+              schema={schema}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.response.headersVariableName"
+              suggestedBaseName="ResponseHeaders"
+              dataType={{ kind: "json" }}
+              readonly={readonly}
+              issues={getIssuesForField(issues, "action.response.headersVariableName")}
+              onChange={headersVariableName => patchObject(updateAction(object, { response: { ...action.response, headersVariableName } }))}
+            />
+          </FieldRow>
         </>
       ) : null}
 
@@ -541,9 +713,31 @@ export function ActionActivityForm({
               onChange={next => patchObject(updateAction(object, { template: { ...action.template, text: next.raw } }))}
             />
           </Field>
-          <Field label="Log Node Name">
+          <FieldRow label="Arguments" fieldPath="action.template.arguments">
+            <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+              {action.template.arguments.map((argument, index) => (
+                <div key={`${index}-${argument.raw}`} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 6, width: "100%" }}>
+                  <ExpressionEditor
+                    value={argument}
+                    schema={schema}
+                    metadata={effectiveCatalog}
+                    variableIndex={variableIndex}
+                    objectId={object.id}
+                    actionId={action.id}
+                    fieldPath={`action.template.arguments.${index}`}
+                    readonly={readonly}
+                    placeholder="Argument expression"
+                    onChange={nextArgument => patchObject(updateAction(object, { template: { ...action.template, arguments: action.template.arguments.map((row, rowIndex) => rowIndex === index ? nextArgument : row) } }))}
+                  />
+                  <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, { template: { ...action.template, arguments: action.template.arguments.filter((_, rowIndex) => rowIndex !== index) } }))}>Delete</Button>
+                </div>
+              ))}
+              <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { template: { ...action.template, arguments: [...action.template.arguments, expression("")] } }))}>Add argument</Button>
+            </Space>
+          </FieldRow>
+          <FieldRow label="Log Node Name" fieldPath="action.logNodeName">
             <Input value={action.logNodeName} disabled={readonly} onChange={logNodeName => patchObject(updateAction(object, { logNodeName }))} />
-          </Field>
+          </FieldRow>
           <Field label="Include Context Variables">
             <Switch checked={action.includeContextVariables} disabled={readonly} onChange={includeContextVariables => patchObject(updateAction(object, { includeContextVariables }))} />
           </Field>
@@ -565,6 +759,7 @@ export function ActionActivityForm({
                 patchObject(updateAction(object, {
                   targetMicroflowId: targetMicroflowId ?? "",
                   targetMicroflowQualifiedName: target?.qualifiedName,
+                  returnValue: { ...action.returnValue, dataType: target?.returnType, storeResult: target?.returnType.kind === "void" ? false : action.returnValue.storeResult },
                   parameterMappings: target
                     ? target.parameters.map(parameter => action.parameterMappings.find(mapping => mapping.parameterName === parameter.name) ?? {
                         parameterName: parameter.name,
@@ -586,25 +781,49 @@ export function ActionActivityForm({
               />
             </Field>
           ) : null}
-          <Field label="Parameter Mappings (name=expression)">
-            <TextArea
-              autosize
-              disabled={readonly}
-              value={action.parameterMappings.map(mapping => `${mapping.parameterName}=${mapping.argumentExpression.raw}`).join("\n")}
-              onChange={value => patchObject(updateAction(object, {
-                parameterMappings: value.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
-                  const [parameterName = "", raw = ""] = line.split("=");
-                  return { parameterName, parameterType: { kind: "string" }, argumentExpression: expression(raw) };
-                }),
-              }))}
-            />
-          </Field>
+          <FieldRow label="Parameter Mappings" fieldPath="action.parameterMappings" tooltip="Rows are generated from target microflow metadata.">
+            <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
+              {action.parameterMappings.map((mapping, index) => (
+                <div key={mapping.parameterName} style={{ display: "grid", gridTemplateColumns: "160px minmax(0, 1fr)", gap: 8, width: "100%" }}>
+                  <Tag color="blue">{mapping.parameterName}: {dataTypeLabel(mapping.parameterType)}</Tag>
+                  <ExpressionEditor
+                    value={mapping.argumentExpression}
+                    schema={schema}
+                    metadata={effectiveCatalog}
+                    variableIndex={variableIndex}
+                    objectId={object.id}
+                    actionId={action.id}
+                    fieldPath={`action.parameterMappings.${index}.argumentExpression`}
+                    expectedType={mapping.parameterType}
+                    required
+                    readonly={readonly}
+                    onChange={argumentExpression => patchObject(updateAction(object, {
+                      parameterMappings: action.parameterMappings.map((row, rowIndex) => rowIndex === index ? { ...row, argumentExpression } : row),
+                    }))}
+                  />
+                </div>
+              ))}
+              {action.parameterMappings.length === 0 ? <Tag color="grey">No parameters</Tag> : null}
+            </Space>
+          </FieldRow>
           <Field label="Store Result">
-            <Switch checked={action.returnValue.storeResult} disabled={readonly} onChange={storeResult => patchObject(updateAction(object, { returnValue: { ...action.returnValue, storeResult } }))} />
+            <Switch checked={action.returnValue.storeResult} disabled={readonly || selectedMicroflow?.returnType.kind === "void"} onChange={storeResult => patchObject(updateAction(object, { returnValue: { ...action.returnValue, storeResult } }))} />
           </Field>
-          <Field label="Return Variable Name">
-            <Input value={action.returnValue.outputVariableName ?? ""} disabled={readonly || !action.returnValue.storeResult} onChange={outputVariableName => patchObject(updateAction(object, { returnValue: { ...action.returnValue, outputVariableName } }))} />
-          </Field>
+          <FieldRow label="Return Variable Name" fieldPath="action.returnValue.outputVariableName" required={action.returnValue.storeResult} issues={getIssuesForField(issues, "action.returnValue.outputVariableName")}>
+            <OutputVariableEditor
+              value={action.returnValue.outputVariableName}
+              schema={schema}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.returnValue.outputVariableName"
+              suggestedBaseName="MicroflowResult"
+              dataType={selectedMicroflow?.returnType ?? action.returnValue.dataType}
+              readonly={readonly || !action.returnValue.storeResult || selectedMicroflow?.returnType.kind === "void"}
+              required={action.returnValue.storeResult}
+              issues={getIssuesForField(issues, "action.returnValue.outputVariableName")}
+              onChange={outputVariableName => patchObject(updateAction(object, { returnValue: { ...action.returnValue, outputVariableName } }))}
+            />
+          </FieldRow>
           <Field label="Call Mode">
             <Select
               value={action.callMode}
@@ -620,9 +839,21 @@ export function ActionActivityForm({
       {action.kind === "createVariable" ? (
         <>
           <Title heading={6} style={{ margin: "10px 0 0" }}>Create Variable</Title>
-          <Field label="Variable Name">
-            <Input value={action.variableName} disabled={readonly} onChange={variableName => patchObject(updateAction(object, { variableName }))} />
-          </Field>
+          <FieldRow label="Variable Name" fieldPath="action.variableName" required issues={getIssuesForField(issues, "action.variableName")}>
+            <OutputVariableEditor
+              value={action.variableName}
+              schema={schema}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.variableName"
+              suggestedBaseName="NewVariable"
+              dataType={action.dataType}
+              readonly={readonly}
+              required
+              issues={getIssuesForField(issues, "action.variableName")}
+              onChange={variableName => patchObject(updateAction(object, { variableName: variableName ?? "" }))}
+            />
+          </FieldRow>
           <Field label="Read only">
             <Switch checked={action.readonly} disabled={readonly} onChange={readOnly => patchObject(updateAction(object, { readonly: readOnly }))} />
           </Field>
@@ -657,6 +888,8 @@ export function ActionActivityForm({
               fieldPath="action.targetVariableName"
               value={action.targetVariableName}
               disabled={readonly}
+              includeSystem={false}
+              includeReadonly={false}
               onChange={targetVariableName => patchObject(updateAction(object, { targetVariableName: targetVariableName ?? "" }))}
             />
             <FieldError issues={getIssuesForField(issues, "action.targetVariableName")} />

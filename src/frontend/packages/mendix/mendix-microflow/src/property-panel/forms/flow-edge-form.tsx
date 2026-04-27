@@ -5,7 +5,7 @@ import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../../flowgram/adapters/flowgram-case-options";
 import { useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
 import { ValidationIssueList } from "../common";
-import type { MicroflowPropertyPanelProps } from "../types";
+import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "../types";
 import { Header, PropertyTabs, Field, flowPatch, getFlowTabs, issuesFor, objectName } from "../panel-shared";
 
 const { Text } = Typography;

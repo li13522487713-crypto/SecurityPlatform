@@ -1,7 +1,8 @@
-import { Input, Select } from "@douyinfe/semi-ui";
+import { Input, Select, TextArea } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
+import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { FieldError } from "../common";
 import { ExpressionEditor } from "../expression";
 import { EnumerationSelector } from "../selectors";
@@ -46,22 +47,38 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
               value={object.splitCondition.resultType}
               disabled={props.readonly}
               style={{ width: "100%" }}
-              onChange={resultType => patch({
-                ...object,
-                splitCondition: {
-                  ...object.splitCondition,
-                  resultType: String(resultType) as "boolean" | "enumeration",
-                  expression: expression(object.splitCondition.expression.raw, String(resultType) === "enumeration"
-                    ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
-                    : { kind: "boolean" }),
-                },
-              })}
+              onChange={resultType => {
+                if (object.splitCondition.kind !== "expression") {
+                  return;
+                }
+                const nextResultType = String(resultType) as "boolean" | "enumeration";
+                patch({
+                  ...object,
+                  splitCondition: {
+                    kind: "expression",
+                    resultType: nextResultType,
+                    enumerationQualifiedName: nextResultType === "enumeration" ? object.splitCondition.enumerationQualifiedName ?? "" : undefined,
+                    expression: expression(object.splitCondition.expression.raw, nextResultType === "enumeration"
+                      ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
+                      : { kind: "boolean" }),
+                  },
+                });
+              }}
               optionList={[{ label: "boolean", value: "boolean" }, { label: "enumeration", value: "enumeration" }]}
             />
           </Field>
           {object.splitCondition.resultType === "enumeration" ? (
             <Field label="Enumeration Type">
-              <EnumerationSelector value={object.splitCondition.enumerationQualifiedName} disabled={props.readonly} onChange={enumerationQualifiedName => patch({ ...object, splitCondition: { ...object.splitCondition, enumerationQualifiedName } })} />
+              <EnumerationSelector
+                value={object.splitCondition.enumerationQualifiedName}
+                disabled={props.readonly}
+                onChange={enumerationQualifiedName => {
+                  if (object.splitCondition.kind !== "expression") {
+                    return;
+                  }
+                  patch({ ...object, splitCondition: { ...object.splitCondition, enumerationQualifiedName } });
+                }}
+              />
               <FieldError issues={getIssuesForField(issues, "splitCondition.enumerationQualifiedName")} />
             </Field>
           ) : null}
@@ -87,10 +104,29 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
               })}
             />
           </Field>
+          <Field label="Branch Summary">
+            <TextArea
+              disabled
+              autosize
+              value={collectFlowsRecursive(props.schema)
+                .filter(flow => flow.originObjectId === object.id)
+                .map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(caseValue => caseValue.kind === "boolean" ? String(caseValue.value) : caseValue.kind === "enumeration" ? caseValue.value : caseValue.kind).join(", ") || "pending" : flow.kind}`)
+                .join("\n") || (object.splitCondition.resultType === "boolean" ? "Expected: true / false branches" : "Expected: enumeration value branches")}
+            />
+          </Field>
         </>
       ) : (
         <Field label="Rule Reference">
-          <Input value={object.splitCondition.ruleQualifiedName} disabled={props.readonly} onChange={ruleQualifiedName => patch({ ...object, splitCondition: { ...object.splitCondition, ruleQualifiedName } })} />
+          <Input
+            value={object.splitCondition.ruleQualifiedName}
+            disabled={props.readonly}
+            onChange={ruleQualifiedName => {
+              if (object.splitCondition.kind !== "rule") {
+                return;
+              }
+              patch({ ...object, splitCondition: { ...object.splitCondition, ruleQualifiedName } });
+            }}
+          />
         </Field>
       )}
     </>

@@ -5,7 +5,7 @@ import type {
   MicroflowObject,
   MicroflowObjectCollection,
   MicroflowSequenceFlow,
-} from "../schema";
+} from "../schema/types";
 import type { MicroflowTestRunOptions } from "./trace-types";
 
 export function collectRuntimeObjects(collection: MicroflowObjectCollection): MicroflowObject[] {

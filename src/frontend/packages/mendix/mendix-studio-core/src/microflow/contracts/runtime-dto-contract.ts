@@ -13,7 +13,7 @@ export type {
 
 export type { MicroflowDiscriminatedRuntimeP0ActionDto };
 
-export { toRuntimeDto } from "@atlas/microflow/adapters";
+export { toRuntimeDto } from "@atlas/microflow/adapters/runtime";
 
 /** 与 schema.parameters 对齐的执行期参数描述（精简版）。 */
 export interface MicroflowRuntimeParameterDto {
