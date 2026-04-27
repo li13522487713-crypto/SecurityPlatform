@@ -60,6 +60,10 @@
 
 - `POST /api/microflows/{id}/publish` — `PublishMicroflowApiRequest` → `MicroflowPublishResult`。
 - 流程：加载资源 → 校验（有 error 则 `MICROFLOW_PUBLISH_BLOCKED`）→ 影响分析（高影响且未 `confirmBreakingChanges` 时阻塞）→ 创建**不可变**发布快照（含 `MicroflowAuthoringSchema`）→ 更新 `MicroflowVersionSummary` 与 `MicroflowResource` 的 `status` / `publishStatus` / `latestPublishedVersion`。
+- 第 38 轮后端已实现真实发布：发布会新增 `MicroflowSchemaSnapshot`、`MicroflowPublishSnapshot`、`MicroflowVersion`，并在同一 SqlSugar 事务中更新 `MicroflowResource.status=published`、`publishStatus=published`、`version`、`latestPublishedVersion`。
+- `version` 必须符合 semver-like 格式（如 `1.0.0`、`1.0.0-beta.1`），同一资源下重复版本返回 `MICROFLOW_VERSION_CONFLICT`，格式错误返回 `MICROFLOW_VALIDATION_FAILED` 且带 `fieldErrors.version`。
+- 发布前基础 validation 会检查 AuthoringSchema 必填根字段并拒绝 FlowGram-only 根字段；失败返回 `MICROFLOW_PUBLISH_BLOCKED` 且填充 `validationIssues`。
+- 基础 breaking changes：参数删除、参数类型变更、返回类型变更为 high；暴露 URL path 变更为 medium；已发布对象删除为 low。high 且未传 `confirmBreakingChanges=true` 会阻止发布。
 
 ## 版本
 
@@ -68,12 +72,15 @@
 - `POST .../rollback` — `RollbackMicroflowVersionRequest`；从快照恢复 Authoring；资源为 draft 或 `changedAfterPublish` 策略与实现约定（建议 rollback 后 `changedAfterPublish` 若曾发布过）。
 - `POST .../duplicate` — 新建**草稿**资源。
 - `GET .../compare-current` — `MicroflowVersionDiff`。
+- 第 38 轮版本详情会读取对应 `MicroflowPublishSnapshot` 和 `SchemaSnapshot`，并返回与当前 schema 的 `diffFromCurrent`。回滚不会修改旧 snapshot / publish snapshot，只会从历史 snapshot 创建新的 current schema snapshot，并把资源切回 `draft`；若存在 `latestPublishedVersion`，`publishStatus=changedAfterPublish`。
+- 复制历史版本会创建新的 draft resource 和新的 schema snapshot，不复制 run session、trace、log 或 reference 记录。
 
 ## 引用与影响
 
 - `GET /api/microflows/{id}/references` — query：`GetMicroflowReferencesRequest`（`includeInactive`、`sourceType[]`、`impactLevel[]`）。
 - `GET /api/microflows/{id}/impact` — `AnalyzeMicroflowImpactRequest` → `MicroflowPublishImpactAnalysis`。
 - 来源类型：`microflow` | `workflow` | `page` | `form` | `button` | `schedule` | `api`（可扩展，与 `MicroflowReference` 一致）。
+- 第 38 轮 impact 是基础版：读取 `MicroflowReference` 当前 active 引用并基于当前 schema 与最新发布 schema 的 diff 计算 `impactLevel` 与 summary；完整 References 深度分析留后续轮次。
 
 ## 元数据
 

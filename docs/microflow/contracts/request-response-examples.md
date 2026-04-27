@@ -84,14 +84,49 @@ Content-Type: application/json
 }
 ```
 
+第 38 轮真实后端发布成功后，`data` 包含：
+
+- `resource`：已更新为 `status=published`、`publishStatus=published`。
+- `version`：新增 `MicroflowVersionSummary`，含 `schemaSnapshotId` 与 `isLatestPublished=true`。
+- `snapshot`：不可变 `MicroflowPublishedSnapshot`，含 AuthoringSchema 与 `schemaHash`。
+- `validationSummary` / `impactAnalysis`：发布前基础校验和影响分析结果。
+
 ## 7. 获取版本
 
 `GET /api/microflows/{id}/versions` → `MicroflowVersionSummary[]`
+
+`GET /api/microflows/{id}/versions/{versionId}` → `MicroflowVersionDetail`，其中 `snapshot.schema` 为历史发布 AuthoringSchema，`diffFromCurrent` 为当前 schema 与该版本的基础 diff。
 
 ## 8. 回滚
 
 `POST /api/microflows/{id}/versions/{versionId}/rollback`  
 Body: `{ "reason": "rollback to stable" }`
+
+回滚返回 `MicroflowResource`。后端会从历史 version snapshot 创建新的 current schema snapshot，不修改旧 snapshot / publish snapshot。
+
+复制历史版本：
+
+```http
+POST /api/microflows/{id}/versions/{versionId}/duplicate
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "OrderFlowCopy",
+  "displayName": "Order Flow Copy",
+  "moduleId": "sales",
+  "tags": ["copied"]
+}
+```
+
+比较当前版本：
+
+`GET /api/microflows/{id}/versions/{versionId}/compare-current` → `MicroflowVersionDiff`
+
+发布前影响分析：
+
+`GET /api/microflows/{id}/impact?version=1.1.0&includeBreakingChanges=true` → `MicroflowPublishImpactAnalysis`
 
 ## 9. 获取引用
 

@@ -44,6 +44,11 @@ public sealed class MicroflowVersionRepository : IMicroflowVersionRepository
     public Task<MicroflowVersionEntity?> GetByIdAsync(string id, CancellationToken cancellationToken)
         => _db.Queryable<MicroflowVersionEntity>().Where(x => x.Id == id).FirstAsync(cancellationToken)!;
 
+    public Task<MicroflowVersionEntity?> GetByResourceVersionAsync(string resourceId, string version, CancellationToken cancellationToken)
+        => _db.Queryable<MicroflowVersionEntity>()
+            .Where(x => x.ResourceId == resourceId && x.Version == version)
+            .FirstAsync(cancellationToken)!;
+
     public Task InsertAsync(MicroflowVersionEntity entity, CancellationToken cancellationToken)
         => _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
 
@@ -73,6 +78,12 @@ public sealed class MicroflowPublishSnapshotRepository : IMicroflowPublishSnapsh
     public Task<MicroflowPublishSnapshotEntity?> GetLatestByResourceIdAsync(string resourceId, CancellationToken cancellationToken)
         => _db.Queryable<MicroflowPublishSnapshotEntity>()
             .Where(x => x.ResourceId == resourceId)
+            .OrderBy(x => x.PublishedAt, OrderByType.Desc)
+            .FirstAsync(cancellationToken)!;
+
+    public Task<MicroflowPublishSnapshotEntity?> GetByResourceVersionAsync(string resourceId, string version, CancellationToken cancellationToken)
+        => _db.Queryable<MicroflowPublishSnapshotEntity>()
+            .Where(x => x.ResourceId == resourceId && x.Version == version)
             .OrderBy(x => x.PublishedAt, OrderByType.Desc)
             .FirstAsync(cancellationToken)!;
 

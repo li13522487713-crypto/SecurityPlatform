@@ -39,6 +39,8 @@ public interface IMicroflowVersionRepository
 
     Task<MicroflowVersionEntity?> GetByIdAsync(string id, CancellationToken cancellationToken);
 
+    Task<MicroflowVersionEntity?> GetByResourceVersionAsync(string resourceId, string version, CancellationToken cancellationToken);
+
     Task InsertAsync(MicroflowVersionEntity entity, CancellationToken cancellationToken);
 
     Task MarkLatestPublishedAsync(string resourceId, string versionId, CancellationToken cancellationToken);
@@ -49,6 +51,8 @@ public interface IMicroflowPublishSnapshotRepository
     Task<MicroflowPublishSnapshotEntity?> GetByIdAsync(string id, CancellationToken cancellationToken);
 
     Task<MicroflowPublishSnapshotEntity?> GetLatestByResourceIdAsync(string resourceId, CancellationToken cancellationToken);
+
+    Task<MicroflowPublishSnapshotEntity?> GetByResourceVersionAsync(string resourceId, string version, CancellationToken cancellationToken);
 
     Task InsertAsync(MicroflowPublishSnapshotEntity entity, CancellationToken cancellationToken);
 }
@@ -86,4 +90,9 @@ public interface IMicroflowMetadataCacheRepository
     Task InsertAsync(MicroflowMetadataCacheEntity entity, CancellationToken cancellationToken);
 
     Task<MicroflowMetadataCacheEntity?> GetByVersionAsync(string? workspaceId, string catalogVersion, CancellationToken cancellationToken);
+}
+
+public interface IMicroflowStorageTransaction
+{
+    Task ExecuteAsync(Func<Task> operation, CancellationToken cancellationToken);
 }

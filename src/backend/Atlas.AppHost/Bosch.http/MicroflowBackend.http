@@ -4,6 +4,7 @@
 @userId = demo-user
 @traceId = demo-trace
 @microflowId = mf-seed-blank
+@versionId = replace-with-version-id-from-publish-response
 
 ### Microflow health
 GET {{host}}/api/microflows/health
@@ -189,6 +190,144 @@ X-Trace-Id: {{traceId}}
     "parameters": [],
     "returnType": { "kind": "void" }
   }
+}
+
+### Microflow publish 1.0.0
+POST {{host}}/api/microflows/{{microflowId}}/publish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "version": "1.0.0",
+  "description": "First immutable publish snapshot",
+  "confirmBreakingChanges": false,
+  "force": false
+}
+
+### Microflow versions
+GET {{host}}/api/microflows/{{microflowId}}/versions
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow version detail
+GET {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow compare version with current
+GET {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}/compare-current
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow impact analysis
+GET {{host}}/api/microflows/{{microflowId}}/impact?version=1.0.1&includeBreakingChanges=true
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow rollback version
+POST {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}/rollback
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "reason": "Manual rollback from .http"
+}
+
+### Microflow duplicate historical version
+POST {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}/duplicate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "name": "OrderApprovalFromVersion",
+  "displayName": "Order Approval From Version",
+  "moduleId": "demo-module",
+  "moduleName": "Demo",
+  "tags": ["demo", "version-copy"]
+}
+
+### Microflow duplicate publish version conflict
+POST {{host}}/api/microflows/{{microflowId}}/publish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "version": "1.0.0",
+  "description": "Should return MICROFLOW_VERSION_CONFLICT",
+  "confirmBreakingChanges": true
+}
+
+### Microflow save high-impact breaking change
+PUT {{host}}/api/microflows/{{microflowId}}/schema
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "baseVersion": "1.0.0",
+  "saveReason": "remove parameter for breaking change",
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{microflowId}}",
+    "stableId": "{{microflowId}}",
+    "name": "OrderApprovalDemo",
+    "displayName": "Order Approval Demo",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "boolean" },
+    "objectCollection": { "id": "root-collection", "objects": [] },
+    "flows": []
+  }
+}
+
+### Microflow publish high impact without confirmation blocked
+POST {{host}}/api/microflows/{{microflowId}}/publish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "version": "1.0.1",
+  "description": "Should return MICROFLOW_PUBLISH_BLOCKED",
+  "confirmBreakingChanges": false
+}
+
+### Microflow publish high impact with confirmation
+POST {{host}}/api/microflows/{{microflowId}}/publish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "version": "1.0.1",
+  "description": "Confirmed high-impact publish",
+  "confirmBreakingChanges": true
 }
 
 ### Microflow not found

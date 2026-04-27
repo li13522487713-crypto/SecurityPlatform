@@ -16,6 +16,10 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowMetadataQueryService, InMemoryMicroflowMetadataQueryService>();
         services.TryAddScoped<IMicroflowValidationService, SkeletonMicroflowValidationService>();
         services.TryAddScoped<IMicroflowRuntimeSkeletonService, SkeletonMicroflowRuntimeService>();
+        services.TryAddScoped<IMicroflowVersionDiffService, MicroflowVersionDiffService>();
+        services.TryAddScoped<IMicroflowPublishImpactService, MicroflowPublishImpactService>();
+        services.TryAddScoped<IMicroflowPublishService, MicroflowPublishService>();
+        services.TryAddScoped<IMicroflowVersionService, MicroflowVersionService>();
 
         return services;
     }

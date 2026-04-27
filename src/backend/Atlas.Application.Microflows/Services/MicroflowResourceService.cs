@@ -119,13 +119,26 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             Archived = false,
             ReferenceCount = 0,
             LastRunStatus = "neverRun",
+            LastRunAt = now,
             SchemaId = snapshot.Id,
             CurrentSchemaSnapshotId = snapshot.Id,
             ConcurrencyStamp = Guid.NewGuid().ToString("N")
         };
 
-        await _schemaSnapshotRepository.InsertAsync(snapshot, cancellationToken);
-        await _resourceRepository.InsertAsync(entity, cancellationToken);
+        try
+        {
+            await _schemaSnapshotRepository.InsertAsync(snapshot, cancellationToken);
+            await _resourceRepository.InsertAsync(entity, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not MicroflowApiException)
+        {
+            throw new MicroflowApiException(
+                MicroflowApiErrorCode.MicroflowStorageError,
+                "微流资源创建写入失败。",
+                500,
+                details: ex.Message,
+                innerException: ex);
+        }
         return MicroflowResourceMapper.ToDto(entity, snapshot);
     }
 
@@ -296,6 +309,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             Archived = false,
             ReferenceCount = 0,
             LastRunStatus = "neverRun",
+            LastRunAt = now,
             SchemaId = snapshot.Id,
             CurrentSchemaSnapshotId = snapshot.Id,
             ConcurrencyStamp = Guid.NewGuid().ToString("N")

@@ -18,6 +18,7 @@ public static class MicroflowInfrastructureServiceRegistration
         services.AddScoped<IMicroflowReferenceRepository, MicroflowReferenceRepository>();
         services.AddScoped<IMicroflowRunRepository, MicroflowRunRepository>();
         services.AddScoped<IMicroflowMetadataCacheRepository, MicroflowMetadataCacheRepository>();
+        services.AddScoped<IMicroflowStorageTransaction, MicroflowStorageTransaction>();
 
         services.AddScoped<IMicroflowResourceQueryService, MicroflowDbResourceQueryService>();
         services.AddScoped<IMicroflowMetadataQueryService, MicroflowDbMetadataQueryService>();

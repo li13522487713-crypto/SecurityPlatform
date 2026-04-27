@@ -50,6 +50,14 @@
 
 `SchemaJson` 与发布快照中的 `SchemaJson` 只保存 `MicroflowAuthoringSchema` JSON；当前不会保存 FlowGram JSON。发布快照表按不可变写入模型设计，后续发布服务只能新增行，不应覆盖已有快照。Trace 按 `MicroflowRunSession` 主表、`MicroflowRunTraceFrame` 与 `MicroflowRunLog` 从表保存，`RunId` 已建查询索引。
 
+第 38 轮发布/版本落地策略：
+
+- 发布时新增 `MicroflowSchemaSnapshot` 作为发布时刻的 schema 固化点，`MicroflowVersion.SchemaSnapshotId` 与 `MicroflowPublishSnapshot.SchemaSnapshotId` 均指向该快照。
+- `MicroflowPublishSnapshot.SchemaJson` 保存同一份 AuthoringSchema JSON 与 `SchemaHash`，作为只读发布镜像；后续发布同版本会被唯一版本校验阻止，不覆盖旧行。
+- 发布、回滚、复制历史版本使用 `IMicroflowStorageTransaction` 包装 SqlSugar 事务，避免 Version / PublishSnapshot / Resource 更新半成功后返回 success。
+- 回滚只新增新的 current `MicroflowSchemaSnapshot` 并更新 `MicroflowResource.CurrentSchemaSnapshotId`，不修改旧 version、旧 schema snapshot 或 publish snapshot。
+- 复制历史版本创建新的 `MicroflowResource` 与新的 schema snapshot，默认 `status=draft`、`publishStatus=neverPublished`、`referenceCount=0`。
+
 开发 seed：
 
 - 配置键：`Microflows:SeedData:Enabled=true`

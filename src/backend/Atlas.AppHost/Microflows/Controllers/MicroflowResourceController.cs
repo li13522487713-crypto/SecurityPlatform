@@ -12,12 +12,16 @@ namespace Atlas.AppHost.Microflows.Controllers;
 public sealed class MicroflowResourceController : MicroflowApiControllerBase
 {
     private readonly IMicroflowResourceService _resourceService;
+    private readonly IMicroflowPublishService _publishService;
+    private readonly IMicroflowVersionService _versionService;
     private readonly IMicroflowValidationService _validationService;
     private readonly IMicroflowRuntimeSkeletonService _runtimeService;
     private readonly IMicroflowStorageDiagnosticsService _storageDiagnosticsService;
 
     public MicroflowResourceController(
         IMicroflowResourceService resourceService,
+        IMicroflowPublishService publishService,
+        IMicroflowVersionService versionService,
         IMicroflowValidationService validationService,
         IMicroflowRuntimeSkeletonService runtimeService,
         IMicroflowStorageDiagnosticsService storageDiagnosticsService,
@@ -25,9 +29,93 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         : base(requestContextAccessor)
     {
         _resourceService = resourceService;
+        _publishService = publishService;
+        _versionService = versionService;
         _validationService = validationService;
         _runtimeService = runtimeService;
         _storageDiagnosticsService = storageDiagnosticsService;
+    }
+
+    [HttpPost("{id}/publish")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowPublishResultDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowPublishResultDto>>> Publish(
+        string id,
+        [FromBody] PublishMicroflowApiRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _publishService.PublishAsync(id, request, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/impact")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowPublishImpactAnalysisDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowPublishImpactAnalysisDto>>> AnalyzeImpact(
+        string id,
+        [FromQuery] string? version,
+        [FromQuery] bool includeBreakingChanges = true,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _publishService.AnalyzeImpactAsync(
+            id,
+            new AnalyzeMicroflowImpactRequestDto { Version = version, IncludeBreakingChanges = includeBreakingChanges },
+            cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/versions")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<IReadOnlyList<MicroflowVersionSummaryDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<IReadOnlyList<MicroflowVersionSummaryDto>>>> ListVersions(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _versionService.ListVersionsAsync(id, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/versions/{versionId}")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowVersionDetailDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowVersionDetailDto>>> GetVersionDetail(
+        string id,
+        string versionId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _versionService.GetVersionDetailAsync(id, versionId, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpPost("{id}/versions/{versionId}/rollback")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> RollbackVersion(
+        string id,
+        string versionId,
+        [FromBody] RollbackMicroflowVersionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _versionService.RollbackAsync(id, versionId, request, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpPost("{id}/versions/{versionId}/duplicate")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> DuplicateVersion(
+        string id,
+        string versionId,
+        [FromBody] DuplicateMicroflowVersionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _versionService.DuplicateVersionAsync(id, versionId, request, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/versions/{versionId}/compare-current")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowVersionDiffDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowVersionDiffDto>>> CompareCurrent(
+        string id,
+        string versionId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _versionService.CompareCurrentAsync(id, versionId, cancellationToken);
+        return MicroflowOk(result);
     }
 
     [HttpGet("health")]

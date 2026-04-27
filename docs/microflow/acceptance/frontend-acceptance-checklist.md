@@ -12,8 +12,8 @@
 8. **校验**：工具栏校验；ProblemPanel 显示 `MicroflowValidationIssue`。
 9. **测试运行**：打开测试运行/调试，Mock 轨迹可显示（不崩）。
 10. **保存**：保存后 Local Adapter 下刷新仍存在。
-11. **发布**：发布弹窗、版本号策略；成功后状态标签变化。
-12. **版本 / 引用 / 回滚 / 复制版本**：抽屉/弹窗可打开，Mock 有数据时列表非空。
+11. **发布**：HTTP 模式下调用 `POST /api/microflows/{id}/publish`；成功后状态标签变为 published，重复版本显示 `MICROFLOW_VERSION_CONFLICT`。
+12. **版本 / 引用 / 回滚 / 复制版本**：VersionsDrawer / VersionDetailDrawer 走真实 versions API；rollback 后资源回到 draft，duplicate version 生成新草稿资源。
 13. **大样例**：在开发环境调用 `createLargeMicroflowSample(120)` 或通过内部 API 打开，不白屏、明显卡顿可接受范围。
 14. **缩放 150%**：浏览器缩放，主布局不重叠至不可用。
 15. **快捷键**：与 microflow 包内快捷键表一致，无与全局热键严重冲突。

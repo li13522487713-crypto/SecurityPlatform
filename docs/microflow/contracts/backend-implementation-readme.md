@@ -40,6 +40,15 @@
 - `PUT /api/microflows/{id}/schema`：保存 AuthoringSchema，并新增 SchemaSnapshot；已发布资源保存后 `publishStatus=changedAfterPublish`。
 - `POST /duplicate`、`/rename`、`/favorite`、`/archive`、`/restore` 与 `DELETE` 已实现真实持久化。
 
+第 38 轮已补充 Version / Publish Snapshot：
+
+- `POST /api/microflows/{id}/publish`：执行基础版本号校验、AuthoringSchema 校验、impact analysis，占用 high breaking changes 时要求 `confirmBreakingChanges=true`。
+- 发布会在事务中新增 `MicroflowSchemaSnapshot`、不可变 `MicroflowPublishSnapshot` 与 `MicroflowVersion`，并更新资源 `status=published`、`publishStatus=published`、`version`、`latestPublishedVersion`。
+- `GET /api/microflows/{id}/versions` 与 `GET /api/microflows/{id}/versions/{versionId}` 已从 DB 读取版本列表、发布快照和当前 diff。
+- `POST /rollback` 从历史版本 snapshot 创建新的 current schema snapshot，不修改历史快照；资源回到 `draft`，已发布过则 `publishStatus=changedAfterPublish`。
+- `POST /duplicate` 从历史版本复制为新草稿资源，不复制运行记录、trace、log 或 references。
+- `GET /compare-current` 与 `GET /impact` 使用基础 JSON diff：参数删除/类型变更、返回类型变更、暴露 URL path 变更、对象/flow 增删。
+
 并发与删除策略：
 
 - `baseVersion` 可匹配 `resource.version`、`resource.concurrencyStamp`、当前 snapshot id 或 snapshot schemaVersion；不匹配返回 `MICROFLOW_VERSION_CONFLICT`。
@@ -50,10 +59,9 @@
 
 后续建议：
 
-- 第 36 轮：DB Migration / Repository / 存储行模型。
-- 第 37 轮：Resource CRUD + Schema Save/Load。
 - 第 39 轮：Metadata API。
 - 第 40 轮：Validation API。
+- 第 41 轮：References / Impact Analysis 深化。
 - 第 42 轮：TestRun Mock API + Trace 存储。
 
 当前实现仍坚持不保存 FlowGram JSON，后端只围绕 `MicroflowAuthoringSchema` / Runtime DTO / Trace 等契约概念展开。
