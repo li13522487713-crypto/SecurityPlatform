@@ -25,7 +25,7 @@ public static class MicroflowExceptionMapper
 
         if (exception is UnauthorizedAccessException)
         {
-            return Create(403, MicroflowApiErrorCode.MicroflowPermissionDenied, "没有访问该微流资源的权限。", traceId);
+            return Create(401, MicroflowApiErrorCode.MicroflowUnauthorized, "登录已失效，请重新登录。", traceId);
         }
 
         if (exception is KeyNotFoundException)

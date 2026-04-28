@@ -1,14 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
-import { Button, Checkbox, Form, Input, Modal, Select, Space, Toast } from "@douyinfe/semi-ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Checkbox, Form, Input, Modal, Select, Space, Toast, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowDataType, MicroflowParameter } from "@atlas/microflow";
 
+import type { MicroflowApiFieldError } from "../contracts/api/api-envelope";
+import { getMicroflowApiError, getMicroflowErrorActionHint } from "../adapter/http/microflow-api-error";
 import type { MicroflowCreateInput, MicroflowResource } from "./resource-types";
 
 type ExistingMicroflowName = Pick<MicroflowResource, "name">;
+const { Text } = Typography;
 
 interface CreateMicroflowModalProps {
   visible: boolean;
   existingResources?: ExistingMicroflowName[];
+  defaultModuleId?: string;
+  moduleOptions?: Array<{ value: string; label: string }>;
   initialModuleId?: string;
   initialModuleName?: string;
   moduleLocked?: boolean;
@@ -18,6 +23,15 @@ interface CreateMicroflowModalProps {
 }
 
 type DataTypeValue = "void" | "boolean" | "integer" | "long" | "decimal" | "string" | "dateTime" | "json";
+
+type SubmitErrorState = {
+  status?: number;
+  code?: string;
+  message: string;
+  traceId?: string;
+  fieldErrors: MicroflowApiFieldError[];
+  retryHint?: string;
+};
 
 const dataTypeOptions = [
   { value: "void", label: "Void" },
@@ -55,9 +69,44 @@ function makeParameter(name: string, dataType: DataTypeValue): MicroflowParamete
   };
 }
 
+function mergeFieldErrors(input: MicroflowApiFieldError[] | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const item of input ?? []) {
+    const normalizedPath = item.fieldPath.replace(/^input\./u, "");
+    if (!result[normalizedPath]) {
+      result[normalizedPath] = item.message;
+    }
+  }
+  return result;
+}
+
+function resolveReadableErrorMessage(status: number | undefined, code: string | undefined, fallbackMessage: string): string {
+  if (code === "MICROFLOW_NETWORK_ERROR" || code === "MICROFLOW_SERVICE_UNAVAILABLE") {
+    return "微流服务不可用，请检查网络或后端服务。";
+  }
+  if (status === 401 || code === "MICROFLOW_UNAUTHORIZED") {
+    return "登录已失效，请重新登录。";
+  }
+  if (status === 403 || code === "MICROFLOW_PERMISSION_DENIED") {
+    return "当前账号无权限创建微流。";
+  }
+  if (status === 409 || code === "MICROFLOW_NAME_DUPLICATED") {
+    return "同名微流已存在。";
+  }
+  if (status === 422 || code === "MICROFLOW_VALIDATION_FAILED") {
+    return fallbackMessage || "微流校验失败，请检查输入字段。";
+  }
+  if (status === 500) {
+    return "微流服务异常，请联系管理员。";
+  }
+  return fallbackMessage || "微流服务异常。";
+}
+
 export function CreateMicroflowModal({
   visible,
   existingResources = [],
+  defaultModuleId,
+  moduleOptions = [],
   initialModuleId,
   initialModuleName,
   moduleLocked = false,
@@ -68,7 +117,7 @@ export function CreateMicroflowModal({
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
-  const [moduleId, setModuleId] = useState("sales");
+  const [moduleId, setModuleId] = useState("");
   const [tags, setTags] = useState("microflow");
   const [returnType, setReturnType] = useState<DataTypeValue>("void");
   const [returnVariableName, setReturnVariableName] = useState("");
@@ -85,6 +134,10 @@ export function CreateMicroflowModal({
   const [urlPath, setUrlPath] = useState("");
   const [template, setTemplate] = useState<MicroflowCreateInput["template"]>("blank");
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [submitError, setSubmitError] = useState<SubmitErrorState>();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const resolvedDefaultModuleId = defaultModuleId ?? initialModuleId ?? "";
 
   const existingNames = useMemo(
     () => new Set(existingResources.map(item => item.name.toLowerCase())),
@@ -98,31 +151,34 @@ export function CreateMicroflowModal({
     setName("");
     setDisplayName("");
     setDescription("");
-    setModuleId(initialModuleId ?? "sales");
+    setModuleId(resolvedDefaultModuleId);
     setTags("microflow");
     setReturnType("void");
     setReturnVariableName("");
     setParameters([]);
     setTemplate("blank");
-  }, [initialModuleId, visible]);
+    setSubmitError(undefined);
+    setFieldErrors({});
+    setSubmitting(false);
+    submittingRef.current = false;
+  }, [resolvedDefaultModuleId, visible]);
 
   function validate(): boolean {
     const trimmedName = name.trim();
+    const nextFieldErrors: Record<string, string> = {};
+    setSubmitError(undefined);
     if (!trimmedName) {
-      Toast.warning("微流名称不能为空");
-      return false;
+      nextFieldErrors.name = "name 不能为空。";
     }
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(trimmedName)) {
-      Toast.warning("微流名称只能包含字母、数字和下划线，且不能以数字开头");
-      return false;
+    if (trimmedName && !/^[A-Za-z][A-Za-z0-9_]*$/u.test(trimmedName)) {
+      nextFieldErrors.name = "name 必须以字母开头，且只能包含字母、数字和下划线。";
     }
     if (existingNames.has(trimmedName.toLowerCase())) {
-      Toast.warning("微流名称不能重复");
-      return false;
+      nextFieldErrors.name = "同名微流已存在。";
     }
-    if (!moduleId.trim()) {
-      Toast.warning("模块不能为空");
-      return false;
+    const trimmedModuleId = moduleId.trim();
+    if (!trimmedModuleId) {
+      nextFieldErrors.moduleId = resolvedDefaultModuleId ? "moduleId 不能为空。" : "缺少模块上下文，无法创建微流。";
     }
     const parameterNames = parameters.map(parameter => parameter.name.trim()).filter(Boolean);
     if (parameterNames.length !== parameters.length || parameterNames.some(value => !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(value))) {
@@ -137,13 +193,22 @@ export function CreateMicroflowModal({
       Toast.warning("URL 路径必须以 / 开头");
       return false;
     }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) {
+      Toast.warning(nextFieldErrors.name ?? nextFieldErrors.moduleId ?? "请先修正表单错误。");
+      return false;
+    }
     return true;
   }
 
   async function handleSubmit() {
+    if (submittingRef.current || submitting) {
+      return;
+    }
     if (!validate()) {
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const created = await onSubmit({
@@ -175,10 +240,32 @@ export function CreateMicroflowModal({
         },
         template
       });
+      setSubmitError(undefined);
+      setFieldErrors({});
       Toast.success("微流创建成功");
       onCreated?.(created);
       onClose();
+    } catch (caught) {
+      const apiError = getMicroflowApiError(caught);
+      const status = apiError.httpStatus;
+      const code = apiError.code;
+      const nextFieldErrors = mergeFieldErrors(apiError.fieldErrors);
+      if (status === 409 || code === "MICROFLOW_NAME_DUPLICATED") {
+        nextFieldErrors.name = nextFieldErrors.name ?? "同名微流已存在。";
+      }
+      const readableMessage = resolveReadableErrorMessage(status, code, apiError.message);
+      setFieldErrors(nextFieldErrors);
+      setSubmitError({
+        status,
+        code,
+        message: readableMessage,
+        traceId: apiError.traceId,
+        fieldErrors: apiError.fieldErrors ?? [],
+        retryHint: getMicroflowErrorActionHint(apiError) || (apiError.retryable ? "该错误可重试，请稍后再试。" : undefined),
+      });
+      Toast.error(readableMessage);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -188,9 +275,31 @@ export function CreateMicroflowModal({
       <Form labelPosition="top" style={{ maxHeight: "70vh", overflow: "auto", paddingRight: 8 }}>
         <Form.Section text="基本信息">
           <Form.Input field="name" label="Name" value={name} onChange={value => setName(String(value))} placeholder="OrderProcessing" />
+          {fieldErrors.name ? <Text type="danger" size="small">{fieldErrors.name}</Text> : null}
           <Form.Input field="displayName" label="显示名称" value={displayName} onChange={value => setDisplayName(String(value))} placeholder="订单处理微流" />
           <Form.TextArea field="description" label="描述" value={description} onChange={value => setDescription(String(value))} autosize />
-          <Form.Input field="moduleId" label="模块" value={moduleId} onChange={value => setModuleId(String(value))} disabled={moduleLocked} />
+          {moduleLocked ? (
+            <Form.Input
+              field="moduleIdDisplay"
+              label="模块"
+              value={moduleOptions.find(item => item.value === moduleId)?.label ?? initialModuleName ?? moduleId}
+              disabled
+              placeholder="缺少模块上下文"
+            />
+          ) : moduleOptions.length > 0 ? (
+            <Form.Select
+              field="moduleId"
+              label="模块"
+              value={moduleId}
+              onChange={value => setModuleId(String(value ?? ""))}
+              disabled={moduleLocked}
+              optionList={moduleOptions}
+              placeholder="请选择模块"
+            />
+          ) : (
+            <Form.Input field="moduleId" label="模块" value={moduleId} onChange={value => setModuleId(String(value))} disabled={moduleLocked} placeholder="请输入模块 ID" />
+          )}
+          {fieldErrors.moduleId ? <Text type="danger" size="small">{fieldErrors.moduleId}</Text> : null}
           <Form.Input field="tags" label="标签（逗号分隔）" value={tags} onChange={value => setTags(String(value))} />
           <Form.Select field="template" label="模板" value={template} onChange={value => setTemplate(value as MicroflowCreateInput["template"])} optionList={templateOptions} />
         </Form.Section>
@@ -226,6 +335,24 @@ export function CreateMicroflowModal({
           </Space>
           <Form.Input field="urlPath" label="URL path" value={urlPath} onChange={value => setUrlPath(String(value))} placeholder="/orders/process" />
         </Form.Section>
+        {submitError ? (
+          <Form.Section text="创建失败">
+            <Space vertical align="start" spacing={4}>
+              <Text type="danger">{submitError.message}</Text>
+              <Text size="small">status: {submitError.status ?? "-"}</Text>
+              <Text size="small">code: {submitError.code ?? "-"}</Text>
+              <Text size="small">traceId: {submitError.traceId ?? "-"}</Text>
+              {submitError.retryHint ? <Text size="small">{submitError.retryHint}</Text> : null}
+              {submitError.fieldErrors.length > 0 ? (
+                <Space vertical align="start" spacing={2}>
+                  {submitError.fieldErrors.map(item => (
+                    <Text size="small" type="danger" key={`${item.fieldPath}:${item.code}`}>{item.fieldPath}: {item.message} ({item.code})</Text>
+                  ))}
+                </Space>
+              ) : null}
+            </Space>
+          </Form.Section>
+        ) : null}
       </Form>
     </Modal>
   );

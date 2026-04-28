@@ -70,12 +70,39 @@ function isApiResponse<T>(value: unknown): value is MicroflowApiResponse<T> {
   return isRecord(value) && typeof value.success === "boolean";
 }
 
+function readTraceIdFromProblemDetails(payload: Record<string, unknown>): string | undefined {
+  const candidates = [
+    payload.traceId,
+    payload.traceID,
+    payload.requestId,
+    payload.requestID,
+    isRecord(payload.extensions) ? payload.extensions.traceId : undefined,
+    isRecord(payload.extensions) ? payload.extensions.requestId : undefined,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
 function buildApiError(status: number, statusText: string, payload: unknown, traceId?: string): MicroflowApiError {
   if (isApiResponse<unknown>(payload) && payload.error) {
     return normalizeMicroflowApiError(payload.error, status, payload.traceId ?? traceId);
   }
   if (isRecord(payload) && isRecord(payload.error)) {
     return normalizeMicroflowApiError(payload.error, status, traceId);
+  }
+  if (isRecord(payload) && (typeof payload.title === "string" || typeof payload.detail === "string" || typeof payload.status === "number")) {
+    return normalizeMicroflowApiError({
+      code: mapHttpStatusToMicroflowErrorCode(status),
+      message: typeof payload.detail === "string" ? payload.detail : typeof payload.title === "string" ? payload.title : statusText || `HTTP ${status}`,
+      details: typeof payload.type === "string" ? payload.type : undefined,
+      httpStatus: typeof payload.status === "number" ? payload.status : status,
+      traceId: readTraceIdFromProblemDetails(payload),
+      raw: payload,
+    }, status, traceId);
   }
   return normalizeMicroflowApiError({
     code: mapHttpStatusToMicroflowErrorCode(status),

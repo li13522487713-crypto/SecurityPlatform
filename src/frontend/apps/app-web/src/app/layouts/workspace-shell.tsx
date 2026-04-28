@@ -481,7 +481,8 @@ export function SpaceShellLayout() {
   const auth = useAuth();
   const bootstrap = useBootstrap();
   const location = useLocation();
-  const { loading, spaceListLoading: _spaceListLoading, spaceList } = useInitSpace(space_id);
+  const isMendixStudioPath = location.pathname.includes("/mendix-studio");
+  const { loading, spaceListLoading: _spaceListLoading, spaceList } = useInitSpace(space_id, { enabled: !isMendixStudioPath });
 
   if (bootstrap.loading || auth.loading || loading) {
     return <LoadingPage />;
@@ -491,7 +492,7 @@ export function SpaceShellLayout() {
     return <Navigate to={signPath(location.pathname + location.search)} replace />;
   }
 
-  if (!space_id || spaceList.length === 0) {
+  if (!space_id || (!isMendixStudioPath && spaceList.length === 0)) {
     return <Navigate to={selectWorkspacePath()} replace />;
   }
 

@@ -150,7 +150,9 @@ export function getMicroflowErrorUserMessage(error: unknown): string {
     case "MICROFLOW_UNAUTHORIZED":
       return "登录已失效，请重新登录。";
     case "MICROFLOW_PERMISSION_DENIED":
-      return "当前账号无权限执行该微流操作。";
+      return "当前账号无权限创建微流。";
+    case "MICROFLOW_NAME_DUPLICATED":
+      return "同名微流已存在。";
     case "MICROFLOW_NOT_FOUND":
       return "微流资源不存在或已被删除。";
     case "MICROFLOW_VERSION_CONFLICT":
@@ -179,6 +181,9 @@ export function getMicroflowErrorActionHint(error: unknown): string {
   }
   if (apiError.code === "MICROFLOW_VERSION_CONFLICT") {
     return "当前未保存内容会保留，请刷新远端版本后再决定是否覆盖。";
+  }
+  if (apiError.code === "MICROFLOW_NAME_DUPLICATED") {
+    return "请使用新的微流名称后重试。";
   }
   if (apiError.code === "MICROFLOW_UNAUTHORIZED") {
     return "请重新登录后再继续。";

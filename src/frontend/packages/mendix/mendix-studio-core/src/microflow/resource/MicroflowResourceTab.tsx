@@ -52,10 +52,12 @@ export interface MicroflowResourceTabProps {
   currentUser?: { id: string; name: string; roles?: string[] };
   onOpenMicroflow?: (resourceId: string) => void;
   onOpenStudio?: () => void;
+  defaultModuleId?: string;
 }
 
 interface CreateMicroflowModalProps {
   visible: boolean;
+  defaultModuleId?: string;
   onClose: () => void;
   onSubmit: (input: MicroflowCreateInput) => Promise<void>;
 }
@@ -66,17 +68,38 @@ interface RenameMicroflowModalProps {
   onSubmit: (resource: MicroflowResource, name: string, displayName?: string) => Promise<void>;
 }
 
-function CreateMicroflowModal({ visible, onClose, onSubmit }: CreateMicroflowModalProps) {
+function CreateMicroflowModal({ visible, defaultModuleId, onClose, onSubmit }: CreateMicroflowModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [moduleId, setModuleId] = useState("sales");
+  const [moduleId, setModuleId] = useState("");
   const [tags, setTags] = useState("order, sample");
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    setName("");
+    setDescription("");
+    setModuleId(defaultModuleId ?? "");
+    setTags("order, sample");
+  }, [defaultModuleId, visible]);
+
   async function handleSubmit() {
+    if (submitting) {
+      return;
+    }
     const trimmedName = name.trim();
     if (!trimmedName) {
       Toast.warning("请输入微流名称");
+      return;
+    }
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/u.test(trimmedName)) {
+      Toast.warning("name 必须以字母开头，且只能包含字母、数字和下划线。");
+      return;
+    }
+    if (!moduleId.trim()) {
+      Toast.warning("缺少模块上下文，无法创建微流");
       return;
     }
     setSubmitting(true);
@@ -85,8 +108,8 @@ function CreateMicroflowModal({ visible, onClose, onSubmit }: CreateMicroflowMod
         name: trimmedName,
         displayName: trimmedName,
         description: description.trim(),
-        moduleId: moduleId.trim() || "default",
-        moduleName: moduleId.trim() || "Default",
+        moduleId: moduleId.trim(),
+        moduleName: moduleId.trim(),
         tags: tags.split(",").map(tag => tag.trim()).filter(Boolean),
         parameters: [],
         returnType: { kind: "void" },
@@ -105,7 +128,7 @@ function CreateMicroflowModal({ visible, onClose, onSubmit }: CreateMicroflowMod
       <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
         <Input value={name} onChange={setName} placeholder="OrderProcessing" prefix="名称" />
         <Input value={description} onChange={setDescription} placeholder="描述" prefix="描述" />
-        <Input value={moduleId} onChange={setModuleId} placeholder="sales" prefix="模块" />
+        <Input value={moduleId} onChange={setModuleId} placeholder="module-id" prefix="模块" />
         <Input value={tags} onChange={setTags} placeholder="order, crm" prefix="标签" />
       </Space>
     </Modal>
@@ -245,7 +268,7 @@ export function ResourceTable({
   );
 }
 
-export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundle, adapterConfig, workspaceId, tenantId, currentUser, onOpenMicroflow, onOpenStudio }: MicroflowResourceTabProps) {
+export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundle, adapterConfig, workspaceId, tenantId, currentUser, onOpenMicroflow, onOpenStudio, defaultModuleId }: MicroflowResourceTabProps) {
   const bundleResult = useMemo(() => {
     try {
       return { bundle: adapterBundle ?? createMicroflowAdapterBundle({ ...adapterConfig, workspaceId: adapterConfig?.workspaceId ?? workspaceId, tenantId: adapterConfig?.tenantId ?? tenantId, currentUser: adapterConfig?.currentUser ?? currentUser }) };
@@ -407,7 +430,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
         )}
       </div>
 
-      <CreateMicroflowModal visible={createOpen} onClose={() => setCreateOpen(false)} onSubmit={handleCreate} />
+      <CreateMicroflowModal visible={createOpen} defaultModuleId={defaultModuleId} onClose={() => setCreateOpen(false)} onSubmit={handleCreate} />
       <RenameMicroflowModal resource={renamingResource} onClose={() => setRenamingResource(undefined)} onSubmit={handleRename} />
       <PublishMicroflowModal
         visible={publishOpen}

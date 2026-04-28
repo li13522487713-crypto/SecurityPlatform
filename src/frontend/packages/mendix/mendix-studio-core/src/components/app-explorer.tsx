@@ -571,14 +571,12 @@ export function AppExplorer({ adapterBundle, workspaceId, refreshToken }: AppExp
       syncResourceToExplorer(created);
       Toast.success("微流已创建");
       await loadMicroflows(true);
+      openMicroflowWorkbenchTab(created.id);
       return created;
-    } catch (caught) {
-      Toast.error(getMicroflowErrorUserMessage(caught));
-      throw caught;
     } finally {
       setCrudAction(undefined);
     }
-  }, [adapterBundle, loadMicroflows, microflows, moduleId, syncResourceToExplorer, workspaceId]);
+  }, [adapterBundle, loadMicroflows, microflows, moduleId, openMicroflowWorkbenchTab, syncResourceToExplorer, workspaceId]);
 
   const handleRenameMicroflow = useCallback(async (name: string, displayName?: string) => {
     if (!renamingMicroflow) {
@@ -865,7 +863,8 @@ export function AppExplorer({ adapterBundle, workspaceId, refreshToken }: AppExp
       <CreateMicroflowModal
         visible={createOpen}
         existingResources={microflows}
-        initialModuleId={moduleId}
+        defaultModuleId={moduleId}
+        moduleOptions={moduleId ? [{ value: moduleId, label: SAMPLE_PROCUREMENT_MODULE?.name ?? moduleId }] : []}
         initialModuleName={SAMPLE_PROCUREMENT_MODULE?.name}
         moduleLocked
         onClose={() => setCreateOpen(false)}

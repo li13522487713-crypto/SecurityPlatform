@@ -513,7 +513,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
                 MicroflowApiErrorCode.MicroflowValidationFailed,
                 "微流 name 必须以字母开头，且只能包含字母、数字和下划线。",
                 422,
-                fieldErrors: [new MicroflowApiFieldError { FieldPath = "name", Code = "INVALID_FORMAT", Message = "name 格式非法。" }]);
+                fieldErrors: [new MicroflowApiFieldError { FieldPath = "input.name", Code = "INVALID_FORMAT", Message = "name 格式非法。" }]);
         }
     }
 

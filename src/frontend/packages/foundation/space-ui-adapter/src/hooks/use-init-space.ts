@@ -17,9 +17,25 @@
 import { useInitSpace as useBaseInitSpace } from '@coze-foundation/space-ui-base';
 import { useSpaceStore } from '@coze-foundation/space-store';
 
-export const useInitSpace = (spaceId?: string) =>
-  useBaseInitSpace({
+export const useInitSpace = (
+  spaceId?: string,
+  options?: { enabled?: boolean },
+) => {
+  const enabled = options?.enabled ?? true;
+  const result = useBaseInitSpace({
     spaceId,
     fetchSpacesWithSpaceId: _ => useSpaceStore.getState().fetchSpaces(true),
-    isReady: true,
+    isReady: enabled,
   });
+
+  if (!enabled) {
+    return {
+      loading: false,
+      isError: false,
+      spaceListLoading: false,
+      spaceList: spaceId ? [{ id: spaceId }] : [],
+    };
+  }
+
+  return result;
+};

@@ -20,6 +20,7 @@ import type { MicroflowApiPageResult } from "../../contracts/api/api-envelope";
 import type { SaveMicroflowSchemaResponse } from "../../contracts/api/microflow-schema-api-contract";
 import type { MicroflowResourceAdapter, SaveMicroflowSchemaOptions } from "../microflow-resource-adapter";
 import { MicroflowApiClient, type MicroflowApiClientOptions, type MicroflowQuery } from "./microflow-api-client";
+import { getMicroflowApiError } from "./microflow-api-error";
 
 export interface HttpMicroflowResourceAdapterOptions extends MicroflowApiClientOptions {
   apiClient?: MicroflowApiClient;
@@ -46,6 +47,14 @@ function toImpactQuery(query?: AnalyzeMicroflowImpactRequest): MicroflowQuery {
   };
 }
 
+function isDevelopmentRuntime(): boolean {
+  try {
+    return Boolean((import.meta as { env?: { DEV?: boolean } }).env?.DEV);
+  } catch {
+    return false;
+  }
+}
+
 export function createHttpMicroflowResourceAdapter(options: HttpMicroflowResourceAdapterOptions): MicroflowResourceAdapter {
   const client = options.apiClient ?? new MicroflowApiClient(options);
 
@@ -64,7 +73,36 @@ export function createHttpMicroflowResourceAdapter(options: HttpMicroflowResourc
       return client.get<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}`);
     },
     async createMicroflow(input: MicroflowCreateInput) {
-      return client.post<MicroflowResource>("/api/microflows", { workspaceId: options.workspaceId, input });
+      try {
+        return await client.post<MicroflowResource>("/api/microflows", { workspaceId: options.workspaceId, input });
+      } catch (caught) {
+        if (isDevelopmentRuntime()) {
+          const apiError = getMicroflowApiError(caught);
+          console.warn("[microflow-create-diagnostics]", {
+            method: "POST",
+            path: "/api/microflows",
+            apiBaseUrl: options.apiBaseUrl,
+            workspaceId: options.workspaceId,
+            moduleId: input.moduleId,
+            headers: {
+              hasWorkspaceHeader: Boolean(options.workspaceId),
+              hasTenantHeader: Boolean(options.tenantId),
+              hasUserHeader: Boolean(options.currentUser?.id),
+            },
+            payload: {
+              workspaceId: options.workspaceId,
+              input: {
+                name: input.name,
+                moduleId: input.moduleId,
+              },
+            },
+            status: apiError.httpStatus,
+            code: apiError.code,
+            traceId: apiError.traceId,
+          });
+        }
+        throw caught;
+      }
     },
     async updateMicroflow(id: string, patch: MicroflowResourcePatch) {
       return client.patch<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}`, { patch });
