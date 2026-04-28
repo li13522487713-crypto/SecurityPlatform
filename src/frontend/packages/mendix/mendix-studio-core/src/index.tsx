@@ -23,6 +23,7 @@ import { useMendixStudioStore } from "./store";
 import { MicroflowResourceEditorHost } from "./microflow/studio/MicroflowResourceEditorHost";
 import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
 import { MicroflowReferencesDrawer } from "./microflow/references/MicroflowReferencesDrawer";
+import { getMendixStudioCopy } from "./i18n/copy";
 
 export interface MendixStudioAppProps {
   appId?: string;
@@ -43,6 +44,7 @@ export function MendixStudioApp({
   adapterConfig,
   adapterBundle,
 }: MendixStudioAppProps) {
+  const copy = getMendixStudioCopy();
   const activeTab = useMendixStudioStore(state => state.activeTab);
   const activeWorkbenchTab = useMendixStudioStore(state =>
     state.activeWorkbenchTabId
@@ -149,13 +151,13 @@ export function MendixStudioApp({
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <Card style={{ width: 520, borderRadius: 12 }}>
             <Space vertical align="start" spacing={12}>
-              <Text strong>微流服务初始化失败</Text>
+              <Text strong>{copy.app.initFailedTitle}</Text>
               <Text type="tertiary" size="small">
-                当前页面无法创建 microflow adapter bundle。请检查 apiBaseUrl、adapter mode、workspaceId 和 tenantId 配置后刷新页面。
+                {copy.app.initFailedDescription}
               </Text>
-              <Text size="small">workspaceId: {workspaceId || "-"}</Text>
-              <Text size="small">appId: {appId || "-"}</Text>
-              <Button onClick={() => window.location.reload()}>刷新页面</Button>
+              <Text size="small">{copy.app.workspaceIdLabel}: {workspaceId || "-"}</Text>
+              <Text size="small">{copy.app.appIdLabel}: {appId || "-"}</Text>
+              <Button onClick={() => window.location.reload()}>{copy.common.refreshPage}</Button>
             </Space>
           </Card>
         </div>
@@ -249,11 +251,11 @@ export function MendixStudioApp({
                     >
                       <Card style={{ width: 420, borderRadius: 12 }}>
                         <Text strong>
-                          {activeMicroflowId ? "微流资源不存在或已被删除" : "微流 Workbench tab 缺少 microflowId"}
+                          {activeMicroflowId ? copy.app.microflowMissingTitle : copy.app.microflowTabMissingIdTitle}
                         </Text>
                         <div style={{ marginTop: 8 }}>
                           <Text type="tertiary" size="small">
-                            本轮不会创建 fake resource，也不会加载真实 schema。请刷新资源列表或关闭该 tab 后从 App Explorer 重新打开真实微流。
+                            {copy.app.microflowMissingDescription}
                           </Text>
                         </div>
                       </Card>
@@ -319,6 +321,7 @@ export function MendixStudioIndexPage({
   workspaceId: string;
   onOpen: (appId: string) => void;
 }) {
+  const copy = getMendixStudioCopy();
   return (
     <div
       style={{
@@ -363,7 +366,7 @@ export function MendixStudioIndexPage({
         </div>
 
         <Text type="tertiary" style={{ display: "block", marginBottom: 20, fontSize: 13 }}>
-          工作区: <strong style={{ color: "#374151" }}>{workspaceId}</strong>
+          {copy.index.workspaceLabel}: <strong style={{ color: "#374151" }}>{workspaceId}</strong>
         </Text>
 
         <Space vertical style={{ width: "100%" }} spacing={12}>
@@ -390,10 +393,10 @@ export function MendixStudioIndexPage({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14, color: "#1c2a3a", marginBottom: 4 }}>
-                  Procurement Approval（示例）
+                  {copy.index.sampleAppTitle}
                 </div>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  采购审批工作流 · Domain Model · Microflow · Workflow
+                  {copy.index.sampleAppDescription}
                 </div>
               </div>
               <IconArrowRight style={{ color: "#1677ff", fontSize: 18, flexShrink: 0 }} />
@@ -407,16 +410,16 @@ export function MendixStudioIndexPage({
             block
             style={{ height: 40, fontSize: 14 }}
             onClick={() => {
-              Toast.info({ content: "新建应用功能开发中", duration: 2 });
+              Toast.info({ content: copy.index.createAppInProgress, duration: 2 });
             }}
           >
-            + 新建应用
+            {copy.index.createAppButton}
           </Button>
         </Space>
 
         <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f0f2f5" }}>
           <Text type="tertiary" size="small">
-            Mendix Studio Core · Atlas Security Platform · v0.0.0
+            {copy.index.footer}
           </Text>
         </div>
       </Card>

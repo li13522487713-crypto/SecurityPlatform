@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../../adapters";
-import { getDefaultMockMetadataCatalog } from "../../metadata";
+import { createMetadataCatalog, EMPTY_MICROFLOW_METADATA_CATALOG } from "../../metadata";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import { createBooleanCaseValue, sampleMicroflowSchema, validateMicroflowSchema, type MicroflowObject, type MicroflowSchema } from "../../schema";
 
@@ -44,7 +44,33 @@ function validSchema(): MicroflowSchema {
 }
 
 function validate(schema: MicroflowSchema) {
-  return validateMicroflowSchema({ schema, metadata: getDefaultMockMetadataCatalog(), options: { mode: "save", includeWarnings: true, includeInfo: true } }).issues;
+  const metadata = createMetadataCatalog({
+    ...EMPTY_MICROFLOW_METADATA_CATALOG,
+    microflows: [
+      {
+        id: "MF_CHILD_VALID",
+        name: "ChildValid",
+        qualifiedName: "Sales.ChildValid",
+        moduleName: "Sales",
+        parameters: [],
+        returnType: { kind: "void" },
+        status: "published",
+      },
+    ],
+    entities: [
+      {
+        id: "Sales.Order",
+        name: "Order",
+        qualifiedName: "Sales.Order",
+        moduleName: "Sales",
+        attributes: [],
+        associations: [],
+        specializations: [],
+        isPersistable: true,
+      },
+    ],
+  });
+  return validateMicroflowSchema({ schema, metadata, options: { mode: "save", includeWarnings: true, includeInfo: true } }).issues;
 }
 
 describe("validateMicroflowSchema Stage 20 save gate rules", () => {
