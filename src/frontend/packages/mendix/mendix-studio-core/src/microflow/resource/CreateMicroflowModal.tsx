@@ -5,6 +5,7 @@ import type { MicroflowDataType, MicroflowParameter } from "@atlas/microflow";
 import type { MicroflowApiFieldError } from "../contracts/api/api-envelope";
 import { getMicroflowApiError, getMicroflowErrorActionHint } from "../adapter/http/microflow-api-error";
 import type { MicroflowCreateInput, MicroflowResource } from "./resource-types";
+import { getMendixStudioCopy } from "../../i18n/copy";
 
 type ExistingMicroflowName = Pick<MicroflowResource, "name">;
 const { Text } = Typography;
@@ -81,25 +82,26 @@ function mergeFieldErrors(input: MicroflowApiFieldError[] | undefined): Record<s
 }
 
 function resolveReadableErrorMessage(status: number | undefined, code: string | undefined, fallbackMessage: string): string {
+  const copy = getMendixStudioCopy();
   if (code === "MICROFLOW_NETWORK_ERROR" || code === "MICROFLOW_SERVICE_UNAVAILABLE") {
-    return "微流服务不可用，请检查网络或后端服务。";
+    return copy.createModal.networkUnavailable;
   }
   if (status === 401 || code === "MICROFLOW_UNAUTHORIZED") {
-    return "登录已失效，请重新登录。";
+    return copy.createModal.unauthorized;
   }
   if (status === 403 || code === "MICROFLOW_PERMISSION_DENIED") {
-    return "当前账号无权限创建微流。";
+    return copy.createModal.forbidden;
   }
   if (status === 409 || code === "MICROFLOW_NAME_DUPLICATED") {
-    return "同名微流已存在。";
+    return copy.createModal.duplicated;
   }
   if (status === 422 || code === "MICROFLOW_VALIDATION_FAILED") {
-    return fallbackMessage || "微流校验失败，请检查输入字段。";
+    return fallbackMessage || copy.createModal.validationFailed;
   }
   if (status === 500) {
-    return "微流服务异常，请联系管理员。";
+    return copy.createModal.serverError;
   }
-  return fallbackMessage || "微流服务异常。";
+  return fallbackMessage || copy.createModal.fallbackError;
 }
 
 export function CreateMicroflowModal({
@@ -114,6 +116,7 @@ export function CreateMicroflowModal({
   onSubmit,
   onCreated
 }: CreateMicroflowModalProps) {
+  const copy = getMendixStudioCopy();
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
@@ -168,34 +171,36 @@ export function CreateMicroflowModal({
     const nextFieldErrors: Record<string, string> = {};
     setSubmitError(undefined);
     if (!trimmedName) {
-      nextFieldErrors.name = "name 不能为空。";
+      nextFieldErrors.name = copy.createModal.invalidNameRequired;
     }
     if (trimmedName && !/^[A-Za-z][A-Za-z0-9_]*$/u.test(trimmedName)) {
-      nextFieldErrors.name = "name 必须以字母开头，且只能包含字母、数字和下划线。";
+      nextFieldErrors.name = copy.createModal.invalidNamePattern;
     }
     if (existingNames.has(trimmedName.toLowerCase())) {
-      nextFieldErrors.name = "同名微流已存在。";
+      nextFieldErrors.name = copy.createModal.invalidNameDuplicated;
     }
     const trimmedModuleId = moduleId.trim();
     if (!trimmedModuleId) {
-      nextFieldErrors.moduleId = resolvedDefaultModuleId ? "moduleId 不能为空。" : "缺少模块上下文，无法创建微流。";
+      nextFieldErrors.moduleId = resolvedDefaultModuleId
+        ? copy.createModal.missingModuleId
+        : copy.createModal.missingModuleContext;
     }
     const parameterNames = parameters.map(parameter => parameter.name.trim()).filter(Boolean);
     if (parameterNames.length !== parameters.length || parameterNames.some(value => !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(value))) {
-      Toast.warning("参数名格式不合法");
+      Toast.warning(copy.createModal.invalidParameterName);
       return false;
     }
     if (new Set(parameterNames.map(value => value.toLowerCase())).size !== parameterNames.length) {
-      Toast.warning("参数名不能重复");
+      Toast.warning(copy.createModal.duplicatedParameterName);
       return false;
     }
     if (urlEnabled && urlPath && !urlPath.startsWith("/")) {
-      Toast.warning("URL 路径必须以 / 开头");
+      Toast.warning(copy.createModal.invalidUrlPath);
       return false;
     }
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0) {
-      Toast.warning(nextFieldErrors.name ?? nextFieldErrors.moduleId ?? "请先修正表单错误。");
+      Toast.warning(nextFieldErrors.name ?? nextFieldErrors.moduleId ?? copy.createModal.formInvalid);
       return false;
     }
     return true;
@@ -242,7 +247,7 @@ export function CreateMicroflowModal({
       });
       setSubmitError(undefined);
       setFieldErrors({});
-      Toast.success("微流创建成功");
+      Toast.success(copy.createModal.submitSuccess);
       onCreated?.(created);
       onClose();
     } catch (caught) {
@@ -251,7 +256,7 @@ export function CreateMicroflowModal({
       const code = apiError.code;
       const nextFieldErrors = mergeFieldErrors(apiError.fieldErrors);
       if (status === 409 || code === "MICROFLOW_NAME_DUPLICATED") {
-        nextFieldErrors.name = nextFieldErrors.name ?? "同名微流已存在。";
+        nextFieldErrors.name = nextFieldErrors.name ?? copy.createModal.invalidNameDuplicated;
       }
       const readableMessage = resolveReadableErrorMessage(status, code, apiError.message);
       setFieldErrors(nextFieldErrors);
@@ -261,7 +266,7 @@ export function CreateMicroflowModal({
         message: readableMessage,
         traceId: apiError.traceId,
         fieldErrors: apiError.fieldErrors ?? [],
-        retryHint: getMicroflowErrorActionHint(apiError) || (apiError.retryable ? "该错误可重试，请稍后再试。" : undefined),
+        retryHint: getMicroflowErrorActionHint(apiError) || (apiError.retryable ? copy.createModal.retryableHint : undefined),
       });
       Toast.error(readableMessage);
     } finally {
@@ -271,7 +276,15 @@ export function CreateMicroflowModal({
   }
 
   return (
-    <Modal visible={visible} title="新建微流" onCancel={onClose} onOk={() => void handleSubmit()} confirmLoading={submitting} width={760} okText="创建">
+    <Modal
+      visible={visible}
+      title={copy.createModal.title}
+      onCancel={onClose}
+      onOk={() => void handleSubmit()}
+      confirmLoading={submitting}
+      width={760}
+      okText={copy.createModal.createButton}
+    >
       <Form labelPosition="top" style={{ maxHeight: "70vh", overflow: "auto", paddingRight: 8 }}>
         <Form.Section text="基本信息">
           <Form.Input field="name" label="Name" value={name} onChange={value => setName(String(value))} placeholder="OrderProcessing" />

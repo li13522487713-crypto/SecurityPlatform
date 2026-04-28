@@ -4,6 +4,7 @@ import { Button, Card, Input, Modal, Select, Space, Switch, Tag, TextArea, Typog
 import type { MicroflowDataType, MicroflowSchema } from "../schema";
 import { buildDefaultRunInputValues, buildRunInputModel, validateRunInputs, type MicroflowRunInputField } from "./run-input-model";
 import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTestRunOptions } from "./trace-types";
+import { formatMendixMicroflowTemplate, getMendixMicroflowCopy } from "../i18n/copy";
 
 const { Text } = Typography;
 
@@ -22,6 +23,7 @@ export interface MicroflowTestRunModalProps {
 }
 
 export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
+  const copy = getMendixMicroflowCopy();
   const model = useMemo(() => buildRunInputModel(props.schema), [props.schema]);
   const defaults = useMemo(() => buildDefaultRunInputValues(model), [model]);
   const parameters = props.values ?? defaults;
@@ -56,7 +58,7 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
 
   return (
     <Modal
-      title="Run Microflow"
+      title={copy.testRun.title}
       visible={props.visible}
       onCancel={props.onCancel}
       footer={null}
@@ -68,12 +70,20 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
           <Tag color="blue">{props.schema.displayName || props.schema.name}</Tag>
           <Tag>{model.microflowId}</Tag>
           <Tag>{model.schemaVersion}</Tag>
-          {props.dirty ? <Tag color="orange">dirty - Save & Run</Tag> : <Tag color="green">saved draft</Tag>}
-          {props.validationErrorCount ? <Tag color="red">{props.validationErrorCount} validation errors</Tag> : <Tag color="green">validation gate ready</Tag>}
+          {props.dirty ? <Tag color="orange">{copy.testRun.dirtyTag}</Tag> : <Tag color="green">{copy.testRun.savedTag}</Tag>}
+          {props.validationErrorCount ? (
+            <Tag color="red">
+              {formatMendixMicroflowTemplate(copy.testRun.validationErrorsTag, { count: props.validationErrorCount })}
+            </Tag>
+          ) : (
+            <Tag color="green">{copy.testRun.validationReadyTag}</Tag>
+          )}
         </Space>
-        <Text type="secondary">Run 会先执行本地与后端 validation；dirty 时先 Save & Run，保存成功后调用真实后端 POST /api/microflows/{model.microflowId}/test-run，并提交类型转换后的输入参数。</Text>
+        <Text type="secondary">
+          {copy.testRun.runDescription}
+        </Text>
         {model.warnings.map(warning => <Text key={warning} type="warning" size="small">{warning}</Text>)}
-        {model.fields.length === 0 ? <Text type="tertiary">当前微流没有输入参数。</Text> : null}
+        {model.fields.length === 0 ? <Text type="tertiary">{copy.testRun.noInputParameters}</Text> : null}
         {model.fields.map(field => (
           <ParameterField
             key={field.parameter.id}
@@ -84,23 +94,23 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
           />
         ))}
         <div style={{ width: "100%", borderTop: "1px solid var(--semi-color-border)", paddingTop: 12 }}>
-          <Text strong>Runtime options</Text>
+          <Text strong>{copy.testRun.runtimeOptions}</Text>
           <Space vertical align="start" spacing={10} style={{ width: "100%", marginTop: 10 }}>
             <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <Switch checked={Boolean(options.allowRealHttp)} onChange={allowRealHttp => setOptions(current => ({ ...current, allowRealHttp }))} />
-              <Text>allowRealHttp</Text>
-              <Text size="small" type="tertiary">默认关闭，后端策略不允许时会真实返回错误。</Text>
+              <Text>{copy.testRun.allowRealHttp}</Text>
+              <Text size="small" type="tertiary">{copy.testRun.allowRealHttpHint}</Text>
             </label>
             <label style={{ display: "grid", gap: 6, width: 220 }}>
-              <Text size="small" strong>maxSteps</Text>
+              <Text size="small" strong>{copy.testRun.maxSteps}</Text>
               <Input value={String(options.maxSteps ?? 200)} onChange={value => setOptions(current => ({ ...current, maxSteps: Number.isFinite(Number(value)) ? Number(value) : 200 }))} />
             </label>
           </Space>
         </div>
         <RunResultPreview session={props.lastSession} serviceError={props.serviceError} />
         <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-          <Button onClick={props.onCancel} disabled={props.running}>取消</Button>
-          <Button type="primary" loading={props.running} onClick={run}>{props.dirty ? "Save & Run" : "Run"}</Button>
+          <Button onClick={props.onCancel} disabled={props.running}>{copy.testRun.cancel}</Button>
+          <Button type="primary" loading={props.running} onClick={run}>{props.dirty ? copy.testRun.saveAndRun : copy.testRun.run}</Button>
         </Space>
       </Space>
     </Modal>
@@ -139,10 +149,12 @@ function renderInput(dataType: MicroflowDataType, value: unknown, onChange: (val
     );
   }
   if (dataType.kind === "integer" || dataType.kind === "long" || dataType.kind === "decimal") {
-    return <Input value={value === undefined || value === null ? "" : String(value)} placeholder="输入数字" onChange={onChange} />;
+    const copy = getMendixMicroflowCopy();
+    return <Input value={value === undefined || value === null ? "" : String(value)} placeholder={copy.testRun.numberPlaceholder} onChange={onChange} />;
   }
   if (dataType.kind === "dateTime") {
-    return <Input value={String(value ?? "")} placeholder="2026-04-28T10:00:00Z" onChange={onChange} />;
+    const copy = getMendixMicroflowCopy();
+    return <Input value={String(value ?? "")} placeholder={copy.testRun.dateTimePlaceholder} onChange={onChange} />;
   }
   if (dataType.kind === "object" || dataType.kind === "list" || dataType.kind === "json") {
     return <TextArea autosize value={typeof value === "string" ? value : JSON.stringify(value ?? "", null, 2)} onChange={onChange} />;
@@ -151,7 +163,8 @@ function renderInput(dataType: MicroflowDataType, value: unknown, onChange: (val
     return <Input value={String(value ?? "")} placeholder={dataType.enumerationQualifiedName} onChange={onChange} />;
   }
   if (dataType.kind === "void" || dataType.kind === "binary") {
-    return <Input disabled value="" placeholder="不可作为运行输入" />;
+    const copy = getMendixMicroflowCopy();
+    return <Input disabled value="" placeholder={copy.testRun.unsupportedInputPlaceholder} />;
   }
   return <Input value={String(value ?? "")} onChange={onChange} />;
 }
@@ -161,8 +174,10 @@ function RunResultPreview({ session, serviceError }: { session?: MicroflowRunSes
     return <Card style={{ width: "100%" }} bodyStyle={{ padding: 12 }}><Text type="danger">{serviceError}</Text></Card>;
   }
   if (!session) {
-    return <Text type="tertiary">运行结果会显示在这里，并同步到底部 Debug 面板。</Text>;
+    const copy = getMendixMicroflowCopy();
+    return <Text type="tertiary">{copy.testRun.resultPlaceholder}</Text>;
   }
+  const copy = getMendixMicroflowCopy();
   const durationMs = session.endedAt ? Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) : undefined;
   const nodeOutputs = session.trace.filter(frame => frame.output !== undefined).map(frame => ({
     objectId: frame.objectId,
@@ -176,16 +191,16 @@ function RunResultPreview({ session, serviceError }: { session?: MicroflowRunSes
       <Space vertical align="start" style={{ width: "100%" }}>
         <Space wrap>
           <Tag color={session.status === "success" ? "green" : session.status === "failed" ? "red" : "orange"}>{session.status}</Tag>
-          <Tag>runId {session.id}</Tag>
-          {session.callDepth !== undefined ? <Tag>depth {session.callDepth}</Tag> : null}
+          <Tag>{formatMendixMicroflowTemplate(copy.testRun.runIdTag, { id: session.id })}</Tag>
+          {session.callDepth !== undefined ? <Tag>{formatMendixMicroflowTemplate(copy.testRun.callDepthTag, { depth: session.callDepth })}</Tag> : null}
           {durationMs !== undefined ? <Tag>{durationMs}ms</Tag> : null}
-          <Tag>{session.trace.length} frames</Tag>
-          <Tag>{session.logs.length} logs</Tag>
-          {childRuns.length > 0 ? <Tag color="blue">{childRuns.length} child runs</Tag> : null}
+          <Tag>{formatMendixMicroflowTemplate(copy.testRun.traceFramesTag, { count: session.trace.length })}</Tag>
+          <Tag>{formatMendixMicroflowTemplate(copy.testRun.logsTag, { count: session.logs.length })}</Tag>
+          {childRuns.length > 0 ? <Tag color="blue">{formatMendixMicroflowTemplate(copy.testRun.childRunsTag, { count: childRuns.length })}</Tag> : null}
         </Space>
         {session.error ? <Text type="danger">{session.error.code}: {session.error.message}</Text> : null}
         {session.error?.callStack && session.error.callStack.length > 0 ? (
-          <Text type="warning">callStack: {session.error.callStack.join(" -> ")}</Text>
+          <Text type="warning">{copy.testRun.callStackPrefix}: {session.error.callStack.join(" -> ")}</Text>
         ) : null}
         <pre style={{ whiteSpace: "pre-wrap", margin: 0, maxHeight: 220, overflow: "auto", width: "100%" }}>
           {JSON.stringify({

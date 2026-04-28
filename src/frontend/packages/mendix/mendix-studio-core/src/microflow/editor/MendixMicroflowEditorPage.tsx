@@ -8,18 +8,20 @@ import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-ada
 import type { MicroflowAdapterFactoryConfig } from "../config/microflow-adapter-config";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MendixMicroflowEditorEntry } from "./MendixMicroflowEditorEntry";
+import { getMendixStudioCopy } from "../../i18n/copy";
 
 function getEditorLoadErrorTitle(error: Error): string {
+  const copy = getMendixStudioCopy();
   if (isNotFoundError(error)) {
-    return "微流不存在";
+    return copy.editorPage.notFoundTitle;
   }
   if (isForbiddenError(error) || isUnauthorizedError(error)) {
-    return "无权限访问该微流";
+    return copy.editorPage.forbiddenTitle;
   }
   if (isVersionConflictError(error)) {
-    return "微流版本冲突";
+    return copy.editorPage.conflictTitle;
   }
-  return "微流服务异常";
+  return copy.editorPage.serviceErrorTitle;
 }
 
 export interface MendixMicroflowEditorPageProps {
@@ -35,6 +37,7 @@ export interface MendixMicroflowEditorPageProps {
 }
 
 export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, currentUser, adapterBundle, adapterConfig, adapter: adapterProp, onBack, readonly }: MendixMicroflowEditorPageProps) {
+  const copy = getMendixStudioCopy();
   const bundleResult = useMemo(() => {
     try {
       return { bundle: adapterBundle ?? createMicroflowAdapterBundle({ ...adapterConfig, workspaceId: adapterConfig?.workspaceId ?? workspaceId, tenantId: adapterConfig?.tenantId ?? tenantId, currentUser: adapterConfig?.currentUser ?? currentUser }) };
@@ -53,7 +56,7 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
     setError(undefined);
     try {
       if (!adapter) {
-        throw bundleResult.error ?? new Error("微流服务未配置。");
+        throw bundleResult.error ?? new Error(copy.editorPage.serviceNotConfigured);
       }
       const loaded = await adapter.getMicroflow(resourceId);
       setResource(loaded);
@@ -62,7 +65,7 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
     } finally {
       setLoading(false);
     }
-  }, [adapter, bundleResult.error, resourceId]);
+  }, [adapter, bundleResult.error, copy.editorPage.serviceNotConfigured, resourceId]);
 
   useEffect(() => {
     void load();
@@ -80,24 +83,24 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
 
   if (!resource) {
     return (
-      <Empty title="微流不存在" description="资源可能已被删除或当前工作区不可见。" style={{ padding: 80 }}>
-        {onBack ? <Button onClick={onBack}>返回资源库</Button> : null}
+      <Empty title={copy.editorPage.emptyTitle} description={copy.editorPage.emptyDescription} style={{ padding: 80 }}>
+        {onBack ? <Button onClick={onBack}>{copy.common.backToLibrary}</Button> : null}
       </Empty>
     );
   }
 
   if (bundle && bundle.mode !== "http") {
     return (
-      <Empty title="微流编辑器仅支持 HTTP 模式" description="发布路径不允许使用 local 或 mock adapter。请切换到 HTTP adapter 后重试。" style={{ padding: 80 }}>
-        {onBack ? <Button onClick={onBack}>返回资源库</Button> : null}
+      <Empty title={copy.editorPage.httpOnlyTitle} description={copy.editorPage.httpOnlyDescription} style={{ padding: 80 }}>
+        {onBack ? <Button onClick={onBack}>{copy.common.backToLibrary}</Button> : null}
       </Empty>
     );
   }
 
   if (!adapter) {
     return (
-      <Empty title="微流服务未配置" description="请配置 HTTP adapter 的 apiBaseUrl 后重试。" style={{ padding: 80 }}>
-        {onBack ? <Button onClick={onBack}>返回资源库</Button> : null}
+      <Empty title={copy.editorPage.adapterNotConfiguredTitle} description={copy.editorPage.adapterNotConfiguredDescription} style={{ padding: 80 }}>
+        {onBack ? <Button onClick={onBack}>{copy.common.backToLibrary}</Button> : null}
       </Empty>
     );
   }
@@ -115,7 +118,7 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
       onBack={onBack}
       onSave={saved => {
         setResource(saved);
-        Toast.success("微流已保存");
+        Toast.success(copy.editorPage.saveSuccess);
       }}
       onPublish={published => setResource(published)}
     />
