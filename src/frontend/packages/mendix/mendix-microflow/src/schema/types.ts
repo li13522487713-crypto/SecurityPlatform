@@ -9,7 +9,10 @@ export type LegacyMicroflowNodeKind =
   | "loop"
   | "parameter"
   | "annotation"
-  | "activity";
+  | "activity"
+  | "gateway"
+  | "tryCatch"
+  | "errorHandler";
 
 /**
  * @deprecated Legacy graph node type (demo editor only). Use {@link MicroflowObjectKind} for persisted microflows.
@@ -26,7 +29,11 @@ export type LegacyMicroflowNodeType =
   | "loop"
   | "parameter"
   | "annotation"
-  | "activity";
+  | "activity"
+  | "parallelGateway"
+  | "inclusiveGateway"
+  | "tryCatch"
+  | "errorHandler";
 
 export type MicroflowNodeCategory =
   | "events"
@@ -111,7 +118,10 @@ export type MicroflowActivityType =
   | "unlockWorkflow"
   | "notifyWorkflow"
   | "deleteExternalObject"
-  | "sendExternalObject";
+  | "sendExternalObject"
+  | "throwException"
+  | "listFilter"
+  | "listSort";
 
 export type MicroflowEdgeKind =
   | "sequence"
@@ -520,7 +530,11 @@ export type MicroflowObjectKind =
   | "actionActivity"
   | "loopedActivity"
   | "parameterObject"
-  | "annotation";
+  | "annotation"
+  | "parallelGateway"
+  | "inclusiveGateway"
+  | "tryCatch"
+  | "errorHandler";
 
 export type MicroflowDataType =
   | { kind: "void" }
@@ -738,7 +752,10 @@ export type MicroflowActionKind =
   | "unlockWorkflow"
   | "notifyWorkflow"
   | "deleteExternalObject"
-  | "sendExternalObject";
+  | "sendExternalObject"
+  | "throwException"
+  | "filterList"
+  | "sortList";
 
 export type MicroflowActionCategory = MicroflowActivityCategory;
 
@@ -1121,6 +1138,39 @@ export interface MicroflowAnnotation extends MicroflowObjectBase {
   text: string;
 }
 
+export interface MicroflowParallelGateway extends MicroflowObjectBase {
+  kind: "parallelGateway";
+  officialType: "Microflows$ParallelGateway";
+  gatewayMode: "split" | "join" | "auto";
+  branches: Array<{ id: string; name?: string }>;
+  joinPolicy: "waitAll" | "waitAny";
+}
+
+export interface MicroflowInclusiveGateway extends MicroflowObjectBase {
+  kind: "inclusiveGateway";
+  officialType: "Microflows$InclusiveGateway";
+  branches: Array<{ id: string; name?: string; conditionExpression?: MicroflowExpression }>;
+  defaultBranch: string | null;
+  mergePolicy: "waitAny" | "waitAll";
+}
+
+export interface MicroflowTryCatch extends MicroflowObjectBase {
+  kind: "tryCatch";
+  officialType: "Microflows$TryCatch";
+  tryBranchKey: string;
+  catchBranchKey: string;
+  finallyBranchKey?: string;
+  errorVariableName: string;
+}
+
+export interface MicroflowErrorHandler extends MicroflowObjectBase {
+  kind: "errorHandler";
+  officialType: "Microflows$ErrorHandler";
+  policy: "rollback" | "continue" | "custom";
+  customHandlerVariable?: string;
+  continueOnError: boolean;
+}
+
 export type MicroflowObject =
   | MicroflowStartEvent
   | MicroflowEndEvent
@@ -1133,7 +1183,11 @@ export type MicroflowObject =
   | MicroflowActionActivity
   | MicroflowLoopedActivity
   | MicroflowParameterObject
-  | MicroflowAnnotation;
+  | MicroflowAnnotation
+  | MicroflowParallelGateway
+  | MicroflowInclusiveGateway
+  | MicroflowTryCatch
+  | MicroflowErrorHandler;
 
 export interface MicroflowObjectCollection {
   id: string;

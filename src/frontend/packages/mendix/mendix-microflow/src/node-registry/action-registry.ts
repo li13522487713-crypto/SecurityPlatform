@@ -119,7 +119,10 @@ const P0_ACTION_KINDS = new Set<MicroflowActionKind>([
   "changeVariable",
   "callMicroflow",
   "restCall",
-  "logMessage"
+  "logMessage",
+  "throwException",
+  "filterList",
+  "sortList"
 ]);
 
 export type MicroflowActionRuntimeSupportLevel =
@@ -353,6 +356,30 @@ const genericActionDefaults: Partial<Record<MicroflowActionKind, GenericActionCo
     externalObjectVariableName: "",
     serviceOperationName: "",
     payloadMapping: ""
+  },
+  throwException: {
+    errorCode: "MF_THROWN_EXCEPTION",
+    message: "",
+    messageExpression: expression("", stringType),
+    severity: "error"
+  },
+  filterList: {
+    sourceListVariableName: "",
+    listVariableName: "",
+    outputVariableName: "",
+    resultVariableName: "",
+    itemVariableName: "$item",
+    conditionExpression: expression("", booleanType),
+    filterExpression: expression("", booleanType)
+  },
+  sortList: {
+    sourceListVariableName: "",
+    listVariableName: "",
+    outputVariableName: "",
+    resultVariableName: "",
+    sortField: "",
+    memberName: "",
+    direction: "asc"
   }
 };
 
@@ -756,7 +783,10 @@ export const defaultMicroflowActionRegistry: MicroflowActionRegistryItem[] = [
   action({ key: "unlockWorkflow", legacyActivityType: "unlockWorkflow", officialType: "Microflows$UnlockWorkflowAction", title: "Unlock Workflow", titleZh: "解锁工作流", description: "Unlocks a workflow instance.", category: "workflow", supportsErrorHandling: false }),
   action({ key: "notifyWorkflow", legacyActivityType: "notifyWorkflow", officialType: "Microflows$NotifyWorkflowAction", title: "Notify Workflow", titleZh: "通知工作流", description: "Notifies a waiting workflow instance.", category: "workflow", supportsErrorHandling: false }),
   action({ key: "deleteExternalObject", legacyActivityType: "deleteExternalObject", officialType: "Microflows$DeleteExternalObjectAction", title: "Delete External Object", titleZh: "删除外部对象", description: "Deletes an external object through a service operation.", category: "externalObject", availability: "requiresConnector" }),
-  action({ key: "sendExternalObject", legacyActivityType: "sendExternalObject", officialType: "Microflows$SendExternalObjectAction", title: "Send External Object", titleZh: "发送外部对象", description: "Sends or updates an external object through a service operation.", category: "externalObject", availability: "requiresConnector" })
+  action({ key: "sendExternalObject", legacyActivityType: "sendExternalObject", officialType: "Microflows$SendExternalObjectAction", title: "Send External Object", titleZh: "发送外部对象", description: "Sends or updates an external object through a service operation.", category: "externalObject", availability: "requiresConnector" }),
+  action({ key: "throwException", legacyActivityType: "throwException", officialType: "Microflows$ThrowExceptionAction", title: "Throw Exception", titleZh: "抛出异常", description: "Stops the microflow with a structured runtime error.", category: "logging", defaultConfig: createDefaultActionConfig("throwException"), supportsErrorHandling: false }),
+  action({ key: "filterList", legacyActivityType: "listFilter", officialType: "Microflows$FilterListAction", title: "Filter List", titleZh: "过滤列表", description: "Walks a list, evaluates a per-item expression, and outputs items where the result is true.", category: "list", defaultConfig: createDefaultActionConfig("filterList") }),
+  action({ key: "sortList", legacyActivityType: "listSort", officialType: "Microflows$SortListAction", title: "Sort List", titleZh: "排序列表", description: "Sorts a list in ascending or descending order by a primitive field.", category: "list", defaultConfig: createDefaultActionConfig("sortList") })
 ];
 
 export const microflowActionRegistryByKind = new Map(defaultMicroflowActionRegistry.map(entry => [entry.kind, entry]));

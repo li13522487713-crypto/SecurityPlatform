@@ -1003,7 +1003,14 @@ export function objectToLegacyNode(object: MicroflowObject, parentLoopId?: strin
     actionActivity: "activity",
     loopedActivity: "loop",
     parameterObject: "parameter",
-    annotation: "annotation"
+    annotation: "annotation",
+    // Gateway / TryCatch / ErrorHandler are modelling-only nodes; the legacy
+    // demo graph union does not include them, so fall back to the closest
+    // legacy shape so adapters keep working without crashing.
+    parallelGateway: "decision",
+    inclusiveGateway: "decision",
+    tryCatch: "activity",
+    errorHandler: "activity"
   };
   const type = typeMap[object.kind];
   const renderShape = object.kind === "annotation" ? "annotation" : object.kind.includes("Split") || object.kind === "exclusiveMerge" ? "diamond" : object.kind === "loopedActivity" ? "loop" : object.kind.endsWith("Event") ? "event" : "roundedRect";

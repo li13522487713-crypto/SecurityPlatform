@@ -685,6 +685,84 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     render: { iconKey: "annotation", shape: "annotation", tone: "neutral", width: 220, height: 100 },
     propertyForm: { formKey: "annotation", sections: ["General"] },
     supportsErrorHandling: false
+  }),
+  createEntry({
+    type: "parallelGateway",
+    kind: "gateway",
+    title: "Parallel Gateway",
+    titleZh: "并行网关",
+    description: "Splits the flow into parallel branches and joins them later (modelling-only; runtime executes branches sequentially).",
+    category: "decisions",
+    group: "Decisions",
+    iconKey: "parallelGateway",
+    availability: "supported",
+    availabilityReason: undefined,
+    defaultConfig: { gatewayMode: "auto", branches: [], joinPolicy: "waitAll" },
+    ports: [sequenceIn, port("branch", "Branch", "output", "sequenceOut", "oneOrMore", ["sequence"])],
+    documentation: doc("Parallel split / join. Useful for documentation; the testRun engine still executes branches sequentially."),
+    render: { iconKey: "parallelGateway", shape: "diamond", tone: "warning", width: 152, height: 104 },
+    propertyForm: { formKey: "parallelGateway", sections: ["General", "Output"] },
+    supportsErrorHandling: false,
+    engineSupport: { level: "unsupported", reason: "Parallel Gateway 暂不在 runtime 引擎主路径执行；仅作为建模占位。" }
+  }),
+  createEntry({
+    type: "inclusiveGateway",
+    kind: "gateway",
+    title: "Inclusive Gateway",
+    titleZh: "包含网关",
+    description: "Routes to any branches whose conditions are true (multi-branch OR; modelling-only).",
+    category: "decisions",
+    group: "Decisions",
+    iconKey: "inclusiveGateway",
+    availability: "supported",
+    availabilityReason: undefined,
+    defaultConfig: { branches: [], defaultBranch: null, mergePolicy: "waitAny" },
+    ports: [sequenceIn, port("branch", "Branch", "output", "sequenceOut", "oneOrMore", ["decisionCondition"])],
+    documentation: doc("Inclusive (OR) gateway. Useful for documentation; the testRun engine does not yet execute multi-branch OR."),
+    render: { iconKey: "inclusiveGateway", shape: "diamond", tone: "warning", width: 152, height: 104 },
+    propertyForm: { formKey: "inclusiveGateway", sections: ["General", "Output"] },
+    supportsErrorHandling: false,
+    engineSupport: { level: "unsupported", reason: "Inclusive Gateway 暂不在 runtime 引擎主路径执行；仅作为建模占位。" }
+  }),
+  createEntry({
+    type: "tryCatch",
+    kind: "tryCatch",
+    title: "Try / Catch",
+    titleZh: "捕获异常",
+    description: "Wraps a block of nodes with try / catch / finally branches (modelling-only).",
+    category: "activities",
+    group: "Activities",
+    iconKey: "tryCatch",
+    availability: "supported",
+    availabilityReason: undefined,
+    defaultConfig: { tryBranchKey: "try", catchBranchKey: "catch", finallyBranchKey: "finally", errorVariableName: "latestError" },
+    ports: [sequenceIn, port("try", "Try", "output", "sequenceOut", "one", ["sequence"]), port("catch", "Catch", "output", "errorOut", "zeroOrOne", ["errorHandler"]), port("finally", "Finally", "output", "sequenceOut", "zeroOrOne", ["sequence"])],
+    documentation: doc("Try/Catch/Finally container. Used to model error handling scopes; testRun honours errors but does not branch on tryCatch yet."),
+    render: { iconKey: "tryCatch", shape: "roundedRect", tone: "warning", width: 200, height: 86 },
+    propertyForm: { formKey: "tryCatch", sections: ["General", "Error Handling"] },
+    supportsErrorHandling: true,
+    supportedErrorHandlingTypes: ["customWithRollback", "customWithoutRollback"],
+    engineSupport: { level: "unsupported", reason: "Try/Catch 节点暂不参与 testRun 主路径；可通过 Activity 上的 errorHandling 字段实现简化错误处理。" }
+  }),
+  createEntry({
+    type: "errorHandler",
+    kind: "errorHandler",
+    title: "Error Handler",
+    titleZh: "错误处理器",
+    description: "Configures a node-scope error handling policy (rollback / continue / custom).",
+    category: "activities",
+    group: "Activities",
+    iconKey: "errorHandler",
+    availability: "supported",
+    availabilityReason: undefined,
+    defaultConfig: { policy: "rollback", customHandlerVariable: "", continueOnError: false },
+    ports: [sequenceIn, sequenceOut, errorOut],
+    documentation: doc("Decorates a node group with error policy. Currently designed for modelling; runtime treats it as transparent."),
+    render: { iconKey: "errorHandler", shape: "roundedRect", tone: "warning", width: 196, height: 80 },
+    propertyForm: { formKey: "errorHandler", sections: ["General", "Error Handling"] },
+    supportsErrorHandling: true,
+    supportedErrorHandlingTypes: ["rollback", "customWithRollback", "customWithoutRollback"],
+    engineSupport: { level: "partial", reason: "节点错误策略可在 Activity errorHandling 字段中复刻；ErrorHandler 节点本身暂不被 runtime 主路径解释。" }
   })
 ];
 
@@ -808,7 +886,11 @@ export function objectKindFromRegistryItem(entry: Pick<MicroflowNodeRegistryEntr
     loop: "loopedActivity",
     parameter: "parameterObject",
     annotation: "annotation",
-    activity: "actionActivity"
+    activity: "actionActivity",
+    parallelGateway: "parallelGateway",
+    inclusiveGateway: "inclusiveGateway",
+    tryCatch: "tryCatch",
+    errorHandler: "errorHandler"
   };
   return map[entry.type];
 }
@@ -826,7 +908,11 @@ export function officialTypeFromRegistryItem(entry: Pick<MicroflowNodeRegistryEn
     loop: "Microflows$LoopedActivity",
     parameter: "Microflows$MicroflowParameterObject",
     annotation: "Microflows$Annotation",
-    activity: "Microflows$ActionActivity"
+    activity: "Microflows$ActionActivity",
+    parallelGateway: "Microflows$ParallelGateway",
+    inclusiveGateway: "Microflows$InclusiveGateway",
+    tryCatch: "Microflows$TryCatch",
+    errorHandler: "Microflows$ErrorHandler"
   };
   return map[entry.type];
 }
