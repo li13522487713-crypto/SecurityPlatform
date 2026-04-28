@@ -462,6 +462,7 @@ public static class RuntimeErrorCode
     public const string RuntimeDeleteFailed = "RUNTIME_DELETE_FAILED";
     public const string RuntimeRestCallFailed = "RUNTIME_REST_CALL_FAILED";
     public const string RuntimeRestInvalidUrl = "RUNTIME_REST_INVALID_URL";
+    public const string RuntimeExternalCallBlocked = "RUNTIME_EXTERNAL_CALL_BLOCKED";
     public const string RuntimeRestUrlBlocked = "RUNTIME_REST_URL_BLOCKED";
     public const string RuntimeRestPrivateNetworkBlocked = "RUNTIME_REST_PRIVATE_NETWORK_BLOCKED";
     public const string RuntimeRestDeniedHost = "RUNTIME_REST_DENIED_HOST";

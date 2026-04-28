@@ -93,7 +93,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             cancellationToken);
 
         var session = await _runner.RunAsync(
-            new MicroflowMockRuntimeRequest
+            new MicroflowExecutionRequest
             {
                 ResourceId = resource.Id,
                 SchemaId = schemaId,
@@ -270,7 +270,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         }
         catch
         {
-            // 第 48 轮只做只读 ExecutionPlan 预热，不能改变既有 Mock TestRun 行为。
+            // 第 48 轮只做只读 ExecutionPlan 预热，不能改变既有 TestRun 行为。
             return null;
         }
     }

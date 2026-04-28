@@ -36,7 +36,11 @@ public sealed class MicroflowRuntimeHttpClient : IMicroflowRuntimeHttpClient
     {
         if (!options.AllowRealHttp)
         {
-            return CreateMockResponse(options);
+            return ErrorResponse(
+                RuntimeErrorCode.RuntimeExternalCallBlocked,
+                MicroflowRuntimeHttpErrorKind.SecurityBlocked,
+                "External REST calls are blocked unless allowRealHttp=true and the runtime security policy allows the target.",
+                Stopwatch.StartNew());
         }
 
         return await SendRealAsync(request, options, redirectCount: 0, ct);
@@ -207,30 +211,6 @@ public sealed class MicroflowRuntimeHttpClient : IMicroflowRuntimeHttpClient
         }
 
         return (Encoding.UTF8.GetString(buffer.ToArray()), truncated);
-    }
-
-    private static MicroflowRuntimeHttpResponse CreateMockResponse(MicroflowRuntimeHttpOptions options)
-    {
-        var statusCode = Math.Clamp(options.MockResponseStatusCode, 100, 599);
-        var bodyText = options.MockResponseBodyJson?.GetRawText() ?? options.MockResponseBodyText ?? string.Empty;
-        var bodyJson = TryParseJson(bodyText);
-        return new MicroflowRuntimeHttpResponse
-        {
-            Success = statusCode is >= 200 and <= 299,
-            StatusCode = statusCode,
-            ReasonPhrase = "Mock",
-            Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["content-type"] = bodyJson.HasValue ? "application/json" : "text/plain",
-                ["x-microflow-runtime-http"] = "mock"
-            },
-            BodyText = bodyText,
-            BodyJson = bodyJson,
-            BodyPreview = MicroflowVariableStore.TrimPreview(bodyText, 500),
-            DurationMs = 0,
-            ContentType = bodyJson.HasValue ? "application/json" : "text/plain",
-            ContentLength = Encoding.UTF8.GetByteCount(bodyText)
-        };
     }
 
     private static JsonElement? TryParseJson(string? value)

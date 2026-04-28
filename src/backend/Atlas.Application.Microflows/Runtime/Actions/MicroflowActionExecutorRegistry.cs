@@ -40,6 +40,126 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
 
     public bool TryGet(string? actionKind, out IMicroflowActionExecutor executor)
     {
+        if (string.Equals(actionKind, "createVariable", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<CreateVariableActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "changeVariable", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<ChangeVariableActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "break", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<BreakActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "continue", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<ContinueActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "retrieve", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<RetrieveObjectActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "createObject", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<CreateObjectActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "changeMembers", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<ChangeObjectActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "commit", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<CommitObjectActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "delete", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<DeleteObjectActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "createList", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<CreateListActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "changeList", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<ChangeListActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "aggregateList", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<AggregateListActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (string.Equals(actionKind, "callMicroflow", StringComparison.OrdinalIgnoreCase))
         {
             var specialized = _serviceProvider?.GetService<CallMicroflowActionExecutor>();
@@ -133,13 +253,13 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
     public static IReadOnlyList<MicroflowActionExecutorDescriptor> BuiltInDescriptors()
         =>
         [
-            Server("retrieve", "RetrieveAction", "object", "RetrieveActionExecutor", producesVariables: true, producesTransaction: false, reason: "testRun can produce mock object/list; publishedRun requires objectStore.crud for real DB retrieval."),
+            Server("retrieve", "RetrieveAction", "object", "RetrieveActionExecutor", producesVariables: true, producesTransaction: false, reason: "testRun uses the runtime object store; publishedRun requires objectStore.crud for real DB retrieval."),
             Server("createObject", "CreateObjectAction", "object", "CreateObjectActionExecutor", producesVariables: true, producesTransaction: true),
             Server("changeMembers", "ChangeMembersAction", "object", "ChangeMembersActionExecutor", producesVariables: true, producesTransaction: true),
             Server("commit", "CommitAction", "object", "CommitActionExecutor", producesVariables: false, producesTransaction: true),
             Server("delete", "DeleteAction", "object", "DeleteActionExecutor", producesVariables: false, producesTransaction: true),
             Server("rollback", "RollbackAction", "object", "RollbackActionExecutor", producesVariables: false, producesTransaction: true),
-            Server("cast", "CastObjectAction", "object", "CastObjectActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted, reason: "Server can type-check and mock object specialization without business DB writes."),
+            Server("cast", "CastObjectAction", "object", "CastObjectActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted, reason: "Server can type-check object specialization without business DB writes."),
 
             Server("createList", "CreateListAction", "list", "CreateListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("changeList", "ChangeListAction", "list", "ChangeListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
@@ -148,13 +268,15 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
 
             Server("createVariable", "CreateVariableAction", "variable", "CreateVariableActionExecutor", producesVariables: true, producesTransaction: false),
             Server("changeVariable", "ChangeVariableAction", "variable", "ChangeVariableActionExecutor", producesVariables: true, producesTransaction: false),
+            Server("break", "BreakAction", "loop", "BreakActionExecutor", producesVariables: false, producesTransaction: false),
+            Server("continue", "ContinueAction", "loop", "ContinueActionExecutor", producesVariables: false, producesTransaction: false),
 
             Server("callMicroflow", "CallMicroflowAction", "call", "CallMicroflowActionExecutor", producesVariables: true, producesTransaction: false, reason: "Local call semantics are represented in testRun with recursion guard and return variable preview."),
             Connector("callJavaAction", "CallJavaAction", "call", "JavaActionExecutor", MicroflowRuntimeConnectorCapability.JavaAction, "Java action requires a plugin host connector."),
             Unsupported("callJavaScriptAction", "CallJavaScriptAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Nanoflow JavaScript actions must run on the client."),
             Unsupported("callNanoflow", "CallNanoflowAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Nanoflow calls cannot execute inside server Microflow runtime."),
 
-            Server("restCall", "RestCallAction", "integration", "RestCallActionExecutor", producesVariables: true, producesTransaction: false, reason: "Runtime can build REST requests, enforce HTTP policy, mock by default, and use real HTTP when allowRealHttp is enabled."),
+            Server("restCall", "RestCallAction", "integration", "RestCallActionExecutor", producesVariables: true, producesTransaction: false, reason: "Runtime can build REST requests, enforce HTTP policy, block external calls by default, and use real HTTP when allowRealHttp is enabled."),
             Connector("webServiceCall", "WebServiceCallAction", "integration", "WebServiceCallActionExecutor", MicroflowRuntimeConnectorCapability.SoapWebService, "SOAP/WSDL execution requires web service connector."),
             Connector("importXml", "ImportXmlAction", "integration", "ImportXmlActionExecutor", MicroflowRuntimeConnectorCapability.XmlImportMapping, "XML import mapping requires mapping connector."),
             Connector("exportXml", "ExportXmlAction", "integration", "ExportXmlActionExecutor", MicroflowRuntimeConnectorCapability.XmlExportMapping, "XML export mapping requires mapping connector."),

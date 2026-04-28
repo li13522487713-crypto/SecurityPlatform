@@ -519,13 +519,50 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
 
     [HttpPost("{id}/test-run")]
     [ProducesResponseType(typeof(MicroflowApiResponse<TestRunMicroflowApiResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<TestRunMicroflowApiResponse>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<TestRunMicroflowApiResponse>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<TestRunMicroflowApiResponse>), StatusCodes.Status408RequestTimeout)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<TestRunMicroflowApiResponse>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<MicroflowApiResponse<TestRunMicroflowApiResponse>>> TestRun(
         string id,
         [FromBody] TestRunMicroflowApiRequest request,
         CancellationToken cancellationToken)
     {
         var result = await _testRunService.TestRunAsync(id, request, cancellationToken);
+        var httpStatus = RuntimeHttpStatus(result.ErrorCode);
+        if (httpStatus != StatusCodes.Status200OK)
+        {
+            return StatusCode(httpStatus, MicroflowApiResponse<TestRunMicroflowApiResponse>.Ok(result, TraceId));
+        }
+
         return MicroflowOk(result);
+    }
+
+    private static int RuntimeHttpStatus(string? errorCode)
+    {
+        return errorCode switch
+        {
+            null or "" => StatusCodes.Status200OK,
+            RuntimeErrorCode.RuntimeTimeout or RuntimeErrorCode.RuntimeRestTimeout => StatusCodes.Status408RequestTimeout,
+            RuntimeErrorCode.RuntimeEntityAccessDenied => StatusCodes.Status403Forbidden,
+            RuntimeErrorCode.RuntimeTargetMicroflowNotFound or RuntimeErrorCode.RuntimeObjectNotFound => StatusCodes.Status404NotFound,
+            RuntimeErrorCode.RuntimeStartNotFound
+                or RuntimeErrorCode.RuntimeFlowNotFound
+                or RuntimeErrorCode.RuntimeInvalidCase
+                or RuntimeErrorCode.RuntimeExpressionError
+                or RuntimeErrorCode.RuntimeParameterMappingMissing
+                or RuntimeErrorCode.RuntimeParameterMappingFailed
+                or RuntimeErrorCode.RuntimeReturnBindingFailed
+                or RuntimeErrorCode.RuntimeUnsupportedAction
+                or RuntimeErrorCode.RuntimeConnectorRequired
+                or RuntimeErrorCode.RuntimeLoopSourceNotFound
+                or RuntimeErrorCode.RuntimeLoopSourceNotList
+                or RuntimeErrorCode.RuntimeLoopIteratorInvalid
+                or RuntimeErrorCode.RuntimeLoopConditionError
+                or RuntimeErrorCode.RuntimeLoopConditionNotBoolean
+                or RuntimeErrorCode.RuntimeLoopControlOutOfScope => StatusCodes.Status422UnprocessableEntity,
+            _ => StatusCodes.Status200OK
+        };
     }
 
     [HttpGet("runs/{runId}")]

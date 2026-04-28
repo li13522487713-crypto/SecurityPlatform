@@ -384,7 +384,7 @@ public sealed class MicroflowRuntimeEngineTests
             ? idElement.GetString() ?? "mf-test"
             : "mf-test";
         return engine.RunAsync(
-            new MicroflowMockRuntimeRequest
+            new MicroflowExecutionRequest
             {
                 ResourceId = schemaId,
                 SchemaId = "schema-test",

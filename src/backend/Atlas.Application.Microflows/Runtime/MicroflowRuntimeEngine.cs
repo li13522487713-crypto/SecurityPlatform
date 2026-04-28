@@ -5,13 +5,14 @@ using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
+using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Services;
 
 namespace Atlas.Application.Microflows.Runtime;
 
 public interface IMicroflowRuntimeEngine
 {
-    Task<MicroflowRunSessionDto> RunAsync(MicroflowMockRuntimeRequest request, CancellationToken cancellationToken);
+    Task<MicroflowRunSessionDto> RunAsync(MicroflowExecutionRequest request, CancellationToken cancellationToken);
 }
 
 public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
@@ -19,11 +20,12 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IMicroflowSchemaReader _schemaReader;
     private readonly IMicroflowClock _clock;
+    private readonly IMicroflowExpressionEvaluator _expressionEvaluator;
     private readonly IMicroflowResourceRepository? _resourceRepository;
     private readonly IMicroflowSchemaSnapshotRepository? _schemaSnapshotRepository;
 
     public MicroflowRuntimeEngine(IMicroflowSchemaReader schemaReader, IMicroflowClock clock)
-        : this(schemaReader, clock, null, null)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null)
     {
     }
 
@@ -32,21 +34,32 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowClock clock,
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), resourceRepository, schemaSnapshotRepository)
+    {
+    }
+
+    public MicroflowRuntimeEngine(
+        IMicroflowSchemaReader schemaReader,
+        IMicroflowClock clock,
+        IMicroflowExpressionEvaluator expressionEvaluator,
+        IMicroflowResourceRepository? resourceRepository,
+        IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
     {
         _schemaReader = schemaReader;
         _clock = clock;
+        _expressionEvaluator = expressionEvaluator;
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
     }
 
-    public Task<MicroflowRunSessionDto> RunAsync(MicroflowMockRuntimeRequest request, CancellationToken cancellationToken)
+    public Task<MicroflowRunSessionDto> RunAsync(MicroflowExecutionRequest request, CancellationToken cancellationToken)
     {
         var state = new CallExecutionState();
         return RunInternalAsync(request, state, parent: null, cancellationToken);
     }
 
     private async Task<MicroflowRunSessionDto> RunInternalAsync(
-        MicroflowMockRuntimeRequest request,
+        MicroflowExecutionRequest request,
         CallExecutionState state,
         ParentCallContext? parent,
         CancellationToken cancellationToken)
@@ -64,6 +77,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             _schemaReader.Read(request.Schema),
             startedAt,
             _clock,
+            _expressionEvaluator,
             runId!,
             parent?.ParentRunId,
             rootRunId,
@@ -233,7 +247,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         }
         else
         {
-            output = context.ExpressionEvaluator.Evaluate(expression!, context.Variables);
+            output = context.EvaluateExpression(expression!, currentObjectId: node.Id);
         }
 
         context.AddFrame(node, incomingFlowId, null, "success", JsonObj(new { expression }), output, null, "End node reached.");
@@ -279,7 +293,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         var expression = ReadExpressionText(action.Raw, "initialValue") ?? ReadExpressionText(action.Raw, "initialValueExpression");
         var value = string.IsNullOrWhiteSpace(expression)
             ? JsonNull()
-            : context.ExpressionEvaluator.Evaluate(expression!, context.Variables);
+            : context.EvaluateExpression(expression!, currentObjectId: node.Id, currentActionId: action.Id);
         context.SetVariable(variableName!, type, value, "createVariable");
 
         return ContinueAfterAction(context, graph, node, incomingFlowId, JsonObj(new { variableName, value = ToPlainValue(value) }));
@@ -310,7 +324,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return NodeExecution.Failed(error);
         }
 
-        var value = context.ExpressionEvaluator.Evaluate(expression!, context.Variables);
+        var value = context.EvaluateExpression(expression!, currentObjectId: node.Id, currentActionId: action.Id);
         context.SetVariable(variableName!, current.Type, value, "changeVariable");
 
         return ContinueAfterAction(context, graph, node, incomingFlowId, JsonObj(new { variableName, oldValue = ToPlainValue(current.Value), newValue = ToPlainValue(value) }));
@@ -454,7 +468,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         var childRunId = Guid.NewGuid().ToString("N");
         var nextStack = context.CallStackPath.Concat([targetMicroflowId]).ToArray();
         var childSession = await RunInternalAsync(
-            new MicroflowMockRuntimeRequest
+            new MicroflowExecutionRequest
             {
                 ResourceId = targetResource.Id,
                 SchemaId = snapshot.Id,
@@ -589,7 +603,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return NodeExecution.Failed(error);
         }
 
-        var result = context.ExpressionEvaluator.Evaluate(expression!, context.Variables);
+        var result = context.EvaluateExpression(expression!, currentObjectId: node.Id);
         if (result.ValueKind is not JsonValueKind.True and not JsonValueKind.False)
         {
             var error = Error(RuntimeErrorCode.RuntimeExpressionError, $"Decision expression 必须返回 boolean：{node.Id}", node.Id, flowId: incomingFlowId);
@@ -721,7 +735,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
                 try
                 {
-                    value = context.ExpressionEvaluator.Evaluate(mapping.Expression!, context.Variables);
+                    value = context.EvaluateExpression(mapping.Expression!, currentObjectId: node.Id, currentActionId: callAction.Id);
                 }
                 catch (RuntimeExpressionException expressionException)
                 {
@@ -1109,15 +1123,17 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
     private sealed class RuntimeContext
     {
-        private readonly MicroflowMockRuntimeRequest _request;
+        private readonly MicroflowExecutionRequest _request;
         private readonly IMicroflowClock _clock;
+        private readonly MicroflowVariableStore _expressionVariableStore = new();
         private int _steps;
 
         public RuntimeContext(
-            MicroflowMockRuntimeRequest request,
+            MicroflowExecutionRequest request,
             MicroflowSchemaModel model,
             DateTimeOffset startedAt,
             IMicroflowClock clock,
+            IMicroflowExpressionEvaluator expressionEvaluator,
             string runId,
             string? parentRunId,
             string rootRunId,
@@ -1131,7 +1147,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             Model = model;
             StartedAt = startedAt;
             _clock = clock;
-            ExpressionEvaluator = new MicroflowRuntimeExpressionEvaluator();
+            ExpressionEvaluator = expressionEvaluator;
             RunId = runId;
             ParentRunId = parentRunId;
             RootRunId = rootRunId;
@@ -1180,7 +1196,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
         public List<MicroflowRunSessionDto> ChildRuns { get; } = [];
 
-        public MicroflowRuntimeExpressionEvaluator ExpressionEvaluator { get; }
+        public IMicroflowExpressionEvaluator ExpressionEvaluator { get; }
 
         public bool TryStep(out MicroflowRuntimeErrorDto error)
         {
@@ -1199,6 +1215,70 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         public void SetVariable(string name, JsonElement type, JsonElement value, string source)
         {
             Variables[name] = new RuntimeVariable(name, type.Clone(), value.Clone(), source);
+            var rawValueJson = value.GetRawText();
+            var definition = new MicroflowVariableDefinition
+            {
+                Name = name,
+                DataTypeJson = type.GetRawText(),
+                RawValueJson = rawValueJson,
+                ValuePreview = Preview(value),
+                SourceKind = source,
+                ScopeKind = source == "parameter" ? MicroflowVariableScopeKind.Global : MicroflowVariableScopeKind.Action,
+                AllowShadowing = true
+            };
+            if (_expressionVariableStore.Exists(name))
+            {
+                _expressionVariableStore.Set(
+                    name,
+                    new MicroflowRuntimeVariableValue
+                    {
+                        Name = name,
+                        DataTypeJson = definition.DataTypeJson,
+                        RawValueJson = rawValueJson,
+                        ValuePreview = definition.ValuePreview,
+                        SourceKind = source,
+                        ScopeKind = definition.ScopeKind
+                    });
+                return;
+            }
+
+            _expressionVariableStore.Define(definition);
+        }
+
+        public JsonElement EvaluateExpression(string expression, string? currentObjectId = null, string? currentActionId = null, string? currentFlowId = null)
+        {
+            var result = ExpressionEvaluator.Evaluate(
+                expression,
+                new MicroflowExpressionEvaluationContext
+                {
+                    RuntimeExecutionContext = null!,
+                    VariableStore = _expressionVariableStore,
+                    MetadataCatalog = _request.Metadata,
+                    CurrentObjectId = currentObjectId,
+                    CurrentActionId = currentActionId,
+                    CurrentFlowId = currentFlowId,
+                    Mode = MicroflowRuntimeExecutionMode.TestRun,
+                    Options = new MicroflowExpressionEvaluationOptions
+                    {
+                        AllowUnknownVariables = false,
+                        AllowUnsupportedFunctions = false,
+                        StrictTypeCheck = true,
+                        MaxEvaluationDepth = 64,
+                        MaxStringLength = 500
+                    }
+                });
+            if (!result.Success || result.RawValueJson is null)
+            {
+                throw new RuntimeExpressionException(Error(
+                    result.Error?.Code ?? RuntimeErrorCode.RuntimeExpressionError,
+                    result.Error?.Message ?? "表达式求值失败。",
+                    currentObjectId,
+                    currentActionId,
+                    currentFlowId,
+                    details: result.Error?.Details));
+            }
+
+            return MicroflowVariableStore.ToJsonElement(result.RawValueJson) ?? JsonNull();
         }
 
         public void AddChildRun(MicroflowRunSessionDto childRun)
@@ -1444,404 +1524,6 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         public static CaseFlowResult Ok(MicroflowFlowModel flow, JsonElement caseValue) => new(true, flow, caseValue, null);
 
         public static CaseFlowResult Fail(MicroflowRuntimeErrorDto error) => new(false, null, null, error);
-    }
-
-    private sealed class MicroflowRuntimeExpressionEvaluator
-    {
-        public JsonElement Evaluate(string expression, IReadOnlyDictionary<string, RuntimeVariable> variables)
-        {
-            var parser = new ExpressionParser(expression, variables);
-            var value = parser.Parse();
-            return JsonSerializer.SerializeToElement(value, JsonOptions);
-        }
-    }
-
-    private sealed class ExpressionParser
-    {
-        private readonly IReadOnlyDictionary<string, RuntimeVariable> _variables;
-        private readonly IReadOnlyList<Token> _tokens;
-        private int _position;
-
-        public ExpressionParser(string expression, IReadOnlyDictionary<string, RuntimeVariable> variables)
-        {
-            _variables = variables;
-            _tokens = Tokenize(expression);
-        }
-
-        public object? Parse()
-        {
-            var value = ParseOr();
-            if (Peek().Kind != TokenKind.End)
-            {
-                throw ExpressionError($"不支持的表达式片段：{Peek().Text}");
-            }
-
-            return value;
-        }
-
-        private object? ParseOr()
-        {
-            var left = ParseAnd();
-            while (Match(TokenKind.Or))
-            {
-                left = ToBool(left) || ToBool(ParseAnd());
-            }
-
-            return left;
-        }
-
-        private object? ParseAnd()
-        {
-            var left = ParseEquality();
-            while (Match(TokenKind.And))
-            {
-                left = ToBool(left) && ToBool(ParseEquality());
-            }
-
-            return left;
-        }
-
-        private object? ParseEquality()
-        {
-            var left = ParseRelational();
-            while (true)
-            {
-                if (Match(TokenKind.Equal))
-                {
-                    left = Compare(left, ParseRelational()) == 0;
-                    continue;
-                }
-
-                if (Match(TokenKind.NotEqual))
-                {
-                    left = Compare(left, ParseRelational()) != 0;
-                    continue;
-                }
-
-                return left;
-            }
-        }
-
-        private object? ParseRelational()
-        {
-            var left = ParseAdditive();
-            while (true)
-            {
-                if (Match(TokenKind.Greater))
-                {
-                    left = Compare(left, ParseAdditive()) > 0;
-                    continue;
-                }
-
-                if (Match(TokenKind.GreaterOrEqual))
-                {
-                    left = Compare(left, ParseAdditive()) >= 0;
-                    continue;
-                }
-
-                if (Match(TokenKind.Less))
-                {
-                    left = Compare(left, ParseAdditive()) < 0;
-                    continue;
-                }
-
-                if (Match(TokenKind.LessOrEqual))
-                {
-                    left = Compare(left, ParseAdditive()) <= 0;
-                    continue;
-                }
-
-                return left;
-            }
-        }
-
-        private object? ParseAdditive()
-        {
-            var left = ParseUnary();
-            while (true)
-            {
-                if (Match(TokenKind.Plus))
-                {
-                    var right = ParseUnary();
-                    left = left is string || right is string ? $"{left}{right}" : ToDecimal(left) + ToDecimal(right);
-                    continue;
-                }
-
-                if (Match(TokenKind.Minus))
-                {
-                    left = ToDecimal(left) - ToDecimal(ParseUnary());
-                    continue;
-                }
-
-                return left;
-            }
-        }
-
-        private object? ParseUnary()
-        {
-            if (Match(TokenKind.Not))
-            {
-                return !ToBool(ParseUnary());
-            }
-
-            if (Match(TokenKind.Minus))
-            {
-                return -ToDecimal(ParseUnary());
-            }
-
-            return ParsePrimary();
-        }
-
-        private object? ParsePrimary()
-        {
-            var token = Peek();
-            if (Match(TokenKind.LeftParen))
-            {
-                var value = ParseOr();
-                Expect(TokenKind.RightParen);
-                return value;
-            }
-
-            if (Match(TokenKind.String))
-            {
-                return token.Text;
-            }
-
-            if (Match(TokenKind.Number))
-            {
-                return decimal.Parse(token.Text, CultureInfo.InvariantCulture);
-            }
-
-            if (Match(TokenKind.True))
-            {
-                return true;
-            }
-
-            if (Match(TokenKind.False))
-            {
-                return false;
-            }
-
-            if (Match(TokenKind.Null))
-            {
-                return null;
-            }
-
-            if (Match(TokenKind.Identifier))
-            {
-                var name = token.Text.TrimStart('$');
-                if (!_variables.TryGetValue(name, out var variable))
-                {
-                    throw ExpressionError($"变量不存在：{name}");
-                }
-
-                return ToPlainValue(variable.Value);
-            }
-
-            throw ExpressionError($"不支持的表达式 token：{token.Text}");
-        }
-
-        private bool Match(TokenKind kind)
-        {
-            if (Peek().Kind != kind)
-            {
-                return false;
-            }
-
-            _position++;
-            return true;
-        }
-
-        private void Expect(TokenKind kind)
-        {
-            if (!Match(kind))
-            {
-                throw ExpressionError($"表达式缺少 {kind}。");
-            }
-        }
-
-        private Token Peek()
-            => _tokens[Math.Min(_position, _tokens.Count - 1)];
-
-        private static int Compare(object? left, object? right)
-        {
-            if (left is null || right is null)
-            {
-                return left is null && right is null ? 0 : -1;
-            }
-
-            if (IsNumber(left) || IsNumber(right))
-            {
-                return ToDecimal(left).CompareTo(ToDecimal(right));
-            }
-
-            if (left is bool lb && right is bool rb)
-            {
-                return lb.CompareTo(rb);
-            }
-
-            return string.Compare(Convert.ToString(left, CultureInfo.InvariantCulture), Convert.ToString(right, CultureInfo.InvariantCulture), StringComparison.Ordinal);
-        }
-
-        private static bool ToBool(object? value)
-            => value switch
-            {
-                bool boolean => boolean,
-                string text when bool.TryParse(text, out var boolean) => boolean,
-                _ => throw ExpressionError("表达式值不能转换为 boolean。")
-            };
-
-        private static decimal ToDecimal(object? value)
-            => value switch
-            {
-                decimal number => number,
-                int number => number,
-                long number => number,
-                double number => (decimal)number,
-                string text when decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var number) => number,
-                _ => throw ExpressionError("表达式值不能转换为 number。")
-            };
-
-        private static bool IsNumber(object value)
-            => value is decimal or int or long or double or float;
-
-        private static RuntimeExpressionException ExpressionError(string message)
-            => new(Error(RuntimeErrorCode.RuntimeExpressionError, message));
-
-        private static IReadOnlyList<Token> Tokenize(string expression)
-        {
-            var tokens = new List<Token>();
-            var index = 0;
-            while (index < expression.Length)
-            {
-                var ch = expression[index];
-                if (char.IsWhiteSpace(ch))
-                {
-                    index++;
-                    continue;
-                }
-
-                if (ch is '\'' or '"')
-                {
-                    var quote = ch;
-                    index++;
-                    var start = index;
-                    while (index < expression.Length && expression[index] != quote)
-                    {
-                        index++;
-                    }
-
-                    if (index >= expression.Length)
-                    {
-                        throw ExpressionError("字符串字面量未闭合。");
-                    }
-
-                    tokens.Add(new Token(TokenKind.String, expression[start..index]));
-                    index++;
-                    continue;
-                }
-
-                if (char.IsDigit(ch))
-                {
-                    var start = index;
-                    while (index < expression.Length && (char.IsDigit(expression[index]) || expression[index] == '.'))
-                    {
-                        index++;
-                    }
-
-                    tokens.Add(new Token(TokenKind.Number, expression[start..index]));
-                    continue;
-                }
-
-                if (char.IsLetter(ch) || ch == '_' || ch == '$')
-                {
-                    var start = index;
-                    index++;
-                    while (index < expression.Length && (char.IsLetterOrDigit(expression[index]) || expression[index] == '_' || expression[index] == '$'))
-                    {
-                        index++;
-                    }
-
-                    var text = expression[start..index];
-                    tokens.Add(text switch
-                    {
-                        "true" => new Token(TokenKind.True, text),
-                        "false" => new Token(TokenKind.False, text),
-                        "null" => new Token(TokenKind.Null, text),
-                        "and" => new Token(TokenKind.And, text),
-                        "or" => new Token(TokenKind.Or, text),
-                        "not" => new Token(TokenKind.Not, text),
-                        _ => new Token(TokenKind.Identifier, text)
-                    });
-                    continue;
-                }
-
-                if (index + 1 < expression.Length)
-                {
-                    var two = expression[index..(index + 2)];
-                    var kind = two switch
-                    {
-                        "&&" => TokenKind.And,
-                        "||" => TokenKind.Or,
-                        "==" => TokenKind.Equal,
-                        "!=" => TokenKind.NotEqual,
-                        ">=" => TokenKind.GreaterOrEqual,
-                        "<=" => TokenKind.LessOrEqual,
-                        _ => TokenKind.Unknown
-                    };
-                    if (kind != TokenKind.Unknown)
-                    {
-                        tokens.Add(new Token(kind, two));
-                        index += 2;
-                        continue;
-                    }
-                }
-
-                tokens.Add(ch switch
-                {
-                    '=' => new Token(TokenKind.Equal, ch.ToString()),
-                    '>' => new Token(TokenKind.Greater, ch.ToString()),
-                    '<' => new Token(TokenKind.Less, ch.ToString()),
-                    '+' => new Token(TokenKind.Plus, ch.ToString()),
-                    '-' => new Token(TokenKind.Minus, ch.ToString()),
-                    '!' => new Token(TokenKind.Not, ch.ToString()),
-                    '(' => new Token(TokenKind.LeftParen, ch.ToString()),
-                    ')' => new Token(TokenKind.RightParen, ch.ToString()),
-                    _ => throw ExpressionError($"不支持的表达式字符：{ch}")
-                });
-                index++;
-            }
-
-            tokens.Add(new Token(TokenKind.End, string.Empty));
-            return tokens;
-        }
-    }
-
-    private sealed record Token(TokenKind Kind, string Text);
-
-    private enum TokenKind
-    {
-        Unknown,
-        End,
-        Identifier,
-        String,
-        Number,
-        True,
-        False,
-        Null,
-        And,
-        Or,
-        Not,
-        Equal,
-        NotEqual,
-        Greater,
-        GreaterOrEqual,
-        Less,
-        LessOrEqual,
-        Plus,
-        Minus,
-        LeftParen,
-        RightParen
     }
 
     private sealed class RuntimeExpressionException : Exception

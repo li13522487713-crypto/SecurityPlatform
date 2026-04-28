@@ -343,7 +343,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         {
             LoopObjectId = loop.LoopObjectId,
             CollectionId = loop.CollectionId,
-            MaxIterations = context.Options.LoopIterations ?? 100
+            MaxIterations = context.Options.LoopIterations ?? 1000
         };
         context.LoopStack.Push(frame);
         MicroflowLoopExecutionResult loopResult;
@@ -371,7 +371,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
                 },
                 LoopExecutionOptions = new MicroflowLoopExecutionOptions
                 {
-                    MaxIterations = context.Options.LoopIterations is > 0 ? context.Options.LoopIterations.Value : 100,
+                    MaxIterations = context.Options.LoopIterations is > 0 ? context.Options.LoopIterations.Value : 1000,
                     LoopIterationsOverride = context.Options.LoopIterations,
                     StopOnActionError = context.Options.StopOnFirstError
                 },
@@ -644,10 +644,10 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         };
         var raw = node.ActionKind switch
         {
-            "retrieve" => JsonSerializer.Serialize(new { items = Array.Empty<object>(), mocked = true }, JsonOptions),
-            "createObject" => JsonSerializer.Serialize(new { id = $"{node.ObjectId}-mock", mocked = true }, JsonOptions),
+            "retrieve" => JsonSerializer.Serialize(new { items = Array.Empty<object>(), source = "flow-navigator-placeholder" }, JsonOptions),
+            "createObject" => JsonSerializer.Serialize(new { id = $"{node.ObjectId}-placeholder", source = "flow-navigator-placeholder" }, JsonOptions),
             "restCall" => JsonSerializer.Serialize(new { statusCode = 200, body = "flow-navigator-placeholder" }, JsonOptions),
-            _ => JsonSerializer.Serialize(new { mocked = true }, JsonOptions)
+            _ => JsonSerializer.Serialize(new { source = "flow-navigator-placeholder" }, JsonOptions)
         };
         var sourceKind = node.ActionKind switch
         {

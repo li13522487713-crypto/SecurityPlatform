@@ -15,7 +15,7 @@
 # Expected JSON path:
 # - $.success=true
 # - $.data.status="ok"
-GET {{host}}/api/microflows/health
+GET {{host}}/api/v1/microflows/health
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -26,7 +26,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.name startsWith "R60_E2E_"
-POST {{host}}/api/microflows
+POST {{host}}/api/v1/microflows
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -51,7 +51,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.resource.schemaId exists
-PUT {{host}}/api/microflows/{{microflowId}}/schema
+PUT {{host}}/api/v1/microflows/{{microflowId}}/schema
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -101,7 +101,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.summary.errorCount=0
-POST {{host}}/api/microflows/{{microflowId}}/validate
+POST {{host}}/api/v1/microflows/{{microflowId}}/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -117,7 +117,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.version.version="60.0.0"
-POST {{host}}/api/microflows/{{microflowId}}/publish
+POST {{host}}/api/v1/microflows/{{microflowId}}/publish
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -131,21 +131,21 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Round 60 - Versions / References / Impact
-GET {{host}}/api/microflows/{{microflowId}}/versions
+GET {{host}}/api/v1/microflows/{{microflowId}}/versions
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ###
-GET {{host}}/api/microflows/{{microflowId}}/references?includeInactive=false
+GET {{host}}/api/v1/microflows/{{microflowId}}/references?includeInactive=false
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ###
-GET {{host}}/api/microflows/{{microflowId}}/impact?version=60.0.1&includeBreakingChanges=true&includeReferences=true
+GET {{host}}/api/v1/microflows/{{microflowId}}/impact?version=60.0.1&includeBreakingChanges=true&includeReferences=true
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -155,7 +155,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.nodes exists
-GET {{host}}/api/microflows/{{microflowId}}/runtime/plan?mode=validateOnly&failOnUnsupported=false
+GET {{host}}/api/v1/microflows/{{microflowId}}/runtime/plan?mode=validateOnly&failOnUnsupported=false
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -170,7 +170,7 @@ X-Trace-Id: {{traceId}}
 # - $.data.traceId exists
 # - $.data.session.status="success"
 # - $.data.session.trace is array
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -191,7 +191,7 @@ X-Trace-Id: {{traceId}}
 # - $.data.session.status="success"
 # - $.data.session.output="L2"
 # - $.data.session.trace[*].objectId contains start, decision, create, change, endTrue
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -241,28 +241,28 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Round 60 - Run / Trace
-GET {{host}}/api/microflows/runs/{{runId}}
+GET {{host}}/api/v1/microflows/runs/{{runId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ###
-GET {{host}}/api/microflows/runs/{{runId}}/trace
+GET {{host}}/api/v1/microflows/runs/{{runId}}/trace
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ###
-GET {{host}}/api/microflows/{{microflowId}}/runs?pageIndex=1&pageSize=20&status=all
+GET {{host}}/api/v1/microflows/{{microflowId}}/runs?pageIndex=1&pageSize=20&status=all
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ###
-GET {{host}}/api/microflows/{{microflowId}}/runs/{{runId}}
+GET {{host}}/api/v1/microflows/{{microflowId}}/runs/{{runId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -270,7 +270,7 @@ X-Trace-Id: {{traceId}}
 
 ### Round 60 - Cancel / Timeout / Limits
 # Expected: completed runs can be marked cancelled; long-running cooperative cancellation is a known limitation in sync TestRun.
-POST {{host}}/api/microflows/runs/{{runId}}/cancel
+POST {{host}}/api/v1/microflows/runs/{{runId}}/cancel
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -279,7 +279,7 @@ X-Trace-Id: {{traceId}}
 
 ### Round 60 - Negative Cases
 # 404 run not found
-GET {{host}}/api/microflows/runs/R60_E2E_not_found/trace
+GET {{host}}/api/v1/microflows/runs/R60_E2E_not_found/trace
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -287,7 +287,7 @@ X-Trace-Id: {{traceId}}
 
 ### Round 60 - Cleanup prefixed resource
 # Safe cleanup: delete only the resource id created for R60_E2E_*.
-DELETE {{host}}/api/microflows/{{microflowId}}
+DELETE {{host}}/api/v1/microflows/{{microflowId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -310,7 +310,7 @@ X-Trace-Id: {{traceId}}
 
 ### Runtime Round 58 - TestRun rollback action failure
 # Expected: run failed, transactionRolledBack=true, error handler not entered.
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -345,7 +345,7 @@ X-Trace-Id: {{traceId}}
 
 ### Runtime Round 58 - TestRun customWithRollback to End
 # Expected: run success, output.errorHandlingSummary.handledErrorCount=1, latestError visible in handler, transactionRolledBack=true.
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -383,7 +383,7 @@ X-Trace-Id: {{traceId}}
 
 ### Runtime Round 58 - TestRun customWithoutRollback to End
 # Expected: run success, transactionRolledBack=false, custom handler count increments.
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -421,7 +421,7 @@ X-Trace-Id: {{traceId}}
 
 ### Runtime Round 58 - TestRun continue after RestCall failure
 # Expected: supported continue, no rollback, no error handler entered, normal flow reaches End.
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -468,7 +468,7 @@ X-Trace-Id: {{traceId}}
 # - LogMessage logs include logNodeName/traceId/structuredFieldsJson
 
 ### Runtime Round 57 - TestRun RestCall mock GET/string response/status/header variables
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -527,7 +527,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime Round 57 - TestRun RestCall simulateRestError with latestHttpResponse
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -565,7 +565,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime Round 57 - TestRun LogMessage with arguments/context/traceId
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -600,7 +600,7 @@ X-Trace-Id: {{traceId}}
 
 ### Runtime Round 57 - Connector required examples: WebService / ImportXml
 # Expected: RUNTIME_CONNECTOR_REQUIRED in trace/error, no silent success.
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -645,12 +645,12 @@ X-Trace-Id: {{traceId}}
 # Expected:
 # - parent trace frame output.callMicroflow.childRunId exists
 # - parent variablesSnapshot.childGreeting.valuePreview == "hello child"
-# - GET /api/microflows/runs/{childRunId}/trace returns frames with parentRunId and callDepth
+# - GET /api/v1/microflows/runs/{childRunId}/trace returns frames with parentRunId and callDepth
 # - recursion failure includes RUNTIME_CALL_RECURSION_DETECTED
 
 ### Runtime Round 56 - GET child trace by childRunId
 # Replace {{childRunId}} with output.callMicroflow.childRunId from the verify script or parent test-run response.
-GET {{host}}/api/microflows/runs/{{childRunId}}/trace
+GET {{host}}/api/v1/microflows/runs/{{childRunId}}/trace
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -667,14 +667,14 @@ X-Trace-Id: {{traceId}}
 @childRunId = replace-with-child-run-id-from-callmicroflow-output
 
 ### Microflow health
-GET {{host}}/api/microflows/health
+GET {{host}}/api/v1/microflows/health
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Runtime metadata resolver - valid refs, member path, allowAll
-POST {{host}}/api/microflows/runtime/metadata/resolve
+POST {{host}}/api/v1/microflows/runtime/metadata/resolve
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -718,7 +718,7 @@ X-Trace-Id: {{traceId}}
 # - data.session.trace[*].loopIteration.index == 0,1,2
 # - loop body frames contain variablesSnapshot.item and variablesSnapshot.$currentIndex
 # - ContinueEvent frames show message "Continue loop." and loopIteration.controlSignal == "continue"
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -788,7 +788,7 @@ X-Trace-Id: {{traceId}}
 # - data.status == "success"
 # - data.steps has no loop body action frame
 # - loop summary output.mode == "whileCondition" and conditionResult == false
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -845,7 +845,7 @@ X-Trace-Id: {{traceId}}
 # - data.session.trace[*].output.runtimeCommands
 # - data.session.trace[*].output.transaction
 # - data.session.variables[*].variables[*].name contains order / orders / orderCount
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -893,7 +893,7 @@ X-Trace-Id: {{traceId}}
 # - data.session.status == failed
 # - data.session.error.code == RUNTIME_CONNECTOR_REQUIRED
 # - data.session.trace[*].output.connectorRequests[0].capability == soap.webService
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -929,7 +929,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON paths:
 # - data.session.status == failed
 # - data.session.error.code == RUNTIME_UNSUPPORTED_ACTION
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -962,7 +962,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime metadata resolver - unknown metadata
-POST {{host}}/api/microflows/runtime/metadata/resolve
+POST {{host}}/api/v1/microflows/runtime/metadata/resolve
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -983,7 +983,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime metadata resolver - roleBasedStub deny
-POST {{host}}/api/microflows/runtime/metadata/resolve
+POST {{host}}/api/v1/microflows/runtime/metadata/resolve
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1004,21 +1004,21 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow list
-GET {{host}}/api/microflows?pageIndex=1&pageSize=20
+GET {{host}}/api/v1/microflows?pageIndex=1&pageSize=20
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow list favorite only sorted
-GET {{host}}/api/microflows?pageIndex=1&pageSize=20&favoriteOnly=true&sortBy=updatedAt&sortOrder=desc
+GET {{host}}/api/v1/microflows?pageIndex=1&pageSize=20&favoriteOnly=true&sortBy=updatedAt&sortOrder=desc
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow create
-POST {{host}}/api/microflows
+POST {{host}}/api/v1/microflows
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1040,21 +1040,21 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow storage health
-GET {{host}}/api/microflows/storage/health
+GET {{host}}/api/v1/microflows/storage/health
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow detail
-GET {{host}}/api/microflows/{{microflowId}}
+GET {{host}}/api/v1/microflows/{{microflowId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow patch metadata
-PATCH {{host}}/api/microflows/{{microflowId}}
+PATCH {{host}}/api/v1/microflows/{{microflowId}}
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1070,14 +1070,14 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow schema load
-GET {{host}}/api/microflows/{{microflowId}}/schema
+GET {{host}}/api/v1/microflows/{{microflowId}}/schema
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow schema save
-PUT {{host}}/api/microflows/{{microflowId}}/schema
+PUT {{host}}/api/v1/microflows/{{microflowId}}/schema
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1108,14 +1108,14 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow schema load after save
-GET {{host}}/api/microflows/{{microflowId}}/schema
+GET {{host}}/api/v1/microflows/{{microflowId}}/schema
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow duplicate
-POST {{host}}/api/microflows/{{microflowId}}/duplicate
+POST {{host}}/api/v1/microflows/{{microflowId}}/duplicate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1130,7 +1130,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow rename
-POST {{host}}/api/microflows/{{microflowId}}/rename
+POST {{host}}/api/v1/microflows/{{microflowId}}/rename
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1143,7 +1143,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow favorite
-POST {{host}}/api/microflows/{{microflowId}}/favorite
+POST {{host}}/api/v1/microflows/{{microflowId}}/favorite
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1155,21 +1155,21 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow archive
-POST {{host}}/api/microflows/{{microflowId}}/archive
+POST {{host}}/api/v1/microflows/{{microflowId}}/archive
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow restore
-POST {{host}}/api/microflows/{{microflowId}}/restore
+POST {{host}}/api/v1/microflows/{{microflowId}}/restore
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow invalid schema save rejects FlowGram JSON
-PUT {{host}}/api/microflows/{{microflowId}}/schema
+PUT {{host}}/api/v1/microflows/{{microflowId}}/schema
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1186,7 +1186,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow schema conflict
-PUT {{host}}/api/microflows/{{microflowId}}/schema
+PUT {{host}}/api/v1/microflows/{{microflowId}}/schema
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1207,21 +1207,21 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow delete
-DELETE {{host}}/api/microflows/{{microflowId}}
+DELETE {{host}}/api/v1/microflows/{{microflowId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow get deleted/not found
-GET {{host}}/api/microflows/{{microflowId}}
+GET {{host}}/api/v1/microflows/{{microflowId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow publish 1.0.0
-POST {{host}}/api/microflows/{{microflowId}}/publish
+POST {{host}}/api/v1/microflows/{{microflowId}}/publish
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1236,7 +1236,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### References Round 41 - create target B
-POST {{host}}/api/microflows
+POST {{host}}/api/v1/microflows
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1256,7 +1256,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### References Round 41 - create source A
-POST {{host}}/api/microflows
+POST {{host}}/api/v1/microflows
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1277,7 +1277,7 @@ X-Trace-Id: {{traceId}}
 
 ### References Round 41 - save A schema that calls B
 # Replace {{sourceMicroflowId}} and {{targetMicroflowId}} with ids from the two create responses.
-PUT {{host}}/api/microflows/{{sourceMicroflowId}}/schema
+PUT {{host}}/api/v1/microflows/{{sourceMicroflowId}}/schema
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1322,21 +1322,21 @@ X-Trace-Id: {{traceId}}
 }
 
 ### References Round 41 - rebuild A outgoing references
-POST {{host}}/api/microflows/{{sourceMicroflowId}}/references/rebuild
+POST {{host}}/api/v1/microflows/{{sourceMicroflowId}}/references/rebuild
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### References Round 41 - get B target references
-GET {{host}}/api/microflows/{{targetMicroflowId}}/references?includeInactive=false
+GET {{host}}/api/v1/microflows/{{targetMicroflowId}}/references?includeInactive=false
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### References Round 41 - publish B 1.0.0
-POST {{host}}/api/microflows/{{targetMicroflowId}}/publish
+POST {{host}}/api/v1/microflows/{{targetMicroflowId}}/publish
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1350,7 +1350,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### References Round 41 - save B schema with removed parameter to produce breaking change
-PUT {{host}}/api/microflows/{{targetMicroflowId}}/schema
+PUT {{host}}/api/v1/microflows/{{targetMicroflowId}}/schema
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1382,14 +1382,14 @@ X-Trace-Id: {{traceId}}
 }
 
 ### References Round 41 - get B impact with references and breaking changes
-GET {{host}}/api/microflows/{{targetMicroflowId}}/impact?version=1.1.0&includeBreakingChanges=true&includeReferences=true
+GET {{host}}/api/v1/microflows/{{targetMicroflowId}}/impact?version=1.1.0&includeBreakingChanges=true&includeReferences=true
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### References Round 41 - blocked publish without confirmation
-POST {{host}}/api/microflows/{{targetMicroflowId}}/publish
+POST {{host}}/api/v1/microflows/{{targetMicroflowId}}/publish
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1403,7 +1403,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### References Round 41 - confirmed publish
-POST {{host}}/api/microflows/{{targetMicroflowId}}/publish
+POST {{host}}/api/v1/microflows/{{targetMicroflowId}}/publish
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1417,42 +1417,42 @@ X-Trace-Id: {{traceId}}
 }
 
 ### References Round 41 - delete referenced target should be blocked
-DELETE {{host}}/api/microflows/{{targetMicroflowId}}
+DELETE {{host}}/api/v1/microflows/{{targetMicroflowId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow versions
-GET {{host}}/api/microflows/{{microflowId}}/versions
+GET {{host}}/api/v1/microflows/{{microflowId}}/versions
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow version detail
-GET {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}
+GET {{host}}/api/v1/microflows/{{microflowId}}/versions/{{versionId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow compare version with current
-GET {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}/compare-current
+GET {{host}}/api/v1/microflows/{{microflowId}}/versions/{{versionId}}/compare-current
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow impact analysis
-GET {{host}}/api/microflows/{{microflowId}}/impact?version=1.0.1&includeBreakingChanges=true&includeReferences=true
+GET {{host}}/api/v1/microflows/{{microflowId}}/impact?version=1.0.1&includeBreakingChanges=true&includeReferences=true
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow rollback version
-POST {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}/rollback
+POST {{host}}/api/v1/microflows/{{microflowId}}/versions/{{versionId}}/rollback
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1464,7 +1464,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow duplicate historical version
-POST {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}/duplicate
+POST {{host}}/api/v1/microflows/{{microflowId}}/versions/{{versionId}}/duplicate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1480,7 +1480,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow duplicate publish version conflict
-POST {{host}}/api/microflows/{{microflowId}}/publish
+POST {{host}}/api/v1/microflows/{{microflowId}}/publish
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1494,7 +1494,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow save high-impact breaking change
-PUT {{host}}/api/microflows/{{microflowId}}/schema
+PUT {{host}}/api/v1/microflows/{{microflowId}}/schema
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1519,7 +1519,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow publish high impact without confirmation blocked
-POST {{host}}/api/microflows/{{microflowId}}/publish
+POST {{host}}/api/v1/microflows/{{microflowId}}/publish
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1533,7 +1533,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow publish high impact with confirmation
-POST {{host}}/api/microflows/{{microflowId}}/publish
+POST {{host}}/api/v1/microflows/{{microflowId}}/publish
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1547,7 +1547,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow not found
-GET {{host}}/api/microflows/not-exist
+GET {{host}}/api/v1/microflows/not-exist
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -1663,7 +1663,7 @@ X-Trace-Id: {{traceId}}
 # - data.traceFrames[*].variablesSnapshot.$currentUser
 # - data.traceFrames[retrieve frame].variablesSnapshot.orders
 # - data.traceFrames[loop internal frame].variablesSnapshot.$currentIndex
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1712,7 +1712,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON paths:
 # - data.traceFrames[handledEnd frame].variablesSnapshot.$latestError
 # - data.traceFrames[handledEnd frame].variablesSnapshot.$latestHttpResponse
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1748,7 +1748,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 42 - create runnable sample
-POST {{host}}/api/microflows
+POST {{host}}/api/v1/microflows
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1769,7 +1769,7 @@ X-Trace-Id: {{traceId}}
 
 ### TestRun Round 42 - success with draft schema
 # Replace {{runtimeMicroflowId}} with the id from the create response.
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1816,7 +1816,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 42 - decision true
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1855,7 +1855,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 42 - decision false
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1894,7 +1894,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 42 - loopIterations=2
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1940,7 +1940,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 42 - rest success
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -1974,7 +1974,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 42 - rest error with error handler
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2016,7 +2016,7 @@ X-Trace-Id: {{traceId}}
 # - data.session.output.transactionSummary
 # - data.session.transactionSummary.status == committed
 # - data.session.logs[*].message contains transaction.stageCreate / stageUpdate / stageDelete / commit
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2062,7 +2062,7 @@ X-Trace-Id: {{traceId}}
 # - data.session.status == failed
 # - data.session.transactionSummary.status == rolledBack
 # - data.session.logs[*].message contains transaction.rollback
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2102,7 +2102,7 @@ X-Trace-Id: {{traceId}}
 # - data.session.status == success
 # - data.session.transactionSummary.status == committed
 # - data.session.logs[*].message contains customWithoutRollback kept transaction active
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2139,28 +2139,28 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 42 - get run session
-GET {{host}}/api/microflows/runs/{{runId}}
+GET {{host}}/api/v1/microflows/runs/{{runId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### TestRun Round 42 - get run trace
-GET {{host}}/api/microflows/runs/{{runId}}/trace
+GET {{host}}/api/v1/microflows/runs/{{runId}}/trace
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### TestRun Round 42 - cancel run
-POST {{host}}/api/microflows/runs/{{runId}}/cancel
+POST {{host}}/api/v1/microflows/runs/{{runId}}/cancel
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### TestRun Round 42 - invalid schema validation failed
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2183,7 +2183,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 46-47 - unsupported action failed session
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2216,7 +2216,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 46-47 - max steps exceeded
-POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{runtimeMicroflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2250,14 +2250,14 @@ X-Trace-Id: {{traceId}}
 }
 
 ### TestRun Round 42 - run not found
-GET {{host}}/api/microflows/runs/not-exist-run
+GET {{host}}/api/v1/microflows/runs/not-exist-run
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### TestRun Round 42 - resource not found
-POST {{host}}/api/microflows/not-exist-resource/test-run
+POST {{host}}/api/v1/microflows/not-exist-resource/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2267,7 +2267,7 @@ X-Trace-Id: {{traceId}}
 { "input": {} }
 
 ### Microflow validation saved schema edit
-POST {{host}}/api/microflows/{{microflowId}}/validate
+POST {{host}}/api/v1/microflows/{{microflowId}}/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2281,7 +2281,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow validation saved schema save
-POST {{host}}/api/microflows/{{microflowId}}/validate
+POST {{host}}/api/v1/microflows/{{microflowId}}/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2294,7 +2294,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow validation inline publish missing start
-POST {{host}}/api/microflows/{{microflowId}}/validate
+POST {{host}}/api/v1/microflows/{{microflowId}}/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2322,7 +2322,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow validation inline testRun action field missing
-POST {{host}}/api/microflows/{{microflowId}}/validate
+POST {{host}}/api/v1/microflows/{{microflowId}}/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2365,7 +2365,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow validation inline invalid metadata reference
-POST {{host}}/api/microflows/{{microflowId}}/validate
+POST {{host}}/api/v1/microflows/{{microflowId}}/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2389,7 +2389,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow validation inline modeledOnly testRun
-POST {{host}}/api/microflows/{{microflowId}}/validate
+POST {{host}}/api/v1/microflows/{{microflowId}}/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2427,7 +2427,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow validation invalid schema
-POST {{host}}/api/microflows/{{microflowId}}/validate
+POST {{host}}/api/v1/microflows/{{microflowId}}/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2443,7 +2443,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow validation not found resource
-POST {{host}}/api/microflows/not-exist/validate
+POST {{host}}/api/v1/microflows/not-exist/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2457,7 +2457,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Microflow test-run skeleton
-POST {{host}}/api/microflows/not-exist/test-run
+POST {{host}}/api/v1/microflows/not-exist/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2473,7 +2473,7 @@ X-Trace-Id: {{traceId}}
 ### ============================================================
 
 ### Runtime plan from inline AuthoringSchema
-POST {{host}}/api/microflows/runtime/plan
+POST {{host}}/api/v1/microflows/runtime/plan
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2547,21 +2547,21 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime plan from current resource
-GET {{host}}/api/microflows/{{microflowId}}/runtime/plan?mode=validateOnly&failOnUnsupported=false
+GET {{host}}/api/v1/microflows/{{microflowId}}/runtime/plan?mode=validateOnly&failOnUnsupported=false
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Runtime plan from version snapshot
-GET {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}/runtime/plan?mode=publishedRun&failOnUnsupported=false
+GET {{host}}/api/v1/microflows/{{microflowId}}/versions/{{versionId}}/runtime/plan?mode=publishedRun&failOnUnsupported=false
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Runtime plan modeledOnly unsupported descriptor
-POST {{host}}/api/microflows/runtime/plan
+POST {{host}}/api/v1/microflows/runtime/plan
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2601,7 +2601,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.status in ["ok","healthy"]
-GET {{host}}/api/microflows/health
+GET {{host}}/api/v1/microflows/health
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -2611,7 +2611,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.tables[*].exists=true
-GET {{host}}/api/microflows/storage/health
+GET {{host}}/api/v1/microflows/storage/health
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -2631,7 +2631,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.status in ["healthy","degraded"]
-GET {{host}}/api/microflows/runtime/health
+GET {{host}}/api/v1/microflows/runtime/health
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -2641,7 +2641,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.items is array
-GET {{host}}/api/microflows?workspaceId={{workspaceId}}&pageIndex=1&pageSize=10
+GET {{host}}/api/v1/microflows?workspaceId={{workspaceId}}&pageIndex=1&pageSize=10
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -2651,7 +2651,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.summary exists
-POST {{host}}/api/microflows/{{microflowId}}/validate
+POST {{host}}/api/v1/microflows/{{microflowId}}/validate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2665,7 +2665,7 @@ X-Trace-Id: {{traceId}}
 ### Round 61 - Production Readiness / publish sample
 # Expected JSON path:
 # - success=true or error.code="MICROFLOW_PUBLISH_BLOCKED"
-POST {{host}}/api/microflows/{{microflowId}}/publish
+POST {{host}}/api/v1/microflows/{{microflowId}}/publish
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2682,7 +2682,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.sessionId exists
-POST {{host}}/api/microflows/{{microflowId}}/test-run
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2701,7 +2701,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.id="{{runId}}"
-GET {{host}}/api/microflows/runs/{{runId}}
+GET {{host}}/api/v1/microflows/runs/{{runId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -2711,7 +2711,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.frames is array
-GET {{host}}/api/microflows/runs/{{runId}}/trace?pageIndex=1&pageSize=50
+GET {{host}}/api/v1/microflows/runs/{{runId}}/trace?pageIndex=1&pageSize=50
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -2720,7 +2720,7 @@ X-Trace-Id: {{traceId}}
 ### Round 61 - Production Readiness / cancel run
 # Expected JSON path:
 # - $.success=true or $.error.code="MICROFLOW_NOT_FOUND"
-POST {{host}}/api/microflows/runs/{{runId}}/cancel
+POST {{host}}/api/v1/microflows/runs/{{runId}}/cancel
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -2730,7 +2730,7 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path in Production:
 # - $.success=false
 # - $.error.code="MICROFLOW_PERMISSION_DENIED"
-GET {{host}}/api/microflows
+GET {{host}}/api/v1/microflows
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
@@ -2754,7 +2754,7 @@ X-Trace-Id: {{traceId}}
 # - data.status == "success"
 # - data.traceFrames[1].output.expressionResult.success == true
 # - data.selectedCaseValues.decision.value == "true"
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2803,7 +2803,7 @@ X-Trace-Id: {{traceId}}
 # - data.status == "failed"
 # - data.error.code == "RUNTIME_EXPRESSION_ERROR"
 # - data.traceFrames[*].output.expressionResult.error.diagnostics contains RUNTIME_VARIABLE_NOT_FOUND
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2846,7 +2846,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime FlowNavigator Start -> End
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2876,7 +2876,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime FlowNavigator Boolean decision true
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2910,7 +2910,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime FlowNavigator Boolean decision false
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2944,7 +2944,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime FlowNavigator ObjectType decision
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2978,7 +2978,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime FlowNavigator loop iterations
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -3026,7 +3026,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime FlowNavigator RestCall simulated error handler
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -3059,7 +3059,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime FlowNavigator unsupported action
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -3091,7 +3091,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime FlowNavigator maxSteps small
-POST {{host}}/api/microflows/runtime/navigate
+POST {{host}}/api/v1/microflows/runtime/navigate
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -3121,14 +3121,14 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime FlowNavigator current resource
-GET {{host}}/api/microflows/{{microflowId}}/runtime/navigate?mode=dryRun&maxSteps=100&decisionBooleanResult=true&loopIterations=2&simulateRestError=false
+GET {{host}}/api/v1/microflows/{{microflowId}}/runtime/navigate?mode=dryRun&maxSteps=100&decisionBooleanResult=true&loopIterations=2&simulateRestError=false
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Runtime plan failOnUnsupported returns validation envelope
-POST {{host}}/api/microflows/runtime/plan
+POST {{host}}/api/v1/microflows/runtime/plan
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -3165,7 +3165,7 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Runtime plan invalid flow diagnostics
-POST {{host}}/api/microflows/runtime/plan
+POST {{host}}/api/v1/microflows/runtime/plan
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}

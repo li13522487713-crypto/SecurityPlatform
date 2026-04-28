@@ -74,13 +74,13 @@ public sealed class RestCallActionExecutor : IMicroflowActionExecutor
                 StatusCode = 500,
                 ReasonPhrase = "Simulated",
                 Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["content-type"] = "application/json" },
-                BodyText = "{\"error\":\"mock-rest-error\"}",
-                BodyPreview = "mock-rest-error",
+                BodyText = "{\"error\":\"simulated-rest-error\"}",
+                BodyPreview = "simulated-rest-error",
                 Error = new MicroflowRuntimeHttpError
                 {
                     Code = RuntimeErrorCode.RuntimeRestCallFailed,
                     Kind = MicroflowRuntimeHttpErrorKind.Network,
-                    Message = "Mock REST call failed by simulateRestError."
+                    Message = "Simulated REST call failed by simulateRestError."
                 }
             };
             var latest = LatestHttpResponse(request, simulated, MicroflowRuntimeHttpErrorKind.Network, simulated.Error.Message);

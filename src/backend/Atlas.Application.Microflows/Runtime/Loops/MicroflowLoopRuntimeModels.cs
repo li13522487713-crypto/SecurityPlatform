@@ -46,7 +46,7 @@ public static class MicroflowLoopBodyExecutionStatus
 public sealed record MicroflowLoopExecutionOptions
 {
     [JsonPropertyName("maxIterations")]
-    public int MaxIterations { get; init; } = 100;
+    public int MaxIterations { get; init; } = 1000;
 
     [JsonPropertyName("maxStepsPerIteration")]
     public int? MaxStepsPerIteration { get; init; }

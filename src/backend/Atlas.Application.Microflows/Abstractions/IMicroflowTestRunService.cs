@@ -36,14 +36,7 @@ public interface IMicroflowTestRunService
         CancellationToken cancellationToken);
 }
 
-public interface IMicroflowMockRuntimeRunner
-{
-    Task<MicroflowRunSessionDto> RunAsync(
-        MicroflowMockRuntimeRequest request,
-        CancellationToken cancellationToken);
-}
-
-public sealed record MicroflowMockRuntimeRequest
+public sealed record MicroflowExecutionRequest
 {
     public string ResourceId { get; init; } = string.Empty;
 

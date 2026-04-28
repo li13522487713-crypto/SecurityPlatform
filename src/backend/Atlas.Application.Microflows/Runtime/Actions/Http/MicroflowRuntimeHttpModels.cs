@@ -53,9 +53,6 @@ public sealed record MicroflowRestExecutionOptions
     public bool FollowRedirects { get; init; }
     public int MaxRedirects { get; init; } = 3;
     public bool TreatNonSuccessStatusAsError { get; init; } = true;
-    public int MockResponseStatusCode { get; init; } = 200;
-    public JsonElement? MockResponseBodyJson { get; init; }
-    public string? MockResponseBodyText { get; init; } = "{\"mock\":true,\"source\":\"microflow-rest\"}";
     public int MaxUrlLength { get; init; } = 2048;
     public int MaxHeaderValueLength { get; init; } = 4096;
     public bool LogExpressionErrorsAsWarning { get; init; }
@@ -73,9 +70,6 @@ public sealed record MicroflowRestExecutionOptions
             FollowRedirects = FollowRedirects,
             MaxRedirects = MaxRedirects,
             TreatNonSuccessStatusAsError = TreatNonSuccessStatusAsError,
-            MockResponseStatusCode = MockResponseStatusCode,
-            MockResponseBodyJson = MockResponseBodyJson,
-            MockResponseBodyText = MockResponseBodyText,
             MaxUrlLength = MaxUrlLength,
             MaxHeaderValueLength = MaxHeaderValueLength
         };
@@ -93,9 +87,6 @@ public sealed record MicroflowRuntimeHttpOptions
     public bool FollowRedirects { get; init; }
     public int MaxRedirects { get; init; } = 3;
     public bool TreatNonSuccessStatusAsError { get; init; } = true;
-    public int MockResponseStatusCode { get; init; } = 200;
-    public JsonElement? MockResponseBodyJson { get; init; }
-    public string? MockResponseBodyText { get; init; } = "{\"mock\":true}";
     public int MaxUrlLength { get; init; } = 2048;
     public int MaxHeaderValueLength { get; init; } = 4096;
 }

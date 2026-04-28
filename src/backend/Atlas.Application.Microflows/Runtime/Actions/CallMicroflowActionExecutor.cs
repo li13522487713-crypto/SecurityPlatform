@@ -3,11 +3,11 @@ using System.Text.Json;
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
+using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Services;
 using Atlas.Application.Microflows.Runtime.Calls;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Domain.Microflows.Entities;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Application.Microflows.Runtime.Actions;
 
@@ -20,7 +20,7 @@ public sealed class CallMicroflowActionExecutor : IMicroflowActionExecutor
     private readonly IMicroflowPublishSnapshotRepository _publishSnapshotRepository;
     private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;
     private readonly IMicroflowCallStackService _callStackService;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IMicroflowRuntimeEngine _runtimeEngine;
 
     public CallMicroflowActionExecutor(
         IMicroflowResourceRepository resourceRepository,
@@ -29,7 +29,7 @@ public sealed class CallMicroflowActionExecutor : IMicroflowActionExecutor
         IMicroflowPublishSnapshotRepository publishSnapshotRepository,
         IMicroflowExecutionPlanLoader executionPlanLoader,
         IMicroflowCallStackService callStackService,
-        IServiceProvider serviceProvider)
+        IMicroflowRuntimeEngine runtimeEngine)
     {
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
@@ -37,7 +37,7 @@ public sealed class CallMicroflowActionExecutor : IMicroflowActionExecutor
         _publishSnapshotRepository = publishSnapshotRepository;
         _executionPlanLoader = executionPlanLoader;
         _callStackService = callStackService;
-        _serviceProvider = serviceProvider;
+        _runtimeEngine = runtimeEngine;
     }
 
     public string ActionKind => "callMicroflow";
@@ -179,9 +179,8 @@ public sealed class CallMicroflowActionExecutor : IMicroflowActionExecutor
         MicroflowRunSessionDto childSession;
         try
         {
-            var runner = _serviceProvider.GetRequiredService<IMicroflowMockRuntimeRunner>();
-            childSession = await runner.RunAsync(
-                new MicroflowMockRuntimeRequest
+            childSession = await _runtimeEngine.RunAsync(
+                new MicroflowExecutionRequest
                 {
                     ResourceId = target.Id,
                     SchemaId = selected.SchemaId,
