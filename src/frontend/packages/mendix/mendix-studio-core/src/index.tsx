@@ -15,6 +15,7 @@ import { WidgetToolbox } from "./components/widget-toolbox";
 import { WorkbenchTabs } from "./components/workbench-tabs";
 import { WorkbenchToolbar } from "./components/workbench-toolbar";
 import { MicroflowWorkbenchToolbar } from "./components/microflow-workbench-toolbar";
+import { MicroflowStudioBottomPanel } from "./components/microflow-studio-bottom-panel";
 import { PageDesignerCanvas } from "./components/page-designer-canvas";
 import { WidgetStructurePanel } from "./components/widget-structure-panel";
 import { PropertiesPanel } from "./components/properties-panel";
@@ -232,7 +233,16 @@ export function MendixStudioApp({
 
               {/* 内容区 */}
               {isMicroflow ? (
-                <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column"
+                  }}
+                >
+                  <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                   {activeMicroflowId && activeMicroflowTabId ? (
                     <MicroflowResourceEditorHost
                       key={activeMicroflowTabId}
@@ -256,7 +266,8 @@ export function MendixStudioApp({
                   ) : (
                     <div
                       style={{
-                        height: "100%",
+                        flex: 1,
+                        minHeight: 0,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -275,6 +286,12 @@ export function MendixStudioApp({
                       </Card>
                     </div>
                   )}
+                  </div>
+                  <MicroflowStudioBottomPanel
+                    microflowId={activeMicroflowId}
+                    resource={activeMicroflowResource}
+                    adapterBundle={_resolvedBundle}
+                  />
                 </div>
               ) : (
                 <>

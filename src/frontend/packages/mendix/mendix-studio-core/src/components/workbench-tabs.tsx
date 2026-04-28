@@ -1,5 +1,5 @@
 import { IconPlus, IconClose } from "@douyinfe/semi-icons";
-import { Button, Modal, Space, Typography } from "@douyinfe/semi-ui";
+import { Button, Modal, Space, Tag, Typography } from "@douyinfe/semi-ui";
 import { useMendixStudioStore } from "../store";
 import type { StudioWorkbenchTab } from "../store";
 
@@ -32,6 +32,65 @@ function getTabType(tab: StudioWorkbenchTab): { label: string; className: string
         explorerNodeId: tab.resourceId
       };
   }
+}
+
+type TabStatusTone = "draft" | "published" | "modified" | "archived" | "running" | "error" | "info";
+
+const tabStatusTagPalette: Record<TabStatusTone, { color: "blue" | "green" | "orange" | "grey" | "purple" | "red" | "lime"; label: string }> = {
+  draft: { color: "blue", label: "草稿" },
+  published: { color: "green", label: "已发布" },
+  modified: { color: "orange", label: "已修改" },
+  archived: { color: "grey", label: "归档" },
+  running: { color: "purple", label: "运行中" },
+  error: { color: "red", label: "失败" },
+  info: { color: "lime", label: "信息" }
+};
+
+/**
+ * 把 store 中的字符串 status 升级为 Mendix Studio 风格的语义化 Badge。
+ *
+ * - 优先看 dirty：dirty=true 视为"已修改"。
+ * - 其次看 publishStatus / status 字符串：published / archived / draft / 已发布
+ *   等同义词都映射到对应色板。
+ * - 找不到映射时退回中性 "info" Tag，不丢字段。
+ */
+function resolveTabStatusTone(tab: StudioWorkbenchTab, dirty: boolean): TabStatusTone | undefined {
+  if (dirty) {
+    return "modified";
+  }
+  const publish = (tab.publishStatus ?? "").toLowerCase();
+  if (publish.includes("publish")) {
+    return "published";
+  }
+  if (publish.includes("archiv")) {
+    return "archived";
+  }
+  if (publish.includes("draft")) {
+    return "draft";
+  }
+  const explicit = (tab.status ?? "").toLowerCase();
+  if (!explicit) {
+    return undefined;
+  }
+  if (explicit.includes("publish") || explicit === "已发布") {
+    return "published";
+  }
+  if (explicit.includes("archiv") || explicit === "归档") {
+    return "archived";
+  }
+  if (explicit.includes("draft") || explicit === "草稿") {
+    return "draft";
+  }
+  if (explicit.includes("modif") || explicit === "已修改") {
+    return "modified";
+  }
+  if (explicit.includes("running") || explicit.includes("queued") || explicit.includes("autosaving")) {
+    return "running";
+  }
+  if (explicit.includes("conflict") || explicit.includes("error")) {
+    return "error";
+  }
+  return "info";
 }
 
 export function WorkbenchTabs() {
@@ -112,11 +171,23 @@ export function WorkbenchTabs() {
                 <span className="studio-workbench-tab__dirty-prefix" aria-label="Unsaved changes">*</span>
               ) : null}
               <span>{tab.title}</span>
-              {tab.status ? (
-                <span className="studio-workbench-tab__status" title={tab.publishStatus}>
-                  {tab.status}
-                </span>
-              ) : null}
+              {(() => {
+                const tone = resolveTabStatusTone(tab, isDirty);
+                if (!tone) {
+                  return null;
+                }
+                const palette = tabStatusTagPalette[tone];
+                return (
+                  <Tag
+                    size="small"
+                    color={palette.color}
+                    title={`${tab.publishStatus ?? ""} / ${tab.status ?? ""}`.trim()}
+                    style={{ marginLeft: 4 }}
+                  >
+                    {palette.label}
+                  </Tag>
+                );
+              })()}
               {summary && problemCount > 0 ? (
                 <span
                   className="studio-workbench-tab__status"
