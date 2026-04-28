@@ -6,11 +6,16 @@ import {
   IconMonitorStroked,
   IconPhone,
   IconPlay,
+  IconSearch,
   IconFullScreenStroked
 } from "@douyinfe/semi-icons";
 import { useMendixStudioStore } from "../store";
 
-export function WorkbenchToolbar() {
+interface WorkbenchToolbarProps {
+  onViewMicroflowReferences?: (microflowId: string) => void;
+}
+
+export function WorkbenchToolbar({ onViewMicroflowReferences }: WorkbenchToolbarProps) {
   const setPreviewMode = useMendixStudioStore(state => state.setPreviewMode);
   const activeTab = useMendixStudioStore(state => state.activeTab);
   const activeWorkbenchTab = useMendixStudioStore(state =>
@@ -27,6 +32,9 @@ export function WorkbenchToolbar() {
 
   const isPage = activeTab === "pageBuilder";
   const isMicroflowWorkbench = activeWorkbenchTab?.kind === "microflow";
+  const activeMicroflowId = isMicroflowWorkbench
+    ? activeWorkbenchTab.microflowId ?? activeWorkbenchTab.resourceId
+    : undefined;
 
   return (
     <div className="studio-workbench-toolbar">
@@ -104,16 +112,16 @@ export function WorkbenchToolbar() {
         )}
       </div>
 
-      {/* Stage 04 仅展示真实资源 placeholder，不接入真实 schema editor。 */}
       {isMicroflowWorkbench && (
         <button
           type="button"
-          className="studio-workbench-toolbar__btn studio-workbench-toolbar__btn--with-label studio-workbench-toolbar__btn--disabled"
-          title="真实 schema 加载、保存和画布编辑将在 Release Stage 05 后接入"
-          disabled
+          className="studio-workbench-toolbar__btn studio-workbench-toolbar__btn--with-label"
+          title="View References"
+          disabled={!activeMicroflowId}
+          onClick={() => activeMicroflowId ? onViewMicroflowReferences?.(activeMicroflowId) : undefined}
         >
-          <IconFullScreenStroked style={{ fontSize: 15, flexShrink: 0 }} aria-hidden />
-          <span className="studio-workbench-toolbar__btn-label">微流资源信息</span>
+          <IconSearch style={{ fontSize: 15, flexShrink: 0 }} aria-hidden />
+          <span className="studio-workbench-toolbar__btn-label">References</span>
         </button>
       )}
 

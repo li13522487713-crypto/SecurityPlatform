@@ -19,6 +19,8 @@ public interface IMicroflowResourceRepository
 
     Task UpdateLastRunAsync(string id, string status, DateTimeOffset lastRunAt, CancellationToken cancellationToken);
 
+    Task UpdateReferenceCountsAsync(IReadOnlyDictionary<string, int> countsByResourceId, CancellationToken cancellationToken);
+
     Task DeleteAsync(string id, CancellationToken cancellationToken);
 
     Task<bool> ExistsByNameAsync(string? workspaceId, string name, CancellationToken cancellationToken);
@@ -81,6 +83,11 @@ public interface IMicroflowReferenceRepository
     Task InsertManyAsync(IReadOnlyList<MicroflowReferenceEntity> references, CancellationToken cancellationToken);
 
     Task<int> CountByTargetMicroflowIdAsync(string targetMicroflowId, MicroflowReferenceQuery query, CancellationToken cancellationToken);
+
+    Task<IReadOnlyDictionary<string, int>> CountByTargetMicroflowIdsAsync(
+        IReadOnlyList<string> targetMicroflowIds,
+        MicroflowReferenceQuery query,
+        CancellationToken cancellationToken);
 
     Task DeleteBySourceAsync(string sourceType, string sourceId, CancellationToken cancellationToken);
 

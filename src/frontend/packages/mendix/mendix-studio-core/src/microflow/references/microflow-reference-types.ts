@@ -33,6 +33,8 @@ export interface MicroflowReference {
   description?: string;
   /** 与 `GetMicroflowReferencesRequest.includeInactive` 配合；未指定时由前端视为 `true`。 */
   active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   canNavigate?: boolean;
 }
 
@@ -43,10 +45,12 @@ export interface StudioMicroflowCalleeView {
   targetMicroflowId?: string;
   targetMicroflowName?: string;
   targetMicroflowQualifiedName?: string;
+  storedTargetMicroflowQualifiedName?: string;
   targetModuleId?: string;
   referenceKind: "callMicroflow";
   stale: boolean;
-  staleReason?: "missingTargetId" | "targetNotFound" | "selfCall";
+  incomplete: boolean;
+  staleReason?: "missingTargetId" | "targetNotFound" | "selfCall" | "staleQualifiedName";
 }
 
 export interface MicroflowReferenceImpactSummary {

@@ -162,6 +162,8 @@ export function getMicroflowErrorUserMessage(error: unknown): string {
       return "微流校验未通过，请查看问题面板。";
     case "MICROFLOW_PUBLISH_BLOCKED":
       return "微流发布被阻止，请处理校验或影响分析问题。";
+    case "MICROFLOW_REFERENCE_BLOCKED":
+      return "微流仍被引用，删除或归档已被阻止。";
     case "MICROFLOW_METADATA_LOAD_FAILED":
     case "MICROFLOW_METADATA_NOT_FOUND":
       return "元数据服务不可用，请稍后重试。";

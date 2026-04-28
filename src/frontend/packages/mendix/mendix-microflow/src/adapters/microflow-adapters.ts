@@ -442,16 +442,25 @@ function makeAction(node: Extract<LegacyMicroflowNode, { type: "activity" }>): M
       officialType: "Microflows$MicroflowCallAction",
       targetMicroflowId: config.targetMicroflowId ?? "",
       targetMicroflowName: config.targetMicroflowName ?? "",
+      targetMicroflowDisplayName: config.targetMicroflowDisplayName,
       targetMicroflowQualifiedName: config.targetMicroflowQualifiedName ?? "",
+      targetModuleId: config.targetModuleId,
       parameterMappings: (config.parameterMappings ?? []).map(item => ({
+        targetParameterId: item.targetParameterId,
+        targetParameterName: item.targetParameterName ?? item.parameterName,
         parameterName: item.parameterName,
         parameterType: { kind: "unknown", reason: "legacy mapping" },
-        argumentExpression: item.expression,
+        targetType: item.targetType,
+        argumentExpression: item.argumentExpression ?? item.expression,
+        expression: item.expression ?? item.argumentExpression,
+        sourceVariableId: item.sourceVariableId,
         sourceVariableName: item.sourceVariableName
       })),
       returnValue: {
         storeResult: Boolean(config.resultVariableName),
+        outputVariableId: config.outputVariableId,
         outputVariableName: config.resultVariableName,
+        resultVariableName: config.resultVariableName,
         dataType: config.variableType ? toMicroflowDataType(config.variableType) : undefined
       },
       callMode: config.callMode === "async" ? "asyncReserved" : "sync"

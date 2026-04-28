@@ -234,6 +234,12 @@ public sealed record MicroflowReferenceDto
     [JsonPropertyName("active")]
     public bool Active { get; init; } = true;
 
+    [JsonPropertyName("createdAt")]
+    public DateTimeOffset CreatedAt { get; init; }
+
+    [JsonPropertyName("updatedAt")]
+    public DateTimeOffset UpdatedAt { get; init; }
+
     [JsonPropertyName("canNavigate")]
     public bool CanNavigate { get; init; }
 }

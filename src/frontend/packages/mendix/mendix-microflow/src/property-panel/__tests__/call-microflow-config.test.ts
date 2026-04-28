@@ -38,12 +38,16 @@ function action(overrides: Partial<MicroflowCallMicroflowAction> = {}): Microflo
 const target: MetadataMicroflowRef = {
   id: "mf-validate-purchase-request",
   name: "MF_ValidatePurchaseRequest",
+  displayName: "Validate Purchase Request",
   qualifiedName: "Procurement.MF_ValidatePurchaseRequest",
+  moduleId: "procurement-module",
   moduleName: "Procurement",
+  version: "0.1.0",
+  schemaId: "schema-b",
   status: "draft",
   parameters: [
-    { name: "amount", type: { kind: "decimal" }, required: true },
-    { name: "userName", type: { kind: "string" }, required: true },
+    { id: "param-amount", name: "amount", type: { kind: "decimal" }, required: true, order: 0 },
+    { id: "param-user", name: "userName", type: { kind: "string" }, required: true, order: 1 },
   ],
   returnType: { kind: "boolean" },
 };
@@ -54,8 +58,11 @@ describe("Call Microflow Stage 15 config helpers", () => {
 
     expect(next.targetMicroflowId).toBe(target.id);
     expect(next.targetMicroflowName).toBe(target.name);
+    expect(next.targetMicroflowDisplayName).toBe(target.displayName);
     expect(next.targetMicroflowQualifiedName).toBe(target.qualifiedName);
+    expect(next.targetModuleId).toBe(target.moduleId);
     expect(next.parameterMappings.map(mapping => mapping.parameterName)).toEqual(["amount", "userName"]);
+    expect(next.parameterMappings.map(mapping => mapping.targetParameterId)).toEqual(["param-amount", "param-user"]);
   });
 
   it("preserves same-name parameter mappings when the target reloads", () => {
@@ -83,14 +90,18 @@ describe("Call Microflow Stage 15 config helpers", () => {
     const next = clearCallMicroflowTarget(action({
       targetMicroflowId: target.id,
       targetMicroflowName: target.name,
+      targetMicroflowDisplayName: target.displayName,
       targetMicroflowQualifiedName: target.qualifiedName,
+      targetModuleId: target.moduleId,
       parameterMappings: [{ parameterName: "amount", parameterType: { kind: "decimal" }, argumentExpression: expression("amount") }],
       returnValue: { storeResult: true, outputVariableName: "isValid", dataType: { kind: "boolean" } },
     }));
 
     expect(next.targetMicroflowId).toBe("");
     expect(next.targetMicroflowName).toBe("");
+    expect(next.targetMicroflowDisplayName).toBe("");
     expect(next.targetMicroflowQualifiedName).toBe("");
+    expect(next.targetModuleId).toBe("");
     expect(next.parameterMappings).toEqual([]);
     expect(next.returnValue).toEqual({ storeResult: false });
   });

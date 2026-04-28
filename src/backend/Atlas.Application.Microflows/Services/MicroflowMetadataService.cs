@@ -182,7 +182,7 @@ public sealed class MicroflowMetadataService : IMicroflowMetadataService
             cancellationToken);
         var filtered = resources
             .Where(resource => includeArchived || (!resource.Archived && !string.Equals(resource.Status, "archived", StringComparison.OrdinalIgnoreCase)))
-            .Where(resource => MatchesKeyword(resource.Name, BuildQualifiedName(resource), resource.Description, keyword))
+            .Where(resource => MatchesKeyword(resource.Name, resource.DisplayName, BuildQualifiedName(resource), resource.Description, keyword))
             .ToArray();
 
         var snapshotIds = filtered.Select(resource => resource.CurrentSchemaSnapshotId).Where(id => !string.IsNullOrWhiteSpace(id)).Cast<string>().ToArray();
@@ -208,12 +208,16 @@ public sealed class MicroflowMetadataService : IMicroflowMetadataService
         {
             Id = resource.Id,
             Name = resource.Name,
+            DisplayName = resource.DisplayName,
             QualifiedName = $"{moduleName}.{resource.Name}",
+            ModuleId = resource.ModuleId,
             ModuleName = moduleName,
             Description = resource.Description,
             Parameters = schema.HasValue ? ReadParameters(schema.Value) : Array.Empty<MetadataMicroflowParameterDto>(),
             ReturnType = schema.HasValue ? ReadReturnType(schema.Value) : MicroflowSeedMetadataCatalog.UnknownType("schema unavailable"),
-            Status = NormalizeStatus(resource)
+            Status = NormalizeStatus(resource),
+            Version = resource.Version,
+            SchemaId = resource.SchemaId
         };
     }
 
@@ -248,21 +252,30 @@ public sealed class MicroflowMetadataService : IMicroflowMetadataService
         }
 
         var result = new List<MetadataMicroflowParameterDto>();
+        var order = 0;
         foreach (var parameter in parameters.EnumerateArray())
         {
             var name = ReadString(parameter, "name");
             if (string.IsNullOrWhiteSpace(name))
             {
+                order++;
                 continue;
             }
 
+            var defaultValue = ReadExpressionText(parameter, "defaultValue");
             result.Add(new MetadataMicroflowParameterDto
             {
+                Id = ReadString(parameter, "id") ?? ReadString(parameter, "stableId"),
                 Name = name,
                 Type = ReadType(parameter),
                 Required = ReadBool(parameter, "required"),
-                Documentation = ReadString(parameter, "documentation")
+                DefaultValue = defaultValue,
+                DefaultValueExpression = defaultValue,
+                Documentation = ReadString(parameter, "documentation"),
+                Description = ReadString(parameter, "description") ?? ReadString(parameter, "documentation"),
+                Order = order
             });
+            order++;
         }
 
         return result.ToArray();
@@ -295,6 +308,21 @@ public sealed class MicroflowMetadataService : IMicroflowMetadataService
     private static string? ReadString(JsonElement element, string propertyName)
         => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
+    private static string? ReadExpressionText(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Object => ReadString(value, "raw") ?? ReadString(value, "text"),
+            _ => null
+        };
+    }
+
     private static bool ReadBool(JsonElement element, string propertyName)
         => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.True;
 
@@ -316,6 +344,9 @@ public sealed class MicroflowMetadataService : IMicroflowMetadataService
             || string.Equals(moduleName, moduleId, StringComparison.OrdinalIgnoreCase);
 
     private static bool MatchesKeyword(string name, string qualifiedName, string? description, string? keyword)
+        => MatchesKeyword(name, null, qualifiedName, description, keyword);
+
+    private static bool MatchesKeyword(string name, string? displayName, string qualifiedName, string? description, string? keyword)
     {
         if (string.IsNullOrWhiteSpace(keyword))
         {
@@ -324,6 +355,7 @@ public sealed class MicroflowMetadataService : IMicroflowMetadataService
 
         var value = keyword.Trim();
         return name.Contains(value, StringComparison.OrdinalIgnoreCase)
+            || (displayName?.Contains(value, StringComparison.OrdinalIgnoreCase) ?? false)
             || qualifiedName.Contains(value, StringComparison.OrdinalIgnoreCase)
             || (description?.Contains(value, StringComparison.OrdinalIgnoreCase) ?? false);
     }

@@ -112,7 +112,11 @@ export function tryMapP0ActionToDiscriminatedDto(action: MicroflowAction): Micro
         config: {
           targetMicroflowId: action.targetMicroflowId,
           targetMicroflowName: action.targetMicroflowName,
+          targetMicroflowDisplayName: action.targetMicroflowDisplayName,
           targetMicroflowQualifiedName: action.targetMicroflowQualifiedName,
+          targetModuleId: action.targetModuleId,
+          targetVersion: action.targetVersion,
+          targetSchemaId: action.targetSchemaId,
           parameterMappings: action.parameterMappings,
           returnValue: action.returnValue,
           callMode: action.callMode,

@@ -53,7 +53,7 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
           <Text type="warning" size="small">Parameter type is empty or unknown.</Text>
         ) : null}
         {parameter?.dataType.kind === "object" || parameter?.dataType.kind === "list" ? (
-          <Text type="warning" size="small">Entity metadata will be connected in Stage 19.</Text>
+          <Text type="warning" size="small">Object/List parameter types must use real metadata; no fallback entity is generated.</Text>
         ) : null}
       </Field>
       <Field label="Required">

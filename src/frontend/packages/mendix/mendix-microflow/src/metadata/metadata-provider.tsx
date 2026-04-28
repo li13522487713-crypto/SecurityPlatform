@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { MicroflowMetadataCatalog } from "./metadata-catalog";
 import type { MicroflowMetadataAdapter } from "./metadata-adapter";
 
@@ -51,6 +51,7 @@ export function MicroflowMetadataProvider({
   const [loading, setLoading] = useState<boolean>(initialCatalog === undefined);
   const [error, setError] = useState<Error | null>(null);
   const [version, setVersion] = useState(0);
+  const requestSeqRef = useRef(0);
 
   const request = useMemo(
     () => ({ workspaceId, moduleId }),
@@ -58,6 +59,8 @@ export function MicroflowMetadataProvider({
   );
 
   const load = useCallback(async () => {
+    const requestSeq = requestSeqRef.current + 1;
+    requestSeqRef.current = requestSeq;
     setLoading(true);
     setError(null);
     if (!adapter) {
@@ -68,13 +71,21 @@ export function MicroflowMetadataProvider({
     }
     try {
       const next = await adapter.getMetadataCatalog(request);
+      if (requestSeqRef.current !== requestSeq) {
+        return;
+      }
       setCatalog(next);
       setVersion(v => v + 1);
     } catch (err) {
+      if (requestSeqRef.current !== requestSeq) {
+        return;
+      }
       setCatalog(null);
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
-      setLoading(false);
+      if (requestSeqRef.current === requestSeq) {
+        setLoading(false);
+      }
     }
   }, [adapter, request]);
 
@@ -108,17 +119,27 @@ export function MicroflowMetadataProvider({
       return;
     }
     if (adapter.refreshMetadataCatalog) {
+      const requestSeq = requestSeqRef.current + 1;
+      requestSeqRef.current = requestSeq;
       setLoading(true);
       setError(null);
       try {
         const next = await adapter.refreshMetadataCatalog(request);
+        if (requestSeqRef.current !== requestSeq) {
+          return;
+        }
         setCatalog(next);
         setVersion(v => v + 1);
       } catch (err) {
+        if (requestSeqRef.current !== requestSeq) {
+          return;
+        }
         setCatalog(null);
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
-        setLoading(false);
+        if (requestSeqRef.current === requestSeq) {
+          setLoading(false);
+        }
       }
       return;
     }

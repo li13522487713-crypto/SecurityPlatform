@@ -716,7 +716,9 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       officialType: "Microflows$MicroflowCallAction",
       targetMicroflowId: String(config.targetMicroflowId ?? ""),
       targetMicroflowName: String(config.targetMicroflowName ?? ""),
+      targetMicroflowDisplayName: String(config.targetMicroflowDisplayName ?? config.targetMicroflowName ?? ""),
       targetMicroflowQualifiedName: String(config.targetMicroflowQualifiedName ?? ""),
+      targetModuleId: String(config.targetModuleId ?? ""),
       parameterMappings: [],
       returnValue: { storeResult: false },
       callMode: "sync"

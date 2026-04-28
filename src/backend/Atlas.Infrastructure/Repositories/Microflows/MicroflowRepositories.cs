@@ -173,6 +173,30 @@ public sealed class MicroflowReferenceRepository : IMicroflowReferenceRepository
         return ApplyReferenceFilters(q, query).CountAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<string, int>> CountByTargetMicroflowIdsAsync(
+        IReadOnlyList<string> targetMicroflowIds,
+        MicroflowReferenceQuery query,
+        CancellationToken cancellationToken)
+    {
+        var ids = targetMicroflowIds.Where(static id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<string, int>(StringComparer.Ordinal);
+        }
+
+        var q = _db.Queryable<MicroflowReferenceEntity>()
+            .Where(x => SqlFunc.ContainsArray(ids, x.TargetMicroflowId));
+        var rows = await ApplyReferenceFilters(q, query)
+            .GroupBy(x => x.TargetMicroflowId)
+            .Select(x => new MicroflowReferenceCountRow
+            {
+                TargetMicroflowId = x.TargetMicroflowId,
+                Count = SqlFunc.AggregateCount(x.Id)
+            })
+            .ToListAsync(cancellationToken);
+        return rows.ToDictionary(row => row.TargetMicroflowId, row => row.Count, StringComparer.Ordinal);
+    }
+
     public Task DeleteBySourceAsync(string sourceType, string sourceId, CancellationToken cancellationToken)
         => _db.Deleteable<MicroflowReferenceEntity>()
             .Where(x => x.SourceType == sourceType && x.SourceId == sourceId)
@@ -205,6 +229,13 @@ public sealed class MicroflowReferenceRepository : IMicroflowReferenceRepository
         }
 
         return q;
+    }
+
+    private sealed class MicroflowReferenceCountRow
+    {
+        public string TargetMicroflowId { get; set; } = string.Empty;
+
+        public int Count { get; set; }
     }
 }
 

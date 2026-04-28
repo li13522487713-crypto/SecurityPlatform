@@ -84,9 +84,9 @@ function schema(objects: MicroflowActionActivity[] = [createVariable(), changeVa
     returnType: { kind: "void" },
     objectCollection: { id: "root", officialType: "Microflows$MicroflowObjectCollection", objects, flows: [] },
     flows: [],
-    security: { allowedRoles: [], applyEntityAccess: true },
-    concurrency: { disallowConcurrentExecution: false },
-    exposure: { asMicroflow: true },
+    security: { allowedModuleRoleIds: [], allowedRoleNames: [], applyEntityAccess: true },
+    concurrency: { allowConcurrentExecution: true },
+    exposure: { exportLevel: "module", markAsUsed: false },
     validation: { issues: [] },
     editor: {
       viewport: { x: 0, y: 0, zoom: 1 },

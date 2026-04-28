@@ -3,12 +3,13 @@ import { Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Spin, Tag, 
 import { IconCode, IconCopy, IconDelete, IconEdit, IconMore, IconPlus, IconSearch, IconStar, IconStarStroked } from "@douyinfe/semi-icons";
 
 import { createMicroflowAdapterBundle, type MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
-import { getMicroflowErrorUserMessage } from "../adapter/http/microflow-api-error";
+import { getMicroflowApiError, getMicroflowErrorUserMessage } from "../adapter/http/microflow-api-error";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import { MicroflowErrorState } from "../components/error";
 import type { MicroflowAdapterFactoryConfig } from "../config/microflow-adapter-config";
 import { PublishMicroflowModal } from "../publish/PublishMicroflowModal";
 import { MicroflowReferencesDrawer } from "../references/MicroflowReferencesDrawer";
+import { canDeleteMicroflowFromReferences, getActiveReferences, resolveReferenceDisplayName } from "../references/microflow-reference-utils";
 import { MicroflowVersionsDrawer } from "../versions/MicroflowVersionsDrawer";
 import { useMicroflowResources } from "./resource-hooks";
 import type { MicroflowCreateInput, MicroflowResource, MicroflowResourceQuery } from "./resource-types";
@@ -321,6 +322,43 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
     await reload();
   }
 
+  async function handleDelete(resource: MicroflowResource) {
+    let references;
+    try {
+      references = await adapter.getMicroflowReferences(resource.id, { includeInactive: true });
+    } catch (caught) {
+      Toast.error(`无法验证引用关系，请稍后重试：${getMicroflowApiError(caught).message}`);
+      openReferences(resource);
+      return;
+    }
+    if (!canDeleteMicroflowFromReferences(references)) {
+      const callers = getActiveReferences(references).slice(0, 5).map(reference => resolveReferenceDisplayName(reference)).join("、");
+      Toast.error(`删除被阻止：仍被 ${callers || "active callers"} 引用。`);
+      openReferences(resource);
+      return;
+    }
+    Modal.confirm({
+      title: "确认删除微流",
+      content: `已完成 callers 预检查，未发现 active callers。确认删除 ${resource.displayName || resource.name}？`,
+      onOk: async () => {
+        try {
+          await adapter.deleteMicroflow(resource.id);
+          Toast.success("已删除微流");
+          await reload();
+        } catch (caught) {
+          const apiError = getMicroflowApiError(caught);
+          if (apiError.httpStatus === 409 || apiError.code === "MICROFLOW_REFERENCE_BLOCKED" || apiError.code === "MICROFLOW_VERSION_CONFLICT") {
+            Toast.error(`删除被后端引用保护阻止：${apiError.message}`);
+            openReferences(resource);
+            await reload();
+            return;
+          }
+          Toast.error(apiError.message || "删除微流失败");
+        }
+      }
+    });
+  }
+
   function openPublish(resource: MicroflowResource) {
     setSelectedResource(resource);
     setPublishOpen(true);
@@ -355,13 +393,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
         ) : (
           <Dropdown.Item disabled={!canRunMicroflowAction(resource, "canArchive")} onClick={() => void refreshAfter(adapter.archiveMicroflow(resource.id), "已归档微流")}>归档</Dropdown.Item>
         )}
-        <Dropdown.Item type="danger" icon={<IconDelete />} disabled={!canRunMicroflowAction(resource, "canDelete")} onClick={() => {
-          Modal.confirm({
-            title: "确认删除微流",
-            content: `确认删除 ${resource.displayName || resource.name}？`,
-            onOk: () => refreshAfter(adapter.deleteMicroflow(resource.id), "已删除微流")
-          });
-        }}>删除</Dropdown.Item>
+        <Dropdown.Item type="danger" icon={<IconDelete />} disabled={!canRunMicroflowAction(resource, "canDelete")} onClick={() => void handleDelete(resource)}>删除</Dropdown.Item>
       </Dropdown.Menu>
     );
   }

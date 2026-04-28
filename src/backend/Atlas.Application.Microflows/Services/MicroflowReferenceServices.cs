@@ -45,9 +45,15 @@ public sealed class MicroflowReferenceIndexer : IMicroflowReferenceIndexer
             references = ExtractReferencesFromSchema(resource, schema.Value);
         }
 
+        var previousTargetIds = (await _referenceRepository.ListBySourceAsync("microflow", resource.Id, cancellationToken))
+            .Select(static reference => reference.TargetMicroflowId)
+            .ToArray();
         await _referenceRepository.DeleteBySourceAsync("microflow", resource.Id, cancellationToken);
         await _referenceRepository.DeleteBySourceAsync("api", resource.Id, cancellationToken);
         await _referenceRepository.InsertManyAsync(references, cancellationToken);
+        await RefreshTargetReferenceCountsAsync(
+            previousTargetIds.Concat(references.Select(static reference => reference.TargetMicroflowId)).ToArray(),
+            cancellationToken);
         return references;
     }
 
@@ -62,7 +68,7 @@ public sealed class MicroflowReferenceIndexer : IMicroflowReferenceIndexer
         var references = new List<MicroflowReferenceEntity>();
         foreach (var action in EnumerateActions(schema).Where(action => string.Equals(ReadString(action, "kind"), "callMicroflow", StringComparison.OrdinalIgnoreCase)))
         {
-            var targetId = ReadString(action, "targetMicroflowId") ?? ReadString(action, "targetMicroflowQualifiedName");
+            var targetId = ReadString(action, "targetMicroflowId");
             if (string.IsNullOrWhiteSpace(targetId))
             {
                 continue;
@@ -153,6 +159,23 @@ public sealed class MicroflowReferenceIndexer : IMicroflowReferenceIndexer
 
     private static string? ReadString(JsonElement element, string propertyName)
         => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private async Task RefreshTargetReferenceCountsAsync(IReadOnlyList<string> targetMicroflowIds, CancellationToken cancellationToken)
+    {
+        var ids = targetMicroflowIds.Where(static id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        var counts = await _referenceRepository.CountByTargetMicroflowIdsAsync(
+            ids,
+            new MicroflowReferenceQuery { IncludeInactive = false },
+            cancellationToken);
+        await _resourceRepository.UpdateReferenceCountsAsync(
+            ids.ToDictionary(id => id, id => counts.TryGetValue(id, out var count) ? count : 0, StringComparer.Ordinal),
+            cancellationToken);
+    }
 
     private static string? ReadStringByPath(JsonElement element, params string[] path)
     {
@@ -257,6 +280,8 @@ public sealed class MicroflowReferenceService : IMicroflowReferenceService
             ImpactLevel = entity.ImpactLevel,
             Description = entity.Description,
             Active = entity.Active,
+            CreatedAt = entity.CreatedAt,
+            UpdatedAt = entity.UpdatedAt,
             CanNavigate = string.Equals(entity.SourceType, "microflow", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(entity.SourceId)
         };

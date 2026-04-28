@@ -122,7 +122,9 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
           <Space>
             <Button size="small" disabled={currentResource.archived} onClick={() => setPublishOpen(true)}>发布</Button>
             <Button size="small" onClick={() => setVersionsOpen(true)}>版本</Button>
-            <Button size="small" onClick={() => setReferencesOpen(true)}>引用</Button>
+            <Button size="small" onClick={() => setReferencesOpen(true)}>
+              引用{typeof currentResource.referenceCount === "number" && currentResource.referenceCount > 0 ? ` ${currentResource.referenceCount}` : ""}
+            </Button>
           </Space>
         }
       />

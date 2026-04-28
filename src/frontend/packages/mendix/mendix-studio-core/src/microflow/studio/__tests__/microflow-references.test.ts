@@ -103,6 +103,21 @@ describe("microflow reference helpers", () => {
 
     expect(callees[0].targetMicroflowId).toBe("target-mf");
     expect(callees[0].targetMicroflowQualifiedName).toBe("Procurement.MF_Target_V2");
+    expect(callees[0].storedTargetMicroflowQualifiedName).toBe("Procurement.OldName");
+    expect(callees[0].stale).toBe(true);
+    expect(callees[0].staleReason).toBe("staleQualifiedName");
+  });
+
+  it("does not guess target id from qualifiedName when targetMicroflowId is missing", () => {
+    const callees = parseMicroflowCallees(
+      schemaWithAction({ targetMicroflowId: "", targetMicroflowQualifiedName: "Procurement.MF_Target_V2" }),
+      "source-mf",
+      resourceIndex
+    );
+
+    expect(callees[0].targetMicroflowId).toBeUndefined();
+    expect(callees[0].incomplete).toBe(true);
+    expect(callees[0].staleReason).toBe("missingTargetId");
   });
 
   it("prevents delete when active callers are returned", () => {

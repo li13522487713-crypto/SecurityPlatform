@@ -13,9 +13,11 @@ import {
   getReferenceImpactSummary,
   getReferenceKindLabel,
   getReferenceTypeLabel,
+  getActiveReferences,
   groupReferencesBySourceType,
   isMicroflowReferenced,
   parseMicroflowCallees,
+  resolveCalleeDisplayName,
   resolveReferenceDisplayName
 } from "./microflow-reference-utils";
 
@@ -123,7 +125,10 @@ export function MicroflowReferencesDrawer({
   const qualifiedName = resource
     ? resource.qualifiedName ?? `${resource.moduleName || resource.moduleId || "-"}.${resource.name}`
     : "";
-  const activeCallerCount = references.filter(reference => reference.active !== false).length;
+  const activeCallerCount = getActiveReferences(references).length;
+  const inactiveCallerCount = references.length - activeCallerCount;
+  const staleCalleeCount = callees.filter(callee => callee.stale).length;
+  const missingTargetCount = callees.filter(callee => callee.staleReason === "targetNotFound" || callee.staleReason === "missingTargetId").length;
 
   return (
     <Drawer visible={visible} title="引用关系" width={680} onCancel={onClose} footer={null}>
@@ -157,6 +162,24 @@ export function MicroflowReferencesDrawer({
             <Tag color="blue">低 {summary.low}</Tag>
             <Tag color="grey">无 {summary.none}</Tag>
           </Space>
+          <Text strong>Impact Summary</Text>
+          <div style={{ width: "100%", border: "1px solid var(--semi-color-border)", borderRadius: 8, padding: 12, background: "var(--semi-color-fill-0)" }}>
+            <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+              <Space wrap>
+                <Tag color={activeCallerCount > 0 ? "red" : "green"}>Active callers {activeCallerCount}</Tag>
+                <Tag color="grey">Inactive callers {inactiveCallerCount}</Tag>
+                <Tag color={callees.length > 0 ? "blue" : "grey"}>Callees {callees.length}</Tag>
+                <Tag color={staleCalleeCount > 0 ? "orange" : "green"}>Stale {staleCalleeCount}</Tag>
+                <Tag color={missingTargetCount > 0 ? "red" : "grey"}>Missing target {missingTargetCount}</Tag>
+              </Space>
+              <Text size="small" type={activeCallerCount > 0 ? "danger" : "tertiary"}>
+                {activeCallerCount > 0 ? "Deleting this microflow is blocked because active callers exist." : "Deleting this microflow is allowed only after server callers precheck and backend DELETE protection both pass."}
+              </Text>
+              <Text size="small" type="tertiary">
+                Rename is stable because targetMicroflowId is authoritative; stale qualifiedName snapshots may be refreshed on the next source save. Duplicate source may create another caller; deleting a source removes its outgoing references after rebuild.
+              </Text>
+            </Space>
+          </div>
           <Text strong>Callers · 谁引用当前微流</Text>
           <Space style={{ width: "100%" }}>
             <Input prefix={<IconSearch />} showClear value={keyword} onChange={setKeyword} placeholder="搜索引用来源" style={{ flex: 1 }} />
@@ -213,7 +236,7 @@ export function MicroflowReferencesDrawer({
                           {reference.active === false ? <Tag color="grey">inactive / stale</Tag> : <Tag color="green">active</Tag>}
                         </Space>
                         <Text type="tertiary" size="small">
-                          {reference.sourceType} · {reference.sourceId ?? "-"} · 来源版本 {reference.sourceVersion ?? "-"} · 引用版本 {reference.referencedVersion ?? "-"} · {reference.sourcePath ?? "无路径"}
+                          {reference.sourceType} · sourceId {reference.sourceId ?? "-"} · targetId {reference.targetMicroflowId} · kind {reference.referenceKind} · 来源版本 {reference.sourceVersion ?? "-"} · 引用版本 {reference.referencedVersion ?? "-"} · updatedAt {reference.updatedAt ?? "-"} · {reference.sourcePath ?? "无路径"}
                         </Text>
                         {reference.description ? <Text size="small">{reference.description}</Text> : null}
                         <Space>
@@ -244,12 +267,13 @@ export function MicroflowReferencesDrawer({
                 <div key={`${callee.sourceMicroflowId}:${callee.sourceNodeId}`} style={{ width: "100%", border: "1px solid var(--semi-color-border)", borderRadius: 8, padding: 12 }}>
                   <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
                     <Space wrap>
-                      <Text strong>{callee.targetMicroflowName || callee.targetMicroflowQualifiedName || callee.targetMicroflowId || "Incomplete Call Microflow"}</Text>
+                      <Text strong>{resolveCalleeDisplayName(callee, resourceIndex)}</Text>
                       <Tag>{getReferenceKindLabel(callee.referenceKind)}</Tag>
-                      {callee.stale ? <Tag color={callee.staleReason === "selfCall" ? "red" : "orange"}>{callee.staleReason}</Tag> : <Tag color="green">resolved</Tag>}
+                      {callee.incomplete ? <Tag color="orange">Incomplete</Tag> : null}
+                      {callee.stale ? <Tag color={callee.staleReason === "selfCall" || callee.staleReason === "targetNotFound" ? "red" : "orange"}>{callee.staleReason}</Tag> : <Tag color="green">resolved</Tag>}
                     </Space>
                     <Text type="tertiary" size="small">
-                      Node {callee.sourceNodeName || callee.sourceNodeId} · targetId {callee.targetMicroflowId ?? "-"} · {callee.targetMicroflowQualifiedName ?? "无 qualifiedName"}
+                      Node {callee.sourceNodeName || callee.sourceNodeId} · targetId {callee.targetMicroflowId ?? "-"} · latest {callee.targetMicroflowQualifiedName ?? "无 qualifiedName"} · stored {callee.storedTargetMicroflowQualifiedName ?? "-"}
                     </Text>
                     <Button
                       size="small"

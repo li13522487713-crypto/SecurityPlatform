@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Toast } from "@douyinfe/semi-ui";
+import { Modal, Toast } from "@douyinfe/semi-ui";
 
 import { useMendixStudioStore } from "../store";
 import type { ActiveTabId, MendixStudioTab } from "../store";
@@ -7,6 +7,7 @@ import { SAMPLE_PROCUREMENT_APP } from "../sample-app";
 import type { MicroflowAdapterBundle } from "../microflow/adapter/microflow-adapter-factory";
 import { getMicroflowApiError } from "../microflow/adapter/http/microflow-api-error";
 import type { MicroflowApiError } from "../microflow/contracts/api/api-envelope";
+import { canDeleteMicroflowFromReferences, getActiveReferences, resolveReferenceDisplayName } from "../microflow/references/microflow-reference-utils";
 import type { StudioMicroflowDefinitionView } from "../microflow/studio/studio-microflow-types";
 import { mapMicroflowResourceToStudioDefinitionView } from "../microflow/studio/studio-microflow-mappers";
 import { AppExplorerTree } from "./app-explorer-tree";
@@ -57,6 +58,7 @@ export interface AppExplorerProps {
   adapterBundle?: MicroflowAdapterBundle;
   workspaceId?: string;
   refreshToken?: number;
+  onViewMicroflowReferences?: (microflowId: string) => void;
 }
 
 export type MicroflowLoadStatus = "idle" | "loading" | "success" | "error";
@@ -203,7 +205,7 @@ function formatMicroflowListError(error: MicroflowApiError): string {
   return parts.join(" · ");
 }
 
-export function AppExplorerContainer({ adapterBundle, workspaceId, refreshToken }: AppExplorerProps) {
+export function AppExplorerContainer({ adapterBundle, workspaceId, refreshToken, onViewMicroflowReferences }: AppExplorerProps) {
   const [searchText, setSearchText] = useState("");
   const [microflowStatus, setMicroflowStatus] = useState<MicroflowLoadStatus>("idle");
   const [microflowError, setMicroflowError] = useState<MicroflowApiError>();
@@ -219,6 +221,7 @@ export function AppExplorerContainer({ adapterBundle, workspaceId, refreshToken 
   const setActiveMicroflowId = useMendixStudioStore(state => state.setActiveMicroflowId);
   const setModuleMicroflows = useMendixStudioStore(state => state.setModuleMicroflows);
   const openMicroflowWorkbenchTab = useMendixStudioStore(state => state.openMicroflowWorkbenchTab);
+  const removeStudioMicroflow = useMendixStudioStore(state => state.removeStudioMicroflow);
 
   const moduleNode = useMemo(() => STATIC_TREE_DATA[0], []);
   const moduleId = getCurrentExplorerModuleId(moduleNode);
@@ -303,6 +306,72 @@ export function AppExplorerContainer({ adapterBundle, workspaceId, refreshToken 
     Toast.success("微流列表已刷新");
   }, [loadMicroflows]);
 
+  const viewMicroflowReferences = useCallback((node: ExplorerTreeNode) => {
+    if (node.kind !== "microflow" || !node.microflowId || node.readonly || !node.dynamic) {
+      return;
+    }
+    setSelectedExplorerNodeId(node.key);
+    onViewMicroflowReferences?.(node.microflowId);
+  }, [onViewMicroflowReferences, setSelectedExplorerNodeId]);
+
+  const deleteMicroflow = useCallback((node: ExplorerTreeNode) => {
+    if (node.kind !== "microflow" || !node.microflowId || node.readonly || !node.dynamic) {
+      return;
+    }
+    const microflowId = node.microflowId;
+    const label = node.displayName || node.name || node.label;
+    const adapter = adapterBundle?.resourceAdapter;
+    if (!adapter) {
+      Toast.error("无法验证引用关系：缺少 microflow resource adapter。");
+      return;
+    }
+
+    void (async () => {
+      let references;
+      try {
+        references = await adapter.getMicroflowReferences(microflowId, { includeInactive: true });
+      } catch (caught) {
+        Toast.error(`无法验证引用关系，请稍后重试：${getMicroflowApiError(caught).message}`);
+        onViewMicroflowReferences?.(microflowId);
+        return;
+      }
+
+      if (!canDeleteMicroflowFromReferences(references)) {
+        const callers = getActiveReferences(references)
+          .slice(0, 5)
+          .map(reference => resolveReferenceDisplayName(reference, useMendixStudioStore.getState().microflowResourcesById))
+          .join("、");
+        Toast.error(`删除被阻止：${label} 仍被 ${callers || "active callers"} 引用。`);
+        onViewMicroflowReferences?.(microflowId);
+        return;
+      }
+
+      Modal.confirm({
+        title: "确认删除微流",
+        content: `已完成 callers 预检查，未发现 active callers。确认删除 ${label}？`,
+        okText: "删除",
+        cancelText: "取消",
+        onOk: async () => {
+          try {
+            await adapter.deleteMicroflow(microflowId);
+            removeStudioMicroflow(microflowId);
+            Toast.success("微流已删除");
+            await loadMicroflows(true);
+          } catch (caught) {
+            const apiError = getMicroflowApiError(caught);
+            if (apiError.httpStatus === 409 || apiError.code === "MICROFLOW_REFERENCE_BLOCKED" || apiError.code === "MICROFLOW_VERSION_CONFLICT") {
+              Toast.error(`删除被后端引用保护阻止：${apiError.message}`);
+              onViewMicroflowReferences?.(microflowId);
+              await loadMicroflows(true);
+              return;
+            }
+            Toast.error(apiError.message || "删除微流失败");
+          }
+        }
+      });
+    })();
+  }, [adapterBundle, loadMicroflows, onViewMicroflowReferences, removeStudioMicroflow]);
+
   const treeData = useMemo(
     () => withMicroflowChildren(STATIC_TREE_DATA, createMicroflowStateChildren(microflowStatus, microflows, microflowError)),
     [microflowError, microflowStatus, microflows]
@@ -355,6 +424,8 @@ export function AppExplorerContainer({ adapterBundle, workspaceId, refreshToken 
       onSearchTextChange={setSearchText}
       onSelect={handleSelect}
       onRefreshMicroflows={refreshMicroflows}
+      onViewMicroflowReferences={viewMicroflowReferences}
+      onDeleteMicroflow={deleteMicroflow}
       microflowErrorText={microflowError ? formatMicroflowListError(microflowError) : undefined}
     />
   );

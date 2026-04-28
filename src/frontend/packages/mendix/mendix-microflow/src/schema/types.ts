@@ -369,6 +369,7 @@ export interface LegacyMicroflowActivityConfig {
   resultVariableName?: string;
   outputVariableName?: string;
   outputListVariableName?: string;
+  outputVariableId?: string;
   logLevel?: "trace" | "debug" | "info" | "warn" | "error";
   messageExpression?: MicroflowExpression;
   pageName?: string;
@@ -391,7 +392,9 @@ export interface LegacyMicroflowActivityConfig {
   rollbackScope?: "object" | "list" | "transaction";
   readonly?: boolean;
   callMode?: "sync" | "async";
-  parameterMappings?: Array<{ id: string; parameterName: string; expression: MicroflowExpression; sourceVariableName?: string }>;
+  targetMicroflowDisplayName?: string;
+  targetModuleId?: string;
+  parameterMappings?: Array<{ id: string; targetParameterId?: string; targetParameterName?: string; parameterName: string; parameterType?: MicroflowDataType; targetType?: MicroflowDataType; argumentExpression?: MicroflowExpression; expression: MicroflowExpression; sourceVariableId?: string; sourceVariableName?: string }>;
   bodyType?: "none" | "json" | "form" | "text";
   responseMapping?: string;
   logContextVariables?: boolean;
@@ -633,9 +636,13 @@ export interface MicroflowContinueEvent extends MicroflowObjectBase {
 }
 
 export interface MicroflowParameterMapping {
+  targetParameterId?: string;
+  targetParameterName?: string;
   parameterName: string;
   parameterType?: MicroflowDataType;
+  targetType?: MicroflowDataType;
   argumentExpression: MicroflowExpression;
+  expression?: MicroflowExpression;
   sourceVariableName?: string;
   sourceVariableId?: string;
 }
@@ -866,11 +873,17 @@ export interface MicroflowCallMicroflowAction extends MicroflowActionBase {
   officialType: "Microflows$MicroflowCallAction";
   targetMicroflowId: string;
   targetMicroflowName?: string;
+  targetMicroflowDisplayName?: string;
   targetMicroflowQualifiedName?: string;
+  targetModuleId?: string;
+  targetVersion?: string;
+  targetSchemaId?: string;
   parameterMappings: MicroflowParameterMapping[];
   returnValue: {
     storeResult: boolean;
+    outputVariableId?: string;
     outputVariableName?: string;
+    resultVariableName?: string;
     dataType?: MicroflowDataType;
   };
   callMode: "sync" | "asyncReserved";
@@ -1744,7 +1757,11 @@ export type RuntimeCallMicroflowP0Dto = RuntimeP0Base & {
   config: {
     targetMicroflowId: string;
     targetMicroflowName?: string;
+    targetMicroflowDisplayName?: string;
     targetMicroflowQualifiedName?: string;
+    targetModuleId?: string;
+    targetVersion?: string;
+    targetSchemaId?: string;
     parameterMappings: MicroflowParameterMapping[];
     returnValue: MicroflowCallMicroflowAction["returnValue"];
     callMode: "sync" | "asyncReserved";

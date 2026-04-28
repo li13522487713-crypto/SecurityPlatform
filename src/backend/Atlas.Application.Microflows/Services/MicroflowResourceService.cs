@@ -405,8 +405,12 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     {
         _ = await LoadResourceAsync(id, cancellationToken);
         await EnsureNoActiveTargetReferencesAsync(id, cancellationToken);
+        var outgoingTargetIds = (await _referenceRepository.ListBySourceAsync("microflow", id, cancellationToken))
+            .Select(static reference => reference.TargetMicroflowId)
+            .ToArray();
         await _resourceRepository.DeleteAsync(id, cancellationToken);
         await _referenceRepository.DeleteBySourceAsync("microflow", id, cancellationToken);
+        await RefreshTargetReferenceCountsAsync(outgoingTargetIds, cancellationToken);
     }
 
     private async Task EnsureNoActiveTargetReferencesAsync(string resourceId, CancellationToken cancellationToken)
@@ -438,6 +442,23 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         {
             // 引用索引失败不阻断 schema 保存；手动 rebuild API 可用于恢复。
         }
+    }
+
+    private async Task RefreshTargetReferenceCountsAsync(IReadOnlyList<string> targetMicroflowIds, CancellationToken cancellationToken)
+    {
+        var ids = targetMicroflowIds.Where(static id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        var counts = await _referenceRepository.CountByTargetMicroflowIdsAsync(
+            ids,
+            new MicroflowReferenceQuery { IncludeInactive = false },
+            cancellationToken);
+        await _resourceRepository.UpdateReferenceCountsAsync(
+            ids.ToDictionary(id => id, id => counts.TryGetValue(id, out var count) ? count : 0, StringComparer.Ordinal),
+            cancellationToken);
     }
 
     private async Task<MicroflowResourceEntity> LoadResourceAsync(string id, CancellationToken cancellationToken)

@@ -69,21 +69,31 @@ export interface MetadataEnumeration {
 }
 
 export interface MetadataMicroflowParameter {
+  id?: string;
   name: string;
   type: MicroflowDataType;
   required: boolean;
+  defaultValue?: string;
+  defaultValueExpression?: string;
   documentation?: string;
+  description?: string;
+  order?: number;
 }
 
 export interface MetadataMicroflowRef {
   id: string;
   name: string;
+  displayName?: string;
   qualifiedName: string;
+  moduleId?: string;
   moduleName: string;
   description?: string;
   parameters: MetadataMicroflowParameter[];
   returnType: MicroflowDataType;
   status?: "draft" | "published" | "archived";
+  version?: string;
+  schemaId?: string;
+  unavailableReason?: string;
 }
 
 export interface MetadataPageParameter {
@@ -290,7 +300,7 @@ export function searchEnumerations(catalog: MicroflowMetadataCatalog, keyword = 
 }
 
 export function searchMicroflows(catalog: MicroflowMetadataCatalog, keyword = ""): MetadataMicroflowRef[] {
-  return catalog.microflows.filter(microflow => includesKeyword([microflow.name, microflow.qualifiedName, microflow.description], keyword));
+  return catalog.microflows.filter(microflow => includesKeyword([microflow.name, microflow.displayName, microflow.qualifiedName, microflow.moduleName, microflow.description], keyword));
 }
 
 export function searchPages(catalog: MicroflowMetadataCatalog, keyword = ""): MetadataPageRef[] {

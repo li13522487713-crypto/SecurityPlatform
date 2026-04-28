@@ -30,11 +30,19 @@ export function rebuildCallMicroflowMappings(
   existingMappings: readonly MicroflowParameterMapping[],
 ): MicroflowParameterMapping[] {
   return targetParameters.map(parameter => {
-    const existing = existingMappings.find(mapping => mapping.parameterName === parameter.name);
+    const existing = existingMappings.find(mapping =>
+      (parameter.id && mapping.targetParameterId === parameter.id) ||
+      mapping.targetParameterName === parameter.name ||
+      mapping.parameterName === parameter.name
+    );
     return {
+      targetParameterId: parameter.id,
+      targetParameterName: parameter.name,
       parameterName: parameter.name,
       parameterType: parameter.type,
-      argumentExpression: existing?.argumentExpression ?? expression(""),
+      targetType: parameter.type,
+      argumentExpression: existing?.argumentExpression ?? existing?.expression ?? expression(parameter.defaultValueExpression ?? parameter.defaultValue ?? ""),
+      expression: existing?.expression ?? existing?.argumentExpression,
       sourceVariableName: existing?.sourceVariableName,
       sourceVariableId: existing?.sourceVariableId,
     };
@@ -46,7 +54,11 @@ export function clearCallMicroflowTarget(action: MicroflowCallMicroflowAction): 
     ...action,
     targetMicroflowId: "",
     targetMicroflowName: "",
+    targetMicroflowDisplayName: "",
     targetMicroflowQualifiedName: "",
+    targetModuleId: "",
+    targetVersion: undefined,
+    targetSchemaId: undefined,
     parameterMappings: [],
     returnValue: { storeResult: false },
   };
@@ -65,13 +77,19 @@ export function updateCallMicroflowTarget(
     ...action,
     targetMicroflowId: target.id,
     targetMicroflowName: target.name,
+    targetMicroflowDisplayName: target.displayName ?? target.name,
     targetMicroflowQualifiedName: target.qualifiedName,
+    targetModuleId: target.moduleId,
+    targetVersion: target.version,
+    targetSchemaId: target.schemaId,
     parameterMappings: rebuildCallMicroflowMappings(target.parameters, action.parameterMappings),
     returnValue: {
       ...action.returnValue,
       dataType: returnType,
       storeResult: hasReturnValue ? action.returnValue.storeResult : false,
+      outputVariableId: hasReturnValue ? action.returnValue.outputVariableId : undefined,
       outputVariableName: hasReturnValue ? action.returnValue.outputVariableName : undefined,
+      resultVariableName: hasReturnValue ? action.returnValue.resultVariableName ?? action.returnValue.outputVariableName : undefined,
     },
   };
 }
@@ -97,6 +115,7 @@ export function updateCallMicroflowReturnBinding(
       ...action.returnValue,
       storeResult: Boolean(outputVariableName),
       outputVariableName,
+      resultVariableName: outputVariableName,
     },
   };
 }

@@ -32,6 +32,8 @@ export function groupReferencesBySourceType(references: MicroflowReference[]): R
   return groups;
 }
 
+export const groupMicroflowReferencesBySourceType = groupReferencesBySourceType;
+
 export function getReferenceImpactSummary(references: MicroflowReference[]): MicroflowReferenceImpactSummary {
   return references.reduce<MicroflowReferenceImpactSummary>(
     (summary, reference) => ({
@@ -96,8 +98,12 @@ export function isMicroflowReferenced(references: MicroflowReference[]): boolean
   return references.some(reference => reference.active !== false);
 }
 
+export function getActiveReferences(references: MicroflowReference[]): MicroflowReference[] {
+  return references.filter(reference => reference.active !== false);
+}
+
 export function canDeleteMicroflowFromReferences(references: MicroflowReference[]): boolean {
-  return !isMicroflowReferenced(references);
+  return getActiveReferences(references).length === 0;
 }
 
 export function resolveReferenceDisplayName(
@@ -117,10 +123,46 @@ function flattenObjects(collection: MicroflowObjectCollection | undefined): Micr
     return [];
   }
 
-  return collection.objects.flatMap(object => [
-    object,
-    ...("objectCollection" in object ? flattenObjects(object.objectCollection) : [])
-  ]);
+  return collection.objects.flatMap(object => {
+    const nestedOwner = object as MicroflowObject & {
+      objectCollection?: MicroflowObjectCollection;
+      containedObjectCollection?: MicroflowObjectCollection;
+      loopObjectCollection?: MicroflowObjectCollection;
+      loopedActivity?: { objectCollection?: MicroflowObjectCollection };
+    };
+    return [
+      object,
+      ...flattenObjects(nestedOwner.objectCollection),
+      ...flattenObjects(nestedOwner.containedObjectCollection),
+      ...flattenObjects(nestedOwner.loopObjectCollection),
+      ...flattenObjects(nestedOwner.loopedActivity?.objectCollection)
+    ];
+  });
+}
+
+export function isCallMicroflowAction(object: MicroflowObject): boolean {
+  if (object.kind !== "actionActivity") {
+    return false;
+  }
+  const action = object.action as { kind?: string; actionKind?: string };
+  return action.kind === "callMicroflow" || action.actionKind === "callMicroflow";
+}
+
+export function getCallMicroflowTargetDescriptor(object: MicroflowObject): {
+  targetMicroflowId?: string;
+  targetMicroflowQualifiedName?: string;
+} {
+  if (!isCallMicroflowAction(object)) {
+    return {};
+  }
+  const action = object.action as {
+    targetMicroflowId?: string;
+    targetMicroflowQualifiedName?: string;
+  };
+  return {
+    targetMicroflowId: action.targetMicroflowId?.trim() || undefined,
+    targetMicroflowQualifiedName: action.targetMicroflowQualifiedName?.trim() || undefined
+  };
 }
 
 export function parseMicroflowCallees(
@@ -133,18 +175,20 @@ export function parseMicroflowCallees(
   }
 
   return flattenObjects(schema.objectCollection)
-    .filter(object => object.kind === "actionActivity" && object.action.kind === "callMicroflow")
+    .filter(isCallMicroflowAction)
     .map(object => {
-      const targetMicroflowId = object.action.targetMicroflowId?.trim() || undefined;
+      const { targetMicroflowId, targetMicroflowQualifiedName: storedTargetMicroflowQualifiedName } = getCallMicroflowTargetDescriptor(object);
       const targetResource = targetMicroflowId ? resourceIndex?.[targetMicroflowId] : undefined;
-      const targetMicroflowQualifiedName = object.action.targetMicroflowQualifiedName?.trim() || undefined;
+      const latestQualifiedName = targetResource?.qualifiedName;
       const staleReason = !targetMicroflowId
         ? "missingTargetId"
         : targetMicroflowId === sourceMicroflowId
           ? "selfCall"
-          : targetResource
-            ? undefined
-            : "targetNotFound";
+          : !targetResource
+            ? "targetNotFound"
+            : storedTargetMicroflowQualifiedName && latestQualifiedName && storedTargetMicroflowQualifiedName !== latestQualifiedName
+              ? "staleQualifiedName"
+              : undefined;
 
       return {
         sourceMicroflowId,
@@ -152,10 +196,12 @@ export function parseMicroflowCallees(
         sourceNodeName: object.caption || object.action.caption,
         targetMicroflowId,
         targetMicroflowName: targetResource?.displayName || targetResource?.name,
-        targetMicroflowQualifiedName: targetResource?.qualifiedName || targetMicroflowQualifiedName,
+        targetMicroflowQualifiedName: latestQualifiedName || storedTargetMicroflowQualifiedName,
+        storedTargetMicroflowQualifiedName,
         targetModuleId: targetResource?.moduleId,
         referenceKind: "callMicroflow" as const,
         stale: Boolean(staleReason),
+        incomplete: !targetMicroflowId && Boolean(storedTargetMicroflowQualifiedName),
         staleReason
       };
     });
@@ -171,6 +217,31 @@ export function buildStaleCallReferenceWarnings(callees: StudioMicroflowCalleeVi
       if (callee.staleReason === "selfCall") {
         return `${callee.sourceNodeName || callee.sourceNodeId}: direct self call`;
       }
+      if (callee.staleReason === "staleQualifiedName") {
+        return `${callee.sourceNodeName || callee.sourceNodeId}: stored qualifiedName is stale; targetMicroflowId still resolves`;
+      }
       return `${callee.sourceNodeName || callee.sourceNodeId}: target microflow not found`;
     });
+}
+
+export function resolveCalleeDisplayName(
+  callee: StudioMicroflowCalleeView,
+  resourceIndex?: Record<string, StudioMicroflowDefinitionView>
+): string {
+  const target = callee.targetMicroflowId ? resourceIndex?.[callee.targetMicroflowId] : undefined;
+  return target?.displayName || target?.name || callee.targetMicroflowName || callee.targetMicroflowQualifiedName || callee.targetMicroflowId || "Incomplete Call Microflow";
+}
+
+export function getTargetMicroflowIdsFromSchema(schema: MicroflowAuthoringSchema | undefined): string[] {
+  if (!schema) {
+    return [];
+  }
+  return [
+    ...new Set(
+      flattenObjects(schema.objectCollection)
+        .filter(isCallMicroflowAction)
+        .map(object => getCallMicroflowTargetDescriptor(object).targetMicroflowId)
+        .filter((id): id is string => Boolean(id))
+    )
+  ];
 }

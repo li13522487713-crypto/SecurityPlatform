@@ -22,6 +22,7 @@ import { RuntimePreview } from "./components/runtime-preview";
 import { useMendixStudioStore } from "./store";
 import { MicroflowResourceEditorHost } from "./microflow/studio/MicroflowResourceEditorHost";
 import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
+import { MicroflowReferencesDrawer } from "./microflow/references/MicroflowReferencesDrawer";
 
 export interface MendixStudioAppProps {
   appId?: string;
@@ -57,6 +58,7 @@ export function MendixStudioApp({
   const openMicroflowWorkbenchTab = useMendixStudioStore(state => state.openMicroflowWorkbenchTab);
   const closeWorkbenchTab = useMendixStudioStore(state => state.closeWorkbenchTab);
   const [microflowResourceRefreshToken, setMicroflowResourceRefreshToken] = useState(0);
+  const [referencesMicroflowId, setReferencesMicroflowId] = useState<string>();
 
   // 创建 adapter bundle；如果构建失败，仅 console.warn，不阻断页面渲染。
   const _resolvedBundle = useMemo<MicroflowAdapterBundle | undefined>(() => {
@@ -87,6 +89,12 @@ export function MendixStudioApp({
     ? microflowResourcesById[activeMicroflowId]
     : undefined;
   const activeMicroflowTabId = isMicroflow ? activeWorkbenchTab.id : undefined;
+  const referencesResource = referencesMicroflowId
+    ? microflowResourcesById[referencesMicroflowId]
+    : undefined;
+  const openReferencesPanel = (microflowId: string) => {
+    setReferencesMicroflowId(microflowId);
+  };
 
   useEffect(() => {
     const hasDirtyTab = Object.values(dirtyByWorkbenchTabId).some(Boolean);
@@ -129,7 +137,7 @@ export function MendixStudioApp({
           overflow: "hidden"
         }}
       >
-        <ExplorerSplitLayout explorer={<AppExplorer adapterBundle={_resolvedBundle} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} />}>
+        <ExplorerSplitLayout explorer={<AppExplorer adapterBundle={_resolvedBundle} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} onViewMicroflowReferences={openReferencesPanel} />}>
           <div
             style={{
               display: "flex",
@@ -153,7 +161,7 @@ export function MendixStudioApp({
               <WorkbenchTabs />
 
               {/* 工具栏 */}
-              <WorkbenchToolbar />
+              <WorkbenchToolbar onViewMicroflowReferences={openReferencesPanel} />
 
               {/* 内容区 */}
               {isMicroflow ? (
@@ -236,6 +244,17 @@ export function MendixStudioApp({
 
       {/* 运行预览侧拉板 */}
       <RuntimePreview />
+      {_resolvedBundle?.resourceAdapter ? (
+        <MicroflowReferencesDrawer
+          visible={Boolean(referencesMicroflowId)}
+          resource={referencesResource}
+          adapter={_resolvedBundle.resourceAdapter}
+          resourceIndex={microflowResourcesById}
+          onOpenMicroflow={openMicroflowWorkbenchTab}
+          onRefreshResourceList={() => setMicroflowResourceRefreshToken(token => token + 1)}
+          onClose={() => setReferencesMicroflowId(undefined)}
+        />
+      ) : null}
     </div>
   );
 }

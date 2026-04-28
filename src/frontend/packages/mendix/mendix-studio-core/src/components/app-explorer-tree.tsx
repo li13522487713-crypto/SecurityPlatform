@@ -15,6 +15,8 @@ interface AppExplorerTreeProps {
   onSearchTextChange: (value: string) => void;
   onSelect: (node: ExplorerTreeNode) => void;
   onRefreshMicroflows: () => Promise<void>;
+  onViewMicroflowReferences?: (node: ExplorerTreeNode) => void;
+  onDeleteMicroflow?: (node: ExplorerTreeNode) => void;
 }
 
 interface ExplorerTreeNodeProps {
@@ -25,6 +27,8 @@ interface ExplorerTreeNodeProps {
   microflowErrorText?: string;
   onSelect: (node: ExplorerTreeNode) => void;
   onRefreshMicroflows: () => Promise<void>;
+  onViewMicroflowReferences?: (node: ExplorerTreeNode) => void;
+  onDeleteMicroflow?: (node: ExplorerTreeNode) => void;
   initialOpen?: boolean;
 }
 
@@ -72,8 +76,10 @@ function renderContextMenu(input: {
   node: ExplorerTreeNode;
   onSelect: (node: ExplorerTreeNode) => void;
   onRefreshMicroflows: () => Promise<void>;
+  onViewMicroflowReferences?: (node: ExplorerTreeNode) => void;
+  onDeleteMicroflow?: (node: ExplorerTreeNode) => void;
 }): JSX.Element | undefined {
-  const { node, onSelect, onRefreshMicroflows } = input;
+  const { node, onSelect, onRefreshMicroflows, onViewMicroflowReferences, onDeleteMicroflow } = input;
 
   if (node.key === MicroflowsSectionKey) {
     return (
@@ -103,7 +109,7 @@ function renderContextMenu(input: {
       <Dropdown.Item disabled title="完整属性面板将在后续轮次接入">
         View Properties
       </Dropdown.Item>
-      <Dropdown.Item disabled title="References 详情将在后续轮次接入">
+      <Dropdown.Item onClick={() => onViewMicroflowReferences?.(node)}>
         View References
       </Dropdown.Item>
       <Dropdown.Item disabled title="Release Stage 3 接入 Rename API">
@@ -112,7 +118,7 @@ function renderContextMenu(input: {
       <Dropdown.Item disabled title="Release Stage 3 接入 Duplicate API">
         Duplicate
       </Dropdown.Item>
-      <Dropdown.Item disabled title="Release Stage 3 接入 Delete API">
+      <Dropdown.Item type="danger" onClick={() => onDeleteMicroflow?.(node)}>
         Delete
       </Dropdown.Item>
       <Dropdown.Item onClick={() => void onRefreshMicroflows()}>
@@ -130,6 +136,8 @@ function ExplorerTreeNodeView({
   microflowErrorText,
   onSelect,
   onRefreshMicroflows,
+  onViewMicroflowReferences,
+  onDeleteMicroflow,
   initialOpen
 }: ExplorerTreeNodeProps) {
   const normalizedSearch = searchText.trim().toLocaleLowerCase();
@@ -147,7 +155,7 @@ function ExplorerTreeNodeView({
   }
 
   const isSelected = selectedId === node.key;
-  const contextMenu = renderContextMenu({ node, onSelect, onRefreshMicroflows });
+  const contextMenu = renderContextMenu({ node, onSelect, onRefreshMicroflows, onViewMicroflowReferences, onDeleteMicroflow });
   const nodeTitle = node.errorMessage ?? node.title ?? node.qualifiedName ?? node.label;
   const nodeContent = (
     <div
@@ -253,6 +261,8 @@ function ExplorerTreeNodeView({
           microflowErrorText={microflowErrorText}
           onSelect={onSelect}
           onRefreshMicroflows={onRefreshMicroflows}
+          onViewMicroflowReferences={onViewMicroflowReferences}
+          onDeleteMicroflow={onDeleteMicroflow}
           initialOpen={child.defaultOpen}
         />
       ))}
@@ -267,7 +277,9 @@ export function AppExplorerTree({
   microflowErrorText,
   onSearchTextChange,
   onSelect,
-  onRefreshMicroflows
+  onRefreshMicroflows,
+  onViewMicroflowReferences,
+  onDeleteMicroflow
 }: AppExplorerTreeProps) {
   const [draftSearchText, setDraftSearchText] = useState(searchText);
 
@@ -317,6 +329,8 @@ export function AppExplorerTree({
             microflowErrorText={microflowErrorText}
             onSelect={onSelect}
             onRefreshMicroflows={onRefreshMicroflows}
+            onViewMicroflowReferences={onViewMicroflowReferences}
+            onDeleteMicroflow={onDeleteMicroflow}
             initialOpen
           />
         ))}

@@ -59,8 +59,14 @@ public sealed record MetadataEntityDto
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
 
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; init; }
+
     [JsonPropertyName("qualifiedName")]
     public string QualifiedName { get; init; } = string.Empty;
+
+    [JsonPropertyName("moduleId")]
+    public string? ModuleId { get; init; }
 
     [JsonPropertyName("moduleName")]
     public string ModuleName { get; init; } = string.Empty;
@@ -170,8 +176,14 @@ public sealed record MetadataEnumerationDto
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
 
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; init; }
+
     [JsonPropertyName("qualifiedName")]
     public string QualifiedName { get; init; } = string.Empty;
+
+    [JsonPropertyName("moduleId")]
+    public string? ModuleId { get; init; }
 
     [JsonPropertyName("moduleName")]
     public string ModuleName { get; init; } = string.Empty;
@@ -206,8 +218,14 @@ public sealed record MetadataMicroflowRefDto
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
 
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; init; }
+
     [JsonPropertyName("qualifiedName")]
     public string QualifiedName { get; init; } = string.Empty;
+
+    [JsonPropertyName("moduleId")]
+    public string? ModuleId { get; init; }
 
     [JsonPropertyName("moduleName")]
     public string ModuleName { get; init; } = string.Empty;
@@ -223,10 +241,19 @@ public sealed record MetadataMicroflowRefDto
 
     [JsonPropertyName("status")]
     public string? Status { get; init; }
+
+    [JsonPropertyName("version")]
+    public string? Version { get; init; }
+
+    [JsonPropertyName("schemaId")]
+    public string? SchemaId { get; init; }
 }
 
 public sealed record MetadataMicroflowParameterDto
 {
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
 
@@ -236,8 +263,20 @@ public sealed record MetadataMicroflowParameterDto
     [JsonPropertyName("required")]
     public bool Required { get; init; }
 
+    [JsonPropertyName("defaultValue")]
+    public string? DefaultValue { get; init; }
+
+    [JsonPropertyName("defaultValueExpression")]
+    public string? DefaultValueExpression { get; init; }
+
     [JsonPropertyName("documentation")]
     public string? Documentation { get; init; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; init; }
+
+    [JsonPropertyName("order")]
+    public int Order { get; init; }
 }
 
 public sealed record MetadataPageRefDto

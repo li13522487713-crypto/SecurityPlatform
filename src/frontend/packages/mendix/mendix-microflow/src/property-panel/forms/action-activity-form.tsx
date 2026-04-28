@@ -888,11 +888,29 @@ export function ActionActivityForm({
             <RequiredConfigWarning visible={!action.targetMicroflowId.trim()}>Target Microflow 未配置；请选择真实 metadata API 返回的微流。</RequiredConfigWarning>
           </Field>
           {selectedMicroflow ? (
+            <Field label="Selected Target">
+              <Space vertical align="start" spacing={4} style={{ width: "100%" }}>
+                <Tag color="blue">{selectedMicroflow.displayName || selectedMicroflow.name}</Tag>
+                <Text size="small" type="tertiary">{selectedMicroflow.qualifiedName} · {selectedMicroflow.moduleName} · {selectedMicroflow.status ?? "draft"}</Text>
+                {action.targetMicroflowQualifiedName && action.targetMicroflowQualifiedName !== selectedMicroflow.qualifiedName ? (
+                  <Text type="warning" size="small">Stored qualifiedName is stale. targetMicroflowId still resolves to the current target; save to refresh the display snapshot.</Text>
+                ) : null}
+              </Space>
+            </Field>
+          ) : action.targetMicroflowId ? (
+            <Field label="Selected Target">
+              <Space vertical align="start" spacing={4} style={{ width: "100%" }}>
+                <Tag color="orange">{action.targetMicroflowDisplayName || action.targetMicroflowName || action.targetMicroflowQualifiedName || action.targetMicroflowId}</Tag>
+                <Text type="warning" size="small">Target metadata unavailable. The stable targetMicroflowId is preserved; refresh metadata or choose another target.</Text>
+              </Space>
+            </Field>
+          ) : null}
+          {selectedMicroflow ? (
             <Field label="Target Signature">
               <TextArea
                 disabled
                 autosize
-                value={`${selectedMicroflow.qualifiedName}\n${selectedMicroflow.parameters.map(parameter => `${parameter.name}: ${dataTypeLabel(parameter.type)}`).join("\n")}\nreturn: ${dataTypeLabel(selectedMicroflow.returnType)}`}
+                value={`${selectedMicroflow.qualifiedName}\n${selectedMicroflow.parameters.map(parameter => `${parameter.name}: ${dataTypeLabel(parameter.type)}${parameter.required ? " required" : ""}`).join("\n") || "No parameter metadata available"}\nreturn: ${dataTypeLabel(selectedMicroflow.returnType)}`}
               />
             </Field>
           ) : null}
@@ -900,7 +918,7 @@ export function ActionActivityForm({
             <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
               {action.parameterMappings.map((mapping, index) => (
                 <div key={mapping.parameterName} style={{ display: "grid", gap: 6, width: "100%" }}>
-                  <Tag color="blue">{mapping.parameterName}: {dataTypeLabel(mapping.parameterType)}</Tag>
+                  <Tag color="blue">{mapping.targetParameterName ?? mapping.parameterName}: {dataTypeLabel(mapping.targetType ?? mapping.parameterType)}</Tag>
                   <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 180px) minmax(0, 1fr)", gap: 8, width: "100%" }}>
                     <VariableSelector
                       schema={schema}
@@ -913,7 +931,8 @@ export function ActionActivityForm({
                       scopeMode="index"
                       onChange={sourceVariableName => patchObject(updateAction(object, updateCallMicroflowParameterMapping(action, index, {
                         sourceVariableName,
-                        argumentExpression: expression(sourceVariableName ?? "", mapping.parameterType),
+                        argumentExpression: expression(sourceVariableName ?? "", mapping.targetType ?? mapping.parameterType),
+                        expression: expression(sourceVariableName ?? "", mapping.targetType ?? mapping.parameterType),
                       })))}
                     />
                     <ExpressionEditor
@@ -929,10 +948,14 @@ export function ActionActivityForm({
                       readonly={readonly}
                       onChange={argumentExpression => patchObject(updateAction(object, updateCallMicroflowParameterMapping(action, index, {
                         argumentExpression,
+                        expression: argumentExpression,
                         sourceVariableName: argumentExpression.raw.trim() === mapping.sourceVariableName ? mapping.sourceVariableName : undefined,
                       })))}
                     />
                   </div>
+                  {selectedMicroflow?.parameters.find(parameter => parameter.name === mapping.parameterName)?.defaultValue ? (
+                    <Text type="tertiary" size="small">Default: {selectedMicroflow.parameters.find(parameter => parameter.name === mapping.parameterName)?.defaultValue}</Text>
+                  ) : null}
                   {selectedMicroflow?.parameters.find(parameter => parameter.name === mapping.parameterName)?.required && !mapping.argumentExpression.raw.trim() ? (
                     <Text type="warning" size="small">Required parameter has no mapping.</Text>
                   ) : null}
@@ -942,6 +965,7 @@ export function ActionActivityForm({
                 </div>
               ))}
               {action.parameterMappings.length === 0 ? <Tag color="grey">No parameters</Tag> : null}
+              {action.targetMicroflowId && !selectedMicroflow ? <Text type="warning" size="small">No parameter metadata available for the selected target.</Text> : null}
             </Space>
           </FieldRow>
           <Field label="Store Result">
@@ -974,7 +998,7 @@ export function ActionActivityForm({
               readonly={readonly || !action.returnValue.storeResult || isVoidMicroflowReturn(selectedMicroflow?.returnType)}
               required={action.returnValue.storeResult}
               issues={getIssuesForField(issues, "action.returnValue.outputVariableName")}
-              onChange={outputVariableName => patchObject(updateAction(object, { returnValue: { ...action.returnValue, outputVariableName } }))}
+              onChange={outputVariableName => patchObject(updateAction(object, { returnValue: { ...action.returnValue, outputVariableId: outputVariableName ? action.id : undefined, outputVariableName, resultVariableName: outputVariableName } }))}
             />
           </FieldRow>
           <Field label="Call Mode">

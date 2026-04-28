@@ -78,6 +78,17 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public async Task UpdateReferenceCountsAsync(IReadOnlyDictionary<string, int> countsByResourceId, CancellationToken cancellationToken)
+    {
+        foreach (var (resourceId, count) in countsByResourceId)
+        {
+            await _db.Updateable<MicroflowResourceEntity>()
+                .SetColumns(x => x.ReferenceCount == count)
+                .Where(x => x.Id == resourceId)
+                .ExecuteCommandAsync(cancellationToken);
+        }
+    }
+
     public Task DeleteAsync(string id, CancellationToken cancellationToken)
     {
         return _db.Deleteable<MicroflowResourceEntity>().Where(x => x.Id == id).ExecuteCommandAsync(cancellationToken);
