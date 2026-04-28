@@ -356,6 +356,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         [FromQuery] bool favoriteOnly = false,
         [FromQuery] string? ownerId = null,
         [FromQuery] string? moduleId = null,
+        [FromQuery] string? folderId = null,
         [FromQuery] string[]? tags = null,
         [FromQuery] DateTimeOffset? updatedFrom = null,
         [FromQuery] DateTimeOffset? updatedTo = null,
@@ -375,6 +376,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
                 FavoriteOnly = favoriteOnly,
                 OwnerId = ownerId,
                 ModuleId = moduleId,
+                FolderId = folderId,
                 Tags = tags ?? Array.Empty<string>(),
                 UpdatedFrom = updatedFrom,
                 UpdatedTo = updatedTo,
@@ -462,6 +464,17 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         CancellationToken cancellationToken)
     {
         var resource = await _resourceService.RenameAsync(id, request, cancellationToken);
+        return MicroflowOk(resource);
+    }
+
+    [HttpPost("{id}/move")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> Move(
+        string id,
+        [FromBody] MoveMicroflowRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var resource = await _resourceService.MoveAsync(id, request, cancellationToken);
         return MicroflowOk(resource);
     }
 

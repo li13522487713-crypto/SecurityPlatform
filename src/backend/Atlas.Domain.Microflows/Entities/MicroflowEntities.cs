@@ -6,6 +6,7 @@ namespace Atlas.Domain.Microflows.Entities;
 [SugarIndex("IX_MicroflowResource_WorkspaceId", nameof(WorkspaceId), OrderByType.Asc)]
 [SugarIndex("IX_MicroflowResource_TenantId", nameof(TenantId), OrderByType.Asc)]
 [SugarIndex("IX_MicroflowResource_ModuleId", nameof(ModuleId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowResource_FolderId", nameof(FolderId), OrderByType.Asc)]
 [SugarIndex("IX_MicroflowResource_Status", nameof(Status), OrderByType.Asc)]
 [SugarIndex("IX_MicroflowResource_PublishStatus", nameof(PublishStatus), OrderByType.Asc)]
 [SugarIndex("IX_MicroflowResource_UpdatedAt", nameof(UpdatedAt), OrderByType.Desc)]
@@ -45,6 +46,12 @@ public sealed class MicroflowResourceEntity
 
     [SugarColumn(Length = 128, IsNullable = true)]
     public string? ModuleName { get; set; }
+
+    [SugarColumn(Length = 64, IsNullable = true)]
+    public string? FolderId { get; set; }
+
+    [SugarColumn(Length = 1024, IsNullable = true)]
+    public string? FolderPath { get; set; }
 
     [SugarColumn(Length = 128)]
     public string Name { get; set; }
@@ -108,6 +115,59 @@ public sealed class MicroflowResourceEntity
 
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtraJson { get; set; }
+}
+
+[SugarTable("MicroflowFolder")]
+[SugarIndex("IX_MicroflowFolder_WorkspaceId", nameof(WorkspaceId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowFolder_TenantId", nameof(TenantId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowFolder_ModuleId", nameof(ModuleId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowFolder_ParentFolderId", nameof(ParentFolderId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowFolder_Path", nameof(Path), OrderByType.Asc)]
+[SugarIndex("UX_MicroflowFolder_Sibling_Name", nameof(WorkspaceId), OrderByType.Asc, nameof(ModuleId), OrderByType.Asc, nameof(ParentFolderId), OrderByType.Asc, nameof(Name), OrderByType.Asc, true)]
+public sealed class MicroflowFolderEntity
+{
+    public MicroflowFolderEntity()
+    {
+        Id = Guid.NewGuid().ToString("N");
+        ModuleId = string.Empty;
+        Name = string.Empty;
+        Path = string.Empty;
+        CreatedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = CreatedAt;
+    }
+
+    [SugarColumn(IsPrimaryKey = true, Length = 64)]
+    public string Id { get; set; }
+
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? WorkspaceId { get; set; }
+
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? TenantId { get; set; }
+
+    [SugarColumn(Length = 128)]
+    public string ModuleId { get; set; }
+
+    [SugarColumn(Length = 64, IsNullable = true)]
+    public string? ParentFolderId { get; set; }
+
+    [SugarColumn(Length = 128)]
+    public string Name { get; set; }
+
+    [SugarColumn(Length = 1024)]
+    public string Path { get; set; }
+
+    public int Depth { get; set; }
+
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? CreatedBy { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? UpdatedBy { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 [SugarTable("MicroflowSchemaSnapshot")]

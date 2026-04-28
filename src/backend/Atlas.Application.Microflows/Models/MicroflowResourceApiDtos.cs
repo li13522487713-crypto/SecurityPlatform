@@ -38,6 +38,9 @@ public sealed record ListMicroflowsRequestDto
     [JsonPropertyName("moduleId")]
     public string? ModuleId { get; init; }
 
+    [JsonPropertyName("folderId")]
+    public string? FolderId { get; init; }
+
     [JsonPropertyName("tags")]
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 
@@ -73,6 +76,9 @@ public sealed record MicroflowCreateInputDto
 
     [JsonPropertyName("moduleName")]
     public string? ModuleName { get; init; }
+
+    [JsonPropertyName("folderId")]
+    public string? FolderId { get; init; }
 
     [JsonPropertyName("tags")]
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
@@ -127,6 +133,9 @@ public sealed record MicroflowResourcePatchDto
 
     [JsonPropertyName("moduleName")]
     public string? ModuleName { get; init; }
+
+    [JsonPropertyName("folderId")]
+    public string? FolderId { get; init; }
 
     [JsonPropertyName("ownerId")]
     public string? OwnerId { get; init; }
@@ -211,6 +220,9 @@ public sealed record DuplicateMicroflowRequestDto
 
     [JsonPropertyName("tags")]
     public IReadOnlyList<string>? Tags { get; init; }
+
+    [JsonPropertyName("folderId")]
+    public string? FolderId { get; init; }
 }
 
 public sealed record RenameMicroflowRequestDto

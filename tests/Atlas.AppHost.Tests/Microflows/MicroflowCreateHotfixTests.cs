@@ -22,6 +22,7 @@ public sealed class MicroflowCreateHotfixTests
     public async Task CreateAsync_Succeeds_WithDisplayNameFallback()
     {
         var resourceRepository = Substitute.For<IMicroflowResourceRepository>();
+        var folderRepository = Substitute.For<IMicroflowFolderRepository>();
         var snapshotRepository = Substitute.For<IMicroflowSchemaSnapshotRepository>();
         var referenceRepository = Substitute.For<IMicroflowReferenceRepository>();
         var referenceIndexer = Substitute.For<IMicroflowReferenceIndexer>();
@@ -42,6 +43,7 @@ public sealed class MicroflowCreateHotfixTests
 
         var service = new MicroflowResourceService(
             resourceRepository,
+            folderRepository,
             snapshotRepository,
             referenceRepository,
             referenceIndexer,
@@ -109,6 +111,7 @@ public sealed class MicroflowCreateHotfixTests
     public async Task CreateAsync_WithDuplicateName_Throws409()
     {
         var resourceRepository = Substitute.For<IMicroflowResourceRepository>();
+        var folderRepository = Substitute.For<IMicroflowFolderRepository>();
         var snapshotRepository = Substitute.For<IMicroflowSchemaSnapshotRepository>();
         var referenceRepository = Substitute.For<IMicroflowReferenceRepository>();
         var referenceIndexer = Substitute.For<IMicroflowReferenceIndexer>();
@@ -119,6 +122,7 @@ public sealed class MicroflowCreateHotfixTests
             .Returns(true);
         var service = new MicroflowResourceService(
             resourceRepository,
+            folderRepository,
             snapshotRepository,
             referenceRepository,
             referenceIndexer,
@@ -171,6 +175,7 @@ public sealed class MicroflowCreateHotfixTests
     private static MicroflowResourceService CreateServiceForValidation()
     {
         var resourceRepository = Substitute.For<IMicroflowResourceRepository>();
+        var folderRepository = Substitute.For<IMicroflowFolderRepository>();
         var snapshotRepository = Substitute.For<IMicroflowSchemaSnapshotRepository>();
         var referenceRepository = Substitute.For<IMicroflowReferenceRepository>();
         var referenceIndexer = Substitute.For<IMicroflowReferenceIndexer>();
@@ -181,6 +186,7 @@ public sealed class MicroflowCreateHotfixTests
             .Returns(false);
         return new MicroflowResourceService(
             resourceRepository,
+            folderRepository,
             snapshotRepository,
             referenceRepository,
             referenceIndexer,

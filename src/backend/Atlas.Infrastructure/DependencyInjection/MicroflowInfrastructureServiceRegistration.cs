@@ -12,6 +12,7 @@ public static class MicroflowInfrastructureServiceRegistration
     public static IServiceCollection AddMicroflowInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<IMicroflowResourceRepository, MicroflowResourceRepository>();
+        services.AddScoped<IMicroflowFolderRepository, MicroflowFolderRepository>();
         services.AddScoped<IMicroflowSchemaSnapshotRepository, MicroflowSchemaSnapshotRepository>();
         services.AddScoped<IMicroflowVersionRepository, MicroflowVersionRepository>();
         services.AddScoped<IMicroflowPublishSnapshotRepository, MicroflowPublishSnapshotRepository>();

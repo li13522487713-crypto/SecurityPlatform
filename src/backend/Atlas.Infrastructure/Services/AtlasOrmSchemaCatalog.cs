@@ -341,6 +341,7 @@ public static class AtlasOrmSchemaCatalog
         typeof(AppTemplate),
         // Mendix Microflow backend storage（第 36 轮）：仅保存 AuthoringSchema / Runtime DTO / Trace / MetadataCache，不保存 FlowGram JSON。
         typeof(MicroflowResourceEntity),
+        typeof(MicroflowFolderEntity),
         typeof(MicroflowSchemaSnapshotEntity),
         typeof(MicroflowVersionEntity),
         typeof(MicroflowPublishSnapshotEntity),

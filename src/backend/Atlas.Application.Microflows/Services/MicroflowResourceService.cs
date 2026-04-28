@@ -19,6 +19,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IMicroflowResourceRepository _resourceRepository;
+    private readonly IMicroflowFolderRepository _folderRepository;
     private readonly IMicroflowSchemaSnapshotRepository _schemaSnapshotRepository;
     private readonly IMicroflowReferenceRepository _referenceRepository;
     private readonly IMicroflowReferenceIndexer _referenceIndexer;
@@ -27,6 +28,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
 
     public MicroflowResourceService(
         IMicroflowResourceRepository resourceRepository,
+        IMicroflowFolderRepository folderRepository,
         IMicroflowSchemaSnapshotRepository schemaSnapshotRepository,
         IMicroflowReferenceRepository referenceRepository,
         IMicroflowReferenceIndexer referenceIndexer,
@@ -34,6 +36,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         IMicroflowClock clock)
     {
         _resourceRepository = resourceRepository;
+        _folderRepository = folderRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
         _referenceRepository = referenceRepository;
         _referenceIndexer = referenceIndexer;
@@ -56,6 +59,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             FavoriteOnly = request.FavoriteOnly,
             OwnerId = request.OwnerId,
             ModuleId = request.ModuleId,
+            FolderId = request.FolderId,
             Tags = request.Tags,
             UpdatedFrom = request.UpdatedFrom,
             UpdatedTo = request.UpdatedTo,
@@ -95,6 +99,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         await EnsureNameAvailableAsync(workspaceId, name, null, cancellationToken);
 
         var now = _clock.UtcNow;
+        var folder = await ResolveFolderAsync(request.Input.FolderId, workspaceId, context.TenantId, request.Input.ModuleId.Trim(), cancellationToken);
         var resourceId = Guid.NewGuid().ToString("N");
         var schema = request.Input.Schema.HasValue
             ? request.Input.Schema.Value
@@ -108,6 +113,8 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             TenantId = context.TenantId,
             ModuleId = request.Input.ModuleId.Trim(),
             ModuleName = request.Input.ModuleName,
+            FolderId = folder?.Id,
+            FolderPath = folder?.Path,
             Name = name,
             DisplayName = string.IsNullOrWhiteSpace(request.Input.DisplayName) ? name : request.Input.DisplayName.Trim(),
             Description = request.Input.Description,
@@ -183,6 +190,13 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         if (patch.ModuleName is not null)
         {
             resource.ModuleName = patch.ModuleName;
+        }
+
+        if (patch.FolderId is not null)
+        {
+            var folder = await ResolveFolderAsync(patch.FolderId, resource.WorkspaceId, resource.TenantId, resource.ModuleId, cancellationToken);
+            resource.FolderId = folder?.Id;
+            resource.FolderPath = folder?.Path;
         }
 
         if (patch.Tags is not null)
@@ -297,15 +311,22 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var now = _clock.UtcNow;
         var newId = Guid.NewGuid().ToString("N");
         var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? $"{source.DisplayName} Copy" : request.DisplayName.Trim();
-        var schemaJson = MutateSchemaFields(sourceSnapshot!.SchemaJson, newId, name, displayName, request.ModuleId ?? source.ModuleId, request.ModuleName ?? source.ModuleName);
+        var targetModuleId = request.ModuleId ?? source.ModuleId;
+        var targetModuleName = request.ModuleName ?? source.ModuleName;
+        var folder = request.FolderId is null
+            ? source.FolderId is null ? null : await ResolveFolderAsync(source.FolderId, workspaceId, source.TenantId, targetModuleId, cancellationToken)
+            : await ResolveFolderAsync(request.FolderId, workspaceId, source.TenantId, targetModuleId, cancellationToken);
+        var schemaJson = MutateSchemaFields(sourceSnapshot!.SchemaJson, newId, name, displayName, targetModuleId, targetModuleName);
         var snapshot = CreateSnapshot(newId, workspaceId, context, schemaJson, "1.0.0", "duplicate", null, now);
         var resource = new MicroflowResourceEntity
         {
             Id = newId,
             WorkspaceId = workspaceId,
             TenantId = source.TenantId,
-            ModuleId = request.ModuleId ?? source.ModuleId,
-            ModuleName = request.ModuleName ?? source.ModuleName,
+            ModuleId = targetModuleId,
+            ModuleName = targetModuleName,
+            FolderId = folder?.Id,
+            FolderPath = folder?.Path,
             Name = name,
             DisplayName = displayName,
             Description = source.Description,
@@ -364,6 +385,22 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
 
         Touch(resource, context);
         await _resourceRepository.UpdateAsync(resource, cancellationToken);
+        return MicroflowResourceMapper.ToDto(resource, snapshot);
+    }
+
+    public async Task<MicroflowResourceDto> MoveAsync(
+        string id,
+        MoveMicroflowRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var resource = await LoadResourceAsync(id, cancellationToken);
+        EnsureEditable(resource);
+        var folder = await ResolveFolderAsync(request.TargetFolderId, resource.WorkspaceId, resource.TenantId, resource.ModuleId, cancellationToken);
+        resource.FolderId = folder?.Id;
+        resource.FolderPath = folder?.Path;
+        Touch(resource, _requestContextAccessor.Current);
+        await _resourceRepository.UpdateAsync(resource, cancellationToken);
+        var snapshot = await LoadCurrentSnapshotAsync(resource, false, cancellationToken);
         return MicroflowResourceMapper.ToDto(resource, snapshot);
     }
 
@@ -477,6 +514,30 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         }
 
         return resource;
+    }
+
+    private async Task<MicroflowFolderEntity?> ResolveFolderAsync(
+        string? folderId,
+        string? workspaceId,
+        string? tenantId,
+        string moduleId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(folderId))
+        {
+            return null;
+        }
+
+        var folder = await _folderRepository.GetByIdAsync(folderId, cancellationToken);
+        if (folder is null
+            || !string.Equals(folder.WorkspaceId, workspaceId, StringComparison.Ordinal)
+            || !string.Equals(folder.TenantId, tenantId, StringComparison.Ordinal)
+            || !string.Equals(folder.ModuleId, moduleId, StringComparison.Ordinal))
+        {
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowFolderNotFound, "目标微流文件夹不存在或不属于当前模块。", 404);
+        }
+
+        return folder;
     }
 
     private async Task<(MicroflowResourceEntity Resource, MicroflowSchemaSnapshotEntity? Snapshot)> LoadResourceAndSnapshotAsync(

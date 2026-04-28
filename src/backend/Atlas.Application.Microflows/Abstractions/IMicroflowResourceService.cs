@@ -21,6 +21,8 @@ public interface IMicroflowResourceService
 
     Task<MicroflowResourceDto> RenameAsync(string id, RenameMicroflowRequestDto request, CancellationToken cancellationToken);
 
+    Task<MicroflowResourceDto> MoveAsync(string id, MoveMicroflowRequestDto request, CancellationToken cancellationToken);
+
     Task<MicroflowResourceDto> ToggleFavoriteAsync(string id, ToggleFavoriteMicroflowRequestDto request, CancellationToken cancellationToken);
 
     Task<MicroflowResourceDto> ArchiveAsync(string id, CancellationToken cancellationToken);

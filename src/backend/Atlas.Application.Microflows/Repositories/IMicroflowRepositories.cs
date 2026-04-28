@@ -17,6 +17,8 @@ public interface IMicroflowResourceRepository
 
     Task UpdateAsync(MicroflowResourceEntity entity, CancellationToken cancellationToken);
 
+    Task UpdateManyAsync(IReadOnlyList<MicroflowResourceEntity> entities, CancellationToken cancellationToken);
+
     Task UpdateLastRunAsync(string id, string status, DateTimeOffset lastRunAt, CancellationToken cancellationToken);
 
     Task UpdateReferenceCountsAsync(IReadOnlyDictionary<string, int> countsByResourceId, CancellationToken cancellationToken);
@@ -26,6 +28,27 @@ public interface IMicroflowResourceRepository
     Task<bool> ExistsByNameAsync(string? workspaceId, string name, CancellationToken cancellationToken);
 
     Task<bool> ExistsByNameAsync(string? workspaceId, string name, string? excludeId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MicroflowResourceEntity>> ListByFolderIdAsync(string folderId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MicroflowResourceEntity>> ListByFolderIdsAsync(IReadOnlyList<string> folderIds, CancellationToken cancellationToken);
+}
+
+public interface IMicroflowFolderRepository
+{
+    Task<MicroflowFolderEntity?> GetByIdAsync(string id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MicroflowFolderEntity>> ListByModuleAsync(string? workspaceId, string? tenantId, string moduleId, CancellationToken cancellationToken);
+
+    Task<bool> ExistsBySiblingNameAsync(string? workspaceId, string? tenantId, string moduleId, string? parentFolderId, string name, string? excludeId, CancellationToken cancellationToken);
+
+    Task InsertAsync(MicroflowFolderEntity entity, CancellationToken cancellationToken);
+
+    Task UpdateAsync(MicroflowFolderEntity entity, CancellationToken cancellationToken);
+
+    Task UpdateManyAsync(IReadOnlyList<MicroflowFolderEntity> entities, CancellationToken cancellationToken);
+
+    Task DeleteAsync(string id, CancellationToken cancellationToken);
 }
 
 public interface IMicroflowSchemaSnapshotRepository

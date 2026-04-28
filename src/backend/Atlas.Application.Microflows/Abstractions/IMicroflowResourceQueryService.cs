@@ -30,6 +30,8 @@ public sealed record MicroflowResourceQueryDto
 
     public string? ModuleId { get; init; }
 
+    public string? FolderId { get; init; }
+
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 
     public DateTimeOffset? UpdatedFrom { get; init; }

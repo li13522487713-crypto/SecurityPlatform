@@ -14,6 +14,8 @@ public static class MicroflowResourceMapper
             WorkspaceId = entity.WorkspaceId,
             ModuleId = entity.ModuleId,
             ModuleName = entity.ModuleName,
+            FolderId = entity.FolderId,
+            FolderPath = entity.FolderPath,
             Name = entity.Name,
             DisplayName = entity.DisplayName,
             Description = entity.Description,

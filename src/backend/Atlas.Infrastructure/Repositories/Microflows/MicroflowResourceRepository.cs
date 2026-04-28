@@ -69,6 +69,23 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
         return _db.Updateable(entity).Where(x => x.Id == entity.Id).ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task UpdateManyAsync(IReadOnlyList<MicroflowResourceEntity> entities, CancellationToken cancellationToken)
+    {
+        if (entities.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var entity in entities)
+        {
+            entity.UpdatedAt = now;
+            entity.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+        }
+
+        return _db.Updateable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
     public Task UpdateLastRunAsync(string id, string status, DateTimeOffset lastRunAt, CancellationToken cancellationToken)
     {
         return _db.Updateable<MicroflowResourceEntity>()
@@ -168,6 +185,13 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
             q = q.Where(x => x.ModuleId == query.ModuleId);
         }
 
+        if (query.FolderId is not null)
+        {
+            q = string.IsNullOrWhiteSpace(query.FolderId)
+                ? q.Where(x => x.FolderId == null || x.FolderId == "")
+                : q.Where(x => x.FolderId == query.FolderId);
+        }
+
         if (query.UpdatedFrom.HasValue)
         {
             q = q.Where(x => x.UpdatedAt >= query.UpdatedFrom.Value);
@@ -197,6 +221,26 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
         q = q.Where(x => x.ExtraJson == null || !x.ExtraJson.Contains("\"deleted\":true"));
 
         return q;
+    }
+
+    public async Task<IReadOnlyList<MicroflowResourceEntity>> ListByFolderIdAsync(string folderId, CancellationToken cancellationToken)
+    {
+        return await _db.Queryable<MicroflowResourceEntity>()
+            .Where(x => x.FolderId == folderId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MicroflowResourceEntity>> ListByFolderIdsAsync(IReadOnlyList<string> folderIds, CancellationToken cancellationToken)
+    {
+        var ids = folderIds.Where(static id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+        if (ids.Length == 0)
+        {
+            return Array.Empty<MicroflowResourceEntity>();
+        }
+
+        return await _db.Queryable<MicroflowResourceEntity>()
+            .Where(x => SqlFunc.ContainsArray(ids, x.FolderId))
+            .ToListAsync(cancellationToken);
     }
 
     private static string BuildQualifiedName(MicroflowResourceEntity resource)

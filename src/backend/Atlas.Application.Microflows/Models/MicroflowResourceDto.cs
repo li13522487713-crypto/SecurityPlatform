@@ -20,6 +20,12 @@ public sealed record MicroflowResourceDto
     [JsonPropertyName("moduleName")]
     public string? ModuleName { get; init; }
 
+    [JsonPropertyName("folderId")]
+    public string? FolderId { get; init; }
+
+    [JsonPropertyName("folderPath")]
+    public string? FolderPath { get; init; }
+
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
 

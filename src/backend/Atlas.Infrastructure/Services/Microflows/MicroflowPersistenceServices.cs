@@ -108,6 +108,7 @@ public sealed class MicroflowStorageDiagnosticsService : IMicroflowStorageDiagno
     private static readonly string[] TableNames =
     [
         "MicroflowResource",
+        "MicroflowFolder",
         "MicroflowSchemaSnapshot",
         "MicroflowVersion",
         "MicroflowPublishSnapshot",
