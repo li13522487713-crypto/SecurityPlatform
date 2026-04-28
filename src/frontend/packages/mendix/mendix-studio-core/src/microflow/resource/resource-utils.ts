@@ -58,5 +58,5 @@ export function canRunMicroflowAction(resource: MicroflowResource, action: keyof
   if (action === "canPublish" && resource.archived) {
     return false;
   }
-  return resource.permissions?.[action] ?? true;
+  return resource.permissions?.[action] ?? false;
 }

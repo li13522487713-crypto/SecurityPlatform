@@ -86,6 +86,14 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
     );
   }
 
+  if (bundle && bundle.mode !== "http") {
+    return (
+      <Empty title="微流编辑器仅支持 HTTP 模式" description="发布路径不允许使用 local 或 mock adapter。请切换到 HTTP adapter 后重试。" style={{ padding: 80 }}>
+        {onBack ? <Button onClick={onBack}>返回资源库</Button> : null}
+      </Empty>
+    );
+  }
+
   if (!adapter) {
     return (
       <Empty title="微流服务未配置" description="请配置 HTTP adapter 的 apiBaseUrl 后重试。" style={{ padding: 80 }}>

@@ -1247,7 +1247,36 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
         public JsonElement EvaluateExpression(string expression, string? currentObjectId = null, string? currentActionId = null, string? currentFlowId = null)
         {
-            var result = ExpressionEvaluator.Evaluate(
+            var result = EvaluateExpressionCore(expression, currentObjectId, currentActionId, currentFlowId);
+            if (!result.Success)
+            {
+                var normalizedExpression = NormalizeBareVariableExpression(expression);
+                if (!string.Equals(normalizedExpression, expression, StringComparison.Ordinal))
+                {
+                    result = EvaluateExpressionCore(normalizedExpression, currentObjectId, currentActionId, currentFlowId);
+                }
+            }
+
+            if (!result.Success || result.RawValueJson is null)
+            {
+                throw new RuntimeExpressionException(Error(
+                    result.Error?.Code ?? RuntimeErrorCode.RuntimeExpressionError,
+                    result.Error?.Message ?? "表达式求值失败。",
+                    currentObjectId,
+                    currentActionId,
+                    currentFlowId,
+                    details: result.Error?.Details));
+            }
+
+            return MicroflowVariableStore.ToJsonElement(result.RawValueJson) ?? JsonNull();
+        }
+
+        private MicroflowExpressionEvaluationResult EvaluateExpressionCore(
+            string expression,
+            string? currentObjectId,
+            string? currentActionId,
+            string? currentFlowId)
+            => ExpressionEvaluator.Evaluate(
                 expression,
                 new MicroflowExpressionEvaluationContext
                 {
@@ -1267,18 +1296,19 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                         MaxStringLength = 500
                     }
                 });
-            if (!result.Success || result.RawValueJson is null)
+
+        private string NormalizeBareVariableExpression(string expression)
+        {
+            var normalized = expression;
+            foreach (var name in Variables.Keys.OrderByDescending(static item => item.Length))
             {
-                throw new RuntimeExpressionException(Error(
-                    result.Error?.Code ?? RuntimeErrorCode.RuntimeExpressionError,
-                    result.Error?.Message ?? "表达式求值失败。",
-                    currentObjectId,
-                    currentActionId,
-                    currentFlowId,
-                    details: result.Error?.Details));
+                normalized = System.Text.RegularExpressions.Regex.Replace(
+                    normalized,
+                    $@"(?<![\$\w]){System.Text.RegularExpressions.Regex.Escape(name)}(?![\w])",
+                    $"${name}");
             }
 
-            return MicroflowVariableStore.ToJsonElement(result.RawValueJson) ?? JsonNull();
+            return normalized;
         }
 
         public void AddChildRun(MicroflowRunSessionDto childRun)

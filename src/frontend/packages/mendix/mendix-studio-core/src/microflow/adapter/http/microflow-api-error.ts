@@ -5,6 +5,17 @@
 import type { MicroflowApiError } from "../../contracts/api/api-envelope";
 import type { MicroflowApiErrorCode } from "../../contracts/api/api-error-codes";
 
+export function getMicroflowApiErrorCategory(code: MicroflowApiErrorCode, status?: number): NonNullable<MicroflowApiError["category"]> {
+  if (status === 401 || code === "MICROFLOW_UNAUTHORIZED") return "auth";
+  if (status === 403 || code === "MICROFLOW_PERMISSION_DENIED") return "permission";
+  if (status === 409 || code === "MICROFLOW_VERSION_CONFLICT" || code === "MICROFLOW_REFERENCE_BLOCKED") return "conflict";
+  if (status === 404 || code === "MICROFLOW_NOT_FOUND") return "notFound";
+  if (status === 422 || code === "MICROFLOW_VALIDATION_FAILED" || code === "MICROFLOW_SCHEMA_INVALID") return "validation";
+  if (code === "MICROFLOW_NETWORK_ERROR" || code === "MICROFLOW_TIMEOUT") return "network";
+  if (status && status >= 500) return "server";
+  return "unknown";
+}
+
 export function mapHttpStatusToMicroflowErrorCode(status?: number): MicroflowApiErrorCode {
   if (status === 401) {
     return "MICROFLOW_UNAUTHORIZED";
@@ -42,6 +53,7 @@ export class MicroflowApiException extends Error {
     this.traceId = options.traceId ?? options.apiError?.traceId;
     this.apiError = options.apiError ?? {
       code: mapHttpStatusToMicroflowErrorCode(options.status),
+      category: getMicroflowApiErrorCategory(mapHttpStatusToMicroflowErrorCode(options.status), options.status),
       message,
       httpStatus: options.status,
       traceId: options.traceId,
@@ -59,6 +71,7 @@ export function normalizeMicroflowApiError(input: unknown, status?: number, trac
     const error = input as Partial<MicroflowApiError>;
     return {
       code: error.code ?? mapHttpStatusToMicroflowErrorCode(status),
+      category: error.category ?? getMicroflowApiErrorCategory(error.code ?? mapHttpStatusToMicroflowErrorCode(status), error.httpStatus ?? status),
       message: error.message ?? "微流服务异常。",
       details: error.details,
       fieldErrors: error.fieldErrors,
@@ -70,16 +83,19 @@ export function normalizeMicroflowApiError(input: unknown, status?: number, trac
     };
   }
   if (input instanceof DOMException && input.name === "AbortError") {
-    return { code: "MICROFLOW_TIMEOUT", message: "微流请求已取消或超时。", retryable: true, httpStatus: status, traceId, raw: input };
+    return { code: "MICROFLOW_TIMEOUT", category: "network", message: "微流请求已取消或超时。", retryable: true, httpStatus: status, traceId, raw: input };
   }
   if (input instanceof TypeError) {
-    return { code: "MICROFLOW_NETWORK_ERROR", message: "微流服务不可用，请检查网络或后端服务。", retryable: true, httpStatus: status, traceId, raw: input };
+    return { code: "MICROFLOW_NETWORK_ERROR", category: "network", message: "微流服务不可用，请检查网络或后端服务。", retryable: true, httpStatus: status, traceId, raw: input };
   }
   if (input instanceof Error) {
-    return { code: mapHttpStatusToMicroflowErrorCode(status), message: input.message, retryable: status ? status >= 500 : false, httpStatus: status, traceId, raw: input };
+    const code = mapHttpStatusToMicroflowErrorCode(status);
+    return { code, category: getMicroflowApiErrorCategory(code, status), message: input.message, retryable: status ? status >= 500 : false, httpStatus: status, traceId, raw: input };
   }
+  const code = mapHttpStatusToMicroflowErrorCode(status);
   return {
-    code: mapHttpStatusToMicroflowErrorCode(status),
+    code,
+    category: getMicroflowApiErrorCategory(code, status),
     message: typeof input === "string" && input ? input : "微流服务异常。",
     retryable: status ? status >= 500 : false,
     httpStatus: status,

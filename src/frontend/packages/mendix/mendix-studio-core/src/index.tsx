@@ -60,6 +60,7 @@ export function MendixStudioApp({
   const closeWorkbenchTab = useMendixStudioStore(state => state.closeWorkbenchTab);
   const [microflowResourceRefreshToken, setMicroflowResourceRefreshToken] = useState(0);
   const [referencesMicroflowId, setReferencesMicroflowId] = useState<string>();
+  const [openedDeepLinkMicroflowId, setOpenedDeepLinkMicroflowId] = useState<string>();
 
   // 创建 adapter bundle；如果构建失败，仅 console.warn，不阻断页面渲染。
   const _resolvedBundle = useMemo<MicroflowAdapterBundle | undefined>(() => {
@@ -81,6 +82,24 @@ export function MendixStudioApp({
   useEffect(() => {
     setStudioContext({ appId, workspaceId });
   }, [appId, workspaceId, setStudioContext]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const microflowId = new URLSearchParams(window.location.search).get("microflowId")?.trim();
+    if (!microflowId || openedDeepLinkMicroflowId === microflowId) {
+      return;
+    }
+
+    if (!microflowResourcesById[microflowId]) {
+      return;
+    }
+
+    openMicroflowWorkbenchTab(microflowId);
+    setOpenedDeepLinkMicroflowId(microflowId);
+  }, [microflowResourcesById, openMicroflowWorkbenchTab, openedDeepLinkMicroflowId]);
 
   const isMicroflow = activeWorkbenchTab?.kind === "microflow";
   const activeMicroflowId = isMicroflow

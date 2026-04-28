@@ -16,6 +16,7 @@ export interface MicroflowApiFieldError {
  */
 export interface MicroflowApiError {
   code: MicroflowApiErrorCode;
+  category?: MicroflowApiErrorCategory;
   message: string;
   details?: string;
   fieldErrors?: MicroflowApiFieldError[];
@@ -27,6 +28,17 @@ export interface MicroflowApiError {
   traceId?: string;
   raw?: unknown;
 }
+
+export type MicroflowApiErrorCategory =
+  | "auth"
+  | "permission"
+  | "validation"
+  | "conflict"
+  | "notFound"
+  | "network"
+  | "server"
+  | "runtime"
+  | "unknown";
 
 /**
  * 统一 API 响应 Envelope。真实 HTTP 客户端在收到 JSON 后先解本结构再交业务层。

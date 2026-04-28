@@ -17,9 +17,11 @@ export type MicroflowLastRunStatus = "success" | "failed" | "neverRun";
 export type MicroflowResourceView = "card" | "table";
 
 export interface MicroflowResourcePermissions {
+  canCreate?: boolean;
   canEdit: boolean;
   canDelete: boolean;
   canPublish: boolean;
+  canRun?: boolean;
   canArchive: boolean;
   canDuplicate: boolean;
 }
