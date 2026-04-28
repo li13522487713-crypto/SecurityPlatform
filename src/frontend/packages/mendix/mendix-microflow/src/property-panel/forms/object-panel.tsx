@@ -31,6 +31,20 @@ import { ObjectBaseForm } from "./object-base-form";
 import { ParameterObjectForm } from "./parameter-object-form";
 
 const { Text } = Typography;
+const supportedObjectKinds = new Set<string>([
+  "startEvent",
+  "endEvent",
+  "errorEvent",
+  "breakEvent",
+  "continueEvent",
+  "exclusiveSplit",
+  "inheritanceSplit",
+  "exclusiveMerge",
+  "actionActivity",
+  "loopedActivity",
+  "parameterObject",
+  "annotation",
+]);
 
 function p0OutputSummary(action: MicroflowAction): string {
   if (action.kind === "retrieve") {
@@ -101,6 +115,28 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   const parameter = object.kind === "parameterObject"
     ? props.schema.parameters.find(item => item.id === object.parameterId)
     : undefined;
+  if (!supportedObjectKinds.has(object.kind)) {
+    return (
+      <>
+        <Header
+          props={props}
+          title="Unsupported node type"
+          subtitle={(object as MicroflowObject).officialType ?? String(object.kind)}
+          onDelete={() => props.onDeleteObject?.(object.id)}
+        />
+        <div style={{ padding: 14, display: "grid", gap: 12 }}>
+          <ValidationIssueList issues={issues} />
+          <Field label="Node ID">
+            <Input value={object.id} disabled />
+          </Field>
+          <Field label="Kind">
+            <Input value={String(object.kind)} disabled />
+          </Field>
+          <Text type="warning" size="small">Unsupported node type. This panel will not write generated or fake data for this object.</Text>
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <Header

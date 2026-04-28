@@ -34,6 +34,7 @@ export interface MicroflowActionRegistryItem {
   keywords: string[];
   defaultCaption: string;
   defaultConfig: LegacyMicroflowActivityConfig;
+  createDefaultConfig: () => LegacyMicroflowActivityConfig;
   outputSpec?: Array<{ id: string; name: string; dataType: MicroflowDataType; source: string }>;
   inputSpec?: Array<{ id: string; title: string; dataType?: MicroflowDataType; required?: boolean }>;
   supportsErrorHandling: boolean;
@@ -649,6 +650,13 @@ function action(input: {
             : availability === "beta"
               ? "modeledOnly"
               : "modeledOnly";
+  const createDefaultConfig = () => ({
+    activityType: input.legacyActivityType,
+    activityCategory: input.category,
+    supportsErrorFlow: supportsErrorHandling,
+    errorHandling: supportsErrorHandling ? { mode: "rollback" as const, errorVariableName: "latestError" } : undefined,
+    ...cloneRecord((input.defaultConfig ?? {}) as GenericActionConfig)
+  }) as LegacyMicroflowActivityConfig;
   const item: MicroflowActionRegistryItem = {
     key: input.key,
     kind: input.key,
@@ -664,13 +672,8 @@ function action(input: {
     availabilityReason: availabilityReason(availability),
     keywords: [input.key, input.title, input.titleZh, input.description, input.category],
     defaultCaption: input.titleZh,
-    defaultConfig: {
-      activityType: input.legacyActivityType,
-      activityCategory: input.category,
-      supportsErrorFlow: supportsErrorHandling,
-      errorHandling: supportsErrorHandling ? { mode: "rollback", errorVariableName: "latestError" } : undefined,
-      ...input.defaultConfig
-    },
+    defaultConfig: createDefaultConfig(),
+    createDefaultConfig,
     outputSpec: input.outputSpec ?? actionOutputs[input.key],
     inputSpec: input.inputSpec,
     supportsErrorHandling,

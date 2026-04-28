@@ -372,7 +372,7 @@ function addListActionOutputs(index: MicroflowVariableIndex, object: MicroflowAc
       addDiagnostic(index, {
         severity: "warning",
         code: "MF_LIST_ENTITY_METADATA_PENDING",
-        message: "Create List uses an object element type without entity metadata. Entity metadata will be connected in Stage 19.",
+        message: "Create List uses an object element type without entity metadata. Select an entity from real Domain Model metadata.",
         objectId: object.id,
         actionId: action.id,
         fieldPath: "action.elementType",

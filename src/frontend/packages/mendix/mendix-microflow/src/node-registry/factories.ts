@@ -56,7 +56,7 @@ export function createActionActivityFromActionRegistry(input: CreateActionActivi
     throw new Error(`Unknown microflow action registry key: ${input.actionRegistryKey}`);
   }
   const id = input.id ?? createStableId(`activity-${entry.key}`);
-  const action = entry.createAction({ id: `action-${id}`, config: entry.defaultConfig, caption: entry.defaultCaption });
+  const action = entry.createAction({ id: `action-${id}`, config: entry.createDefaultConfig(), caption: entry.defaultCaption });
   return {
     id,
     stableId: id,

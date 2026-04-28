@@ -14,6 +14,7 @@ import type { MicroflowCaseValue, MicroflowEditorGraphPatch, MicroflowSchema } f
 import { authoringToFlowGram } from "../adapters/authoring-to-flowgram";
 import {
   createFlowFromFlowGramEdge,
+  findDeletedObjectId,
   findDeletedFlowId,
   findNewFlowGramEdge,
   flowGramPositionPatch,
@@ -69,6 +70,14 @@ export function useFlowGramMicroflowBridge(params: {
       }
       const json = doc.toJSON() as WorkflowJSON;
       const schema = latestSchemaRef.current;
+      const deletedObjectId = findDeletedObjectId(schema, json);
+      if (deletedObjectId) {
+        paramsRef.current.onSchemaChange(
+          applyEditorGraphPatchToAuthoring(schema, { deleteObjectId: deletedObjectId } as MicroflowEditorGraphPatch),
+          "flowgramNodeDelete",
+        );
+        return;
+      }
       const deletedFlowId = findDeletedFlowId(schema, json);
       if (deletedFlowId) {
         paramsRef.current.onSchemaChange(

@@ -3,24 +3,16 @@ import type { WorkflowEdgeJSON, WorkflowJSON } from "@flowgram-adapter/free-layo
 import { toEditorGraph } from "../../adapters";
 import type {
   MicroflowEditorGraphPatch,
-  MicroflowEditorPort,
   MicroflowFlow,
   MicroflowSchema,
   MicroflowSize,
 } from "../../schema";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import type { FlowGramMicroflowSelection } from "../FlowGramMicroflowTypes";
-import { createMicroflowFlowFromPorts } from "./flowgram-edge-factory";
+import { mapFlowGramEdgeToMicroflowFlow } from "./flowgram-edge-mapping";
 
 function edgeKey(edge: Pick<WorkflowEdgeJSON, "sourceNodeID" | "targetNodeID" | "sourcePortID" | "targetPortID">): string {
   return [edge.sourceNodeID, edge.sourcePortID ?? "", edge.targetNodeID, edge.targetPortID ?? ""].map(value => String(value ?? "")).join("::");
-}
-
-function portById(schema: MicroflowSchema, portId?: string): MicroflowEditorPort | undefined {
-  if (!portId) {
-    return undefined;
-  }
-  return toEditorGraph(schema).nodes.flatMap(node => node.ports).find(port => port.id === portId);
 }
 
 export function flowGramPositionPatch(schema: MicroflowSchema, json: WorkflowJSON): MicroflowEditorGraphPatch {
@@ -83,13 +75,13 @@ export function findNewFlowGramEdge(schema: MicroflowSchema, json: WorkflowJSON)
   });
 }
 
+export function findDeletedObjectId(schema: MicroflowSchema, json: WorkflowJSON): string | undefined {
+  const nodeIds = new Set((json.nodes ?? []).map(node => String(node.id)));
+  return toEditorGraph(schema).nodes.find(node => !nodeIds.has(node.objectId))?.objectId;
+}
+
 export function createFlowFromFlowGramEdge(schema: MicroflowSchema, edge: WorkflowEdgeJSON): MicroflowFlow | undefined {
-  const sourcePort = portById(schema, edge.sourcePortID === undefined ? undefined : String(edge.sourcePortID));
-  const targetPort = portById(schema, edge.targetPortID === undefined ? undefined : String(edge.targetPortID));
-  if (!sourcePort || !targetPort) {
-    return undefined;
-  }
-  return createMicroflowFlowFromPorts(schema, sourcePort, targetPort);
+  return mapFlowGramEdgeToMicroflowFlow(schema, edge);
 }
 
 export function findDeletedFlowId(schema: MicroflowSchema, json: WorkflowJSON): string | undefined {

@@ -31,7 +31,7 @@ export function VariableSelector({
   disabled,
   placeholder = "Select variable",
   scopeMode = "available",
-  emptyMessage = "No variables available. Add a Create Variable node or Parameter first.",
+  emptyMessage = "No variables available. Add a Parameter or Create Variable first.",
 }: {
   schema: MicroflowAuthoringSchema;
   objectId?: string;
@@ -112,7 +112,7 @@ export function VariableSelector({
         }))}
       />
       {variables.length === 0 ? <Text size="small" type="tertiary">{emptyMessage}</Text> : null}
-      {!currentVisible ? <Text size="small" type="danger">Current variable is not available in this scope.</Text> : null}
+      {!currentVisible ? <Text size="small" type="danger">Stale target: current variable is not available in this microflow scope.</Text> : null}
     </div>
   );
 }

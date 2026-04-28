@@ -16,8 +16,9 @@ import type { LegacyMicroflowNodeType, MicroflowActivityType } from "../schema";
 import {
   defaultMicroflowNodePanelRegistry,
   canDragRegistryItem,
+  canCreateRegistryItem,
   createDragPayloadFromRegistryItem,
-  getDisabledDragReason,
+  getMicroflowNodeDisabledReason,
   getMicroflowNodeRegistryKey,
   groupMicroflowNodesByCategory,
   searchMicroflowNodes,
@@ -117,8 +118,9 @@ interface RegistryAdapterOptions {
 
 const categoryFilterLabels: Record<MicroflowNodePanelCategoryKey, string> = {
   events: "Events",
-  parameters: "Parameters",
+  inputs: "Inputs",
   flowControl: "Flow Control",
+  loops: "Loops",
   variables: "Variables",
   objects: "Objects",
   lists: "Lists / Collections",
@@ -176,7 +178,7 @@ function writeStoredStringList(key: string, value: string[]): void {
 }
 
 function isCategoryFilter(filterKey: MicroflowNodeFilterKey): filterKey is MicroflowNodePanelCategoryKey {
-  return ["events", "parameters", "flowControl", "variables", "objects", "lists", "integration", "documentation", "other"].includes(filterKey);
+  return ["events", "inputs", "flowControl", "loops", "variables", "objects", "lists", "integration", "documentation", "other"].includes(filterKey);
 }
 
 function categoryKeyFromEntry(entry: MicroflowNodeRegistryEntry): MicroflowNodePanelCategoryKey {
@@ -184,9 +186,12 @@ function categoryKeyFromEntry(entry: MicroflowNodeRegistryEntry): MicroflowNodeP
     return "events";
   }
   if (entry.group === "Parameters") {
-    return "parameters";
+    return "inputs";
   }
-  if (entry.group === "Decisions" || entry.group === "Loop" || entry.type === "breakEvent" || entry.type === "continueEvent") {
+  if (entry.group === "Loop" || entry.type === "breakEvent" || entry.type === "continueEvent") {
+    return "loops";
+  }
+  if (entry.group === "Decisions") {
     return "flowControl";
   }
   if (entry.subgroup === "variable") {
@@ -260,6 +265,12 @@ function MicroflowNodeIcon({ item }: { item: MicroflowNodeRegistryItem }) {
 }
 
 function resolveWarning(item: MicroflowNodeRegistryItem, context?: MicroflowNodeCreateContext): string | undefined {
+  if (item.metadataRequirements?.length && context?.metadataAvailable === false) {
+    return "Metadata required for full configuration.";
+  }
+  if (item.type === "breakEvent" || item.type === "continueEvent") {
+    return "Requires a Loop context.";
+  }
   return typeof item.warning === "function" ? item.warning(context ?? {}) : item.warning;
 }
 
@@ -275,7 +286,7 @@ function TooltipContent({ item, labels, createContext }: { item: MicroflowNodeRe
       {item.useCases?.length ? <Text type="tertiary">{labels.useCases}: {item.useCases.join(" ")}</Text> : null}
       {item.availability !== "supported" ? <Tag color={item.availability === "deprecated" ? "orange" : item.availability === "beta" ? "blue" : "grey"}>{item.availabilityReason ?? item.availability}</Tag> : null}
       {warning ? <Tag color="orange">{warning}</Tag> : null}
-      {!item.enabled && item.disabledReason ? <Tag color="grey">{item.disabledReason}</Tag> : null}
+      {getMicroflowNodeDisabledReason(item, createContext) ? <Tag color="grey">{getMicroflowNodeDisabledReason(item, createContext)}</Tag> : null}
     </Space>
   );
 }
@@ -288,7 +299,7 @@ export function MicroflowNodePanelRegistryAdapter({ registry, keyword, filterKey
       return favoriteSet.has(getMicroflowNodeRegistryKey(item));
     }
     if (filterKey === "enabled") {
-      return item.enabled;
+      return canDragRegistryItem(item);
     }
     if (isCategoryFilter(filterKey)) {
       return categoryKeyFromEntry(item) === filterKey;
@@ -387,7 +398,7 @@ export function MicroflowNodeCard({
   onStartDrag?: (payload: MicroflowNodeDragPayload) => void;
   createContext?: MicroflowNodeCreateContext;
 }) {
-  const disabledReason = getDisabledDragReason(item);
+  const disabledReason = getMicroflowNodeDisabledReason(item, createContext);
   const disabled = Boolean(disabledReason);
   const key = getMicroflowNodeRegistryKey(item);
   const cardStyle: CSSProperties = {
@@ -407,7 +418,7 @@ export function MicroflowNodeCard({
         draggable={!disabled}
         data-registry-key={key}
         style={cardStyle}
-        onDoubleClick={() => {
+        onClick={() => {
           if (!disabled) {
             onAdd(item);
           }
@@ -446,7 +457,7 @@ export function MicroflowNodeCard({
           </Text>
           {!compact ? (
             <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: "block", maxWidth: "100%" }}>
-              {disabled && item.disabledReason ? item.disabledReason : item.description}
+              {disabled && disabledReason ? disabledReason : item.description}
             </Text>
           ) : null}
         </div>
@@ -722,6 +733,7 @@ export function MicroflowNodeContextMenu({
   state,
   labels,
   favorite,
+  createContext,
   onAdd,
   onFavoriteToggle,
   onShowDocumentation,
@@ -730,6 +742,7 @@ export function MicroflowNodeContextMenu({
   state: ContextMenuState | undefined;
   labels: MicroflowNodePanelLabels;
   favorite: boolean;
+  createContext?: MicroflowNodeCreateContext;
   onAdd: (item: MicroflowNodeRegistryItem) => void;
   onFavoriteToggle: (item: MicroflowNodeRegistryItem) => void;
   onShowDocumentation: (item: MicroflowNodeRegistryItem) => void;
@@ -738,7 +751,7 @@ export function MicroflowNodeContextMenu({
   if (!state) {
     return null;
   }
-  const disabled = Boolean(getDisabledDragReason(state.item));
+  const disabled = Boolean(getMicroflowNodeDisabledReason(state.item, createContext));
   const menuItems: Array<{ key: string; label: string; icon: ReactNode; disabled?: boolean; onClick: () => void }> = [
     { key: "add", label: labels.addToCanvas, icon: <IconPlus />, disabled, onClick: () => onAdd(state.item) },
     { key: "favorite", label: favorite ? labels.unfavorite : labels.favorite, icon: favorite ? <IconStar /> : <IconStarStroked />, disabled, onClick: () => onFavoriteToggle(state.item) },
@@ -809,35 +822,41 @@ export function MicroflowNodePanel({
   const labels = { ...defaultMicroflowNodePanelLabels, ...labelOverrides };
   const [activeTab, setActiveTab] = useState<"nodes" | "components" | "templates">("nodes");
   const [keyword, setKeyword] = useState("");
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [filterKey, setFilterKey] = useState<MicroflowNodeFilterKey>("all");
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => readStoredStringList(nodePanelCategoryStorageKey, ["events", "parameters", "flowControl", "objects", "integration"]));
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => readStoredStringList(nodePanelCategoryStorageKey, ["events", "inputs", "flowControl", "loops", "objects", "integration"]));
   const [expandedGroups, setExpandedGroups] = useState<string[]>(() => readStoredStringList(nodePanelGroupStorageKey, []));
   const [contextMenu, setContextMenu] = useState<ContextMenuState>();
 
   const grouped = useMemo(() => MicroflowNodePanelRegistryAdapter({
     registry,
-    keyword,
+    keyword: debouncedKeyword,
     filterKey,
     favoriteNodeKeys
-  }), [favoriteNodeKeys, filterKey, keyword, registry]);
+  }), [debouncedKeyword, favoriteNodeKeys, filterKey, registry]);
 
   const favoriteSet = useMemo(() => new Set(favoriteNodeKeys), [favoriteNodeKeys]);
 
   useEffect(() => {
-    if (!keyword.trim()) {
+    const timer = window.setTimeout(() => setDebouncedKeyword(keyword), 200);
+    return () => window.clearTimeout(timer);
+  }, [keyword]);
+
+  useEffect(() => {
+    if (!debouncedKeyword.trim()) {
       return;
     }
     setExpandedCategories(grouped.map(category => category.category.key));
     setExpandedGroups(grouped.flatMap(category => category.groups.map(group => `${category.category.key}:${group.key}`)));
-  }, [grouped, keyword]);
+  }, [debouncedKeyword, grouped]);
 
   useEffect(() => {
-    if (keyword.trim()) {
+    if (debouncedKeyword.trim()) {
       return;
     }
     writeStoredStringList(nodePanelCategoryStorageKey, expandedCategories);
     writeStoredStringList(nodePanelGroupStorageKey, expandedGroups);
-  }, [expandedCategories, expandedGroups, keyword]);
+  }, [debouncedKeyword, expandedCategories, expandedGroups]);
 
   useEffect(() => {
     if (!contextMenu) {
@@ -854,8 +873,8 @@ export function MicroflowNodePanel({
   }
 
   function handleAdd(item: MicroflowNodeRegistryItem, source: "doubleClick" | "contextMenu" = "doubleClick") {
-    if (!canDragRegistryItem(item)) {
-      Toast.warning(getDisabledDragReason(item) ?? labels.disabled);
+    if (!canCreateRegistryItem(item, createContext)) {
+      Toast.warning(getMicroflowNodeDisabledReason(item, createContext) ?? labels.disabled);
       return;
     }
     onAddNode(item, { source });
@@ -925,6 +944,7 @@ export function MicroflowNodePanel({
         state={contextMenu}
         labels={labels}
         favorite={contextMenu ? favoriteSet.has(getMicroflowNodeRegistryKey(contextMenu.item)) : false}
+        createContext={createContext}
         onAdd={item => handleAdd(item, "contextMenu")}
         onFavoriteToggle={toggleFavorite}
         onShowDocumentation={item => onShowDocumentation?.(item)}

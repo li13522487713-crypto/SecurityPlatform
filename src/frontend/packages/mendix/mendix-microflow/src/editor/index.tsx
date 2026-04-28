@@ -26,7 +26,6 @@ import {
   type MicroflowNodeRegistryItem
 } from "../node-registry";
 import {
-  createLocalMicroflowApiClient,
   type MicroflowApiClient,
   type MicroflowRunHistoryItem,
   type MicroflowTraceFrame,
@@ -37,6 +36,7 @@ import {
 import {
   applyEditorGraphPatchToAuthoring,
   createAnnotationFlow,
+  createMicroflowFlowId,
   createObjectFromRegistry,
   createSequenceFlow,
   deleteFlow,
@@ -135,6 +135,8 @@ function mapSchemaChangeReason(reason: string | MicroflowHistoryReason): Microfl
       return "addFlow";
     case "flowgramLineDelete":
       return "deleteFlow";
+    case "flowgramNodeDelete":
+      return "deleteNode";
     case "updateParameter":
     case "updateParameterObject":
     case "propertyPanel":
@@ -280,6 +282,19 @@ function createValidationServiceIssue(error: unknown, mode: MicroflowValidationM
     fieldPath: "validation",
     message: error instanceof Error ? `校验服务不可用：${error.message}` : "校验服务不可用，请检查后端服务或网络。",
   };
+}
+
+function createMissingMicroflowApiClient(): MicroflowApiClient {
+  return new Proxy({}, {
+    get: (_target, property) => {
+      if (typeof property === "string") {
+        return () => {
+          throw new Error(`Microflow apiClient is required for ${property}; localStorage persistence is not used in this editor.`);
+        };
+      }
+      return undefined;
+    }
+  }) as MicroflowApiClient;
 }
 
 function summarizeValidationIssues(issues: MicroflowValidationIssue[]) {
@@ -495,10 +510,10 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
   const source = findObject(schema, sourceObjectId);
   const target = findObject(schema, targetObjectId);
   if (!source || !target) {
-    return createSequenceFlow({ originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
+    return createSequenceFlow({ id: createMicroflowFlowId(schema, "flow"), originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
   }
   if (source.kind === "annotation" || target.kind === "annotation") {
-    return createAnnotationFlow({ originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
+    return createAnnotationFlow({ id: createMicroflowFlowId(schema, "annotation-flow"), originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
   }
   const supportsErrorHandling = source.kind === "actionActivity"
     ? source.action.errorHandlingType !== "rollback"
@@ -507,6 +522,7 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
       : source.kind === "exclusiveSplit" || source.kind === "inheritanceSplit";
   if (target.kind === "errorEvent" && supportsErrorHandling) {
     return createSequenceFlow({
+      id: createMicroflowFlowId(schema, "flow"),
       originObjectId: sourceObjectId,
       destinationObjectId: targetObjectId,
       isErrorHandler: true,
@@ -527,6 +543,7 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
       );
       if (!used.has(true)) {
         return createSequenceFlow({
+          id: createMicroflowFlowId(schema, "flow"),
           originObjectId: sourceObjectId,
           destinationObjectId: targetObjectId,
           edgeKind: "decisionCondition",
@@ -536,6 +553,7 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
       }
       if (!used.has(false)) {
         return createSequenceFlow({
+          id: createMicroflowFlowId(schema, "flow"),
           originObjectId: sourceObjectId,
           destinationObjectId: targetObjectId,
           edgeKind: "decisionCondition",
@@ -545,6 +563,7 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
       }
     }
     return createSequenceFlow({
+      id: createMicroflowFlowId(schema, "flow"),
       originObjectId: sourceObjectId,
       destinationObjectId: targetObjectId,
       edgeKind: "decisionCondition",
@@ -560,6 +579,7 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
       .map(caseValue => caseValue.entityQualifiedName);
     const nextEntity = source.entity.allowedSpecializations.find(entity => !existingCases.includes(entity));
     return createSequenceFlow({
+      id: createMicroflowFlowId(schema, "flow"),
       originObjectId: sourceObjectId,
       destinationObjectId: targetObjectId,
       edgeKind: "objectTypeCondition",
@@ -569,7 +589,7 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
       label: nextEntity ?? "fallback"
     });
   }
-  return createSequenceFlow({ originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
+  return createSequenceFlow({ id: createMicroflowFlowId(schema, "flow"), originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
 }
 
 function caseValueFromPort(sourcePort: MicroflowEditorPort, source?: MicroflowObject): MicroflowCaseValue[] {
@@ -595,17 +615,19 @@ function createFlowFromPorts(schema: MicroflowSchema, sourcePort: MicroflowEdito
   const source = findObject(schema, sourcePort.objectId);
   const target = findObject(schema, targetPort.objectId);
   if (!source || !target) {
-    return createSequenceFlow({ originObjectId: sourcePort.objectId, destinationObjectId: targetPort.objectId });
+    return createSequenceFlow({ id: createMicroflowFlowId(schema, "flow"), originObjectId: sourcePort.objectId, destinationObjectId: targetPort.objectId });
   }
   const edgeKind = inferEdgeKindFromPorts(source, target, sourcePort);
   if (edgeKind === "annotation") {
     return createAnnotationFlow({
+      id: createMicroflowFlowId(schema, "annotation-flow"),
       originObjectId: sourcePort.objectId,
       destinationObjectId: targetPort.objectId,
       label: "annotation"
     });
   }
   return createSequenceFlow({
+    id: createMicroflowFlowId(schema, "flow"),
     originObjectId: sourcePort.objectId,
     destinationObjectId: targetPort.objectId,
     originConnectionIndex: sourcePort.connectionIndex,
@@ -1203,7 +1225,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const labels = { ...defaultLabels, ...props.labels };
   const loadedMetadata = useMicroflowMetadataCatalog();
   const metadataForRefresh = loadedMetadata ?? props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
-  const apiClient = props.apiClient ?? createLocalMicroflowApiClient();
+  const apiClient = props.apiClient ?? createMissingMicroflowApiClient();
   const persistAuxPanelState = props.persistAuxPanelState !== false;
   const rightPanelFallback = props.defaultRightPanelOpen ?? (props.immersive === true);
   const bottomPanelFallback = props.defaultBottomPanelOpen ?? (props.immersive === true);
@@ -1223,6 +1245,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const moveHistoryTimerRef = useRef<number | undefined>();
   const pendingMoveSchemaRef = useRef<MicroflowSchema | undefined>();
   const shellRef = useRef<HTMLDivElement>(null);
+  const [clipboardObject, setClipboardObject] = useState<{ microflowId: string; objectId: string }>();
   const [favoriteNodeKeys, setFavoriteNodeKeys] = useState(readFavoriteNodeKeys);
   const [validationTrigger, setValidationTrigger] = useState(0);
   const {
@@ -1441,7 +1464,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (!options.skipDirty && source !== "runtime") {
       clearRuntimeState();
     }
-    props.onSchemaChange?.(refreshed);
+    if (!options.skipDirty) {
+      props.onSchemaChange?.(refreshed);
+    }
   };
 
   const applyPatch = (
@@ -1882,6 +1907,36 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
   };
 
+  const handleCopySelection = () => {
+    const objectId = schema.editor.selection.objectId;
+    if (!objectId || !findObject(schema, objectId)) {
+      Toast.info("请选择一个节点后复制。");
+      return;
+    }
+    setClipboardObject({ microflowId: schema.id, objectId });
+    Toast.success("已复制节点。");
+  };
+
+  const handlePasteSelection = () => {
+    if (props.readonly) {
+      return;
+    }
+    if (!clipboardObject) {
+      Toast.info("没有可粘贴的节点。");
+      return;
+    }
+    if (clipboardObject.microflowId !== schema.id) {
+      Toast.warning("本轮暂不支持跨微流粘贴，请在源微流内粘贴。");
+      return;
+    }
+    const source = findObjectWithCollection(schema, clipboardObject.objectId);
+    if (!source) {
+      Toast.warning("复制的源节点已不存在。");
+      return;
+    }
+    commitSchema(duplicateObject(schema, clipboardObject.objectId), source.parentLoopObjectId ? "addLoopNode" : "addNode", { source: "flowgram" });
+  };
+
   const handleEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (isEditableElement(event.target)) {
       return;
@@ -1900,6 +1955,16 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if ((event.ctrlKey || event.metaKey) && key === "s") {
       event.preventDefault();
       void handleSave();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === "c" && !props.readonly) {
+      event.preventDefault();
+      handleCopySelection();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === "v" && !props.readonly) {
+      event.preventDefault();
+      handlePasteSelection();
       return;
     }
     if ((key === "delete" || key === "backspace") && !props.readonly) {
@@ -1976,6 +2041,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     onRedo: handleRedo,
     onSave: () => void handleSave(),
     onSearch: focusNodeSearch,
+    onCopySelection: handleCopySelection,
+    onPasteSelection: handlePasteSelection,
     onDeleteSelection: handleDeleteSelection,
     onEscape: clearSelection,
   });
@@ -2016,6 +2083,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             position="bottomRight"
             render={(
               <Dropdown.Menu>
+                <Dropdown.Item icon={<IconCopy />} disabled={props.readonly || !schema.editor.selection.objectId} onClick={handleCopySelection}>复制节点</Dropdown.Item>
+                <Dropdown.Item icon={<IconCopy />} disabled={props.readonly || !clipboardObject} onClick={handlePasteSelection}>粘贴节点</Dropdown.Item>
                 <Dropdown.Item icon={<IconDelete />} disabled={props.readonly || !schema.editor.selection.objectId && !schema.editor.selection.flowId} onClick={handleDeleteSelection}>删除选择</Dropdown.Item>
                 <Dropdown.Item icon={<IconRefresh />} onClick={handleAutoLayout}>{labels.format}</Dropdown.Item>
                 <Dropdown.Item onClick={focusNodeSearch}>搜索节点</Dropdown.Item>
@@ -2049,7 +2118,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               onAddNode={(item, options) => handleAddNode(item, options)}
               onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
               labels={props.nodePanelLabels}
-              createContext={{ microflowId: schema.id, moduleId: schema.moduleId, metadataAvailable: Boolean(loadedMetadata) }}
+              createContext={{ microflowId: schema.id, moduleId: schema.moduleId, metadataAvailable: Boolean(loadedMetadata), schemaLoaded: true, readonly: props.readonly }}
             />
           </div>
         ) : (
@@ -2103,7 +2172,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             commitSchema(
               { ...schema, editor: { ...schema.editor, viewport, zoom: viewport.zoom } },
               "bulkUpdate",
-              { pushHistory: false, skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" },
+              { pushHistory: false, historyLabel: "Update viewport", skipValidate: true, preserveSelection: true, source: "flowgram" },
             );
           }}
           onToggleMiniMap={visible => {

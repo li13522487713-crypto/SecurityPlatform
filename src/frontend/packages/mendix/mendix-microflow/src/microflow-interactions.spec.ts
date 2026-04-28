@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { addFlow, applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteFlow, deleteObject, duplicateObject, moveObject, toEditorGraph, updateFlow, updateObject } from "./adapters";
 import {
   addMicroflowObjectFromDragPayload,
+  canCreateRegistryItem,
   canConnectPorts,
   createDragPayloadFromRegistryItem,
   createDefaultActionConfig,
   defaultMicroflowNodeRegistry,
+  getMicroflowNodeDisabledReason,
   getMicroflowNodeRegistryKey,
+  searchMicroflowNodes,
 } from "./node-registry";
 import { sampleMicroflowSchema, validateMicroflowSchema } from "./schema";
 import { createNoCaseValue, getCaseDisplayLabel, isCaseValueDuplicate, updateFlowCaseValue } from "./schema/utils";
@@ -14,7 +17,15 @@ import { collectFlowsRecursive } from "./schema/utils/object-utils";
 import { buildVariableIndex } from "./variables";
 import { authoringToFlowGram } from "./flowgram/adapters/authoring-to-flowgram";
 import { createMicroflowFlowFromPorts } from "./flowgram/adapters/flowgram-edge-factory";
-import { flowGramPositionPatch, flowGramSelectionPatch } from "./flowgram/adapters/flowgram-to-authoring-patch";
+import {
+  getConnectionIndexFromSourceHandle,
+  getConnectionIndexFromTargetHandle,
+  getSourceHandleFromConnectionIndex,
+  getTargetHandleFromConnectionIndex,
+  mapFlowGramEdgeToMicroflowFlow,
+  mapMicroflowFlowToFlowGramEdge,
+} from "./flowgram/adapters/flowgram-edge-mapping";
+import { findDeletedObjectId, flowGramPositionPatch, flowGramSelectionPatch } from "./flowgram/adapters/flowgram-to-authoring-patch";
 import {
   booleanCaseValue,
   enumerationCaseValue,
@@ -46,6 +57,38 @@ function schemaWith(objects: MicroflowObject[], flows: MicroflowSchema["flows"] 
 }
 
 describe("microflow editor interactions", () => {
+  it("exposes production toolbox metadata for every registry item", () => {
+    for (const entry of defaultMicroflowNodeRegistry) {
+      expect(entry.id || getMicroflowNodeRegistryKey(entry)).toBeTruthy();
+      expect(entry.type).toBeTruthy();
+      expect(entry.category).toBeTruthy();
+      expect(entry.label || entry.title).toBeTruthy();
+      expect(entry.description).toBeTruthy();
+      expect(entry.iconKey).toBeTruthy();
+      expect(entry.keywords.length).toBeGreaterThan(0);
+      expect(entry.createDefaultConfig?.()).toBeTruthy();
+      expect(entry.featureStatus).toBeTruthy();
+      if (entry.type === "activity") {
+        expect(entry.actionKind).toBeTruthy();
+      }
+    }
+  });
+
+  it("supports toolbox search by label, type, and actionKind", () => {
+    expect(searchMicroflowNodes("Start").some(entry => entry.type === "startEvent")).toBe(true);
+    expect(searchMicroflowNodes("startEvent").some(entry => entry.type === "startEvent")).toBe(true);
+    expect(searchMicroflowNodes("callMicroflow").some(entry => entry.actionKind === "callMicroflow")).toBe(true);
+  });
+
+  it("reports disabled reasons and metadata warnings from toolbox context", () => {
+    const createObject = registry("activity:objectCreate");
+    const callMicroflow = registry("activity:callMicroflow");
+
+    expect(canCreateRegistryItem(createObject, { microflowId: "mf-a", schemaLoaded: true, metadataAvailable: false })).toBe(true);
+    expect(getMicroflowNodeDisabledReason(createObject, {})).toBe("Open a microflow to add nodes.");
+    expect(callMicroflow.metadataRequirements).toContain("microflows");
+  });
+
   it("keeps node registry defaults free of demo business references", () => {
     const demoPattern = /Sales|MF_ValidateOrder|ValidateOrder|ProcessOrder|CheckInventory|NotifyUser|OrderLine|Customer|Product|Inventory|\/api\/orders|api\.example\.com/i;
     const defaults = defaultMicroflowNodeRegistry.map(entry => ({
@@ -234,6 +277,60 @@ describe("microflow editor interactions", () => {
     expect(flowGram.edges.find(edge => (edge as { id?: string }).id === falseFlow.id)?.sourcePortID).toBe(falsePort.id);
   });
 
+  it("maps FlowGram edges to schema flows without losing handles or branch cases", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "map-decision");
+    const target = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 0 }, "map-target");
+    const base = schemaWith([decision, target]);
+    const graph = toEditorGraph(base);
+    const sourcePort = graph.nodes.find(node => node.objectId === decision.id)?.ports.find(port => port.label.toLowerCase() === "true");
+    const targetPort = graph.nodes.find(node => node.objectId === target.id)?.ports.find(port => port.direction === "input");
+    if (!sourcePort || !targetPort) {
+      throw new Error("Expected decision source and target ports.");
+    }
+
+    const flow = mapFlowGramEdgeToMicroflowFlow(base, {
+      id: "flowgram-edge",
+      sourceNodeID: decision.id,
+      targetNodeID: target.id,
+      sourcePortID: sourcePort.id,
+      targetPortID: targetPort.id,
+      data: { caseValues: [booleanCaseValue(true)], label: "High Amount" },
+    });
+
+    expect(flow?.kind).toBe("sequence");
+    expect(flow).toMatchObject({
+      originObjectId: decision.id,
+      destinationObjectId: target.id,
+      originConnectionIndex: sourcePort.connectionIndex,
+      destinationConnectionIndex: targetPort.connectionIndex,
+    });
+    expect(flow?.kind === "sequence" ? flow.caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: true });
+    expect(flow?.editor.label).toBe("High Amount");
+  });
+
+  it("maps schema flows back to FlowGram edges with connection-index based handles", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "map-start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "map-end");
+    const flow = createSequenceFlow({
+      originObjectId: start.id,
+      destinationObjectId: end.id,
+      originConnectionIndex: 0,
+      destinationConnectionIndex: 0,
+      label: "done",
+    });
+    const schema = schemaWith([start, end], [flow]);
+
+    const edge = mapMicroflowFlowToFlowGramEdge(schema, flow);
+
+    expect(edge.sourceNodeID).toBe(start.id);
+    expect(edge.targetNodeID).toBe(end.id);
+    expect(edge.sourcePortID).toBe(getSourceHandleFromConnectionIndex(start.id, "sequence", 0));
+    expect(edge.targetPortID).toBe(getTargetHandleFromConnectionIndex(end.id, "sequence", 0));
+    expect(getConnectionIndexFromSourceHandle(edge.sourcePortID)).toBe(flow.originConnectionIndex);
+    expect(getConnectionIndexFromTargetHandle(edge.targetPortID)).toBe(flow.destinationConnectionIndex);
+    expect(edge.data?.label).toBe("done");
+  });
+
   it("deletes and updates flows through schema helpers", () => {
     const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "delete-flow-start");
     const end = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "delete-flow-end");
@@ -250,6 +347,32 @@ describe("microflow editor interactions", () => {
     expect(labelled.flows[0]?.editor.label).toBe("Ready");
     expect(deleted.flows).toHaveLength(0);
     expect(deleted.editor.selection.flowId).toBeUndefined();
+  });
+
+  it("detects FlowGram node deletion and removes related schema flows", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "delete-node-start");
+    const decision = createObjectFromRegistry(registry("decision"), { x: 200, y: 0 }, "delete-node-decision");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 400, y: 0 }, "delete-node-end");
+    const incoming = createSequenceFlow({ originObjectId: start.id, destinationObjectId: decision.id });
+    const outgoing = createSequenceFlow({
+      originObjectId: decision.id,
+      destinationObjectId: end.id,
+      originConnectionIndex: 1,
+      edgeKind: "decisionCondition",
+      caseValues: [booleanCaseValue(true)],
+    });
+    const schema = schemaWith([start, decision, end], [incoming, outgoing]);
+    const flowGram = authoringToFlowGram(schema, [], []);
+    const deletedObjectId = findDeletedObjectId(schema, {
+      ...flowGram,
+      nodes: flowGram.nodes.filter(node => node.id !== decision.id),
+      edges: flowGram.edges.filter(edge => edge.sourceNodeID !== decision.id && edge.targetNodeID !== decision.id),
+    });
+    const next = applyEditorGraphPatchToAuthoring(schema, { deleteObjectId: deletedObjectId });
+
+    expect(deletedObjectId).toBe(decision.id);
+    expect(next.objectCollection.objects.some(object => object.id === decision.id)).toBe(false);
+    expect(collectFlowsRecursive(next).some(flow => flow.originObjectId === decision.id || flow.destinationObjectId === decision.id)).toBe(false);
   });
 
   it("keeps flow creation isolated between separate microflow schemas", () => {
@@ -428,7 +551,9 @@ describe("microflow editor interactions", () => {
       payload: createDragPayloadFromRegistryItem(registry("breakEvent")),
       position: { x: 200, y: 0 },
     });
-    expect(breakResult.blockedReason).toContain("Break / Continue");
+    expect(breakResult.blockedReason).toBeUndefined();
+    expect(breakResult.warnings).toContain("Requires a Loop context.");
+    expect(breakResult.schema.objectCollection.objects).toHaveLength(1);
 
     const nanoflow = addMicroflowObjectFromDragPayload({
       schema: schemaWith([]),

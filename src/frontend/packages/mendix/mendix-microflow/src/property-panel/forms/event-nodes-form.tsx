@@ -40,6 +40,7 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
         </Field>
         <Field label="Outgoing Flows">
           <TextArea value={outgoingSummary || "No outgoing flow"} autosize disabled />
+          {!outgoingSummary ? <Text type="warning" size="small">Start has no outgoing flow.</Text> : null}
         </Field>
         {startCount > 1 ? <Text type="warning" size="small">A microflow should contain only one StartEvent.</Text> : null}
       </>

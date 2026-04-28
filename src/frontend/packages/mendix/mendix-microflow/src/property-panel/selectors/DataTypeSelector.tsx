@@ -3,7 +3,7 @@ import type { MicroflowDataType } from "../../schema";
 import { EntitySelector } from "./EntitySelector";
 import { EnumerationSelector } from "./EnumerationSelector";
 
-const primitiveKinds: MicroflowDataType["kind"][] = ["void", "boolean", "integer", "long", "decimal", "string", "dateTime", "enumeration", "object", "list", "fileDocument", "json"];
+const primitiveKinds: MicroflowDataType["kind"][] = ["void", "boolean", "integer", "long", "decimal", "string", "dateTime", "enumeration", "object", "list", "fileDocument", "binary", "json", "unknown"];
 
 function defaultType(kind: MicroflowDataType["kind"]): MicroflowDataType {
   if (kind === "enumeration") {
@@ -30,14 +30,16 @@ export function DataTypeSelector({ value, onChange, disabled, allowVoid }: {
   disabled?: boolean;
   allowVoid?: boolean;
 }) {
-  const optionKinds = disabled ? primitiveKinds : primitiveKinds.filter(kind => allowVoid !== false || kind !== "void");
+  const optionKinds = disabled
+    ? primitiveKinds
+    : primitiveKinds.filter(kind => (kind !== "unknown" || value.kind === "unknown") && (allowVoid !== false || kind !== "void"));
   return (
     <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
       <Select
         disabled={disabled}
         value={value.kind}
         style={{ width: "100%" }}
-        optionList={optionKinds.map(kind => ({ label: kind, value: kind }))}
+        optionList={optionKinds.map(kind => ({ label: kind, value: kind, disabled: kind === "unknown" }))}
         onChange={kind => onChange(defaultType(String(kind) as MicroflowDataType["kind"]))}
       />
       {value.kind === "enumeration" ? (

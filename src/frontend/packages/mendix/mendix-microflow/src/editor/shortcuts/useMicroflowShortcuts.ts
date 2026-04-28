@@ -10,6 +10,8 @@ export interface UseMicroflowShortcutsOptions {
   onRedo: () => void;
   onSave: () => void;
   onSearch: () => void;
+  onCopySelection?: () => void;
+  onPasteSelection?: () => void;
   onDeleteSelection: () => void;
   onEscape: () => void;
 }
@@ -22,6 +24,8 @@ export function useMicroflowShortcuts({
   onRedo,
   onSave,
   onSearch,
+  onCopySelection,
+  onPasteSelection,
   onDeleteSelection,
   onEscape,
 }: UseMicroflowShortcutsOptions) {
@@ -70,6 +74,18 @@ export function useMicroflowShortcuts({
         return;
       }
 
+      if (!readonly && commandKey && key === "c" && onCopySelection) {
+        event.preventDefault();
+        onCopySelection();
+        return;
+      }
+
+      if (!readonly && commandKey && key === "v" && onPasteSelection) {
+        event.preventDefault();
+        onPasteSelection();
+        return;
+      }
+
       if (!readonly && (key === "delete" || key === "backspace")) {
         event.preventDefault();
         onDeleteSelection();
@@ -84,5 +100,5 @@ export function useMicroflowShortcuts({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [active, containerRef, onDeleteSelection, onEscape, onRedo, onSave, onSearch, onUndo, readonly]);
+  }, [active, containerRef, onCopySelection, onDeleteSelection, onEscape, onPasteSelection, onRedo, onSave, onSearch, onUndo, readonly]);
 }

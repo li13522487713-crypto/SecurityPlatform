@@ -90,6 +90,17 @@ beforeEach(() => {
   useMendixStudioStore.setState({
     activeTab: "pageBuilder",
     activeTabId: "page",
+    workbenchTabs: [
+      {
+        id: "page",
+        kind: "page",
+        title: "Page",
+        resourceId: "page",
+        closable: false,
+        openedAt: "2026-04-28T00:00:00.000Z",
+        historyKey: "page",
+      },
+    ],
     activeWorkbenchTabId: "page",
     activeModuleId: undefined,
     activeMicroflowId: undefined,

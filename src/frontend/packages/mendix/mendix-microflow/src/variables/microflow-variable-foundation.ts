@@ -10,6 +10,7 @@ import type {
   MicroflowVariableIndex,
   MicroflowVariableSymbol,
 } from "../schema/types";
+import { duplicateObject } from "../adapters/authoring-operations";
 import { buildVariableIndex } from "./variable-index";
 
 function mapObjectCollection(
@@ -24,6 +25,20 @@ function mapObjectCollection(
         ? { ...next, objectCollection: mapObjectCollection(next.objectCollection, updater) }
         : next;
     }),
+  };
+}
+
+function removeCreateVariableObject(
+  collection: MicroflowObjectCollection,
+  variableIdOrSourceObjectId: string,
+): MicroflowObjectCollection {
+  return {
+    ...collection,
+    objects: collection.objects
+      .filter(object => !(object.kind === "actionActivity" && object.action.kind === "createVariable" && (object.id === variableIdOrSourceObjectId || object.action.id === variableIdOrSourceObjectId)))
+      .map(object => object.kind === "loopedActivity"
+        ? { ...object, objectCollection: removeCreateVariableObject(object.objectCollection, variableIdOrSourceObjectId) }
+        : object),
   };
 }
 
@@ -62,6 +77,23 @@ export function getMicroflowVariables(schema: MicroflowAuthoringSchema): Microfl
   return buildMicroflowVariableIndex(schema).all ?? [];
 }
 
+export function buildMicroflowExpressionContext(schema: MicroflowAuthoringSchema): MicroflowVariableSymbol[] {
+  return getMicroflowVariables(schema);
+}
+
+export function getMicroflowVariableByName(schema: MicroflowAuthoringSchema, name: string): MicroflowVariableSymbol | undefined {
+  const normalized = normalizeName(name);
+  return getMicroflowVariables(schema).find(symbol => normalizeName(symbol.name) === normalized);
+}
+
+export function getMicroflowVariableById(schema: MicroflowAuthoringSchema, id: string): MicroflowVariableSymbol | undefined {
+  return getMicroflowVariables(schema).find(symbol =>
+    symbol.id === id ||
+    (symbol.source.kind === "createVariable" && (symbol.source.actionId === id || symbol.source.objectId === id)) ||
+    (symbol.source.kind === "parameter" && symbol.source.parameterId === id)
+  );
+}
+
 export function upsertMicroflowVariable(
   schema: MicroflowAuthoringSchema,
   variable: { id: string; name: string; dataType: MicroflowDataType; initialValue?: MicroflowExpression; description?: string; readonly?: boolean },
@@ -77,13 +109,7 @@ export function upsertMicroflowVariable(
 }
 
 export function removeMicroflowVariable(schema: MicroflowAuthoringSchema, variableId: string): MicroflowAuthoringSchema {
-  const variableName = getMicroflowVariables(schema).find(symbol => symbol.source.kind === "createVariable" && symbol.source.actionId === variableId)?.name ?? variableId;
-  return refreshVariableIndex({
-    ...schema,
-    objectCollection: mapObjectCollection(schema.objectCollection, object => object.kind === "actionActivity" && object.action.kind === "changeVariable" && object.action.targetVariableName === variableName
-      ? { ...object, action: { ...object.action, targetVariableName: "" } }
-      : object),
-  });
+  return removeMicroflowVariableDefinition(schema, variableId);
 }
 
 export function renameMicroflowVariable(
@@ -146,6 +172,47 @@ export function updateChangeVariableExpression(
   });
 }
 
+export function updateCreateVariableConfig(
+  schema: MicroflowAuthoringSchema,
+  objectId: string,
+  patch: Partial<Pick<Extract<MicroflowAction, { kind: "createVariable" }>, "variableName" | "dataType" | "initialValue" | "documentation" | "readonly">>,
+): MicroflowAuthoringSchema {
+  return refreshVariableIndex({
+    ...schema,
+    objectCollection: mapObjectCollection(schema.objectCollection, object => object.id === objectId && object.kind === "actionActivity" && object.action.kind === "createVariable"
+      ? { ...object, action: { ...object.action, ...patch } }
+      : object),
+  });
+}
+
+export function updateChangeVariableConfig(
+  schema: MicroflowAuthoringSchema,
+  objectId: string,
+  patch: Partial<Pick<Extract<MicroflowAction, { kind: "changeVariable" }>, "targetVariableName" | "newValueExpression" | "documentation">>,
+): MicroflowAuthoringSchema {
+  return refreshVariableIndex({
+    ...schema,
+    objectCollection: mapObjectCollection(schema.objectCollection, object => object.id === objectId && object.kind === "actionActivity" && object.action.kind === "changeVariable"
+      ? { ...object, action: { ...object.action, ...patch } }
+      : object),
+  });
+}
+
+export const upsertMicroflowVariableDefinition = upsertMicroflowVariable;
+
+export function removeMicroflowVariableDefinition(schema: MicroflowAuthoringSchema, variableIdOrSourceObjectId: string): MicroflowAuthoringSchema {
+  return refreshVariableIndex({
+    ...schema,
+    objectCollection: removeCreateVariableObject(schema.objectCollection, variableIdOrSourceObjectId),
+  });
+}
+
+export const renameMicroflowVariableDefinition = renameMicroflowVariable;
+
+export function duplicateCreateVariableObject(schema: MicroflowAuthoringSchema, objectId: string): MicroflowAuthoringSchema {
+  return refreshVariableIndex(duplicateObject(schema, objectId) as MicroflowAuthoringSchema);
+}
+
 export function getVariableNameConflicts(schema: MicroflowAuthoringSchema, variableName: string, excludeVariableId?: string): string[] {
   const normalized = normalizeName(variableName);
   if (!normalized) {
@@ -182,6 +249,11 @@ export function getVariableReferences(schema: MicroflowAuthoringSchema, variable
       if (object.kind === "loopedActivity") {
         visit(object.objectCollection);
       }
+      for (const [fieldPath, expression] of expressionsForObject(object)) {
+        if (expression.raw.includes(variableName) || expression.raw.includes(`$${variableName}`)) {
+          references.push({ objectId: object.id, fieldPath });
+        }
+      }
       if (object.kind !== "actionActivity") {
         continue;
       }
@@ -197,6 +269,41 @@ export function getVariableReferences(schema: MicroflowAuthoringSchema, variable
   };
   visit(schema.objectCollection);
   return references;
+}
+
+export const findVariableTextReferences = getVariableReferences;
+
+export function getStaleVariableReferences(schema: MicroflowAuthoringSchema): Array<{ objectId: string; actionId?: string; fieldPath: string; variableName: string }> {
+  const availableNames = new Set(getMicroflowVariables(schema).map(symbol => symbol.name));
+  const staleReferences: Array<{ objectId: string; actionId?: string; fieldPath: string; variableName: string }> = [];
+  const visit = (collection: MicroflowObjectCollection) => {
+    for (const object of collection.objects) {
+      if (object.kind === "loopedActivity") {
+        visit(object.objectCollection);
+      }
+      if (object.kind === "actionActivity" && object.action.kind === "changeVariable" && object.action.targetVariableName && !availableNames.has(object.action.targetVariableName)) {
+        staleReferences.push({ objectId: object.id, actionId: object.action.id, fieldPath: "action.targetVariableName", variableName: object.action.targetVariableName });
+      }
+    }
+  };
+  visit(schema.objectCollection);
+  return staleReferences;
+}
+
+function expressionsForObject(object: MicroflowObject): Array<[string, MicroflowExpression]> {
+  if (object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression") {
+    return [["splitCondition.expression", object.splitCondition.expression]];
+  }
+  if (object.kind === "endEvent" && object.returnValue) {
+    return [["returnValue", object.returnValue]];
+  }
+  if (object.kind === "errorEvent" && object.error.messageExpression) {
+    return [["error.messageExpression", object.error.messageExpression]];
+  }
+  if (object.kind === "loopedActivity" && object.loopSource.kind === "whileCondition") {
+    return [["loopSource.expression", object.loopSource.expression]];
+  }
+  return [];
 }
 
 function expressionsForAction(action: MicroflowAction): Array<[string, MicroflowExpression]> {

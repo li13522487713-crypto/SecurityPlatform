@@ -76,6 +76,11 @@ function listVariableItemType(symbol?: MicroflowVariableSymbol): MicroflowDataTy
   return symbol?.dataType.kind === "list" ? symbol.dataType.itemType : undefined;
 }
 
+function listVariableEntityQualifiedName(symbol?: MicroflowVariableSymbol): string | undefined {
+  const itemType = listVariableItemType(symbol);
+  return itemType?.kind === "object" ? itemType.entityQualifiedName : undefined;
+}
+
 export function ActionActivityForm({
   schema,
   object,
@@ -111,6 +116,10 @@ export function ActionActivityForm({
   const restFormBody = action.kind === "restCall" && action.request.body.kind === "form" ? action.request.body : undefined;
   const createVariableConflicts = action.kind === "createVariable" ? getVariableNameConflicts(schema, action.variableName, action.id) : [];
   const createVariableReferences = action.kind === "createVariable" ? getVariableReferences(schema, action.id).filter(reference => reference.objectId !== object.id || reference.fieldPath !== "action.initialValue") : [];
+  const selectedChangeVariable = action.kind === "changeVariable" && action.targetVariableName
+    ? (variableIndex.byName?.[action.targetVariableName] ?? []).find(symbol => !symbol.readonly && symbol.kind !== "system")
+    : undefined;
+  const changeVariableTargetIsStale = action.kind === "changeVariable" && Boolean(action.targetVariableName.trim()) && !selectedChangeVariable;
   const listVariables = useMemo(() => Object.values(variableIndex.listOutputs), [variableIndex]);
   const listVariableNames = useMemo(() => new Set(listVariables.map(variable => variable.name)), [listVariables]);
   const selectedSourceList = (name?: string) => name ? listVariables.find(variable => variable.name === name) : undefined;
@@ -422,7 +431,7 @@ export function ActionActivityForm({
               <Field label="Entity">
                 <EntitySelector value={action.entityQualifiedName} disabled={readonly} onChange={entityQualifiedName => patchObject(updateAction(object, { entityQualifiedName: entityQualifiedName ?? "" }))} />
                 <FieldError issues={getIssuesForField(issues, "action.entityQualifiedName")} />
-                <RequiredConfigWarning visible={!action.entityQualifiedName.trim()}>Entity 未配置；真实 Domain Model 绑定留到后续阶段。</RequiredConfigWarning>
+                <RequiredConfigWarning visible={!action.entityQualifiedName.trim()}>Entity 未配置；请选择真实 Domain Model metadata 中的实体。</RequiredConfigWarning>
               </Field>
               <FieldRow label="Output Variable" fieldPath="action.outputVariableName" required issues={getIssuesForField(issues, "action.outputVariableName")}>
                 <OutputVariableEditor
@@ -1011,7 +1020,7 @@ export function ActionActivityForm({
             <DataTypeSelector value={action.dataType} disabled={readonly} allowVoid={false} onChange={dataType => patchObject(updateAction(object, { dataType }))} />
             <FieldError issues={getIssuesForField(issues, "action.dataType")} />
             {action.dataType.kind === "object" || action.dataType.kind === "list" ? (
-              <Text type="warning" size="small">Entity metadata will be connected in Stage 19.</Text>
+              <Text type="warning" size="small">Object/List 类型需要绑定真实 metadata；metadata 缺失时不会生成默认实体。</Text>
             ) : null}
           </Field>
           <Field label="Initial Value">
@@ -1048,10 +1057,13 @@ export function ActionActivityForm({
               includeSystem={false}
               includeReadonly={false}
               scopeMode="index"
+              emptyMessage="No variables available. Add a Parameter or Create Variable first."
               onChange={targetVariableName => patchObject(updateAction(object, { targetVariableName: targetVariableName ?? "" }))}
             />
             <FieldError issues={getIssuesForField(issues, "action.targetVariableName")} />
             <RequiredConfigWarning visible={!action.targetVariableName.trim()}>Target variable 未配置；保存为待配置状态。</RequiredConfigWarning>
+            {selectedChangeVariable ? <Tag color="blue">target type: {dataTypeLabel(selectedChangeVariable.dataType)}</Tag> : null}
+            <RequiredConfigWarning visible={changeVariableTargetIsStale}>Stale target: selected variable no longer exists in the current microflow variable index.</RequiredConfigWarning>
           </Field>
           <Field label="New Value Expression">
             <ExpressionEditor
@@ -1105,7 +1117,7 @@ export function ActionActivityForm({
               onChange={elementType => patchObject(updateAction(object, { elementType, itemType: elementType }))}
             />
             {action.elementType.kind === "object" && !action.elementType.entityQualifiedName.trim() ? (
-              <Text type="warning" size="small">Entity metadata will be connected in Stage 19.</Text>
+              <Text type="warning" size="small">Object list element type requires an entity from real metadata.</Text>
             ) : null}
           </Field>
           <Field label="List Type">
@@ -1238,6 +1250,18 @@ export function ActionActivityForm({
             />
           </Field>
           <Field label="Member / Aggregate Expression">
+            {action.aggregateFunction !== "count" && listVariableEntityQualifiedName(selectedSourceList(action.listVariableName || action.sourceListVariableName)) ? (
+              <AttributeSelector
+                entityQualifiedName={listVariableEntityQualifiedName(selectedSourceList(action.listVariableName || action.sourceListVariableName))}
+                value={action.attributeQualifiedName ?? action.member}
+                disabled={readonly}
+                onChange={attributeQualifiedName => patchObject(updateAction(object, {
+                  attributeQualifiedName: attributeQualifiedName ?? "",
+                  member: attributeQualifiedName ?? "",
+                  aggregateExpression: expression(attributeQualifiedName ?? ""),
+                }))}
+              />
+            ) : null}
             <ExpressionEditor
               value={action.aggregateExpression ?? expression(action.attributeQualifiedName ?? action.member ?? "")}
               schema={schema}
@@ -1331,6 +1355,33 @@ export function ActionActivityForm({
               onChange={sortExpression => patchObject(updateAction(object, { sortExpression }))}
             />
           </Field>
+          {action.operation === "union" || action.operation === "intersect" ? (
+            <Field label="Right List">
+              <VariableSelector
+                schema={schema}
+                objectId={object.id}
+                fieldPath="action.rightListVariableName"
+                allowedTypeKinds={["list"]}
+                value={action.rightListVariableName}
+                disabled={readonly}
+                includeSystem={false}
+                scopeMode="index"
+                emptyMessage={listVariableEmptyMessage}
+                onChange={rightListVariableName => patchObject(updateAction(object, { rightListVariableName: rightListVariableName ?? "" }))}
+              />
+              <RequiredConfigWarning visible={!String(action.rightListVariableName ?? "").trim()}>Right list is required for this operation.</RequiredConfigWarning>
+            </Field>
+          ) : null}
+          {action.operation === "take" || action.operation === "skip" ? (
+            <Field label={action.operation === "take" ? "Limit" : "Offset"}>
+              <InputNumber
+                value={action.operation === "take" ? action.limit : action.offset}
+                min={0}
+                disabled={readonly}
+                onChange={value => patchObject(updateAction(object, action.operation === "take" ? { limit: Number(value ?? 0) } : { offset: Number(value ?? 0) }))}
+              />
+            </Field>
+          ) : null}
           <FieldRow label="Output List Variable" fieldPath="action.outputVariableName" required issues={getIssuesForField(issues, "action.outputVariableName")}>
             <OutputVariableEditor
               value={action.outputVariableName || action.outputListVariableName}

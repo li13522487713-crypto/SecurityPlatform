@@ -2,11 +2,11 @@
 
 ## 1. Executive Summary
 
-当前 P1 真实完成度：后端 Microflow resource/schema/metadata/validate/publish/references/test-run/run-trace API 已有较完整雏形，前端目标页 `/space/:workspaceId/mendix-studio/:appId` 已能创建 HTTP adapter bundle。Release Stage 02 已完成 App Explorer 中 Microflows 分组的真实只读列表：通过 `resourceAdapter.listMicroflows({ workspaceId, moduleId })` 加载，支持 loading/empty/error/retry/search/refresh，并将真实资源写入 `microflowResourcesById` 与 `microflowIdsByModuleId`。Release Stage 04 已完成 microflowId 驱动的 Workbench tab 文档生命周期。Release Stage 05 已把真实 microflow tab 从资源 placeholder 切换为 `MicroflowResourceEditorHost`：按 `microflowId` 加载 resource/schema，复用 `MendixMicroflowEditorEntry` 与 save bridge，保存走 `PUT /api/microflows/{id}/schema`，并更新 store/tab/dirty。第 0 轮 Create Microflow Hotfix 基本通过：弹窗已 catch `onSubmit` rejection，失败不关闭弹窗，loading 可恢复，并展示 status/code/message/traceId/fieldErrors。
+当前 P1 真实完成度：后端 Microflow resource/schema/metadata/validate/publish/references/test-run/run-trace API 已有较完整雏形，前端目标页 `/space/:workspaceId/mendix-studio/:appId` 已能创建 HTTP adapter bundle。Release Stage 02 已完成 App Explorer 中 Microflows 分组的真实只读列表：通过 `resourceAdapter.listMicroflows({ workspaceId, moduleId })` 加载，支持 loading/empty/error/retry/search/refresh，并将真实资源写入 `microflowResourcesById` 与 `microflowIdsByModuleId`。Release Stage 04 已完成 microflowId 驱动的 Workbench tab 文档生命周期。Release Stage 05 已把真实 microflow tab 从资源 placeholder 切换为 `MicroflowResourceEditorHost`：按 `microflowId` 加载 resource/schema，复用 `MendixMicroflowEditorEntry` 与 save bridge，保存走 `PUT /api/microflows/{id}/schema`，并更新 store/tab/dirty。Release Stage 06 已强化真实画布核心交互：拖拽创建、移动、删除清线、复制/粘贴、selection、viewport、dirty 与 per-editor undo/redo 均绑定当前 `MicroflowAuthoringSchema`。Release Stage 07 已强化 edge/branch 基础交互：FlowGram edge 与 `MicroflowSequenceFlow` 双向映射、`originObjectId/destinationObjectId` 与 `originConnectionIndex/destinationConnectionIndex` 持久化、Decision true/false `caseValues` 与 branch label 编辑、Edge Property Form、edge delete、节点删除相关 flow 清理及 A/B schema 隔离单测均已补齐。Release Stage 09 已完成属性面板基础节点闭环：no selection 显示 schema-bound document properties，Start/End/Parameter/Annotation/Decision/Merge/Edge 基础属性写回当前 active microflow schema，Parameter 属性同步 schema-level parameters，dirty 与保存刷新恢复沿既有真实 PUT 链路生效。第 0 轮 Create Microflow Hotfix 基本通过：弹窗已 catch `onSubmit` rejection，失败不关闭弹窗，loading 可恢复，并展示 status/code/message/traceId/fieldErrors。
 
 目标 `mendix-studio` 页面仍未达到完整发布化：Microflows 分组已真实化为只读列表，但 App Explorer 其他分组仍以 `SAMPLE_PROCUREMENT_APP` 静态数据为主，`moduleId` 来源仍是 sample procurement module；`appId` 没有驱动真实应用/模块资产树；Workbench Tabs 已具备 `microflow:{id}` 多文档 tab、`activeWorkbenchTabId`/`activeMicroflowId` 同步、per-tab dirty、close guard 和 beforeunload guard；Stage 05 已完成 schema load/save 与真实 MicroflowEditor host；Call Microflow metadata、Domain Model metadata、publish/run/trace 仍未完成。权限仍主要依赖 header/context 和生产 guard，Controller 标注 `[AllowAnonymous]`，未发现 workspace ownership 校验。
 
-最大 blocker：目标页仍不是真实 app/module 资产树，`appId` 未进入 module tree 查询维度；Call Microflow metadata、Domain Model metadata、publish/run/trace、执行引擎仍未完成，且后端 API 无版本前缀、权限/租户隔离不足。Stage 0 Hotfix 若未来发现回归，作为单独 Release Blocker 记录，但不阻塞 Stage 05 资源感知编辑器宿主。
+最大 blocker：目标页仍不是真实 app/module 资产树，`appId` 未进入 module tree 查询维度；Call Microflow metadata、Domain Model metadata、publish/run/trace、执行引擎仍未完成，且后端 API 无版本前缀、权限/租户隔离不足。Stage 0 Hotfix 若未来发现回归，作为单独 Release Blocker 记录，但不阻塞 Stage 06 画布核心交互强化。
 
 ## 2. Hotfix Verification
 
@@ -118,64 +118,69 @@ Hotfix 结论：第 0 轮 Hotfix 通过本轮源码审计；不是 Release Block
 
 | 能力 | 源码路径 | 当前实现 | 是否进入 authoring schema | 是否保存刷新恢复 | 缺口 | 建议 |
 |---|---|---|---|---|---|---|
-| drag node | `FlowGramMicroflowCanvas.tsx`; `editor/index.tsx` | DnD payload -> `onDropRegistryItem` -> add object | 是 | 是，随 schema PUT | 需 E2E | 补目标页 E2E |
-| click add node | `node-panel/index.tsx`; `editor/index.tsx` | double click/context add | 是 | 是 | 默认位置简单 | 优化 UX |
-| node position | `useFlowGramMicroflowBridge.ts` | `flowGramPositionPatch` -> schema editor position | 是 | 是 | viewport skip dirty | 保留 |
-| node delete | `editor/index.tsx` | Delete/Backspace -> `deleteObject` | 是 | 是 | 无确认 | 后续增强 |
-| node duplicate | `editor/index.tsx` | `duplicateObject` 已导入并用于交互 | 是 | 是 | 多选 duplicate 未确认 | 补测 |
+| drag node | `FlowGramMicroflowCanvas.tsx`; `editor/index.tsx`; `node-registry/drag-drop.ts` | DnD payload 含 registry key/type/actionKind -> registry 反查 -> factory -> `addMicroflowObjectFromDragPayload` -> 当前 active schema objectCollection | 是 | 是，随 schema PUT | 需浏览器 E2E | Stage 08 已补 schema/helper 单测 |
+| click add node | `node-panel/index.tsx`; `editor/index.tsx` | 节点卡片单击/context add，使用当前 viewport 安全中心点并偏移 | 是 | 是 | 需浏览器 E2E | Stage 08 发布化完成 |
+| node position | `useFlowGramMicroflowBridge.ts`; `flowgram-to-authoring-patch.ts` | `flowGramPositionPatch` -> `moveObject` -> `relativeMiddlePoint` | 是 | 是 | 快速移动需手工验收 | Stage 06 已补单测 |
+| node delete | `editor/index.tsx`; `authoring-operations.ts`; `useFlowGramMicroflowBridge.ts` | Delete/Backspace / 属性面板 / FlowGram 原生节点删除 -> `deleteObject`，同步清理 root/nested flows 与 selection | 是 | 是 | 无确认；E2E 待补 | Stage 07 已补 FlowGram node delete 同步与清线测试 |
+| node duplicate | `editor/index.tsx`; `authoring-operations.ts` | `duplicateObject` 生成新 id、偏移位置、Copy caption，不复制 flows | 是 | 是 | 多选 duplicate 未确认 | Stage 06 已补单测 |
 | multiselect | `FlowGramMicroflowCanvas.tsx`; `useFlowGramMicroflowBridge.ts` | 选择服务仅同步单 selection | 部分 | 部分 | 多选操作未完整发现 | 后续实现 |
-| copy/paste | `editor/index.tsx` | 源码中未发现完整 clipboard copy/paste 实现 | 否 | 否 | 缺失 | 第 5 轮 |
-| edge create/delete | `useFlowGramMicroflowBridge.ts` | detect new/deleted edge -> add/delete flow | 是 | 是 | 复杂 case 需测试 | 保留 |
-| source/target/handle | `flowgram-edge-factory.ts`; `useFlowGramMicroflowBridge.ts` | 通过 ports/handles 创建 flow | 是 | 是 | 依赖 registry | 保留 |
-| Decision true/false branch | `registry.ts`; `FlowGramMicroflowCaseEditor` | true/false ports + pending case editor | 是 | 是 | 交互 E2E 缺失 | 补测 |
-| viewport persistence | `editor/index.tsx` | `onViewportChange` 写 `schema.editor.viewport` 但 skipDirty | 部分 | 需后续保存触发 | 视口变更本身不 dirty | 定义是否持久 |
-| undo/redo | `history` + `editor/index.tsx` | 内部 history manager | 是 | 会随保存持久 schema，不持久 history | per tab guard 缺 | 第 4 轮 |
+| copy/paste | `editor/index.tsx`; `editor/shortcuts/useMicroflowShortcuts.ts` | Ctrl/Cmd+C 记录当前微流单节点；Ctrl/Cmd+V 在同一微流调用 `duplicateObject`，跨微流粘贴禁用 | 是 | 是 | 多选/跨微流后续定义 | Stage 06 已完成基础能力 |
+| edge create/delete | `useFlowGramMicroflowBridge.ts`; `flowgram-edge-factory.ts`; `flowgram-edge-mapping.ts`; `authoring-operations.ts` | detect new/deleted edge -> add/delete flow，写入真实 `schema.flows`/nested `objectCollection.flows`，新 flow id 当前 schema 内唯一 | 是 | 是 | 浏览器 E2E 待补 | Stage 07 已补 FlowGram/schema 映射 helper 与相关单测 |
+| source/target/handle | `flowgram-edge-mapping.ts`; `flowgram-edge-factory.ts`; `port-utils.ts` | `sourcePortID/targetPortID` 映射为 `originConnectionIndex/destinationConnectionIndex`，schema 保存 `originObjectId/destinationObjectId` | 是 | 是 | handle 本身是投影字段，不独立落库 | Stage 07 已补 handle/index 映射测试 |
+| Decision true/false branch | `registry.ts`; `FlowGramMicroflowCaseEditor`; `flow-edge-form.tsx`; `flowgram-case-options.ts` | true/false ports + `caseValues` 持久化；branch label 写 `editor.label`；重复 case 阻止/校验 | 是 | 是 | 交互 E2E 缺失；无独立 `conditionKey` 字段 | Stage 07 已补 true/false/case 基础持久化测试 |
+| viewport persistence | `editor/index.tsx` | `onViewportChange` 写 `schema.editor.viewport/zoom` 并标 dirty | 是 | 是，保存后恢复 | pan 事件覆盖需手工验收 | Stage 06 已定义持久化 |
+| undo/redo | `history` + `editor/index.tsx` | 每个 editor instance 持有独立 `MicroflowHistoryManager`，key 含 microflowId/schemaId/version | 是 | schema 恢复；history 不持久 | Workbench 顶部按钮仍未接 editor state | Stage 06 已确认隔离 |
 | auto layout | `layout`; `editor/index.tsx` | `applyAutoLayout` | 是 | 是 | 无后端布局校验 | 保留 |
 | minimap/grid | `FlowGramMicroflowCanvas.tsx`; `editor/index.tsx` | `showMiniMap/gridEnabled` 写 schema.editor | 是 | 是 | 需保存 | 保留 |
 
 ### Toolbox
 
-| 节点类型 | 注册路径 | 默认配置 | 是否含 mock/demo | 是否可拖拽 | 是否可保存 | 缺口 |
-|---|---|---|---|---|---|---|
-| Start | `node-registry/registry.ts` | `eventEntry("startEvent")` | 否 | 是 | 是 | 无 |
-| End | `registry.ts` | `eventEntry("endEvent")` | 否 | 是 | 是 | 无 |
-| Parameter | `registry.ts` | parameter object unknown type | 否 | 是 | 是 | 需真实参数 UX |
-| Decision | `registry.ts` | empty expression Boolean | 否 | 是 | 是 | case UX 需测 |
-| Merge | `registry.ts` | `strategy:firstArrived` | 否 | 是 | 是 | 无 |
-| Create Variable | `action-registry.ts`; `registry.ts` | `createDefaultActionConfig("createVariable")` | 否 | 是 | 是 | 需表达式校验 |
-| Change Variable | 同上 | default config | 否 | 是 | 是 | 无 |
-| Call Microflow | `action-registry.ts`; `action-activity-form.tsx` | target empty | 否 | 是 | 是 | 依赖真实 metadata |
-| Loop | `registry.ts` | forEach + `$currentIndex` | 否 | 是 | 是 | loop body E2E |
-| Break | `registry.ts` | `breakEvent` | 否 | 是 | 是 | scope 校验需覆盖 |
-| Continue | `registry.ts` | `continueEvent` | 否 | 是 | 是 | scope 校验需覆盖 |
-| Create List | `action-registry.ts` | empty entity/list variable | 否 | 是 | 是 | metadata required |
-| Change List | 同上 | operation add | 否 | 是 | 是 | 无 |
-| Aggregate List | 同上 | count | 否 | 是 | 是 | 无 |
-| Create Object | `registry.ts`; `action-registry.ts` | entity empty | 否 | 是 | 是 | metadata required |
-| Retrieve Object | 同上 | source empty | 否 | 是 | 是 | metadata required |
-| Change Object | 同上 | member changes empty | 否 | 是 | 是 | metadata required |
-| Commit Object | 同上 | commit default | 否 | 是 | 是 | runtime 覆盖有限 |
-| Delete Object | 同上 | delete default | 否 | 是 | 是 | runtime 覆盖有限 |
-| REST Call | `action-registry.ts` | url empty | 否 | 是 | 是 | real HTTP 默认受策略限制 |
-| Annotation | `registry.ts` | text default | 否 | 是 | 是 | 无 |
+Stage 08 已完成 Toolbox 发布化：分类稳定为 Events / Inputs / Flow Control / Loops / Variables / Objects / Lists / Integration / Documentation；搜索支持 label/description/category/keywords/tags/type/actionKind 且 200ms debounce；drag/click add 均写入当前 active microflow authoring schema；生产默认配置已清理 Sales/MF_ValidateOrder/Order/Customer/Product/ProcessOrder/CheckInventory/NotifyUser/localhost 等 mock/demo 值。
+
+| 节点类型 | 注册路径 | category | 默认配置 | 是否含 mock/demo | 是否可拖拽 | 是否可点击添加 | 缺口 |
+|---|---|---|---|---|---|---|---|
+| Start | `node-registry/registry.ts` | Events | `eventEntry("startEvent")` | 否 | 是 | 是 | 无 |
+| End | `registry.ts` | Events | void return / empty return expression | 否 | 是 | 是 | 无 |
+| Parameter | `registry.ts` | Inputs | registry name 空；添加时生成安全 `parameter` | 否 | 是 | 是 | 参数 UX 后续 |
+| Decision / If | `registry.ts` | Flow Control | empty expression Boolean | 否 | 是 | 是 | case UX E2E |
+| Merge | `registry.ts` | Flow Control | `strategy:firstArrived` | 否 | 是 | 是 | 无 |
+| Loop | `registry.ts` | Loops | empty list/iterator, forEach shell | 否 | 是 | 是 | loop body E2E |
+| Break / Continue | `registry.ts` | Loops | no fake targetLoopId | 否 | 是，warning | 是，warning | 合法性留 validation |
+| Create/Change Variable | `action-registry.ts` | Variables | empty expression, safe variable default | 否 | 是 | 是 | 表达式专项 |
+| Object actions | `action-registry.ts` | Objects | entity/object/list target empty | 否 | 是 | 是 | Domain Model selector 后续 |
+| List actions | `action-registry.ts` | Lists / Collections | entity/list/source/target empty | 否 | 是 | 是 | Domain Model selector 后续 |
+| Call Microflow | `action-registry.ts` | Integration | target id/name/qualifiedName empty | 否 | 是，metadata warning | 是，metadata warning | Call Microflow selector 后续 |
+| REST Call | `action-registry.ts` | Integration | method GET, url empty | 否 | 是 | 是 | runtime/policy 后续 |
+| Annotation | `registry.ts` | Documentation | text empty | 否 | 是 | 是 | 无 |
+
+Registry metadata 状态：每项具备 `id/key/type/kind/actionKind/category/label/description/iconKey/keywords/createDefaultConfig/metadataRequirements/featureStatus`；unsupported/preview 节点不伪造后端不支持的 actionKind。
+
+Disabled/warning 状态：无 active microflow、schema loading、readonly、unsupported 均显示 disabled reason；Object/List/Call Microflow metadata 缺失显示 warning 不阻止添加；Break/Continue 显示 Loop context warning。
+
+仍待后续轮次：Variable actions 深度表单、Object/List 深度表单、Loop/Break/Continue 深度表单、Call Microflow metadata selector、Domain Model metadata selector、Validation/Problems 专项、publish/run/trace 与执行引擎。详见 `docs/microflow-release-stage-08-toolbox-productionization.md` 与 `docs/microflow-release-stage-09-property-panel-basic-nodes.md`。
 
 ### Property Panel
 
 | 表单 | 源码路径 | 当前支持字段 | 是否写回 schema | 是否 dirty | 是否保存恢复 | 缺口 |
 |---|---|---|---|---|---|---|
-| document properties | `editor/index.tsx` | schema toolbar/metadata，不是独立文档表单 | 部分 | 部分 | 部分 | 源码中未发现完整 document property form |
-| node base properties | `property-panel/forms/object-base-form.tsx`; `object-panel.tsx` | title/description/docs 等 | 是 | 是 | 是 | 需逐字段测 |
-| edge properties | `forms/flow-edge-form.tsx` | label/case/error 等 | 是 | 是 | 是 | case UX 需测 |
-| Start/End/Parameter | `event-nodes-form.tsx`; `parameter-object-form.tsx` | event/return/parameter | 是 | 是 | 是 | 无 |
-| Decision/Merge | `exclusive-split-form.tsx`; `merge-node-form.tsx`; `inheritance-split-form.tsx` | expression/case/strategy | 是 | 是 | 是 | metadata stale 需测 |
-| Variable actions | `action-activity-form.tsx`; `generic-action-fields-form.tsx` | create/change variable fields | 是 | 是 | 是 | 表达式编辑器深度有限 |
-| Object actions | `action-activity-form.tsx`; selectors | entity/member/object variable | 是 | 是 | 是 | 依赖 metadata |
-| List actions | `action-activity-form.tsx`; `generic-action-fields-form.tsx` | list variable/entity/operation | 是 | 是 | 是 | 依赖 metadata |
-| Loop/Break/Continue | `loop-node-form.tsx`; `event-nodes-form.tsx` | loop config/event | 是 | 是 | 是 | scope UX |
-| Call Microflow | `action-activity-form.tsx`; `MicroflowSelector.tsx` | `targetMicroflowId` 为主，qualifiedName 快照展示 | 是 | 是 | 是 | 真实 metadata loading UX 需补 |
+| document properties | `property-panel/index.tsx`; `forms/microflow-document-properties-form.tsx` | no selection 显示 id/name/displayName/qualifiedName/schemaVersion/returnType/description/documentation/parameters/audit | 是，documentation | 是 | 是 | resource-only `referenceCount/publishStatus/schemaId` 未注入 property panel，本轮只读说明 |
+| node base properties | `property-panel/forms/object-base-form.tsx`; `object-panel.tsx` | id/kind/caption/description/position/disabled | 是 | 是 | 是 | 空 caption 仅 warning，不自动修复 |
+| edge properties | `forms/flow-edge-form.tsx` | flow id、origin/destination、connection indexes、label、description、case/error、Delete edge 等 | 是 | 是 | 是 | 深度 routing 与完整 Problems panel 后续 |
+| Start | `event-nodes-form.tsx`; `object-base-form.tsx` | caption/description/trigger/outgoing summary | 是 | 是 | 是 | 仅基础 warning |
+| End | `event-nodes-form.tsx`; `schema/utils/microflow-signature.ts` | caption/description/returnType/returnValueExpression/incoming summary | 是 | 是 | 是 | 不执行表达式 |
+| Parameter | `parameter-object-form.tsx`; `property-panel/utils/schema-patch.ts`; `schema/utils/microflow-signature.ts` | name/type/required/defaultValue/exampleValue/description | 是，且同步 `schema.parameters` 与 Parameter object | 是 | 是 | 历史损坏 schema repair/migration 不做 |
+| Annotation | `annotation-object-form.tsx` | text/colorToken/pinned/exportToDocumentation + base fields | 是 | 是 | 是 | 完整样式系统后续 |
+| Decision/Merge | `exclusive-split-form.tsx`; `merge-node-form.tsx`; `decision-merge.ts` | expression/decisionType/resultType/branch summary；merge strategy/in-out summary | 是 | 是 | 是 | metadata stale 与 expression engine 后续 |
+| Variable actions | `action-activity-form.tsx`; `generic-action-fields-form.tsx` | create/change variable fields | 是 | 是 | 是 | 本轮不做深度专项，后续处理 |
+| Object actions | `action-activity-form.tsx`; selectors | entity/member/object variable | 是 | 是 | 是 | 本轮不做 Object/List 深度表单；依赖 Domain Model metadata |
+| List actions | `action-activity-form.tsx`; `generic-action-fields-form.tsx` | list variable/entity/operation | 是 | 是 | 是 | 本轮不做 List/Collection 深度表单；依赖 Domain Model metadata |
+| Loop/Break/Continue | `loop-node-form.tsx`; `event-nodes-form.tsx` | loop config/event | 是 | 是 | 是 | 本轮不做深度专项 |
+| Call Microflow | `action-activity-form.tsx`; `MicroflowSelector.tsx` | `targetMicroflowId` 为主，qualifiedName 快照展示 | 是 | 是 | 是 | 本轮不做真实 metadata selector |
 | REST Call | `generic-action-fields-form.tsx`; `action-activity-form.tsx` | URL/method/body/response/error | 是 | 是 | 是 | runtime 支持受限 |
 | expression editor | `property-panel/expression` | expression raw/text/references | 是 | 是 | 是 | 非完整 Mendix expression IDE |
 | metadata selectors | `selectors/*`; `metadata-provider.tsx` | entity/enumeration/microflow/page/workflow refs | 是 | 是 | 是 | 缺失 adapter 时不 fallback，但错误 UX 简单 |
+
+Stage 09 状态：Property Panel 基础节点已达到发布版本基础闭环。Start/End/Parameter/Annotation/Decision/Merge 的基础属性修改均写回当前 active `MicroflowAuthoringSchema`，通过 `commitSchema` 触发当前 tab dirty，并随 `PUT /api/microflows/{id}/schema` 保存恢复。Parameter 与 schema-level parameters 已做最小同步；Variable/Object/List/Loop/CallMicroflow metadata selector、完整 Problems、publish/run/trace 仍待后续轮次。
 
 ## 8. Metadata
 
@@ -198,7 +203,7 @@ Hotfix 结论：第 0 轮 Hotfix 通过本轮源码审计；不是 Release Block
 |---|---|---|---|---|---|---|
 | 本地 validation | `mendix-microflow/src/validators/*`; `editor/index.tsx` | `validateMicroflowSchema` | 保存前不强阻止；test-run 会 gate | 是，problem click 定位 | save gate 不明确 | 第 5 轮定义 save gate |
 | 后端 validate API | `MicroflowResourceController.cs`; `MicroflowValidationService.cs` | POST `/api/microflows/{id}/validate` | publish/test-run 使用 | 返回 issue 字段 | 无 auth | 权限补齐 |
-| Problems panel | `editor/index.tsx` | bottom problems tab | 部分阻止 | 是 | 与 studio bottom panel 分离 | 统一 UX |
+| Problems panel | `editor/index.tsx` | bottom problems tab；edge/case validation issue 可展示定位 | 部分阻止 | 是 | 与 studio bottom panel 分离；不是完整 Problems panel | 后续轮次统一 UX，Stage 07 不实现 full Problems panel |
 | issue 字段 | `schema/types.ts`; `MicroflowValidationDtos.cs` | severity/code/message/objectId/flowId/fieldPath 等 | 部分 | 是 | 后端 DTO 直接用 contract issue | 契约固化 |
 | 点击 issue 定位 | `editor/index.tsx` | `viewportForProblemIssue` | 是 | 是 | 需 E2E | 补测 |
 | save gate | `editor/index.tsx` | save 直接调用 API，失败后显示 issues | 否/后端兜底 | 是 | error 未必阻止保存 | 第 5 轮 |

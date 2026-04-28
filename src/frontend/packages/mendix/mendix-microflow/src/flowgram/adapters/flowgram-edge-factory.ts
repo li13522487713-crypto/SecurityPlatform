@@ -1,4 +1,4 @@
-import { createAnnotationFlow, createSequenceFlow, flattenObjectCollection } from "../../adapters";
+import { createAnnotationFlow, createMicroflowFlowId, createSequenceFlow, flattenObjectCollection } from "../../adapters";
 import { inferEdgeKindFromPorts } from "../../node-registry";
 import type {
   MicroflowCaseValue,
@@ -46,9 +46,10 @@ export function createMicroflowFlowFromPorts(
   if (edgeKind === "annotation") {
     return {
       ...createAnnotationFlow({
-      originObjectId: source.id,
-      destinationObjectId: target.id,
-      label: options?.label ?? "Annotation",
+        id: createMicroflowFlowId(schema, "annotation-flow"),
+        originObjectId: source.id,
+        destinationObjectId: target.id,
+        label: options?.label ?? "Annotation",
       }),
       originConnectionIndex: sourcePort.connectionIndex,
       destinationConnectionIndex: targetPort.connectionIndex,
@@ -56,6 +57,7 @@ export function createMicroflowFlowFromPorts(
   }
   const caseValues = options?.caseValues ?? defaultCaseValuesForPorts(sourcePort, source);
   return createSequenceFlow({
+    id: createMicroflowFlowId(schema, "flow"),
     originObjectId: source.id,
     destinationObjectId: target.id,
     originConnectionIndex: sourcePort.connectionIndex,

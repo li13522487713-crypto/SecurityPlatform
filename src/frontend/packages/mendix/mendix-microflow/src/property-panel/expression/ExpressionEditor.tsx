@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getEntityAttributes, getEnumerationValues, type MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../../schema";
 import { createMicroflowExpression, expressionRaw, expressionTypeLabel, validateExpression } from "../../expressions";
-import { getVariablesForExpressionFromIndex, type MicroflowExpressionScopeContext } from "../../variables";
+import { getVariablesForExpressionFromIndex, variableSourceLabel, type MicroflowExpressionScopeContext } from "../../variables";
 import { ExpressionDiagnostics } from "./ExpressionDiagnostics";
 
 const { Text } = Typography;
@@ -75,6 +75,7 @@ export function ExpressionEditor({
     const variableOptions = variables.flatMap(variable => {
     const suffix = [
       expressionTypeLabel(variable.dataType),
+      variableSourceLabel(variable),
       variable.visibility === "maybe" ? "maybe" : undefined,
       variable.dataType.kind === "unknown" ? "unknown" : undefined,
     ].filter(Boolean).join(", ");
@@ -141,6 +142,13 @@ export function ExpressionEditor({
           }
         }}
       />
+      {variables.length ? (
+        <Text size="small" type="tertiary">
+          Available variables: {variables.map(variable => `$${variable.name} (${expressionTypeLabel(variable.dataType)}, ${variableSourceLabel(variable)})`).join(", ")}
+        </Text>
+      ) : (
+        <Text size="small" type="tertiary">Available variables: none in the current microflow scope.</Text>
+      )}
       <Text size="small" type="tertiary">
         Expected: {expressionTypeLabel(expectedType)} · Inferred: {expressionTypeLabel(validation.inferredType)}
       </Text>

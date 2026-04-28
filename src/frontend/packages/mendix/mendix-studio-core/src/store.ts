@@ -5,7 +5,6 @@ import type {
   LowCodeAppSchema,
   ValidationErrorSchema
 } from "@atlas/mendix-schema";
-import { sampleOrderProcessingMicroflow } from "@atlas/microflow";
 import type { MicroflowSchema } from "@atlas/microflow";
 import { SAMPLE_PROCUREMENT_APP, SAMPLE_RUNTIME_OBJECT } from "./sample-app";
 import type { StudioMicroflowDefinitionView } from "./microflow/studio/studio-microflow-types";
@@ -127,7 +126,36 @@ type StudioState = {
 };
 
 const INITIAL_MICROFLOW_SCHEMA: MicroflowSchema = {
-  ...sampleOrderProcessingMicroflow
+  schemaVersion: "1.0.0",
+  mendixProfile: "mx10",
+  id: "unloaded",
+  stableId: "unloaded",
+  name: "Unloaded",
+  displayName: "Unloaded",
+  description: "No active microflow schema is loaded.",
+  moduleId: "",
+  parameters: [],
+  returnType: { kind: "void" },
+  objectCollection: {
+    id: "unloaded-root",
+    officialType: "Microflows$MicroflowObjectCollection",
+    objects: [],
+    flows: []
+  },
+  flows: [],
+  security: { applyEntityAccess: true, allowedModuleRoleIds: [] },
+  concurrency: { allowConcurrentExecution: true },
+  exposure: { exportLevel: "hidden", markAsUsed: false },
+  validation: { issues: [] },
+  editor: {
+    viewport: { x: 0, y: 0, zoom: 1 },
+    zoom: 1,
+    selection: {}
+  },
+  audit: {
+    version: "v0",
+    status: "draft"
+  }
 };
 
 const INITIAL_WORKBENCH_TABS: StudioWorkbenchTab[] = [

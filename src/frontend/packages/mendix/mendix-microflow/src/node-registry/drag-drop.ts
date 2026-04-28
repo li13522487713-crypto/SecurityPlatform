@@ -99,6 +99,9 @@ function availabilityWarning(payload: MicroflowNodeDragPayload): string | undefi
   if (payload.availability === "deprecated") {
     return `${payload.title} is deprecated.`;
   }
+  if (payload.objectKind === "breakEvent" || payload.objectKind === "continueEvent") {
+    return "Requires a Loop context.";
+  }
   return undefined;
 }
 
@@ -157,10 +160,6 @@ export function addMicroflowObjectFromDragPayload(
   if (payload.objectKind === "startEvent" && flattenObjectCollection(schema.objectCollection).some(object => object.kind === "startEvent")) {
     return { schema, warnings: [], blockedReason: "A microflow can only have one Start Event." };
   }
-  if ((payload.objectKind === "breakEvent" || payload.objectKind === "continueEvent") && !parentLoopObjectId) {
-    return { schema, warnings: [], blockedReason: "Break / Continue can only be placed inside Loop." };
-  }
-
   const warnings = [availabilityWarning(payload)].filter((warning): warning is string => Boolean(warning));
   if (payload.objectKind === "parameterObject") {
     const parameterName = nextParameterName(schema);
@@ -226,9 +225,6 @@ export function validateDropAllowedInCollection(
   }
   if (!isRoot && (payload.objectKind === "startEvent" || payload.objectKind === "endEvent")) {
     return { allowed: false, message: "Start / End events cannot be placed inside Loop." };
-  }
-  if (isRoot && (payload.objectKind === "breakEvent" || payload.objectKind === "continueEvent")) {
-    return { allowed: false, message: "Break / Continue can only be placed inside Loop." };
   }
   if (!isRoot && payload.objectKind === "errorEvent") {
     return { allowed: false, message: "ErrorEvent cannot be placed inside Loop in this version." };

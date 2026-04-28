@@ -30,6 +30,7 @@ import {
   findObjectWithCollection,
   removeFlowFromCollection,
 } from "../schema/utils/object-utils";
+import { caseValueIdentity } from "../schema/utils/case-utils";
 import { createStableId } from "../schema/utils/ids";
 import { emptyVariableIndex, flattenObjectCollection, toEditorGraph } from "./microflow-adapters";
 
@@ -146,6 +147,14 @@ function uniqueSchemaId(schema: MicroflowSchema, prefix: string): string {
     }
   }
   throw new Error(`Unable to generate unique id for ${prefix}.`);
+}
+
+export function createMicroflowObjectId(schema: MicroflowSchema, prefix = "object"): string {
+  return uniqueSchemaId(schema, prefix);
+}
+
+export function createMicroflowFlowId(schema: MicroflowSchema, prefix = "flow"): string {
+  return uniqueSchemaId(schema, prefix);
 }
 
 function nextDuplicateCaption(caption: string | undefined, fallback: string): string {
@@ -393,13 +402,17 @@ export function resizeObject(schema: MicroflowSchema, objectId: string, size: Mi
 }
 
 export function addFlow(schema: MicroflowSchema, flow: MicroflowFlow): MicroflowSchema {
+  const caseKey = (item: MicroflowFlow) => item.kind === "sequence"
+    ? item.caseValues.map(caseValueIdentity).join("|")
+    : "";
   const duplicate = collectFlowsRecursive(schema).some(item =>
     item.originObjectId === flow.originObjectId &&
     item.destinationObjectId === flow.destinationObjectId &&
     (item.originConnectionIndex ?? 0) === (flow.originConnectionIndex ?? 0) &&
     (item.destinationConnectionIndex ?? 0) === (flow.destinationConnectionIndex ?? 0) &&
     item.kind === flow.kind &&
-    (item.kind === "annotation" || flow.kind === "annotation" || item.editor.edgeKind === flow.editor.edgeKind)
+    (item.kind === "annotation" || flow.kind === "annotation" || item.editor.edgeKind === flow.editor.edgeKind) &&
+    caseKey(item) === caseKey(flow)
   );
   if (duplicate) {
     return schema;
@@ -474,7 +487,7 @@ export function splitFlowWithObject(schema: MicroflowSchema, flowId: string, obj
 }
 
 export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, position: MicroflowPoint, id = createStableId(getMicroflowNodeRegistryKey(entry).replace(":", "-"))): MicroflowObject {
-  const config = entry.defaultConfig as Record<string, unknown>;
+  const config = (entry.createDefaultConfig?.({ position }) ?? entry.defaultConfig) as Record<string, unknown>;
   const base = {
     id,
     stableId: id,
@@ -575,7 +588,7 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
       ...base,
       kind: "annotation",
       officialType: "Microflows$Annotation",
-      text: String(config.text ?? entry.title)
+      text: String(config.text ?? "")
     };
   }
   const action = defaultActionFromRegistry(entry, id, config);
@@ -627,13 +640,13 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       ...base,
       kind: "retrieve",
       officialType: "Microflows$RetrieveAction",
-      outputVariableName: String(config.resultVariableName ?? config.objectVariableName ?? "result"),
+      outputVariableName: String(config.resultVariableName ?? config.objectVariableName ?? ""),
       retrieveSource: String(config.retrieveMode ?? "database") === "association"
         ? {
             kind: "association",
             officialType: "Microflows$AssociationRetrieveSource",
             associationQualifiedName: typeof config.association === "string" ? config.association : null,
-            startVariableName: String(config.objectVariableName ?? "context")
+            startVariableName: String(config.objectVariableName ?? "")
           }
         : {
             kind: "database",
@@ -650,8 +663,8 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       ...base,
       kind: "createObject",
       officialType: "Microflows$CreateObjectAction",
-      entityQualifiedName: String(config.entity ?? "System.Object"),
-      outputVariableName: String(config.resultVariableName ?? "object"),
+      entityQualifiedName: String(config.entity ?? ""),
+      outputVariableName: String(config.resultVariableName ?? config.objectVariableName ?? ""),
       memberChanges: [],
       commit: { enabled: false, withEvents: true, refreshInClient: false }
     } as MicroflowAction;
@@ -661,7 +674,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       ...base,
       kind: "changeMembers",
       officialType: "Microflows$ChangeMembersAction",
-      changeVariableName: String(config.objectVariableName ?? "object"),
+      changeVariableName: String(config.objectVariableName ?? ""),
       memberChanges: [],
       commit: { enabled: false, withEvents: true, refreshInClient: false },
       validateObject: true
@@ -672,7 +685,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       ...base,
       kind: "commit",
       officialType: "Microflows$CommitAction",
-      objectOrListVariableName: String(config.objectVariableName ?? "object"),
+      objectOrListVariableName: String(config.objectVariableName ?? config.listVariableName ?? ""),
       withEvents: Boolean(config.withEvents ?? true),
       refreshInClient: Boolean(config.refreshClient ?? false)
     } as MicroflowAction;
@@ -682,7 +695,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       ...base,
       kind: "delete",
       officialType: "Microflows$DeleteAction",
-      objectOrListVariableName: String(config.objectVariableName ?? "object"),
+      objectOrListVariableName: String(config.objectVariableName ?? config.listVariableName ?? ""),
       withEvents: Boolean(config.withEvents ?? true),
       deleteBehavior: "deleteOnly"
     } as MicroflowAction;
@@ -692,7 +705,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       ...base,
       kind: "rollback",
       officialType: "Microflows$RollbackAction",
-      objectOrListVariableName: String(config.objectVariableName ?? "object"),
+      objectOrListVariableName: String(config.objectVariableName ?? config.listVariableName ?? ""),
       refreshInClient: Boolean(config.refreshClient ?? false)
     } as MicroflowAction;
   }
@@ -765,6 +778,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
 }
 
 export function createSequenceFlow(input: {
+  id?: string;
   originObjectId: string;
   destinationObjectId: string;
   originConnectionIndex?: number;
@@ -775,7 +789,7 @@ export function createSequenceFlow(input: {
   label?: string;
   description?: string;
 }): MicroflowSequenceFlow {
-  const id = createStableId("flow");
+  const id = input.id ?? createStableId("flow");
   return {
     id,
     stableId: id,
@@ -797,12 +811,13 @@ export function createSequenceFlow(input: {
 }
 
 export function createAnnotationFlow(input: {
+  id?: string;
   originObjectId: string;
   destinationObjectId: string;
   label?: string;
   description?: string;
 }): MicroflowAnnotationFlow {
-  const id = createStableId("annotation-flow");
+  const id = input.id ?? createStableId("annotation-flow");
   return {
     id,
     stableId: id,
@@ -858,12 +873,14 @@ export function applyEditorGraphPatchToAuthoring(schema: MicroflowSchema, patch:
       editor: {
         ...next.editor,
         viewport: patch.viewport ?? next.editor.viewport,
+        selectedObjectId: hasSelectedObject ? patch.selectedObjectId : next.editor.selectedObjectId,
+        selectedFlowId: hasSelectedFlow ? patch.selectedFlowId : next.editor.selectedFlowId,
+        selectedCollectionId: hasSelectedCollection ? patch.selectedCollectionId : next.editor.selectedCollectionId,
         selection: {
           objectId: hasSelectedObject ? patch.selectedObjectId : next.editor.selection.objectId,
           flowId: hasSelectedFlow ? patch.selectedFlowId : next.editor.selection.flowId,
           collectionId: hasSelectedCollection ? patch.selectedCollectionId : next.editor.selection.collectionId
-        },
-        selectedCollectionId: hasSelectedCollection ? patch.selectedCollectionId : next.editor.selectedCollectionId
+        }
       }
     };
   }

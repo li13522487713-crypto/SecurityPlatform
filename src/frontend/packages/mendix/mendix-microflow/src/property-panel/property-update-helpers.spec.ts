@@ -5,12 +5,18 @@ import { getMicroflowNodeRegistryKey, defaultMicroflowNodeRegistry } from "../no
 import { sampleMicroflowSchema, type MicroflowObject, type MicroflowSchema } from "../schema";
 import {
   updateActionConfig,
+  updateAnnotationObjectConfig,
+  updateDecisionObjectConfig,
+  updateEndEventConfig,
   updateFlow,
   updateFlowLabel,
+  updateMergeObjectConfig,
+  updateMicroflowDocumentProperties,
   updateObject,
   updateObjectCaption,
   updateObjectDescription,
   updateParameter,
+  updateParameterObjectConfig,
 } from "./utils";
 
 function registry(key: string) {
@@ -113,5 +119,70 @@ describe("property panel schema-bound update helpers", () => {
 
     expect(updatedA.objectCollection.objects[0]?.caption).toBe("A_Start");
     expect(schemaB.objectCollection.objects[0]?.caption).not.toBe("A_Start");
+  });
+
+  it("updates document properties without touching other schema fields", () => {
+    const schema = schemaWith([]);
+    const updated = updateMicroflowDocumentProperties(schema, { documentation: "Release notes" });
+
+    expect(updated.documentation).toBe("Release notes");
+    expect(updated.objectCollection.objects).toEqual(schema.objectCollection.objects);
+  });
+
+  it("updates basic node configs through schema-bound helpers", () => {
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 0, y: 0 }, "property-end");
+    const decision = createObjectFromRegistry(registry("decision"), { x: 100, y: 0 }, "property-decision");
+    const annotation = createObjectFromRegistry(registry("annotation"), { x: 200, y: 0 }, "property-note");
+    const merge = createObjectFromRegistry(registry("merge"), { x: 300, y: 0 }, "property-merge");
+    const schema = schemaWith([end, decision, annotation, merge]);
+
+    const withEnd = updateEndEventConfig(schema, end.id, {
+      returnType: { kind: "boolean" },
+      returnValue: { raw: "true", inferredType: { kind: "boolean" }, references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+    });
+    const withDecision = updateDecisionObjectConfig(withEnd, decision.id, decision.kind === "exclusiveSplit" && decision.splitCondition.kind === "expression"
+      ? { splitCondition: { ...decision.splitCondition, expression: { ...decision.splitCondition.expression, raw: "amount > 100" } } }
+      : {});
+    const withAnnotation = updateAnnotationObjectConfig(withDecision, annotation.id, { text: "需要审批金额校验", colorToken: "warning" });
+    const updated = updateMergeObjectConfig(withAnnotation, merge.id, { caption: "Merge_Result" });
+    const updatedEnd = updated.objectCollection.objects.find(item => item.id === end.id);
+    const updatedDecision = updated.objectCollection.objects.find(item => item.id === decision.id);
+    const updatedAnnotation = updated.objectCollection.objects.find(item => item.id === annotation.id);
+
+    expect(updated.returnType).toEqual({ kind: "boolean" });
+    expect(updatedEnd?.kind === "endEvent" ? updatedEnd.returnValue?.raw : undefined).toBe("true");
+    expect(updatedDecision?.kind === "exclusiveSplit"
+      ? updatedDecision.splitCondition.kind === "expression"
+        ? updatedDecision.splitCondition.expression.raw
+        : undefined
+      : undefined).toBe("amount > 100");
+    expect(updatedAnnotation?.kind === "annotation" ? updatedAnnotation.text : undefined).toBe("需要审批金额校验");
+    expect(updated.objectCollection.objects.find(item => item.id === merge.id)?.caption).toBe("Merge_Result");
+  });
+
+  it("updates parameter object and schema-level parameter together", () => {
+    const parameterObject = createObjectFromRegistry(registry("parameter"), { x: 0, y: 0 }, "property-param-sync");
+    if (parameterObject.kind !== "parameterObject") {
+      throw new Error("Expected parameter object.");
+    }
+    const schema = {
+      ...schemaWith([parameterObject]),
+      parameters: [{
+        id: parameterObject.parameterId,
+        name: "parameter",
+        dataType: { kind: "string" as const },
+        required: false,
+      }],
+    };
+    const updated = updateParameterObjectConfig(schema, parameterObject.id, {
+      name: "amount",
+      dataType: { kind: "decimal" },
+      required: true,
+    });
+    const updatedObject = updated.objectCollection.objects.find(item => item.id === parameterObject.id);
+
+    expect(updated.parameters[0]).toMatchObject({ name: "amount", dataType: { kind: "decimal" }, required: true });
+    expect(updatedObject?.kind === "parameterObject" ? updatedObject.parameterName : undefined).toBe("amount");
+    expect(updatedObject?.caption).toBe("amount");
   });
 });

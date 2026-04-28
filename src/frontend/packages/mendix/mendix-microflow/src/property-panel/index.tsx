@@ -1,7 +1,7 @@
 import { memo } from "react";
-import { Empty } from "@douyinfe/semi-ui";
 import type { MicroflowObject, MicroflowVariableSymbol } from "../schema";
 import { FlowEdgeForm } from "./forms/flow-edge-form";
+import { MicroflowDocumentPropertiesForm } from "./forms/microflow-document-properties-form";
 import { ObjectPanel } from "./forms/object-panel";
 import type { MicroflowNodeFormRegistry, MicroflowPropertyPanelProps } from "./types";
 
@@ -24,11 +24,7 @@ export function buildVariablesForPropertyPanel(schema: { variables?: Record<stri
 
 export const MicroflowPropertyPanel = memo(function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
   if (!props.selectedObject && !props.selectedFlow) {
-    return (
-      <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 24 }}>
-        <Empty title="未选择对象" description="选择画布对象或连线后编辑 AuthoringSchema 字段。" />
-      </div>
-    );
+    return <MicroflowDocumentPropertiesForm {...props} />;
   }
   return (
     <div style={{ height: "100%", minHeight: 0, overflow: "auto", background: "var(--semi-color-bg-1, #fff)" }}>

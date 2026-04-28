@@ -1,6 +1,7 @@
 export * from "./authoring-to-flowgram";
 export * from "./flowgram-case-options";
 export * from "./flowgram-coordinate";
+export * from "./flowgram-edge-mapping";
 export * from "./flowgram-edge-factory";
 export * from "./flowgram-node-factory";
 export * from "./flowgram-port-factory";

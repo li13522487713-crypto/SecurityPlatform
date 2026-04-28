@@ -4,7 +4,7 @@ import { getParameterNameWarning } from "../../schema/utils";
 import { FieldError } from "../common";
 import { DataTypeSelector } from "../selectors";
 import type { MicroflowPropertyPanelProps } from "../types";
-import { getIssuesForField, getIssuesForObject, updateParameter } from "../utils";
+import { getIssuesForField, getIssuesForObject, updateParameterObjectConfig } from "../utils";
 import { expression, Field } from "../panel-shared";
 
 const { Text } = Typography;
@@ -24,7 +24,7 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
     if (!parameter || !props.onSchemaChange) {
       return;
     }
-    const nextSchema = updateParameter(props.schema, parameter.id, parameterPatch);
+    const nextSchema = updateParameterObjectConfig(props.schema, object.id, parameterPatch);
     props.onSchemaChange(nextSchema, "updateParameter");
   };
   return (
@@ -47,8 +47,11 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
         <Text type="tertiary" size="small">Renaming a parameter does not rewrite existing expressions.</Text>
       </Field>
       <Field label="Data Type">
-        <DataTypeSelector value={parameter?.dataType ?? { kind: "string" }} disabled={props.readonly || !parameter} allowVoid={false} onChange={dataType => patchParameter({ dataType })} />
+        <DataTypeSelector value={parameter?.dataType ?? { kind: "unknown", reason: "missing parameter type" }} disabled={props.readonly || !parameter} allowVoid={false} onChange={dataType => patchParameter({ dataType })} />
         <FieldError issues={getIssuesForField(issues, "parameter.dataType")} />
+        {!parameter?.dataType || parameter.dataType.kind === "unknown" ? (
+          <Text type="warning" size="small">Parameter type is empty or unknown.</Text>
+        ) : null}
         {parameter?.dataType.kind === "object" || parameter?.dataType.kind === "list" ? (
           <Text type="warning" size="small">Entity metadata will be connected in Stage 19.</Text>
         ) : null}

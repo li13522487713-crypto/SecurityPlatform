@@ -10,7 +10,12 @@ export interface MicroflowNodeCreateContext {
   microflowId?: string;
   moduleId?: string;
   workspaceId?: string;
+  position?: { x: number; y: number };
+  source?: "drag" | "click" | "paste" | "duplicate";
+  schemaLoaded?: boolean;
   metadataAvailable?: boolean;
+  readonly?: boolean;
+  supportedActionKinds?: string[];
 }
 
 type SafeDefaultActivityConfig = Partial<LegacyMicroflowActivityConfig> & Record<string, unknown>;

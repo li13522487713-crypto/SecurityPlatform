@@ -124,8 +124,8 @@ describe("MicroflowResourceEditorHost", () => {
       />
     );
 
-    expect(await screen.findByTestId("entry")).toHaveAttribute("data-resource-id", "mf-a");
-    expect(screen.getByTestId("entry")).toHaveAttribute("data-schema-id", "schema-mf-a");
+    expect((await screen.findByTestId("entry")).getAttribute("data-resource-id")).toBe("mf-a");
+    expect(screen.getByTestId("entry").getAttribute("data-schema-id")).toBe("schema-mf-a");
     expect(getMicroflow).toHaveBeenCalledWith("mf-a");
     expect(getMicroflowSchema).toHaveBeenCalledWith("mf-a");
     expect(onDirtyChange).toHaveBeenCalledWith(false);
