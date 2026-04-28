@@ -171,6 +171,33 @@ export function createDefaultActionConfig(
     case "deleteExternalObject":
     case "sendExternalObject":
       return { objectVariableName: "", operation: "" };
+    case "throwException":
+      return {
+        errorCode: "MF_THROWN_EXCEPTION",
+        message: "",
+        messageExpression: createDefaultExpression("", stringType),
+        severity: "error"
+      };
+    case "filterList":
+      return {
+        sourceListVariableName: "",
+        listVariableName: "",
+        outputVariableName: "",
+        resultVariableName: "",
+        itemVariableName: "$item",
+        conditionExpression: createDefaultExpression("", booleanType),
+        filterExpression: createDefaultExpression("", booleanType)
+      };
+    case "sortList":
+      return {
+        sourceListVariableName: "",
+        listVariableName: "",
+        outputVariableName: "",
+        resultVariableName: "",
+        sortField: "",
+        memberName: "",
+        direction: "asc"
+      };
     case "synchronize":
     case "showHomePage":
       return {};
@@ -238,7 +265,10 @@ export function createDefaultActivityConfig(
     unlockWorkflow: "unlockWorkflow",
     notifyWorkflow: "notifyWorkflow",
     deleteExternalObject: "deleteExternalObject",
-    sendExternalObject: "sendExternalObject"
+    sendExternalObject: "sendExternalObject",
+    throwException: "throwException",
+    listFilter: "filterList",
+    listSort: "sortList"
   };
   return createDefaultActionConfig(map[activityType] ?? "logMessage", context);
 }

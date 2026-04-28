@@ -29,6 +29,10 @@ import { LoopNodeForm } from "./loop-node-form";
 import { MergeNodeForm } from "./merge-node-form";
 import { ObjectBaseForm } from "./object-base-form";
 import { ParameterObjectForm } from "./parameter-object-form";
+import { ParallelGatewayForm } from "./parallel-gateway-form";
+import { InclusiveGatewayForm } from "./inclusive-gateway-form";
+import { TryCatchForm } from "./try-catch-form";
+import { ErrorHandlerForm } from "./error-handler-form";
 
 const { Text } = Typography;
 const supportedObjectKinds = new Set<string>([
@@ -44,6 +48,10 @@ const supportedObjectKinds = new Set<string>([
   "loopedActivity",
   "parameterObject",
   "annotation",
+  "parallelGateway",
+  "inclusiveGateway",
+  "tryCatch",
+  "errorHandler"
 ]);
 
 function p0OutputSummary(action: MicroflowAction): string {
@@ -162,6 +170,10 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
             ) : null}
             <ParameterObjectForm props={props} object={object} issues={issues} parameter={parameter as MicroflowParameter | undefined} />
             <AnnotationObjectForm object={object} readonly={props.readonly} patch={patch} />
+            <ParallelGatewayForm object={object} readonly={props.readonly} patch={patch} />
+            <InclusiveGatewayForm object={object} readonly={props.readonly} patch={patch} />
+            <TryCatchForm object={object} readonly={props.readonly} patch={patch} />
+            <ErrorHandlerForm object={object} readonly={props.readonly} patch={patch} />
           </>
         ) : null}
         {activeTab === "documentation" ? (

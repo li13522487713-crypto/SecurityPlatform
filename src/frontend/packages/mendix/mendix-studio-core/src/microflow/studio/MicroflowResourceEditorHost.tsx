@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import { Button, Empty, Space, Spin, Tag, Typography } from "@douyinfe/semi-ui";
 
+import type { MicroflowEditorHandle } from "@atlas/microflow";
 import type { MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
 import { createMicroflowApiError, getMicroflowApiError, getMicroflowErrorUserMessage, isNotFoundError } from "../adapter/http/microflow-api-error";
 import { MicroflowErrorState } from "../components/error";
@@ -19,6 +20,13 @@ export interface MicroflowResourceEditorHostProps {
   onRefreshResourceList?: () => void | Promise<void>;
   onCloseTab?: () => void;
   microflowResourceIndex?: Record<string, StudioMicroflowDefinitionView>;
+  /**
+   * Workbench shell（mendix-studio-core 的 MendixStudioApp）通过 ref 命令式触发
+   * 保存 / 校验 / 运行 / 发布等动作；同时把 toolbarMode 切到 "external" 让
+   * 编辑器隐藏内部 toolbar，避免出现 workbench 顶部和编辑器内顶部双层 toolbar。
+   */
+  editorRef?: Ref<MicroflowEditorHandle>;
+  toolbarMode?: "internal" | "external";
 }
 
 const { Text } = Typography;
@@ -57,7 +65,9 @@ export function MicroflowResourceEditorHost({
   onOpenMicroflow,
   onRefreshResourceList,
   onCloseTab,
-  microflowResourceIndex
+  microflowResourceIndex,
+  editorRef,
+  toolbarMode
 }: MicroflowResourceEditorHostProps) {
   const requestSeqRef = useRef(0);
   const mountedRef = useRef(false);
@@ -211,6 +221,8 @@ export function MicroflowResourceEditorHost({
           onOpenMicroflow={onOpenMicroflow}
           onRefreshResourceList={onRefreshResourceList}
           microflowResourceIndex={microflowResourceIndex}
+          editorRef={editorRef}
+          toolbarMode={toolbarMode}
           onSave={saved => {
             if (!mountedRef.current || saved.id !== microflowId) {
               return;

@@ -5,7 +5,9 @@ using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
+using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Expressions;
+using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Services;
 
 namespace Atlas.Application.Microflows.Runtime;
@@ -23,9 +25,15 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     private readonly IMicroflowExpressionEvaluator _expressionEvaluator;
     private readonly IMicroflowResourceRepository? _resourceRepository;
     private readonly IMicroflowSchemaSnapshotRepository? _schemaSnapshotRepository;
+    // Registry / connector are optional. When DI is wired they enable real action
+    // dispatch (retrieve / createObject / restCall / logMessage / aggregateList ...).
+    // Legacy unit tests construct the engine without them; in that case the engine
+    // keeps the previous fast-path-only behaviour and reports unsupported actions.
+    private readonly IMicroflowActionExecutorRegistry? _actionExecutorRegistry;
+    private readonly IMicroflowRuntimeConnectorRegistry? _connectorRegistry;
 
     public MicroflowRuntimeEngine(IMicroflowSchemaReader schemaReader, IMicroflowClock clock)
-        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null)
     {
     }
 
@@ -34,7 +42,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowClock clock,
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
-        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), resourceRepository, schemaSnapshotRepository)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), resourceRepository, schemaSnapshotRepository, null, null)
     {
     }
 
@@ -44,12 +52,26 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowExpressionEvaluator expressionEvaluator,
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
+        : this(schemaReader, clock, expressionEvaluator, resourceRepository, schemaSnapshotRepository, null, null)
+    {
+    }
+
+    public MicroflowRuntimeEngine(
+        IMicroflowSchemaReader schemaReader,
+        IMicroflowClock clock,
+        IMicroflowExpressionEvaluator expressionEvaluator,
+        IMicroflowResourceRepository? resourceRepository,
+        IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository,
+        IMicroflowActionExecutorRegistry? actionExecutorRegistry,
+        IMicroflowRuntimeConnectorRegistry? connectorRegistry)
     {
         _schemaReader = schemaReader;
         _clock = clock;
         _expressionEvaluator = expressionEvaluator;
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
+        _actionExecutorRegistry = actionExecutorRegistry;
+        _connectorRegistry = connectorRegistry;
     }
 
     public Task<MicroflowRunSessionDto> RunAsync(MicroflowExecutionRequest request, CancellationToken cancellationToken)
@@ -270,13 +292,142 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return NodeExecution.Failed(error);
         }
 
-        return action.Kind switch
+        // Fast-path: the variable mutators and call-microflow already have
+        // hand-tuned execution semantics inside the engine (variable scope,
+        // call-stack guards, parameter mapping). Keep them in-engine to avoid
+        // double-bookkeeping and to preserve back-compat with legacy unit tests.
+        switch (action.Kind)
         {
-            "createVariable" => ExecuteCreateVariable(context, graph, node, action, incomingFlowId),
-            "changeVariable" => ExecuteChangeVariable(context, graph, node, action, incomingFlowId),
-            "callMicroflow" => await ExecuteCallMicroflowAsync(context, graph, node, action, incomingFlowId, state, cancellationToken),
-            _ => Unsupported(context, node, incomingFlowId, action.Kind)
+            case "createVariable":
+                return ExecuteCreateVariable(context, graph, node, action, incomingFlowId);
+            case "changeVariable":
+                return ExecuteChangeVariable(context, graph, node, action, incomingFlowId);
+            case "callMicroflow":
+                return await ExecuteCallMicroflowAsync(context, graph, node, action, incomingFlowId, state, cancellationToken);
+        }
+
+        // Registry path (DI-only): retrieve / createObject / restCall / logMessage /
+        // createList / changeList / aggregateList / break / continue / etc.
+        if (_actionExecutorRegistry is not null && _actionExecutorRegistry.TryGet(action.Kind, out var executor))
+        {
+            return await ExecuteActionViaRegistryAsync(
+                context,
+                graph,
+                node,
+                action,
+                incomingFlowId,
+                executor,
+                cancellationToken);
+        }
+
+        return Unsupported(context, node, incomingFlowId, action.Kind);
+    }
+
+    private async Task<NodeExecution> ExecuteActionViaRegistryAsync(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        MicroflowObjectModel node,
+        MicroflowActionModel action,
+        string? incomingFlowId,
+        IMicroflowActionExecutor executor,
+        CancellationToken cancellationToken)
+    {
+        var connectorRegistry = _connectorRegistry ?? new MicroflowRuntimeConnectorRegistry();
+        var executionPlan = context.ResolveExecutionPlan();
+        var executionNode = context.ResolveExecutionNode(node, action);
+        var actionContext = new MicroflowActionExecutionContext
+        {
+            RuntimeExecutionContext = context.AsRuntimeExecutionContext(),
+            ExecutionPlan = executionPlan,
+            ExecutionNode = executionNode,
+            ActionConfig = action.Raw,
+            ActionKind = action.Kind,
+            ObjectId = node.Id,
+            ActionId = action.Id,
+            CollectionId = node.CollectionId,
+            VariableStore = context.VariableStore,
+            ExpressionEvaluator = _expressionEvaluator,
+            MetadataCatalog = context.Metadata,
+            ConnectorRegistry = connectorRegistry,
+            RuntimeSecurityContext = MicroflowRuntimeSecurityContext.FromRequestContext(context.RequestContext, applyEntityAccess: true),
+            Options = new MicroflowActionExecutionOptions
+            {
+                Mode = MicroflowRuntimeExecutionMode.TestRun,
+                AllowRealHttp = context.Options.AllowRealHttp ?? false,
+                SimulateRestError = context.Options.SimulateRestError ?? false,
+                StopOnUnsupported = true,
+                MaxCallDepth = context.MaxCallDepth
+            }
         };
+
+        MicroflowActionExecutionResult result;
+        try
+        {
+            result = await executor.ExecuteAsync(actionContext, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var error = Error(
+                RuntimeErrorCode.RuntimeUnknownError,
+                $"Action executor 抛出未处理异常：{ex.GetType().Name}",
+                node.Id,
+                action.Id,
+                incomingFlowId,
+                details: ex.Message);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        // Persist any logs the executor produced into the run trace.
+        foreach (var log in result.Logs)
+        {
+            context.Logs.Add(log);
+        }
+
+        // Failure / unsupported / connector-required paths halt the run with a
+        // structured error frame; we never silently succeed.
+        if (string.Equals(result.Status, MicroflowActionExecutionStatus.Failed, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(result.Status, MicroflowActionExecutionStatus.Unsupported, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(result.Status, MicroflowActionExecutionStatus.ConnectorRequired, StringComparison.OrdinalIgnoreCase))
+        {
+            var error = result.Error ?? Error(
+                RuntimeErrorCode.RuntimeUnsupportedAction,
+                result.Message ?? $"Action {action.Kind} 执行失败。",
+                node.Id,
+                action.Id,
+                incomingFlowId);
+            error = error with
+            {
+                ObjectId = error.ObjectId ?? node.Id,
+                ActionId = error.ActionId ?? action.Id,
+                FlowId = error.FlowId ?? incomingFlowId
+            };
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        // Success / pendingClientCommand: bring produced variables back into the
+        // engine's variable map so subsequent expressions can read them.
+        foreach (var variable in result.ProducedVariables)
+        {
+            if (string.IsNullOrWhiteSpace(variable.Name))
+            {
+                continue;
+            }
+
+            var typeJson = variable.Type ?? Type("unknown");
+            var rawValue = variable.RawValue ?? (variable.RawValueJson is null
+                ? JsonNull()
+                : (MicroflowVariableStore.ToJsonElement(variable.RawValueJson) ?? JsonNull()));
+            context.SetVariable(variable.Name, typeJson, rawValue, $"action:{action.Kind}");
+        }
+
+        var output = result.OutputJson ?? JsonObj(new { actionKind = action.Kind, status = result.Status });
+        return ContinueAfterAction(context, graph, node, incomingFlowId, output);
     }
 
     private static NodeExecution ExecuteCreateVariable(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, MicroflowActionModel action, string? incomingFlowId)
@@ -1126,6 +1277,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         private readonly MicroflowExecutionRequest _request;
         private readonly IMicroflowClock _clock;
         private readonly MicroflowVariableStore _expressionVariableStore = new();
+        private RuntimeExecutionContext? _executionContext;
+        private MicroflowExecutionPlan? _executionPlan;
         private int _steps;
 
         public RuntimeContext(
@@ -1197,6 +1350,108 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         public List<MicroflowRunSessionDto> ChildRuns { get; } = [];
 
         public IMicroflowExpressionEvaluator ExpressionEvaluator { get; }
+
+        public IMicroflowVariableStore VariableStore => _expressionVariableStore;
+
+        public MicroflowMetadataCatalogDto? Metadata => _request.Metadata;
+
+        public MicroflowExecutionPlan ResolveExecutionPlan()
+        {
+            return _executionPlan ??= _request.ExecutionPlan ?? BuildMinimalExecutionPlan();
+        }
+
+        public MicroflowExecutionNode ResolveExecutionNode(MicroflowObjectModel node, MicroflowActionModel action)
+        {
+            var plan = ResolveExecutionPlan();
+            foreach (var planNode in plan.Nodes)
+            {
+                if (string.Equals(planNode.ObjectId, node.Id, StringComparison.Ordinal))
+                {
+                    return planNode;
+                }
+            }
+
+            return new MicroflowExecutionNode
+            {
+                ObjectId = node.Id,
+                ActionId = action.Id,
+                CollectionId = node.CollectionId,
+                Kind = node.Kind,
+                OfficialType = node.OfficialType,
+                Caption = node.Caption,
+                ActionKind = action.Kind,
+                ActionOfficialType = action.OfficialType,
+                SupportLevel = MicroflowRuntimeSupportLevel.Supported,
+                ConfigJson = action.Raw
+            };
+        }
+
+        public RuntimeExecutionContext AsRuntimeExecutionContext()
+        {
+            if (_executionContext is not null)
+            {
+                return _executionContext;
+            }
+
+            var plan = ResolveExecutionPlan();
+            // Reuse the engine's existing variable store so action executors can
+            // read variables created by createVariable / createList earlier in the
+            // run and write back into the same scope (otherwise loop-aware actions
+            // would push iterator scopes onto an empty store).
+            _executionContext = RuntimeExecutionContext.Create(
+                runId: RunId,
+                executionPlan: plan,
+                mode: MicroflowRuntimeExecutionMode.TestRun,
+                input: _request.Input,
+                securityContext: _request.RequestContext,
+                startedAt: StartedAt,
+                metadataCatalog: _request.Metadata,
+                parentRunId: ParentRunId,
+                rootRunId: RootRunId,
+                callCorrelationId: CorrelationId,
+                maxCallDepth: MaxCallDepth,
+                variableStore: _expressionVariableStore);
+            return _executionContext;
+        }
+
+        private MicroflowExecutionPlan BuildMinimalExecutionPlan()
+        {
+            var nodes = new List<MicroflowExecutionNode>();
+            foreach (var obj in Model.Objects)
+            {
+                nodes.Add(new MicroflowExecutionNode
+                {
+                    ObjectId = obj.Id,
+                    ActionId = obj.Action?.Id,
+                    CollectionId = obj.CollectionId,
+                    Kind = obj.Kind,
+                    OfficialType = obj.OfficialType,
+                    Caption = obj.Caption,
+                    ActionKind = obj.Action?.Kind,
+                    ActionOfficialType = obj.Action?.OfficialType,
+                    SupportLevel = MicroflowRuntimeSupportLevel.Supported,
+                    ConfigJson = obj.Action?.Raw
+                });
+            }
+
+            return new MicroflowExecutionPlan
+            {
+                Id = ResourceId ?? Guid.NewGuid().ToString("N"),
+                SchemaId = _request.SchemaId,
+                ResourceId = ResourceId,
+                Version = _request.Version,
+                Nodes = nodes,
+                Parameters = Model.Parameters
+                    .Select(parameter => new MicroflowExecutionParameter
+                    {
+                        Id = parameter.Id,
+                        Name = parameter.Name,
+                        DataTypeJson = parameter.Type,
+                        Required = ReadBool(parameter.Raw, "required")
+                    })
+                    .ToArray()
+            };
+        }
 
         public bool TryStep(out MicroflowRuntimeErrorDto error)
         {

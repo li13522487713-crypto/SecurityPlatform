@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Button, Modal, Space, Switch, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconArrowLeft } from "@douyinfe/semi-icons";
-import { MicroflowEditor, type MicroflowApiClient, type MicroflowSchema, type SaveMicroflowRequest } from "@atlas/microflow";
+import { MicroflowEditor, type MicroflowApiClient, type MicroflowEditorHandle, type MicroflowSchema, type SaveMicroflowRequest } from "@atlas/microflow";
 import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
@@ -41,9 +41,17 @@ export interface MendixMicroflowEditorEntryProps {
   microflowResourceIndex?: Record<string, StudioMicroflowDefinitionView>;
   onBack?: () => void;
   readonly?: boolean;
+  /**
+   * Mendix Studio Workbench 在外置工具栏模式下需要远程触发保存 / 校验 / 运行
+   * 等动作。宿主把 ref 透传给 MicroflowEditor，编辑器内部隐藏顶部工具栏，避免
+   * 出现双层 toolbar；旧独立路由 `/microflow/:id/editor` 不传 toolbarMode，
+   * 因此默认 internal 行为不受影响。
+   */
+  editorRef?: Ref<MicroflowEditorHandle>;
+  toolbarMode?: "internal" | "external";
 }
 
-export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly }: MendixMicroflowEditorEntryProps) {
+export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode }: MendixMicroflowEditorEntryProps) {
   const [schema, setSchema] = useState<MicroflowSchema>(resource.schema);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -358,6 +366,8 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
         metadataModuleId={moduleId ?? currentResource.moduleId}
         validationAdapter={validationAdapter}
         readonly={effectiveReadonly}
+        editorRef={editorRef}
+        toolbarMode={toolbarMode}
         onSchemaChange={nextSchema => {
           setSchema(nextSchema);
           latestSchemaRef.current = nextSchema;

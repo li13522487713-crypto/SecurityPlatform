@@ -103,9 +103,10 @@ public sealed class RuntimeExecutionContext
         int maxCallDepth = 10,
         MicroflowMetadataCatalogDto? metadataCatalog = null,
         MicroflowCallStackFrame? currentCallFrame = null,
-        IReadOnlyList<MicroflowCallStackFrame>? callStackFrames = null)
+        IReadOnlyList<MicroflowCallStackFrame>? callStackFrames = null,
+        IMicroflowVariableStore? variableStore = null)
     {
-        var store = new MicroflowVariableStore(() => DateTimeOffset.UtcNow);
+        var store = variableStore ?? new MicroflowVariableStore(() => DateTimeOffset.UtcNow);
         var context = new RuntimeExecutionContext(runId, executionPlan, store, startedAt)
         {
             Mode = mode,
@@ -125,8 +126,15 @@ public sealed class RuntimeExecutionContext
             context.CallStackFrames.AddRange(callStackFrames);
         }
 
-        context.InitializeParameters(input ?? new Dictionary<string, JsonElement>());
-        context.InitializeSystemVariables();
+        // When the caller supplied an existing store (e.g. the engine reusing its
+        // own MicroflowVariableStore), assume parameters and system variables were
+        // already initialised in the prior context to avoid duplicating them.
+        if (variableStore is null)
+        {
+            context.InitializeParameters(input ?? new Dictionary<string, JsonElement>());
+            context.InitializeSystemVariables();
+        }
+
         if (transactionManager is not null && (transactionOptions ?? new MicroflowRuntimeTransactionOptions()).AutoBegin)
         {
             transactionManager.Begin(context, transactionOptions ?? new MicroflowRuntimeTransactionOptions());

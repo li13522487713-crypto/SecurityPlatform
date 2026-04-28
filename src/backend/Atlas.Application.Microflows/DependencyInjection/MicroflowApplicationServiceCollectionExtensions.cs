@@ -1,5 +1,6 @@
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Infrastructure;
+using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Actions.Http;
@@ -32,7 +33,14 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddSingleton<MicroflowEntityAccessOptions>();
         services.TryAddScoped<IMicroflowReferenceIndexer, MicroflowReferenceIndexer>();
         services.TryAddScoped<IMicroflowReferenceService, MicroflowReferenceService>();
-        services.TryAddScoped<IMicroflowRuntimeEngine, MicroflowRuntimeEngine>();
+        services.TryAddScoped<IMicroflowRuntimeEngine>(sp => new MicroflowRuntimeEngine(
+            sp.GetRequiredService<IMicroflowSchemaReader>(),
+            sp.GetRequiredService<IMicroflowClock>(),
+            sp.GetRequiredService<IMicroflowExpressionEvaluator>(),
+            sp.GetService<IMicroflowResourceRepository>(),
+            sp.GetService<IMicroflowSchemaSnapshotRepository>(),
+            sp.GetService<IMicroflowActionExecutorRegistry>(),
+            sp.GetService<IMicroflowRuntimeConnectorRegistry>()));
         services.TryAddScoped<IMicroflowVariableStore, MicroflowVariableStore>();
         services.TryAddScoped<IMicroflowExpressionEvaluator, MicroflowExpressionEvaluator>();
         services.TryAddScoped<IMicroflowMetadataResolver, MicroflowMetadataResolver>();
@@ -43,7 +51,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowTransactionManager, MicroflowTransactionManager>();
         services.TryAddScoped<IMicroflowErrorHandlingService, MicroflowErrorHandlingService>();
         services.TryAddTransient<IMicroflowUnitOfWork, MicroflowUnitOfWork>();
-        services.TryAddScoped<IMicroflowActionExecutorRegistry, MicroflowActionExecutorRegistry>();
+        services.TryAddScoped<IMicroflowActionExecutorRegistry>(sp => new MicroflowActionExecutorRegistry(sp));
         services.TryAddScoped<CreateVariableActionExecutor>();
         services.TryAddScoped<ChangeVariableActionExecutor>();
         services.TryAddScoped<BreakActionExecutor>();
@@ -59,6 +67,9 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<CallMicroflowActionExecutor>();
         services.TryAddScoped<RestCallActionExecutor>();
         services.TryAddScoped<LogMessageActionExecutor>();
+        services.TryAddScoped<ThrowExceptionActionExecutor>();
+        services.TryAddScoped<FilterListActionExecutor>();
+        services.TryAddScoped<SortListActionExecutor>();
         services.TryAddSingleton<MicroflowRestExecutionOptions>();
         services.TryAddSingleton<MicroflowRestSecurityPolicy>();
         services.TryAddScoped<MicroflowRestRequestBuilder>();

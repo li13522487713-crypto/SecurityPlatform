@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
 import { Badge, Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
@@ -238,6 +238,63 @@ export interface MicroflowEditorProps {
   metadataModuleId?: string;
   /** http/local/mock 校验统一入口；http mode 下由宿主注入后端 ValidationAdapter。 */
   validationAdapter?: MicroflowValidationAdapterLike;
+  /**
+   * 工作台外置工具栏模式。
+   *
+   * - "internal"（默认）：编辑器内部继续渲染顶部 Save / Validate / TestRun /
+   *   Publish 等按钮；与现有 `/microflow/:id/editor` 路由表现一致。
+   * - "external"：外部宿主（例如 Mendix Studio Workbench Toolbar）通过
+   *   {@link MicroflowEditorHandle} 远程触发保存 / 校验 / 运行 / 发布等动作；
+   *   此时编辑器隐藏自带的顶部工具栏，避免双层 toolbar 视觉重叠。
+   */
+  toolbarMode?: "internal" | "external";
+  /**
+   * 命令式 ref 句柄，外置工具栏可通过它远程触发动作并读取状态。
+   * 编辑器仍掌握所有真实业务逻辑，宿主只发起命令、读快照。
+   */
+  editorRef?: Ref<MicroflowEditorHandle>;
+}
+
+/**
+ * 工作台 / 外置宿主可通过该 ref 操控编辑器，对齐 Mendix Studio 顶部工具栏的
+ * 保存 / 校验 / 运行 / 调试 / 发布 / 撤销 / 重做 / 适应画布 / 自动布局 /
+ * 缩放 / 全屏 / 小地图 等按钮。
+ *
+ * 所有 promise 方法都会内部 catch & toast，宿主调用方无需自己处理失败；状态
+ * 读取方法返回当前快照，便于工具栏显示按钮的 disabled / loading 等。
+ */
+export interface MicroflowEditorHandle {
+  save: () => Promise<void>;
+  validate: () => Promise<void>;
+  runTest: () => Promise<void>;
+  publish: () => Promise<void>;
+  undo: () => void;
+  redo: () => void;
+  autoLayout: () => void;
+  fitView: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  setZoom: (zoom: number) => void;
+  toggleFullscreen: () => void;
+  toggleMinimap: () => void;
+  getStatus: () => MicroflowEditorStatusSnapshot;
+}
+
+/** 外置 Toolbar 渲染按钮 disabled / loading 等状态的依赖快照。 */
+export interface MicroflowEditorStatusSnapshot {
+  microflowId: string;
+  schemaVersion: string;
+  dirty: boolean;
+  saving: boolean;
+  running: boolean;
+  validationStatus: string;
+  errorCount: number;
+  warningCount: number;
+  canUndo: boolean;
+  canRedo: boolean;
+  zoomPercent: number;
+  hasRunSession: boolean;
+  fullscreen: boolean;
 }
 
 export interface MicroflowEditorLabels {
@@ -2096,8 +2153,101 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     onEscape: clearSelection,
   });
 
+  const toolbarMode = props.toolbarMode ?? "internal";
+  const [fullscreenActive, setFullscreenActive] = useState(false);
+
+  // External hosts ride imperative handle; internal mode also receives the handle so
+  // higher-level UIs can opt-in without forcing internal toolbar to disappear.
+  useImperativeHandle(props.editorRef, () => ({
+    save: async () => {
+      try {
+        await handleSave();
+      } catch (error) {
+        Toast.error(getEditorApiErrorMessage(error));
+      }
+    },
+    validate: async () => {
+      try {
+        await handleValidate();
+      } catch (error) {
+        Toast.error(getEditorApiErrorMessage(error));
+      }
+    },
+    runTest: async () => {
+      try {
+        await handleTestRun();
+      } catch (error) {
+        Toast.error(getEditorApiErrorMessage(error));
+      }
+    },
+    publish: async () => {
+      if (!props.onPublish) {
+        Toast.warning("Publish handler is not configured for this editor.");
+        return;
+      }
+      try {
+        await props.onPublish(schema);
+      } catch (error) {
+        Toast.error(getEditorApiErrorMessage(error));
+      }
+    },
+    undo: handleUndo,
+    redo: handleRedo,
+    autoLayout: handleAutoLayout,
+    fitView: () => {
+      window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-fit-view"));
+    },
+    zoomIn: () => {
+      window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-zoom", { detail: { delta: 0.1 } }));
+    },
+    zoomOut: () => {
+      window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-zoom", { detail: { delta: -0.1 } }));
+    },
+    setZoom: (zoom: number) => {
+      window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-zoom", { detail: { zoom } }));
+    },
+    toggleFullscreen: () => {
+      setFullscreenActive(value => !value);
+      const target = shellRef.current;
+      if (!target) {
+        return;
+      }
+      if (document.fullscreenElement === target) {
+        void document.exitFullscreen();
+      } else {
+        void target.requestFullscreen?.();
+      }
+    },
+    toggleMinimap: () => {
+      const next = !schema.editor.showMiniMap;
+      commitSchema(
+        { ...schema, editor: { ...schema.editor, showMiniMap: next } },
+        "bulkUpdate",
+        { historyLabel: "Toggle minimap", skipValidate: true, preserveSelection: true, source: "flowgram" }
+      );
+    },
+    getStatus: () => ({
+      microflowId: schema.id,
+      schemaVersion: schema.schemaVersion,
+      dirty,
+      saving,
+      running,
+      validationStatus,
+      errorCount: issues.filter(issue => issue.severity === "error").length,
+      warningCount: issues.filter(issue => issue.severity === "warning").length,
+      canUndo: historyState.canUndo,
+      canRedo: historyState.canRedo,
+      zoomPercent: Math.round((schema.editor.viewport?.zoom ?? schema.editor.zoom ?? 1) * 100),
+      hasRunSession: Boolean(runSession),
+      fullscreen: fullscreenActive
+    })
+  // The handle reads many derived values; React will re-create the impl each
+  // render so callers always observe fresh values.
+  }));
+
   return (
     <div ref={shellRef} style={shellStyle} tabIndex={0}>
+      {toolbarMode === "internal" ? (
       <div style={toolbarStyle}>
         <Space style={{ minWidth: 0, overflow: "hidden" }}>
           {props.toolbarPrefix}
@@ -2151,6 +2301,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           {props.toolbarSuffix}
         </Space>
       </div>
+      ) : null}
       <div style={bodyStyle}>
         {leftOpen ? (
           <div style={panelStyle}>

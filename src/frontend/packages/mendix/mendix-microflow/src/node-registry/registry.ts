@@ -71,7 +71,23 @@ export interface MicroflowNodeDragPayload {
   sourcePanel: "nodes" | "microflow-node-panel";
 }
 
-export type MicroflowNodeFilterKey = "all" | "favorites" | "enabled" | MicroflowNodePanelCategoryKey;
+export type MicroflowNodeFilterKey = "all" | "favorites" | "enabled" | "supported" | MicroflowNodePanelCategoryKey;
+
+/**
+ * 节点在后端 runtime 引擎上的执行支持等级。
+ *
+ * - `supported`：当前 runtime engine 已对接具体 executor，testRun 中能真实执行；
+ * - `partial`：runtime 引擎需要 connector 或仅在受限模式下工作（例如 RestCall
+ *   默认 allowRealHttp=false 会被安全策略阻断），开发时可设计但运行时通常返回
+ *   `RUNTIME_CONNECTOR_REQUIRED` 之类的错误；
+ * - `unsupported`：runtime 引擎当前显式不支持，testRun 会抛 `RUNTIME_UNSUPPORTED_ACTION`。
+ */
+export type MicroflowEngineSupportLevel = "supported" | "partial" | "unsupported";
+
+export interface MicroflowEngineSupport {
+  level: MicroflowEngineSupportLevel;
+  reason?: string;
+}
 
 export interface MicroflowNodeCategoryDefinition {
   key: MicroflowNodePanelCategoryKey;
@@ -130,6 +146,7 @@ export interface MicroflowNodeRegistryEntry<TConfig extends object = Record<stri
   propertyTabs: MicroflowPropertyTabKey[];
   enabled: boolean;
   disabledReason?: string;
+  engineSupport: MicroflowEngineSupport;
   documentation: {
     summary: string;
     whenToUse: string;
@@ -252,9 +269,15 @@ function createNodeFromRegistry(entry: MicroflowNodeRegistryEntry, id: string, p
   } as unknown as LegacyMicroflowNode;
 }
 
-function createEntry<TConfig extends object>(entry: Omit<MicroflowNodeRegistryEntry<TConfig>, "keywords" | "inputs" | "outputs" | "enabled" | "disabledReason" | "supportsErrorHandling" | "supportedErrorHandlingTypes" | "propertyTabs" | "validate" | "toRuntimeDto" | "fromRuntimeDto" | "useCases"> & Partial<Pick<MicroflowNodeRegistryEntry<TConfig>, "keywords" | "inputs" | "outputs" | "enabled" | "disabledReason" | "supportsErrorHandling" | "supportedErrorHandlingTypes" | "propertyTabs" | "validate" | "useCases">>): MicroflowNodeRegistryEntry<TConfig> {
+function createEntry<TConfig extends object>(entry: Omit<MicroflowNodeRegistryEntry<TConfig>, "keywords" | "inputs" | "outputs" | "enabled" | "disabledReason" | "supportsErrorHandling" | "supportedErrorHandlingTypes" | "propertyTabs" | "validate" | "toRuntimeDto" | "fromRuntimeDto" | "useCases" | "engineSupport"> & Partial<Pick<MicroflowNodeRegistryEntry<TConfig>, "keywords" | "inputs" | "outputs" | "enabled" | "disabledReason" | "supportsErrorHandling" | "supportedErrorHandlingTypes" | "propertyTabs" | "validate" | "useCases" | "engineSupport">>): MicroflowNodeRegistryEntry<TConfig> {
   const supportsErrorHandling = entry.supportsErrorHandling ?? entry.ports.some(item => item.kind === "errorOut");
   const disabledReason = entry.disabledReason ?? entry.availabilityReason;
+  const resolvedEngineSupport: MicroflowEngineSupport = entry.engineSupport
+    ?? (entry.activityType
+      ? engineSupportFromAction(actionKindFromActivityType(entry.activityType), entry.availability)
+      : entry.actionKind
+        ? engineSupportFromAction(entry.actionKind, entry.availability)
+        : engineSupportForNodeKind(entry.kind, entry.availability));
   return {
     ...entry,
     id: entry.key ?? (entry.activityType ? `action:${actionKindFromActivityType(entry.activityType) ?? entry.activityType}` : entry.type),
@@ -269,6 +292,7 @@ function createEntry<TConfig extends object>(entry: Omit<MicroflowNodeRegistryEn
     keywords: entry.keywords ?? [entry.title, entry.titleZh, entry.description, entry.group, entry.subgroup, entry.iconKey, entry.availability].filter((value): value is string => Boolean(value)),
     enabled: entry.enabled ?? !["requiresConnector", "nanoflowOnlyDisabled"].includes(entry.availability),
     disabledReason,
+    engineSupport: resolvedEngineSupport,
     inputs: entry.inputs ?? entry.ports.filter(item => item.direction === "input").map(item => ({ id: item.id, title: item.label, type: item.kind })),
     outputs: entry.outputs ?? entry.ports.filter(item => item.direction === "output").map(item => ({ id: item.id, title: item.label, type: item.kind })),
     supportsErrorHandling,
@@ -303,6 +327,130 @@ function featureStatusFromAvailability(availability: MicroflowNodeAvailability):
     return "experimental";
   }
   return "stable";
+}
+
+/**
+ * 从 actionKind 派生 runtime engine 支持级别。
+ *
+ * 与后端 `IMicroflowActionExecutorRegistry` 的具体 executor 对齐：
+ * - P0 supported: retrieve / createObject / changeMembers / commit / delete /
+ *   rollback / createList / changeList / aggregateList / filterList / sortList /
+ *   createVariable / changeVariable / callMicroflow / restCall（默认安全策略阻断
+ *   走 partial）/ logMessage / break / continue / throwException
+ * - partial: requiresConnector / beta / deprecated（运行时需 connector 才能成功）
+ * - unsupported: nanoflowOnly / 默认其它仅在画布建模、引擎尚未实现的动作
+ */
+const SUPPORTED_ACTION_KINDS = new Set<string>([
+  "retrieve",
+  "createObject",
+  "changeMembers",
+  "commit",
+  "delete",
+  "rollback",
+  "createList",
+  "changeList",
+  "listOperation",
+  "aggregateList",
+  "filterList",
+  "sortList",
+  "createVariable",
+  "changeVariable",
+  "callMicroflow",
+  "logMessage",
+  "throwException",
+  "break",
+  "continue"
+]);
+const PARTIAL_ACTION_KINDS = new Set<string>([
+  // RestCall 只有 allowRealHttp=true 且经过安全策略后才真实执行；
+  // 默认 testRun 中会被 RUNTIME_REST_BLOCKED_BY_SECURITY 阻断。
+  "restCall",
+  // 需要 connector 配置才能落地真实执行。
+  "callJavaAction",
+  "webServiceCall",
+  "importXml",
+  "exportXml",
+  "callExternalAction",
+  "restOperationCall",
+  "generateDocument",
+  "deleteExternalObject",
+  "sendExternalObject",
+  "callMlModel",
+  "applyJumpToOption",
+  "callWorkflow",
+  "changeWorkflowState",
+  "completeUserTask",
+  "generateJumpToOptions",
+  "retrieveWorkflowActivityRecords",
+  "retrieveWorkflowContext",
+  "retrieveWorkflows",
+  "showUserTaskPage",
+  "showWorkflowAdminPage",
+  "lockWorkflow",
+  "unlockWorkflow",
+  "notifyWorkflow",
+  "counter",
+  "incrementCounter",
+  "gauge"
+]);
+
+export function engineSupportFromAction(actionKind: MicroflowActionKind | string | undefined, availability: MicroflowNodeAvailability): MicroflowEngineSupport {
+  if (availability === "nanoflowOnlyDisabled") {
+    return { level: "unsupported", reason: "Nanoflow-only action cannot run in Microflow runtime." };
+  }
+  if (availability === "deprecated") {
+    return { level: "partial", reason: "兼容历史模型保留，新模型不建议继续使用。" };
+  }
+  if (availability === "beta") {
+    return { level: "partial", reason: "Beta 能力，runtime 行为可能继续演进。" };
+  }
+  if (availability === "requiresConnector") {
+    return { level: "partial", reason: "需要启用对应 Connector 后才会真实执行。" };
+  }
+  if (!actionKind) {
+    return { level: "supported" };
+  }
+  if (SUPPORTED_ACTION_KINDS.has(actionKind)) {
+    return { level: "supported" };
+  }
+  if (PARTIAL_ACTION_KINDS.has(actionKind)) {
+    return { level: "partial", reason: "Runtime 默认通过 ConfiguredMicroflowActionExecutor 占位执行；如需真实执行请确保 connector / allowRealHttp 已启用。" };
+  }
+  return { level: "unsupported", reason: "Runtime 引擎尚未对该动作提供具体 executor，testRun 会返回 RUNTIME_UNSUPPORTED_ACTION。" };
+}
+
+function engineSupportForNodeKind(kind: string, availability: MicroflowNodeAvailability): MicroflowEngineSupport {
+  if (kind === "event" || kind === "startEvent" || kind === "endEvent" || kind === "errorEvent" || kind === "breakEvent" || kind === "continueEvent") {
+    return { level: "supported" };
+  }
+  if (kind === "decision" || kind === "exclusiveSplit") {
+    return { level: "supported" };
+  }
+  if (kind === "merge" || kind === "exclusiveMerge") {
+    return { level: "supported" };
+  }
+  if (kind === "parameter" || kind === "parameterObject") {
+    return { level: "supported" };
+  }
+  if (kind === "annotation") {
+    return { level: "supported" };
+  }
+  if (kind === "loop") {
+    return { level: "partial", reason: "Loop 子图当前由 FlowNavigator 模拟，testRun 主路径尚未深度集成。" };
+  }
+  if (kind === "objectTypeDecision") {
+    return { level: "partial", reason: "对象类型决策需要 metadata 解析；未提供完整 entity 元数据时 testRun 可能返回 RUNTIME_UNSUPPORTED_ACTION。" };
+  }
+  if (kind === "tryCatch" || kind === "errorHandler") {
+    return { level: "unsupported", reason: "Try/Catch 与显式 ErrorHandler 节点暂不参与 testRun 主路径。" };
+  }
+  if (kind === "gateway") {
+    return { level: "unsupported", reason: "Parallel/Inclusive Gateway 暂不在 runtime 引擎主路径执行。" };
+  }
+  if (availability === "nanoflowOnlyDisabled") {
+    return { level: "unsupported", reason: "Nanoflow-only node cannot run in Microflow runtime." };
+  }
+  return { level: "supported" };
 }
 
 function eventEntry(type: Extract<LegacyMicroflowNodeType, "startEvent" | "endEvent" | "errorEvent" | "breakEvent" | "continueEvent">, title: string, titleZh: string, ports: MicroflowPort[], tone: MicroflowRenderMetadata["tone"], description: string): MicroflowNodeRegistryEntry {
@@ -537,6 +685,84 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     render: { iconKey: "annotation", shape: "annotation", tone: "neutral", width: 220, height: 100 },
     propertyForm: { formKey: "annotation", sections: ["General"] },
     supportsErrorHandling: false
+  }),
+  createEntry({
+    type: "parallelGateway",
+    kind: "gateway",
+    title: "Parallel Gateway",
+    titleZh: "并行网关",
+    description: "Splits the flow into parallel branches and joins them later (modelling-only; runtime executes branches sequentially).",
+    category: "decisions",
+    group: "Decisions",
+    iconKey: "parallelGateway",
+    availability: "supported",
+    availabilityReason: undefined,
+    defaultConfig: { gatewayMode: "auto", branches: [], joinPolicy: "waitAll" },
+    ports: [sequenceIn, port("branch", "Branch", "output", "sequenceOut", "oneOrMore", ["sequence"])],
+    documentation: doc("Parallel split / join. Useful for documentation; the testRun engine still executes branches sequentially."),
+    render: { iconKey: "parallelGateway", shape: "diamond", tone: "warning", width: 152, height: 104 },
+    propertyForm: { formKey: "parallelGateway", sections: ["General", "Output"] },
+    supportsErrorHandling: false,
+    engineSupport: { level: "unsupported", reason: "Parallel Gateway 暂不在 runtime 引擎主路径执行；仅作为建模占位。" }
+  }),
+  createEntry({
+    type: "inclusiveGateway",
+    kind: "gateway",
+    title: "Inclusive Gateway",
+    titleZh: "包含网关",
+    description: "Routes to any branches whose conditions are true (multi-branch OR; modelling-only).",
+    category: "decisions",
+    group: "Decisions",
+    iconKey: "inclusiveGateway",
+    availability: "supported",
+    availabilityReason: undefined,
+    defaultConfig: { branches: [], defaultBranch: null, mergePolicy: "waitAny" },
+    ports: [sequenceIn, port("branch", "Branch", "output", "sequenceOut", "oneOrMore", ["decisionCondition"])],
+    documentation: doc("Inclusive (OR) gateway. Useful for documentation; the testRun engine does not yet execute multi-branch OR."),
+    render: { iconKey: "inclusiveGateway", shape: "diamond", tone: "warning", width: 152, height: 104 },
+    propertyForm: { formKey: "inclusiveGateway", sections: ["General", "Output"] },
+    supportsErrorHandling: false,
+    engineSupport: { level: "unsupported", reason: "Inclusive Gateway 暂不在 runtime 引擎主路径执行；仅作为建模占位。" }
+  }),
+  createEntry({
+    type: "tryCatch",
+    kind: "tryCatch",
+    title: "Try / Catch",
+    titleZh: "捕获异常",
+    description: "Wraps a block of nodes with try / catch / finally branches (modelling-only).",
+    category: "activities",
+    group: "Activities",
+    iconKey: "tryCatch",
+    availability: "supported",
+    availabilityReason: undefined,
+    defaultConfig: { tryBranchKey: "try", catchBranchKey: "catch", finallyBranchKey: "finally", errorVariableName: "latestError" },
+    ports: [sequenceIn, port("try", "Try", "output", "sequenceOut", "one", ["sequence"]), port("catch", "Catch", "output", "errorOut", "zeroOrOne", ["errorHandler"]), port("finally", "Finally", "output", "sequenceOut", "zeroOrOne", ["sequence"])],
+    documentation: doc("Try/Catch/Finally container. Used to model error handling scopes; testRun honours errors but does not branch on tryCatch yet."),
+    render: { iconKey: "tryCatch", shape: "roundedRect", tone: "warning", width: 200, height: 86 },
+    propertyForm: { formKey: "tryCatch", sections: ["General", "Error Handling"] },
+    supportsErrorHandling: true,
+    supportedErrorHandlingTypes: ["customWithRollback", "customWithoutRollback"],
+    engineSupport: { level: "unsupported", reason: "Try/Catch 节点暂不参与 testRun 主路径；可通过 Activity 上的 errorHandling 字段实现简化错误处理。" }
+  }),
+  createEntry({
+    type: "errorHandler",
+    kind: "errorHandler",
+    title: "Error Handler",
+    titleZh: "错误处理器",
+    description: "Configures a node-scope error handling policy (rollback / continue / custom).",
+    category: "activities",
+    group: "Activities",
+    iconKey: "errorHandler",
+    availability: "supported",
+    availabilityReason: undefined,
+    defaultConfig: { policy: "rollback", customHandlerVariable: "", continueOnError: false },
+    ports: [sequenceIn, sequenceOut, errorOut],
+    documentation: doc("Decorates a node group with error policy. Currently designed for modelling; runtime treats it as transparent."),
+    render: { iconKey: "errorHandler", shape: "roundedRect", tone: "warning", width: 196, height: 80 },
+    propertyForm: { formKey: "errorHandler", sections: ["General", "Error Handling"] },
+    supportsErrorHandling: true,
+    supportedErrorHandlingTypes: ["rollback", "customWithRollback", "customWithoutRollback"],
+    engineSupport: { level: "partial", reason: "节点错误策略可在 Activity errorHandling 字段中复刻；ErrorHandler 节点本身暂不被 runtime 主路径解释。" }
   })
 ];
 
@@ -660,7 +886,11 @@ export function objectKindFromRegistryItem(entry: Pick<MicroflowNodeRegistryEntr
     loop: "loopedActivity",
     parameter: "parameterObject",
     annotation: "annotation",
-    activity: "actionActivity"
+    activity: "actionActivity",
+    parallelGateway: "parallelGateway",
+    inclusiveGateway: "inclusiveGateway",
+    tryCatch: "tryCatch",
+    errorHandler: "errorHandler"
   };
   return map[entry.type];
 }
@@ -678,7 +908,11 @@ export function officialTypeFromRegistryItem(entry: Pick<MicroflowNodeRegistryEn
     loop: "Microflows$LoopedActivity",
     parameter: "Microflows$MicroflowParameterObject",
     annotation: "Microflows$Annotation",
-    activity: "Microflows$ActionActivity"
+    activity: "Microflows$ActionActivity",
+    parallelGateway: "Microflows$ParallelGateway",
+    inclusiveGateway: "Microflows$InclusiveGateway",
+    tryCatch: "Microflows$TryCatch",
+    errorHandler: "Microflows$ErrorHandler"
   };
   return map[entry.type];
 }
