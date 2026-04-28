@@ -25,6 +25,32 @@ export type TestRunMicroflowApiEnvelope = MicroflowApiResponse<TestRunMicroflowA
 export type GetMicroflowRunApiResponse = MicroflowApiResponse<MicroflowRunSession>;
 
 /**
+ * GET /api/microflows/{id}/runs?pageIndex=1&pageSize=20&status=all
+ */
+export interface MicroflowRunHistoryItemDto {
+  runId: string;
+  microflowId: string;
+  status: "success" | "failed" | "unsupported" | "cancelled";
+  durationMs: number;
+  startedAt: string;
+  completedAt?: string;
+  errorMessage?: string;
+  summary?: string;
+}
+
+export interface ListMicroflowRunsResponseDto {
+  items: MicroflowRunHistoryItemDto[];
+  total: number;
+}
+
+export type ListMicroflowRunsApiResponse = MicroflowApiResponse<ListMicroflowRunsResponseDto>;
+
+/**
+ * GET /api/microflows/{id}/runs/{runId}
+ */
+export type GetMicroflowRunDetailApiResponse = MicroflowApiResponse<MicroflowRunSession>;
+
+/**
  * GET /api/microflows/runs/{runId}/trace
  * Trace 帧须包含 `objectId`、（可选）`flowId` 通过 flow 相关字段、以及 `actionId` 之一（见 @atlas/microflow 的 `MicroflowTraceFrame`）。
  */

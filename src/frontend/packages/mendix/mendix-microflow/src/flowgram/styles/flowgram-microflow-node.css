@@ -43,6 +43,11 @@
   box-shadow: 0 0 0 2px rgba(215, 49, 53, 0.18), 0 8px 24px rgba(31, 35, 41, 0.08);
 }
 
+.microflow-flowgram-node.is-runtime-unsupported {
+  border-color: #f77234;
+  box-shadow: 0 0 0 2px rgba(247, 114, 52, 0.18), 0 8px 24px rgba(31, 35, 41, 0.08);
+}
+
 .microflow-flowgram-node.is-runtime-skipped {
   opacity: 0.48;
   filter: grayscale(0.6);

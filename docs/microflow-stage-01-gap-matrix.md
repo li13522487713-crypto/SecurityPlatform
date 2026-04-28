@@ -110,6 +110,12 @@
 | 60 | 运行时调用栈 | Stage 23 已完成：session/error 返回 callStack、callDepth、correlationId，trace 包含 `microflowId` |
 | 61 | 简单循环调用检测 | Stage 23 已完成：self call 与 A->B->A active stack cycle 运行时拦截，返回 `RUNTIME_CALL_RECURSION_DETECTED` |
 | 62 | 子微流 nodeResults | Stage 23 已完成：`childRuns` 返回子微流 trace，父/子 trace 都标注 `microflowId`，前端 Run 面板可展示 |
+| 63 | Trace 面板 | Stage 24 已完成：底部 Debug 区新增 Trace 分区，展示 execution path / node results / call stack / inputs / output / logs / errors，支持点击定位 |
+| 64 | 运行历史列表 | Stage 24 已完成：后端 `GET /api/microflows/{id}/runs` + 前端 Run History 面板，支持 all/success/failed/unsupported/cancelled 过滤、刷新、empty/error/retry |
+| 65 | 运行详情查询 | Stage 24 已完成：后端 `GET /api/microflows/{id}/runs/{runId}` 返回完整 run detail（含 childRuns），前端可按 history 选择加载 |
+| 66 | 节点执行路径展示 | Stage 24 已完成：按执行顺序展示 nodeResults（trace），child run 按 callDepth 缩进显示 |
+| 67 | 节点运行状态高亮 | Stage 24 已完成：画布节点支持 success/failed/skipped/unsupported 高亮，failed/unsupported 节点显示错误提示 |
+| 68 | 运行失败定位 | Stage 24 已完成：点击 Trace 节点/错误可定位到当前画布节点或连线；子微流节点在父画布提示不可定位，避免错位映射 |
 
 ---
 

@@ -334,6 +334,54 @@ public record GetMicroflowRunTraceResponse
 
 public sealed record MicroflowRunTraceResponseDto : GetMicroflowRunTraceResponse;
 
+public sealed record ListMicroflowRunsRequest
+{
+    [JsonPropertyName("pageIndex")]
+    public int PageIndex { get; init; } = 1;
+
+    [JsonPropertyName("pageSize")]
+    public int PageSize { get; init; } = 20;
+
+    [JsonPropertyName("status")]
+    public string? Status { get; init; }
+}
+
+public sealed record MicroflowRunHistoryItemDto
+{
+    [JsonPropertyName("runId")]
+    public string RunId { get; init; } = string.Empty;
+
+    [JsonPropertyName("microflowId")]
+    public string MicroflowId { get; init; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = "failed";
+
+    [JsonPropertyName("durationMs")]
+    public int DurationMs { get; init; }
+
+    [JsonPropertyName("startedAt")]
+    public DateTimeOffset StartedAt { get; init; }
+
+    [JsonPropertyName("completedAt")]
+    public DateTimeOffset? CompletedAt { get; init; }
+
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; init; }
+
+    [JsonPropertyName("summary")]
+    public string? Summary { get; init; }
+}
+
+public sealed record ListMicroflowRunsResponse
+{
+    [JsonPropertyName("items")]
+    public IReadOnlyList<MicroflowRunHistoryItemDto> Items { get; init; } = Array.Empty<MicroflowRunHistoryItemDto>();
+
+    [JsonPropertyName("total")]
+    public int Total { get; init; }
+}
+
 public static class RuntimeErrorCode
 {
     public const string RuntimeStartNotFound = "RUNTIME_START_NOT_FOUND";

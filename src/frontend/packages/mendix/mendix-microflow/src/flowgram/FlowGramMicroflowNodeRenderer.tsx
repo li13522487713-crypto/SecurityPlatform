@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { Tag, Typography } from "@douyinfe/semi-ui";
+import { Tag, Tooltip, Typography } from "@douyinfe/semi-ui";
 import {
   FlowNodeFormData,
   type FormModelV2,
@@ -84,7 +84,25 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         {data.availability === "deprecated" ? <Tag size="small" color="orange">Deprecated</Tag> : null}
         {data.availability === "requiresConnector" ? <Tag size="small" color="grey">Connector Required</Tag> : null}
         {data.availability === "nanoflowOnlyDisabled" ? <Tag size="small" color="grey">Nanoflow Only</Tag> : null}
-        {data.runtimeState && data.runtimeState !== "idle" ? <Tag color={data.runtimeState === "failed" ? "red" : data.runtimeState === "running" ? "blue" : data.runtimeState === "skipped" ? "grey" : "green"}>{data.runtimeState}</Tag> : null}
+        {data.runtimeState && data.runtimeState !== "idle" ? (
+          <Tooltip content={data.runtimeErrorMessage ?? data.runtimeErrorCode}>
+            <Tag
+              color={
+                data.runtimeState === "failed"
+                  ? "red"
+                  : data.runtimeState === "unsupported"
+                    ? "orange"
+                    : data.runtimeState === "running"
+                      ? "blue"
+                      : data.runtimeState === "skipped"
+                        ? "grey"
+                        : "green"
+              }
+            >
+              {data.runtimeState}
+            </Tag>
+          </Tooltip>
+        ) : null}
         {validationTag}
       </div>
       {data.objectKind === "loopedActivity" && data.loopSummary ? (

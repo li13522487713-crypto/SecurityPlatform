@@ -248,6 +248,20 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
+###
+GET {{host}}/api/microflows/{{microflowId}}/runs?pageIndex=1&pageSize=20&status=all
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+###
+GET {{host}}/api/microflows/{{microflowId}}/runs/{{runId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Round 60 - Cancel / Timeout / Limits
 # Expected: completed runs can be marked cancelled; long-running cooperative cancellation is a known limitation in sync TestRun.
 POST {{host}}/api/microflows/runs/{{runId}}/cancel

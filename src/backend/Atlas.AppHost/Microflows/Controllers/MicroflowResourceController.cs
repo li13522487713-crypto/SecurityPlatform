@@ -539,6 +539,40 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         return MicroflowOk(result);
     }
 
+    [HttpGet("{id}/runs")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<ListMicroflowRunsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MicroflowApiResponse<ListMicroflowRunsResponse>>> ListRuns(
+        string id,
+        [FromQuery] int pageIndex = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _testRunService.ListRunsAsync(
+            id,
+            new ListMicroflowRunsRequest
+            {
+                PageIndex = pageIndex,
+                PageSize = pageSize,
+                Status = status
+            },
+            cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/runs/{runId}")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowRunSessionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowRunSessionDto>>> GetRunByMicroflow(
+        string id,
+        string runId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _testRunService.GetRunSessionAsync(id, runId, cancellationToken);
+        return MicroflowOk(result);
+    }
+
     [HttpGet("runs/{runId}/trace")]
     [ProducesResponseType(typeof(MicroflowApiResponse<GetMicroflowRunTraceResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status404NotFound)]

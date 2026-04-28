@@ -44,6 +44,12 @@ export interface MicroflowRuntimeError {
   cause?: string;
 }
 
+export interface MicroflowErrorHandlingSummary {
+  totalHandled?: number;
+  totalUnhandled?: number;
+  maxDepthReached?: number;
+}
+
 export interface MicroflowRuntimeLog {
   id: string;
   timestamp: string;
@@ -72,8 +78,16 @@ export interface MicroflowTraceFrame {
   frameId?: string;
   runId: string;
   microflowId?: string;
+  parentRunId?: string;
+  rootRunId?: string;
+  callFrameId?: string;
+  callDepth?: number;
+  callerObjectId?: string;
+  callerActionId?: string;
   objectId: string;
   nodeId?: string;
+  nodeName?: string;
+  nodeType?: string;
   objectTitle?: string;
   nodeTitle?: string;
   actionId?: string;
@@ -130,6 +144,7 @@ export interface MicroflowRunSession {
   logs: MicroflowRuntimeLog[];
   variables: MicroflowRunSessionVariableSnapshot[];
   transactionSummary?: MicroflowRuntimeTransactionSummary;
+  errorHandlingSummary?: MicroflowErrorHandlingSummary;
   childRuns?: MicroflowRunSession[];
   childRunIds?: string[];
 }
@@ -142,6 +157,7 @@ export interface MicroflowTestRunOptions {
   objectTypeCase?: string;
   loopIterations?: number;
   maxSteps?: number;
+  disableExpressionEvaluation?: boolean;
 }
 
 export interface MicroflowTestRunInput {

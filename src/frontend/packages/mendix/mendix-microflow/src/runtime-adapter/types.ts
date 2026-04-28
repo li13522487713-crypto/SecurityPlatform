@@ -54,6 +54,30 @@ export interface TestRunMicroflowResponse {
   session: MicroflowRunSession;
 }
 
+export type MicroflowRunHistoryStatus = "success" | "failed" | "unsupported" | "cancelled";
+
+export interface MicroflowRunHistoryQuery {
+  pageIndex?: number;
+  pageSize?: number;
+  status?: "all" | MicroflowRunHistoryStatus;
+}
+
+export interface MicroflowRunHistoryItem {
+  runId: string;
+  microflowId: string;
+  status: MicroflowRunHistoryStatus;
+  durationMs: number;
+  startedAt: string;
+  completedAt?: string;
+  errorMessage?: string;
+  summary?: string;
+}
+
+export interface ListMicroflowRunsResponse {
+  items: MicroflowRunHistoryItem[];
+  total: number;
+}
+
 export interface PublishMicroflowResponse {
   microflowId: string;
   publishedVersion: string;
@@ -74,6 +98,8 @@ export interface MicroflowApiClient {
   cancelMicroflowRun(runId: string): Promise<{ runId: string; status: "cancelled" | "success" | "failed" } | void>;
   getMicroflowRunSession(runId: string): Promise<MicroflowRunSession>;
   getMicroflowRunTrace(runId: string): Promise<MicroflowTraceFrame[]>;
+  listMicroflowRuns(microflowId: string, query?: MicroflowRunHistoryQuery): Promise<ListMicroflowRunsResponse>;
+  getMicroflowRunDetail(microflowId: string, runId: string): Promise<MicroflowRunSession>;
   publishMicroflow(id: string, payload?: PublishMicroflowPayload): Promise<PublishMicroflowResponse>;
   duplicateMicroflow(id: string): Promise<MicroflowResource>;
   deleteMicroflow(id: string): Promise<void>;

@@ -21,8 +21,18 @@ public interface IMicroflowTestRunService
         string runId,
         CancellationToken cancellationToken);
 
+    Task<MicroflowRunSessionDto> GetRunSessionAsync(
+        string resourceId,
+        string runId,
+        CancellationToken cancellationToken);
+
     Task<GetMicroflowRunTraceResponse> GetRunTraceAsync(
         string runId,
+        CancellationToken cancellationToken);
+
+    Task<ListMicroflowRunsResponse> ListRunsAsync(
+        string resourceId,
+        ListMicroflowRunsRequest request,
         CancellationToken cancellationToken);
 }
 

@@ -40,7 +40,9 @@ export interface FlowGramMicroflowNodeData {
   officialType: string;
   disabled: boolean;
   validationState: "valid" | "warning" | "error";
-  runtimeState?: "idle" | "success" | "visited" | "running" | "failed" | "skipped";
+  runtimeState?: "idle" | "success" | "visited" | "running" | "failed" | "skipped" | "unsupported";
+  runtimeErrorCode?: string;
+  runtimeErrorMessage?: string;
   issueCount: number;
 }
 

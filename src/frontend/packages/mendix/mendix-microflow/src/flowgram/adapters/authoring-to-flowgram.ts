@@ -126,21 +126,33 @@ export function buildIssueIndex(issues: MicroflowValidationIssue[]): FlowGramMic
   return index;
 }
 
-function runtimeStateForObject(objectId: string, trace: MicroflowFlowGramTraceRow[] = []): FlowGramMicroflowNodeData["runtimeState"] {
+function runtimeStateForObject(
+  objectId: string,
+  trace: MicroflowFlowGramTraceRow[] = [],
+): Pick<FlowGramMicroflowNodeData, "runtimeState" | "runtimeErrorCode" | "runtimeErrorMessage"> {
   const frame = [...trace].reverse().find(item => item.objectId === objectId);
   if (!frame) {
-    return "idle";
+    return { runtimeState: "idle" };
+  }
+  const runtimeErrorCode = typeof frame.error === "object" && frame.error !== null && "code" in frame.error
+    ? String(frame.error.code)
+    : undefined;
+  const runtimeErrorMessage = typeof frame.error === "object" && frame.error !== null && "message" in frame.error
+    ? String(frame.error.message)
+    : undefined;
+  if (runtimeErrorCode?.includes("UNSUPPORTED")) {
+    return { runtimeState: "unsupported", runtimeErrorCode, runtimeErrorMessage };
   }
   if (frame.status === "failed") {
-    return "failed";
+    return { runtimeState: "failed", runtimeErrorCode, runtimeErrorMessage };
   }
   if (frame.status === "running") {
-    return "running";
+    return { runtimeState: "running", runtimeErrorCode, runtimeErrorMessage };
   }
   if (frame.status === "skipped") {
-    return "skipped";
+    return { runtimeState: "skipped", runtimeErrorCode, runtimeErrorMessage };
   }
-  return "success";
+  return { runtimeState: "success", runtimeErrorCode, runtimeErrorMessage };
 }
 
 function runtimeStateForFlow(flow: MicroflowFlow | undefined, trace: MicroflowFlowGramTraceRow[] = []): FlowGramMicroflowEdgeData["runtimeState"] {
@@ -182,6 +194,7 @@ export function authoringToFlowGram(
           y: parentNode.position.y + 76 + node.position.y,
         }
       : node.position;
+    const runtime = runtimeStateForObject(node.objectId, trace);
     const data: FlowGramMicroflowNodeData = {
       objectId: node.objectId,
       objectKind: object?.kind ?? node.nodeKind,
@@ -202,7 +215,9 @@ export function authoringToFlowGram(
       officialType: object?.officialType ?? node.nodeKind,
       disabled: Boolean(object && "disabled" in object && object.disabled),
       validationState: validationStateFromIssues(objectIssues),
-      runtimeState: runtimeStateForObject(node.objectId, trace),
+      runtimeState: runtime.runtimeState,
+      runtimeErrorCode: runtime.runtimeErrorCode,
+      runtimeErrorMessage: runtime.runtimeErrorMessage,
       issueCount: objectIssues.length,
     };
     return {

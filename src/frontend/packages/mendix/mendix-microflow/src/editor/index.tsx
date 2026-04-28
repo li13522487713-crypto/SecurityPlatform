@@ -25,7 +25,15 @@ import {
   type MicroflowNodeDragPayload,
   type MicroflowNodeRegistryItem
 } from "../node-registry";
-import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
+import {
+  createLocalMicroflowApiClient,
+  type MicroflowApiClient,
+  type MicroflowRunHistoryItem,
+  type MicroflowTraceFrame,
+  type SaveMicroflowResponse,
+  type TestRunMicroflowResponse,
+  type ValidateMicroflowResponse
+} from "../runtime-adapter";
 import {
   applyEditorGraphPatchToAuthoring,
   createAnnotationFlow,
@@ -57,7 +65,18 @@ import {
 } from "../metadata";
 import { validateMicroflowSchema } from "../schema/validator";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
-import { MicroflowTestRunModal, buildRunRequest, shouldBlockRun, type MicroflowRunSession, type MicroflowRuntimeLog, type MicroflowTestRunInput } from "../debug";
+import {
+  MicroflowRunHistoryPanel,
+  MicroflowTracePanel,
+  MicroflowTestRunModal,
+  buildExecutionPath,
+  buildRunHistoryItemFromSession,
+  buildRunRequest,
+  filterNodeResultsByMicroflowId,
+  shouldBlockRun,
+  type MicroflowRunSession,
+  type MicroflowTestRunInput
+} from "../debug";
 import { useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
 import { useMicroflowShortcuts } from "./shortcuts";
 import type {
@@ -1123,6 +1142,8 @@ function ProblemPanel({
 }
 
 function DebugPanel({
+  microflowId,
+  microflowName,
   session,
   serviceError,
   activeFrameId,
@@ -1133,6 +1154,8 @@ function DebugPanel({
   onRerun,
   onCancelRun,
 }: {
+  microflowId: string;
+  microflowName?: string;
   session?: MicroflowRunSession;
   serviceError?: string;
   activeFrameId?: string;
@@ -1143,28 +1166,19 @@ function DebugPanel({
   onRerun: () => void;
   onCancelRun: () => void;
 }) {
-  const [variableKeyword, setVariableKeyword] = useState("");
-  const [logObjectFilter, setLogObjectFilter] = useState("all");
-  const activeFrame = activeFrameId ? session?.trace.find(frame => frame.id === activeFrameId) : session?.trace.at(-1);
   if (serviceError) {
     return <Empty title="运行服务不可用" description={serviceError} />;
   }
-  if (!session || session.trace.length === 0) {
+  if (!session || buildExecutionPath(session).length === 0) {
     return <Empty title="No trace" description="Run a test to see object/flow trace frames." />;
   }
-  const errors = [session.error, ...session.trace.map(frame => frame.error)].filter(Boolean) as NonNullable<MicroflowTraceFrame["error"]>[];
-  const objectIds = [...new Set(session.logs.map(item => item.objectId).filter(Boolean))] as string[];
-  const logs = session.logs.filter(item => logObjectFilter === "all" || item.objectId === logObjectFilter);
-  const variables = Object.values(activeFrame?.variablesSnapshot ?? {}).filter(variable =>
-    !variableKeyword.trim() || variable.name.toLowerCase().includes(variableKeyword.trim().toLowerCase())
-  );
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       <Space style={{ width: "100%", justifyContent: "space-between" }}>
         <Space>
           <Tag color={session.status === "success" ? "green" : "red"}>{session.status}</Tag>
-          <Tag>{session.trace.length} frames</Tag>
-          <Tag color={errors.length > 0 ? "red" : "grey"}>{errors.length} errors</Tag>
+          <Tag>{buildExecutionPath(session).length} nodeResults</Tag>
+          <Tag>{session.childRuns?.length ?? 0} child runs</Tag>
         </Space>
         <Space>
           <Button size="small" onClick={onRerun}>重新运行</Button>
@@ -1172,157 +1186,17 @@ function DebugPanel({
           <Button size="small" type="danger" theme="borderless" onClick={onClear}>清空</Button>
         </Space>
       </Space>
-      <Tabs type="line" style={{ width: "100%" }}>
-        <Tabs.TabPane tab="执行轨迹" itemKey="trace">
-          <Space vertical align="start" style={{ width: "100%" }}>
-            {session.trace.map((frame, index) => (
-              <Card
-                key={frame.id}
-                shadows="hover"
-                style={{
-                  width: "100%",
-                  borderColor: frame.id === activeFrameId ? "var(--semi-color-primary)" : undefined,
-                  opacity: frame.status === "skipped" ? 0.58 : 1,
-                }}
-                bodyStyle={{ padding: 10 }}
-              >
-                <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
-                  <button
-                    type="button"
-                    style={{ textAlign: "left", border: "none", background: "transparent", padding: 0, cursor: "pointer", flex: 1 }}
-                    onClick={() => onSelectFrame(frame)}
-                  >
-                    <Text strong>{index + 1}. {frame.objectTitle ?? frame.objectId}</Text>
-                    <br />
-                    <Text size="small" type="tertiary">
-                      {frame.objectId} · {frame.status} · {frame.durationMs}ms
-                      {frame.selectedCaseValue ? ` · case ${caseValueLabel(frame.selectedCaseValue)}` : ""}
-                      {frame.loopIteration ? ` · loop index ${frame.loopIteration.index}` : ""}
-                    </Text>
-                    {frame.error ? <><br /><Text size="small" type="danger">{frame.error.message}</Text></> : null}
-                  </button>
-                  <Space>
-                    {frame.incomingFlowId ? <Button size="small" onClick={() => onSelectFlow(frame.incomingFlowId as string)}>in</Button> : null}
-                    {frame.outgoingFlowId ? <Button size="small" onClick={() => onSelectFlow(frame.outgoingFlowId as string)}>out</Button> : null}
-                    <Tag color={frame.status === "failed" ? "red" : frame.status === "success" ? "green" : frame.status === "running" ? "blue" : "grey"}>{frame.status}</Tag>
-                  </Space>
-                </Space>
-              </Card>
-            ))}
-          </Space>
-        </Tabs.TabPane>
-        <Tabs.TabPane tab="输入 / 输出" itemKey="io">
-          <Space vertical align="start" style={{ width: "100%" }}>
-            <Text strong>Run</Text>
-            <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify({ input: session.input, output: session.output }, null, 2)}</pre>
-            {activeFrame ? (
-              <>
-                <Text strong>Active frame</Text>
-                <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify({ input: activeFrame.input, output: activeFrame.output, error: activeFrame.error }, null, 2)}</pre>
-              </>
-            ) : null}
-          </Space>
-        </Tabs.TabPane>
-        <Tabs.TabPane tab="变量" itemKey="variables">
-          <Space vertical align="start" style={{ width: "100%" }}>
-            <Input size="small" placeholder="搜索变量名" value={variableKeyword} onChange={setVariableKeyword} style={{ width: 220 }} />
-            {variables.length === 0 ? <Empty title="No variables" /> : variables.map(variable => (
-              <Card key={`${activeFrame?.id}-${variable.name}`} style={{ width: "100%" }} bodyStyle={{ padding: 8 }}>
-                <Text strong>{variable.name}</Text>
-                <br />
-                <Space spacing={4} wrap>
-                  <Tag size="small">{variable.type.kind}</Tag>
-                  <Tag size="small" color="blue">{variable.source ?? "runtime"}</Tag>
-                  {variable.scopeKind ? <Tag size="small" color="grey">{variable.scopeKind}</Tag> : null}
-                  {variable.readonly ? <Tag size="small" color="orange">readonly</Tag> : null}
-                </Space>
-                <br />
-                <Text size="small">{variable.valuePreview || "null"}</Text>
-              </Card>
-            ))}
-          </Space>
-        </Tabs.TabPane>
-        <Tabs.TabPane tab="日志" itemKey="logs">
-          <Space vertical align="start" style={{ width: "100%" }}>
-            <Select
-              size="small"
-              value={logObjectFilter}
-              onChange={value => setLogObjectFilter(String(value))}
-              style={{ width: 220 }}
-              optionList={[{ label: "All objects", value: "all" }, ...objectIds.map(id => ({ label: id, value: id }))]}
-            />
-            {logs.length === 0 ? <Empty title="No logs" /> : logs.map(item => (
-              <LogRow key={item.id} log={item} onSelect={() => item.objectId ? onSelectFrame({ id: item.id, runId: session.id, objectId: item.objectId, actionId: item.actionId, status: "success", startedAt: item.timestamp, durationMs: 0 }) : undefined} />
-            ))}
-          </Space>
-        </Tabs.TabPane>
-        <Tabs.TabPane tab="错误" itemKey="errors">
-          <Space vertical align="start" style={{ width: "100%" }}>
-            {errors.length === 0 ? <Empty title="No errors" /> : errors.map(error => (
-              <Card key={`${error.code}-${error.objectId ?? error.flowId ?? ""}`} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
-                <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
-                  <div>
-                    <Text strong type="danger">{error.code}</Text>
-                    <br />
-                    <Text size="small">{error.message}</Text>
-                    <br />
-                    <Text size="small" type="tertiary">{[error.objectId, error.actionId, error.flowId].filter(Boolean).join(" · ")}</Text>
-                  </div>
-                  <Button size="small" onClick={() => onSelectError(error)}>定位</Button>
-                </Space>
-              </Card>
-            ))}
-          </Space>
-        </Tabs.TabPane>
-      </Tabs>
+      <MicroflowTracePanel
+        microflowId={microflowId}
+        microflowName={microflowName}
+        session={session}
+        activeFrameId={activeFrameId}
+        onSelectFrame={onSelectFrame}
+        onSelectFlow={onSelectFlow}
+        onSelectError={onSelectError}
+      />
     </Space>
   );
-}
-
-function LogRow({ log, onSelect }: { log: MicroflowRuntimeLog; onSelect: () => void }) {
-  const color = log.level === "error" || log.level === "critical" ? "red" : log.level === "warning" ? "orange" : log.level === "info" ? "blue" : "grey";
-  const structuredFields = log.structuredFieldsJson ? tryParseJson(log.structuredFieldsJson) : undefined;
-  return (
-    <Card style={{ width: "100%" }} bodyStyle={{ padding: 8 }}>
-      <button type="button" onClick={onSelect} style={{ textAlign: "left", border: "none", background: "transparent", padding: 0, cursor: "pointer", width: "100%" }}>
-        <Space wrap>
-          <Tag color={color}>{log.level}</Tag>
-          {log.logNodeName ? <Tag color="violet">{log.logNodeName}</Tag> : null}
-          {log.traceId ? <Tag color="grey">{log.traceId}</Tag> : null}
-          <Text size="small" type="tertiary">{log.objectId}</Text>
-        </Space>
-        <br />
-        <Text size="small">{log.message}</Text>
-        {structuredFields ? (
-          <>
-            <br />
-            <Text size="small" type="tertiary">{JSON.stringify(structuredFields)}</Text>
-          </>
-        ) : null}
-      </button>
-    </Card>
-  );
-}
-
-function tryParseJson(value: string): unknown | undefined {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
-  }
-}
-
-function caseValueLabel(value: MicroflowCaseValue): string {
-  if (value.kind === "boolean") {
-    return String(value.value);
-  }
-  if (value.kind === "enumeration") {
-    return value.value;
-  }
-  if (value.kind === "inheritance") {
-    return value.entityQualifiedName;
-  }
-  return value.kind;
 }
 
 function MicroflowEditorInner(props: MicroflowEditorProps) {
@@ -1365,9 +1239,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     validationAdapter: props.validationAdapter,
     resourceId: schema.id,
   });
-  const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
-  const [runSession, setRunSession] = useState<MicroflowRunSession>();
-  const [runtimeServiceError, setRuntimeServiceError] = useState<string>();
+  const [runSessionByMicroflowId, setRunSessionByMicroflowId] = useState<Record<string, MicroflowRunSession | undefined>>({});
+  const [runtimeServiceErrorByMicroflowId, setRuntimeServiceErrorByMicroflowId] = useState<Record<string, string | undefined>>({});
+  const [runHistoryByMicroflowId, setRunHistoryByMicroflowId] = useState<Record<string, MicroflowRunHistoryItem[]>>({});
+  const [selectedRunIdByMicroflowId, setSelectedRunIdByMicroflowId] = useState<Record<string, string | undefined>>({});
+  const [runDetailsByRunId, setRunDetailsByRunId] = useState<Record<string, MicroflowRunSession | undefined>>({});
+  const [runHistoryLoadingByMicroflowId, setRunHistoryLoadingByMicroflowId] = useState<Record<string, boolean>>({});
+  const [runHistoryErrorByMicroflowId, setRunHistoryErrorByMicroflowId] = useState<Record<string, string | undefined>>({});
+  const [runHistoryStatusByMicroflowId, setRunHistoryStatusByMicroflowId] = useState<Record<string, "all" | "success" | "failed" | "unsupported" | "cancelled">>({});
+  const [focusObjectId, setFocusObjectId] = useState<string>();
+  const [focusRequestSeq, setFocusRequestSeq] = useState(0);
+  const runHistoryRequestSeqRef = useRef<Record<string, number>>({});
   const [activeTraceFrameId, setActiveTraceFrameId] = useState<string>();
   const [testRunModalOpen, setTestRunModalOpen] = useState(false);
   const [runInputsByMicroflowId, setRunInputsByMicroflowId] = useState<Record<string, Record<string, unknown>>>({});
@@ -1464,6 +1346,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
   const selectedFlow = schema.editor.selection.flowId ? findFlowWithCollection(schema, schema.editor.selection.flowId)?.flow ?? null : null;
+  const activeMicroflowId = schema.id;
+  const runSession = runSessionByMicroflowId[activeMicroflowId];
+  const runtimeServiceError = runtimeServiceErrorByMicroflowId[activeMicroflowId];
+  const selectedRunId = selectedRunIdByMicroflowId[activeMicroflowId];
+  const runHistoryFilter = runHistoryStatusByMicroflowId[activeMicroflowId] ?? "all";
+  const runHistoryItems = runHistoryByMicroflowId[activeMicroflowId] ?? [];
+  const runHistoryLoading = Boolean(runHistoryLoadingByMicroflowId[activeMicroflowId]);
+  const runHistoryError = runHistoryErrorByMicroflowId[activeMicroflowId];
+  const selectedRunSession = selectedRunId ? runDetailsByRunId[selectedRunId] : runSession;
+  const traceFrames = useMemo(
+    () => filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId),
+    [selectedRunSession, activeMicroflowId]
+  );
 
   const refreshHistoryState = () => setHistoryState(historyManager.getState());
 
@@ -1482,9 +1377,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const clearRuntimeState = () => {
-    setRunSession(undefined);
-    setTraceFrames([]);
+    setRunSessionByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setSelectedRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setActiveTraceFrameId(undefined);
+    setFocusObjectId(undefined);
   };
 
   const commitSchema = (
@@ -1692,7 +1589,54 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setTestRunModalOpen(true);
   };
 
+  const loadRunHistory = useCallback(async (microflowId: string, status: "all" | "success" | "failed" | "unsupported" | "cancelled" = "all") => {
+    const requestSeq = (runHistoryRequestSeqRef.current[microflowId] ?? 0) + 1;
+    runHistoryRequestSeqRef.current[microflowId] = requestSeq;
+    setRunHistoryLoadingByMicroflowId(current => ({ ...current, [microflowId]: true }));
+    setRunHistoryErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+    try {
+      const response = await apiClient.listMicroflowRuns(microflowId, { pageIndex: 1, pageSize: 20, status });
+      if (runHistoryRequestSeqRef.current[microflowId] !== requestSeq) {
+        return;
+      }
+      setRunHistoryByMicroflowId(current => ({ ...current, [microflowId]: response.items }));
+    } catch (error) {
+      if (runHistoryRequestSeqRef.current[microflowId] !== requestSeq) {
+        return;
+      }
+      setRunHistoryErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
+    } finally {
+      if (runHistoryRequestSeqRef.current[microflowId] === requestSeq) {
+        setRunHistoryLoadingByMicroflowId(current => ({ ...current, [microflowId]: false }));
+      }
+    }
+  }, [apiClient]);
+
+  const selectRunHistoryItem = useCallback(async (microflowId: string, runId: string) => {
+    setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: runId }));
+    const cached = runDetailsByRunId[runId];
+    if (cached) {
+      setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: cached }));
+      setActiveTraceFrameId(cached.trace[0]?.id);
+      return;
+    }
+    try {
+      const detail = await apiClient.getMicroflowRunDetail(microflowId, runId);
+      setRunDetailsByRunId(current => ({ ...current, [runId]: detail }));
+      setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: detail }));
+      setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+      setActiveTraceFrameId(detail.trace[0]?.id);
+      setBottomOpen(true);
+      setBottomTab("debug");
+    } catch (error) {
+      setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
+      setBottomOpen(true);
+      setBottomTab("debug");
+    }
+  }, [apiClient, runDetailsByRunId]);
+
   const handleExecuteTestRun = async (input: MicroflowTestRunInput) => {
+    const microflowId = schema.id;
     const validation = await validateForMode(schema, "testRun");
     const gate = shouldBlockRun(validation.issues, {}, dirty, "saveAndRun");
     if (gate.blocked) {
@@ -1710,29 +1654,40 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       }
     }
     setRunning(true);
+    setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+    setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+    setFocusObjectId(undefined);
     try {
       const response = await apiClient.testRunMicroflow(buildRunRequest(schema, input.parameters, input.options));
-      const persistedSession = await apiClient.getMicroflowRunSession(response.runId);
+      const persistedSession = await apiClient.getMicroflowRunDetail(microflowId, response.runId);
       const persistedTrace = await apiClient.getMicroflowRunTrace(response.runId);
       const session = { ...persistedSession, trace: persistedTrace };
-      setRuntimeServiceError(undefined);
-      setRunSession(session);
-      setTraceFrames(persistedTrace);
+      setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+      setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
+      setRunDetailsByRunId(current => ({ ...current, [session.id]: session }));
+      setRunHistoryByMicroflowId(current => ({
+        ...current,
+        [microflowId]: [
+          buildRunHistoryItemFromSession(microflowId, session),
+          ...(current[microflowId] ?? []).filter(item => item.runId !== session.id),
+        ].slice(0, 20) as MicroflowRunHistoryItem[],
+      }));
+      setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
       setActiveTraceFrameId(persistedTrace[0]?.id);
       setTestRunModalOpen(false);
       setBottomOpen(true);
       setBottomTab("debug");
       props.onTestRunComplete?.({ ...response, session, frames: persistedTrace });
+      void loadRunHistory(microflowId, runHistoryFilter);
       Toast[response.status === "succeeded" ? "success" : "error"](`Run ${response.status}`);
     } catch (error) {
       applyApiValidationIssues(error, setIssues, () => {
         setBottomOpen(true);
         setBottomTab("problems");
       });
-      setRunSession(undefined);
-      setTraceFrames([]);
+      setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setActiveTraceFrameId(undefined);
-      setRuntimeServiceError(getEditorApiErrorMessage(error));
+      setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
       setBottomOpen(true);
       setBottomTab("debug");
       Toast.error(getEditorApiErrorMessage(error));
@@ -1742,29 +1697,38 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const clearTestRun = () => {
-    setRunSession(undefined);
-    setRuntimeServiceError(undefined);
-    setTraceFrames([]);
+    setRunSessionByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setSelectedRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setActiveTraceFrameId(undefined);
+    setFocusObjectId(undefined);
   };
 
   const cancelTestRun = async () => {
     if (!runSession?.id) {
       return;
     }
+    const microflowId = schema.id;
     setRunning(true);
     try {
       const cancelResult = await apiClient.cancelMicroflowRun(runSession.id);
-      const nextSession = await apiClient.getMicroflowRunSession(runSession.id);
+      const nextSession = await apiClient.getMicroflowRunDetail(microflowId, runSession.id);
       const nextTrace = await apiClient.getMicroflowRunTrace(runSession.id);
       const session = { ...nextSession, trace: nextTrace };
-      setRuntimeServiceError(undefined);
-      setRunSession(session);
-      setTraceFrames(nextTrace);
+      setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+      setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
+      setRunDetailsByRunId(current => ({ ...current, [session.id]: session }));
+      setRunHistoryByMicroflowId(current => ({
+        ...current,
+        [microflowId]: [
+          buildRunHistoryItemFromSession(microflowId, session),
+          ...(current[microflowId] ?? []).filter(item => item.runId !== session.id),
+        ].slice(0, 20) as MicroflowRunHistoryItem[],
+      }));
       setActiveTraceFrameId(current => current ?? nextTrace[0]?.id);
       Toast.info(`Run ${cancelResult?.status ?? session.status}`);
     } catch (error) {
-      setRuntimeServiceError(getEditorApiErrorMessage(error));
+      setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
       setBottomOpen(true);
       setBottomTab("debug");
       Toast.error(getEditorApiErrorMessage(error));
@@ -1776,10 +1740,25 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const selectTraceFrame = (frame: MicroflowTraceFrame) => {
     setActiveTraceFrameId(frame.id);
     setRightOpen(true);
+    const targetObjectId = !frame.microflowId || frame.microflowId === schema.id
+      ? frame.objectId
+      : frame.callerObjectId;
+    if (!targetObjectId) {
+      Toast.info("该节点属于子微流，请在子微流画布中定位。");
+      return;
+    }
+    const targetPosition = graph.nodes.find(item => item.objectId === targetObjectId)?.position;
+    if (!targetPosition) {
+      Toast.info("当前画布未找到该节点，可能属于子微流。");
+      return;
+    }
+    setFocusObjectId(targetObjectId);
+    setFocusRequestSeq(value => value + 1);
     applyPatch({
-      selectedObjectId: frame.objectId,
+      selectedObjectId: targetObjectId,
       selectedFlowId: undefined,
-      selectedCollectionId: frame.collectionId ?? findObjectWithCollection(schema, frame.objectId)?.collectionId,
+      selectedCollectionId: frame.collectionId ?? findObjectWithCollection(schema, targetObjectId)?.collectionId,
+      viewport: viewportCenteredOn(targetPosition),
     }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" });
   };
 
@@ -1799,7 +1778,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     if (error.objectId) {
-      const frame = runSession?.trace.find(item => item.objectId === error.objectId);
+      const frame = selectedRunSession?.trace.find(item => item.objectId === error.objectId);
       if (frame) {
         selectTraceFrame(frame);
       } else {
@@ -1952,6 +1931,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     writeStoredBottomTab(bottomTab);
   }, [leftOpen, rightOpen, bottomOpen, bottomTab, persistAuxPanelState]);
 
+  useEffect(() => {
+    if (!schema.id) {
+      return;
+    }
+    void loadRunHistory(schema.id, runHistoryFilter);
+  }, [schema.id, runHistoryFilter, loadRunHistory]);
+
   const rightRailStyle: CSSProperties = {
     width: RAIL_WIDTH_PX,
     flexShrink: 0,
@@ -2094,6 +2080,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           schema={schema}
           validationIssues={issues}
           runtimeTrace={traceFrames}
+          focusObjectId={focusObjectId}
+          focusRequestKey={focusRequestSeq}
           readonly={props.readonly}
           onSchemaChange={(nextSchema, reason) => {
             commitSchema(nextSchema, reason, { source: "flowgram" });
@@ -2278,17 +2266,42 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </Tabs.TabPane>
             <Tabs.TabPane tab={labels.debug} itemKey="debug">
               <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
-                <DebugPanel
-                  session={runSession}
-                  serviceError={runtimeServiceError}
-                  activeFrameId={activeTraceFrameId}
-                  onSelectFrame={selectTraceFrame}
-                  onSelectFlow={selectTraceFlow}
-                  onSelectError={selectTraceError}
-                  onClear={clearTestRun}
-                  onRerun={handleTestRun}
-                  onCancelRun={cancelTestRun}
-                />
+                <Tabs type="card" defaultActiveKey="trace">
+                  <Tabs.TabPane tab="Trace" itemKey="trace">
+                    <DebugPanel
+                      microflowId={schema.id}
+                      microflowName={schema.displayName || schema.name}
+                      session={selectedRunSession}
+                      serviceError={runtimeServiceError}
+                      activeFrameId={activeTraceFrameId}
+                      onSelectFrame={selectTraceFrame}
+                      onSelectFlow={selectTraceFlow}
+                      onSelectError={selectTraceError}
+                      onClear={clearTestRun}
+                      onRerun={handleTestRun}
+                      onCancelRun={cancelTestRun}
+                    />
+                  </Tabs.TabPane>
+                  <Tabs.TabPane tab="Run History" itemKey="history">
+                    <MicroflowRunHistoryPanel
+                      items={runHistoryItems}
+                      selectedRunId={selectedRunId}
+                      loading={runHistoryLoading}
+                      error={runHistoryError}
+                      statusFilter={runHistoryFilter}
+                      onChangeFilter={status => {
+                        setRunHistoryStatusByMicroflowId(current => ({ ...current, [schema.id]: status }));
+                        void loadRunHistory(schema.id, status);
+                      }}
+                      onRefresh={() => {
+                        void loadRunHistory(schema.id, runHistoryFilter);
+                      }}
+                      onSelectRun={runId => {
+                        void selectRunHistoryItem(schema.id, runId);
+                      }}
+                    />
+                  </Tabs.TabPane>
+                </Tabs>
               </div>
             </Tabs.TabPane>
           </Tabs>

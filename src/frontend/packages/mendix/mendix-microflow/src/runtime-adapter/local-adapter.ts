@@ -21,7 +21,10 @@ import type {
 } from "../schema/types";
 import { sampleMicroflowSchema } from "../schema/sample";
 import type {
+  ListMicroflowRunsResponse,
   MicroflowApiClient,
+  MicroflowRunHistoryQuery,
+  MicroflowRunHistoryStatus,
   MicroflowTraceFrame,
   MicroflowRunSession,
   PublishMicroflowResponse,
@@ -174,6 +177,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   private readonly resources = new Map<string, MicroflowResource>();
   private readonly traces = new Map<string, MicroflowTraceFrame[]>();
   private readonly sessions = new Map<string, MicroflowRunSession>();
+  private readonly runMicroflowIndex = new Map<string, string>();
 
   constructor(initialSchemas: MicroflowAuthoringSchema[] = [sampleMicroflowSchema]) {
     const restored = this.restoreResources();
@@ -327,6 +331,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
 
   async testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse> {
     const schema = request.schema ?? this.resources.get(request.microflowId ?? "")?.schema ?? sampleMicroflowSchema;
+    const microflowId = request.microflowId ?? schema.id;
     const session = await mockTestRunMicroflow({
       schema,
       metadata: getDefaultMockMetadataCatalog(),
@@ -336,6 +341,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     });
     this.traces.set(session.id, session.trace);
     this.sessions.set(session.id, session);
+    this.runMicroflowIndex.set(session.id, microflowId);
     return {
       runId: session.id,
       status: session.status === "success" ? "succeeded" : session.status === "cancelled" ? "cancelled" : "failed",
@@ -361,6 +367,44 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
       throw new Error(`Microflow run ${runId} was not found.`);
     }
     return session;
+  }
+
+  async listMicroflowRuns(microflowId: string, query: MicroflowRunHistoryQuery = {}): Promise<ListMicroflowRunsResponse> {
+    const pageIndex = query.pageIndex ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const statusFilter = query.status ?? "all";
+    const all = [...this.sessions.values()]
+      .filter(session => this.runMicroflowIndex.get(session.id) === microflowId)
+      .map(session => {
+        const status: MicroflowRunHistoryStatus = session.status === "success" ? "success" : session.status === "cancelled" ? "cancelled" : "failed";
+        const durationMs = session.endedAt
+          ? Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime())
+          : 0;
+        return {
+          runId: session.id,
+          microflowId,
+          status,
+          durationMs,
+          startedAt: session.startedAt,
+          completedAt: session.endedAt,
+          errorMessage: session.error?.message,
+          summary: status === "success" ? "Run succeeded" : status === "cancelled" ? "Run cancelled" : "Run failed",
+        };
+      })
+      .filter(item => statusFilter === "all" || item.status === statusFilter)
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+    const start = Math.max(0, (pageIndex - 1) * pageSize);
+    return {
+      items: all.slice(start, start + pageSize),
+      total: all.length,
+    };
+  }
+
+  async getMicroflowRunDetail(microflowId: string, runId: string): Promise<MicroflowRunSession> {
+    if (this.runMicroflowIndex.get(runId) !== microflowId) {
+      throw new Error(`Microflow run ${runId} does not belong to ${microflowId}.`);
+    }
+    return this.getMicroflowRunSession(runId);
   }
 
   async publishMicroflow(id: string, payload: PublishMicroflowPayload = { version: "v1", releaseNote: "", overwriteCurrent: true }): Promise<PublishMicroflowResponse> {

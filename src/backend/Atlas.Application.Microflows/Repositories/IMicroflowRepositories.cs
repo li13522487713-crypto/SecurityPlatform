@@ -108,6 +108,12 @@ public interface IMicroflowRunRepository
         string resourceId,
         int pageIndex,
         int pageSize,
+        IReadOnlyList<string>? statuses,
+        CancellationToken cancellationToken);
+
+    Task<int> CountSessionsByResourceIdAsync(
+        string resourceId,
+        IReadOnlyList<string>? statuses,
         CancellationToken cancellationToken);
 
     Task InsertTraceFramesAsync(

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 
 import { Toast } from "@douyinfe/semi-ui";
 import {
@@ -41,6 +41,8 @@ export interface FlowGramMicroflowCanvasProps {
   schema: MicroflowSchema;
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
+  focusObjectId?: string;
+  focusRequestKey?: number;
   readonly?: boolean;
   onSchemaChange: (nextSchema: MicroflowSchema, reason: string) => void;
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
@@ -293,6 +295,17 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       zoom,
     });
   };
+
+  useEffect(() => {
+    if (!props.focusObjectId) {
+      return;
+    }
+    const node = playground.entityManager.getEntityById<FlowNodeEntity>(props.focusObjectId);
+    if (!node) {
+      return;
+    }
+    void selectService.selectNodeAndScrollToView(node, true);
+  }, [playground.entityManager, props.focusObjectId, props.focusRequestKey, selectService]);
 
   return (
     <div

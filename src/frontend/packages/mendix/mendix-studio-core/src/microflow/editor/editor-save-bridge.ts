@@ -140,6 +140,12 @@ export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter
     async getMicroflowRunTrace(runId: string) {
       return runtimeAdapter?.getMicroflowRunTrace(runId) ?? unavailableRuntimeMethod("getMicroflowRunTrace");
     },
+    async listMicroflowRuns(microflowId: string, query) {
+      return runtimeAdapter?.listMicroflowRuns(microflowId, query) ?? unavailableRuntimeMethod("listMicroflowRuns");
+    },
+    async getMicroflowRunDetail(microflowId: string, runId: string) {
+      return runtimeAdapter?.getMicroflowRunDetail(microflowId, runId) ?? unavailableRuntimeMethod("getMicroflowRunDetail");
+    },
     async getTrace(runId: string) {
       return runtimeAdapter?.getTrace(runId) ?? unavailableRuntimeMethod("getTrace");
     }

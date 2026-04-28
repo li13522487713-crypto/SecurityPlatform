@@ -169,11 +169,62 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     public async Task<MicroflowRunSessionDto> GetRunSessionAsync(string runId, CancellationToken cancellationToken)
     {
-        var session = await _runRepository.GetSessionAsync(runId, cancellationToken)
-            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
-        var frames = await _runRepository.ListTraceFramesAsync(runId, cancellationToken);
-        var logs = await _runRepository.ListLogsAsync(runId, cancellationToken);
-        return ToDto(session, frames, logs);
+        return await BuildRunSessionGraphAsync(runId, cancellationToken);
+    }
+
+    public async Task<MicroflowRunSessionDto> GetRunSessionAsync(
+        string resourceId,
+        string runId,
+        CancellationToken cancellationToken)
+    {
+        var session = await BuildRunSessionGraphAsync(runId, cancellationToken);
+        if (!string.Equals(session.ResourceId, resourceId, StringComparison.Ordinal))
+        {
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
+        }
+
+        return session;
+    }
+
+    public async Task<ListMicroflowRunsResponse> ListRunsAsync(
+        string resourceId,
+        ListMicroflowRunsRequest request,
+        CancellationToken cancellationToken)
+    {
+        _ = await _resourceRepository.GetByIdAsync(resourceId, cancellationToken)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
+        var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
+        var pageSize = request.PageSize <= 0 ? 20 : Math.Min(request.PageSize, 200);
+        var requestedStatus = NormalizeRunHistoryStatusFilter(request.Status);
+        string[]? repositoryStatuses = requestedStatus switch
+        {
+            "unsupported" => new[] { "failed", "cancelled" },
+            null => null,
+            "all" => null,
+            _ => new[] { requestedStatus }
+        };
+
+        var sessions = await _runRepository.ListSessionsByResourceIdAsync(
+            resourceId,
+            pageIndex,
+            pageSize,
+            repositoryStatuses,
+            cancellationToken);
+        var filtered = sessions
+            .Select(session => ToRunHistoryItem(resourceId, session))
+            .Where(item => requestedStatus is null or "all" || string.Equals(item.Status, requestedStatus, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var total = await _runRepository.CountSessionsByResourceIdAsync(resourceId, repositoryStatuses, cancellationToken);
+        if (requestedStatus is "unsupported")
+        {
+            total = await CountRunsByStatusAsync(resourceId, "unsupported", cancellationToken);
+        }
+
+        return new ListMicroflowRunsResponse
+        {
+            Items = filtered,
+            Total = total
+        };
     }
 
     public async Task<GetMicroflowRunTraceResponse> GetRunTraceAsync(string runId, CancellationToken cancellationToken)
@@ -341,7 +392,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private static MicroflowRunSessionDto ToDto(
         MicroflowRunSessionEntity session,
         IReadOnlyList<MicroflowRunTraceFrameEntity> frames,
-        IReadOnlyList<MicroflowRunLogEntity> logs)
+        IReadOnlyList<MicroflowRunLogEntity> logs,
+        IReadOnlyList<MicroflowRunSessionDto>? childRuns = null)
     {
         var extra = ReadSessionExtra(session.ExtraJson);
         var error = string.IsNullOrWhiteSpace(session.ErrorJson)
@@ -369,8 +421,132 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             Logs = logs.Select(ToLogDto).ToArray(),
             Variables = extra.Variables,
             TransactionSummary = extra.TransactionSummary,
+            ChildRuns = childRuns ?? Array.Empty<MicroflowRunSessionDto>(),
             ChildRunIds = extra.ChildRunIds
         };
+    }
+
+    private async Task<MicroflowRunSessionDto> BuildRunSessionGraphAsync(
+        string runId,
+        CancellationToken cancellationToken)
+    {
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        return await BuildRunSessionGraphCoreAsync(runId, visited, 0, cancellationToken);
+    }
+
+    private async Task<MicroflowRunSessionDto> BuildRunSessionGraphCoreAsync(
+        string runId,
+        HashSet<string> visited,
+        int depth,
+        CancellationToken cancellationToken)
+    {
+        if (!visited.Add(runId) || depth > 16)
+        {
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowStorageError, "微流运行调用栈深度异常。", 500);
+        }
+
+        var session = await _runRepository.GetSessionAsync(runId, cancellationToken)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
+        var frames = await _runRepository.ListTraceFramesAsync(runId, cancellationToken);
+        var logs = await _runRepository.ListLogsAsync(runId, cancellationToken);
+        var sessionExtra = ReadSessionExtra(session.ExtraJson);
+        var childRuns = new List<MicroflowRunSessionDto>();
+        foreach (var childRunId in sessionExtra.ChildRunIds)
+        {
+            if (string.IsNullOrWhiteSpace(childRunId))
+            {
+                continue;
+            }
+
+            var child = await BuildRunSessionGraphCoreAsync(childRunId, visited, depth + 1, cancellationToken);
+            childRuns.Add(child);
+        }
+
+        return ToDto(session, frames, logs, childRuns);
+    }
+
+    private static string? NormalizeRunHistoryStatusFilter(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        var normalized = status.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "all" => "all",
+            "succeeded" => "success",
+            "success" => "success",
+            "failed" => "failed",
+            "unsupported" => "unsupported",
+            "cancelled" => "cancelled",
+            _ => null
+        };
+    }
+
+    private async Task<int> CountRunsByStatusAsync(string resourceId, string status, CancellationToken cancellationToken)
+    {
+        var statuses = status switch
+        {
+            "unsupported" => new[] { "failed", "cancelled" },
+            _ => new[] { status }
+        };
+        var sessions = await _runRepository.ListSessionsByResourceIdAsync(resourceId, 1, 5000, statuses, cancellationToken);
+        return sessions.Select(session => ToRunHistoryItem(resourceId, session))
+            .Count(item => string.Equals(item.Status, status, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static MicroflowRunHistoryItemDto ToRunHistoryItem(string resourceId, MicroflowRunSessionEntity session)
+    {
+        var endedAt = session.EndedAt;
+        var durationMs = endedAt.HasValue
+            ? Math.Max(0, (int)(endedAt.Value - session.StartedAt).TotalMilliseconds)
+            : 0;
+        var error = string.IsNullOrWhiteSpace(session.ErrorJson)
+            ? null
+            : Deserialize<MicroflowRuntimeErrorDto>(session.ErrorJson);
+        var status = NormalizeRunHistoryStatus(session.Status, error?.Code);
+        var summary = status switch
+        {
+            "success" => "Run succeeded",
+            "unsupported" => "Run failed on unsupported action",
+            "cancelled" => "Run cancelled",
+            _ => "Run failed"
+        };
+
+        return new MicroflowRunHistoryItemDto
+        {
+            RunId = session.Id,
+            MicroflowId = resourceId,
+            Status = status,
+            DurationMs = durationMs,
+            StartedAt = session.StartedAt,
+            CompletedAt = endedAt,
+            ErrorMessage = error?.Message,
+            Summary = summary
+        };
+    }
+
+    private static string NormalizeRunHistoryStatus(string rawStatus, string? errorCode)
+    {
+        if (string.Equals(rawStatus, "success", StringComparison.OrdinalIgnoreCase))
+        {
+            return "success";
+        }
+
+        if (string.Equals(rawStatus, "cancelled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "cancelled";
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorCode)
+            && errorCode.Contains("UNSUPPORTED", StringComparison.OrdinalIgnoreCase))
+        {
+            return "unsupported";
+        }
+
+        return "failed";
     }
 
     private static MicroflowTraceFrameDto ToFrameDto(MicroflowRunTraceFrameEntity frame)

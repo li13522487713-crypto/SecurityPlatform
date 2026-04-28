@@ -227,11 +227,45 @@ public sealed class MicroflowRunRepository : IMicroflowRunRepository
         string resourceId,
         int pageIndex,
         int pageSize,
+        IReadOnlyList<string>? statuses,
         CancellationToken cancellationToken)
-        => await _db.Queryable<MicroflowRunSessionEntity>()
-            .Where(x => x.ResourceId == resourceId)
+    {
+        var query = _db.Queryable<MicroflowRunSessionEntity>()
+            .Where(x => x.ResourceId == resourceId);
+        var normalizedStatuses = statuses?
+            .Where(static status => !string.IsNullOrWhiteSpace(status))
+            .Select(static status => status.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalizedStatuses is { Length: > 0 })
+        {
+            query = query.Where(x => SqlFunc.ContainsArray(normalizedStatuses, x.Status));
+        }
+
+        return await query
             .OrderBy(x => x.StartedAt, OrderByType.Desc)
             .ToPageListAsync(pageIndex <= 0 ? 1 : pageIndex, pageSize <= 0 ? 20 : pageSize, cancellationToken);
+    }
+
+    public Task<int> CountSessionsByResourceIdAsync(
+        string resourceId,
+        IReadOnlyList<string>? statuses,
+        CancellationToken cancellationToken)
+    {
+        var query = _db.Queryable<MicroflowRunSessionEntity>()
+            .Where(x => x.ResourceId == resourceId);
+        var normalizedStatuses = statuses?
+            .Where(static status => !string.IsNullOrWhiteSpace(status))
+            .Select(static status => status.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalizedStatuses is { Length: > 0 })
+        {
+            query = query.Where(x => SqlFunc.ContainsArray(normalizedStatuses, x.Status));
+        }
+
+        return query.CountAsync(cancellationToken);
+    }
 
     public Task InsertTraceFramesAsync(string runId, IReadOnlyList<MicroflowRunTraceFrameEntity> frames, CancellationToken cancellationToken)
     {
