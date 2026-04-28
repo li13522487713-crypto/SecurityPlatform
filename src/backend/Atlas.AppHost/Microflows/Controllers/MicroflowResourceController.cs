@@ -4,13 +4,11 @@ using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime.Actions;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.AppHost.Microflows.Controllers;
 
-[Route("api/microflows")]
-[AllowAnonymous]
+[Route("api/v1/microflows")]
 public sealed class MicroflowResourceController : MicroflowApiControllerBase
 {
     private readonly IMicroflowResourceService _resourceService;

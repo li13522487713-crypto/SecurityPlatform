@@ -2,7 +2,7 @@
 import * as React from "react";
 import { Component, Suspense, useCallback, useEffect, useMemo, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Button, Card, Typography } from "@douyinfe/semi-ui";
+import { Button, Card, Toast, Typography } from "@douyinfe/semi-ui";
 import { getTenantId } from "@atlas/shared-react-core/utils";
 import { PageShell, ResultCard } from "./_shared";
 
@@ -3268,6 +3268,25 @@ export function AppRouter() {
   );
 }
 
+function MicroflowUnhandledRejectionBoundary() {
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason as { name?: unknown; message?: unknown; apiError?: { message?: string; traceId?: string } } | undefined;
+      if (reason?.name !== "MicroflowApiException") {
+        return;
+      }
+      event.preventDefault();
+      const message = reason.apiError?.message || (typeof reason.message === "string" ? reason.message : "微流操作失败");
+      const traceSuffix = reason.apiError?.traceId ? ` traceId: ${reason.apiError.traceId}` : "";
+      Toast.error(`${message}${traceSuffix}`);
+    };
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    return () => window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+  }, []);
+
+  return null;
+}
+
 export function AppRoot() {
   return (
     <AppI18nProvider>
@@ -3275,6 +3294,7 @@ export function AppRoot() {
         <BootstrapProvider>
           <AuthProvider>
             <AppStartupKernel loadingFallback={<LoadingPage />}>
+              <MicroflowUnhandledRejectionBoundary />
               <AppRouter />
             </AppStartupKernel>
           </AuthProvider>

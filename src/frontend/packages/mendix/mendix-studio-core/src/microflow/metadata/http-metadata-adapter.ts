@@ -20,7 +20,7 @@ export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadat
   const client = options.apiClient ?? new MicroflowApiClient(options);
 
   async function load(request?: GetMicroflowMetadataRequest): Promise<MicroflowMetadataCatalog> {
-    const body = await client.get<GetMicroflowMetadataResponseBody>("/api/microflow-metadata", {
+    const body = await client.get<GetMicroflowMetadataResponseBody>("/microflow-metadata", {
       workspaceId: request?.workspaceId ?? options.workspaceId,
       moduleId: request?.moduleId,
       includeSystem: request?.includeSystem,
@@ -35,13 +35,13 @@ export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadat
   return {
     getMetadataCatalog: load,
     refreshMetadataCatalog: load,
-    getEntity: qualifiedName => client.get(`/api/microflow-metadata/entities/${encodeURIComponent(qualifiedName)}`, {
+    getEntity: qualifiedName => client.get(`/microflow-metadata/entities/${encodeURIComponent(qualifiedName)}`, {
       workspaceId: options.workspaceId,
     }),
-    getEnumeration: qualifiedName => client.get(`/api/microflow-metadata/enumerations/${encodeURIComponent(qualifiedName)}`, {
+    getEnumeration: qualifiedName => client.get(`/microflow-metadata/enumerations/${encodeURIComponent(qualifiedName)}`, {
       workspaceId: options.workspaceId,
     }),
-    getMicroflowRefs: request => client.get("/api/microflow-metadata/microflows", {
+    getMicroflowRefs: request => client.get("/microflow-metadata/microflows", {
       workspaceId: request?.workspaceId ?? options.workspaceId,
       moduleId: request?.moduleId,
       includeSystem: request?.includeSystem,
@@ -49,12 +49,12 @@ export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadat
       keyword: request?.keyword,
       status: request?.status,
     }),
-    getPageRefs: request => client.get("/api/microflow-metadata/pages", {
+    getPageRefs: request => client.get("/microflow-metadata/pages", {
       workspaceId: request?.workspaceId ?? options.workspaceId,
       moduleId: request?.moduleId,
       keyword: request?.keyword,
     }),
-    getWorkflowRefs: request => client.get("/api/microflow-metadata/workflows", {
+    getWorkflowRefs: request => client.get("/microflow-metadata/workflows", {
       workspaceId: request?.workspaceId ?? options.workspaceId,
       moduleId: request?.moduleId,
       keyword: request?.keyword,

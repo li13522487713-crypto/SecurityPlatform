@@ -2,13 +2,11 @@ using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.AppHost.Microflows.Controllers;
 
-[Route("api/microflow-metadata")]
-[AllowAnonymous]
+[Route("api/v1/microflow-metadata")]
 public sealed class MicroflowMetadataController : MicroflowApiControllerBase
 {
     private readonly IMicroflowMetadataService _metadataService;

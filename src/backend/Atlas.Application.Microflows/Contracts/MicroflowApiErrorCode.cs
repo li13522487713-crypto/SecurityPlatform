@@ -10,6 +10,7 @@ public static class MicroflowApiErrorCode
     public const string MicroflowPublishBlocked = "MICROFLOW_PUBLISH_BLOCKED";
     public const string MicroflowReferenceBlocked = "MICROFLOW_REFERENCE_BLOCKED";
     public const string MicroflowPermissionDenied = "MICROFLOW_PERMISSION_DENIED";
+    public const string MicroflowWorkspaceForbidden = "MICROFLOW_WORKSPACE_FORBIDDEN";
     public const string MicroflowUnauthorized = "MICROFLOW_UNAUTHORIZED";
     public const string MicroflowArchived = "MICROFLOW_ARCHIVED";
     public const string MicroflowRunFailed = "MICROFLOW_RUN_FAILED";

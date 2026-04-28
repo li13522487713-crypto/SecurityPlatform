@@ -124,4 +124,20 @@ export interface MicroflowResourceListResult {
   hasMore?: boolean;
 }
 
+export interface MicroflowModuleAsset {
+  moduleId: string;
+  name: string;
+  qualifiedName: string;
+  description?: string;
+}
+
+export interface MicroflowAppAsset {
+  appId: string;
+  workspaceId: string;
+  name: string;
+  description?: string;
+  status: string;
+  modules: MicroflowModuleAsset[];
+}
+
 export type { MicroflowReference, MicroflowVersionSummary };

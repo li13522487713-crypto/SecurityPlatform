@@ -20,6 +20,7 @@ public static class MicroflowBackendServiceCollectionExtensions
         services.AddScoped<IMicroflowRequestContextAccessor, HttpMicroflowRequestContextAccessor>();
         services.AddScoped<MicroflowApiExceptionFilter>();
         services.AddScoped<MicroflowProductionGuardFilter>();
+        services.AddScoped<MicroflowWorkspaceOwnershipFilter>();
 
         return services;
     }

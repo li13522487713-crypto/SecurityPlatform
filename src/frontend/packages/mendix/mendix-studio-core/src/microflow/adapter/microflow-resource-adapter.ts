@@ -5,6 +5,7 @@ import type { MicroflowReference } from "../references/microflow-reference-types
 import type {
   MicroflowCreateInput,
   MicroflowDuplicateInput,
+  MicroflowAppAsset,
   MicroflowResource,
   MicroflowResourceListResult,
   MicroflowResourcePatch,
@@ -26,6 +27,8 @@ export interface SaveMicroflowSchemaOptions {
 }
 
 export interface MicroflowResourceAdapter {
+  getMicroflowApp?(appId: string, query?: { workspaceId?: string }): Promise<MicroflowAppAsset>;
+  listMicroflowAppModules?(appId: string, query?: { workspaceId?: string }): Promise<MicroflowAppAsset["modules"]>;
   listMicroflows(query?: MicroflowResourceQuery): Promise<MicroflowResourceListResult>;
   getMicroflow(id: string): Promise<MicroflowResource | undefined>;
   getMicroflowSchema(id: string): Promise<MicroflowAuthoringSchema>;

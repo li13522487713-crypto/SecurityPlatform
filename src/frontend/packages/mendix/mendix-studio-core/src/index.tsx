@@ -112,6 +112,38 @@ export function MendixStudioApp({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [dirtyByWorkbenchTabId, saveStateByMicroflowId]);
 
+  if (!_resolvedBundle) {
+    return (
+      <div
+        className="mendix-studio-root"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100vh",
+          width: "100%",
+          overflow: "hidden",
+          background: "#f0f2f5"
+        }}
+        data-app-id={appId}
+      >
+        <StudioHeader />
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <Card style={{ width: 520, borderRadius: 12 }}>
+            <Space vertical align="start" spacing={12}>
+              <Text strong>微流服务初始化失败</Text>
+              <Text type="tertiary" size="small">
+                当前页面无法创建 microflow adapter bundle。请检查 apiBaseUrl、adapter mode、workspaceId 和 tenantId 配置后刷新页面。
+              </Text>
+              <Text size="small">workspaceId: {workspaceId || "-"}</Text>
+              <Text size="small">appId: {appId || "-"}</Text>
+              <Button onClick={() => window.location.reload()}>刷新页面</Button>
+            </Space>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="mendix-studio-root"
@@ -139,7 +171,7 @@ export function MendixStudioApp({
           overflow: "hidden"
         }}
       >
-        <ExplorerSplitLayout explorer={<AppExplorer adapterBundle={_resolvedBundle} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} onViewMicroflowReferences={openReferencesPanel} />}>
+        <ExplorerSplitLayout explorer={<AppExplorer adapterBundle={_resolvedBundle} appId={appId} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} onViewMicroflowReferences={openReferencesPanel} />}>
           <div
             style={{
               display: "flex",

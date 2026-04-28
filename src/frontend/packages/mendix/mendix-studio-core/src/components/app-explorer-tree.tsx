@@ -15,6 +15,9 @@ interface AppExplorerTreeProps {
   onSearchTextChange: (value: string) => void;
   onSelect: (node: ExplorerTreeNode) => void;
   onRefreshMicroflows: () => Promise<void>;
+  onCreateMicroflow?: (node: ExplorerTreeNode) => void;
+  onRenameMicroflow?: (node: ExplorerTreeNode) => void;
+  onDuplicateMicroflow?: (node: ExplorerTreeNode) => void;
   onViewMicroflowReferences?: (node: ExplorerTreeNode) => void;
   onDeleteMicroflow?: (node: ExplorerTreeNode) => void;
 }
@@ -27,6 +30,9 @@ interface ExplorerTreeNodeProps {
   microflowErrorText?: string;
   onSelect: (node: ExplorerTreeNode) => void;
   onRefreshMicroflows: () => Promise<void>;
+  onCreateMicroflow?: (node: ExplorerTreeNode) => void;
+  onRenameMicroflow?: (node: ExplorerTreeNode) => void;
+  onDuplicateMicroflow?: (node: ExplorerTreeNode) => void;
   onViewMicroflowReferences?: (node: ExplorerTreeNode) => void;
   onDeleteMicroflow?: (node: ExplorerTreeNode) => void;
   initialOpen?: boolean;
@@ -76,10 +82,13 @@ function renderContextMenu(input: {
   node: ExplorerTreeNode;
   onSelect: (node: ExplorerTreeNode) => void;
   onRefreshMicroflows: () => Promise<void>;
+  onCreateMicroflow?: (node: ExplorerTreeNode) => void;
+  onRenameMicroflow?: (node: ExplorerTreeNode) => void;
+  onDuplicateMicroflow?: (node: ExplorerTreeNode) => void;
   onViewMicroflowReferences?: (node: ExplorerTreeNode) => void;
   onDeleteMicroflow?: (node: ExplorerTreeNode) => void;
 }): JSX.Element | undefined {
-  const { node, onSelect, onRefreshMicroflows, onViewMicroflowReferences, onDeleteMicroflow } = input;
+  const { node, onSelect, onRefreshMicroflows, onCreateMicroflow, onRenameMicroflow, onDuplicateMicroflow, onViewMicroflowReferences, onDeleteMicroflow } = input;
 
   if (node.key === MicroflowsSectionKey) {
     return (
@@ -87,7 +96,7 @@ function renderContextMenu(input: {
         <Dropdown.Item onClick={() => void onRefreshMicroflows()}>
           Refresh
         </Dropdown.Item>
-        <Dropdown.Item disabled title="Release Stage 3 接入 Create API">
+        <Dropdown.Item onClick={() => onCreateMicroflow?.(node)}>
           New Microflow
         </Dropdown.Item>
         <Dropdown.Item disabled title="完整属性面板将在后续轮次接入">
@@ -112,10 +121,10 @@ function renderContextMenu(input: {
       <Dropdown.Item onClick={() => onViewMicroflowReferences?.(node)}>
         View References
       </Dropdown.Item>
-      <Dropdown.Item disabled title="Release Stage 3 接入 Rename API">
+      <Dropdown.Item onClick={() => onRenameMicroflow?.(node)}>
         Rename
       </Dropdown.Item>
-      <Dropdown.Item disabled title="Release Stage 3 接入 Duplicate API">
+      <Dropdown.Item onClick={() => onDuplicateMicroflow?.(node)}>
         Duplicate
       </Dropdown.Item>
       <Dropdown.Item type="danger" onClick={() => onDeleteMicroflow?.(node)}>
@@ -136,6 +145,9 @@ function ExplorerTreeNodeView({
   microflowErrorText,
   onSelect,
   onRefreshMicroflows,
+  onCreateMicroflow,
+  onRenameMicroflow,
+  onDuplicateMicroflow,
   onViewMicroflowReferences,
   onDeleteMicroflow,
   initialOpen
@@ -155,7 +167,7 @@ function ExplorerTreeNodeView({
   }
 
   const isSelected = selectedId === node.key;
-  const contextMenu = renderContextMenu({ node, onSelect, onRefreshMicroflows, onViewMicroflowReferences, onDeleteMicroflow });
+  const contextMenu = renderContextMenu({ node, onSelect, onRefreshMicroflows, onCreateMicroflow, onRenameMicroflow, onDuplicateMicroflow, onViewMicroflowReferences, onDeleteMicroflow });
   const nodeTitle = node.errorMessage ?? node.title ?? node.qualifiedName ?? node.label;
   const nodeContent = (
     <div
@@ -277,6 +289,9 @@ function ExplorerTreeNodeView({
           microflowErrorText={microflowErrorText}
           onSelect={onSelect}
           onRefreshMicroflows={onRefreshMicroflows}
+          onCreateMicroflow={onCreateMicroflow}
+          onRenameMicroflow={onRenameMicroflow}
+          onDuplicateMicroflow={onDuplicateMicroflow}
           onViewMicroflowReferences={onViewMicroflowReferences}
           onDeleteMicroflow={onDeleteMicroflow}
           initialOpen={child.defaultOpen}
@@ -294,6 +309,9 @@ export function AppExplorerTree({
   onSearchTextChange,
   onSelect,
   onRefreshMicroflows,
+  onCreateMicroflow,
+  onRenameMicroflow,
+  onDuplicateMicroflow,
   onViewMicroflowReferences,
   onDeleteMicroflow
 }: AppExplorerTreeProps) {
@@ -345,6 +363,9 @@ export function AppExplorerTree({
             microflowErrorText={microflowErrorText}
             onSelect={onSelect}
             onRefreshMicroflows={onRefreshMicroflows}
+            onCreateMicroflow={onCreateMicroflow}
+            onRenameMicroflow={onRenameMicroflow}
+            onDuplicateMicroflow={onDuplicateMicroflow}
             onViewMicroflowReferences={onViewMicroflowReferences}
             onDeleteMicroflow={onDeleteMicroflow}
             initialOpen

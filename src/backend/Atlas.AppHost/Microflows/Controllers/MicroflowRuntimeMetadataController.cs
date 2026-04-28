@@ -4,13 +4,11 @@ using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime.Metadata;
 using Atlas.Application.Microflows.Runtime.Security;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.AppHost.Microflows.Controllers;
 
-[Route("api/microflows/runtime/metadata")]
-[AllowAnonymous]
+[Route("api/v1/microflows/runtime/metadata")]
 public sealed class MicroflowRuntimeMetadataController : MicroflowApiControllerBase
 {
     private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;

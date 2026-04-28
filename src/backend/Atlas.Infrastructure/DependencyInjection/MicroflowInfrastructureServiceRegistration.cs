@@ -23,6 +23,7 @@ public static class MicroflowInfrastructureServiceRegistration
         services.AddScoped<IMicroflowResourceQueryService, MicroflowDbResourceQueryService>();
         services.AddScoped<IMicroflowMetadataQueryService, MicroflowDbMetadataQueryService>();
         services.AddScoped<IMicroflowStorageDiagnosticsService, MicroflowStorageDiagnosticsService>();
+        services.AddScoped<IMicroflowAppAssetService, MicroflowAppAssetService>();
         services.AddHostedService<MicroflowSeedDataHostedService>();
         services.AddHostedService<MicroflowMetadataSeedHostedService>();
 

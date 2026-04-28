@@ -68,7 +68,7 @@ export function createHttpMicroflowValidationAdapter(options: HttpMicroflowValid
   return {
     async validate(input) {
       const id = input.resourceId ?? input.schema.id;
-      const result = await client.post<MicroflowValidationResult>(`/api/microflows/${encodeURIComponent(id)}/validate`, {
+      const result = await client.post<MicroflowValidationResult>(`/microflows/${encodeURIComponent(id)}/validate`, {
         schema: input.schema,
         mode: input.mode,
         includeWarnings: input.includeWarnings ?? true,

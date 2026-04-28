@@ -86,11 +86,11 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
 
   return {
     async listMicroflows(query) {
-      const result = await client.get<{ items: MicroflowResource[] }>("/api/microflows", query);
+      const result = await client.get<{ items: MicroflowResource[] }>("/microflows", query);
       return result.items.map(toRuntimeResource);
     },
     async createMicroflow(input: RuntimeCreateMicroflowInput) {
-      const resource = await client.post<MicroflowResource>("/api/microflows", {
+      const resource = await client.post<MicroflowResource>("/microflows", {
         workspaceId: options.workspaceId,
         input: {
           name: input.name,
@@ -107,11 +107,11 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       return toRuntimeResource(resource);
     },
     async getMicroflow(id: string) {
-      return toRuntimeResource(await client.get<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}`));
+      return toRuntimeResource(await client.get<MicroflowResource>(`/microflows/${encodeURIComponent(id)}`));
     },
     async saveMicroflow(request: SaveMicroflowRequest): Promise<SaveMicroflowResponse> {
       const schema = request.schema as MicroflowSchema;
-      const saved = await client.put<SaveMicroflowSchemaResponse>(`/api/microflows/${encodeURIComponent(schema.id)}/schema`, {
+      const saved = await client.put<SaveMicroflowSchemaResponse>(`/microflows/${encodeURIComponent(schema.id)}/schema`, {
         schema,
         saveReason: request.comment,
       });
@@ -125,13 +125,13 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       };
     },
     async loadMicroflow(id: string) {
-      const response = await client.get<GetMicroflowSchemaResponse>(`/api/microflows/${encodeURIComponent(id)}/schema`);
+      const response = await client.get<GetMicroflowSchemaResponse>(`/microflows/${encodeURIComponent(id)}/schema`);
       return response.schema;
     },
     async validateMicroflow(request) {
       const id = request.schema.id;
       const mode = (request as { mode?: "edit" | "save" | "publish" | "testRun" }).mode ?? "edit";
-      const response = await client.post<{ issues: ValidateMicroflowResponse["issues"]; summary?: { errorCount: number } }>(`/api/microflows/${encodeURIComponent(id)}/validate`, {
+      const response = await client.post<{ issues: ValidateMicroflowResponse["issues"]; summary?: { errorCount: number } }>(`/microflows/${encodeURIComponent(id)}/validate`, {
         schema: request.schema,
         mode,
         includeWarnings: true,
@@ -155,7 +155,7 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       if (!id) {
         throw new Error("Microflow test-run requires microflowId.");
       }
-      const response = await client.post<{ session: MicroflowRunSession }>(`/api/microflows/${encodeURIComponent(id)}/test-run`, {
+      const response = await client.post<{ session: MicroflowRunSession }>(`/microflows/${encodeURIComponent(id)}/test-run`, {
         schema: request.schema,
         input: request.input,
         inputs: request.input,
@@ -185,18 +185,18 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       };
     },
     async cancelMicroflowRun(runId: string) {
-      return client.post<{ runId: string; status: "cancelled" | "success" | "failed" }>(`/api/microflows/runs/${encodeURIComponent(runId)}/cancel`, {});
+      return client.post<{ runId: string; status: "cancelled" | "success" | "failed" }>(`/microflows/runs/${encodeURIComponent(runId)}/cancel`, {});
     },
     async getMicroflowRunSession(runId: string) {
-      const dto = await client.get<MicroflowRunSession>(`/api/microflows/runs/${encodeURIComponent(runId)}`);
+      const dto = await client.get<MicroflowRunSession>(`/microflows/runs/${encodeURIComponent(runId)}`);
       return normalizeRunDetail(dto);
     },
     async getMicroflowRunTrace(runId: string) {
-      const result = await client.get<{ trace: MicroflowTraceFrame[] }>(`/api/microflows/runs/${encodeURIComponent(runId)}/trace`);
+      const result = await client.get<{ trace: MicroflowTraceFrame[] }>(`/microflows/runs/${encodeURIComponent(runId)}/trace`);
       return result.trace;
     },
     async listMicroflowRuns(microflowId: string, query: MicroflowRunHistoryQuery = {}): Promise<ListMicroflowRunsResponse> {
-      const response = await client.get<ListMicroflowRunsResponse>(`/api/microflows/${encodeURIComponent(microflowId)}/runs`, {
+      const response = await client.get<ListMicroflowRunsResponse>(`/microflows/${encodeURIComponent(microflowId)}/runs`, {
         pageIndex: query.pageIndex,
         pageSize: query.pageSize,
         status: query.status,
@@ -207,11 +207,11 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       };
     },
     async getMicroflowRunDetail(microflowId: string, runId: string) {
-      const dto = await client.get<MicroflowRunSession>(`/api/microflows/${encodeURIComponent(microflowId)}/runs/${encodeURIComponent(runId)}`);
+      const dto = await client.get<MicroflowRunSession>(`/microflows/${encodeURIComponent(microflowId)}/runs/${encodeURIComponent(runId)}`);
       return normalizeRunDetail(dto);
     },
     async publishMicroflow(id: string, payload: PublishMicroflowPayload = { version: "1.0.0", releaseNote: "", overwriteCurrent: true }): Promise<PublishMicroflowResponse> {
-      const result = await client.post<import("../../publish/microflow-publish-types").MicroflowPublishResult>(`/api/microflows/${encodeURIComponent(id)}/publish`, {
+      const result = await client.post<import("../../publish/microflow-publish-types").MicroflowPublishResult>(`/microflows/${encodeURIComponent(id)}/publish`, {
         version: payload.version,
         description: payload.releaseNote,
         force: payload.overwriteCurrent,
@@ -225,23 +225,23 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       };
     },
     async duplicateMicroflow(id: string) {
-      return toRuntimeResource(await client.post<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}/duplicate`, {}));
+      return toRuntimeResource(await client.post<MicroflowResource>(`/microflows/${encodeURIComponent(id)}/duplicate`, {}));
     },
     async deleteMicroflow(id: string) {
-      await client.delete(`/api/microflows/${encodeURIComponent(id)}`);
+      await client.delete(`/microflows/${encodeURIComponent(id)}`);
     },
     async archiveMicroflow(id: string) {
-      return toRuntimeResource(await client.post<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}/archive`, {}));
+      return toRuntimeResource(await client.post<MicroflowResource>(`/microflows/${encodeURIComponent(id)}/archive`, {}));
     },
     async toggleFavorite(id: string, favorite: boolean) {
-      return toRuntimeResource(await client.post<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}/favorite`, { favorite }));
+      return toRuntimeResource(await client.post<MicroflowResource>(`/microflows/${encodeURIComponent(id)}/favorite`, { favorite }));
     },
     async getMicroflowReferences(id: string) {
-      const references = await client.get<import("../../references/microflow-reference-types").MicroflowReference[]>(`/api/microflows/${encodeURIComponent(id)}/references`);
+      const references = await client.get<import("../../references/microflow-reference-types").MicroflowReference[]>(`/microflows/${encodeURIComponent(id)}/references`);
       return references.map(toRuntimeReference);
     },
     async getTrace(runId: string) {
-      const result = await client.get<{ trace: MicroflowTraceFrame[] }>(`/api/microflows/runs/${encodeURIComponent(runId)}/trace`);
+      const result = await client.get<{ trace: MicroflowTraceFrame[] }>(`/microflows/runs/${encodeURIComponent(runId)}/trace`);
       return result.trace;
     },
   };
