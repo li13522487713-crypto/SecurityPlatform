@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconArrowLeft } from "@douyinfe/semi-icons";
 import { MicroflowEditor, type MicroflowApiClient, type MicroflowSchema } from "@atlas/microflow";
@@ -44,8 +44,18 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [currentResource, setCurrentResource] = useState(resource);
+  const mountedRef = useRef(false);
+  const saveRefreshSeqRef = useRef(0);
   const apiClient = useMemo(() => createMicroflowEditorApiClient(adapter, currentResource, runtimeAdapter), [adapter, currentResource, runtimeAdapter]);
   const effectiveReadonly = readonly || currentResource.archived || !(currentResource.permissions?.canEdit ?? true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      saveRefreshSeqRef.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     setCurrentResource(resource);
@@ -70,13 +80,24 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
           onDirtyChange?.(true);
         }}
         onSaveComplete={() => {
+          const saveRefreshSeq = saveRefreshSeqRef.current + 1;
+          saveRefreshSeqRef.current = saveRefreshSeq;
           void adapter.getMicroflow(currentResource.id).then(saved => {
+            if (!mountedRef.current || saveRefreshSeqRef.current !== saveRefreshSeq) {
+              return;
+            }
             if (saved) {
               setCurrentResource(saved);
               setSchema(saved.schema);
               onDirtyChange?.(false);
               onSave?.(saved);
             }
+          }).catch(caught => {
+            if (!mountedRef.current || saveRefreshSeqRef.current !== saveRefreshSeq) {
+              return;
+            }
+            onDirtyChange?.(true);
+            Toast.error(caught instanceof Error ? caught.message : "保存后刷新微流资源失败");
           });
         }}
         onPublish={() => setPublishOpen(true)}

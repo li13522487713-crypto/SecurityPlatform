@@ -1,10 +1,11 @@
 import { Button, Card, Space, Tag, Typography } from "@douyinfe/semi-ui";
-import { IconRefresh } from "@douyinfe/semi-icons";
+import { IconRefresh, IconLink } from "@douyinfe/semi-icons";
 import type { StudioMicroflowDefinitionView } from "./studio-microflow-types";
 
 export interface MicroflowWorkbenchPlaceholderProps {
   microflow: StudioMicroflowDefinitionView;
   onRefresh?: () => void;
+  onOpenReferences?: () => void;
 }
 
 const { Text, Title } = Typography;
@@ -27,7 +28,8 @@ function MetadataRow({ label, value }: { label: string; value?: string | number 
 
 export function MicroflowWorkbenchPlaceholder({
   microflow,
-  onRefresh
+  onRefresh,
+  onOpenReferences
 }: MicroflowWorkbenchPlaceholderProps) {
   return (
     <div className="studio-microflow-placeholder">
@@ -60,25 +62,35 @@ export function MicroflowWorkbenchPlaceholder({
             <MetadataRow label="Publish Status" value={microflow.publishStatus} />
             <MetadataRow label="Schema ID" value={microflow.schemaId} />
             <MetadataRow label="Version" value={microflow.version} />
+            <MetadataRow label="Reference Count" value={microflow.referenceCount} />
             <MetadataRow label="Updated At" value={microflow.updatedAt} />
           </div>
 
           <div className="studio-microflow-placeholder__notice">
             <Text>
-              Stage 05 已建立微流编辑上下文。Stage 06 将接入真实 schema 加载与保存。
+              已打开微流文档。真实 schema 加载与编辑器宿主将在 Release 第 5 轮接入；本轮不会加载 schema、保存 schema 或渲染 MicroflowEditor。
             </Text>
           </div>
 
-          {onRefresh ? (
+          <Space spacing={8}>
             <Button
               theme="light"
               type="primary"
               icon={<IconRefresh />}
-              onClick={onRefresh}
+              disabled={!onRefresh}
+              onClick={() => onRefresh?.()}
             >
-              Refresh metadata
+              Refresh Resource Info
             </Button>
-          ) : null}
+            <Button
+              theme="light"
+              icon={<IconLink />}
+              disabled={!onOpenReferences}
+              onClick={() => onOpenReferences?.()}
+            >
+              View References
+            </Button>
+          </Space>
         </Space>
       </Card>
     </div>

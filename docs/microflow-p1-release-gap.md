@@ -2,11 +2,11 @@
 
 ## 1. Executive Summary
 
-当前 P1 真实完成度：后端 Microflow resource/schema/metadata/validate/publish/references/test-run/run-trace API 已有较完整雏形，前端目标页 `/space/:workspaceId/mendix-studio/:appId` 已能创建 HTTP adapter bundle，并把 bundle 传给 App Explorer 与嵌入式 Microflow Editor。第 0 轮 Create Microflow Hotfix 基本通过：弹窗已 catch `onSubmit` rejection，失败不关闭弹窗，loading 可恢复，并展示 status/code/message/traceId/fieldErrors。
+当前 P1 真实完成度：后端 Microflow resource/schema/metadata/validate/publish/references/test-run/run-trace API 已有较完整雏形，前端目标页 `/space/:workspaceId/mendix-studio/:appId` 已能创建 HTTP adapter bundle。Release Stage 02 已完成 App Explorer 中 Microflows 分组的真实只读列表：通过 `resourceAdapter.listMicroflows({ workspaceId, moduleId })` 加载，支持 loading/empty/error/retry/search/refresh，并将真实资源写入 `microflowResourcesById` 与 `microflowIdsByModuleId`。Release Stage 04 已完成 microflowId 驱动的 Workbench tab 文档生命周期。Release Stage 05 已把真实 microflow tab 从资源 placeholder 切换为 `MicroflowResourceEditorHost`：按 `microflowId` 加载 resource/schema，复用 `MendixMicroflowEditorEntry` 与 save bridge，保存走 `PUT /api/microflows/{id}/schema`，并更新 store/tab/dirty。第 0 轮 Create Microflow Hotfix 基本通过：弹窗已 catch `onSubmit` rejection，失败不关闭弹窗，loading 可恢复，并展示 status/code/message/traceId/fieldErrors。
 
-目标 `mendix-studio` 页面仍未达到发布化：App Explorer 外壳仍以 `TREE_DATA` / `SAMPLE_PROCUREMENT_APP` 为主，`moduleId` 来源仍是 sample procurement module；`appId` 没有驱动真实应用/模块资产树；Workbench Tabs 有多微流 tab 状态，但没有 close/switch/refresh dirty guard；权限仍主要依赖 header/context 和生产 guard，Controller 标注 `[AllowAnonymous]`，未发现 workspace ownership 校验。
+目标 `mendix-studio` 页面仍未达到完整发布化：Microflows 分组已真实化为只读列表，但 App Explorer 其他分组仍以 `SAMPLE_PROCUREMENT_APP` 静态数据为主，`moduleId` 来源仍是 sample procurement module；`appId` 没有驱动真实应用/模块资产树；Workbench Tabs 已具备 `microflow:{id}` 多文档 tab、`activeWorkbenchTabId`/`activeMicroflowId` 同步、per-tab dirty、close guard 和 beforeunload guard；Stage 05 已完成 schema load/save 与真实 MicroflowEditor host；Call Microflow metadata、Domain Model metadata、publish/run/trace 仍未完成。权限仍主要依赖 header/context 和生产 guard，Controller 标注 `[AllowAnonymous]`，未发现 workspace ownership 校验。
 
-最大 blocker：目标页的 App Explorer 不是真实 app/module 资产树，`appId` 未进入资产查询维度，且后端 API 无版本前缀、权限/租户隔离不足。下一阶段优先级：若只看 Hotfix 可继续第 2 轮，但第 2 轮必须首先发布化 App Explorer 的真实 workspace/app/module 资产树，不能继续沿用 `TREE_DATA`。
+最大 blocker：目标页仍不是真实 app/module 资产树，`appId` 未进入 module tree 查询维度；Call Microflow metadata、Domain Model metadata、publish/run/trace、执行引擎仍未完成，且后端 API 无版本前缀、权限/租户隔离不足。Stage 0 Hotfix 若未来发现回归，作为单独 Release Blocker 记录，但不阻塞 Stage 05 资源感知编辑器宿主。
 
 ## 2. Hotfix Verification
 
@@ -23,7 +23,7 @@
 | 后端 POST /api/microflows 是否返回统一 envelope / traceId | 已返回 envelope | `MicroflowResourceController.cs`; `MicroflowApiControllerBase.cs`; `MicroflowApiExceptionFilter.cs` | `Create` 返回 `MicroflowOk(resource)`；异常 filter 写 `X-Trace-Id` | 通过 | 成功 traceId 来自 base；非异常模型验证路径需继续覆盖 | 增加 contract test |
 | 是否仍把 409/422/401/403/500 全部显示为“微流服务不可用” | 已区分 | `CreateMicroflowModal.tsx`; `microflow-api-error.ts` | `resolveReadableErrorMessage` 区分 401/403/409/422/500/network | 通过 | 通用 `getMicroflowErrorUserMessage` 的 403 文案偏“创建微流” | 统一按 action 生成文案 |
 
-Hotfix 结论：第 0 轮 Hotfix 通过本轮源码审计；不是 Release Blocker。但 `moduleId` 来源仍是 sample module，属于第 2 轮 App Explorer 发布化 blocker。
+Hotfix 结论：第 0 轮 Hotfix 通过本轮源码审计；不是 Release Blocker。本轮未修改 `CreateMicroflowModal`，也不依赖 Create Microflow 成功路径。`moduleId` 来源仍是 sample Procurement module，作为真实 module tree 后续 blocker 保留。
 
 ## 3. Route / Adapter / Store
 
@@ -58,27 +58,24 @@ Hotfix 结论：第 0 轮 Hotfix 通过本轮源码审计；不是 Release Block
 | 状态位置 | 源码路径 | 当前实现 | 缺口 | 建议 |
 |---|---|---|---|---|
 | `workspaceId/appId` | `mendix-studio-core/src/store.ts` | `setStudioContext({ appId, workspaceId })` | 未影响资产树/API | 第 2 轮纳入查询上下文 |
-| `microflowResourcesById` | `store.ts`; `app-explorer.tsx` | App Explorer list 后写入 | 未按 appId 隔离 | key 增加 workspace/app/module |
-| `activeMicroflowId` | `store.ts` | 打开 tab 时设置 | 无 dirty guard | Workbench 轮处理 |
+| `microflowResourcesById` | `store.ts`; `app-explorer.tsx` | Stage 02 App Explorer list 后写入真实只读资源 | 未按 appId 隔离 | key 增加 workspace/app/module |
+| `activeMicroflowId` | `store.ts`; `app-explorer.tsx` | Stage 02 点击真实微流节点时设置，不打开 editor tab | 无 dirty guard/真实 editor host | Workbench/editor 轮处理 |
 | `microflowSchema` | `store.ts` | 初始仍 `sampleOrderProcessingMicroflow` | 目标页真实 editor 不直接用；但 store 仍残留 sample | 后续清理示例态 |
 
 ## 4. App Explorer
 
 | 能力 | 源码路径 | 当前实现 | 是否真实数据 | 是否硬编码/mock | 是否接入目标页面 | 缺口 | 发布建议 |
 |---|---|---|---|---|---|---|---|
-| 是否仍使用 TREE_DATA | `components/app-explorer.tsx` | `TREE_DATA` 定义 domain/pages/workflows/security/theme 等 | 否，树外壳不是真实数据 | 是 | 是 | 资产树未发布化 | 第 2 轮替换 |
+| 是否仍使用 TREE_DATA | `components/app-explorer.tsx` | Stage 02 改为 `STATIC_TREE_DATA`，仅非 Microflows 分组保留 sample/static | Microflows children 是真实数据 | 非 Microflows 仍 sample/static | 是 | 完整 module tree 未真实化 | 后续 module API |
 | Microflows 分组 list | `app-explorer.tsx` `loadMicroflows` | `resourceAdapter.listMicroflows({workspaceId,moduleId})` | 是，Microflows children 真实 list | moduleId sample | 是 | 只真实微流列表，不是真实模块树 | module API |
-| loading/empty/error/retry | `createMicroflowStateChildren`; `handleSelect` | loading/empty/error/retry node | 是 | 否 | 是 | 粒度仅 Microflows | 保留 |
-| search/filter | `ExplorerTreeNode`; `searchText` | 前端树搜索 | 部分 | 对 TREE_DATA 搜索 | 是 | 无后端搜索 | 真实树再接 |
-| context menu | `renderContextMenu` | folder New/Refresh；microflow Open/Rename/Duplicate/Refresh/References/Delete | 部分真实 | 依赖 sample module | 是 | 非微流资产无真实菜单 | 发布化 |
-| New | `CreateMicroflowModal`; `handleCreateMicroflow` | POST create | 是 | moduleOptions sample | 是 | moduleId 非真实 | 第 2/3 轮 |
-| Rename/Duplicate/Delete/References/Refresh | `app-explorer.tsx`; `http-resource-adapter.ts` | 调用对应 adapter | 是 | 否 | 是 | rename/duplicate 仅微流节点 | 第 3 轮闭环验证 |
-| 创建成功刷新树 | `handleCreateMicroflow` | `syncResourceToExplorer`; `loadMicroflows(true)`; open tab | 是 | 否 | 是 | 仍刷新 sample module 下列表 | 第 2 轮修正 module |
-| 删除前查 references | `openDeleteDialog` | `getMicroflowReferences(...includeInactive:false)` | 是 | 否 | 是 | 前端保护依赖后端结果 | 保留 |
-| 后端 409 不移除节点 | `handleDeleteMicroflow` | catch 409 后不删除本地节点，打开 references | 是 | 否 | 是 | 无自动重新加载前的强一致 | 可刷新 |
-| 点击微流打开 tab | `handleSelect`; `openMicroflowWorkbenchTab` | `microflow:${id}` tab | 是 | 否 | 是 | 必须 list 已写 store | 保留 |
-| 是否仍打开 sampleOrderProcessingMicroflow | `store.ts`; `StudioEmbeddedMicroflowEditor.tsx` | store 初始有 sample；目标微流 tab 加载真实 schema 且缺失时不 fallback | 目标微流 tab 否 | store 残留 sample | 是 | page/workflow 初始示例仍存在 | 后续清理 |
-| moduleId 来源 | `getExplorerModuleId`; `SAMPLE_PROCUREMENT_APP` | `SAMPLE_PROCUREMENT_MODULE?.moduleId` | 否 | 是 | 是 | 真实模块缺失 | 第 2 轮 blocker |
+| loading/empty/error/retry | `microflow-tree-section.tsx`; `app-explorer.tsx` | loading/empty/error/retry node | 是 | 否 | 是 | 粒度仅 Microflows | 已完成 Stage 02 |
+| search/filter | `app-explorer-tree.tsx` | 200ms debounce，本地过滤 label/name/displayName/qualifiedName | 是，已加载数据本地过滤 | 非 Microflows 仍静态 | 是 | 无后端 search | 后续可接服务端 search |
+| context menu | `app-explorer-tree.tsx` | Microflows Refresh；微流 Open/Select/Refresh；CRUD disabled | 只读项真实 | CRUD 禁用 | 是 | CRUD 未实现 | 第 3 轮 |
+| New | `CreateMicroflowModal`; `app-explorer-tree.tsx` | App Explorer 本轮不再触发 Create；菜单 disabled | 否，本轮禁止 | disabled 占位 | 是 | CRUD 未闭环 | 第 3 轮 |
+| Rename/Duplicate/Delete/References/Refresh | `app-explorer-tree.tsx`; `http-resource-adapter.ts` | Refresh 调 list；Rename/Duplicate/Delete/References disabled | Refresh 真实 | CRUD/References 占位 | 是 | CRUD 未闭环 | 第 3 轮 |
+| 点击微流打开 tab | `handleSelect` | Stage 02 只设置 selected/active ids，不打开 tab | 是，id 来自真实 list | 否 | 是 | Workbench tab 未接入本轮 | 第 4/5 轮 |
+| 是否仍打开 sampleOrderProcessingMicroflow | `store.ts`; `app-explorer.tsx` | store 初始仍有 sample；点击真实微流不打开 editor，不展示 sample | 点击真实微流否 | store 残留 sample | 是 | page/workflow 初始示例仍存在 | 后续清理 |
+| moduleId 来源 | `getCurrentExplorerModuleId`; `SAMPLE_PROCUREMENT_APP` | `SAMPLE_PROCUREMENT_MODULE?.moduleId`，集中封装 | 否 | 是 | 是 | 真实模块缺失 | 后续 module API |
 | 是否仍默认 sales | `CreateMicroflowModal.spec.tsx` | 测试默认 sales；目标页不是 sales 而是 sample procurement | 否 | 测试硬编码 | 目标页否 | 测试与目标页不完全一致 | 调整测试夹具 |
 
 ## 5. Workbench Tabs
@@ -88,12 +85,12 @@ Hotfix 结论：第 0 轮 Hotfix 通过本轮源码审计；不是 Release Block
 | `workbenchTabs` | `store.ts` | 数组状态，初始 page/workflow sample | 部分 | 初始示例 | 用户误以为真实 app | 真实 app 初始化 |
 | tab id 按 microflowId | `getMicroflowWorkbenchTabId` | `microflow:${microflowId}` | 是 | 无 app/workspace 前缀 | 跨 app 同 id 理论冲突 | key 增上下文 |
 | 多 microflow tab | `openMicroflowWorkbenchTab` | 可 append 多 tab | 是 | 依赖资源索引 | 可用性取决于 Explorer | 保留 |
-| `activeWorkbenchTabId` | `store.ts` | 已有 | 是 | 无 guard | dirty 切换丢提醒 | 第 4 轮 |
-| `dirtyByTabId` | `store.ts` | 没有独立 map，只在 tab 上 `dirty` | 部分 | 不是单独状态 | 难做 guard | 引入 dirty map 或稳定 tab dirty |
-| close guard | `workbench-tabs.tsx`; `store.ts` | 直接 close | 否 | 无确认 | 未保存丢失 | 第 4 轮 |
-| switch guard | `WorkbenchTabs.handleTabClick` | 直接 switch | 否 | 无确认 | 未保存丢失 | 第 4 轮 |
-| refresh guard | 源码中未发现 | 无 | 否 | 无 | 刷新丢失 | 第 4 轮 |
-| undo/redo per microflow | `mendix-microflow/src/editor/index.tsx` | editor 内部 history 随 component key 隔离 | 是，依赖 key | workbench store 不持久化 history | tab 卸载丢 history | 第 4/5 轮 |
+| `activeWorkbenchTabId` | `store.ts` | 已有，打开/切换/关闭 microflow tab 时同步 `activeMicroflowId` | 是 | 非微流 tab 会清空 activeMicroflowId | 符合 Stage 04 策略 | 保留 |
+| `dirtyByTabId` | `store.ts` | 已有 `dirtyByWorkbenchTabId` 独立 map，tab.dirty 仅用于 UI 标识 | 是 | 尚无真实 editor dirty 来源 | Stage 5 接 editor 后需要接真实 dirty | 保留 |
+| close guard | `workbench-tabs.tsx`; `store.ts` | dirty tab 首次关闭打开确认框，Save disabled，Discard force close，Cancel 保留 | 是 | Save 尚未接入 | Stage 5 schema save 后启用 | 保留 |
+| switch guard | `WorkbenchTabs.handleTabClick` | 默认允许切换 dirty tab且不清 dirty | 是 | 未做切换确认 | 当前策略符合第 4 轮 | 保留 |
+| refresh guard | `index.tsx`; `store.ts` | dirty map 非空时注册 `beforeunload` guard | 是 | 不自动保存 | Stage 5/14 完善 save/autosave/conflict | 保留 |
+| undo/redo per microflow | `store.ts`; `workbench-toolbar.tsx` | 预留 `historyKey`、`canUndoByWorkbenchTabId`、`canRedoByWorkbenchTabId`，按钮默认 disabled | 框架已建 | 未接真实 editor history | Stage 5/6 接真实 history | 保留 |
 | 删除微流后 tab 关闭 | `removeStudioMicroflow` | 调 `removeMicroflowWorkbenchTab` | 是 | 仅前端状态 | 后端外部删除需刷新 | 保留 |
 | rename title 同步 | `renameMicroflowWorkbenchTab`; `upsertStudioMicroflow` | 已同步 | 是 | 依赖操作路径 | 外部 rename 需 reload | 保留 |
 | duplicate 不覆盖源 tab | `handleDuplicateMicroflow` | sync 新 resource，不主动打开覆盖源 | 是 | 不自动打开 duplicate | UX 待定 | 第 3 轮定义 |
@@ -103,14 +100,14 @@ Hotfix 结论：第 0 轮 Hotfix 通过本轮源码审计；不是 Release Block
 
 | 能力 | 源码路径 | 当前实现 | 是否真实后端 | 是否 microflowId 隔离 | 缺口 | 发布建议 |
 |---|---|---|---|---|---|---|
-| 目标页使用 Entry | `StudioEmbeddedMicroflowEditor.tsx` | 渲染 `MendixMicroflowEditorEntry` | 是 | 是 | 仅 microflow tab | 保留 |
-| 按 activeMicroflowId 加载 resource | `index.tsx`; `StudioEmbeddedMicroflowEditor.load` | active tab -> `microflowId`; `getMicroflow(id)` | 是 | 是 | 无 | 保留 |
-| 按 activeMicroflowId 加载 schema | `runtimeAdapter.loadMicroflow(id)` | GET `/api/microflows/{id}/schema` | 是 | 是 | 无 | 保留 |
-| 注入真实 apiClient/resource/metadata/validation | `microflow-adapter-factory.ts`; `MendixMicroflowEditorEntry.tsx` | http bundle 注入 | 是 | 是 | Authorization 未显式 | 权限轮补 |
-| 是否仍传 store.microflowSchema | `index.tsx`; `store.ts` | 目标微流 tab 不传 store schema；store 仍保留 sample | 目标页微流 tab 否 | 是 | sample 状态残留 | 清理 |
+| 目标页使用 Entry | `index.tsx`; `MicroflowResourceEditorHost.tsx` | 目标页 microflow tab 渲染 `MicroflowResourceEditorHost`，宿主复用 `MendixMicroflowEditorEntry` | 是 | 是 | toolbox/property/metadata 专项未做 | 后续专项 |
+| 按 activeMicroflowId 加载 resource | `MicroflowResourceEditorHost.tsx`; `http-resource-adapter.ts` | active tab -> `microflowId` -> `resourceAdapter.getMicroflow(id)` | 是 | 是 | 请求取消为忽略旧响应策略 | 保留 |
+| 按 activeMicroflowId 加载 schema | `MicroflowResourceEditorHost.tsx`; `http-resource-adapter.ts` | `resourceAdapter.getMicroflowSchema(id)` -> `GET /api/microflows/{id}/schema` | 是 | 是 | 不做历史 migration | 后续需要时处理 |
+| 注入真实 apiClient/resource/metadata/validation | `microflow-adapter-factory.ts`; `MendixMicroflowEditorEntry.tsx`; `MicroflowResourceEditorHost.tsx` | http bundle 注入；metadata 缺失时报错；validation 缺失警告 | 是 | 是 | Authorization 未显式 | 权限轮补 |
+| 是否仍传 store.microflowSchema | `index.tsx`; `store.ts` | 目标微流 tab 不传 store schema；store 仍保留 sample 仅作 legacy 示例状态 | 目标页微流 tab 否 | 是 | sample 状态残留 | 后续清理 |
 | editor key 包含 id/schema/version | `StudioEmbeddedMicroflowEditor.tsx`; `MendixMicroflowEditorEntry.tsx` | key `${microflowId}:${schemaId}:${version}` / `${id}:${schemaId}:${version}` | 是 | 是 | 无 | 保留 |
-| 保存 PUT schema | `editor-save-bridge.ts`; `http-resource-adapter.ts` | `saveMicroflowSchema` -> PUT `/api/microflows/{id}/schema` | 是 | 是 | baseVersion 用旧 `resource`，连续保存后 currentResource 更新依赖 onSaveComplete | 加 conflict/E2E |
-| 是否可能走 createLocalMicroflowApiClient | `microflow-adapter-factory.ts`; `StudioEmbeddedMicroflowEditor.tsx` | mock/local bundle 会有 local runtime；目标嵌入式 editor 非 http 拒绝 | 目标真实路径否 | 是 | bundle 仍能被配置为 local 导致页面不可用 | 生产禁用 local/mock |
+| 保存 PUT schema | `editor-save-bridge.ts`; `http-resource-adapter.ts`; `MicroflowResourceEditorHost.tsx` | `createMicroflowEditorApiClient` 调 `resourceAdapter.saveMicroflowSchema`，HTTP adapter PUT `/api/microflows/{id}/schema` | 是 | 是 | conflict modal 未做 | Stage 14 |
+| 是否可能走 createLocalMicroflowApiClient | `microflow-adapter-factory.ts`; `MicroflowResourceEditorHost.tsx` | 目标真实 microflow tab 强制 `mode === "http"`，且显式传 `apiClient` 给 `MicroflowEditor` | 目标真实路径否 | 是 | env 配成 local/mock 会显示错误而非保存 | 生产配置锁定 |
 | A/B useState schema 复用 | `MendixMicroflowEditorEntry.tsx` | `useEffect` reset；key 包含 id/schema/version | 是 | 是 | 切换 guard 无 | 第 4 轮 |
 | 保存失败错误 | `mendix-microflow/src/editor/index.tsx` | catch Toast error，validationIssues 打开 Problems | 是 | 是 | 版本冲突 UX 未完整 | 第 5 轮 |
 | baseVersion/schema conflict | `MicroflowResourceService.SaveSchemaAsync`; `editor-save-bridge.ts` | 后端校验 baseVersion；前端传 `schemaId || version` | 是 | 是 | conflict 恢复/merge 未实现 | 第 5 轮 |
@@ -275,7 +272,7 @@ Hotfix 结论：第 0 轮 Hotfix 通过本轮源码审计；不是 Release Block
 | Playwright | `src/frontend/package.json`; `src/frontend/e2e/app/agent-workbench.spec.ts` | 存在 e2e 目录但未发现 Playwright config | 部分 | 未发现 mendix-studio E2E | 补 config/route test |
 | mendix-studio route E2E | 源码中未发现 | 无 | 缺失 | 目标页未验收 | 第 2 轮前补 |
 | create success/failure | `CreateMicroflowModal.spec.tsx`; `MicroflowCreateHotfixTests.cs` | 前后端单测 | 部分 | 无浏览器真实 route create | 补 E2E |
-| App Explorer real list | 源码中未发现 | 无 | 缺失 | 真实 list 未回归 | 补 MSW/后端联调 |
+| App Explorer real list | `src/frontend/packages/mendix/mendix-studio-core/src/components/app-explorer.spec.tsx` | loading/empty/error/retry/real nodes/search/click/refresh/sample 隔离 | Stage 02 已补单测 | 浏览器 E2E 未执行 | 补 route E2E/后端联调 |
 | save/load | `microflow-interactions.spec.ts`; scripts | 编辑器级/脚本 | 部分 | 目标页 save/load E2E 缺 | 补 |
 | call microflow/reference | `call-microflow-config.test.ts`; `microflow-references.test.ts` | 单元测试 | 部分 | 端到端缺 | 补 |
 | publish | `scripts/verify-microflow-publish-version-references-testrun-debug-integration.ts` | 脚本 | 部分 | 非标准测试入口 | 纳入 CI |
@@ -288,17 +285,20 @@ Hotfix 结论：第 0 轮 Hotfix 通过本轮源码审计；不是 Release Block
 
 | Blocker | 证据 | 影响 | 修复轮次 | 优先级 |
 |---|---|---|---|---|
-| App Explorer 外壳仍是 `TREE_DATA` / sample app | `app-explorer.tsx`; `sample-app`; `store.ts` | 目标页不是真实 app 资产树 | 第 2 轮 | P0 |
+| App Explorer 完整 module tree 仍是 sample/static | `app-explorer.tsx`; `sample-app`; `store.ts` | Microflows 分组已真实只读，但目标页不是真实 app/module 资产树 | 后续 module tree 轮 | P0 |
 | `appId` 未驱动 module/resource 查询 | `mendix-studio-route.tsx`; `app-explorer.tsx` | 多 app 错读错写 | 第 2 轮 | P0 |
-| `moduleId` 来自 sample procurement module | `getExplorerModuleId`; `SAMPLE_PROCUREMENT_APP` | 创建/list 不按真实模块 | 第 2 轮 | P0 |
+| `moduleId` 来自 sample procurement module | `getCurrentExplorerModuleId`; `SAMPLE_PROCUREMENT_APP` | list 按 sample module 查询，不按真实模块 | 后续 module tree 轮 | P0 |
+| CRUD 仍未完成 | `app-explorer-tree.tsx` | New/Rename/Duplicate/Delete 均 disabled，占位到 Stage 3 | 第 3 轮 | P0 |
+| Workbench tab 已完成 Stage 04 基础生命周期，真实 editor host 未完成 | `app-explorer.tsx`; `workbench-tabs.tsx`; `index.tsx` | 点击真实微流打开 `microflow:{id}` tab 并显示 resource placeholder，不渲染真实 editor | 第 5 轮 | P1 |
+| schema load/save 仍未完成本轮验收 | `index.tsx`; `http-resource-adapter.ts`; `editor-save-bridge.ts` | Stage 04 明确禁止目标页调用 GET/PUT schema | 第 5 轮 | P1 |
 | Controller `[AllowAnonymous]` 且 workspace ownership 未发现 | `MicroflowResourceController.cs`; `MicroflowMetadataController.cs` | 越权风险 | 权限轮/第 2 前置 | P0 |
 | Authorization/currentUser 未在目标 route 注入 | `microflow-adapter-config.ts`; `mendix-studio-route.tsx` | 审计/权限不完整 | 权限轮 | P0 |
-| Workbench 无 dirty close/switch/refresh guard | `workbench-tabs.tsx`; `store.ts` | 未保存丢失 | 第 4 轮 | P1 |
+| Workbench dirty close/refresh guard 与 schema save 已接通 | `workbench-tabs.tsx`; `store.ts`; `index.tsx`; `MicroflowResourceEditorHost.tsx` | 关闭/刷新有保护，真实保存成功会清 dirty；dirty 切换需确认丢弃 | conflict UX 轮 | P1 |
 | 目标页 E2E 缺失 | 搜索结果源码中未发现 | 无发布回归基线 | 第 2 前/随第 2 | P1 |
-| save gate/version conflict UX 不完整 | `editor/index.tsx`; `editor-save-bridge.ts`; `MicroflowResourceService.cs` | 冲突处理弱 | 第 5 轮 | P1 |
-| metadata 真实域模型来源仍不清，seed 默认 demo | `MicroflowMetadataSeedHostedService.cs`; `http-metadata-adapter.ts` | selector 数据可能非生产 | 第 5 轮 | P1 |
+| save gate/version conflict UX 不完整 | `editor/index.tsx`; `editor-save-bridge.ts`; `MicroflowResourceService.cs` | 409 能展示且 dirty 保持 true，但缺完整 conflict modal | Stage 14 | P1 |
+| metadata 真实域模型来源仍不清，seed 默认 demo | `MicroflowMetadataSeedHostedService.cs`; `http-metadata-adapter.ts` | 目标页已注入真实 adapter，但 selector 数据可能非生产 | metadata 专项 | P1 |
 | API 无版本前缀 | `MicroflowResourceController.cs`; `MicroflowMetadataController.cs` | 违反仓库 API 强约束 | API 整改轮 | P1 |
 
 ## 14. Recommended Next Round
 
-第 2 轮可以继续进入 App Explorer 资产树发布化，因为第 0 轮 Hotfix 审计通过；但第 2 轮必须把 `TREE_DATA`/`SAMPLE_PROCUREMENT_APP`/sample moduleId 从目标页生产路径剥离，并让 `/space/:workspaceId/mendix-studio/:appId` 的 `workspaceId/appId/moduleId` 进入真实资产树与 Microflows list/create 上下文。若第 2 轮无法同时处理 Authorization/currentUser/workspace ownership，至少要把这些作为发布阻断项保留，不得宣称 P1 发布可用。
+Stage 05 已完成资源感知编辑器宿主，不受第 0 轮 Hotfix 是否完成约束。下一轮建议进入 metadata/toolbox/property 或 conflict UX 专项：继续补 Call Microflow 真实 metadata、Domain Model metadata、版本冲突处理、浏览器 E2E 与真实 app/module tree。publish/run/trace 与执行引擎仍需后续轮次单独验收。

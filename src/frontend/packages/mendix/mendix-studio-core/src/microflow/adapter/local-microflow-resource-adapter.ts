@@ -439,6 +439,10 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     return resource ? clone(resource) : undefined;
   }
 
+  async getMicroflowSchema(id: string): Promise<MicroflowAuthoringSchema> {
+    return clone(this.requireResource(id).schema);
+  }
+
   async createMicroflow(input: MicroflowCreateInput): Promise<MicroflowResource> {
     const resource = createResourceFromInput(input, { workspaceId: this.workspaceId, currentUser: this.currentUser });
     this.resources.set(resource.id, resource);

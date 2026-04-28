@@ -385,6 +385,20 @@
   border-radius: 50%;
   background: var(--studio-warning-color);
 }
+.studio-workbench-tab__dirty-prefix {
+  color: var(--studio-warning-color);
+  font-weight: 700;
+  line-height: 1;
+}
+.studio-workbench-tab__status {
+  margin-left: 2px;
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--studio-text-secondary);
+  background: #f0f2f5;
+}
 
 .studio-workbench-tab-add {
   display: flex;

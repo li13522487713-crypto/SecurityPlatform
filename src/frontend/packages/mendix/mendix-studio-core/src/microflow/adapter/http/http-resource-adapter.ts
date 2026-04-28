@@ -17,7 +17,7 @@ import type {
 import type { MicroflowVersionDetail, MicroflowVersionDiff, MicroflowVersionSummary } from "../../versions/microflow-version-types";
 import type { AnalyzeMicroflowImpactRequest, GetMicroflowReferencesRequest } from "../../contracts/api/microflow-reference-api-contract";
 import type { MicroflowApiPageResult } from "../../contracts/api/api-envelope";
-import type { SaveMicroflowSchemaResponse } from "../../contracts/api/microflow-schema-api-contract";
+import type { GetMicroflowSchemaResponse, SaveMicroflowSchemaResponse } from "../../contracts/api/microflow-schema-api-contract";
 import type { MicroflowResourceAdapter, SaveMicroflowSchemaOptions } from "../microflow-resource-adapter";
 import { MicroflowApiClient, type MicroflowApiClientOptions, type MicroflowQuery } from "./microflow-api-client";
 import { getMicroflowApiError } from "./microflow-api-error";
@@ -71,6 +71,10 @@ export function createHttpMicroflowResourceAdapter(options: HttpMicroflowResourc
     },
     async getMicroflow(id) {
       return client.get<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}`);
+    },
+    async getMicroflowSchema(id) {
+      const response = await client.get<GetMicroflowSchemaResponse>(`/api/microflows/${encodeURIComponent(id)}/schema`);
+      return response.schema;
     },
     async createMicroflow(input: MicroflowCreateInput) {
       try {

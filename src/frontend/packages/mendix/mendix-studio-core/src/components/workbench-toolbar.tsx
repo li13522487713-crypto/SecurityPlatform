@@ -18,6 +18,12 @@ export function WorkbenchToolbar() {
       ? state.workbenchTabs.find(tab => tab.id === state.activeWorkbenchTabId)
       : undefined
   );
+  const canUndo = useMendixStudioStore(state =>
+    state.activeWorkbenchTabId ? state.canUndoByWorkbenchTabId[state.activeWorkbenchTabId] : false
+  );
+  const canRedo = useMendixStudioStore(state =>
+    state.activeWorkbenchTabId ? state.canRedoByWorkbenchTabId[state.activeWorkbenchTabId] : false
+  );
 
   const isPage = activeTab === "pageBuilder";
   const isMicroflowWorkbench = activeWorkbenchTab?.kind === "microflow";
@@ -25,10 +31,18 @@ export function WorkbenchToolbar() {
   return (
     <div className="studio-workbench-toolbar">
       <div className="studio-workbench-toolbar__left">
-        <button className="studio-workbench-toolbar__btn studio-workbench-toolbar__btn--disabled" title="撤销">
+        <button
+          className={"studio-workbench-toolbar__btn" + (canUndo ? "" : " studio-workbench-toolbar__btn--disabled")}
+          title={canUndo ? "Undo" : "Undo/Redo will be enabled after editor integration."}
+          disabled={!canUndo}
+        >
           <IconUndo style={{ fontSize: 15 }} />
         </button>
-        <button className="studio-workbench-toolbar__btn studio-workbench-toolbar__btn--disabled" title="重做">
+        <button
+          className={"studio-workbench-toolbar__btn" + (canRedo ? "" : " studio-workbench-toolbar__btn--disabled")}
+          title={canRedo ? "Redo" : "Undo/Redo will be enabled after editor integration."}
+          disabled={!canRedo}
+        >
           <IconRedo style={{ fontSize: 15 }} />
         </button>
 
@@ -90,16 +104,16 @@ export function WorkbenchToolbar() {
         )}
       </div>
 
-      {/* 嵌入式微流编辑器自身提供保存、校验和画布工具栏。 */}
+      {/* Stage 04 仅展示真实资源 placeholder，不接入真实 schema editor。 */}
       {isMicroflowWorkbench && (
         <button
           type="button"
           className="studio-workbench-toolbar__btn studio-workbench-toolbar__btn--with-label studio-workbench-toolbar__btn--disabled"
-          title="微流画布工具栏位于嵌入式编辑器内部"
+          title="真实 schema 加载、保存和画布编辑将在 Release Stage 05 后接入"
           disabled
         >
           <IconFullScreenStroked style={{ fontSize: 15, flexShrink: 0 }} aria-hidden />
-          <span className="studio-workbench-toolbar__btn-label">真实微流编辑中</span>
+          <span className="studio-workbench-toolbar__btn-label">微流资源信息</span>
         </button>
       )}
 

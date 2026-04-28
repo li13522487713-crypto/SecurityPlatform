@@ -24,6 +24,7 @@ export interface SaveMicroflowSchemaOptions {
 export interface MicroflowResourceAdapter {
   listMicroflows(query?: MicroflowResourceQuery): Promise<MicroflowResourceListResult>;
   getMicroflow(id: string): Promise<MicroflowResource | undefined>;
+  getMicroflowSchema(id: string): Promise<MicroflowAuthoringSchema>;
   createMicroflow(input: MicroflowCreateInput): Promise<MicroflowResource>;
   updateMicroflow(id: string, patch: MicroflowResourcePatch): Promise<MicroflowResource>;
   saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema, options?: SaveMicroflowSchemaOptions): Promise<MicroflowResource>;

@@ -23,6 +23,7 @@ function createFailingResourceAdapter(error: Error): MicroflowResourceAdapter {
   return {
     listMicroflows: () => reject(),
     getMicroflow: () => reject(),
+    getMicroflowSchema: () => reject(),
     createMicroflow: () => reject(),
     updateMicroflow: () => reject(),
     saveMicroflowSchema: () => reject(),

@@ -29,17 +29,27 @@ export type StudioWorkbenchTabKind =
   | "microflow"
   | "workflow"
   | "domainModel"
+  | "security"
+  | "navigation"
   | "other";
 
 export interface StudioWorkbenchTab {
   id: string;
   kind: StudioWorkbenchTabKind;
   title: string;
+  subtitle?: string;
   moduleId?: string;
   resourceId?: string;
   microflowId?: string;
+  qualifiedName?: string;
+  status?: string;
+  publishStatus?: string;
   dirty?: boolean;
   closable?: boolean;
+  icon?: string;
+  openedAt: string;
+  updatedAt?: string;
+  historyKey?: string;
 }
 
 type StudioState = {
@@ -48,6 +58,12 @@ type StudioState = {
   activeTabId?: ActiveTabId;
   workbenchTabs: StudioWorkbenchTab[];
   activeWorkbenchTabId?: string;
+  dirtyByWorkbenchTabId: Record<string, boolean>;
+  canUndoByWorkbenchTabId: Record<string, boolean>;
+  canRedoByWorkbenchTabId: Record<string, boolean>;
+  lastActiveMicroflowTabId?: string;
+  pendingCloseTabId?: string;
+  tabCloseGuardOpen?: boolean;
   selectedId?: string;
   selectedKind?: string;
   selectedWidgetId: string;
@@ -96,10 +112,12 @@ type StudioState = {
   setActiveMicroflowId: (microflowId?: string) => void;
   setActiveWorkbenchTab: (tabId: string) => void;
   openMicroflowWorkbenchTab: (microflowId: string) => void;
-  closeWorkbenchTab: (tabId: string) => void;
-  renameMicroflowWorkbenchTab: (microflowId: string, title: string) => void;
+  closeWorkbenchTab: (tabId: string, options?: { force?: boolean }) => void;
+  cancelWorkbenchTabCloseGuard: () => void;
+  renameMicroflowWorkbenchTab: (microflowId: string, title: string, subtitle?: string) => void;
   removeMicroflowWorkbenchTab: (microflowId: string) => void;
   markWorkbenchTabDirty: (tabId: string, dirty: boolean) => void;
+  updateMicroflowWorkbenchTabFromResource: (resource: StudioMicroflowDefinitionView) => void;
 
   /** 微流资产 CRUD action（仅更新 store 索引，不调用 API） */
   setModuleMicroflows: (moduleId: string, microflows: StudioMicroflowDefinitionView[]) => void;
@@ -118,14 +136,18 @@ const INITIAL_WORKBENCH_TABS: StudioWorkbenchTab[] = [
     kind: "page",
     title: "PurchaseRequest_EditPage",
     resourceId: "page_purchase_request_edit",
-    closable: false
+    closable: false,
+    openedAt: "2026-04-28T00:00:00.000Z",
+    historyKey: "page"
   },
   {
     id: "workflow",
     kind: "workflow",
     title: "WF_PurchaseApproval",
     resourceId: "wf_purchase_approval",
-    closable: false
+    closable: false,
+    openedAt: "2026-04-28T00:00:00.000Z",
+    historyKey: "workflow"
   }
 ];
 
@@ -149,15 +171,48 @@ function getMicroflowWorkbenchTabId(microflowId: string): string {
 }
 
 function createMicroflowWorkbenchTab(resource: StudioMicroflowDefinitionView): StudioWorkbenchTab {
+  const tabId = getMicroflowWorkbenchTabId(resource.id);
+  const now = new Date().toISOString();
   return {
-    id: getMicroflowWorkbenchTabId(resource.id),
+    id: tabId,
     kind: "microflow",
     title: resource.displayName || resource.name,
+    subtitle: resource.qualifiedName,
     moduleId: resource.moduleId,
     resourceId: resource.id,
     microflowId: resource.id,
-    closable: true
+    qualifiedName: resource.qualifiedName,
+    status: resource.status,
+    publishStatus: resource.publishStatus,
+    closable: true,
+    icon: "M",
+    openedAt: now,
+    updatedAt: now,
+    historyKey: tabId
   };
+}
+
+function getDirtyTabRecord(
+  current: Record<string, boolean>,
+  tabId: string,
+  dirty: boolean
+): Record<string, boolean> {
+  const next = { ...current };
+  if (dirty) {
+    next[tabId] = true;
+  } else {
+    delete next[tabId];
+  }
+  return next;
+}
+
+function omitTabRecord<T>(
+  current: Record<string, T>,
+  tabId: string
+): Record<string, T> {
+  const next = { ...current };
+  delete next[tabId];
+  return next;
 }
 
 export const useMendixStudioStore = create<StudioState>((set, get) => ({
@@ -166,6 +221,9 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   activeTabId: "page",
   workbenchTabs: INITIAL_WORKBENCH_TABS,
   activeWorkbenchTabId: "page",
+  dirtyByWorkbenchTabId: {},
+  canUndoByWorkbenchTabId: {},
+  canRedoByWorkbenchTabId: {},
   selectedWidgetId: "widget_submit_btn",
   selectedExplorerNodeId: "page_purchase_request_edit",
   previewMode: false,
@@ -227,6 +285,7 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
     if (tab.kind === "microflow") {
       nextState.activeMicroflowId = tab.microflowId ?? tab.resourceId;
       nextState.activeModuleId = tab.moduleId;
+      nextState.lastActiveMicroflowTabId = tab.id;
     } else {
       nextState.activeMicroflowId = undefined;
     }
@@ -253,12 +312,19 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       activeTabId: tabId,
       activeTab: "microflowDesigner",
       activeMicroflowId: microflowId,
-      activeModuleId: resource.moduleId
+      activeModuleId: resource.moduleId,
+      lastActiveMicroflowTabId: tabId
     });
   },
 
-  closeWorkbenchTab: tabId => {
-    const { workbenchTabs, activeWorkbenchTabId } = get();
+  closeWorkbenchTab: (tabId, options) => {
+    const {
+      workbenchTabs,
+      activeWorkbenchTabId,
+      dirtyByWorkbenchTabId,
+      canUndoByWorkbenchTabId,
+      canRedoByWorkbenchTabId
+    } = get();
     const closingIndex = workbenchTabs.findIndex(tab => tab.id === tabId);
     if (closingIndex < 0) {
       return;
@@ -269,7 +335,18 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       return;
     }
 
+    if ((dirtyByWorkbenchTabId[tabId] || closingTab.dirty) && options?.force !== true) {
+      set({
+        pendingCloseTabId: tabId,
+        tabCloseGuardOpen: true
+      });
+      return;
+    }
+
     const nextTabs = workbenchTabs.filter(tab => tab.id !== tabId);
+    const nextDirtyByTabId = omitTabRecord(dirtyByWorkbenchTabId, tabId);
+    const nextCanUndoByTabId = omitTabRecord(canUndoByWorkbenchTabId, tabId);
+    const nextCanRedoByTabId = omitTabRecord(canRedoByWorkbenchTabId, tabId);
     if (activeWorkbenchTabId !== tabId) {
       const shouldClearActiveMicroflow =
         closingTab.kind === "microflow" &&
@@ -277,7 +354,13 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
         nextTabs.find(tab => tab.id === activeWorkbenchTabId)?.kind !== "microflow";
       set({
         workbenchTabs: nextTabs,
-        activeMicroflowId: shouldClearActiveMicroflow ? undefined : get().activeMicroflowId
+        dirtyByWorkbenchTabId: nextDirtyByTabId,
+        canUndoByWorkbenchTabId: nextCanUndoByTabId,
+        canRedoByWorkbenchTabId: nextCanRedoByTabId,
+        pendingCloseTabId: get().pendingCloseTabId === tabId ? undefined : get().pendingCloseTabId,
+        tabCloseGuardOpen: get().pendingCloseTabId === tabId ? false : get().tabCloseGuardOpen,
+        activeMicroflowId: shouldClearActiveMicroflow ? undefined : get().activeMicroflowId,
+        lastActiveMicroflowTabId: get().lastActiveMicroflowTabId === tabId ? undefined : get().lastActiveMicroflowTabId
       });
       return;
     }
@@ -289,9 +372,15 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
     if (!nextActiveTab) {
       set({
         workbenchTabs: nextTabs,
+        dirtyByWorkbenchTabId: nextDirtyByTabId,
+        canUndoByWorkbenchTabId: nextCanUndoByTabId,
+        canRedoByWorkbenchTabId: nextCanRedoByTabId,
         activeWorkbenchTabId: undefined,
         activeTabId: undefined,
         activeMicroflowId: undefined,
+        lastActiveMicroflowTabId: undefined,
+        pendingCloseTabId: get().pendingCloseTabId === tabId ? undefined : get().pendingCloseTabId,
+        tabCloseGuardOpen: get().pendingCloseTabId === tabId ? false : get().tabCloseGuardOpen,
         activeTab: "pageBuilder"
       });
       return;
@@ -299,6 +388,9 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
 
     set({
       workbenchTabs: nextTabs,
+      dirtyByWorkbenchTabId: nextDirtyByTabId,
+      canUndoByWorkbenchTabId: nextCanUndoByTabId,
+      canRedoByWorkbenchTabId: nextCanRedoByTabId,
       activeWorkbenchTabId: nextActiveTab.id,
       activeTabId: nextActiveTab.id,
       activeTab: getStudioTabForWorkbenchKind(nextActiveTab.kind),
@@ -307,16 +399,26 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
         : undefined,
       activeModuleId: nextActiveTab.kind === "microflow"
         ? nextActiveTab.moduleId
-        : get().activeModuleId
+        : get().activeModuleId,
+      lastActiveMicroflowTabId: nextActiveTab.kind === "microflow"
+        ? nextActiveTab.id
+        : undefined,
+      pendingCloseTabId: get().pendingCloseTabId === tabId ? undefined : get().pendingCloseTabId,
+      tabCloseGuardOpen: get().pendingCloseTabId === tabId ? false : get().tabCloseGuardOpen
     });
   },
 
-  renameMicroflowWorkbenchTab: (microflowId, title) => {
+  cancelWorkbenchTabCloseGuard: () => set({
+    pendingCloseTabId: undefined,
+    tabCloseGuardOpen: false
+  }),
+
+  renameMicroflowWorkbenchTab: (microflowId, title, subtitle) => {
     const tabId = getMicroflowWorkbenchTabId(microflowId);
     set({
       workbenchTabs: get().workbenchTabs.map(tab =>
         tab.id === tabId
-          ? { ...tab, title }
+          ? { ...tab, title, subtitle: subtitle ?? tab.subtitle, qualifiedName: subtitle ?? tab.qualifiedName, updatedAt: new Date().toISOString() }
           : tab
       )
     });
@@ -331,13 +433,14 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       }
       return;
     }
-    get().closeWorkbenchTab(tabId);
+    get().closeWorkbenchTab(tabId, { force: true });
     if (get().activeMicroflowId === microflowId) {
       set({ activeMicroflowId: undefined });
     }
   },
 
   markWorkbenchTabDirty: (tabId, dirty) => set({
+    dirtyByWorkbenchTabId: getDirtyTabRecord(get().dirtyByWorkbenchTabId, tabId, dirty),
     workbenchTabs: get().workbenchTabs.map(tab =>
       tab.id === tabId
         ? { ...tab, dirty }
@@ -345,12 +448,42 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
     )
   }),
 
+  updateMicroflowWorkbenchTabFromResource: resource => {
+    const tabId = getMicroflowWorkbenchTabId(resource.id);
+    set({
+      workbenchTabs: get().workbenchTabs.map(tab =>
+        tab.id === tabId
+          ? {
+              ...tab,
+              title: resource.displayName || resource.name,
+              subtitle: resource.qualifiedName,
+              moduleId: resource.moduleId,
+              resourceId: resource.id,
+              microflowId: resource.id,
+              qualifiedName: resource.qualifiedName,
+              status: resource.status,
+              publishStatus: resource.publishStatus,
+              updatedAt: new Date().toISOString()
+            }
+          : tab
+      )
+    });
+  },
+
   setModuleMicroflows: (moduleId, microflows) => {
     const { microflowResourcesById, microflowIdsByModuleId } = get();
     const previousIds = new Set(microflowIdsByModuleId[moduleId] ?? []);
     const nextById = { ...microflowResourcesById };
+    const openMicroflowIds = new Set(
+      get().workbenchTabs
+        .filter(tab => tab.kind === "microflow")
+        .map(tab => tab.microflowId ?? tab.resourceId)
+        .filter((id): id is string => Boolean(id))
+    );
     for (const id of previousIds) {
-      delete nextById[id];
+      if (!openMicroflowIds.has(id)) {
+        delete nextById[id];
+      }
     }
     for (const resource of microflows) {
       nextById[resource.id] = resource;
@@ -360,7 +493,25 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       microflowIdsByModuleId: {
         ...microflowIdsByModuleId,
         [moduleId]: microflows.map(resource => resource.id)
-      }
+      },
+      workbenchTabs: get().workbenchTabs.map(tab => {
+        const microflowId = tab.microflowId ?? tab.resourceId;
+        const resource = microflowId ? nextById[microflowId] : undefined;
+        return tab.kind === "microflow" && resource
+          ? {
+              ...tab,
+              title: resource.displayName || resource.name,
+              subtitle: resource.qualifiedName,
+              moduleId: resource.moduleId,
+              resourceId: resource.id,
+              microflowId: resource.id,
+              qualifiedName: resource.qualifiedName,
+              status: resource.status,
+              publishStatus: resource.publishStatus,
+              updatedAt: new Date().toISOString()
+            }
+          : tab;
+      })
     });
   },
 
@@ -379,9 +530,14 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
           ? {
               ...tab,
               title: resource.displayName || resource.name,
+              subtitle: resource.qualifiedName,
               moduleId: resource.moduleId,
               resourceId: resource.id,
-              microflowId: resource.id
+              microflowId: resource.id,
+              qualifiedName: resource.qualifiedName,
+              status: resource.status,
+              publishStatus: resource.publishStatus,
+              updatedAt: new Date().toISOString()
             }
           : tab
       )
