@@ -7,7 +7,7 @@ namespace Atlas.Application.LowCode.Abstractions;
 /// 应用版本管理（M14 S14-1..S14-2）。
 ///
 /// 端点双套校准（PLAN.md §M14）：
-///  - 设计态 v1（PlatformHost）：list / snapshot / diff / rollback —— 由 IAppDefinitionCommandService 已覆盖快照接口；diff/rollback 在本服务实现。
+///  - 设计态 v1（AppHost）：list / snapshot / diff / rollback —— 由 IAppDefinitionCommandService 已覆盖快照接口；diff/rollback 在本服务实现。
 ///  - 运行时 runtime（AppHost）：versions:archive / versions/{id}:rollback —— 由本服务 Archive / Rollback 实现。
 /// </summary>
 public interface IAppVersioningService

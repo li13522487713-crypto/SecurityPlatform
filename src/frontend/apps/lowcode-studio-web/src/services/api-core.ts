@@ -1,5 +1,5 @@
 /**
- * Studio API 客户端：仅访问设计态 /api/v1/lowcode/* 端点（PlatformHost）。
+ * Studio API 客户端：仅访问 AppHost 设计态 /api/v1/lowcode/* 端点。
  *
  * 强约束（PLAN.md §1.3 #2）：
  * - Studio 内禁止直调任何 /api/runtime/* 运行时端点；运行时调用一律由 lowcode-runtime-web
@@ -10,6 +10,7 @@
 import type { JsonValue } from '@atlas/lowcode-schema';
 
 const BASE = '/api/v1/lowcode';
+const DRAFT_SESSION_STORAGE_PREFIX = 'atlas_lowcode_draft_session:';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -182,8 +183,8 @@ export const lowcodeApi = {
     detail: (id: string) => request<AppListItem>('GET', `/apps/${id}`),
     delete: (id: string) => request<unknown>('DELETE', `/apps/${id}`),
     getDraft: (id: string) => request<{ schemaJson: string; schemaVersion: string; updatedAt: string }>('GET', `/apps/${id}/draft`),
-    replaceDraft: (id: string, schemaJson: string) => request<unknown>('POST', `/apps/${id}/draft`, { schemaJson } as never),
-    autosave: (id: string, schemaJson: string) => request<unknown>('POST', `/apps/${id}/autosave`, { schemaJson } as never),
+    replaceDraft: (id: string, schemaJson: string) => request<unknown>('POST', `/apps/${id}/draft`, { schemaJson, draftSessionId: getStoredDraftSessionId(id) } as never),
+    autosave: (id: string, schemaJson: string) => request<unknown>('POST', `/apps/${id}/autosave`, { schemaJson, draftSessionId: getStoredDraftSessionId(id) } as never),
     snapshot: (id: string, versionLabel: string, note?: string) =>
       request<{ versionId: string }>('POST', `/apps/${id}/snapshot`, { versionLabel, note } as never),
     listVersions: (id: string) => request<Array<{ id: string; appId: string; versionLabel: string; note?: string; isSystemSnapshot: boolean; createdByUserId: number; createdAt: string }>>('GET', `/apps/${id}/versions`),
@@ -252,3 +253,8 @@ export const lowcodeApi = {
     registry: (renderer = 'web') => request<ComponentRegistry>('GET', `/components/registry?renderer=${renderer}`)
   }
 };
+
+function getStoredDraftSessionId(appId: string): string | undefined {
+  if (typeof sessionStorage === 'undefined') return undefined;
+  return sessionStorage.getItem(`${DRAFT_SESSION_STORAGE_PREFIX}${appId}`) ?? undefined;
+}

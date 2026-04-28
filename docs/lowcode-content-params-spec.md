@@ -4,7 +4,7 @@
 >
 > 内容参数（ContentParam）独立于 BindingSchema，是组件接收"内容"输入的统一抽象，分 6 类。
 
-## §1 6 类内容参数总览
+## §1 6 类内容参数总览（P5-1 修正：与 `@atlas/lowcode-schema/types/content-param.ts` 严格对齐）
 
 ```ts
 type ContentParamSchema =
@@ -18,18 +18,20 @@ type ContentParamSchema =
 
 | kind | 字段 | 用途 |
 | --- | --- | --- |
-| `text` | `template`（Jinja-like）+ `i18nKey` + `fallbackText` | 文案：模板字符串、i18n key、静态文本 |
-| `image` | `mode = 'url' \| 'fileHandle' \| 'imageId' \| 'placeholder'`、`url`、`fileHandle`、`placeholder` | 图片：URL / 资产句柄 / 图床 ID / 占位图 |
-| `data` | `dataSourceKind = 'workflow_output' \| 'variable' \| 'static' \| 'database_query'`、`dataSourceRef` | 数据：列表/对象数据源接 workflow output、变量、静态 mock、数据库快查 |
-| `link` | `linkType = 'internal' \| 'external'`、`href`、`target` | 链接：内部路由 / 外部 URL（**外部链接强制经 webview 白名单校验**） |
-| `media` | `mediaType = 'video' \| 'audio'`、`url`、`cover` | 媒体：视频 / 音频 URL + 封面 |
-| `ai` | `mode = 'chatflow_stream' \| 'ai_card'`、`chatflowId`、`cardConfig` | AI 内容：chatflow 流式输出 / AI 卡片配置 |
+| `text` | `mode = 'static' \| 'template' \| 'i18n'`、`source`（模板字符串 / i18n key / 静态文本）、`context?` | 文案：模板字符串、i18n key、静态文本 |
+| `image` | `mode = 'url' \| 'fileHandle' \| 'imageId' \| 'placeholder'`、`source`、`placeholder?` | 图片：URL / 资产句柄 / 图床 ID / 占位图 |
+| `data` | `source`（BindingSchema：static / variable / expression / workflow_output / chatflow_output）、`expectArray?` | 数据：列表/对象数据源；通过 BindingSchema 接 workflow output / 变量等 |
+| `link` | `linkType = 'internal' \| 'external'`、`href`、`target?` | 链接：内部路由 / 外部 URL（**外部链接强制经 webview 白名单校验**） |
+| `media` | `mediaType = 'video' \| 'audio'`、`url`、`cover?` | 媒体：视频 / 音频 URL + 封面 |
+| `ai` | `mode = 'chatflow_stream' \| 'ai_card'`、`chatflowId?`、`cardConfig?` | AI 内容：chatflow 流式输出 / AI 卡片配置 |
 
-每个 ContentParam 必带：
+每个 ContentParam 必带（来自 `ContentParamBase`）：
 
-- `id`：实例唯一 ID
-- `name`：组件内引用名（与 ComponentMeta.contentParams 声明对应）
-- `description`：可选
+- `kind`：6 类之一
+- `code`：参数编码（应用内唯一），用于在表达式 / props 引用：`contentParam.<code>`
+- `description?`：可选描述
+
+> **历史名词对照**：早期文档曾使用 `id` / `name` / `dataSourceKind` 等命名，已统一为 `code` / `mode` / `source` 字段（与 TypeScript 类型严格对齐）。
 
 ## §2 与 BindingSchema 的差异说明
 

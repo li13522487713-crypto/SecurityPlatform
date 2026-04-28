@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 一次性创建 22 个 lowcode-* package 骨架（M00 预创建）。
+// 一次性创建当前保留的 lowcode-* package 骨架（M00 预创建）。
 // 此脚本只生成 package.json / src/index.ts / README.md / tsconfig.json，不写实现。
 // 真正的实现由 M01-M20 各里程碑分别填充。
 
@@ -9,7 +9,7 @@ import path from "node:path";
 const ROOT = path.resolve(new URL(".", import.meta.url).pathname, "..");
 const PKG_ROOT = path.join(ROOT, "src/frontend/packages");
 
-// 22 个新包的定义，与 PLAN.md §3.1 完全一致。
+// 当前保留包的定义，与实际仓库清单保持一致。
 const PACKAGES = [
   // 协议层
   { dir: "lowcode-schema", name: "@atlas/lowcode-schema", desc: "Atlas 低代码 Schema 协议层（M01）。" },
@@ -29,11 +29,7 @@ const PACKAGES = [
   // 适配器
   { dir: "lowcode-workflow-adapter", name: "@atlas/lowcode-workflow-adapter", desc: "Atlas 低代码 Workflow 适配器（M09）。" },
   { dir: "lowcode-chatflow-adapter", name: "@atlas/lowcode-chatflow-adapter", desc: "Atlas 低代码 Chatflow 适配器（M11）。" },
-  { dir: "lowcode-session-adapter", name: "@atlas/lowcode-session-adapter", desc: "Atlas 低代码 Session 适配器（M11）。" },
-  { dir: "lowcode-trigger-adapter", name: "@atlas/lowcode-trigger-adapter", desc: "Atlas 低代码 Trigger 适配器（M12）。" },
   { dir: "lowcode-asset-adapter", name: "@atlas/lowcode-asset-adapter", desc: "Atlas 低代码 Asset 适配器（M10）。" },
-  { dir: "lowcode-webview-policy-adapter", name: "@atlas/lowcode-webview-policy-adapter", desc: "Atlas 低代码 Webview 策略适配器（M12 / M17）。" },
-  { dir: "lowcode-plugin-adapter", name: "@atlas/lowcode-plugin-adapter", desc: "Atlas 低代码 Plugin 适配器（M18）。" },
   // 周边
   { dir: "lowcode-debug-client", name: "@atlas/lowcode-debug-client", desc: "Atlas 低代码调试台 + 6 维 trace（M13）。" },
   { dir: "lowcode-versioning-client", name: "@atlas/lowcode-versioning-client", desc: "Atlas 低代码版本管理（M14）。" },

@@ -1,4 +1,4 @@
-using Atlas.Application.Abstractions;
+﻿using Atlas.Application.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.Options;
 using Atlas.Application.Security;
@@ -11,6 +11,7 @@ using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Alert.Entities;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.AgentTeam.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
@@ -30,6 +31,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -202,6 +204,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureProductizationSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAiPluginSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureAiDatabaseManagementSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureResourceLibrarySourceColumnsAsync(db, cancellationToken); migrationCount++;
             await EnsureWorkspacePortalSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAiMemorySchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAgentPublicationSchemaAsync(db, cancellationToken); migrationCount++;
@@ -229,6 +233,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         // 兼容历史库：Permission.AppId 误建为 NOT NULL 时，平台权限种子无法插入（AppId 应为 NULL）
         await EnsurePermissionAppIdNullableSchemaAsync(db, cancellationToken);
+        // 兼容历史库：AppDefinition.CurrentVersionId 误建为 NOT NULL，新建草稿应用无法插入（草稿态应为 NULL）
+        await EnsureAppDefinitionCurrentVersionIdNullableAsync(db, cancellationToken);
 
         await EnsureTenantAppDataSourceBindingBackfillAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
         await EnsureTenantAppDataSourceBindingHealthAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
@@ -276,6 +282,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             using var seedScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, seedTenantId));
             await approvalSeedService.InitializeSeedDataAsync(seedTenantId, cancellationToken);
             await templateSeedDataService.InitializeBuiltInTemplatesAsync(seedTenantId, cancellationToken);
+            await EnsureCozeOfficialLibraryKnowledgeDemoAsync(
+                db,
+                scope.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>(),
+                seedTenantId,
+                cancellationToken);
         }
 
         if (Guid.TryParse(effectiveBootstrap.TenantId, out var appTenantGuid))
@@ -1890,6 +1901,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
+        if (HasColumns<Agent>(db, "PromptTemplateId"))
+        {
+            await RebuildTablePreservingIntersectionAsync<Agent>(db, cancellationToken);
+            return;
+        }
+
         if (!RequiresMissingColumnFix<Agent>(db, "DefaultWorkflowId", "DefaultWorkflowName"))
         {
             return;
@@ -1943,6 +1960,23 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         await RebuildTableViaOrmAsync<AuthSession>(db, cancellationToken);
+    }
+
+    private static async Task EnsureAppDefinitionCurrentVersionIdNullableAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var tableName = db.EntityMaintenance.GetTableName<Atlas.Domain.LowCode.Entities.AppDefinition>();
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
+        {
+            return;
+        }
+
+        // CurrentVersionId 是草稿态指针，新建应用时应为 NULL。历史表若建为 NOT NULL 则重建。
+        if (!RequiresNullableColumnFix<Atlas.Domain.LowCode.Entities.AppDefinition>(db, "CurrentVersionId"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<Atlas.Domain.LowCode.Entities.AppDefinition>(db, cancellationToken);
     }
 
     private static async Task EnsurePermissionAppIdNullableSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -2014,6 +2048,105 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await AddColumnIfMissingAsync(db, "AiPlugin", "OpenApiSpecJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
     }
 
+    private static async Task EnsureAiDatabaseManagementSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (db.CurrentConnectionConfig?.DbType != DbType.Sqlite)
+        {
+            return;
+        }
+
+        if (db.DbMaintenance.IsAnyTable("AiDatabase", false))
+        {
+            await AddColumnIfMissingAsync(db, "AiDatabase", "StorageMode", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DriverCode", "TEXT NOT NULL DEFAULT 'SQLite'", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "EncryptedDraftConnection", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "EncryptedOnlineConnection", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "PhysicalDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DraftDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "OnlineDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DefaultHostProfileId", "INTEGER NULL", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DraftInstanceId", "INTEGER NULL", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "OnlineInstanceId", "INTEGER NULL", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DialectVersion", "TEXT NOT NULL DEFAULT 'v1'", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "ProvisionState", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "ProvisionError", "TEXT NULL", cancellationToken);
+        }
+
+        if (RequiresNullableColumnFix<AiDatabaseHostProfile>(
+                db,
+                "Port",
+                "MaxDatabaseCount",
+                "LastTestAt",
+                "LastTestMessage"))
+        {
+            await RebuildTableViaOrmAsync<AiDatabaseHostProfile>(db, cancellationToken);
+        }
+
+        if (RequiresNullableColumnFix<AiDatabasePhysicalInstance>(
+                db,
+                "ProvisionError",
+                "DriverVersion",
+                "LastConnectedAt",
+                "LastConnectionTestMessage"))
+        {
+            await RebuildTableViaOrmAsync<AiDatabasePhysicalInstance>(db, cancellationToken);
+        }
+    }
+
+    private static async Task EnsureResourceLibrarySourceColumnsAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        // LibrarySource.Custom = 2
+        const string def = "INTEGER NOT NULL DEFAULT 2";
+        await AddColumnIfMissingAsync(db, "AiPlugin", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "WorkflowMeta", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "KnowledgeBase", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPromptTemplate", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "AgentCard", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "LongTermMemory", "ResourceLibrarySource", def, cancellationToken);
+    }
+
+    private static async Task EnsureCozeOfficialLibraryKnowledgeDemoAsync(
+        ISqlSugarClient db,
+        IIdGeneratorAccessor idGenerator,
+        TenantId seedTenant,
+        CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("KnowledgeBase", false))
+        {
+            return;
+        }
+
+        var demoRows = new (string Name, string Description)[]
+        {
+            ("【扣子小助手】专业版", "Coze 官方知识库示例"),
+            ("FAQ", "常见问题"),
+            ("FAQ 更新", "更新与变更说明"),
+            ("产品文档", "产品与能力文档")
+        };
+
+        foreach (var row in demoRows)
+        {
+            var count = await db.Queryable<KnowledgeBase>()
+                .Where(x => x.TenantIdValue == seedTenant.Value && x.Name == row.Name)
+                .CountAsync(cancellationToken);
+            if (count > 0)
+            {
+                continue;
+            }
+
+            var entity = new KnowledgeBase(
+                seedTenant,
+                row.Name,
+                row.Description,
+                KnowledgeBaseType.Text,
+                idGenerator.NextId(),
+                null,
+                LibrarySource.Official);
+            await db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
+        }
+    }
+
     private static async Task EnsureWorkspacePortalSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         await AddColumnIfMissingAsync(db, "Agent", "WorkspaceId", "INTEGER NULL", cancellationToken);
@@ -2034,6 +2167,15 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         {
             cancellationToken.ThrowIfCancellationRequested();
             db.CodeFirst.InitTables<Workspace, WorkspaceRole, WorkspaceMember, WorkspaceResourcePermission>();
+        }
+
+        // 1→N 模型：Workspace.AppInstanceId / AppKey 改为可空（历史一对一字段，仅作为「默认主应用」回填）
+        var requiresWorkspaceNullableFix =
+            RequiresNullableColumnFix<Workspace>(db, "AppInstanceId", "AppKey")
+            || RequiresWorkspaceLegacyNotNullFix(db);
+        if (db.DbMaintenance.IsAnyTable("Workspace", false) && requiresWorkspaceNullableFix)
+        {
+            await RebuildTableViaOrmAsync<Workspace>(db, cancellationToken);
         }
     }
 
@@ -2305,6 +2447,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
                 var ownerUserId = activeUsers.FirstOrDefault(x => x.IsPlatformAdmin)?.Id
                     ?? activeUsers[0].Id;
+#pragma warning disable CS0618 // 历史一对一构造保留给本迁移路径专用
                 workspace = new Workspace(
                     tenantId,
                     string.IsNullOrWhiteSpace(primaryApp.Name) ? "默认工作空间" : $"{primaryApp.Name} 工作空间",
@@ -2314,6 +2457,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                     primaryApp.AppKey,
                     ownerUserId,
                     idGeneratorAccessor.NextId());
+#pragma warning restore CS0618
                 await db.Insertable(workspace).ExecuteCommandAsync(cancellationToken);
             }
 
@@ -2434,7 +2578,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 .ExecuteCommandAsync(cancellationToken);
             await db.Updateable<AiPlugin>()
                 .SetColumns(x => x.WorkspaceId == workspace.Id)
-                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == null)
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId <= 0)
                 .ExecuteCommandAsync(cancellationToken);
         }
     }
@@ -2442,7 +2586,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private static async Task EnsureAppManifestSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("AppManifest", false)) return;
-        if (!RequiresNullableColumnFix<AppManifest>(db, "DataSourceId", "PublishedBy", "PublishedAt")) return;
+        // 1→N 模型：WorkspaceId 是新加的可空列；先补列，再判断 nullable 修复。
+        await AddColumnIfMissingAsync(db, "AppManifest", "WorkspaceId", "INTEGER NULL", cancellationToken);
+        if (!RequiresNullableColumnFix<AppManifest>(db, "DataSourceId", "PublishedBy", "PublishedAt", "WorkspaceId")) return;
         await RebuildTableViaOrmAsync<AppManifest>(db, cancellationToken);
     }
 
@@ -2578,6 +2724,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         where TEntity : class, new()
         => SqliteSchemaAlignment.RebuildTableViaOrmAsync<TEntity>(db, cancellationToken);
 
+    private static Task RebuildTablePreservingIntersectionAsync<TEntity>(ISqlSugarClient db, CancellationToken cancellationToken)
+        where TEntity : class, new()
+        => SqliteSchemaAlignment.RebuildTablePreservingIntersectionAsync<TEntity>(db, cancellationToken);
+
     private static bool RequiresNullableColumnFix<TEntity>(ISqlSugarClient db, params string[] columnNames)
         where TEntity : class, new()
         => SqliteSchemaAlignment.RequiresNullableColumnFix<TEntity>(db, columnNames);
@@ -2585,6 +2735,40 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private static bool RequiresMissingColumnFix<TEntity>(ISqlSugarClient db, params string[] requiredColumnNames)
         where TEntity : class, new()
         => SqliteSchemaAlignment.RequiresMissingColumnFix<TEntity>(db, requiredColumnNames);
+
+    private static bool HasColumns<TEntity>(ISqlSugarClient db, params string[] columnNames)
+        where TEntity : class, new()
+        => SqliteSchemaAlignment.HasColumns<TEntity>(db, columnNames);
+
+    private static bool RequiresWorkspaceLegacyNotNullFix(ISqlSugarClient db)
+    {
+        if (!db.DbMaintenance.IsAnyTable("Workspace", false))
+        {
+            return false;
+        }
+
+        var ddl = db.Ado.GetString(
+            """
+            SELECT sql
+            FROM sqlite_master
+            WHERE lower(type) = 'table'
+              AND lower(name) = 'workspace'
+            LIMIT 1;
+            """);
+        if (string.IsNullOrWhiteSpace(ddl))
+        {
+            return false;
+        }
+
+        return ContainsNotNullColumn(ddl, "AppInstanceId")
+               || ContainsNotNullColumn(ddl, "AppKey");
+    }
+
+    private static bool ContainsNotNullColumn(string ddl, string columnName)
+    {
+        var pattern = $@"(?is)(?:^|,)\s*(?:\[{Regex.Escape(columnName)}\]|`{Regex.Escape(columnName)}`|""{Regex.Escape(columnName)}""|{Regex.Escape(columnName)})\b[^,]*\bNOT\s+NULL\b";
+        return Regex.IsMatch(ddl, pattern, RegexOptions.CultureInvariant);
+    }
 
     private static async Task AddColumnIfMissingAsync(
         ISqlSugarClient db,

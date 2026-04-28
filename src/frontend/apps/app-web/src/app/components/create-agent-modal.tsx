@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { Avatar, Form, Modal, TabPane, Tabs, Toast } from "@douyinfe/semi-ui";
+import { Avatar, Form, Modal, TabPane, Tabs, TextArea, Toast } from "@douyinfe/semi-ui";
 import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
 import { createAiAssistantInWorkspace } from "../../services/api-ai-assistant";
 import { agentEditorPath } from "@atlas/app-shell-shared";
+import { notifyWorkspaceResourceCreated } from "../workspace-resource-events";
 
 interface CreateAgentModalProps {
   visible: boolean;
@@ -45,6 +46,10 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
       Toast.warning(t("cozeCreateAgentNamePlaceholder"));
       return;
     }
+    if (!workspaceId || Number(workspaceId) <= 0) {
+      Toast.error(t("cozeCreateFailed"));
+      return;
+    }
     setSubmitting(true);
     try {
       const agentId = await createAiAssistantInWorkspace(
@@ -54,6 +59,12 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
         },
         workspaceId
       );
+      notifyWorkspaceResourceCreated({
+        workspaceId,
+        resourceType: "agent",
+        resourceId: agentId,
+        resourceName: trimmed
+      });
       Toast.success(t("cozeCreateSuccess"));
       onCreated?.(agentId);
       onClose();
@@ -72,6 +83,10 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
       Toast.warning(t("cozeCreateAgentAiPromptPlaceholder"));
       return;
     }
+    if (!workspaceId || Number(workspaceId) <= 0) {
+      Toast.error(t("cozeCreateFailed"));
+      return;
+    }
     setSubmitting(true);
     try {
       // 第一阶段：AI 创建链路尚未接通后端，先作为标准创建落库占位
@@ -83,6 +98,12 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
         },
         workspaceId
       );
+      notifyWorkspaceResourceCreated({
+        workspaceId,
+        resourceType: "agent",
+        resourceId: agentId,
+        resourceName: trimmed.slice(0, 40)
+      });
       Toast.success(t("cozeCreateSuccess"));
       onCreated?.(agentId);
       onClose();
@@ -152,17 +173,13 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
           </div>
         </TabPane>
         <TabPane tab={t("cozeCreateAgentTabAi")} itemKey="ai">
-          <Form labelPosition="top" labelWidth="100%">
-            <Form.TextArea
-              field="prompt"
-              noLabel
-              placeholder={t("cozeCreateAgentAiPromptPlaceholder")}
-              maxLength={500}
-              rows={6}
-              value={aiPrompt}
-              onChange={value => setAiPrompt(value)}
-            />
-          </Form>
+          <TextArea
+            placeholder={t("cozeCreateAgentAiPromptPlaceholder")}
+            maxCount={500}
+            rows={6}
+            value={aiPrompt}
+            onChange={value => setAiPrompt(String(value))}
+          />
         </TabPane>
       </Tabs>
     </Modal>

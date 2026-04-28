@@ -1,7 +1,6 @@
 using System.Text.Json;
-using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
-using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
@@ -10,11 +9,12 @@ namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 /// </summary>
 public sealed class DatabaseUpdateNodeExecutor : INodeExecutor
 {
-    private readonly ISqlSugarClient _db;
-
-    public DatabaseUpdateNodeExecutor(ISqlSugarClient db)
+    public DatabaseUpdateNodeExecutor()
     {
-        _db = db;
+    }
+
+    public DatabaseUpdateNodeExecutor(object? _ignored)
+    {
     }
 
     public WorkflowNodeType NodeType => WorkflowNodeType.DatabaseUpdate;
@@ -28,6 +28,14 @@ public sealed class DatabaseUpdateNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "DatabaseUpdate 缺少 databaseInfoId/databaseId。");
         }
 
+        using var activity = AiNodeObservability.StartNodeActivity(
+            "AiDatabase.Update",
+            context.TenantId,
+            context.UserId,
+            context.ChannelId,
+            context.Node.Key,
+            new Dictionary<string, object?> { ["db.id"] = databaseId });
+
         if (!VariableResolver.TryGetConfigValue(context.Node.Config, "updateFields", out var updateFieldsRaw) ||
             updateFieldsRaw.ValueKind != JsonValueKind.Object)
         {
@@ -37,8 +45,13 @@ public sealed class DatabaseUpdateNodeExecutor : INodeExecutor
         var updateFields = updateFieldsRaw.EnumerateObject()
             .ToDictionary(x => x.Name, x => x.Value.Clone(), StringComparer.OrdinalIgnoreCase);
         var clauses = AiDatabaseNodeHelper.ResolveClauses(context.Node.Config);
-        var records = await AiDatabaseNodeHelper.LoadRecordsAsync(_db, context.TenantId, databaseId, cancellationToken);
-        var touched = new List<AiDatabaseRecord>();
+        var records = await AiDatabaseNodeHelper.LoadRecordItemsAsync(
+            context,
+            databaseId,
+            cancellationToken,
+            500_000);
+        var service = AiDatabaseNodeHelper.ResolveDatabaseService(context);
+        var touched = new List<(AiDatabaseRecordListItem Record, string DataJson)>();
 
         foreach (var record in records)
         {
@@ -49,18 +62,34 @@ public sealed class DatabaseUpdateNodeExecutor : INodeExecutor
             }
 
             var mergedJson = AiDatabaseNodeHelper.MergeObjectJson(payload.Value, updateFields);
-            record.UpdateData(mergedJson);
-            touched.Add(record);
+            touched.Add((record, mergedJson));
         }
 
         if (touched.Count > 0)
         {
-            await _db.Updateable(touched)
-                .WhereColumns(x => new { x.Id, x.TenantIdValue })
-                .ExecuteCommandAsync(cancellationToken);
+            foreach (var (record, dataJson) in touched)
+            {
+                await service.UpdateRecordAsync(
+                    context.TenantId,
+                    databaseId,
+                    record.Id,
+                    new AiDatabaseRecordUpdateRequest(dataJson, AiDatabaseNodeHelper.ResolveEnvironment(context)),
+                    cancellationToken,
+                    context.UserId,
+                    context.ChannelId);
+            }
         }
 
         outputs["affected_rows"] = JsonSerializer.SerializeToElement(touched.Count);
+        activity?.SetTag("db.affected_rows", touched.Count);
+        await AiNodeObservability.WriteAuditAsync(
+            context.ServiceProvider,
+            context.TenantId,
+            context.UserId,
+            "ai_database_node.update",
+            "success",
+            $"db:{databaseId}/rows:{touched.Count}/node:{context.Node.Key}",
+            cancellationToken);
         return new NodeExecutionResult(true, outputs);
     }
 }

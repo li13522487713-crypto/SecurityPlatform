@@ -63,6 +63,10 @@ public sealed class AppVariable : TenantEntity
     /// <summary>是否只读（system 作用域强制 true）。</summary>
     public bool IsReadOnly { get; private set; }
 
+    /// <summary>如果该变量被重命名过，这里记录它上一次的 Code。</summary>
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? PreviousCode { get; private set; }
+
     /// <summary>是否持久化（跨会话保留，true 时落 KV 存储）。</summary>
     public bool IsPersisted { get; private set; }
 
@@ -92,5 +96,15 @@ public sealed class AppVariable : TenantEntity
         ValidationJson = validationJson;
         Description = description;
         UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void RenameCode(string newCode)
+    {
+        if (Code != newCode)
+        {
+            PreviousCode = Code;
+            Code = newCode;
+            UpdatedAt = DateTimeOffset.UtcNow;
+        }
     }
 }

@@ -13,7 +13,7 @@ namespace Atlas.AppHost.Controllers;
 
 /// <summary>
 /// AppHost 健康探测控制器。
-/// 提供 PlatformHost 进程管理所需的三个标准健康端点：
+/// 提供 AppHost 进程管理所需的三个标准健康端点：
 /// - /health/live   → 存活探测（始终返回 200）
 /// - /health/ready  → 就绪探测（含数据库连通性检测）
 /// - /health/info   → 详细信息（含 AppKey/TenantId/ReleaseVersion/Uptime）

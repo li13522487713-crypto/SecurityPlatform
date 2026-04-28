@@ -1,20 +1,21 @@
 import { useEffect, useState } from "react";
-import { Empty, Spin, Tag, Typography } from "@douyinfe/semi-ui";
+import { Empty, Input, Spin, Tag, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../i18n";
 import {
   listCommunityWorks,
   type CommunityWorkItem
-} from "../../services/mock";
+} from "../../services/api-community";
 
 export function CommunityWorksPage() {
   const { t } = useAppI18n();
   const [items, setItems] = useState<CommunityWorkItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [keyword, setKeyword] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listCommunityWorks({ pageIndex: 1, pageSize: 20 })
+    listCommunityWorks({ pageIndex: 1, pageSize: 20, keyword: keyword.trim() || undefined })
       .then(result => {
         if (!cancelled) {
           setItems(result.items);
@@ -33,7 +34,7 @@ export function CommunityWorksPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [keyword]);
 
   return (
     <div className="coze-page" data-testid="coze-community-page">
@@ -41,6 +42,16 @@ export function CommunityWorksPage() {
         <Typography.Title heading={3} style={{ margin: 0 }}>{t("cozeCommunityTitle")}</Typography.Title>
         <Typography.Text type="tertiary">{t("cozeCommunitySubtitle")}</Typography.Text>
       </header>
+
+      <section className="coze-page__toolbar">
+        <Input
+          value={keyword}
+          onChange={value => setKeyword(value)}
+          placeholder={t("cozeProjectsSearchPlaceholder")}
+          showClear
+          style={{ width: 320 }}
+        />
+      </section>
 
       <section className="coze-page__body">
         {loading ? (

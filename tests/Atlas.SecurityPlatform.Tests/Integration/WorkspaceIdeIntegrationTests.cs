@@ -82,6 +82,33 @@ public sealed class WorkspaceIdeIntegrationTests
         Assert.True(payload.Data.TryGetProperty("recentMembers", out _));
     }
 
+    [Fact]
+    public async Task CreateWorkspaceApp_WithWorkspaceId_ShouldReturnSuccess()
+    {
+        var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
+        var csrfToken = await CsrfIdempotencyHelper.GetAntiforgeryTokenAsync(_client, accessToken);
+        var workspaceId = await GetOrCreateWorkspaceIdAsync(accessToken, csrfToken);
+        Assert.False(string.IsNullOrWhiteSpace(workspaceId));
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/workspace-ide/apps");
+        request.Headers.Authorization = new("Bearer", accessToken);
+        request.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
+        CsrfIdempotencyHelper.AddWriteSecurityHeaders(request, csrfToken);
+        request.Content = JsonContent.Create(new
+        {
+            name = $"WorkspaceApp{Guid.NewGuid():N}"[..24],
+            description = "workspace ide integration create app",
+            workspaceId
+        });
+
+        using var response = await _client.SendAsync(request);
+        var payload = await ApiResponseAssert.ReadSuccessAsync(response);
+        var appId = payload.Data.GetProperty("appId").ToString();
+        var workflowId = payload.Data.GetProperty("workflowId").ToString();
+        Assert.False(string.IsNullOrWhiteSpace(appId));
+        Assert.False(string.IsNullOrWhiteSpace(workflowId));
+    }
+
     private async Task<string?> GetTenantAppInstanceIdAsync(string accessToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v2/tenant-app-instances?pageIndex=1&pageSize=20");
@@ -103,6 +130,114 @@ public sealed class WorkspaceIdeIntegrationTests
 
         var appId = items[0].GetProperty("id").GetString();
         return string.IsNullOrWhiteSpace(appId) ? null : appId;
+    }
+
+    private async Task<string?> GetOrCreateWorkspaceIdAsync(string accessToken, string csrfToken)
+    {
+        var existingWorkspaceId = await GetFirstWorkspaceIdAsync(accessToken);
+        if (!string.IsNullOrWhiteSpace(existingWorkspaceId))
+        {
+            return existingWorkspaceId;
+        }
+
+        using var createRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/workspaces");
+        createRequest.Headers.Authorization = new("Bearer", accessToken);
+        createRequest.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
+        CsrfIdempotencyHelper.AddWriteSecurityHeaders(createRequest, csrfToken);
+        createRequest.Content = JsonContent.Create(new
+        {
+            name = $"Workspace{Guid.NewGuid():N}"[..24],
+            description = "workspace ide integration seed workspace"
+        });
+
+        using var createResponse = await _client.SendAsync(createRequest);
+        var createPayload = await createResponse.Content.ReadAsStringAsync();
+        Assert.True(createResponse.IsSuccessStatusCode, createPayload);
+
+        using var createDocument = JsonDocument.Parse(createPayload);
+        if (TryReadId(createDocument.RootElement, out var createdWorkspaceId))
+        {
+            return createdWorkspaceId;
+        }
+
+        return null;
+    }
+
+    private async Task<string?> GetFirstWorkspaceIdAsync(string accessToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/v1/workspaces?page_num=1&page_size=20");
+        request.Headers.Authorization = new("Bearer", accessToken);
+        request.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
+
+        using var response = await _client.SendAsync(request);
+        var payload = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, payload);
+
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        var dataElement = root;
+        if (root.TryGetProperty("data", out var nestedData) && nestedData.ValueKind == JsonValueKind.Object)
+        {
+            dataElement = nestedData;
+        }
+
+        if (!dataElement.TryGetProperty("workspaces", out var itemsElement) || itemsElement.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var first = itemsElement.EnumerateArray().FirstOrDefault();
+        if (first.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (TryReadId(first, out var workspaceId))
+        {
+            return workspaceId;
+        }
+
+        return null;
+    }
+
+    private static bool TryReadId(JsonElement element, out string? id)
+    {
+        if (element.TryGetProperty("id", out var idElement))
+        {
+            id = idElement.ToString();
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                return true;
+            }
+        }
+
+        if (element.TryGetProperty("Id", out var idUpperElement))
+        {
+            id = idUpperElement.ToString();
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                return true;
+            }
+        }
+
+        if (element.TryGetProperty("workspace_id", out var workspaceIdElement))
+        {
+            id = workspaceIdElement.ToString();
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                return true;
+            }
+        }
+
+        if (element.TryGetProperty("data", out var nestedData) && nestedData.ValueKind == JsonValueKind.Object)
+        {
+            return TryReadId(nestedData, out id);
+        }
+
+        id = null;
+        return false;
     }
 
     private async Task<string> CreateWorkflowAsync(string accessToken, string csrfToken, string name)

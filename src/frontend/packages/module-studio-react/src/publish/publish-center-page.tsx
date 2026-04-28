@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { Button, Card, Empty, Space, Spin, Table, Tabs, Toast, Typography } from "@douyinfe/semi-ui";
-import type { PublishCenterItem, StudioLocale, StudioModuleApi } from "../types";
+import type {
+  PublishCenterItem,
+  PublishChannelListItem,
+  StudioLocale,
+  StudioModuleApi
+} from "../types";
 import { StatusTag } from "../shared/status-tag";
 import { ApiAccessPanel } from "./api-access-panel";
+import { ChannelDetailRouter } from "./channel-detail-router";
+import { ChannelsListPanel } from "./channels-list-panel";
 import { ChatSdkPanel } from "./chat-sdk-panel";
 import { TokenManagement } from "./token-management";
 
@@ -12,6 +19,11 @@ export interface PublishCenterPageProps {
   locale: StudioLocale;
   /** 用于示例代码中的 API 根路径 */
   apiBase?: string;
+  /**
+   * 治理 R1-F1：当前工作空间 ID。提供时启用「发布渠道」 Tab；
+   * 缺失（旧调用方）则回退到旧 4 Tab 行为。
+   */
+  workspaceId?: string;
   onOpenAgent?: (agentId: string) => void;
   onOpenApp?: (appId: string) => void;
   onOpenWorkflow?: (workflowId: string) => void;
@@ -99,7 +111,7 @@ function buildColumns(
       width: 120,
       render: (value: unknown) => {
         const normalized = String(value ?? "draft");
-        return <StatusTag status={normalized} label={statusLabel(locale, normalized)} />;
+        return <StatusTag status={normalized} label={statusLabel(locale, normalized)} locale={locale} />;
       }
     },
     {
@@ -150,6 +162,7 @@ export function PublishCenterPage({
   api,
   locale,
   apiBase,
+  workspaceId,
   onOpenAgent,
   onOpenApp,
   onOpenWorkflow,
@@ -159,6 +172,17 @@ export function PublishCenterPage({
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<PublishCenterItem[]>([]);
   const [filterType, setFilterType] = useState<PublishCenterItem["resourceType"] | "all">("all");
+  const [selectedChannel, setSelectedChannel] = useState<PublishChannelListItem | null>(null);
+
+  /**
+   * 治理 R1-F1：「发布渠道」 Tab 启用前提：
+   * - workspaceId 已提供
+   * - api 实现了 listWorkspacePublishChannels / getWorkspaceChannelActiveRelease / httpJson
+   * 任一缺失则隐藏 Tab，保持向后兼容。
+   */
+  const channelsTabEnabled = Boolean(
+    workspaceId && api.listWorkspacePublishChannels && api.getWorkspaceChannelActiveRelease && api.httpJson
+  );
 
   useEffect(() => {
     let disposed = false;
@@ -289,6 +313,39 @@ export function PublishCenterPage({
         <Tabs.TabPane tab={locale === "en-US" ? "Embed tokens" : "嵌入令牌"} itemKey="tokens">
           <TokenManagement api={api} locale={locale} items={items} />
         </Tabs.TabPane>
+
+        {channelsTabEnabled && workspaceId !== undefined ? (
+          <Tabs.TabPane tab={locale === "en-US" ? "Publish channels" : "发布渠道"} itemKey="channels">
+            <Space vertical align="start" style={{ width: "100%" }} spacing={16}>
+              <Card title={locale === "en-US" ? "Channels" : "渠道列表"} bordered>
+                <ChannelsListPanel
+                  workspaceId={workspaceId}
+                  locale={locale}
+                  loader={api.listWorkspacePublishChannels!}
+                  selectedChannelId={selectedChannel?.id ?? null}
+                  onSelect={setSelectedChannel}
+                />
+              </Card>
+              {selectedChannel ? (
+                <Card title={locale === "en-US" ? "Channel detail" : "渠道详情"} bordered>
+                  <ChannelDetailRouter
+                    workspaceId={workspaceId}
+                    locale={locale}
+                    channel={selectedChannel}
+                    releaseLoader={api.getWorkspaceChannelActiveRelease!}
+                    fetcher={api.httpJson!}
+                    apiBase={apiBase}
+                  />
+                </Card>
+              ) : (
+                <Empty
+                  title={locale === "en-US" ? "Select a channel" : "请选择一个渠道"}
+                  description={locale === "en-US" ? "Click a row to load detail." : "点击列表行加载详情。"}
+                />
+              )}
+            </Space>
+          </Tabs.TabPane>
+        ) : null}
       </Tabs>
     </div>
   );

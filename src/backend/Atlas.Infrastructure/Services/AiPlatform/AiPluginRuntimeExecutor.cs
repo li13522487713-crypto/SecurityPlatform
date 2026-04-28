@@ -43,6 +43,11 @@ public sealed class AiPluginRuntimeExecutor
         {
             var baseUrl = ResolveBaseUrl(plugin);
             var requestInput = ParseJsonObject(inputJson);
+            if (TryExecuteFixture(plugin, requestInput, tenantId, api, watch, out var fixtureResult))
+            {
+                return fixtureResult;
+            }
+
             var authConfig = ParseJsonObject(plugin.AuthConfigJson);
             ResolveSecretRefs(authConfig);
             var pathParameters = ExtractObject(requestInput, "path");
@@ -156,6 +161,11 @@ public sealed class AiPluginRuntimeExecutor
     private static string ResolveBaseUrl(AiPlugin plugin)
     {
         var definition = ParseJsonObject(plugin.DefinitionJson);
+        if (string.Equals(GetString(definition, "fixture"), "echo", StringComparison.OrdinalIgnoreCase))
+        {
+            return "http://fixture.local";
+        }
+
         var baseUrl =
             GetString(definition, "baseUrl") ??
             GetString(definition, "base_url") ??
@@ -183,6 +193,39 @@ public sealed class AiPluginRuntimeExecutor
         }
 
         throw new InvalidOperationException($"插件「{plugin.Name}」缺少可用的 baseUrl。");
+    }
+
+    private static bool TryExecuteFixture(
+        AiPlugin plugin,
+        JsonObject requestInput,
+        TenantId tenantId,
+        AiPluginApi api,
+        Stopwatch watch,
+        out AiPluginRuntimeExecutionResult result)
+    {
+        result = default!;
+        var definition = ParseJsonObject(plugin.DefinitionJson);
+        if (!string.Equals(GetString(definition, "fixture"), "echo", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        watch.Stop();
+        result = new AiPluginRuntimeExecutionResult(
+            true,
+            JsonSerializer.Serialize(new
+            {
+                tenantId = tenantId.Value,
+                pluginId = plugin.Id,
+                pluginName = plugin.Name,
+                apiId = api.Id,
+                apiName = api.Name,
+                fixture = "echo",
+                input = requestInput
+            }, JsonOptions),
+            null,
+            watch.ElapsedMilliseconds);
+        return true;
     }
 
     private static string BindPath(

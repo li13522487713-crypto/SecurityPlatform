@@ -11,6 +11,8 @@ public interface IAppDefinitionQueryService
         PagedRequest request,
         TenantId tenantId,
         string? status,
+        string? workspaceId,
+        string? folderId,
         CancellationToken cancellationToken);
 
     Task<AppDefinitionDetail?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);

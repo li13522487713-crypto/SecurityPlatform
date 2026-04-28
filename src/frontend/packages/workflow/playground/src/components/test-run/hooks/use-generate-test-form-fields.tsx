@@ -109,12 +109,9 @@ export const useGenerateTestFormFieldsMap = () => {
                   [node.id, input.name],
                   context,
                 );
-              if (!workflowVariable) {
-                return null;
-              }
 
               const jsonSchema = generateInputJsonSchema(
-                workflowVariable.dtoMeta,
+                workflowVariable?.dtoMeta ?? input,
               );
 
               return {

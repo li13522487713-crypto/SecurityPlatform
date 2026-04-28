@@ -42,7 +42,7 @@ import {
 } from '@coze-workflow/base/api';
 import { isGeneralWorkflow } from '@coze-workflow/base';
 import { REPORT_EVENTS } from '@coze-arch/report-events';
-import { reporter } from '@coze-arch/logger';
+import { reporter, logger } from '@coze-arch/logger';
 import { I18n, type I18nKeysNoOptionsType } from '@coze-arch/i18n';
 import { CustomError } from '@coze-arch/bot-error';
 import { SpaceType } from '@coze-arch/bot-api/playground_api';
@@ -213,6 +213,45 @@ export class WorkflowGlobalStateEntity extends ConfigEntity<WorkflowGlobalState>
     };
   }
 
+  private parseSchemaJSON(
+    schema: string | undefined,
+    meta: {
+      workflowId: string;
+      spaceId: string;
+      source: 'load' | 'loadHistory';
+    },
+  ): WorkflowJSON | undefined {
+    if (!schema) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(schema) as WorkflowJSON;
+    } catch (error) {
+      logger.error({
+        message: 'workflow schema parse failed',
+        error: error instanceof Error ? error : new Error(String(error)),
+        meta: {
+          workflowId: meta.workflowId,
+          spaceId: meta.spaceId,
+          source: meta.source,
+        },
+      });
+      reporter.errorEvent({
+        eventName: 'workflow_schema_parse_failed',
+        namespace: 'workflow',
+        error,
+      });
+      throw new CustomError(
+        REPORT_EVENTS.parseJSON,
+        I18n.t(
+          'workflow_schema_parse_failed' as I18nKeysNoOptionsType,
+          undefined,
+          'Workflow schema is invalid and cannot be loaded.',
+        ),
+      );
+    }
+  }
+
   async load(
     workflowId: string,
     spaceId: string,
@@ -224,10 +263,11 @@ export class WorkflowGlobalStateEntity extends ConfigEntity<WorkflowGlobalState>
       );
     }
 
-    // Load workflow tcc configuration
-    await Promise.all([this.setSpaceInfo()]);
-
-    const workflowInfo = await this.queryWorkflowDetail(workflowId, spaceId);
+    // Load workflow detail and space info in parallel to reduce first-screen latency.
+    const [workflowInfo] = await Promise.all([
+      this.queryWorkflowDetail(workflowId, spaceId),
+      this.setSpaceInfo(),
+    ]);
     const autoSaveTime = getAutoSaveTime(workflowInfo?.update_time);
 
     /** Determine whether the process is in preview state, from the official process, component configuration read-only readonly, non-vcs mode is not the creator's process, vcs mode has no collaborator permission, and the process is in preview state */
@@ -247,9 +287,11 @@ export class WorkflowGlobalStateEntity extends ConfigEntity<WorkflowGlobalState>
       (isUserType && !(hasSingleEditPermission || hasVcsEditPermission));
 
     const jsonStr = workflowInfo?.schema_json;
-    const workflowJSON = (
-      jsonStr ? JSON.parse(jsonStr) : undefined
-    ) as WorkflowJSON;
+    const workflowJSON = this.parseSchemaJSON(jsonStr, {
+      workflowId,
+      spaceId,
+      source: 'load',
+    }) as WorkflowJSON;
 
     const isInitWorkflow = getIsInitWorkflow(
       workflowJSON,
@@ -362,9 +404,11 @@ export class WorkflowGlobalStateEntity extends ConfigEntity<WorkflowGlobalState>
       },
     };
 
-    const workflowJSON = (
-      schema ? JSON.parse(schema) : undefined
-    ) as WorkflowJSON;
+    const workflowJSON = this.parseSchemaJSON(schema, {
+      workflowId,
+      spaceId,
+      source: 'loadHistory',
+    }) as WorkflowJSON;
 
     this.updateConfig({
       workflowId,

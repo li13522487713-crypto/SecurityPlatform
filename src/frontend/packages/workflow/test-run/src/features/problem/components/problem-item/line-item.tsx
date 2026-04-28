@@ -19,6 +19,7 @@ import React from 'react';
 import { I18n } from '@coze-arch/i18n';
 import { IconCozAddNode } from '@coze-arch/coze-design/icons';
 import { Typography } from '@coze-arch/coze-design';
+import { IconMindmap } from '@douyinfe/semi-icons';
 
 import { type ProblemItem } from '../../types';
 import i18n from './line-case-i18n.png';
@@ -55,7 +56,7 @@ export const LineItem: React.FC<LineItemProps> = ({
   <BaseItem
     problem={problem}
     title={`${I18n.t('workflow_connection_name')}${idx + 1}`}
-    icon={<IconCozAddNode className={styles['line-icon']} />}
+    icon={<IconMindmap style={{ fontSize: 16 }} className={styles['line-icon']} />}
     popover={<LinePopover />}
     onClick={onClick}
   />

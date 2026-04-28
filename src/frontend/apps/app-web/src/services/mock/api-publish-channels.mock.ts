@@ -3,7 +3,7 @@ import { requestApi, toQuery } from "../api-core";
 
 /**
  * 工作空间-发布渠道（PRD 04-4.6）。已切换为真实 REST：
- *   Atlas.PlatformHost/Controllers/WorkspacePublishChannelsController.cs
+ *   Atlas.AppHost/Controllers/WorkspacePublishChannelsController.cs
  *   Atlas.Infrastructure/Services/Coze/WorkspacePublishChannelService.cs
  *   Atlas.Domain/AiPlatform/Entities/WorkspacePublishChannel.cs
  */

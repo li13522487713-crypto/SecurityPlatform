@@ -20,6 +20,7 @@ import { IconPlus, IconSafe, IconSearch } from "@douyinfe/semi-icons";
 import type {
   AiLibraryItem,
   KnowledgeBaseCreateRequest,
+  KnowledgeBaseKind,
   KnowledgeBaseType,
   LibraryPageProps,
   ResourceType
@@ -33,6 +34,7 @@ import {
   normalizeResourcePath,
   resolveKnowledgeStatus
 } from "../utils";
+import { KnowledgeBaseCreateWizard } from "./knowledge-base-create-wizard";
 
 interface CreateFormState extends KnowledgeBaseCreateRequest {}
 
@@ -146,6 +148,9 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
   const [databaseForm, setDatabaseForm] = useState<DatabaseCreateFormState>(DEFAULT_DATABASE_FORM);
   const [draggingColumnId, setDraggingColumnId] = useState<string>("");
   const [pluginPreviewStage, setPluginPreviewStage] = useState<"edit" | "preview">("edit");
+  // 知识库专题（v5 §32-44）：替代旧 Modal，开启类型化创建向导
+  const [wizardVisible, setWizardVisible] = useState(false);
+  const [wizardInitialKind, setWizardInitialKind] = useState<KnowledgeBaseKind | undefined>(undefined);
   const deferredSearch = useDeferredValue(search.trim());
   const pageSize = 20;
 
@@ -272,15 +277,18 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
 
     const errors: string[] = [];
     const normalizedNames = new Set<string>();
+    const fmt = (template: string, params: Record<string, string>) =>
+      Object.entries(params).reduce((acc, [k, v]) => acc.replace(new RegExp(`\\{${k}\\}`, "g"), v), template);
+
     for (const column of databaseForm.columns) {
       const name = column.name.trim();
       if (!name) {
-        errors.push(`${copy.databaseFieldName} 不能为空`);
+        errors.push(fmt(copy.databaseValidationFieldRequired, { field: copy.databaseFieldName }));
         continue;
       }
 
       if (normalizedNames.has(name.toLowerCase())) {
-        errors.push(`${copy.databaseFieldName} 重复: ${name}`);
+        errors.push(fmt(copy.databaseValidationFieldDuplicate, { field: copy.databaseFieldName, name }));
       } else {
         normalizedNames.add(name.toLowerCase());
       }
@@ -290,27 +298,27 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
       const max = column.max.trim() ? Number(column.max.trim()) : null;
 
       if (length !== null && (!Number.isFinite(length) || length <= 0)) {
-        errors.push(`${name}: ${copy.databaseFieldLength} 必须是正数`);
+        errors.push(fmt(copy.databaseValidationMustBePositive, { name, field: copy.databaseFieldLength }));
       }
 
       if (min !== null && !Number.isFinite(min)) {
-        errors.push(`${name}: ${copy.databaseFieldMin} 必须是数字`);
+        errors.push(fmt(copy.databaseValidationMustBeNumber, { name, field: copy.databaseFieldMin }));
       }
 
       if (max !== null && !Number.isFinite(max)) {
-        errors.push(`${name}: ${copy.databaseFieldMax} 必须是数字`);
+        errors.push(fmt(copy.databaseValidationMustBeNumber, { name, field: copy.databaseFieldMax }));
       }
 
       if (min !== null && max !== null && min > max) {
-        errors.push(`${name}: ${copy.databaseFieldMin} 不能大于 ${copy.databaseFieldMax}`);
+        errors.push(fmt(copy.databaseValidationMinGreaterThanMax, { name, min: copy.databaseFieldMin, max: copy.databaseFieldMax }));
       }
 
       if ((column.type === "string" || column.type === "json") && min !== null) {
-        errors.push(`${name}: ${copy.databaseFieldMin} 不适用于 ${column.type}`);
+        errors.push(fmt(copy.databaseValidationNotApplicable, { name, field: copy.databaseFieldMin, type: column.type }));
       }
 
       if ((column.type === "string" || column.type === "json") && max !== null) {
-        errors.push(`${name}: ${copy.databaseFieldMax} 不适用于 ${column.type}`);
+        errors.push(fmt(copy.databaseValidationNotApplicable, { name, field: copy.databaseFieldMax, type: column.type }));
       }
     }
 
@@ -469,7 +477,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
           try {
             const detail = await api.getApplicationDetail(record.resourceId);
             if (!detail.workflowId) {
-              Toast.warning("当前应用还没有关联主工作流。");
+              Toast.warning(copy.appNoMainWorkflowWarning);
               return;
             }
 
@@ -665,10 +673,28 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
           render={(
             <Dropdown.Menu>
               <Dropdown.Item icon={<IconPlus />} onClick={() => {
-                setCreateKind("knowledge-base");
-                setCreateVisible(true);
+                setWizardInitialKind(undefined);
+                setWizardVisible(true);
               }}>
                 {copy.createKnowledge}
+              </Dropdown.Item>
+              <Dropdown.Item icon={<IconPlus />} onClick={() => {
+                setWizardInitialKind("text");
+                setWizardVisible(true);
+              }}>
+                {copy.wizardKindText}
+              </Dropdown.Item>
+              <Dropdown.Item icon={<IconPlus />} onClick={() => {
+                setWizardInitialKind("table");
+                setWizardVisible(true);
+              }}>
+                {copy.wizardKindTable}
+              </Dropdown.Item>
+              <Dropdown.Item icon={<IconPlus />} onClick={() => {
+                setWizardInitialKind("image");
+                setWizardVisible(true);
+              }}>
+                {copy.wizardKindImage}
               </Dropdown.Item>
               {api.createPlugin ? (
                 <Dropdown.Item icon={<IconPlus />} onClick={() => {
@@ -817,16 +843,21 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
             }}
           />
           {createKind === "knowledge-base" ? (
-            <Select
-              value={form.type}
-              style={{ width: "100%" }}
-              optionList={[
-                { label: copy.typeLabels[0], value: 0 },
-                { label: copy.typeLabels[1], value: 1 },
-                { label: copy.typeLabels[2], value: 2 }
-              ]}
-              onChange={value => setForm((current: CreateFormState) => ({ ...current, type: Number(value) as KnowledgeBaseType }))}
-            />
+            <>
+              <Select
+                value={form.type}
+                style={{ width: "100%" }}
+                optionList={[
+                  { label: copy.typeLabels[0], value: 0 },
+                  { label: copy.typeLabels[1], value: 1 },
+                  { label: copy.typeLabels[2], value: 2 }
+                ]}
+                onChange={value => setForm((current: CreateFormState) => ({ ...current, type: Number(value) as KnowledgeBaseType }))}
+              />
+              <Typography.Text type="tertiary">
+                {form.type === 1 ? copy.createTableKbHint : form.type === 2 ? copy.createImageKbHint : copy.createTextKbHint}
+              </Typography.Text>
+            </>
           ) : null}
           {createKind === "plugin" ? (
             <div className="atlas-library-create-stack">
@@ -999,7 +1030,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
               <div className="atlas-library-create-section">
                 <Typography.Text strong>{copy.databaseBasicInfo}</Typography.Text>
                 <Input value={databaseForm.description} placeholder={copy.noDescription} onChange={value => setDatabaseForm(current => ({ ...current, description: value }))} />
-                <Input value={databaseForm.botId} placeholder="botId（可选）" onChange={value => setDatabaseForm(current => ({ ...current, botId: value }))} />
+                <Input value={databaseForm.botId} placeholder={copy.databaseBotIdPlaceholder} onChange={value => setDatabaseForm(current => ({ ...current, botId: value }))} />
               </div>
               <div className="atlas-library-create-section">
                 <Typography.Text strong>{copy.databaseSchemaMode}</Typography.Text>
@@ -1168,6 +1199,22 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
           ) : null}
         </Space>
       </Modal>
+
+      <KnowledgeBaseCreateWizard
+        api={api}
+        locale={locale}
+        visible={wizardVisible}
+        initialKind={wizardInitialKind}
+        onCancel={() => {
+          setWizardVisible(false);
+          setWizardInitialKind(undefined);
+        }}
+        onCreated={(id) => {
+          setWizardVisible(false);
+          setWizardInitialKind(undefined);
+          onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${id}`);
+        }}
+      />
     </div>
   );
 }

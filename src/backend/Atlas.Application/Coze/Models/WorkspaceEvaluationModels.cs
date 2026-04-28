@@ -48,3 +48,21 @@ public sealed record TestsetCreateRequest(
     [StringLength(200)] string? Description,
     string? WorkflowId,
     IReadOnlyList<Dictionary<string, object?>>? Rows);
+
+public sealed record TestsetCaseBaseDto(
+    string CaseId,
+    string Name,
+    string? Description,
+    string Input,
+    bool IsDefault);
+
+public sealed record TestsetCaseDetailDto(
+    TestsetCaseBaseDto CaseBase,
+    string CreatorId,
+    long CreateTimeInSec,
+    long UpdateTimeInSec);
+
+public sealed record TestsetCasePageDto(
+    IReadOnlyList<TestsetCaseDetailDto> Cases,
+    bool HasNext,
+    string? NextToken);

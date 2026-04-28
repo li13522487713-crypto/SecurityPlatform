@@ -54,3 +54,85 @@ Content-Type: application/json
   "query": "平台有哪些安全能力",
   "topK": 5
 }
+
+# =====================================================================
+# v5 §32-44 知识库专题扩展接口（AppHost 权威场景验证）
+# =====================================================================
+
+### 任务列表（指定 KB）
+GET {{baseUrl}}/api/v1/knowledge-bases/{{knowledgeBaseId}}/jobs?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 任务列表（跨 KB 全局任务中心）
+GET {{baseUrl}}/api/v1/knowledge-bases/jobs?pageIndex=1&pageSize=20&status=Failed
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 全量重建索引
+POST {{baseUrl}}/api/v1/knowledge-bases/{{knowledgeBaseId}}/jobs/rebuild-index
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{}
+
+### 列出绑定关系
+GET {{baseUrl}}/api/v1/knowledge-bases/{{knowledgeBaseId}}/bindings?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 列出权限
+GET {{baseUrl}}/api/v1/knowledge-bases/{{knowledgeBaseId}}/permissions?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 列出版本
+GET {{baseUrl}}/api/v1/knowledge-bases/{{knowledgeBaseId}}/versions?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询检索日志
+GET {{baseUrl}}/api/v1/knowledge-bases/{{knowledgeBaseId}}/retrieval-logs?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 统一检索（caller_context + RetrievalProfile + debug）
+POST {{baseUrl}}/api/v1/knowledge-bases/retrieval
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "query": "等保 加密",
+  "knowledgeBaseIds": [{{knowledgeBaseId}}],
+  "topK": 5,
+  "callerContext": {
+    "callerType": 2,
+    "callerId": "wf_demo",
+    "callerName": "Workflow 调用",
+    "tenantId": "{{tenantId}}",
+    "userId": "admin"
+  },
+  "debug": true
+}
+
+### 表格 KB：列定义
+GET {{baseUrl}}/api/v1/knowledge-bases/{{knowledgeBaseId}}/documents/1/table-columns
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 表格 KB：行视图
+GET {{baseUrl}}/api/v1/knowledge-bases/{{knowledgeBaseId}}/documents/1/table-rows?pageIndex=1&pageSize=50
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 图片 KB：项目+标注
+GET {{baseUrl}}/api/v1/knowledge-bases/{{knowledgeBaseId}}/documents/1/image-items?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Provider 配置中心
+GET {{baseUrl}}/api/v1/knowledge-bases/provider-configs
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

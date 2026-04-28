@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { Button, Empty, Spin, Table, TabPane, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Banner, Button, Card, Empty, Spin, Table, TabPane, Tabs, Tag, Toast } from "@douyinfe/semi-ui";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  AddChannelModal,
+  ChannelDetailRouter,
+  ChannelsListPanel,
+  type PublishChannelListItem
+} from "@atlas/module-studio-react";
+import {
   agentEditorPath,
-  appEditorPath,
   workflowEditorPath,
   workspaceProjectsPath,
   workspaceSettingsPublishPath,
@@ -14,24 +19,25 @@ import { useAppI18n } from "../i18n";
 import { useWorkspaceContext } from "../workspace-context";
 import { getAiAssistantsPaged } from "../../services/api-ai-assistant";
 import type { AgentListItem } from "../../services/api-agent";
-import {
-  getWorkspaceIdeResources,
-  type WorkspaceIdeResourceCardDto
-} from "../../services/api-workspace-ide";
 import { listWorkflows, type WorkflowListItem } from "../../services/api-workflow";
 import {
-  deletePublishChannel,
-  listPublishChannels,
-  reauthPublishChannel,
-  type PublishChannelItem
-} from "../../services/mock";
+  createWorkspacePublishChannel,
+  deleteWorkspacePublishChannel,
+  getWorkspaceChannelActiveRelease,
+  listWorkspacePublishChannelsPage,
+  listPublishChannelCatalog,
+  publishChannelsHttpJson,
+  reauthorizeWorkspacePublishChannel
+} from "../../services/api-publish-channels";
+import { createLowcodeProjectAppGateway, type ProjectAppCard } from "../gateways/project-app-gateway";
+import { WorkspaceSettingsLayout } from "../layouts/workspace-settings-layout";
 
 type Tab = WorkspaceSettingsPublishTab;
 
 const TAB_KEYS: Tab[] = ["agents", "apps", "workflows", "channels"];
 
 export function WorkspaceSettingsPublishPage() {
-  const { t } = useAppI18n();
+  const { t, locale } = useAppI18n();
   const navigate = useNavigate();
   const workspace = useWorkspaceContext();
   const params = useParams<{ tab?: string }>();
@@ -40,19 +46,8 @@ export function WorkspaceSettingsPublishPage() {
     return value && TAB_KEYS.includes(value) ? value : "agents";
   }, [params.tab]);
 
-  const subtitle = useMemo(
-    () => t("cozeSettingsSubtitle").replace("{workspace}", workspace.name || workspace.appKey || ""),
-    [t, workspace.appKey, workspace.name]
-  );
-
   return (
-    <div className="coze-page coze-settings-page" data-testid="coze-settings-publish-page">
-      <header className="coze-page__header">
-        <Typography.Text type="tertiary">{t("cozeSettingsKicker")}</Typography.Text>
-        <Typography.Title heading={3} style={{ margin: "8px 0 4px" }}>{t("cozeMenuSettings")}</Typography.Title>
-        <Typography.Text type="tertiary">{subtitle}</Typography.Text>
-      </header>
-
+    <WorkspaceSettingsLayout activeTab="publish">
       <Tabs
         activeKey={activeTab}
         onChange={key => navigate(workspaceSettingsPublishPath(workspace.id, key as Tab))}
@@ -61,16 +56,16 @@ export function WorkspaceSettingsPublishPage() {
           {activeTab === "agents" ? <AgentsPanel onOpenEditor={agentId => navigate(agentEditorPath(agentId))} /> : null}
         </TabPane>
         <TabPane tab={t("cozeSettingsPublishApps")} itemKey="apps">
-          {activeTab === "apps" ? <AppsPanel onOpenEditor={appId => navigate(appEditorPath(appId))} /> : null}
+          {activeTab === "apps" ? <AppsPanel /> : null}
         </TabPane>
         <TabPane tab={t("cozeSettingsPublishWorkflows")} itemKey="workflows">
           {activeTab === "workflows" ? <WorkflowsPanel onOpenEditor={workflowId => navigate(workflowEditorPath(workflowId))} /> : null}
         </TabPane>
         <TabPane tab={t("cozeSettingsPublishChannels")} itemKey="channels">
-          {activeTab === "channels" ? <ChannelsPanel workspaceId={workspace.id} /> : null}
+          {activeTab === "channels" ? <ChannelsPanel workspaceId={workspace.id} locale={locale} /> : null}
         </TabPane>
       </Tabs>
-    </div>
+    </WorkspaceSettingsLayout>
   );
 }
 
@@ -98,7 +93,7 @@ function AgentsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getAiAssistantsPaged({ pageIndex: 1, pageSize: 50 })
+    getAiAssistantsPaged({ pageIndex: 1, pageSize: 50, workspaceId: workspace.id })
       .then(result => {
         if (!cancelled) {
           setItems(result.items);
@@ -117,7 +112,7 @@ function AgentsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspace.id]);
 
   const columns: ColumnProps<AgentListItem>[] = [
     { title: t("cozeSettingsPublishColumnName"), dataIndex: "name" },
@@ -145,16 +140,18 @@ function AgentsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
   return <Table columns={columns} dataSource={items} rowKey="id" pagination={false} />;
 }
 
-function AppsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
+function AppsPanel() {
   const { t } = useAppI18n();
+  const navigate = useNavigate();
   const workspace = useWorkspaceContext();
-  const [items, setItems] = useState<WorkspaceIdeResourceCardDto[]>([]);
+  const appGateway = useMemo(() => createLowcodeProjectAppGateway({ navigate }), [navigate]);
+  const [items, setItems] = useState<ProjectAppCard[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getWorkspaceIdeResources({ resourceType: "app", pageIndex: 1, pageSize: 50 })
+    appGateway.list({ pageIndex: 1, pageSize: 50, workspaceId: workspace.id })
       .then(result => {
         if (!cancelled) {
           setItems(result.items);
@@ -173,17 +170,17 @@ function AppsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [appGateway, workspace.id]);
 
-  const columns: ColumnProps<WorkspaceIdeResourceCardDto>[] = [
+  const columns: ColumnProps<ProjectAppCard>[] = [
     { title: t("cozeSettingsPublishColumnName"), dataIndex: "name" },
-    { title: t("cozeSettingsPublishColumnStatus"), dataIndex: "publishStatus", render: (value: string) => <Tag color="blue">{value}</Tag> },
+    { title: t("cozeSettingsPublishColumnStatus"), dataIndex: "status", render: (value: string) => <Tag color="blue">{value}</Tag> },
     { title: t("cozeSettingsPublishColumnUpdatedAt"), dataIndex: "updatedAt" },
     {
       title: t("cozeSettingsPublishColumnActions"),
-      dataIndex: "resourceId",
+      dataIndex: "id",
       render: (_value, record) => (
-        <Button theme="borderless" onClick={() => onOpenEditor(String(record.resourceId))}>{t("cozeSettingsPublishGoProjects")}</Button>
+        <Button theme="borderless" onClick={() => appGateway.open(String(record.id))}>{t("cozeSettingsPublishGoProjects")}</Button>
       )
     }
   ];
@@ -194,7 +191,7 @@ function AppsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
   if (items.length === 0) {
     return <PublishEmpty goPath={workspaceProjectsPath(workspace.id)} />;
   }
-  return <Table columns={columns} dataSource={items} rowKey="resourceId" pagination={false} />;
+  return <Table columns={columns} dataSource={items} rowKey="id" pagination={false} />;
 }
 
 function WorkflowsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
@@ -206,7 +203,7 @@ function WorkflowsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listWorkflows(1, 100)
+    listWorkflows(1, 100, undefined, workspace.id)
       .then(result => {
         if (!cancelled) {
           const list = (result.data?.items ?? []).filter(item => item.status === 1);
@@ -226,7 +223,7 @@ function WorkflowsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspace.id]);
 
   const columns: ColumnProps<WorkflowListItem>[] = [
     { title: t("cozeSettingsPublishColumnName"), dataIndex: "name" },
@@ -251,87 +248,137 @@ function WorkflowsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }
   return <Table columns={columns} dataSource={items} rowKey="id" pagination={false} />;
 }
 
-function ChannelsPanel({ workspaceId }: { workspaceId: string }) {
+function ChannelsPanel({ workspaceId, locale }: { workspaceId: string; locale: "zh-CN" | "en-US" }) {
   const { t } = useAppI18n();
-  const [items, setItems] = useState<PublishChannelItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<PublishChannelListItem | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [addOpen, setAddOpen] = useState(false);
+  const [pendingSelectId, setPendingSelectId] = useState<string | null>(null);
 
-  const refresh = () => {
-    setLoading(true);
-    listPublishChannels(workspaceId, { pageIndex: 1, pageSize: 50 })
-      .then(result => setItems(result.items))
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    refresh();
-  }, [workspaceId]);
-
-  const columns: ColumnProps<PublishChannelItem>[] = [
-    { title: t("cozeSettingsPublishColumnName"), dataIndex: "name" },
-    { title: t("cozeSettingsPublishColumnType"), dataIndex: "type" },
-    {
-      title: t("cozeSettingsPublishColumnStatus"),
-      dataIndex: "status",
-      render: (value: PublishChannelItem["status"]) => (
-        <Tag color={value === "active" ? "green" : value === "pending" ? "amber" : "grey"}>
-          {value === "active" ? t("cozeSettingsChannelStatusActive") : value === "pending" ? t("cozeSettingsChannelStatusPending") : t("cozeSettingsChannelStatusInactive")}
-        </Tag>
-      )
-    },
-    {
-      title: t("cozeSettingsChannelLastSync").replace("{time}", ""),
-      dataIndex: "lastSyncAt"
-    },
-    {
-      title: t("cozeSettingsPublishColumnActions"),
-      dataIndex: "id",
-      render: (_value, record) => (
-        <span style={{ display: "flex", gap: 8 }}>
-          <Button
-            theme="borderless"
-            onClick={() => {
-              void reauthPublishChannel(workspaceId, String(record.id)).then(() => {
-                Toast.success(t("cozeSettingsChannelReauth"));
-                refresh();
-              });
-            }}
-          >
-            {t("cozeSettingsChannelReauth")}
-          </Button>
-          <Button
-            theme="borderless"
-            type="danger"
-            onClick={() => {
-              void deletePublishChannel(workspaceId, String(record.id)).then(() => {
-                Toast.success(t("cozeSettingsChannelDelete"));
-                refresh();
-              });
-            }}
-          >
-            {t("cozeSettingsChannelDelete")}
-          </Button>
-        </span>
-      )
+  const refresh = useCallback(() => setReloadKey(value => value + 1), []);
+  const loader = useCallback(async (wsId: string): Promise<PublishChannelListItem[]> => {
+    try {
+      setLoadFailed(false);
+      const result = await listWorkspacePublishChannelsPage(wsId, { pageIndex: 1, pageSize: 200 });
+      return result.items.map((item) => ({
+        id: item.id,
+        workspaceId: item.workspaceId,
+        type: item.type,
+        name: item.name,
+        status: item.status,
+        authStatus: item.authStatus,
+        lastSyncAt: item.lastSyncAt,
+        createdAt: item.createdAt,
+        updatedAt: item.createdAt
+      }));
+    } catch (error) {
+      setLoadFailed(true);
+      throw error;
     }
-  ];
+  }, []);
+  const handleLoaded = useCallback((channels: PublishChannelListItem[]) => {
+    if (pendingSelectId) {
+      const matched = channels.find((item) => item.id === pendingSelectId) ?? null;
+      if (matched) {
+        setSelectedChannel(matched);
+        setPendingSelectId(null);
+        return;
+      }
+    }
+    if (!selectedChannel && channels.length > 0) {
+      setSelectedChannel(channels[0] ?? null);
+    }
+  }, [pendingSelectId, selectedChannel]);
 
-  if (loading) {
-    return <div className="coze-page__loading"><Spin /></div>;
-  }
   return (
     <>
-      <div className="coze-page__toolbar">
-        <Button theme="solid" type="primary" onClick={() => Toast.info(t("cozeCommonComingSoon"))}>
+      {loadFailed ? (
+        <Banner
+          type="danger"
+          bordered
+          fullMode={false}
+          description={t("cozeSettingsPublishChannelsLoadFailed")}
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
+      <div className="coze-page__toolbar" style={{ display: "flex", gap: 8 }}>
+        <Button theme="solid" type="primary" onClick={() => setAddOpen(true)}>
           {t("cozeSettingsChannelAdd")}
         </Button>
+        <Button
+          disabled={!selectedChannel}
+          onClick={() => {
+            if (!selectedChannel) return;
+            void reauthorizeWorkspacePublishChannel(workspaceId, selectedChannel.id)
+              .then(() => {
+                Toast.success(t("cozeSettingsChannelReauth"));
+                refresh();
+              })
+              .catch((error) => {
+                Toast.error(error instanceof Error ? error.message : t("cozeSettingsPublishChannelsLoadFailed"));
+              });
+          }}
+        >
+          {t("cozeSettingsChannelReauth")}
+        </Button>
+        <Button
+          type="danger"
+          disabled={!selectedChannel}
+          onClick={() => {
+            if (!selectedChannel) return;
+            void deleteWorkspacePublishChannel(workspaceId, selectedChannel.id)
+              .then(() => {
+                Toast.success(t("cozeSettingsChannelDelete"));
+                setSelectedChannel(null);
+                refresh();
+              })
+              .catch((error) => {
+                Toast.error(error instanceof Error ? error.message : t("cozeSettingsPublishChannelsLoadFailed"));
+              });
+          }}
+        >
+          {t("cozeSettingsChannelDelete")}
+        </Button>
       </div>
-      {items.length === 0 ? (
-        <Empty description={t("cozeSettingsPublishEmpty")} />
-      ) : (
-        <Table columns={columns} dataSource={items} rowKey="id" pagination={false} />
-      )}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(360px, 5fr) minmax(420px, 7fr)", gap: 16 }}>
+        <Card bordered title={t("cozeSettingsPublishChannels")}>
+          <ChannelsListPanel
+            workspaceId={workspaceId}
+            locale={locale}
+            loader={loader}
+            reloadKey={reloadKey}
+            selectedChannelId={selectedChannel?.id ?? null}
+            onSelect={setSelectedChannel}
+            onLoaded={handleLoaded}
+          />
+        </Card>
+        <Card bordered title={t("cozeSettingsChannelEditCredential")}>
+          {selectedChannel ? (
+            <ChannelDetailRouter
+              workspaceId={workspaceId}
+              locale={locale}
+              channel={selectedChannel}
+              releaseLoader={getWorkspaceChannelActiveRelease}
+              fetcher={publishChannelsHttpJson}
+            />
+          ) : (
+            <Empty description={t("cozeSettingsPublishEmpty")} />
+          )}
+        </Card>
+      </div>
+      <AddChannelModal
+        visible={addOpen}
+        locale={locale}
+        catalogLoader={listPublishChannelCatalog}
+        createChannel={(input) => createWorkspacePublishChannel(workspaceId, input)}
+        onCancel={() => setAddOpen(false)}
+        onCreated={({ channelId }) => {
+          setAddOpen(false);
+          setPendingSelectId(channelId);
+          refresh();
+        }}
+      />
     </>
   );
 }

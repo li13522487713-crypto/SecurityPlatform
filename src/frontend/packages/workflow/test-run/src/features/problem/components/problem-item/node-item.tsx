@@ -24,7 +24,23 @@ import {
   type CommonNodeData,
   type NodeData,
 } from '@coze-workflow/nodes';
-import { Avatar } from '@coze-arch/coze-design';
+import {
+  IconCode,
+  IconEdit,
+  IconLink,
+  IconBranch,
+  IconSearch,
+  IconSave,
+  IconSync,
+  IconCopy,
+  IconComment,
+  IconPlayCircle,
+  IconMinusCircleStroked,
+  IconComponent,
+  IconBox,
+  IconList,
+  IconFile
+} from '@douyinfe/semi-icons';
 
 import { type ProblemItem } from '../../types';
 import { BaseItem } from './base-item';
@@ -52,6 +68,29 @@ const useMetaMemo = (nodeId: string) => {
   return nodeMeta;
 };
 
+const getIconByName = (nodeName?: string) => {
+  if (!nodeName) return <IconComponent />;
+  if (nodeName.includes('大模型')) return <IconBox />;
+  if (nodeName.includes('意图')) return <IconBranch />;
+  if (nodeName.includes('问答')) return <IconComment />;
+  if (nodeName.includes('代码')) return <IconCode />;
+  if (nodeName.includes('文本')) return <IconFile />;
+  if (nodeName.includes('JSON')) return <IconCode />;
+  if (nodeName.includes('聚合')) return <IconList />;
+  if (nodeName.includes('赋值')) return <IconEdit />;
+  if (nodeName.includes('插件')) return <IconComponent />;
+  if (nodeName.includes('HTTP')) return <IconLink />;
+  if (nodeName.includes('工作流')) return <IconBranch />;
+  if (nodeName.includes('检索')) return <IconSearch />;
+  if (nodeName.includes('写入')) return <IconSave />;
+  if (nodeName.includes('循环')) return <IconSync />;
+  if (nodeName.includes('批处理')) return <IconCopy />;
+  if (nodeName.includes('注释')) return <IconComment />;
+  if (nodeName.includes('开始')) return <IconPlayCircle />;
+  if (nodeName.includes('结束')) return <IconMinusCircleStroked />;
+  return <IconComponent />;
+};
+
 export const NodeItem: React.FC<NodeItemProps> = ({ problem, onClick }) => {
   const meta = useMetaMemo(problem.nodeId);
 
@@ -59,7 +98,11 @@ export const NodeItem: React.FC<NodeItemProps> = ({ problem, onClick }) => {
     <BaseItem
       problem={problem}
       title={meta?.title || ''}
-      icon={<Avatar src={meta?.icon} shape="square" size="small" />}
+      icon={
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 4, background: 'rgba(22, 93, 255, 0.1)', color: 'var(--semi-color-primary)' }}>
+          {getIconByName(meta?.title)}
+        </div>
+      }
       onClick={onClick}
     />
   );

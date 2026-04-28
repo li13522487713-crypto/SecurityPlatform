@@ -23,6 +23,8 @@ internal sealed class StaticWorkflowNodeDeclaration : IWorkflowNodeDeclaration
     public required string ConfigSchemaJson { get; init; }
 
     public required WorkflowNodeUiMetadata UiMeta { get; init; }
+
+    public string? FormMetaJson { get; init; }
 }
 
 internal static class BuiltInWorkflowNodeDeclarations
@@ -58,11 +60,12 @@ internal static class BuiltInWorkflowNodeDeclarations
         Create(WorkflowNodeType.KnowledgeDeleter, "KnowledgeDeleter", "知识库删除", "knowledge", "删除知识库文档。", [In("input"), Out("output")], "#10B981"),
         Create(WorkflowNodeType.Ltm, "Ltm", "长期记忆", "knowledge", "读写长期记忆。", [In("input"), Out("output")], "#10B981"),
 
-        Create(WorkflowNodeType.DatabaseQuery, "DatabaseQuery", "数据库查询", "database", "查询数据库记录。", [In("input"), Out("output")], "#3B82F6"),
+        Create(WorkflowNodeType.DatabaseQuery, "DatabaseQuery", "数据库查询", "database", "JSON 行存储：SQL 层按策略过滤，clause 在应用层匹配 DataJson；可用 maxSqlScanRows 限制单次扫描。", [In("input"), Out("output")], "#3B82F6"),
         Create(WorkflowNodeType.DatabaseInsert, "DatabaseInsert", "数据库新增", "database", "插入数据库记录。", [In("input"), Out("output")], "#3B82F6"),
         Create(WorkflowNodeType.DatabaseUpdate, "DatabaseUpdate", "数据库更新", "database", "更新数据库记录。", [In("input"), Out("output")], "#3B82F6"),
         Create(WorkflowNodeType.DatabaseDelete, "DatabaseDelete", "数据库删除", "database", "删除数据库记录。", [In("input"), Out("output")], "#3B82F6"),
-        Create(WorkflowNodeType.DatabaseCustomSql, "DatabaseCustomSql", "自定义SQL", "database", "执行自定义 SQL。", [In("input"), Out("output")], "#3B82F6"),
+        Create(WorkflowNodeType.DatabaseCustomSql, "DatabaseCustomSql", "SQL路由", "database", "按 sqlTemplate 首词路由到 Query/Insert/Update/Delete 标准节点；不执行模板正文。", [In("input"), Out("output")], "#3B82F6"),
+        Create(WorkflowNodeType.DatabaseNl2Sql, "DatabaseNl2Sql", "自然语言查询", "database", "通过 LLM 把自然语言转为 JSON 查询计划，再走标准 DatabaseQuery 执行。", [In("input"), Out("output")], "#3B82F6"),
 
         Create(WorkflowNodeType.CreateConversation, "CreateConversation", "创建会话", "conversation", "创建新会话。", [In("input"), Out("conversation_id")], "#EC4899"),
         Create(WorkflowNodeType.ConversationList, "ConversationList", "查询会话列表", "conversation", "查询会话列表。", [In("input"), Out("conversations")], "#EC4899"),
@@ -242,7 +245,34 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ("knowledgeIds", Array.Empty<object>()),
                 ("query", "{{input.message}}"),
                 ("topK", 5),
-                ("minScore", 0.2)),
+                ("minScore", 0.2),
+                ("tags", Array.Empty<object>()),
+                ("ownerFilter", string.Empty),
+                ("maskSensitive", true),
+                // v5 §38 / 计划 G6：完整 RetrievalProfile（含 weights / hybrid / rewrite）
+                ("retrievalProfile", new Dictionary<string, object?>
+                {
+                    ["topK"] = 5,
+                    ["minScore"] = 0.2,
+                    ["enableRerank"] = false,
+                    ["enableHybrid"] = true,
+                    ["enableQueryRewrite"] = false,
+                    ["weights"] = new Dictionary<string, object?>
+                    {
+                        ["vector"] = 0.6,
+                        ["bm25"] = 0.4,
+                        ["table"] = 0.0,
+                        ["image"] = 0.0
+                    }
+                }),
+                // v5 §38 / 计划 G6：filters key-value，节点 config 接受 object 或 array
+                ("filters", new Dictionary<string, object?>()),
+                // v5 §38 / 计划 G6：CallerContext 覆盖（用户字段优先于默认）
+                ("callerContextOverride", new Dictionary<string, object?>
+                {
+                    ["callerType"] = 2 // Workflow
+                }),
+                ("debug", false)),
             WorkflowNodeType.KnowledgeIndexer => CreateConfig(
                 ("knowledgeId", 0),
                 ("fileId", 0),
@@ -250,7 +280,27 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ("contentType", string.Empty),
                 ("fileSizeBytes", 0),
                 ("chunkSize", 500),
-                ("overlap", 50)),
+                ("overlap", 50),
+                ("parseStrategy", "quick"),
+                // v5 §35 / 计划 G6：完整 ParsingStrategy
+                ("parsingStrategy", new Dictionary<string, object?>
+                {
+                    ["parsingType"] = 0,
+                    ["extractImage"] = false,
+                    ["extractTable"] = false,
+                    ["imageOcr"] = false
+                }),
+                // v5 §35 / 计划 G6：完整 ChunkingProfile（mode/size/overlap/separators/indexColumns）
+                ("chunkingProfile", new Dictionary<string, object?>
+                {
+                    ["mode"] = 0,
+                    ["size"] = 512,
+                    ["overlap"] = 64,
+                    ["separators"] = Array.Empty<object>(),
+                    ["indexColumns"] = Array.Empty<object>()
+                }),
+                // v5 §35 / 计划 G6：append / overwrite
+                ("mode", "append")),
             WorkflowNodeType.KnowledgeDeleter => CreateConfig(
                 ("knowledgeId", 0),
                 ("documentId", 0)),
@@ -269,6 +319,8 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ("queryFields", Array.Empty<object>()),
                 ("clauseGroup", Array.Empty<object>()),
                 ("limit", 100),
+                ("maxSqlScanRows", 100_000),
+                ("maskSensitive", true),
                 ("outputKey", "db_rows")),
             WorkflowNodeType.DatabaseInsert => CreateConfig(
                 ("databaseInfoId", 0),
@@ -283,6 +335,13 @@ internal static class BuiltInWorkflowNodeDeclarations
             WorkflowNodeType.DatabaseCustomSql => CreateConfig(
                 ("databaseInfoId", 0),
                 ("sqlTemplate", string.Empty)),
+            WorkflowNodeType.DatabaseNl2Sql => CreateConfig(
+                ("databaseInfoId", 0),
+                ("prompt", "{{input.message}}"),
+                ("provider", string.Empty),
+                ("model", string.Empty),
+                ("limit", 100),
+                ("outputKey", "db_rows")),
             WorkflowNodeType.CreateConversation => CreateConfig(
                 ("title", string.Empty),
                 ("userId", 0),
@@ -353,7 +412,170 @@ internal static class BuiltInWorkflowNodeDeclarations
             UiMeta = new WorkflowNodeUiMetadata(
                 Icon: $"workflow/{key}.svg",
                 Color: color,
-                SupportsBatch: supportsBatch)
+                SupportsBatch: supportsBatch),
+            FormMetaJson = BuildFormMeta(type)
+        };
+    }
+
+    /// <summary>
+    /// D9/K8：返回节点表单元数据 JSON（属性面板字段）。仅对 DB / KB / NL2SQL 节点提供详细 formMeta，
+    /// 其余节点返回 null（前端按 ConfigSchemaJson 自动生成）。
+    /// </summary>
+    private static readonly JsonSerializerOptions FormMetaJsonOptions = new()
+    {
+        PropertyNamingPolicy = null,
+        WriteIndented = false
+    };
+
+    private static string? BuildFormMeta(WorkflowNodeType type)
+    {
+        return type switch
+        {
+            WorkflowNodeType.DatabaseQuery => JsonSerializer.Serialize(
+                new List<Dictionary<string, object?>>
+                {
+                    new() { ["key"] = "databaseInfoId", ["label"] = "数据库", ["type"] = "ai_database_picker", ["required"] = true },
+                    new() { ["key"] = "queryFields", ["label"] = "查询字段", ["type"] = "field_multiselect", ["source"] = "databaseInfoId.fields" },
+                    new() { ["key"] = "clauseGroup", ["label"] = "过滤条件", ["type"] = "clause_group", ["source"] = "databaseInfoId.fields" },
+                    new() { ["key"] = "limit", ["label"] = "返回上限", ["type"] = "number", ["min"] = 1, ["max"] = 5000, ["default"] = 100 },
+                    new()
+                    {
+                        ["key"] = "maxSqlScanRows",
+                        ["label"] = "SQL 最大扫描行数",
+                        ["type"] = "number",
+                        ["min"] = 100,
+                        ["max"] = 500000,
+                        ["default"] = 100000,
+                        ["hint"] = "策略过滤后按 Id 升序截取，降低超大表内存风险"
+                    },
+                    new() { ["key"] = "maskSensitive", ["label"] = "结果脱敏", ["type"] = "boolean", ["default"] = true },
+                    new() { ["key"] = "outputKey", ["label"] = "输出变量名", ["type"] = "string", ["default"] = "db_rows" }
+                },
+                FormMetaJsonOptions),
+            WorkflowNodeType.DatabaseInsert => JsonSerializer.Serialize(
+                new List<Dictionary<string, object?>>
+                {
+                    new() { ["key"] = "databaseInfoId", ["label"] = "数据库", ["type"] = "ai_database_picker", ["required"] = true },
+                    new() { ["key"] = "rows", ["label"] = "插入行（JSON 数组或对象）", ["type"] = "json_array", ["source"] = "databaseInfoId.fields" },
+                    new()
+                    {
+                        ["key"] = "injectUserContext",
+                        ["label"] = "注入当前用户/渠道",
+                        ["type"] = "boolean",
+                        ["default"] = true,
+                        ["hint"] = "SingleUser/Channel 模式下自动写入 ownerUserId、channelId"
+                    }
+                },
+                FormMetaJsonOptions),
+            WorkflowNodeType.DatabaseUpdate => JsonSerializer.Serialize(
+                new List<Dictionary<string, object?>>
+                {
+                    new() { ["key"] = "databaseInfoId", ["label"] = "数据库", ["type"] = "ai_database_picker", ["required"] = true },
+                    new() { ["key"] = "updateFields", ["label"] = "更新字段", ["type"] = "field_value_map", ["source"] = "databaseInfoId.fields" },
+                    new() { ["key"] = "clauseGroup", ["label"] = "过滤条件", ["type"] = "clause_group", ["source"] = "databaseInfoId.fields" }
+                },
+                FormMetaJsonOptions),
+            WorkflowNodeType.DatabaseDelete => JsonSerializer.Serialize(
+                new List<Dictionary<string, object?>>
+                {
+                    new() { ["key"] = "databaseInfoId", ["label"] = "数据库", ["type"] = "ai_database_picker", ["required"] = true },
+                    new() { ["key"] = "clauseGroup", ["label"] = "过滤条件", ["type"] = "clause_group", ["source"] = "databaseInfoId.fields", ["required"] = true }
+                },
+                FormMetaJsonOptions),
+            WorkflowNodeType.DatabaseCustomSql => JsonSerializer.Serialize(
+                new List<Dictionary<string, object?>>
+                {
+                    new() { ["key"] = "databaseInfoId", ["label"] = "数据库", ["type"] = "ai_database_picker", ["required"] = true },
+                    new()
+                    {
+                        ["key"] = "sqlTemplate",
+                        ["label"] = "SQL 路由关键字",
+                        ["type"] = "sql_editor",
+                        ["required"] = true,
+                        ["hint"] = "仅首词用于路由（SELECT/INSERT/UPDATE/DELETE）；正文不执行。禁止 ;/--//* 与 DROP 等。"
+                    }
+                },
+                FormMetaJsonOptions),
+            WorkflowNodeType.DatabaseNl2Sql => JsonSerializer.Serialize(
+                new List<Dictionary<string, object?>>
+                {
+                    new() { ["key"] = "databaseInfoId", ["label"] = "数据库", ["type"] = "ai_database_picker", ["required"] = true },
+                    new() { ["key"] = "prompt", ["label"] = "自然语言查询", ["type"] = "string_template", ["required"] = true, ["default"] = "{{input.message}}" },
+                    new() { ["key"] = "provider", ["label"] = "LLM Provider", ["type"] = "string" },
+                    new() { ["key"] = "model", ["label"] = "模型", ["type"] = "string", ["default"] = "gpt-4o-mini" },
+                    new() { ["key"] = "limit", ["label"] = "返回上限", ["type"] = "number", ["min"] = 1, ["max"] = 5000, ["default"] = 100 },
+                    new() { ["key"] = "outputKey", ["label"] = "输出变量名", ["type"] = "string", ["default"] = "db_rows" }
+                },
+                FormMetaJsonOptions),
+            WorkflowNodeType.KnowledgeRetriever => JsonSerializer.Serialize(
+                new List<Dictionary<string, object?>>
+                {
+                    new() { ["key"] = "knowledgeIds", ["label"] = "知识库", ["type"] = "knowledge_picker", ["multiple"] = true, ["required"] = true },
+                    new() { ["key"] = "query", ["label"] = "查询语句", ["type"] = "string_template", ["required"] = true, ["default"] = "{{input.message}}" },
+                    new() { ["key"] = "topK", ["label"] = "Top-K", ["type"] = "number", ["min"] = 1, ["max"] = 50, ["default"] = 5 },
+                    new() { ["key"] = "minScore", ["label"] = "最低相似度", ["type"] = "number", ["min"] = 0, ["max"] = 1, ["step"] = 0.05, ["default"] = 0.2 },
+                    new() { ["key"] = "tags", ["label"] = "标签过滤", ["type"] = "tag_multiselect" },
+                    new()
+                    {
+                        ["key"] = "ownerFilter",
+                        ["label"] = "Owner 过滤",
+                        ["type"] = "string",
+                        ["hint"] = "可选；非空时仅检索 owner=该值 的切片"
+                    },
+                    new() { ["key"] = "maskSensitive", ["label"] = "结果脱敏", ["type"] = "boolean", ["default"] = true },
+                    // v5 §38 / 计划 G6：完整 RetrievalProfile + filters + callerContextOverride + debug
+                    new() { ["key"] = "retrievalProfile", ["label"] = "检索策略", ["type"] = "retrieval_profile", ["hint"] = "TopK / 重排 / 混合检索权重 / 查询改写" },
+                    new() { ["key"] = "filters", ["label"] = "Metadata 过滤", ["type"] = "key_value_map", ["hint"] = "key/value；支持 tag / namespace / documentName 等" },
+                    new() { ["key"] = "callerContextOverride", ["label"] = "调用方上下文覆盖", ["type"] = "caller_context", ["hint"] = "用户字段优先于默认（callerType/userId/preset 等）" },
+                    new() { ["key"] = "debug", ["label"] = "返回完整 RetrievalLog", ["type"] = "boolean", ["default"] = false, ["hint"] = "true 时输出 traceId / finalContext / candidates / metadata" }
+                },
+                FormMetaJsonOptions),
+            WorkflowNodeType.KnowledgeIndexer => JsonSerializer.Serialize(
+                new List<Dictionary<string, object?>>
+                {
+                    new() { ["key"] = "knowledgeId", ["label"] = "知识库", ["type"] = "knowledge_picker", ["required"] = true },
+                    new() { ["key"] = "fileId", ["label"] = "文件 ID", ["type"] = "file_picker", ["required"] = true },
+                    new() { ["key"] = "fileName", ["label"] = "文件名", ["type"] = "string" },
+                    new() { ["key"] = "contentType", ["label"] = "MIME 类型", ["type"] = "string" },
+                    new() { ["key"] = "chunkSize", ["label"] = "切片大小", ["type"] = "number", ["min"] = 50, ["max"] = 5000, ["default"] = 500 },
+                    new() { ["key"] = "overlap", ["label"] = "切片重叠", ["type"] = "number", ["min"] = 0, ["max"] = 1000, ["default"] = 50 },
+                    new()
+                    {
+                        ["key"] = "parseStrategy",
+                        ["label"] = "解析策略（旧版兼容）",
+                        ["type"] = "select",
+                        ["options"] = new object[]
+                        {
+                            new Dictionary<string, object?> { ["value"] = "quick", ["label"] = "快速" },
+                            new Dictionary<string, object?> { ["value"] = "precise", ["label"] = "精确" }
+                        },
+                        ["default"] = "quick"
+                    },
+                    // v5 §35 / 计划 G6：完整 ParsingStrategy + ChunkingProfile + mode
+                    new() { ["key"] = "parsingStrategy", ["label"] = "解析策略（v5）", ["type"] = "parsing_strategy", ["hint"] = "完整解析策略对象，与前端 ParsingStrategyForm 同型" },
+                    new() { ["key"] = "chunkingProfile", ["label"] = "切片策略（v5）", ["type"] = "chunking_profile", ["hint"] = "mode/size/overlap/separators/indexColumns" },
+                    new()
+                    {
+                        ["key"] = "mode",
+                        ["label"] = "写入模式",
+                        ["type"] = "select",
+                        ["options"] = new object[]
+                        {
+                            new Dictionary<string, object?> { ["value"] = "append", ["label"] = "追加（保留旧 chunks）" },
+                            new Dictionary<string, object?> { ["value"] = "overwrite", ["label"] = "覆盖（先 GC 旧 chunks）" }
+                        },
+                        ["default"] = "append"
+                    }
+                },
+                FormMetaJsonOptions),
+            WorkflowNodeType.KnowledgeDeleter => JsonSerializer.Serialize(
+                new List<Dictionary<string, object?>>
+                {
+                    new() { ["key"] = "knowledgeId", ["label"] = "知识库", ["type"] = "knowledge_picker", ["required"] = true },
+                    new() { ["key"] = "documentId", ["label"] = "文档 ID", ["type"] = "number" }
+                },
+                FormMetaJsonOptions),
+            _ => null
         };
     }
 
@@ -500,7 +722,15 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ["knowledgeIds"] = "array",
                 ["query"] = "string",
                 ["topK"] = "number",
-                ["minScore"] = "number"
+                ["minScore"] = "number",
+                ["tags"] = "array",
+                ["ownerFilter"] = "string",
+                ["maskSensitive"] = "boolean",
+                // v5 §38 / 计划 G6：完整 RetrievalProfile + filters + callerContextOverride + debug
+                ["retrievalProfile"] = "object",
+                ["filters"] = "object",
+                ["callerContextOverride"] = "object",
+                ["debug"] = "boolean"
             }),
             WorkflowNodeType.KnowledgeIndexer => BuildObjectSchema(["knowledgeId", "fileId"], new Dictionary<string, string>
             {
@@ -510,7 +740,12 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ["contentType"] = "string",
                 ["fileSizeBytes"] = "number",
                 ["chunkSize"] = "number",
-                ["overlap"] = "number"
+                ["overlap"] = "number",
+                ["parseStrategy"] = "string",
+                // v5 §35 / 计划 G6：完整 ParsingStrategy + ChunkingProfile + mode
+                ["parsingStrategy"] = "object",
+                ["chunkingProfile"] = "object",
+                ["mode"] = "string"
             }),
             WorkflowNodeType.KnowledgeDeleter => BuildObjectSchema(["knowledgeId"], new Dictionary<string, string>
             {
@@ -535,6 +770,8 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ["queryFields"] = "array",
                 ["clauseGroup"] = "array",
                 ["limit"] = "number",
+                ["maxSqlScanRows"] = "number",
+                ["maskSensitive"] = "boolean",
                 ["outputKey"] = "string"
             }),
             WorkflowNodeType.DatabaseInsert => BuildObjectSchema(["databaseInfoId"], new Dictionary<string, string>
@@ -557,6 +794,15 @@ internal static class BuiltInWorkflowNodeDeclarations
             {
                 ["databaseInfoId"] = "number",
                 ["sqlTemplate"] = "string"
+            }),
+            WorkflowNodeType.DatabaseNl2Sql => BuildObjectSchema(["databaseInfoId", "prompt"], new Dictionary<string, string>
+            {
+                ["databaseInfoId"] = "number",
+                ["prompt"] = "string",
+                ["provider"] = "string",
+                ["model"] = "string",
+                ["limit"] = "number",
+                ["outputKey"] = "string"
             }),
             WorkflowNodeType.CreateConversation => BuildObjectSchema(["userId", "agentId"], new Dictionary<string, string>
             {

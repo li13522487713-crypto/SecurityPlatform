@@ -77,6 +77,14 @@ POST {{baseUrl}}/api/runtime/sessions/{{sessionId}}/clear
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### P0 修复：多会话切换（PLAN §M11 C11-6 + S11-2）
+### 200：返回切换后的 RuntimeSessionInfo
+### 404：sessionId 不存在 → BusinessException("NOT_FOUND")
+### 403：跨用户访问 → BusinessException("FORBIDDEN")
+POST {{baseUrl}}/api/runtime/sessions/{{sessionId}}:switch
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 消息日志统一查询（M13 / M18 联动）
 GET {{baseUrl}}/api/runtime/message-log?sessionId={{sessionId}}&pageIndex=1&pageSize=50
 Authorization: Bearer {{accessToken}}

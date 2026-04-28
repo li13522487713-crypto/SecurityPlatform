@@ -79,6 +79,7 @@ public static class PermissionCodes
     public const string DataSourcesUpdate = "system:datasource:update";
     public const string DataSourcesDelete = "system:datasource:delete";
     public const string DataSourcesQuery = "system:datasource:query";
+    public const string DataSourcesSchemaWrite = "system:datasource:schema-write";
 
     public const string PositionsView = "positions:view";
     public const string PositionsCreate = "positions:create";

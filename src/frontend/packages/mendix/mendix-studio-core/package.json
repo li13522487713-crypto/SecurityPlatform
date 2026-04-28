@@ -1,0 +1,43 @@
+{
+  "name": "@atlas/mendix-studio-core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.tsx",
+  "types": "src/index.tsx",
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "scripts": {
+    "build": "echo 'mendix-studio-core: source-only package, no build step'",
+    "lint": "echo 'mendix-studio-core: lint via root pipeline'",
+    "test": "vitest --run --passWithNoTests",
+    "verify-contracts": "vitest run src/microflow/contracts/microflow-contracts.spec.ts"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "dependencies": {
+    "@atlas/mendix-debug": "workspace:*",
+    "@atlas/mendix-expression": "workspace:*",
+    "@atlas/mendix-runtime": "workspace:*",
+    "@atlas/mendix-schema": "workspace:*",
+    "@atlas/mendix-validator": "workspace:*",
+    "@atlas/microflow": "workspace:*",
+    "@douyinfe/semi-icons": "^2.82.0",
+    "@douyinfe/semi-ui": "^2.82.0",
+    "msw": "2.13.6",
+    "zustand": "^4.5.7"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.37",
+    "@types/react-dom": "18.2.15",
+    "vitest": "^4.1.4"
+  },
+  "msw": {
+    "workerDirectory": [
+      "..\\..\\..\\apps\\app-web\\public"
+    ]
+  }
+}

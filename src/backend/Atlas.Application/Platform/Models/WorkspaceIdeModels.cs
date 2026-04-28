@@ -34,7 +34,10 @@ public sealed record WorkspaceIdeResourceQueryRequest(
     string? ResourceType,
     bool FavoriteOnly,
     int PageIndex,
-    int PageSize);
+    int PageSize,
+    string? FolderId = null,
+    string? Status = null,
+    string? WorkspaceId = null);
 
 public sealed record WorkspaceIdeResourceCardResponse(
     string ResourceType,
@@ -50,7 +53,25 @@ public sealed record WorkspaceIdeResourceCardResponse(
     DateTime? LastEditedAt,
     string EntryRoute,
     string? Badge,
-    string? LinkedWorkflowId = null);
+    string? LinkedWorkflowId = null,
+    string? FolderId = null,
+    string? OwnerDisplayName = null,
+    string? LastEditedByDisplayName = null);
+
+public sealed record WorkspaceIdeResourceDuplicateRequest(
+    string WorkspaceId,
+    string? FolderId = null);
+
+public sealed record WorkspaceIdeResourceMoveWorkspaceRequest(
+    string SourceWorkspaceId,
+    string TargetWorkspaceId);
+
+public sealed record WorkspaceIdeResourceActionResult(
+    string ResourceType,
+    string ResourceId,
+    string Action,
+    string? WorkspaceId = null,
+    string? TargetWorkspaceId = null);
 
 public sealed record WorkspaceIdeFavoriteUpdateRequest(
     bool IsFavorite);
@@ -64,7 +85,8 @@ public sealed record WorkspaceIdeActivityCreateRequest(
 public sealed record WorkspaceIdeCreateAppRequest(
     string Name,
     string? Description,
-    string? Icon);
+    string? Icon,
+    string? WorkspaceId = null);
 
 public sealed record WorkspaceIdeCreateAppResult(
     string AppId,

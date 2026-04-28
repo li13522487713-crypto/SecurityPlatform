@@ -92,6 +92,7 @@ export const PluginNode: FC<PluginNodeProps> = ({
             content={pluginDesc}
             position={tooltipPosition}
             mouseEnterDelay={500}
+            mouseLeaveDelay={500}
           >
             <div>
               <PluginNodeCard

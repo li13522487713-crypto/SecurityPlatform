@@ -7,6 +7,7 @@ namespace Atlas.Domain.AiPlatform.Entities;
 /// <summary>
 /// V2 工作流草稿——每个工作流有且仅有一条草稿记录，保存最新编辑状态。
 /// </summary>
+[SugarTable("workflow_draft")]
 public sealed class WorkflowDraft : TenantEntity
 {
     /// <summary>SqlSugar 无参构造。</summary>
@@ -29,8 +30,9 @@ public sealed class WorkflowDraft : TenantEntity
     }
 
     public long WorkflowId { get; private set; }
+    [SugarColumn(ColumnName = "canvas")]
     public string CanvasJson { get; private set; }
-    [SugarColumn(IsNullable = true)]
+    [SugarColumn(ColumnName = "commit_id", IsNullable = true)]
     public string? CommitId { get; private set; }
     public DateTime UpdatedAt { get; private set; }
 

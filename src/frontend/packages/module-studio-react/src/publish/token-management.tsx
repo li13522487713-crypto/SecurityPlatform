@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { Button, Card, Space, Table, Toast, Typography } from "@douyinfe/semi-ui";
 import type { PublishCenterItem, StudioLocale, StudioModuleApi } from "../types";
+import { getStudioCopy } from "../copy";
 
 export interface TokenManagementProps {
   api: Pick<StudioModuleApi, "regenerateAgentEmbedToken">;
@@ -11,6 +12,7 @@ export interface TokenManagementProps {
 }
 
 export function TokenManagement({ api, locale, items, testId = "studio-publish-token-management" }: TokenManagementProps) {
+  const copy = getStudioCopy(locale);
   const [rows, setRows] = useState<PublishCenterItem[]>(items);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -18,15 +20,9 @@ export function TokenManagement({ api, locale, items, testId = "studio-publish-t
     setRows(items);
   }, [items]);
 
-  const title = locale === "en-US" ? "Embed tokens" : "嵌入令牌";
-  const hint =
-    locale === "en-US"
-      ? "Copy embed tokens for hosted widgets. Regenerate invalidates the previous token for that agent."
-      : "复制嵌入令牌用于前端托管组件。轮换令牌会使旧令牌失效（按智能体维度）。";
-
   async function handleRegenerate(item: PublishCenterItem) {
     if (item.resourceType !== "agent") {
-      Toast.warning(locale === "en-US" ? "Only agents support regenerate here." : "当前仅支持对智能体轮换嵌入令牌。");
+      Toast.warning(copy.tokenManagement.onlyAgentSupportRegenerate);
       return;
     }
 
@@ -39,9 +35,9 @@ export function TokenManagement({ api, locale, items, testId = "studio-publish-t
           row.resourceType === "agent" && row.resourceId === item.resourceId ? { ...row, embedToken: result.embedToken } : row
         )
       );
-      Toast.success(locale === "en-US" ? "Token regenerated." : "已重新生成令牌。");
+      Toast.success(copy.tokenManagement.tokenRegenerated);
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : locale === "en-US" ? "Regenerate failed." : "轮换失败。");
+      Toast.error(error instanceof Error ? error.message : copy.tokenManagement.regenerateFailed);
     } finally {
       setBusyKey(null);
     }
@@ -49,7 +45,7 @@ export function TokenManagement({ api, locale, items, testId = "studio-publish-t
 
   const columns: ColumnProps<PublishCenterItem>[] = [
     {
-      title: locale === "en-US" ? "Resource" : "资源",
+      title: copy.tokenManagement.columnResource,
       dataIndex: "resourceName",
       render: (_v, record) => (
         <Space vertical align="start" spacing={4}>
@@ -61,7 +57,7 @@ export function TokenManagement({ api, locale, items, testId = "studio-publish-t
       )
     },
     {
-      title: locale === "en-US" ? "Embed token" : "嵌入令牌",
+      title: copy.tokenManagement.columnEmbedToken,
       dataIndex: "embedToken",
       render: (_v, record) =>
         record.embedToken ? (
@@ -69,11 +65,11 @@ export function TokenManagement({ api, locale, items, testId = "studio-publish-t
             {record.embedToken}
           </Typography.Text>
         ) : (
-          <Typography.Text type="tertiary">{locale === "en-US" ? "Not issued" : "未下发"}</Typography.Text>
+          <Typography.Text type="tertiary">{copy.tokenManagement.notIssued}</Typography.Text>
         )
     },
     {
-      title: locale === "en-US" ? "Actions" : "操作",
+      title: copy.tokenManagement.columnActions,
       key: "actions",
       width: 140,
       render: (_v, record) => {
@@ -81,7 +77,7 @@ export function TokenManagement({ api, locale, items, testId = "studio-publish-t
         const loading = busyKey === key;
         return (
           <Button disabled={record.resourceType !== "agent"} loading={loading} onClick={() => void handleRegenerate(record)}>
-            {locale === "en-US" ? "Regenerate" : "重新生成"}
+            {copy.tokenManagement.regenerate}
           </Button>
         );
       }
@@ -91,12 +87,10 @@ export function TokenManagement({ api, locale, items, testId = "studio-publish-t
   const withToken = rows.filter((r) => r.resourceType === "agent" || r.embedToken);
 
   return (
-    <Card data-testid={testId} title={title} bordered>
-      <Typography.Paragraph type="tertiary">{hint}</Typography.Paragraph>
+    <Card data-testid={testId} title={copy.tokenManagement.title} bordered>
+      <Typography.Paragraph type="tertiary">{copy.tokenManagement.hint}</Typography.Paragraph>
       {withToken.length === 0 ? (
-        <Typography.Text type="tertiary">
-          {locale === "en-US" ? "No embed tokens in the publish list yet." : "发布清单中暂无可用的嵌入令牌。"}
-        </Typography.Text>
+        <Typography.Text type="tertiary">{copy.tokenManagement.emptyHint}</Typography.Text>
       ) : (
         <Table<PublishCenterItem>
           rowKey={(r) => (r ? `${r.resourceType}:${r.resourceId}` : "row")}

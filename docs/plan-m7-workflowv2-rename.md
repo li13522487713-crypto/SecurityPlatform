@@ -12,18 +12,18 @@
 
 ### 2.1 后端类型 / 服务 / 控制器（命名直接含 `WorkflowV2`）
 
-- `Atlas.PlatformHost.Controllers.WorkflowV2Controller`、`Atlas.AppHost.Controllers.WorkflowV2Controller`
+- `Atlas.AppHost.Controllers.WorkflowV2Controller`（历史 `PlatformHost` 上同名类已随目录删除；若只保留一处，以 `AppHost` 为准）
 - `IWorkflowV2QueryService` / `IWorkflowV2CommandService` / `IWorkflowV2ExecutionService` 及 3 个 `WorkflowV2*Service` 实现
 - `WorkflowV2Models.cs`：`WorkflowV2CreateRequest` / `WorkflowV2ListItem` / `WorkflowV2DetailDto` / `WorkflowV2RunTraceDto` / `WorkflowV2DependencyDto` / `WorkflowV2RunRequest` / `WorkflowV2ResumeRequest` / `WorkflowV2SaveDraftRequest` / `WorkflowV2UpdateMetaRequest` / `WorkflowV2PublishRequest` / `WorkflowV2NodeDebugRequest`
 - `WorkflowV2Validators.cs`：`WorkflowV2CreateRequestValidator` / `WorkflowV2SaveDraftRequestValidator` / `WorkflowV2UpdateMetaRequestValidator` / `WorkflowV2PublishRequestValidator` / `WorkflowV2RunRequestValidator` / `WorkflowV2NodeDebugRequestValidator` / `WorkflowWorkbenchExecuteRequestValidator`
 - 文件名含 `WorkflowV2` 但内部类型不含：`IWorkflowV2Repositories.cs`、`WorkflowV2Enums.cs`
 - 私有方法名：`AppMigrationService.PurgeTenantWorkflowV2InAppAsync`
-- 兼容层基类：`Atlas.Presentation.Shared.Controllers.Ai.CozeWorkflowCompatControllerBase`（聚合大量 `WorkflowV2*` DTO）
-- 兼容层薄封装：PlatformHost 与 AppHost 各自的 `CozeWorkflowCompatController.cs`
+- 历史兼容层基类：`Atlas.Presentation.Shared.Controllers.Ai.CozeWorkflowCompatControllerBase`（现已删除，相关 DTO 已拆出共享 contracts）
+- 历史兼容层薄封装：`CozeWorkflowCompatController.cs`（已删除；`Atlas.PlatformHost` 目录已物理删除，仅存 AppHost 实现）
 
 ### 2.2 引用方但类名本身不含 `WorkflowV2`
 
-- 控制器：`AiVariablesController`（PlatformHost + AppHost）、`AiAppsController`、`WorkflowWorkbenchController`、`LowCodeActionsController`
+- 控制器：`AiVariablesController`、`AiAppsController`、`WorkflowWorkbenchController`、`LowCodeActionsController`（均在 AppHost）
 - 接口：`IOpenWorkflowService`、`IReferenceGraphService`
 - 平台服务：`WorkspacePortalService`、`WorkspaceIdeService`、`RuntimeExecutionCommandService`
 
@@ -38,8 +38,8 @@
 - 核心 REST：`api/v2/workflows`（创建、详情、列表、保存草稿、更新元数据、发布、版本、依赖、版本 diff、运行、节点调试 等）
 - developer 兜底（注意大小写）：`/api/workflowV2/{**path}`（`DeveloperWorkflowV2PostFallback` / `DeveloperWorkflowV2GetFallback`）
 - 能力路由：`/apps/{appId}/workflow-v2`（见 `CapabilityRegistryTests`）
-- proxy：`src/frontend/apps/app-web/rsbuild.config.ts` 的 `proxy.context` 含 `"/api/v2/workflows"`
-- 拼接 URL：`WorkspaceIdeService` `$"/api/v2/workflows/{id}/run"`、`LowCodeActionsController` `$"{baseUrl}/api/v2/workflows/{request.WorkflowDefinitionId}/start"`
+- 当前状态更新：`/api/v2/workflows*` 已在现行代码中删除，`rsbuild.config.ts` 与 `WorkspaceIdeService` 也已不再指向该路由
+- 当前主链路：编辑态 `api/app-web/workflow-sdk/*`，运行态 `api/runtime/workflows/{id}:invoke*`
 - 工具：`scripts/export-workflow-golden-sample.ps1`（金样本导出脚本）
 
 ### 2.5 测试
@@ -69,16 +69,16 @@
 - `docs/contracts.md`（多个章节：Workflow V2 API、`WorkflowV2DependencyDto` 等）
 - `docs/coze-api-gap.md`（多处 `IWorkflowV2*`、`WorkflowV2CommandService`、`workflow_v2` 开关描述）
 - `docs/coze-workflow-migration.md`（`workflowV2Api`）
-- `docs/workflow-editor-validation-matrix.md`（`/api/v2/workflows/node-types` 等）
+- `docs/workflow-editor-validation-matrix.md`（现已改标为历史 v2 契约说明）
 - `docs/plan-coze-atlas-round2.md`（列举 `WorkflowV2Controller`）
 - `AGENTS.md`（「Workflow V2（Coze 复刻）补充约束」）
 - `CLAUDE.md`（「Workflow V2 (Coze Parity) Update」）
 
 ### 2.9 `.http` 测试样例
 
-- `src/backend/Atlas.PlatformHost/Bosch.http/Workflows-V2.http`
+- 历史：~~`src/backend/Atlas.PlatformHost/Bosch.http/Workflows-V2.http`~~（目录已删）；当前在 `src/backend/Atlas.AppHost/Bosch.http/` 下以 `RuntimeWorkflows.http`、`AppWebWorkflowGateway.http` 等为准
 - `src/backend/Atlas.AppHost/Bosch.http/Workflows-V2.http`
-- `src/backend/Atlas.PlatformHost/Bosch.http/CozeWorkflowCompat.http`（兼容层 `/api/workflow_api/*`）
+- 历史 compat `.http`：`CozeWorkflowCompat.http` 已删除（`Atlas.PlatformHost` 已不在仓库中）
 
 ### 2.10 数据库 / Hangfire / 持久化
 
@@ -132,7 +132,7 @@
 ### M7-B：路由 + 资源策略落地
 
 - 决策路由策略（3.2 三选一）
-- 若选策略 2/3：补双路由 + 弃用窗口；同步更新 `rsbuild.config.ts` proxy、`scripts/export-workflow-golden-sample.ps1`、`WorkspaceIdeService` 拼接 URL、`LowCodeActionsController` 拼接 URL、`PlatformHost` / `AppHost` 各自 `Workflows-V2.http` 重命名为 `Workflows.http` 或保留双份
+- 若选策略 2/3：补双路由 + 弃用窗口；同步更新 `rsbuild.config.ts` proxy、`scripts/export-workflow-golden-sample.ps1`、`WorkspaceIdeService` 拼接 URL、`LowCodeActionsController` 拼接 URL、AppHost `Bosch.http` 中工作流相关文件命名
 - 同步能力路由：`/apps/{appId}/workflow-v2` 是否改名（要评估 `Capability` 数据迁移：若生产 DB 中有存量能力行，需脚本）
 - 验证：`dotnet build` + 全量 `dotnet test` + `cd src/frontend && pnpm run build && pnpm run test:e2e:app`
 

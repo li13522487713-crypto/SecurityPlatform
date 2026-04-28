@@ -29,6 +29,10 @@ type ResizableSidePanelStore = ResizableSidePanelStoreState &
   ResizableSidePanelStoreActions;
 
 const NAME = 'workflow-resizable-side-panel';
+const ENABLE_ZUSTAND_DEVTOOLS =
+  IS_DEV_MODE &&
+  typeof window !== 'undefined' &&
+  '__REDUX_DEVTOOLS_EXTENSION__' in window;
 
 /**
  * Adjustable width side window state, requires persistence
@@ -45,7 +49,7 @@ export const useResizableSidePanelStore = create<ResizableSidePanelStore>()(
       },
     ),
     {
-      enabled: IS_DEV_MODE,
+      enabled: ENABLE_ZUSTAND_DEVTOOLS,
       name: NAME,
     },
   ),

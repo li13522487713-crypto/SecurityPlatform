@@ -9,6 +9,7 @@ public interface IKnowledgeBaseService
     Task<PagedResult<KnowledgeBaseDto>> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        long? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken);

@@ -22,7 +22,7 @@
 - `docs/contracts.md` — 接口契约
 - `docs/前后端DTO对齐清单.md` — DTO 对齐追踪
 - `docs/联调验收清单.md` — 联调验收项
-- `docs/联调双模式启动手册.md` — 平台集成/应用直连双模式启动指南
+- `docs/联调双模式启动手册.md` — 历史联调方案文档（当前以前端直连 AppHost 为主）
 - `等保2.0要求清单.md` — 等保2.0 合规清单
 
 ## 目录结构
@@ -33,7 +33,7 @@
 
 ## 架构要点
 
-- Clean Architecture 分层：Domain / Application / Infrastructure；控制面为 `Atlas.PlatformHost`，应用数据面为 `Atlas.AppHost`。
+- Clean Architecture 分层：Domain / Application / Infrastructure；当前统一后端入口为 `Atlas.AppHost`。
 - 多租户隔离与安全策略配置。
 - JWT + 证书认证、审计日志、HTTP 日志、CORS 白名单。
 
@@ -46,8 +46,7 @@
 ```bash
 dotnet restore Atlas.SecurityPlatform.slnx
 dotnet build Atlas.SecurityPlatform.slnx
-dotnet run --project src/backend/Atlas.PlatformHost
-# 如需应用数据面：dotnet run --project src/backend/Atlas.AppHost
+dotnet run --project src/backend/Atlas.AppHost
 ```
 
 前端：
@@ -56,8 +55,6 @@ dotnet run --project src/backend/Atlas.PlatformHost
 cd src/frontend
 pnpm install
 pnpm run dev:app-web
-pnpm run dev:app-web:platform
-pnpm run dev:app-web:direct
 pnpm run build:app-web
 ```
 
@@ -68,7 +65,7 @@ pnpm run build:app-web
 powershell -ExecutionPolicy Bypass -File .\scripts\dev-start-app-direct.ps1
 ```
 
-平台集成模式（PlatformHost + AppHost + AppWeb）请见 `docs/联调双模式启动手册.md` 或 `AGENTS.md` 中的启动命令。
+当前默认联调模式为 `AppHost + AppWeb`。历史 `Atlas.PlatformHost` 项目已从本仓库物理删除。若需对照旧版双宿主联调说明，可参考 `docs/联调双模式启动手册.md`（与当前树可能不完全一致，以 AppHost 为准）。
 
 ### Docker Compose 部署（封板基线）
 

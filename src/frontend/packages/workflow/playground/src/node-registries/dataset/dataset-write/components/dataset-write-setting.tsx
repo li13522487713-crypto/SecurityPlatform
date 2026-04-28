@@ -21,6 +21,7 @@ import { Section, useWatch } from '@/form';
 import { ColumnsTitle } from '@/form-extensions/components/columns-title';
 import { DatasetWriteParserField } from './dataset-write-parser-field';
 import { DatasetWriteChunkField } from './dataset-write-chunk-field';
+import { AtlasV5WriteSettingsField } from './atlas-v5-write-settings';
 
 const columnsTitleStyle = {
   color: 'var(--Fg-COZ-fg-primary, rgba(6, 7, 9, 0.80))',
@@ -111,6 +112,15 @@ export const DatasetWriteSetting = () => {
           radioCardClassName: 'px-[11px] py-[6px]',
         }}
       />
+      {/* v5 §35 / 计划 G7：Atlas v5 完整 ParsingStrategy / ChunkingProfile / mode */}
+      <div className="pt-[16px]">
+        <ColumnsTitle
+          columns={[
+            { title: 'Atlas v5 高级写入设置', style: columnsTitleStyle },
+          ]}
+        />
+        <AtlasV5WriteSettingsField name="inputs.datasetWriteParameters.atlasV5" />
+      </div>
     </Section>
   );
 };

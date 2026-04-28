@@ -61,17 +61,53 @@ public static class DataMigrationModes
     public const string ReExecute = "re-execute";
 }
 
+public static class DataMigrationConnectionModes
+{
+    public const string CurrentSystem = "CurrentSystem";
+    public const string CurrentSystemAiDatabase = "CurrentSystemAiDatabase";
+    public const string SavedDataSource = "SavedDataSource";
+    public const string ConnectionString = "ConnectionString";
+    public const string VisualConfig = "VisualConfig";
+    public const string Raw = "raw";
+    public const string Visual = "visual";
+}
+
+public static class DataMigrationWriteModes
+{
+    public const string InsertOnly = "InsertOnly";
+    public const string TruncateThenInsert = "TruncateThenInsert";
+    public const string Upsert = "Upsert";
+}
+
 public static class DataMigrationStates
 {
+    public const string Created = "created";
     public const string Pending = "pending";
     public const string Prechecking = "prechecking";
     public const string Ready = "ready";
+    public const string Queued = "queued";
     public const string Running = "running";
+    public const string Cancelling = "cancelling";
+    public const string Cancelled = "cancelled";
+    public const string Succeeded = "succeeded";
     public const string Validating = "validating";
+    public const string ValidationFailed = "validation_failed";
+    public const string Validated = "validated";
     public const string CutoverReady = "cutover-ready";
     public const string CutoverCompleted = "cutover-completed";
+    public const string CutoverFailed = "cutover_failed";
     public const string Failed = "failed";
     public const string RolledBack = "rolled-back";
+}
+
+public static class DataMigrationTableStates
+{
+    public const string Pending = "pending";
+    public const string Running = "running";
+    public const string Succeeded = "succeeded";
+    public const string Failed = "failed";
+    public const string Skipped = "skipped";
+    public const string Cancelled = "cancelled";
 }
 
 [SugarTable("setup_system_state")]
@@ -103,7 +139,7 @@ public sealed class SystemSetupState : TenantEntity
 
     /// <summary>
     /// BootstrapAdmin 密码的 PBKDF2 哈希（M8/A3）。
-    /// PlatformHost 启动时把 appsettings 中明文密码哈希后写入；登录时不再明文比对。
+    /// AppHost 启动时把 appsettings 中明文密码哈希后写入；登录时不再明文比对。
     /// </summary>
     [SugarColumn(IsNullable = true)]
     public string? BootstrapPasswordHash { get; private set; }
@@ -322,6 +358,66 @@ public sealed class DataMigrationJob : TenantEntity
         SourceFingerprint = string.Empty;
         TargetFingerprint = string.Empty;
         ModuleScopeJson = "{}";
+        SourceConfigJson = "{}";
+        TargetConfigJson = "{}";
+        SelectedEntitiesJson = "[]";
+        SelectedTablesJson = "[]";
+        ExcludedEntitiesJson = "[]";
+        ExcludedTablesJson = "[]";
+        WriteMode = DataMigrationWriteModes.InsertOnly;
+    }
+
+    public DataMigrationJob(
+        TenantId tenantId,
+        long id,
+        string mode,
+        string sourceConnectionString,
+        string sourceDbType,
+        string targetConnectionString,
+        string targetDbType,
+        string sourceFingerprint,
+        string targetFingerprint,
+        string moduleScopeJson,
+        string sourceConfigJson,
+        string targetConfigJson,
+        string selectedEntitiesJson,
+        string selectedTablesJson,
+        string excludedEntitiesJson,
+        string excludedTablesJson,
+        int batchSize,
+        string writeMode,
+        bool createSchema,
+        bool migrateSystemTables,
+        bool migrateFiles,
+        bool validateAfterCopy,
+        long createdBy,
+        DateTimeOffset now) : base(tenantId)
+    {
+        Id = id;
+        State = DataMigrationStates.Pending;
+        Mode = mode;
+        SourceConnectionString = sourceConnectionString;
+        SourceDbType = sourceDbType;
+        TargetConnectionString = targetConnectionString;
+        TargetDbType = targetDbType;
+        SourceFingerprint = sourceFingerprint;
+        TargetFingerprint = targetFingerprint;
+        ModuleScopeJson = moduleScopeJson;
+        SourceConfigJson = sourceConfigJson;
+        TargetConfigJson = targetConfigJson;
+        SelectedEntitiesJson = selectedEntitiesJson;
+        SelectedTablesJson = selectedTablesJson;
+        ExcludedEntitiesJson = excludedEntitiesJson;
+        ExcludedTablesJson = excludedTablesJson;
+        BatchSize = batchSize;
+        WriteMode = writeMode;
+        CreateSchema = createSchema;
+        MigrateSystemTables = migrateSystemTables;
+        MigrateFiles = migrateFiles;
+        ValidateAfterCopy = validateAfterCopy;
+        CreatedBy = createdBy;
+        CreatedAt = now;
+        UpdatedAt = now;
     }
 
     public DataMigrationJob(
@@ -336,21 +432,32 @@ public sealed class DataMigrationJob : TenantEntity
         string targetFingerprint,
         string moduleScopeJson,
         long createdBy,
-        DateTimeOffset now) : base(tenantId)
+        DateTimeOffset now) : this(
+        tenantId,
+        id,
+        mode,
+        sourceConnectionString,
+        sourceDbType,
+        targetConnectionString,
+        targetDbType,
+        sourceFingerprint,
+        targetFingerprint,
+        moduleScopeJson,
+        sourceConfigJson: "{}",
+        targetConfigJson: "{}",
+        selectedEntitiesJson: "[]",
+        selectedTablesJson: "[]",
+        excludedEntitiesJson: "[]",
+        excludedTablesJson: "[]",
+        batchSize: 10000,
+        writeMode: DataMigrationWriteModes.InsertOnly,
+        createSchema: true,
+        migrateSystemTables: false,
+        migrateFiles: false,
+        validateAfterCopy: false,
+        createdBy: createdBy,
+        now: now)
     {
-        Id = id;
-        State = DataMigrationStates.Pending;
-        Mode = mode;
-        SourceConnectionString = sourceConnectionString;
-        SourceDbType = sourceDbType;
-        TargetConnectionString = targetConnectionString;
-        TargetDbType = targetDbType;
-        SourceFingerprint = sourceFingerprint;
-        TargetFingerprint = targetFingerprint;
-        ModuleScopeJson = moduleScopeJson;
-        CreatedBy = createdBy;
-        CreatedAt = now;
-        UpdatedAt = now;
     }
 
     public string State { get; private set; }
@@ -372,6 +479,31 @@ public sealed class DataMigrationJob : TenantEntity
     [SugarColumn(ColumnDataType = "TEXT")]
     public string ModuleScopeJson { get; private set; }
 
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string SourceConfigJson { get; private set; }
+
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string TargetConfigJson { get; private set; }
+
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string SelectedEntitiesJson { get; private set; }
+
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string SelectedTablesJson { get; private set; }
+
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string ExcludedEntitiesJson { get; private set; }
+
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string ExcludedTablesJson { get; private set; }
+
+    public int BatchSize { get; private set; }
+    public string WriteMode { get; private set; }
+    public bool CreateSchema { get; private set; }
+    public bool MigrateSystemTables { get; private set; }
+    public bool MigrateFiles { get; private set; }
+    public bool ValidateAfterCopy { get; private set; }
+
     public int TotalEntities { get; private set; }
     public int CompletedEntities { get; private set; }
     public int FailedEntities { get; private set; }
@@ -381,6 +513,9 @@ public sealed class DataMigrationJob : TenantEntity
 
     [SugarColumn(IsNullable = true)]
     public string? CurrentEntityName { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
+    public string? CurrentTableName { get; private set; }
 
     [SugarColumn(IsNullable = true)]
     public int? CurrentBatchNo { get; private set; }
@@ -398,11 +533,22 @@ public sealed class DataMigrationJob : TenantEntity
     [SugarColumn(IsNullable = true)]
     public DateTimeOffset? FinishedAt { get; private set; }
 
+    [SugarColumn(IsNullable = true)]
+    public DateTimeOffset? QueuedAt { get; private set; }
+
     public void TransitionTo(string nextState, DateTimeOffset now, string? errorSummary = null)
     {
         State = nextState;
         ErrorSummary = errorSummary;
         UpdatedAt = now;
+    }
+
+    public void MarkQueued(DateTimeOffset now)
+    {
+        State = DataMigrationStates.Queued;
+        QueuedAt = now;
+        UpdatedAt = now;
+        ErrorSummary = null;
     }
 
     public void MarkRunning(int totalEntities, long totalRows, DateTimeOffset now)
@@ -421,27 +567,57 @@ public sealed class DataMigrationJob : TenantEntity
 
     public void RecordProgress(
         string currentEntity,
+        string? currentTable,
+        int currentBatch,
+        int completedEntities,
+        int failedEntities,
+        long copiedRows,
+        decimal progressPercent,
+        DateTimeOffset now)
+    {
+        CurrentEntityName = currentEntity;
+        CurrentTableName = currentTable;
+        CurrentBatchNo = currentBatch;
+        CompletedEntities = completedEntities;
+        FailedEntities = failedEntities;
+        CopiedRows = copiedRows;
+        ProgressPercent = progressPercent;
+        UpdatedAt = now;
+    }
+
+    public void RecordProgress(
+        string currentEntity,
         int currentBatch,
         int completedEntities,
         int failedEntities,
         long copiedRows,
         DateTimeOffset now)
     {
-        CurrentEntityName = currentEntity;
-        CurrentBatchNo = currentBatch;
-        CompletedEntities = completedEntities;
-        FailedEntities = failedEntities;
-        CopiedRows = copiedRows;
-        ProgressPercent = TotalEntities <= 0
+        var percent = TotalEntities <= 0
             ? 0m
             : Math.Round((decimal)completedEntities * 100m / TotalEntities, 2, MidpointRounding.AwayFromZero);
-        UpdatedAt = now;
+        RecordProgress(currentEntity, null, currentBatch, completedEntities, failedEntities, copiedRows, percent, now);
+    }
+
+    public void RecordProgress(
+        string currentEntity,
+        int currentBatch,
+        int completedEntities,
+        int failedEntities,
+        long copiedRows,
+        decimal progressPercent,
+        DateTimeOffset now)
+    {
+        RecordProgress(currentEntity, null, currentBatch, completedEntities, failedEntities, copiedRows, progressPercent, now);
     }
 
     public void MarkFinished(string finalState, DateTimeOffset now)
     {
         State = finalState;
         FinishedAt = now;
+        ProgressPercent = finalState is DataMigrationStates.Succeeded or DataMigrationStates.Validated or DataMigrationStates.CutoverCompleted
+            ? 100m
+            : ProgressPercent;
         UpdatedAt = now;
     }
 }
@@ -452,7 +628,26 @@ public sealed class DataMigrationBatch : TenantEntity
     public DataMigrationBatch() : base(TenantId.Empty)
     {
         EntityName = string.Empty;
-        State = DataMigrationStates.Running;
+        TableName = string.Empty;
+        State = DataMigrationTableStates.Running;
+    }
+
+    public DataMigrationBatch(
+        TenantId tenantId,
+        long id,
+        long jobId,
+        string entityName,
+        string tableName,
+        int batchNo,
+        DateTimeOffset now) : base(tenantId)
+    {
+        Id = id;
+        JobId = jobId;
+        EntityName = entityName;
+        TableName = tableName;
+        BatchNo = batchNo;
+        State = DataMigrationTableStates.Running;
+        StartedAt = now;
     }
 
     public DataMigrationBatch(
@@ -461,18 +656,20 @@ public sealed class DataMigrationBatch : TenantEntity
         long jobId,
         string entityName,
         int batchNo,
-        DateTimeOffset now) : base(tenantId)
+        DateTimeOffset now) : this(
+        tenantId,
+        id,
+        jobId,
+        entityName,
+        entityName,
+        batchNo,
+        now)
     {
-        Id = id;
-        JobId = jobId;
-        EntityName = entityName;
-        BatchNo = batchNo;
-        State = DataMigrationStates.Running;
-        StartedAt = now;
     }
 
     public long JobId { get; private set; }
     public string EntityName { get; private set; }
+    public string TableName { get; private set; }
     public int BatchNo { get; private set; }
     public string State { get; private set; }
     public int RowsCopied { get; private set; }
@@ -490,7 +687,7 @@ public sealed class DataMigrationBatch : TenantEntity
 
     public void MarkSucceeded(int rowsCopied, string? checksum, DateTimeOffset now)
     {
-        State = "succeeded";
+        State = DataMigrationTableStates.Succeeded;
         RowsCopied = rowsCopied;
         Checksum = checksum;
         EndedAt = now;
@@ -498,7 +695,7 @@ public sealed class DataMigrationBatch : TenantEntity
 
     public void MarkFailed(string errorMessage, DateTimeOffset now)
     {
-        State = "failed";
+        State = DataMigrationTableStates.Failed;
         ErrorMessage = errorMessage;
         EndedAt = now;
     }
@@ -537,6 +734,141 @@ public sealed class DataMigrationCheckpoint : TenantEntity
         LastBatchNo = lastBatchNo;
         LastMaxId = lastMaxId;
         RowsCopied = rowsCopied;
+        UpdatedAt = now;
+    }
+}
+
+[SugarTable("setup_data_migration_table_progress")]
+public sealed class DataMigrationTableProgress : TenantEntity
+{
+    public DataMigrationTableProgress() : base(TenantId.Empty)
+    {
+        EntityName = string.Empty;
+        TableName = string.Empty;
+        State = DataMigrationTableStates.Pending;
+    }
+
+    public DataMigrationTableProgress(
+        TenantId tenantId,
+        long id,
+        long jobId,
+        string entityName,
+        string tableName,
+        int batchSize,
+        int totalBatchCount,
+        long sourceRows,
+        long targetRowsBefore,
+        DateTimeOffset now) : base(tenantId)
+    {
+        Id = id;
+        JobId = jobId;
+        EntityName = entityName;
+        TableName = tableName;
+        BatchSize = batchSize;
+        TotalBatchCount = totalBatchCount;
+        SourceRows = sourceRows;
+        TargetRowsBefore = targetRowsBefore;
+        State = DataMigrationTableStates.Pending;
+        CreatedAt = now;
+        UpdatedAt = now;
+    }
+
+    public long JobId { get; private set; }
+    public string EntityName { get; private set; }
+    public string TableName { get; private set; }
+    public string State { get; private set; }
+    public long SourceRows { get; private set; }
+    public long TargetRowsBefore { get; private set; }
+    public long TargetRowsAfter { get; private set; }
+    public long CopiedRows { get; private set; }
+    public long FailedRows { get; private set; }
+    public int BatchSize { get; private set; }
+    public int CurrentBatchNo { get; private set; }
+    public int TotalBatchCount { get; private set; }
+
+    [SugarColumn(IsNullable = true, ColumnDataType = "TEXT")]
+    public string? LastMaxId { get; private set; }
+    public decimal ProgressPercent { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
+    public DateTimeOffset? StartedAt { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
+    public DateTimeOffset? FinishedAt { get; private set; }
+
+    [SugarColumn(IsNullable = true, ColumnDataType = "TEXT")]
+    public string? ErrorMessage { get; private set; }
+
+    public DateTimeOffset CreatedAt { get; private set; }
+    public DateTimeOffset UpdatedAt { get; private set; }
+
+    public void ResetForRetry(long sourceRows, long targetRowsBefore, int batchSize, int totalBatchCount, DateTimeOffset now)
+    {
+        SourceRows = sourceRows;
+        TargetRowsBefore = targetRowsBefore;
+        TargetRowsAfter = 0;
+        CopiedRows = 0;
+        FailedRows = 0;
+        BatchSize = batchSize;
+        CurrentBatchNo = 0;
+        TotalBatchCount = totalBatchCount;
+        LastMaxId = null;
+        ProgressPercent = 0;
+        StartedAt = null;
+        FinishedAt = null;
+        ErrorMessage = null;
+        State = DataMigrationTableStates.Pending;
+        UpdatedAt = now;
+    }
+
+    public void MarkRunning(DateTimeOffset now)
+    {
+        State = DataMigrationTableStates.Running;
+        StartedAt ??= now;
+        UpdatedAt = now;
+        ErrorMessage = null;
+    }
+
+    public void RecordBatch(int currentBatchNo, long copiedRows, string? lastMaxId, DateTimeOffset now)
+    {
+        CurrentBatchNo = currentBatchNo;
+        CopiedRows = copiedRows;
+        LastMaxId = lastMaxId;
+        ProgressPercent = SourceRows <= 0
+            ? 100m
+            : Math.Round(copiedRows * 100m / SourceRows, 2, MidpointRounding.AwayFromZero);
+        UpdatedAt = now;
+    }
+
+    public void MarkSucceeded(long targetRowsAfter, DateTimeOffset now)
+    {
+        State = DataMigrationTableStates.Succeeded;
+        TargetRowsAfter = targetRowsAfter;
+        FinishedAt = now;
+        ProgressPercent = 100m;
+        UpdatedAt = now;
+    }
+
+    public void MarkFailed(string errorMessage, long failedRows, DateTimeOffset now)
+    {
+        State = DataMigrationTableStates.Failed;
+        FailedRows = failedRows;
+        ErrorMessage = errorMessage;
+        FinishedAt = now;
+        UpdatedAt = now;
+    }
+
+    public void MarkCancelled(long targetRowsAfter, DateTimeOffset now)
+    {
+        State = DataMigrationTableStates.Cancelled;
+        TargetRowsAfter = targetRowsAfter;
+        FinishedAt = now;
+        UpdatedAt = now;
+    }
+
+    public void UpdateTargetRowsAfter(long targetRowsAfter, DateTimeOffset now)
+    {
+        TargetRowsAfter = targetRowsAfter;
         UpdatedAt = now;
     }
 }

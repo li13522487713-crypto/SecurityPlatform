@@ -26,7 +26,7 @@
 
 | 服务 | 端口 | 备注 |
 |---|---|---|
-| PlatformHost | 5001 | 控制台 API 入口 |
+| AppHost | 5002 | 控制台 API 入口 |
 | AppHost | 5002 | 应用运行时 |
 | AppWeb | 5181 | 控制台前端入口（`http://localhost:5181/setup-console`） |
 
@@ -63,13 +63,12 @@
 ### 3.1 启动两个服务
 
 ```powershell
-dotnet run --project src/backend/Atlas.PlatformHost
-dotnet run --project src/backend/Atlas.AppHost  # 可选
+dotnet run --project src/backend/Atlas.AppHost
 cd src/frontend
 pnpm run dev:app-web
 ```
 
-`PlatformHost` 启动时检测到 setup 未完成 → `SetupModeMiddleware` 只放行 `/api/v1/setup/*` 与 `/api/v1/setup-console/auth/*`。
+`AppHost` 启动时检测到 setup 未完成 → `SetupModeMiddleware` 只放行 `/api/v1/setup/*` 与 `/api/v1/setup-console/auth/*`。
 
 ### 3.2 浏览器进入控制台
 
@@ -139,7 +138,7 @@ pnpm run dev:app-web
 }
 ```
 
-重启 PlatformHost / AppHost 即可生效。
+重启 AppHost 即可生效。
 
 - **保留源库只读 N 天**：cutover 时 `keepSourceReadonlyForDays` 默认 7；该期间源库不允许写入但可读，便于回滚或对比。
 
@@ -172,13 +171,13 @@ pnpm run dev:app-web
 
 ### 6.1 SQLite 数据库损坏
 
-PlatformHost 启动时会自动检测 SQLite 损坏并触发 `AppMigrationService` 的"应急容灾"路径，在 `backups/disaster-recovery/` 下保存损坏 db 的副本，并尝试复用最近备份。
+AppHost 启动时会自动检测 SQLite 损坏并触发 `AppMigrationService` 的"应急容灾"路径，在 `backups/disaster-recovery/` 下保存损坏 db 的副本，并尝试复用最近备份。
 
 如果自动恢复失败：
 
-1. 关闭 PlatformHost；
+1. 关闭 AppHost；
 2. 从 `backups/atlas.db.<date>.bak` 恢复到工程根的 `atlas.db`；
-3. 启动 PlatformHost；
+3. 启动 AppHost；
 4. 进 `/setup-console`，用 BootstrapAdmin 凭证登录；
 5. Dashboard 总览检查"缺失关键表"徽章；如有则点"系统初始化 → Step 2 (Schema)"补建。
 
@@ -191,7 +190,7 @@ PlatformHost 启动时会自动检测 SQLite 损坏并触发 `AppMigrationServic
 
 ### 6.3 BootstrapAdmin 密码遗忘
 
-- 直接修改 `appsettings.json` 的 `Security.BootstrapAdmin.Password` → 重启 PlatformHost；
+- 直接修改 `appsettings.json` 的 `Security.BootstrapAdmin.Password` → 重启 AppHost；
 - 用新密码登录控制台 → 重新生成恢复密钥；
 - 强烈建议：定期轮换 BootstrapAdmin 密码（等保 2.0 要求 90 天）。
 
@@ -236,7 +235,7 @@ PlatformHost 启动时会自动检测 SQLite 损坏并触发 `AppMigrationServic
 - mock 实现：[`src/frontend/apps/app-web/src/services/mock/api-*.mock.ts`](../src/frontend/apps/app-web/src/services/mock/)
 - 后端实体：[`src/backend/Atlas.Domain/Setup/Entities/SetupConsoleEntities.cs`](../src/backend/Atlas.Domain/Setup/Entities/SetupConsoleEntities.cs)
 - 后端服务：[`src/backend/Atlas.Infrastructure/Services/SetupConsole/`](../src/backend/Atlas.Infrastructure/Services/SetupConsole/)
-- 控制器：[`src/backend/Atlas.PlatformHost/Controllers/SetupConsole*.cs`](../src/backend/Atlas.PlatformHost/Controllers/) + [`DataMigrationController.cs`](../src/backend/Atlas.PlatformHost/Controllers/DataMigrationController.cs)
-- HTTP 测试：[`src/backend/Atlas.PlatformHost/Bosch.http/SetupConsole.http`](../src/backend/Atlas.PlatformHost/Bosch.http/SetupConsole.http)
+- 控制器：[`src/backend/Atlas.AppHost/Controllers/SetupConsole*.cs`](../src/backend/Atlas.AppHost/Controllers/) + [`DataMigrationController.cs`](../src/backend/Atlas.AppHost/Controllers/DataMigrationController.cs)
+- HTTP 测试：[`src/backend/Atlas.AppHost/Bosch.http/SetupConsole.http`](../src/backend/Atlas.AppHost/Bosch.http/SetupConsole.http)
 - xUnit 测试：[`tests/Atlas.SecurityPlatform.Tests/SetupConsole/`](../tests/Atlas.SecurityPlatform.Tests/SetupConsole/)
 - E2E 测试：[`src/frontend/e2e/app/setup-console-*.spec.ts`](../src/frontend/e2e/app/)

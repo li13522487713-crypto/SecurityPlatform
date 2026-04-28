@@ -33,7 +33,7 @@
 ## 当前主链状态
 
 - 当前真实运行主链：
-  - `app-web -> @atlas/module-workflow-react -> @coze-workflow/playground-adapter -> @coze-workflow/playground -> /api/workflow_api/*`
+  - `app-web -> @atlas/module-workflow-react -> @coze-workflow/playground-adapter -> @coze-workflow/playground -> /api/app-web/workflow-sdk/*`
 - 当前宿主分工：
   - `app-web` 继续作为唯一主宿主，承载登录、组织/工作区、返回导航和鉴权上下文
   - `@atlas/module-workflow-react` 只负责把 `workflowId / mode / spaceId / returnUrl / backPath` 映射到 Coze workflow 页面
@@ -41,9 +41,10 @@
 
 ## 当前兼容策略
 
-- 原生 Coze Workflow Host 通过 `/api/workflow_api/*` 与 Atlas 对接：
-  - 前端不再通过 Atlas workflow editor provider/shim 伪装主编辑能力
-  - 后端兼容层统一转发到 `/api/v2/workflows*` 与现有服务
+- 当前 `app-web` 主编辑链路已改为通过本地 shim 直连 `/api/app-web/workflow-sdk/*`：
+  - 前端继续使用 Coze Workflow Host / Coze SDK
+  - `/api/workflow_api/*` 运行期入口已删除，shim 在前端直接重写到新 gateway
+  - 旧 `/api/v2/workflows*` 已下线
 
 ## 后续建议
 

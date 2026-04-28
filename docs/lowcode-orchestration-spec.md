@@ -11,10 +11,10 @@
 - 适用于流程清晰的标准工作流。
 
 ### 1.2 模型自决模式（agentic）
-- 引擎入口：`IDagWorkflowExecutionService.SyncRunAsync`，配置中带有 `orchestration=agentic` 时改写为 LLM tool calling 协议。
+- 引擎入口：当前统一桥接到 Coze workflow 执行服务；配置中带有 `orchestration=agentic` 时改写为 LLM tool calling 协议。
 - Studio 隐藏中间链路，仅暴露 LLM 节点 + Tool 池配置。
 - 执行轨迹仍落 `RuntimeTrace`（M13），便于调试。
-- 切换器：`POST /api/v2/workflows/orchestration/plan` → `OrchestrationPlan`。
+- 历史 `POST /api/v2/workflows/orchestration/plan` 草案已下线；当前通过内部 `IDualOrchestrationEngine.Plan(...)` 与 Coze workflow 主链路协同完成编排切换。
 
 ### 1.3 统一切换 API
 - `IDualOrchestrationEngine.Plan(canvasJson, mode, tools)` → `OrchestrationPlan { mode, canvasJson, tools, metadataJson }`。
@@ -62,4 +62,4 @@
 ## 4. 反例
 
 - 把 `session` 状态当 `app` 共享 —— 违反作用域隔离；M20 `INodeStateStore.WriteAsync` 不允许 `scope` 字段以外取值。
-- agentic 模式调用未注册的 tool —— 由 IDagWorkflowExecutionService.SyncRunAsync 在执行期拒绝。
+- agentic 模式调用未注册的 tool —— 由当前 workflow 执行服务在执行期拒绝。

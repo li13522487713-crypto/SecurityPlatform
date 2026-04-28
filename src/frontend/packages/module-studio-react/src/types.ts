@@ -436,21 +436,74 @@ export interface StudioDatabaseDetail {
   description?: string;
   botId?: number;
   recordCount: number;
+  draftRecordCount?: number;
+  onlineRecordCount?: number;
+  queryMode?: number;
+  channelScope?: number;
+  workspaceId?: number;
+  fields?: StudioDatabaseFieldItem[];
+  channelConfigs?: StudioDatabaseChannelConfigItem[];
   createdAt: string;
   updatedAt?: string;
   tableSchema: string;
 }
 
+export interface StudioDatabaseFieldItem {
+  id?: number;
+  name: string;
+  description?: string;
+  type: string;
+  required: boolean;
+  indexed?: boolean;
+  isSystemField?: boolean;
+  sortOrder?: number;
+}
+
+export interface StudioDatabaseChannelConfigItem {
+  channelKey: string;
+  displayName: string;
+  allowDraft: boolean;
+  allowOnline: boolean;
+  publishChannelType?: string;
+  credentialKind?: string;
+  sortOrder?: number;
+}
+
 export interface StudioDatabaseRecordItem {
   id: number;
-  databaseId: number;
+  databaseId: string;
   dataJson: string;
+  environment?: number;
+  ownerUserId?: number;
+  creatorUserId?: number;
+  channelId?: string;
   createdAt: string;
   updatedAt?: string;
 }
 
 export interface StudioDatabaseRecordUpsertRequest {
   dataJson: string;
+  environment?: number;
+}
+
+export interface StudioDatabaseUpsertRequest {
+  name: string;
+  description?: string;
+  botId?: number;
+  tableSchema?: string;
+  workspaceId?: number;
+  fields?: StudioDatabaseFieldItem[];
+  queryMode?: number;
+  channelScope?: number;
+}
+
+export interface StudioDatabaseModeUpdateRequest {
+  queryMode: number;
+  channelScope: number;
+}
+
+export interface StudioDatabaseChannelConfigsUpdateRequest {
+  items: StudioDatabaseChannelConfigItem[];
 }
 
 export interface StudioDatabaseSchemaValidationResult {
@@ -460,7 +513,7 @@ export interface StudioDatabaseSchemaValidationResult {
 
 export interface StudioDatabaseImportProgress {
   taskId: number;
-  databaseId: number;
+  databaseId: string;
   status: number;
   totalRows: number;
   succeededRows: number;
@@ -468,6 +521,34 @@ export interface StudioDatabaseImportProgress {
   errorMessage?: string;
   createdAt: string;
   updatedAt?: string;
+  /** D5：导入任务来源；0=File（CSV）、1=Inline（异步批量）。 */
+  source?: number;
+  environment?: number;
+}
+
+/** D5：批量同步插入请求；rows[] 每项是单条记录的 dataJson。 */
+export interface StudioDatabaseRecordBulkCreateRequest {
+  rows: string[];
+  environment?: number;
+}
+
+export interface StudioDatabaseRecordBulkRowResult {
+  index: number;
+  success: boolean;
+  id?: string;
+  errorMessage?: string;
+}
+
+export interface StudioDatabaseRecordBulkCreateResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  rows: StudioDatabaseRecordBulkRowResult[];
+}
+
+export interface StudioDatabaseBulkJobAccepted {
+  taskId: number;
+  rowCount: number;
 }
 
 export interface StudioPluginApiSummary {
@@ -511,6 +592,7 @@ export interface StudioApplicationCreateRequest {
   name: string;
   description?: string;
   icon?: string;
+  workspaceId?: string;
 }
 
 export interface StudioApplicationUpdateRequest {
@@ -612,18 +694,32 @@ export interface StudioModuleApi {
   publishPlugin: (pluginId: number) => Promise<void>;
   listKnowledgeBases: () => Promise<Array<{ id: number; name: string; type: number }>>;
   getKnowledgeBase: (id: number) => Promise<StudioKnowledgeBaseDetail>;
-  listDatabases: () => Promise<Array<{ id: number; name: string; botId?: number }>>;
-  getDatabaseDetail: (id: number) => Promise<StudioDatabaseDetail>;
-  listDatabaseRecords: (id: number, params?: { pageIndex?: number; pageSize?: number }) => Promise<PagedResult<StudioDatabaseRecordItem>>;
-  createDatabaseRecord: (id: number, request: StudioDatabaseRecordUpsertRequest) => Promise<number>;
-  updateDatabaseRecord: (id: number, recordId: number, request: StudioDatabaseRecordUpsertRequest) => Promise<void>;
-  deleteDatabaseRecord: (id: number, recordId: number) => Promise<void>;
+  listDatabases: () => Promise<Array<{ id: string; name: string; botId?: number }>>;
+  getDatabaseDetail: (id: string) => Promise<StudioDatabaseDetail>;
+  createDatabase?: (request: StudioDatabaseUpsertRequest) => Promise<number>;
+  updateDatabase?: (id: string, request: StudioDatabaseUpsertRequest) => Promise<void>;
+  listDatabaseRecords: (
+    id: string,
+    params?: { pageIndex?: number; pageSize?: number; environment?: number }
+  ) => Promise<PagedResult<StudioDatabaseRecordItem>>;
+  createDatabaseRecord: (id: string, request: StudioDatabaseRecordUpsertRequest) => Promise<number>;
+  updateDatabaseRecord: (id: string, recordId: number, request: StudioDatabaseRecordUpsertRequest) => Promise<void>;
+  deleteDatabaseRecord: (id: string, recordId: number, environment?: number) => Promise<void>;
   validateDatabaseSchemaDraft: (schemaJson: string) => Promise<StudioDatabaseSchemaValidationResult>;
-  submitDatabaseImport: (id: number, file: File) => Promise<number>;
-  getDatabaseImportProgress: (id: number) => Promise<StudioDatabaseImportProgress | null>;
-  downloadDatabaseTemplate: (id: number) => Promise<void>;
+  submitDatabaseImport: (id: string, file: File, environment?: number) => Promise<number>;
+  getDatabaseImportProgress: (id: string) => Promise<StudioDatabaseImportProgress | null>;
+  downloadDatabaseTemplate: (id: string) => Promise<void>;
+  getDatabaseChannelConfigs?: (id: string) => Promise<StudioDatabaseChannelConfigItem[]>;
+  updateDatabaseChannelConfigs?: (id: string, request: StudioDatabaseChannelConfigsUpdateRequest) => Promise<void>;
+  updateDatabaseMode?: (id: string, request: StudioDatabaseModeUpdateRequest) => Promise<void>;
+  /** D5：同步批量插入；受 MaxBulkInsertRows 限制（默认 1000）。可选——上层未实现时回退到逐条 createDatabaseRecord。 */
+  bulkCreateDatabaseRecords?: (id: string, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseRecordBulkCreateResult>;
+  /** D5：异步批量插入。可选——上层未实现时不暴露入口。 */
+  submitDatabaseBulkInsertJob?: (id: string, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseBulkJobAccepted>;
   listBotVariables: (botId: string) => Promise<Array<{ id: number; key: string; scopeId?: number }>>;
   bindAgentWorkflow: (agentId: string, workflowId?: string) => Promise<WorkflowBinding>;
+  bindAgentDatabase?: (agentId: string, request: AgentDatabaseBindingInput) => Promise<AgentDatabaseBinding[]>;
+  unbindAgentDatabase?: (agentId: string, databaseId: number) => Promise<AgentDatabaseBinding[]>;
   runWorkflowTask: (
     workflowId: string,
     incident: string
@@ -644,6 +740,24 @@ export interface StudioModuleApi {
   updateAppBuilderConfig: (appId: string, config: AppBuilderConfig) => Promise<void>;
   runAppPreview: (appId: string, inputs: Record<string, unknown>) => Promise<{ outputs: Record<string, unknown>; trace?: WorkbenchTrace }>;
   listPromptTemplates: (params?: { keyword?: string }) => Promise<PagedResult<PromptTemplateItem>>;
+
+  /**
+   * 治理 R1-F1：列举工作空间的发布渠道。可选；未实现时 PublishCenterPage「发布渠道」 Tab 隐藏。
+   */
+  listWorkspacePublishChannels?: (workspaceId: string) => Promise<PublishChannelListItem[]>;
+
+  /**
+   * 治理 R1-F1：获取渠道当前 active release（含 publicMetadataJson）。
+   */
+  getWorkspaceChannelActiveRelease?: (
+    workspaceId: string,
+    channelId: string
+  ) => Promise<PublishChannelActiveRelease | null>;
+
+  /**
+   * 治理 R1-F1：通用 HTTP 调用（已带 Bearer + X-Tenant-Id 拼装），透传给 FeishuPublishTab / WechatMpPublishTab.fetcher。
+   */
+  httpJson?: <T = unknown>(input: { url: string; method: string; body?: unknown }) => Promise<T>;
 }
 
 export interface StudioPageProps {
@@ -686,6 +800,56 @@ export interface PublishCenterItem {
   status: "draft" | "published" | "outdated";
   apiEndpoint?: string;
   embedToken?: string;
+}
+
+/**
+ * 治理 R1-F1：发布渠道列表项（来自 /api/v1/workspaces/{ws}/publish-channels）。
+ * type 与后端 WorkspaceChannelType 对齐：web-sdk / open-api / feishu / wechat-mp /
+ * wechat-miniapp / wechat-cs / wechat / lark / custom。
+ */
+export interface PublishChannelListItem {
+  id: string;
+  workspaceId: string;
+  type: string;
+  name: string;
+  status: string;
+  authStatus?: string;
+  lastSyncAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 治理 R1-F1：渠道当前 active release（来自 /releases?status=active）。
+ * publicMetadataJson 由各 connector 在 publish 时写回（snippet / endpoint / tokenMasked / webhookUrl 等）。
+ */
+export interface PublishChannelActiveRelease {
+  id: string;
+  channelId: string;
+  releaseNo: number;
+  status: string;
+  publicMetadataJson?: string;
+  releasedAt: string;
+}
+
+/**
+ * 治理 R1-F2：Web SDK channel publicMetadataJson 反序列化结构。
+ */
+export interface WebSdkPublicMeta {
+  snippet: string;
+  endpoint: string;
+  secretMasked: string;
+  originAllowlist: string[];
+}
+
+/**
+ * 治理 R1-F2：Open API channel publicMetadataJson 反序列化结构。
+ */
+export interface OpenApiPublicMeta {
+  endpoint: string;
+  tokenMasked: string;
+  endpoints: string[];
+  rateLimitPerMinute: number;
 }
 
 export interface AppInputComponent {

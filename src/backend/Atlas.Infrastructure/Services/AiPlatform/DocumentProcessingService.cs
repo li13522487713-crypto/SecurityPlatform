@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.System.Abstractions;
@@ -20,7 +21,7 @@ public sealed class DocumentProcessingService
     private readonly DocumentChunkRepository _chunkRepository;
     private readonly KnowledgeBaseRepository _knowledgeBaseRepository;
     private readonly IFileStorageService _fileStorageService;
-    private readonly IDocumentParser _documentParser;
+    private readonly IDocumentParseStrategy _documentParseStrategy;
     private readonly IChunkingService _chunkingService;
     private readonly IEmbeddingProvider _embeddingProvider;
     private readonly IVectorStore _vectorStore;
@@ -33,7 +34,7 @@ public sealed class DocumentProcessingService
         DocumentChunkRepository chunkRepository,
         KnowledgeBaseRepository knowledgeBaseRepository,
         IFileStorageService fileStorageService,
-        IDocumentParser documentParser,
+        IDocumentParseStrategy documentParseStrategy,
         IChunkingService chunkingService,
         IEmbeddingProvider embeddingProvider,
         IVectorStore vectorStore,
@@ -45,7 +46,7 @@ public sealed class DocumentProcessingService
         _chunkRepository = chunkRepository;
         _knowledgeBaseRepository = knowledgeBaseRepository;
         _fileStorageService = fileStorageService;
-        _documentParser = documentParser;
+        _documentParseStrategy = documentParseStrategy;
         _chunkingService = chunkingService;
         _embeddingProvider = embeddingProvider;
         _vectorStore = vectorStore;
@@ -96,19 +97,29 @@ public sealed class DocumentProcessingService
 
             var file = await _fileStorageService.DownloadAsync(tenantId, document.FileId.Value, cancellationToken);
             await using var stream = file.Stream;
-            var parsed = await _documentParser.ParseAsync(stream, file.FileName, cancellationToken);
-            var chunks = _chunkingService.Chunk(parsed.Text, options);
+            var parsed = await _documentParseStrategy.ParseAsync(options.ParseStrategy, stream, file.FileName, cancellationToken);
+            var chunks = BuildChunksForKnowledgeBase(kb.Type, parsed.Text, document.FileName, options);
+            var tableHeadersJson = kb.Type == KnowledgeBaseType.Table && chunks.Count > 0
+                ? BuildColumnHeadersJsonFromLine(chunks[0].Content)
+                : null;
 
-            var chunkEntities = chunks.Select(chunk => new DocumentChunk(
-                tenantId,
-                knowledgeBaseId,
-                document.Id,
-                chunk.Index,
-                chunk.Content,
-                chunk.StartOffset,
-                chunk.EndOffset,
-                hasEmbedding: false,
-                _idGeneratorAccessor.NextId())).ToList();
+            var chunkEntities = chunks.Select(chunk =>
+            {
+                int? rowIndex = kb.Type == KnowledgeBaseType.Table ? chunk.Index + 1 : null;
+                var colJson = kb.Type == KnowledgeBaseType.Table ? tableHeadersJson : null;
+                return new DocumentChunk(
+                    tenantId,
+                    knowledgeBaseId,
+                    document.Id,
+                    chunk.Index,
+                    chunk.Content,
+                    chunk.StartOffset,
+                    chunk.EndOffset,
+                    hasEmbedding: false,
+                    _idGeneratorAccessor.NextId(),
+                    rowIndex,
+                    colJson);
+            }).ToList();
 
             await _chunkRepository.AddRangeAsync(chunkEntities, cancellationToken);
 
@@ -140,12 +151,7 @@ public sealed class DocumentProcessingService
                             entity.Id.ToString(),
                             vector,
                             entity.Content,
-                            new Dictionary<string, string>
-                            {
-                                ["knowledgeBaseId"] = entity.KnowledgeBaseId.ToString(),
-                                ["documentId"] = entity.DocumentId.ToString(),
-                                ["chunkId"] = entity.Id.ToString()
-                            }));
+                            BuildVectorMetadata(entity)));
                         embeddedChunkIds.Add(entity.Id);
                     }
 
@@ -204,5 +210,91 @@ public sealed class DocumentProcessingService
         }
 
         await _vectorStore.EnsureCollectionAsync($"kb_{knowledgeBaseId}", dimensions, cancellationToken);
+    }
+
+    private IReadOnlyList<TextChunk> BuildChunksForKnowledgeBase(
+        KnowledgeBaseType kbType,
+        string parsedText,
+        string fileName,
+        ChunkingOptions options)
+    {
+        return kbType switch
+        {
+            KnowledgeBaseType.Table => BuildTableLineChunks(parsedText),
+            KnowledgeBaseType.Image => _chunkingService.Chunk(
+                string.IsNullOrWhiteSpace(parsedText)
+                    ? $"[image_document:{fileName}]"
+                    : parsedText,
+                options),
+            _ => _chunkingService.Chunk(parsedText, options)
+        };
+    }
+
+    private static IReadOnlyList<TextChunk> BuildTableLineChunks(string fullText)
+    {
+        if (string.IsNullOrEmpty(fullText))
+        {
+            return [new TextChunk(0, string.Empty, 0, 0)];
+        }
+
+        var chunks = new List<TextChunk>();
+        var lineStart = 0;
+        var chunkIndex = 0;
+        for (var i = 0; i <= fullText.Length; i++)
+        {
+            var atEnd = i == fullText.Length;
+            if (!atEnd && fullText[i] != '\n' && fullText[i] != '\r')
+            {
+                continue;
+            }
+
+            var lineEnd = i;
+            var content = fullText[lineStart..lineEnd];
+            chunks.Add(new TextChunk(chunkIndex, content, lineStart, lineEnd));
+            chunkIndex++;
+            if (!atEnd)
+            {
+                if (fullText[i] == '\r' && i + 1 < fullText.Length && fullText[i + 1] == '\n')
+                {
+                    i++;
+                }
+
+                lineStart = i + 1;
+            }
+        }
+
+        return chunks;
+    }
+
+    private static string BuildColumnHeadersJsonFromLine(string headerLine)
+    {
+        if (string.IsNullOrWhiteSpace(headerLine))
+        {
+            return "[]";
+        }
+
+        var parts = headerLine.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        return JsonSerializer.Serialize(parts);
+    }
+
+    private static Dictionary<string, string> BuildVectorMetadata(DocumentChunk entity)
+    {
+        var meta = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["knowledgeBaseId"] = entity.KnowledgeBaseId.ToString(),
+            ["documentId"] = entity.DocumentId.ToString(),
+            ["chunkId"] = entity.Id.ToString()
+        };
+        if (entity.RowIndex > 0)
+        {
+            meta["rowIndex"] = entity.RowIndex.ToString();
+        }
+
+        if (!string.IsNullOrWhiteSpace(entity.ColumnHeadersJson))
+        {
+            meta["columnHeadersJson"] = entity.ColumnHeadersJson!;
+        }
+
+        return meta;
     }
 }

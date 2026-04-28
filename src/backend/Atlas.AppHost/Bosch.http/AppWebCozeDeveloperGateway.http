@@ -1,0 +1,49 @@
+@host = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@contentType = application/json
+
+### 登录
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.data.accessToken}}
+
+### developer gateway：空间列表
+POST {{host}}/api/app-web/coze-developer/space/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 20
+}
+
+### developer gateway：类型列表
+POST {{host}}/api/app-web/coze-developer/bot/get_type_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "model_scene": 1
+}
+
+### developer gateway：draftbot 列表
+POST {{host}}/api/app-web/coze-developer/draftbot/get_draft_bot_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 10
+}

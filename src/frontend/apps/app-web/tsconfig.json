@@ -5,13 +5,20 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@coze-arch/bot-api": ["src/coze-shims/bot-api/index.ts"],
-      "@coze-arch/bot-api/developer_api": ["src/coze-shims/bot-api/developer_api.ts"],
-      "@coze-arch/bot-api/intelligence_api": ["src/coze-shims/bot-api/intelligence_api.ts"],
-      "@coze-arch/bot-api/playground_api": ["src/coze-shims/bot-api/playground_api.ts"],
-      "@coze-arch/bot-api/workflow_api": ["src/coze-shims/bot-api/workflow_api.ts"],
       "@atlas/shared-react-core": ["../../packages/shared-react-core/src/index.ts"],
-      "@atlas/shared-react-core/*": ["../../packages/shared-react-core/src/*"]
+      "@atlas/shared-react-core/*": ["../../packages/shared-react-core/src/*"],
+      "@coze-agent-ide/entry-adapter": ["../../packages/agent-ide/entry-adapter/src/index.ts"],
+      "@coze-agent-ide/agent-publish": ["../../packages/agent-ide/agent-publish/src/index.ts"],
+      "@coze-agent-ide/layout-adapter": ["../../packages/agent-ide/layout-adapter/src/index.ts"],
+      "@coze-agent-ide/*": ["../../packages/agent-ide/*/src/index.ts", "../../packages/agent-ide/*/src/index.tsx"],
+      "@coze-arch/bot-api": ["../../packages/arch/bot-api/src/index.ts"],
+      "@coze-arch/bot-hooks": ["../../packages/arch/bot-hooks/src/index.ts"],
+      "@coze-arch/bot-api/developer_api": ["../../packages/arch/bot-api/src/idl/developer_api.ts"],
+      "@coze-arch/bot-api/intelligence_api": ["../../packages/arch/bot-api/src/idl/intelligence_api.ts"],
+      "@coze-arch/bot-api/playground_api": ["../../packages/arch/bot-api/src/idl/playground_api.ts"],
+      "@coze-arch/bot-api/workflow_api": ["../../packages/arch/bot-api/src/idl/workflow_api.ts"],
+      "@coze-arch/*": ["../../packages/arch/*/src/index.ts", "../../packages/arch/*/src/index.tsx"],
+      "@coze-foundation/foundation-sdk": ["../../packages/foundation/foundation-sdk/src/index.ts"]
     }
   },
   "include": [

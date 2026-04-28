@@ -21,19 +21,22 @@ public sealed class OrganizationWorkspacesController : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<WorkspaceCreateRequest> _createValidator;
     private readonly IValidator<WorkspaceUpdateRequest> _updateValidator;
+    private readonly IValidator<WorkspaceAppInstanceCreateRequest> _appInstanceCreateValidator;
 
     public OrganizationWorkspacesController(
         IWorkspacePortalService service,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IValidator<WorkspaceCreateRequest> createValidator,
-        IValidator<WorkspaceUpdateRequest> updateValidator)
+        IValidator<WorkspaceUpdateRequest> updateValidator,
+        IValidator<WorkspaceAppInstanceCreateRequest> appInstanceCreateValidator)
     {
         _service = service;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _appInstanceCreateValidator = appInstanceCreateValidator;
     }
 
     [HttpGet]
@@ -150,6 +153,29 @@ public sealed class OrganizationWorkspacesController : ControllerBase
             new PagedRequest(pageIndex, pageSize, keyword),
             cancellationToken);
         return Ok(ApiResponse<PagedResult<WorkspaceAppCardDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 1→N 模型：在已有工作空间下创建一个新的 AppManifest（应用实例）。
+    /// </summary>
+    [HttpPost("{workspaceId:long}/app-instances")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<WorkspaceAppInstanceDto>>> CreateAppInstance(
+        string orgId,
+        long workspaceId,
+        [FromBody] WorkspaceAppInstanceCreateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _appInstanceCreateValidator.ValidateAndThrow(request);
+        var (tenantId, currentUser) = ResolveContext(orgId);
+        var result = await _service.CreateAppInstanceAsync(
+            tenantId,
+            workspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            request,
+            cancellationToken);
+        return Ok(ApiResponse<WorkspaceAppInstanceDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("{workspaceId:long}/develop/apps")]

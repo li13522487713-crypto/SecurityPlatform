@@ -1,0 +1,662 @@
+openapi: 3.0.3
+info:
+  title: Atlas Microflow API (draft)
+  version: "0.21.0"
+  description: |
+    与 `mendix-studio-core` 微流契约第 21 轮对齐。Authoring 模型见 `docs/lowcode-mendix-mvp/schema.md` 与
+    `@atlas/microflow` 类型；不存储 FlowGram JSON。
+
+servers:
+  - url: /
+
+paths:
+  /api/microflows:
+    get:
+      summary: List microflows
+      parameters:
+        - in: query
+          name: pageIndex
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - in: query
+          name: sortBy
+          schema: { type: string, enum: [name, updatedAt, createdAt, version, referenceCount] }
+        - in: query
+          name: sortOrder
+          schema: { type: string, enum: [asc, desc] }
+        - in: query
+          name: keyword
+          schema: { type: string }
+        - in: query
+          name: workspaceId
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: array, items: { type: string, enum: [draft, published, archived] } }
+          style: form
+          explode: true
+        - in: query
+          name: publishStatus
+          schema:
+            { type: array, items: { type: string, enum: [neverPublished, published, changedAfterPublish] } }
+          style: form
+          explode: true
+        - in: query
+          name: tags
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: Envelope
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeListMicroflows" }
+    post:
+      summary: Create microflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMicroflowRequest" }
+      responses:
+        "200":
+          description: Envelope
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+  /api/microflows/{id}/duplicate:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DuplicateVersionBody" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+  /api/microflows/{id}/rename:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                displayName: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+  /api/microflows/{id}/favorite:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [favorite]
+              properties:
+                favorite: { type: boolean }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+  /api/microflows/{id}/archive:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+  /api/microflows/{id}/restore:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+  /api/microflows/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      summary: Get resource
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+    patch:
+      summary: Patch resource
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                patch: { $ref: "#/components/schemas/MicroflowResourcePatch" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+    delete:
+      summary: Delete resource
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeId" }
+  /api/microflows/{id}/schema:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      summary: Get authoring schema
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeGetSchema" }
+    put:
+      summary: Save authoring schema
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveMicroflowSchemaRequest" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeSaveSchema" }
+  /api/microflows/{id}/schema/migrate:
+    post:
+      summary: Migrate schema
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MigrateMicroflowSchemaRequest" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMigrate" }
+  /api/microflows/{id}/validate:
+    post:
+      summary: Validate
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ValidateMicroflowRequest" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeValidate" }
+  /api/microflows/{id}/test-run:
+    post:
+      summary: Test run
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TestRunMicroflowApiRequest" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeTestRun" }
+  /api/microflows/runs/{runId}/cancel:
+    post:
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeCancelRun" }
+  /api/microflows/runs/{runId}:
+    get:
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeRunSession" }
+  /api/microflows/runs/{runId}/trace:
+    get:
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeRunTrace" }
+  /api/microflows/{id}/publish:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublishMicroflowApiRequest" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopePublishResult" }
+  /api/microflows/{id}/versions:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeVersionList" }
+  /api/microflows/{id}/versions/{versionId}:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+        - name: versionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeVersionDetail" }
+  /api/microflows/{id}/versions/{versionId}/rollback:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+        - name: versionId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+  /api/microflows/{id}/versions/{versionId}/duplicate:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+        - name: versionId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DuplicateVersionBody" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMicroflowResource" }
+  /api/microflows/{id}/versions/{versionId}/compare-current:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+        - name: versionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeVersionDiff" }
+  /api/microflows/{id}/references:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+        - in: query
+          name: includeInactive
+          schema: { type: boolean }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeReferences" }
+  /api/microflows/{id}/impact:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+        - in: query
+          name: version
+          schema: { type: string }
+        - in: query
+          name: includeBreakingChanges
+          schema: { type: boolean }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeImpact" }
+  /api/microflow-metadata:
+    get:
+      parameters:
+        - in: query
+          name: workspaceId
+          schema: { type: string }
+        - in: query
+          name: moduleId
+          schema: { type: string }
+        - in: query
+          name: includeSystem
+          schema: { type: boolean }
+        - in: query
+          name: includeArchived
+          schema: { type: boolean }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeMetadata" }
+  /api/microflow-metadata/entities/{qualifiedName}:
+    get:
+      parameters:
+        - name: qualifiedName
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MicroflowApiResponse" }
+  /api/microflow-metadata/enumerations/{qualifiedName}:
+    get:
+      parameters:
+        - name: qualifiedName
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MicroflowApiResponse" }
+  /api/microflow-metadata/microflows:
+    get:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MicroflowApiResponse" }
+
+components:
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+  schemas:
+    MicroflowAuthoringSchema:
+      type: object
+      description: 微流主模型，见 @atlas/microflow
+      additionalProperties: true
+    MicroflowApiResponse:
+      type: object
+      required: [success, timestamp]
+      properties:
+        success: { type: boolean }
+        data: {}
+        error: { $ref: "#/components/schemas/MicroflowApiError" }
+        traceId: { type: string }
+        timestamp: { type: string, format: date-time }
+    MicroflowApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - MICROFLOW_NOT_FOUND
+            - MICROFLOW_NAME_DUPLICATED
+            - MICROFLOW_SCHEMA_INVALID
+            - MICROFLOW_VALIDATION_FAILED
+            - MICROFLOW_VERSION_CONFLICT
+            - MICROFLOW_PUBLISH_BLOCKED
+            - MICROFLOW_REFERENCE_BLOCKED
+            - MICROFLOW_PERMISSION_DENIED
+            - MICROFLOW_ARCHIVED
+            - MICROFLOW_RUN_FAILED
+            - MICROFLOW_RUN_CANCELLED
+            - MICROFLOW_METADATA_NOT_FOUND
+            - MICROFLOW_STORAGE_ERROR
+            - MICROFLOW_UNKNOWN_ERROR
+        message: { type: string }
+        details: { type: string }
+        validationIssues: { type: array, items: { type: object, additionalProperties: true } }
+        retryable: { type: boolean }
+    PageResult:
+      type: object
+      required: [items, total, pageIndex, pageSize, hasMore]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/MicroflowResource" } }
+        total: { type: integer }
+        pageIndex: { type: integer, minimum: 1 }
+        pageSize: { type: integer }
+        hasMore: { type: boolean }
+    MicroflowResource:
+      type: object
+      description: 见 TS MicroflowResource
+      additionalProperties: true
+    MicroflowResourcePatch:
+      type: object
+      additionalProperties: true
+    CreateMicroflowRequest:
+      type: object
+      required: [input]
+      properties:
+        workspaceId: { type: string }
+        input: { type: object, additionalProperties: true }
+    SaveMicroflowSchemaRequest:
+      type: object
+      required: [schema]
+      properties:
+        schema: { $ref: "#/components/schemas/MicroflowAuthoringSchema" }
+        baseVersion: { type: string }
+        saveReason: { type: string }
+    GetMicroflowSchemaResponse:
+      type: object
+      required: [resourceId, schema, schemaVersion, updatedAt]
+      properties:
+        resourceId: { type: string }
+        schema: { $ref: "#/components/schemas/MicroflowAuthoringSchema" }
+        schemaVersion: { type: string }
+        migrationVersion: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+    SaveMicroflowSchemaResponse:
+      type: object
+      required: [resource, schemaVersion, updatedAt, changedAfterPublish]
+      properties:
+        resource: { $ref: "#/components/schemas/MicroflowResource" }
+        schemaVersion: { type: string }
+        updatedAt: { type: string, format: date-time }
+        changedAfterPublish: { type: boolean }
+    MigrateMicroflowSchemaRequest:
+      type: object
+      required: [fromVersion, toVersion, schema]
+      properties:
+        fromVersion: { type: string }
+        toVersion: { type: string }
+        schema: {}
+    ValidateMicroflowRequest:
+      type: object
+      required: [schema, mode]
+      properties:
+        schema: { $ref: "#/components/schemas/MicroflowAuthoringSchema" }
+        mode: { type: string, enum: [edit, save, publish, testRun] }
+        includeInfo: { type: boolean }
+        includeWarnings: { type: boolean }
+    TestRunMicroflowApiRequest:
+      type: object
+      required: [input]
+      properties:
+        schema: { $ref: "#/components/schemas/MicroflowAuthoringSchema" }
+        input: { type: object, additionalProperties: true }
+        options: { type: object, additionalProperties: true }
+    MicroflowRunSession:
+      type: object
+      additionalProperties: true
+    PublishMicroflowApiRequest:
+      type: object
+      required: [version]
+      properties:
+        version: { type: string }
+        description: { type: string }
+        confirmBreakingChanges: { type: boolean }
+        force: { type: boolean }
+    MicroflowMetadataCatalog:
+      type: object
+      additionalProperties: true
+    EnvelopeListMicroflows:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+        - type: object
+          properties:
+            data: { $ref: "#/components/schemas/PageResult" }
+    EnvelopeMicroflowResource:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+        - type: object
+          properties:
+            data: { $ref: "#/components/schemas/MicroflowResource" }
+    EnvelopeId:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [id]
+              properties: { id: { type: string } }
+    EnvelopeGetSchema:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+        - type: object
+          properties:
+            data: { $ref: "#/components/schemas/GetMicroflowSchemaResponse" }
+    EnvelopeSaveSchema:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+        - type: object
+          properties:
+            data: { $ref: "#/components/schemas/SaveMicroflowSchemaResponse" }
+    EnvelopeMigrate:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [schema, warnings]
+              properties:
+                schema: { $ref: "#/components/schemas/MicroflowAuthoringSchema" }
+                warnings: { type: array, items: { type: string } }
+    EnvelopeValidate:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopeTestRun:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [session]
+              properties:
+                session: { $ref: "#/components/schemas/MicroflowRunSession" }
+    EnvelopeCancelRun:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopeRunSession:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopeRunTrace:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopePublishResult:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopeVersionList:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopeVersionDetail:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopeVersionDiff:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopeReferences:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopeImpact:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+    EnvelopeMetadata:
+      allOf:
+        - $ref: "#/components/schemas/MicroflowApiResponse"
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: "#/components/schemas/MicroflowMetadataCatalog"
+                - type: object
+                  required: [updatedAt]
+                  properties:
+                    updatedAt: { type: string, format: date-time }
+    DuplicateVersionBody:
+      type: object
+      properties:
+        name: { type: string }
+        displayName: { type: string }
+        moduleId: { type: string }
+        moduleName: { type: string }
+        tags: { type: array, items: { type: string } }

@@ -13,7 +13,7 @@ public sealed class ComplianceEvidencePackageServiceTests
     {
         var root = Path.Combine(Path.GetTempPath(), $"atlas-compliance-{Guid.NewGuid():N}");
         var docsDir = Path.Combine(root, "docs");
-        var webApiRoot = Path.Combine(root, "src", "backend", "Atlas.PlatformHost");
+        var webApiRoot = Path.Combine(root, "src", "backend", "Atlas.AppHost");
         var boschDir = Path.Combine(webApiRoot, "Bosch.http");
         Directory.CreateDirectory(docsDir);
         Directory.CreateDirectory(boschDir);

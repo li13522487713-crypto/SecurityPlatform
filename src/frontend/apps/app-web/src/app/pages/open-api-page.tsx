@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Button, Empty, Form, Modal, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, Input, Modal, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../i18n";
 import {
   createOpenApiKey,
   deleteOpenApiKey,
   listOpenApiKeys,
   type OpenApiKeyItem
-} from "../../services/mock";
+} from "../../services/api-open-api-keys";
 
 export function OpenApiPage() {
   const { t } = useAppI18n();
@@ -100,15 +100,11 @@ export function OpenApiPage() {
         onOk={() => void handleCreate()}
         confirmLoading={creating}
       >
-        <Form labelPosition="top" labelWidth="100%">
-          <Form.Input
-            field="alias"
-            label="Alias"
-            placeholder="my-key"
-            value={alias}
-            onChange={value => setAlias(value)}
-          />
-        </Form>
+        <Input
+          placeholder="my-key"
+          value={alias}
+          onChange={value => setAlias(String(value))}
+        />
       </Modal>
 
       {revealedKey ? (

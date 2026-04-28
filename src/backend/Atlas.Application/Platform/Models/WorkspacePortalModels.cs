@@ -8,8 +8,8 @@ public sealed record WorkspaceListItem(
     string Name,
     string? Description,
     string? Icon,
-    string AppInstanceId,
-    string AppKey,
+    string? AppInstanceId,
+    string? AppKey,
     string RoleCode,
     int AppCount,
     int AgentCount,
@@ -23,8 +23,8 @@ public sealed record WorkspaceDetailDto(
     string Name,
     string? Description,
     string? Icon,
-    string AppInstanceId,
-    string AppKey,
+    string? AppInstanceId,
+    string? AppKey,
     string RoleCode,
     IReadOnlyList<string> AllowedActions,
     string CreatedAt,
@@ -33,8 +33,7 @@ public sealed record WorkspaceDetailDto(
 public sealed record WorkspaceCreateRequest(
     string Name,
     string? Description,
-    string? Icon,
-    string AppInstanceId);
+    string? Icon);
 
 public sealed record WorkspaceUpdateRequest(
     string Name,
@@ -102,3 +101,26 @@ public sealed record WorkspaceRolePermissionUpdateItem(
 
 public sealed record WorkspaceResourcePermissionUpdateRequest(
     IReadOnlyList<WorkspaceRolePermissionUpdateItem> Items);
+
+/// <summary>
+/// 1→N 模型：在工作空间内创建一个新的 AppManifest（应用实例）。
+/// AppKey 可空，缺省时由 Service 层自动生成（如 "ws-{workspaceId}-app-{seq}"）。
+/// </summary>
+public sealed record WorkspaceAppInstanceCreateRequest(
+    string Name,
+    string? Description,
+    string? Icon,
+    string? Category,
+    string? AppKey);
+
+public sealed record WorkspaceAppInstanceDto(
+    string AppInstanceId,
+    string AppKey,
+    string Name,
+    string? Description,
+    string? Icon,
+    string? Category,
+    string Status,
+    int Version,
+    string CreatedAt,
+    string UpdatedAt);

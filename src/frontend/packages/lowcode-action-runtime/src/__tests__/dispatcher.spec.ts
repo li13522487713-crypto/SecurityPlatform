@@ -102,21 +102,32 @@ describe('dispatcher 7 内置动作', () => {
     expect(ops.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('call_workflow 失败时挂 error patches', async () => {
+  it('call_workflow 失败时通过 applySideEffectPatches 挂 error patches 后重新抛错（P4-4）', async () => {
     const handler = getActionHandler('call_workflow')!;
-    const r = await handler(
-      { kind: 'call_workflow', workflowId: 'wf1', loadingTargets: ['l1'], errorTargets: ['l1'] },
-      {
-        state: {},
-        invokeDispatch: async () => {
-          throw new Error('boom');
+    const sideEffectPatches: { path: string; op: string }[] = [];
+    let thrown: Error | null = null;
+    try {
+      await handler(
+        { kind: 'call_workflow', workflowId: 'wf1', loadingTargets: ['l1'], errorTargets: ['l1'] },
+        {
+          state: {},
+          invokeDispatch: async () => {
+            throw new Error('boom');
+          },
+          applySideEffectPatches: (patches) => {
+            for (const p of patches) sideEffectPatches.push({ path: p.path, op: p.op });
+          }
         }
-      }
-    );
-    expect(r.messages?.[0]?.kind).toBe('error');
-    // 含 error patch
-    const errorPatch = r.patches!.find((p) => p.path === 'component.l1.error');
-    expect(errorPatch).toBeDefined();
+      );
+    } catch (e) {
+      thrown = e as Error;
+    }
+    // P4-4：必须重新抛出，让 chain 的 onError 可以捕获
+    expect(thrown).not.toBeNull();
+    expect(thrown!.message).toBe('boom');
+    // 同时验证 side effect patches 已经走 applySideEffectPatches 提交（loading off + error）
+    expect(sideEffectPatches.some((p) => p.path === 'component.l1.error')).toBe(true);
+    expect(sideEffectPatches.some((p) => p.path === 'component.l1.loading' && p.op === 'set')).toBe(true);
   });
 });
 
@@ -153,7 +164,7 @@ describe('chain 编排', () => {
     expect(r.errors.length).toBe(0);
   });
 
-  it('onError 子链兜底', async () => {
+  it('onError 子链兜底（P4-4 修复后：call_workflow 抛错可被 onError 捕获）', async () => {
     const actions: ActionSchema[] = [
       {
         kind: 'call_workflow',
@@ -167,11 +178,10 @@ describe('chain 编排', () => {
         throw new Error('boom');
       }
     });
-    // call_workflow 内部已经捕获并挂 error patches；onError 不会触发（因为 call_workflow 把异常吃掉了）。
-    // 此处验证：链未抛异常，并产出 error 消息。
-    expect(r.errors.length).toBe(0);
-    expect(r.messages?.some((m) => m.kind === 'error')).toBe(true);
-    // 同时验证：当一个非 call_* 的 action 直接 throw 时，onError 子链能捕获
+    // P4-4 修复后：call_workflow 失败时重新抛出异常，外层 chain 的 onError 子链能捕获并执行替代动作。
+    // 期望：onError 中的 show_toast('caught') 被执行，'caught' 出现在 messages 中。
+    expect(r.messages?.some((m) => m.text === 'caught')).toBe(true);
+    // 同时验证：当一个非 call_* 的 action 直接 throw 时，onError 子链同样能捕获（已有行为）
     const actions2: ActionSchema[] = [
       {
         kind: 'set_variable',

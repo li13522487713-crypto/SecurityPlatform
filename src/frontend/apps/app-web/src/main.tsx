@@ -1,19 +1,32 @@
 import ReactDOM from "react-dom/client";
 import "@douyinfe/semi-ui/lib/es/_base/base.css";
-import "@atlas/coze-shell-react/styles.css";
 import "@atlas/library-module-react/styles.css";
 import "@atlas/module-admin-react/styles.css";
 import "@atlas/module-explore-react/styles.css";
 import "@atlas/module-studio-react/styles.css";
 import "./app/app.css";
-import { AppRoot } from "./app/app";
 import { initializeAppRuntime } from "./app/runtime-init";
 
 initializeAppRuntime();
 
-const container = document.getElementById("app");
-if (!container) {
-  throw new Error("App container '#app' was not found.");
+function shouldStartMicroflowContractMock(): boolean {
+  const env = import.meta.env;
+  const mockMode = env.VITE_MICROFLOW_API_MOCK ?? env.MICROFLOW_API_MOCK;
+  return mockMode === "msw" && env.PROD !== true;
 }
 
-ReactDOM.createRoot(container).render(<AppRoot />);
+async function bootstrap() {
+  if (shouldStartMicroflowContractMock()) {
+    const { startMicroflowContractMockWorker } = await import("@atlas/mendix-studio-core");
+    await startMicroflowContractMockWorker();
+  }
+  const { AppRoot } = await import("./app/app");
+  const container = document.getElementById("app");
+  if (!container) {
+    throw new Error("App container '#app' was not found.");
+  }
+
+  ReactDOM.createRoot(container).render(<AppRoot />);
+}
+
+void bootstrap();

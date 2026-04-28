@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Modal, TextArea, Typography } from "@douyinfe/semi-ui";
+import type { StudioLocale } from "../types";
+import { formatStudioTemplate, getStudioCopy } from "../copy";
 
 export interface PublishConfirmModalProps {
   visible: boolean;
@@ -8,6 +10,7 @@ export interface PublishConfirmModalProps {
   onCancel: () => void;
   onPublish: (releaseNote: string) => Promise<void>;
   pendingChanges?: string[];
+  locale: StudioLocale;
 }
 
 export function PublishConfirmModal({
@@ -16,8 +19,10 @@ export function PublishConfirmModal({
   resourceType,
   onCancel,
   onPublish,
-  pendingChanges = []
+  pendingChanges = [],
+  locale
 }: PublishConfirmModalProps) {
+  const copy = getStudioCopy(locale);
   const [submitting, setSubmitting] = useState(false);
   const [releaseNote, setReleaseNote] = useState("");
 
@@ -36,26 +41,33 @@ export function PublishConfirmModal({
     onCancel();
   };
 
+  const resourceLabel =
+    resourceType === "agent"
+      ? copy.publishConfirm.resourceAgent
+      : resourceType === "app"
+        ? copy.publishConfirm.resourceApp
+        : copy.publishConfirm.resourceWorkflow;
+
   return (
     <Modal
-      title={`发布 ${resourceName}`}
+      title={`${copy.publishConfirm.titlePrefix} ${resourceName}`}
       visible={visible}
       onCancel={handleCancel}
       onOk={handleSubmit}
       okButtonProps={{ loading: submitting }}
-      okText="确认发布"
-      cancelText="取消"
+      okText={copy.publishConfirm.okText}
+      cancelText={copy.common.cancel}
       width={500}
     >
       <div style={{ marginBottom: 24 }}>
         <Typography.Text>
-          您即将发布 {resourceType === "agent" ? "智能体" : resourceType === "app" ? "应用" : "工作流"}。发布后，新版本将替换当前运行版本，外部接入的客户端将立即生效。
+          {formatStudioTemplate(copy.publishConfirm.bodyTemplate, { type: resourceLabel })}
         </Typography.Text>
       </div>
 
       {pendingChanges.length > 0 && (
         <div style={{ marginBottom: 16 }}>
-          <Typography.Text strong>未发布变更内容：</Typography.Text>
+          <Typography.Text strong>{copy.publishConfirm.pendingChanges}</Typography.Text>
           <ul>
             {pendingChanges.map((change, idx) => (
               <li key={idx}><Typography.Text type="tertiary">{change}</Typography.Text></li>
@@ -66,12 +78,12 @@ export function PublishConfirmModal({
 
       <div style={{ marginTop: 12 }}>
         <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-          发布说明 (可选)
+          {copy.publishConfirm.noteOptional}
         </Typography.Text>
         <TextArea
           value={releaseNote}
           onChange={setReleaseNote}
-          placeholder="简要说明本次版本更新的内容，这有助于后续的版本回溯..."
+          placeholder={copy.publishConfirm.notePlaceholder}
           rows={4}
         />
       </div>

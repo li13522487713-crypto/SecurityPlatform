@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
-import { type Mock } from 'vitest';
+import { afterEach, describe, expect, test, type Mock, vi } from 'vitest';
 import { userStoreService } from '@coze-studio/user-store';
 
 import { upLoadFile } from '../src/upload-file';
+
+globalThis.APP_ID = 1;
+globalThis.IMAGE_FALLBACK_HOST = 'fallback.test';
+globalThis.BYTE_UPLOADER_REGION = 'cn-north-1';
+globalThis.IS_OVERSEA = false;
 
 vi.mock('@coze-arch/bot-api', () => ({
   DeveloperApi: {
@@ -39,6 +44,8 @@ vi.mock('@coze-studio/uploader-adapter', () => {
     constructor({ userId }) {
       this.userId = userId;
     }
+    addFile = () => 'mock-file-key';
+    start = () => 0;
     on(event: string, cb: (data: any) => void) {
       if (event === 'complete' && this.userId) {
         cb({ uploadResult: { Uri: 'test_url' } });
@@ -53,6 +60,8 @@ vi.mock('@coze-studio/uploader-adapter', () => {
     getUploader: vi.fn(
       (props: any, isOverSea?: boolean) => new MockUploader(props),
     ),
+    shouldUseAtlasLocalUpload: vi.fn(() => false),
+    createLocalUploader: vi.fn(() => new MockUploader({ userId: 'local-user' })),
   };
 });
 
@@ -82,10 +91,10 @@ describe('upload-file', () => {
     expect(res2).equal('test_url');
   });
 
-  test('upLoadFile should reject extra info of result if upload failed', () => {
+  test('upLoadFile should reject extra info of result if upload failed', async () => {
     // mock `userId` empty to invoke upload failed
     (userStoreService.getUserInfo as Mock).mockReturnValue({ user_id_str: '' });
-    expect(
+    await expect(
       upLoadFile({
         file: new File([], 'test_file'),
         fileType: 'image',
@@ -93,10 +102,10 @@ describe('upload-file', () => {
     ).rejects.toThrow('error');
   });
 
-  test('upLoadFile should use getUploadAuthToken if biz is not bot or workflow ', () => {
+  test('upLoadFile should use getUploadAuthToken if biz is not bot or workflow ', async () => {
     // mock `userId` empty to invoke upload failed
     (userStoreService.getUserInfo as Mock).mockReturnValue({ user_id_str: '' });
-    expect(
+    await expect(
       upLoadFile({
         biz: 'community',
         file: new File([], 'test_file'),
@@ -106,5 +115,18 @@ describe('upload-file', () => {
         ),
       }),
     ).rejects.toThrow('error');
+  });
+
+  test('upLoadFile should use atlas local uploader when local upload is enabled', async () => {
+    const uploaderAdapter = await import('@coze-studio/uploader-adapter');
+    vi.mocked(uploaderAdapter.shouldUseAtlasLocalUpload).mockReturnValue(true);
+
+    const res = await upLoadFile({
+      file: new File([], 'test_file'),
+      fileType: 'image',
+    });
+
+    expect(res).toBe('test_url');
+    expect(uploaderAdapter.createLocalUploader).toHaveBeenCalled();
   });
 });

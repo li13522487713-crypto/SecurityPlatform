@@ -34,11 +34,26 @@ public sealed class HybridRagRetrieverService : IRetriever
         _optionsMonitor = optionsMonitor;
     }
 
-    public async Task<IReadOnlyList<RagSearchResult>> RetrieveAsync(
+    public Task<IReadOnlyList<RagSearchResult>> RetrieveAsync(
         TenantId tenantId,
         IReadOnlyList<long> knowledgeBaseIds,
         string query,
         int topK = 8,
+        CancellationToken cancellationToken = default)
+        => RetrieveWithProfileAsync(tenantId, knowledgeBaseIds, query, topK, retrievalProfile: null, cancellationToken);
+
+    /// <summary>
+    /// v5 §38 / 计划 G4：profile 级别的混合检索。
+    /// - <see cref="RetrievalProfile.EnableHybrid"/> 决定是否合并 BM25 和 Vector；
+    /// - <see cref="RetrievalProfile.Weights"/> 注入到加权 RRF；
+    /// - 上层 <see cref="RagRetrievalService"/> 根据 profile.EnableRerank 决定是否再走 IReranker。
+    /// </summary>
+    public async Task<IReadOnlyList<RagSearchResult>> RetrieveWithProfileAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> knowledgeBaseIds,
+        string query,
+        int topK,
+        RetrievalProfile? retrievalProfile,
         CancellationToken cancellationToken = default)
     {
         if (knowledgeBaseIds.Count == 0 || string.IsNullOrWhiteSpace(query) || topK <= 0)
@@ -50,25 +65,29 @@ public sealed class HybridRagRetrieverService : IRetriever
         var vectorTopK = Math.Max(topK, options.Retrieval.VectorTopK);
         var bm25TopK = Math.Max(topK, options.Retrieval.Bm25TopK);
 
-        var vectorResults = await _vectorRetrieverService.RetrieveAsync(
-            tenantId,
-            knowledgeBaseIds,
-            query,
-            vectorTopK,
-            cancellationToken);
-        var bm25Results = await _bm25RetrieverService.RetrieveAsync(
-            tenantId,
-            knowledgeBaseIds,
-            query,
-            bm25TopK,
-            cancellationToken);
+        // profile.EnableHybrid 优先级 > options.Retrieval.EnableHybrid（请求级覆盖配置级）
+        var enableHybrid = retrievalProfile?.EnableHybrid ?? options.Retrieval.EnableHybrid;
+        var weights = retrievalProfile?.Weights;
 
-        IReadOnlyList<RagSearchResult> merged = options.Retrieval.EnableHybrid
-            ? _hybridRetrievalService.MergeAndRerank(
+        var vectorWeight = (double)(weights?.Vector ?? 1f);
+        var bm25Weight = (double)(weights?.Bm25 ?? 1f);
+
+        // 当 hybrid 关闭时只跑 vector；否则双链
+        var vectorResults = vectorWeight > 0d
+            ? await _vectorRetrieverService.RetrieveAsync(tenantId, knowledgeBaseIds, query, vectorTopK, cancellationToken)
+            : (IReadOnlyList<RagSearchResult>)Array.Empty<RagSearchResult>();
+        var bm25Results = enableHybrid && bm25Weight > 0d
+            ? await _bm25RetrieverService.RetrieveAsync(tenantId, knowledgeBaseIds, query, bm25TopK, cancellationToken)
+            : (IReadOnlyList<RagSearchResult>)Array.Empty<RagSearchResult>();
+
+        IReadOnlyList<RagSearchResult> merged = enableHybrid
+            ? _hybridRetrievalService.MergeAndRerankWithWeights(
                 query,
                 vectorResults,
                 bm25Results,
-                Math.Max(topK, options.Retrieval.CrossEncoderTopK))
+                Math.Max(topK, options.Retrieval.CrossEncoderTopK),
+                vectorWeight,
+                bm25Weight)
             : vectorResults
                 .OrderByDescending(item => item.Score)
                 .Take(Math.Max(topK, options.Retrieval.CrossEncoderTopK))
@@ -79,7 +98,9 @@ public sealed class HybridRagRetrieverService : IRetriever
             return [];
         }
 
-        if (options.Retrieval.EnableCrossEncoderRerank)
+        // cross-encoder rerank：当 profile.EnableRerank=true 或 options 默认开启时
+        var enableCrossRerank = retrievalProfile?.EnableRerank ?? options.Retrieval.EnableCrossEncoderRerank;
+        if (enableCrossRerank)
         {
             merged = await _reranker.RerankAsync(
                 query,

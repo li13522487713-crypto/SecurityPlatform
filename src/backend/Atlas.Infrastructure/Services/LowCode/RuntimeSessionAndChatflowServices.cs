@@ -8,6 +8,7 @@ using Atlas.Application.LowCode.Models;
 using Atlas.Application.LowCode.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
@@ -69,6 +70,24 @@ public sealed class RuntimeSessionService : IRuntimeSessionService
         await _repo.UpdateAsync(s, cancellationToken);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.session.archive", "success", $"sess:{sessionId}:archived:{request.Archived}", null, null), cancellationToken);
     }
+
+    public async Task<RuntimeSessionInfo> SwitchAsync(TenantId tenantId, long currentUserId, string sessionId, CancellationToken cancellationToken)
+    {
+        // 校验存在
+        var s = await _repo.FindBySessionIdAsync(tenantId, sessionId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, $"会话不存在：{sessionId}");
+        // 跨用户禁止切入：仅会话所有者可切换；防止同租户用户访问他人会话
+        if (s.UserId != currentUserId)
+        {
+            await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.session.switch", "failed", $"sess:{sessionId}:reason:forbidden", null, null), cancellationToken);
+            throw new BusinessException(ErrorCodes.Forbidden, $"无权访问该会话：{sessionId}");
+        }
+        // archived 会话允许切入但不自动恢复 active；前端显示 "(已归档)" 即可
+        s.Touch();
+        await _repo.UpdateAsync(s, cancellationToken);
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.session.switch", "success", $"sess:{sessionId}:status:{s.Status}", null, null), cancellationToken);
+        return new RuntimeSessionInfo(s.SessionId, s.Title, s.Pinned, s.Status == "archived", s.UpdatedAt);
+    }
 }
 
 /// <summary>
@@ -83,11 +102,11 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
     private readonly ILowCodeSessionRepository _sessionRepo;
     private readonly ILowCodeMessageLogRepository _messageLogRepo;
     private readonly IRuntimeMessageLogService _messageLog;
-    private readonly IDagWorkflowExecutionService _engine;
+    private readonly ICozeWorkflowExecutionService _engine;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
 
-    public RuntimeChatflowService(ILowCodeSessionRepository sessionRepo, ILowCodeMessageLogRepository messageLogRepo, IRuntimeMessageLogService messageLog, IDagWorkflowExecutionService engine, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
+    public RuntimeChatflowService(ILowCodeSessionRepository sessionRepo, ILowCodeMessageLogRepository messageLogRepo, IRuntimeMessageLogService messageLog, ICozeWorkflowExecutionService engine, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
     {
         _sessionRepo = sessionRepo;
         _messageLogRepo = messageLogRepo;
@@ -104,8 +123,8 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
         await _messageLog.RecordAsync(tenantId, "chatflow", "user_input", sessionId, request.ChatflowId, null, null,
             JsonSerializer.Serialize(new { text = request.Input, chatflowId = request.ChatflowId, context = request.Context }), cancellationToken);
 
-        // M11 收尾：若 chatflowId 是 long（DAG 工作流 ID），桥接到 IDagWorkflowExecutionService.StreamRunAsync 真实流式；
-        // 否则走 mock pipeline（用于无后端 chatflow 时的本地调试）。
+        // chatflowId 若是 long，则直接桥接到 Coze workflow 执行服务；
+        // 当前先以同步执行结果组装 SSE，后续再补真正流式。
         var seq = 0;
         var bridged = false;
         var hadFinal = false;
@@ -117,12 +136,16 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
                 sessionId,
                 context = request.Context
             });
-            DagWorkflowRunRequest runReq = new(inputsJson, source: "lowcode-chatflow");
-            IAsyncEnumerable<SseEvent>? stream = null;
             string? startError = null;
+            CozeWorkflowRunResult? runResult = null;
             try
             {
-                stream = _engine.StreamRunAsync(tenantId, workflowId, currentUserId, runReq, cancellationToken);
+                runResult = await _engine.SyncRunAsync(
+                    tenantId,
+                    workflowId,
+                    currentUserId,
+                    new CozeWorkflowRunCommand(inputsJson, "draft"),
+                    cancellationToken);
             }
             catch (Exception ex)
             {
@@ -134,40 +157,59 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
                 yield return Sse(new { kind = "error", message = $"启动 chatflow 引擎失败：{startError}", recoverable = false, seq });
                 await _messageLog.RecordAsync(tenantId, "chatflow", "error", sessionId, request.ChatflowId, null, null, JsonSerializer.Serialize(new { message = startError }), cancellationToken);
             }
-            if (stream is not null)
+            if (runResult is not null)
             {
                 bridged = true;
-                await foreach (var evt in stream.WithCancellation(cancellationToken))
+                if (!string.IsNullOrWhiteSpace(runResult.OutputsJson))
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var (kind, payload) = MapEngineEventToChunk(evt, ++seq);
-                    yield return payload;
+                    seq++;
+                    yield return Sse(new
+                    {
+                        kind = "message",
+                        content = runResult.OutputsJson,
+                        markdown = true,
+                        seq
+                    });
                     LowCodeOtelInstrumentation.ChatflowStreamChunk.Add(1,
                         new KeyValuePair<string, object?>("tenant.id", tenantId.Value.ToString()),
                         new KeyValuePair<string, object?>("lowcode.chatflow_id", request.ChatflowId),
-                        new KeyValuePair<string, object?>("chunk.kind", kind));
-                    if (kind == "final") hadFinal = true;
+                        new KeyValuePair<string, object?>("chunk.kind", "message"));
                 }
+
+                seq++;
+                yield return Sse(new
+                {
+                    kind = "final",
+                    outputs = SafeParseObject(runResult.OutputsJson ?? string.Empty),
+                    seq
+                });
+                LowCodeOtelInstrumentation.ChatflowStreamChunk.Add(1,
+                    new KeyValuePair<string, object?>("tenant.id", tenantId.Value.ToString()),
+                    new KeyValuePair<string, object?>("lowcode.chatflow_id", request.ChatflowId),
+                    new KeyValuePair<string, object?>("chunk.kind", "final"));
+                hadFinal = true;
             }
         }
 
         if (!bridged)
         {
-            // 回退：mock pipeline（与 M11 初版一致），便于无 LLM 时仍可演示。
+            // P1-5 修复（PLAN §M11 P1-5）：
+            // 此前非 long chatflowId 走 mock pipeline（tool_call/按字符 message/伪 final），
+            // 让"未配置真实 chatflow"看上去仍然能跑，掩盖了配置缺失。
+            // 现修正为返回明确 error chunk + final 收尾，前端可显示"未找到 chatflow"提示。
             seq++;
-            yield return Sse(new { kind = "tool_call", toolName = "compose", args = new { input = request.Input }, seq });
-            var tokens = SplitTokens(request.Input);
-            foreach (var token in tokens)
+            yield return Sse(new
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await Task.Delay(30, cancellationToken);
-                seq++;
-                yield return Sse(new { kind = "message", content = token, markdown = true, seq });
-            }
+                kind = "error",
+                message = $"CHATFLOW_NOT_FOUND: chatflowId='{request.ChatflowId}' 不是有效的 DAG 工作流 ID（不再使用 mock）。请绑定已发布的 chatflow。",
+                recoverable = false,
+                seq
+            });
             seq++;
-            var outputs = new { final = string.Concat(tokens), inputEcho = request.Input };
-            yield return Sse(new { kind = "final", outputs, seq });
+            yield return Sse(new { kind = "final", outputs = new { error = "CHATFLOW_NOT_FOUND" }, seq });
             hadFinal = true;
+            await _messageLog.RecordAsync(tenantId, "chatflow", "error", sessionId, request.ChatflowId, null, null,
+                JsonSerializer.Serialize(new { code = "CHATFLOW_NOT_FOUND", chatflowId = request.ChatflowId }), cancellationToken);
         }
 
         if (!hadFinal)
@@ -181,7 +223,7 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
     }
 
     /// <summary>
-    /// 把 IDagWorkflowExecutionService 的 SseEvent (event/data) 协议转为前端 ChatChunk 4 类（tool_call/message/error/final）。
+    /// 保留兼容的事件映射工具，后续若恢复真正流式可继续复用。
     /// </summary>
     private static (string Kind, string Payload) MapEngineEventToChunk(SseEvent evt, int seq)
     {
@@ -315,7 +357,7 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
 
     private static IReadOnlyList<string> SplitTokens(string input)
     {
-        // 简化：按字符分；真实接入 LLM 流式 tokens 由 IDagWorkflowExecutionService.StreamRunAsync 提供。
+        // 简化：按字符分；后续如需恢复真正流式，可直接接 Coze workflow 执行事件流。
         if (string.IsNullOrEmpty(input)) return new[] { "..." };
         var tokens = new List<string>(input.Length);
         foreach (var c in input) tokens.Add(c.ToString());
@@ -332,11 +374,19 @@ public sealed class RuntimeMessageLogService : IRuntimeMessageLogService
 {
     private readonly ILowCodeMessageLogRepository _repo;
     private readonly IIdGeneratorAccessor _idGen;
+    private readonly IResourceVisibilityResolver _visibilityResolver;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
 
-    public RuntimeMessageLogService(ILowCodeMessageLogRepository repo, IIdGeneratorAccessor idGen)
+    public RuntimeMessageLogService(
+        ILowCodeMessageLogRepository repo,
+        IIdGeneratorAccessor idGen,
+        IResourceVisibilityResolver visibilityResolver,
+        ICurrentUserAccessor currentUserAccessor)
     {
         _repo = repo;
         _idGen = idGen;
+        _visibilityResolver = visibilityResolver;
+        _currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<IReadOnlyList<RuntimeMessageLogEntryDto>> QueryAsync(TenantId tenantId, RuntimeMessageLogQuery query, CancellationToken cancellationToken)
@@ -344,7 +394,10 @@ public sealed class RuntimeMessageLogService : IRuntimeMessageLogService
         var pageIndex = query.PageIndex ?? 1;
         var pageSize = query.PageSize ?? 100;
         var list = await _repo.QueryAsync(tenantId, query.SessionId, query.WorkflowId, query.AgentId, query.From, query.To, pageIndex, pageSize, cancellationToken);
-        return list.Select(e => new RuntimeMessageLogEntryDto(
+
+        // 治理 R1-B3：按 (workflow, agent) 资源可见性过滤。
+        var filtered = await ApplyVisibilityFilterAsync(list, tenantId, cancellationToken);
+        return filtered.Select(e => new RuntimeMessageLogEntryDto(
             e.EntryId,
             e.Source,
             e.Kind,
@@ -362,5 +415,80 @@ public sealed class RuntimeMessageLogService : IRuntimeMessageLogService
         var entryId = $"mle_{_idGen.NextId()}";
         var entry = new LowCodeMessageLogEntry(tenantId, _idGen.NextId(), entryId, source, kind, sessionId, workflowId, agentId, traceId, payloadJson);
         await _repo.InsertAsync(entry, cancellationToken);
+    }
+
+    /// <summary>
+    /// 治理 R1-B3：按 (workflow, agent) 资源可见性收口运行时消息日志。
+    /// platform admin / system admin 自动 bypass；其他用户调 IResourceVisibilityResolver 过滤。
+    /// 既无 workflowId 又无 agentId 的条目（纯调度日志）保留行为兼容。
+    /// </summary>
+    private async Task<List<LowCodeMessageLogEntry>> ApplyVisibilityFilterAsync(
+        IReadOnlyList<LowCodeMessageLogEntry> entries,
+        TenantId tenantId,
+        CancellationToken cancellationToken)
+    {
+        if (entries.Count == 0)
+        {
+            return new List<LowCodeMessageLogEntry>(0);
+        }
+
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        var isAdmin = currentUser?.IsPlatformAdmin == true
+            || (currentUser?.Roles?.Any(r => string.Equals(r, "system-admin", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(r, "platform-admin", StringComparison.OrdinalIgnoreCase)) ?? false);
+
+        if (isAdmin)
+        {
+            return entries.ToList();
+        }
+
+        var candidates = new HashSet<(string ResourceType, string ResourceId)>();
+        foreach (var e in entries)
+        {
+            if (!string.IsNullOrWhiteSpace(e.WorkflowId))
+            {
+                candidates.Add(("workflow", e.WorkflowId!));
+            }
+            if (!string.IsNullOrWhiteSpace(e.AgentId))
+            {
+                candidates.Add(("agent", e.AgentId!));
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            return entries.ToList();
+        }
+
+        var visibleSet = await _visibilityResolver.FilterVisibleAsync(
+            tenantId,
+            currentUser?.UserId ?? 0,
+            isAdmin,
+            candidates,
+            cancellationToken);
+        var visibleHashSet = visibleSet
+            .Select(t => $"{t.ResourceType}|{t.ResourceId}")
+            .ToHashSet(StringComparer.Ordinal);
+
+        return entries
+            .Where(e =>
+            {
+                var hasWorkflow = !string.IsNullOrWhiteSpace(e.WorkflowId);
+                var hasAgent = !string.IsNullOrWhiteSpace(e.AgentId);
+                if (!hasWorkflow && !hasAgent)
+                {
+                    return true;
+                }
+                if (hasWorkflow && visibleHashSet.Contains($"workflow|{e.WorkflowId}"))
+                {
+                    return true;
+                }
+                if (hasAgent && visibleHashSet.Contains($"agent|{e.AgentId}"))
+                {
+                    return true;
+                }
+                return false;
+            })
+            .ToList();
     }
 }

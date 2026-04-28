@@ -1,6 +1,8 @@
 using Atlas.Application.LowCode.Repositories;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.LowCode.Entities;
+using Microsoft.Data.Sqlite;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories.LowCode;
@@ -17,7 +19,17 @@ public sealed class AppDefinitionRepository : IAppDefinitionRepository
 
     public async Task<long> InsertAsync(AppDefinition app, CancellationToken cancellationToken)
     {
-        await _db.Insertable(app).ExecuteCommandAsync(cancellationToken);
+        try
+        {
+            await _db.Insertable(app).ExecuteCommandAsync(cancellationToken);
+        }
+        catch (SqliteException ex) when (IsLegacyCurrentVersionNotNullConstraint(ex))
+        {
+            // 兼容历史 SQLite 结构：CurrentVersionId 被误建为 NOT NULL 时，用 0 占位重试一次。
+            app.ApplyLegacyDraftCurrentVersionFallback();
+            await _db.Insertable(app).ExecuteCommandAsync(cancellationToken);
+        }
+
         return app.Id;
     }
 
@@ -69,10 +81,15 @@ public sealed class AppDefinitionRepository : IAppDefinitionRepository
         int pageSize,
         string? keyword,
         string? status,
+        string? workspaceId,
         CancellationToken cancellationToken)
     {
         var q = _db.Queryable<AppDefinition>()
             .Where(x => x.TenantIdValue == tenantId.Value);
+        if (!string.IsNullOrWhiteSpace(workspaceId))
+        {
+            q = q.Where(x => x.WorkspaceId == workspaceId);
+        }
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             q = q.Where(x => x.Code.Contains(keyword) || x.DisplayName.Contains(keyword));
@@ -86,5 +103,45 @@ public sealed class AppDefinitionRepository : IAppDefinitionRepository
         var list = await q.OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .ToPageListAsync(pageIndex, pageSize, cancellationToken);
         return (list, total);
+    }
+
+    public async Task<IReadOnlyDictionary<long, string>> LoadFolderIdsAsync(
+        TenantId tenantId,
+        string workspaceId,
+        IReadOnlyCollection<long> appIds,
+        CancellationToken cancellationToken)
+    {
+        if (appIds.Count == 0)
+        {
+            return new Dictionary<long, string>();
+        }
+
+        var idTexts = appIds.Select(id => id.ToString()).ToArray();
+        var rows = await _db.Queryable<WorkspaceFolderItem>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.WorkspaceId == workspaceId
+                && x.ItemType == "app"
+                && SqlFunc.ContainsArray(idTexts, x.ItemId))
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Where(row => long.TryParse(row.ItemId, out _))
+            .GroupBy(row => row.ItemId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => long.Parse(group.Key),
+                group => group.First().FolderId.ToString());
+    }
+
+    private static bool IsLegacyCurrentVersionNotNullConstraint(SqliteException ex)
+    {
+        if (ex.SqliteErrorCode != 19)
+        {
+            return false;
+        }
+
+        var message = ex.Message;
+        return message.Contains("NOT NULL constraint failed", StringComparison.OrdinalIgnoreCase)
+            && message.Contains("AppDefinition.CurrentVersionId", StringComparison.OrdinalIgnoreCase);
     }
 }

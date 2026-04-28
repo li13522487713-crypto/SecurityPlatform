@@ -1,6 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getTenantId } from "@atlas/shared-react-core/utils";
+import { useShallow } from "zustand/react/shallow";
+import type { BotSpace } from "@coze-arch/bot-api/developer_api";
+import { useSpaceStore } from "@coze-foundation/space-store-adapter";
 import { getWorkspaceByIdOrNull, type WorkspaceDetailDto } from "../services/api-org-workspaces";
+import { getConfiguredAppKey } from "../services/api-core";
 
 interface WorkspaceContextValue extends WorkspaceDetailDto {
   loading: boolean;
@@ -8,6 +12,11 @@ interface WorkspaceContextValue extends WorkspaceDetailDto {
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+
+interface CozeSpaceStoreSnapshot {
+  spaceList: BotSpace[];
+  inited?: boolean;
+}
 
 function buildEmptyDetail(workspaceId: string, orgId: string): WorkspaceDetailDto {
   return {
@@ -43,12 +52,49 @@ export function WorkspaceProvider({
   children: ReactNode;
 }) {
   const resolvedOrgId = useMemo(() => (orgId ?? getTenantId() ?? ""), [orgId]);
+  const { spaceList, inited } = useSpaceStore(
+    useShallow((state: CozeSpaceStoreSnapshot) => ({
+      spaceList: state.spaceList,
+      inited: state.inited
+    }))
+  );
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<WorkspaceDetailDto>(() => buildEmptyDetail(workspaceId, resolvedOrgId));
+  const cozeSpaceDetail = useMemo<WorkspaceDetailDto | null>(() => {
+    if (!inited) {
+      return null;
+    }
+
+    const matchedSpace = spaceList.find((item) => String(item.id ?? "").trim() === workspaceId);
+    if (!matchedSpace) {
+      return null;
+    }
+
+    const fallbackAppKey = getConfiguredAppKey();
+    return {
+      id: workspaceId,
+      orgId: resolvedOrgId,
+      name: String(matchedSpace.name ?? "").trim(),
+      description: String(matchedSpace.description ?? "").trim(),
+      icon: String(matchedSpace.icon_url ?? "").trim(),
+      appInstanceId: "",
+      appKey: fallbackAppKey,
+      roleCode: "Member",
+      allowedActions: [],
+      createdAt: "",
+      lastVisitedAt: undefined
+    };
+  }, [inited, resolvedOrgId, spaceList, workspaceId]);
 
   const reload = async () => {
     if (!resolvedOrgId || !workspaceId) {
       setDetail(buildEmptyDetail(workspaceId, resolvedOrgId));
+      setLoading(false);
+      return;
+    }
+
+    if (cozeSpaceDetail) {
+      setDetail(cozeSpaceDetail);
       setLoading(false);
       return;
     }
@@ -64,7 +110,7 @@ export function WorkspaceProvider({
 
   useEffect(() => {
     void reload();
-  }, [resolvedOrgId, workspaceId]);
+  }, [cozeSpaceDetail, resolvedOrgId, workspaceId]);
 
   const value = useMemo<WorkspaceContextValue | null>(() => {
     return {

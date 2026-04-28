@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal, Form, Space, Select } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal, Form, Space } from '@douyinfe/semi-ui';
 import { listShortcuts } from '@atlas/lowcode-editor-canvas';
 import { lowcodeApi, type AppVariable } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
@@ -9,7 +9,7 @@ import { t } from '../i18n';
 /**
  * 左侧 5 Tab 面板（M07 C07-2 / C07-5 / C07-6 / C07-7）。
  *
- * 全部接通真实后端 API（PlatformHost /api/v1/lowcode/*）：
+ * 全部接通 AppHost 真实后端 API（/api/v1/lowcode/*）：
  *  - 组件 → GET /components/registry
  *  - 模板 → GET /templates
  *  - 结构 → GET /apps/{id}/pages

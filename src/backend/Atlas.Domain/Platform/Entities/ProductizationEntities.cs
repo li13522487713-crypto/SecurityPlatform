@@ -110,6 +110,11 @@ public sealed class AppManifest : TenantEntity
     public long? PublishedBy { get; private set; }
     [SugarColumn(IsNullable = true)]
     public DateTimeOffset? PublishedAt { get; private set; }
+    /// <summary>
+    /// 1→N 模型：所属工作空间 ID。一个工作空间可包含多个 AppManifest；NULL 表示历史/平台级未归属任何 workspace。
+    /// </summary>
+    [SugarColumn(IsNullable = true)]
+    public long? WorkspaceId { get; private set; }
 
     public void Update(string name, string? description, string? category, string? icon, long? dataSourceId, long updatedBy, DateTimeOffset now)
     {
@@ -143,6 +148,21 @@ public sealed class AppManifest : TenantEntity
     {
         Version = version < 1 ? 1 : version;
         Status = AppManifestStatus.Published;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// 1→N 模型：把当前 AppManifest 归属到指定 workspace。仅在初次归属或迁移时调用。
+    /// </summary>
+    public void AssignWorkspace(long workspaceId, long updatedBy, DateTimeOffset now)
+    {
+        if (workspaceId <= 0)
+        {
+            return;
+        }
+
+        WorkspaceId = workspaceId;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }
@@ -560,44 +580,3 @@ public sealed class ToolAuthorizationPolicy : TenantEntity
     }
 }
 
-public sealed class AppDesignerSnapshot : TenantEntity
-{
-    public AppDesignerSnapshot()
-        : base(TenantId.Empty)
-    {
-        SnapshotType = string.Empty;
-        SchemaJson = "{}";
-        CreatedBy = string.Empty;
-    }
-
-    public AppDesignerSnapshot(
-        TenantId tenantId,
-        long id,
-        long manifestId,
-        string snapshotType,
-        long itemId,
-        string schemaJson,
-        int version,
-        string createdBy,
-        DateTimeOffset createdAt)
-        : base(tenantId)
-    {
-        Id = id;
-        ManifestId = manifestId;
-        SnapshotType = snapshotType;
-        ItemId = itemId;
-        SchemaJson = schemaJson;
-        Version = version;
-        CreatedBy = createdBy;
-        CreatedAt = createdAt;
-    }
-
-    public long ManifestId { get; private set; }
-    public string SnapshotType { get; private set; }
-    public long ItemId { get; private set; }
-    [SugarColumn(ColumnDataType = "TEXT")]
-    public string SchemaJson { get; private set; }
-    public int Version { get; private set; }
-    public string CreatedBy { get; private set; }
-    public DateTimeOffset CreatedAt { get; private set; }
-}

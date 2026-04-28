@@ -254,6 +254,6 @@ describe('useSpaceStore', () => {
     expect(useSpaceStore.getState().spaces).toEqual(expectedValue);
     expect(useSpaceStore.getState().createSpace).toHaveBeenCalledTimes(2);
 
-    expect(useSpaceStore.getState().fetchSpaces()).rejects.toThrow();
+    await expect(useSpaceStore.getState().fetchSpaces()).resolves.toBeUndefined();
   });
 });

@@ -1,4 +1,5 @@
 using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Options;
@@ -50,6 +51,11 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
 
     public ILlmProvider GetLlmProvider(string? providerName = null)
     {
+        if (IsFixtureProvider(providerName))
+        {
+            return new FixtureLlmProvider();
+        }
+
         var options = _optionsMonitor.CurrentValue;
         var dbConfig = ResolveModelConfig(providerName, forEmbedding: false, options);
         if (dbConfig is not null)
@@ -59,6 +65,27 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
 
         var name = ResolveProviderName(providerName, options.DefaultProvider, options.DefaultProvider);
         return BuildProvider(name, options, requireEmbedding: false);
+    }
+
+    public ILlmProvider GetLlmProviderByModelConfigId(long modelConfigId)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        if (tenantId.IsEmpty)
+        {
+            throw new InvalidOperationException("Tenant is required to resolve model config provider.");
+        }
+
+        var config = _modelConfigRepository
+            .FindByIdAsync(tenantId, modelConfigId, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new KeyNotFoundException($"Model config '{modelConfigId}' is not found.");
+        if (!config.IsEnabled)
+        {
+            throw new InvalidOperationException($"Model config '{modelConfigId}' is disabled.");
+        }
+
+        return BuildProvider(config);
     }
 
     public IEmbeddingProvider GetEmbeddingProvider(string? providerName = null)
@@ -105,7 +132,10 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
                 BuildModelConfigCacheKey(tenantId),
                 async ct =>
                 {
-                    var rows = await _modelConfigRepository.GetAllEnabledAsync(tenantId, ct);
+                    var rows = await _modelConfigRepository.GetAllEnabledAsync(
+                        tenantId,
+                        workspaceId: null,
+                        cancellationToken: ct);
                     return rows.ToArray();
                 },
                 TimeSpan.FromMinutes(2),
@@ -263,4 +293,59 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
 
     private static string BuildModelConfigCacheTag(TenantId tenantId)
         => $"tag:ai:model-configs:{tenantId.Value:N}";
+
+    private static bool IsFixtureProvider(string? providerName)
+        => string.Equals(providerName, "fixture", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(providerName, "atlas-fixture", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(providerName, "mvp-fixture", StringComparison.OrdinalIgnoreCase);
+
+    private sealed class FixtureLlmProvider : ILlmProvider
+    {
+        public string ProviderName => "atlas-fixture";
+
+        public Task<ChatCompletionResult> ChatAsync(ChatCompletionRequest request, CancellationToken ct = default)
+        {
+            var prompt = string.Join(
+                "\n",
+                request.Messages.Select(message => message.Content ?? string.Empty));
+            var content = ResolveContent(prompt);
+            return Task.FromResult(new ChatCompletionResult(
+                content,
+                request.Model,
+                ProviderName,
+                "stop",
+                PromptTokens: null,
+                CompletionTokens: null,
+                TotalTokens: null));
+        }
+
+        public async IAsyncEnumerable<ChatCompletionChunk> ChatStreamAsync(ChatCompletionRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return new ChatCompletionChunk(ResolveContent(string.Join("\n", request.Messages.Select(message => message.Content ?? string.Empty))), true, "stop");
+            await Task.CompletedTask;
+        }
+
+        private static string ResolveContent(string prompt)
+        {
+            if (prompt.Contains("意图候选列表", StringComparison.OrdinalIgnoreCase) ||
+                prompt.Contains("意图分类", StringComparison.OrdinalIgnoreCase))
+            {
+                var intent = prompt.Contains("报销", StringComparison.OrdinalIgnoreCase)
+                    ? "报销"
+                    : prompt.Contains("请假", StringComparison.OrdinalIgnoreCase)
+                        ? "请假"
+                        : "其他";
+                return $$"""{"intent":"{{intent}}","confidence":0.99,"reason":"fixture deterministic classification"}""";
+            }
+
+            if (prompt.Contains("法国", StringComparison.OrdinalIgnoreCase) &&
+                (prompt.Contains("首都", StringComparison.OrdinalIgnoreCase) ||
+                 prompt.Contains("capital", StringComparison.OrdinalIgnoreCase)))
+            {
+                return "巴黎";
+            }
+
+            return prompt.Trim();
+        }
+    }
 }

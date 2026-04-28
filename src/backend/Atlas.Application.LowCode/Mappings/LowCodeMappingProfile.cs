@@ -23,9 +23,11 @@ public sealed class LowCodeMappingProfile : Profile
             .ForCtorParam("TargetTypes", opt => opt.MapFrom(src => src.TargetTypes))
             .ForCtorParam("DefaultLocale", opt => opt.MapFrom(src => src.DefaultLocale))
             .ForCtorParam("Status", opt => opt.MapFrom(src => src.Status))
-            .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId))
+            .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId.HasValue && src.CurrentVersionId.Value > 0 ? src.CurrentVersionId : null))
             .ForCtorParam("CreatedAt", opt => opt.MapFrom(src => src.CreatedAt))
-            .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt));
+            .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt))
+            .ForCtorParam("WorkspaceId", opt => opt.MapFrom(src => src.WorkspaceId))
+            .ForCtorParam("FolderId", opt => opt.MapFrom(_ => (string?)null));
 
         CreateMap<AppDefinition, AppDefinitionDetail>()
             .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()))
@@ -37,9 +39,10 @@ public sealed class LowCodeMappingProfile : Profile
             .ForCtorParam("DefaultLocale", opt => opt.MapFrom(src => src.DefaultLocale))
             .ForCtorParam("Theme", opt => opt.MapFrom(src => src.Theme))
             .ForCtorParam("Status", opt => opt.MapFrom(src => src.Status))
-            .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId.HasValue ? src.CurrentVersionId.Value.ToString() : null))
+            .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId.HasValue && src.CurrentVersionId.Value > 0 ? src.CurrentVersionId.Value.ToString() : null))
             .ForCtorParam("CreatedAt", opt => opt.MapFrom(src => src.CreatedAt))
-            .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt));
+            .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt))
+            .ForCtorParam("WorkspaceId", opt => opt.MapFrom(src => src.WorkspaceId));
 
         CreateMap<PageDefinition, PageDefinitionListItem>()
             .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()))

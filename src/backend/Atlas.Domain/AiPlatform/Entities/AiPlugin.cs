@@ -1,5 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
@@ -18,8 +20,12 @@ public sealed class AiPlugin : TenantEntity
         AuthConfigJson = "{}";
         ToolSchemaJson = "{}";
         OpenApiSpecJson = "{}";
+        WorkspaceId = 0;
+        LockOwnerId = 0;
         CreatedAt = DateTime.UtcNow;
+        UpdatedAt = CreatedAt;
         PublishedAt = DateTime.UnixEpoch;
+        ResourceSource = LibrarySource.Custom;
     }
 
     public AiPlugin(
@@ -36,12 +42,13 @@ public sealed class AiPlugin : TenantEntity
         string? toolSchemaJson,
         string? openApiSpecJson,
         long id,
-        long? workspaceId = null)
+        long? workspaceId = null,
+        LibrarySource resourceSource = LibrarySource.Custom)
         : base(tenantId)
     {
         Id = id;
         Name = name;
-        WorkspaceId = workspaceId;
+        WorkspaceId = workspaceId ?? 0;
         Description = description ?? string.Empty;
         Icon = icon ?? string.Empty;
         Category = category ?? string.Empty;
@@ -55,13 +62,14 @@ public sealed class AiPlugin : TenantEntity
         ToolSchemaJson = string.IsNullOrWhiteSpace(toolSchemaJson) ? "{}" : toolSchemaJson;
         OpenApiSpecJson = string.IsNullOrWhiteSpace(openApiSpecJson) ? "{}" : openApiSpecJson;
         Status = AiPluginStatus.Draft;
+        ResourceSource = resourceSource;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
         PublishedAt = DateTime.UnixEpoch;
     }
 
     public string Name { get; private set; }
-    public long? WorkspaceId { get; private set; }
+    public long WorkspaceId { get; private set; }
     public string? Description { get; private set; }
     public string? Icon { get; private set; }
     public string? Category { get; private set; }
@@ -77,10 +85,13 @@ public sealed class AiPlugin : TenantEntity
     public string OpenApiSpecJson { get; private set; }
     public int PublishedVersion { get; private set; }
     public bool IsLocked { get; private set; }
-    public long? LockOwnerId { get; private set; }
+    public long LockOwnerId { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
     public DateTime? PublishedAt { get; private set; }
+
+    [SugarColumn(IsNullable = false)]
+    public LibrarySource ResourceSource { get; private set; }
 
     public void Update(
         string name,
@@ -129,14 +140,14 @@ public sealed class AiPlugin : TenantEntity
     public void Lock(long? ownerId = null)
     {
         IsLocked = true;
-        LockOwnerId = ownerId;
+        LockOwnerId = ownerId ?? 0;
         UpdatedAt = DateTime.UtcNow;
     }
 
     public void Unlock()
     {
         IsLocked = false;
-        LockOwnerId = null;
+        LockOwnerId = 0;
         UpdatedAt = DateTime.UtcNow;
     }
 

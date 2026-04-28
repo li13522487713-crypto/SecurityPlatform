@@ -4,6 +4,9 @@ using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 using Atlas.AppHost;
+using Atlas.AppHost.ExternalConnectors;
+using Atlas.AppHost.Middleware;
+using Atlas.AppHost.Microflows.DependencyInjection;
 using Atlas.AppHost.Sdk.Health;
 using Atlas.Core.Setup;
 using Atlas.AppHost.Sdk.Hosting;
@@ -45,8 +48,8 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 平台配置根目录：支持通过环境变量 ATLAS_PLATFORM_CONFIG_ROOT 覆盖，
-// 默认值兼容开发环境的相对目录布局。
+// 共享配置根目录：支持通过环境变量 ATLAS_PLATFORM_CONFIG_ROOT 覆盖；
+// 默认读取当前 AppHost 内容根目录。
 var platformConfigRoot = Environment.GetEnvironmentVariable("ATLAS_PLATFORM_CONFIG_ROOT");
 if (string.IsNullOrWhiteSpace(platformConfigRoot))
 {
@@ -54,7 +57,7 @@ if (string.IsNullOrWhiteSpace(platformConfigRoot))
 }
 if (string.IsNullOrWhiteSpace(platformConfigRoot))
 {
-    platformConfigRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Atlas.PlatformHost"));
+    platformConfigRoot = builder.Environment.ContentRootPath;
 }
 else
 {
@@ -193,6 +196,7 @@ builder.Services.AddValidatorsFromAssemblies([
     typeof(Atlas.Application.Audit.Validators.AuditRecordValidator).Assembly,
     typeof(Atlas.Application.AgentTeam.Validators.AgentTeamCreateRequestValidator).Assembly,
     typeof(Atlas.Application.Workflow.Validators.PublishEventRequestValidator).Assembly,
+    typeof(Atlas.Application.ExternalConnectors.Validators.ManualBindingRequestValidator).Assembly,
     typeof(Atlas.Presentation.Shared.Validators.ChangePasswordViewModelValidator).Assembly,
 ]);
 
@@ -212,6 +216,10 @@ appServices.AddAtlasApplicationRuntime();
 builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
     .AddAtlasInfrastructurePlatform(builder.Configuration)
     .AddAtlasInfrastructureAppRuntime(builder.Configuration);
+
+// ─── External Collaboration Connectors（数据平面：仅装配 provider/节点/桥接，不跑后台 Job）───
+builder.Services.AddAppHostExternalConnectors();
+builder.Services.AddMicroflowBackend(builder.Configuration);
 
 // 低代码 Preview Hub 推送服务（M08 S08-3）
 builder.Services.AddSingleton<Atlas.Presentation.Shared.Hubs.ILowCodePreviewBroadcaster, Atlas.Presentation.Shared.Hubs.LowCodePreviewBroadcaster>();
@@ -430,7 +438,8 @@ if (appSetupStateProvider.IsReady)
 // ─── Middleware pipeline ───
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<AppSetupModeMiddleware>();
-app.UseMiddleware<XssProtectionMiddleware>();
+// M10/D5：在控制台路径上把 IP/UA 注入 SetupConsoleAuditContext，便于审计 fallback。
+app.UseMiddleware<SetupConsoleAuditEnricherMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -544,7 +553,7 @@ app.Run();
 
 static string ResolvePlatformConfigRoot(string configuredRoot, string contentRootPath)
 {
-    var fallbackRoot = Path.GetFullPath(Path.Combine(contentRootPath, "..", "Atlas.PlatformHost"));
+    var fallbackRoot = contentRootPath;
     var candidates = new List<string>();
 
     if (Path.IsPathRooted(configuredRoot))

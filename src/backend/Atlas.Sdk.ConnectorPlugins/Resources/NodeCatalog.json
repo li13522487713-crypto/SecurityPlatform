@@ -1,0 +1,64 @@
+{
+  "category": {
+    "id": "external_collaboration",
+    "name": { "zh-CN": "外部协同", "en-US": "External Collaboration" },
+    "description": { "zh-CN": "v4 报告 27-31 章 + N6 钉钉/飞书三方扩展的连接器节点族", "en-US": "WeCom / Feishu / DingTalk connector nodes (v4 report 27-31 + N6)" }
+  },
+  "nodes": [
+    {
+      "type": "external_identity_bind",
+      "name": { "zh-CN": "外部登录绑定", "en-US": "External Identity Bind" },
+      "summary": { "zh-CN": "把外部 user profile 绑定到本地用户（4 档策略）", "en-US": "Bind external user profile to local user (4 strategies)" }
+    },
+    {
+      "type": "external_directory_sync_trigger",
+      "name": { "zh-CN": "触发通讯录全量同步", "en-US": "Trigger Directory Full Sync" },
+      "summary": { "zh-CN": "对指定 provider 触发一次全量通讯录同步", "en-US": "Run a full directory sync against one provider" }
+    },
+    {
+      "type": "external_sync_department",
+      "name": { "zh-CN": "同步部门变更", "en-US": "Sync Department Change" }
+    },
+    {
+      "type": "external_sync_member",
+      "name": { "zh-CN": "同步成员变更", "en-US": "Sync Member Change" }
+    },
+    {
+      "type": "wecom_send_message",
+      "name": { "zh-CN": "发送企微消息", "en-US": "Send WeCom Message" }
+    },
+    {
+      "type": "feishu_send_message",
+      "name": { "zh-CN": "发送飞书消息", "en-US": "Send Feishu Message" }
+    },
+    {
+      "type": "dingtalk_send_message",
+      "name": { "zh-CN": "发送钉钉工作通知", "en-US": "Send DingTalk Work Notice" }
+    },
+    {
+      "type": "wecom_create_approval",
+      "name": { "zh-CN": "创建企微审批", "en-US": "Create WeCom Approval" }
+    },
+    {
+      "type": "feishu_create_approval",
+      "name": { "zh-CN": "创建飞书审批", "en-US": "Create Feishu Approval" }
+    },
+    {
+      "type": "dingtalk_create_approval",
+      "name": { "zh-CN": "创建钉钉审批", "en-US": "Create DingTalk Approval" }
+    },
+    {
+      "type": "feishu_sync_third_party_approval",
+      "name": { "zh-CN": "同步飞书三方审批", "en-US": "Sync Feishu Third-Party Approval" },
+      "summary": { "zh-CN": "把本地状态推到飞书审批中心（external_instances+check）", "en-US": "Push local state to Feishu approval center via external_instances+check" }
+    },
+    {
+      "type": "external_query_approval_status",
+      "name": { "zh-CN": "同步外部审批状态", "en-US": "Sync External Approval Status" }
+    },
+    {
+      "type": "external_process_callback",
+      "name": { "zh-CN": "处理外部回调", "en-US": "Process External Callback" }
+    }
+  ]
+}

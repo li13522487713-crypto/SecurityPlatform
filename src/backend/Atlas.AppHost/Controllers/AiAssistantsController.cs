@@ -24,6 +24,7 @@ public sealed class AiAssistantsController : ControllerBase
     private readonly IValidator<AgentCreateRequest> _createValidator;
     private readonly IValidator<AgentUpdateRequest> _updateValidator;
     private readonly IValidator<WorkflowBindingUpdateRequest> _workflowBindingValidator;
+    private readonly IValidator<AgentDatabaseBindingInput> _databaseBindingValidator;
     private readonly IValidator<AgentPublicationPublishRequest> _publishValidator;
     private readonly IValidator<AgentPublicationRollbackRequest> _rollbackValidator;
 
@@ -36,6 +37,7 @@ public sealed class AiAssistantsController : ControllerBase
         IValidator<AgentCreateRequest> createValidator,
         IValidator<AgentUpdateRequest> updateValidator,
         IValidator<WorkflowBindingUpdateRequest> workflowBindingValidator,
+        IValidator<AgentDatabaseBindingInput> databaseBindingValidator,
         IValidator<AgentPublicationPublishRequest> publishValidator,
         IValidator<AgentPublicationRollbackRequest> rollbackValidator)
     {
@@ -47,6 +49,7 @@ public sealed class AiAssistantsController : ControllerBase
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _workflowBindingValidator = workflowBindingValidator;
+        _databaseBindingValidator = databaseBindingValidator;
         _publishValidator = publishValidator;
         _rollbackValidator = rollbackValidator;
     }
@@ -64,6 +67,7 @@ public sealed class AiAssistantsController : ControllerBase
             tenantId,
             keyword,
             status,
+            workspaceId: null,
             request.PageIndex,
             request.PageSize,
             cancellationToken);
@@ -88,7 +92,7 @@ public sealed class AiAssistantsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.AgentCreate)]
+    [Authorize(Policy = PermissionPolicies.AiAppCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] AgentCreateRequest request,
         CancellationToken cancellationToken)
@@ -133,6 +137,31 @@ public sealed class AiAssistantsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _commandService.BindWorkflowAsync(tenantId, id, request.WorkflowId, cancellationToken);
         return Ok(ApiResponse<WorkflowBindingDto>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/database-bindings")]
+    [Authorize(Policy = PermissionPolicies.AgentUpdate)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AgentDatabaseBindingItem>>>> BindDatabase(
+        long id,
+        [FromBody] AgentDatabaseBindingInput request,
+        CancellationToken cancellationToken)
+    {
+        _databaseBindingValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _commandService.BindDatabaseAsync(tenantId, id, request, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AgentDatabaseBindingItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{id:long}/database-bindings/{databaseId:long}")]
+    [Authorize(Policy = PermissionPolicies.AgentUpdate)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AgentDatabaseBindingItem>>>> UnbindDatabase(
+        long id,
+        long databaseId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _commandService.UnbindDatabaseAsync(tenantId, id, databaseId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AgentDatabaseBindingItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}/publications")]

@@ -5,7 +5,7 @@
 本文件将第 2 轮 Coze Studio Atlas 化方案正式落入仓库，作为后续实现的唯一骨架说明。该方案基于当前 `SecurityPlatform` 已存在的以下事实推进，而不是另起一套平行系统：
 
 - 后端已存在 `Atlas.Application.AiPlatform`、`Atlas.Domain.AiPlatform`、`Atlas.Infrastructure.Services.AiPlatform`
-- 控制面已存在 `Atlas.PlatformHost.Controllers` 中的 `AiAppsController`、`AiWorkspacesController`、`AiPluginsController`、`AiDatabasesController`、`AiVariablesController`、`DagWorkflowController`（路由 `api/v2/workflows`）、`WorkspaceIdeController`
+- 控制面已存在 `Atlas.AppHost.Controllers` 中的 `AiAppsController`、`AiWorkspacesController`、`AiPluginsController`、`AiDatabasesController`、`AiVariablesController`、`DagWorkflowController`（路由 `api/v2/workflows`）、`WorkspaceIdeController`
 - 运行面已存在 `Atlas.AppHost.Controllers` 中的 `ConversationsController`、`DraftAgentsController`、`Open/OpenBotsController`、`Open/OpenChatController`、`Open/OpenWorkflowsController`
 - 前端已存在 `app-web + module-studio-react + module-explore-react + module-workflow-react + workflow-editor-react + project-ide + agent-ide`
 
@@ -13,7 +13,7 @@
 
 ### 1. 宿主分工不变
 
-- `PlatformHost` 负责设计态、资源态、发布态、市场态、PAT/OpenAPI 管理态
+- 上述能力在单一 AppHost 上承载设计态、资源态、发布态、市场态、PAT/OpenAPI 管理态（历史 `PlatformHost` 已删除）
 - `AppHost` 负责运行态、调试态、SSE 对话态、Workflow 执行态、对外 OpenAPI 调用态
 
 ### 2. `AiPlatform` 仍然是唯一业务主域
@@ -202,6 +202,6 @@
 
 1. 先补实体与绑定表
 2. 再补 Abstractions 和 Service 接口收束
-3. 再补 PlatformHost / AppHost 缺失接口
+3. 再补 AppHost 上缺失的接口
 4. 再补 `app-web` 路由与 `module-*` 宿主
 5. 最后补 E2E 主链与 OpenAPI 验证

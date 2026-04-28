@@ -1,0 +1,864 @@
+import { describe, expect, it } from "vitest";
+import { addFlow, applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteFlow, deleteObject, duplicateObject, moveObject, toEditorGraph, updateFlow, updateObject } from "./adapters";
+import {
+  addMicroflowObjectFromDragPayload,
+  canCreateRegistryItem,
+  canConnectPorts,
+  createDragPayloadFromRegistryItem,
+  createDefaultActionConfig,
+  defaultMicroflowNodeRegistry,
+  getMicroflowNodeDisabledReason,
+  getMicroflowNodeRegistryKey,
+  searchMicroflowNodes,
+} from "./node-registry";
+import { sampleMicroflowSchema, validateMicroflowSchema } from "./schema";
+import { createNoCaseValue, getCaseDisplayLabel, isCaseValueDuplicate, updateFlowCaseValue } from "./schema/utils";
+import { collectFlowsRecursive } from "./schema/utils/object-utils";
+import { buildVariableIndex } from "./variables";
+import { authoringToFlowGram } from "./flowgram/adapters/authoring-to-flowgram";
+import { createMicroflowFlowFromPorts } from "./flowgram/adapters/flowgram-edge-factory";
+import {
+  getConnectionIndexFromSourceHandle,
+  getConnectionIndexFromTargetHandle,
+  getSourceHandleFromConnectionIndex,
+  getTargetHandleFromConnectionIndex,
+  mapFlowGramEdgeToMicroflowFlow,
+  mapMicroflowFlowToFlowGramEdge,
+} from "./flowgram/adapters/flowgram-edge-mapping";
+import { findDeletedObjectId, flowGramPositionPatch, flowGramSelectionPatch } from "./flowgram/adapters/flowgram-to-authoring-patch";
+import {
+  booleanCaseValue,
+  enumerationCaseValue,
+  fallbackCaseValue,
+  getEnumerationCaseOptions,
+  getObjectTypeCaseOptions,
+  inheritanceCaseValue,
+} from "./flowgram/adapters/flowgram-case-options";
+import type { MicroflowObject, MicroflowSchema } from "./schema";
+import { getDefaultMockMetadataCatalog } from "./metadata";
+
+const mockMeta = getDefaultMockMetadataCatalog();
+
+function registry(key: string) {
+  const item = defaultMicroflowNodeRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key || entry.type === key);
+  if (!item) {
+    throw new Error(`Missing registry item ${key}`);
+  }
+  return item;
+}
+
+function schemaWith(objects: MicroflowObject[], flows: MicroflowSchema["flows"] = []): MicroflowSchema {
+  return {
+    ...sampleMicroflowSchema,
+    objectCollection: { ...sampleMicroflowSchema.objectCollection, objects },
+    flows,
+    editor: { ...sampleMicroflowSchema.editor, selection: {} }
+  };
+}
+
+describe("microflow editor interactions", () => {
+  it("exposes production toolbox metadata for every registry item", () => {
+    for (const entry of defaultMicroflowNodeRegistry) {
+      expect(entry.id || getMicroflowNodeRegistryKey(entry)).toBeTruthy();
+      expect(entry.type).toBeTruthy();
+      expect(entry.category).toBeTruthy();
+      expect(entry.label || entry.title).toBeTruthy();
+      expect(entry.description).toBeTruthy();
+      expect(entry.iconKey).toBeTruthy();
+      expect(entry.keywords.length).toBeGreaterThan(0);
+      expect(entry.createDefaultConfig?.()).toBeTruthy();
+      expect(entry.featureStatus).toBeTruthy();
+      if (entry.type === "activity") {
+        expect(entry.actionKind).toBeTruthy();
+      }
+    }
+  });
+
+  it("supports toolbox search by label, type, and actionKind", () => {
+    expect(searchMicroflowNodes("Start").some(entry => entry.type === "startEvent")).toBe(true);
+    expect(searchMicroflowNodes("startEvent").some(entry => entry.type === "startEvent")).toBe(true);
+    expect(searchMicroflowNodes("callMicroflow").some(entry => entry.actionKind === "callMicroflow")).toBe(true);
+  });
+
+  it("reports disabled reasons and metadata warnings from toolbox context", () => {
+    const createObject = registry("activity:objectCreate");
+    const callMicroflow = registry("activity:callMicroflow");
+
+    expect(canCreateRegistryItem(createObject, { microflowId: "mf-a", schemaLoaded: true, metadataAvailable: false })).toBe(true);
+    expect(getMicroflowNodeDisabledReason(createObject, {})).toBe("Open a microflow to add nodes.");
+    expect(callMicroflow.metadataRequirements).toContain("microflows");
+  });
+
+  it("keeps node registry defaults free of demo business references", () => {
+    const demoPattern = /Sales|MF_ValidateOrder|ValidateOrder|ProcessOrder|CheckInventory|NotifyUser|OrderLine|Customer|Product|Inventory|\/api\/orders|api\.example\.com/i;
+    const defaults = defaultMicroflowNodeRegistry.map(entry => ({
+      key: getMicroflowNodeRegistryKey(entry),
+      defaultConfig: entry.defaultConfig
+    }));
+
+    expect(JSON.stringify(defaults)).not.toMatch(demoPattern);
+  });
+
+  it("creates safe pending defaults for Stage 07 governed action types", () => {
+    expect(createDefaultActionConfig("callMicroflow")).toMatchObject({
+      targetMicroflowId: "",
+      targetMicroflowQualifiedName: "",
+      parameterMappings: [],
+      configurationState: "incomplete"
+    });
+    expect(JSON.stringify(createDefaultActionConfig("createObject"))).not.toContain("Sales");
+    expect(createDefaultActionConfig("restCall")).toMatchObject({ method: "GET", url: "" });
+  });
+
+  it("adds dragged nodes into the supplied AuthoringSchema with unique ids and safe config", () => {
+    const base = schemaWith([]);
+    const first = addMicroflowObjectFromDragPayload({
+      schema: base,
+      payload: createDragPayloadFromRegistryItem(registry("activity:callMicroflow")),
+      position: { x: 160, y: 96 },
+    });
+    const second = addMicroflowObjectFromDragPayload({
+      schema: first.schema,
+      payload: createDragPayloadFromRegistryItem(registry("activity:callMicroflow")),
+      position: { x: 320, y: 192 },
+    });
+    const objects = second.schema.objectCollection.objects;
+    const ids = new Set(objects.map(object => object.id));
+
+    expect(base.objectCollection.objects).toHaveLength(0);
+    expect(objects).toHaveLength(2);
+    expect(ids.size).toBe(objects.length);
+    expect(objects[0]?.relativeMiddlePoint).toEqual({ x: 160, y: 96 });
+    expect(second.schema.editor.selection.objectId).toBe(objects[1]?.id);
+    expect(JSON.stringify(objects)).not.toMatch(/Sales|MF_ValidateOrder|ProcessOrder|CheckInventory|NotifyUser|api\.example\.com/i);
+  });
+
+  it("keeps dragged node creation isolated between separate microflow schemas", () => {
+    const microflowA = addMicroflowObjectFromDragPayload({
+      schema: { ...schemaWith([]), id: "MF_A", stableId: "MF_A" },
+      payload: createDragPayloadFromRegistryItem(registry("activity:objectCreate")),
+      position: { x: 100, y: 100 },
+    });
+    const microflowB = addMicroflowObjectFromDragPayload({
+      schema: { ...schemaWith([]), id: "MF_B", stableId: "MF_B" },
+      payload: createDragPayloadFromRegistryItem(registry("decision")),
+      position: { x: 400, y: 200 },
+    });
+
+    expect(microflowA.schema.objectCollection.objects).toHaveLength(1);
+    expect(microflowB.schema.objectCollection.objects).toHaveLength(1);
+    expect(microflowA.schema.objectCollection.objects[0]?.id).not.toBe(microflowB.schema.objectCollection.objects[0]?.id);
+    expect(microflowA.schema.objectCollection.objects[0]?.kind).toBe("actionActivity");
+    expect(microflowB.schema.objectCollection.objects[0]?.kind).toBe("exclusiveSplit");
+  });
+
+  it("persists node move by updating relativeMiddlePoint in schema", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "move-start");
+    const schema = schemaWith([start]);
+    const moved = moveObject(schema, start.id, { x: 240, y: 128 });
+
+    expect(moved.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 240, y: 128 });
+    expect(schema.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 0, y: 0 });
+  });
+
+  it("deletes nodes from schema and removes related flows and parameter definitions", () => {
+    const parameterResult = addMicroflowObjectFromDragPayload({
+      schema: schemaWith([]),
+      payload: createDragPayloadFromRegistryItem(registry("parameter")),
+      position: { x: 0, y: 0 },
+    });
+    const parameterObject = parameterResult.objectId
+      ? parameterResult.schema.objectCollection.objects.find(object => object.id === parameterResult.objectId)
+      : undefined;
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 0 }, "delete-retrieve");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 400, y: 0 }, "delete-end");
+    if (!parameterObject) {
+      throw new Error("Expected parameter object.");
+    }
+    const flow = createSequenceFlow({ originObjectId: retrieve.id, destinationObjectId: end.id });
+    const withObjects = schemaWith([parameterObject, retrieve, end], [flow]);
+    const schema = {
+      ...withObjects,
+      parameters: parameterResult.schema.parameters,
+      editor: { ...withObjects.editor, selection: { objectId: parameterObject.id, flowId: flow.id } }
+    };
+
+    const withoutRetrieve = deleteObject(schema, retrieve.id);
+    expect(withoutRetrieve.objectCollection.objects.some(object => object.id === retrieve.id)).toBe(false);
+    expect(collectFlowsRecursive(withoutRetrieve).some(item => item.originObjectId === retrieve.id || item.destinationObjectId === retrieve.id)).toBe(false);
+
+    const withoutParameter = deleteObject(schema, parameterObject.id);
+    expect(withoutParameter.objectCollection.objects.some(object => object.id === parameterObject.id)).toBe(false);
+    if (parameterObject.kind !== "parameterObject") {
+      throw new Error("Expected parameter object kind.");
+    }
+    expect(withoutParameter.parameters.some(parameter => parameter.id === parameterObject.parameterId)).toBe(false);
+    expect(withoutParameter.editor.selection.objectId).toBeUndefined();
+  });
+
+  it("duplicates a node with a new id, offset position, new caption, and no copied flows", () => {
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 96 }, "dup-retrieve");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 440, y: 96 }, "dup-end");
+    const flow = createSequenceFlow({ originObjectId: retrieve.id, destinationObjectId: end.id });
+    const schema = schemaWith([retrieve, end], [flow]);
+    const duplicated = duplicateObject(schema, retrieve.id);
+    const copied = duplicated.objectCollection.objects.find(object => object.id !== retrieve.id && object.id !== end.id);
+
+    expect(copied).toBeDefined();
+    expect(copied?.id).not.toBe(retrieve.id);
+    expect(copied?.caption).toBe(`${retrieve.caption} Copy`);
+    expect(copied?.relativeMiddlePoint).toEqual({ x: retrieve.relativeMiddlePoint.x + 80, y: retrieve.relativeMiddlePoint.y + 60 });
+    expect(copied?.kind === "actionActivity" ? copied.action.id : undefined).not.toBe(retrieve.kind === "actionActivity" ? retrieve.action.id : undefined);
+    expect(collectFlowsRecursive(duplicated).filter(item => item.originObjectId === copied?.id || item.destinationObjectId === copied?.id)).toHaveLength(0);
+    expect(duplicated.editor.selection.objectId).toBe(copied?.id);
+  });
+
+  it("renames node caption through schema object update", () => {
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 400, y: 0 }, "rename-end");
+    const renamed = updateObject(schemaWith([end]), end.id, object => ({ ...object, caption: "End_Validate" }));
+
+    expect(renamed.objectCollection.objects.find(object => object.id === end.id)?.caption).toBe("End_Validate");
+    expect(toEditorGraph(renamed).nodes.find(node => node.objectId === end.id)?.title).toBe("End_Validate");
+  });
+
+  it("creates sequence flows with source, target, connection indexes, and unique ids", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "flow-start");
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 0 }, "flow-retrieve");
+    const base = schemaWith([start, retrieve]);
+    const graph = toEditorGraph(base);
+    const sourcePort = graph.nodes.find(node => node.objectId === start.id)?.ports.find(port => port.direction === "output");
+    const targetPort = graph.nodes.find(node => node.objectId === retrieve.id)?.ports.find(port => port.direction === "input");
+    if (!sourcePort || !targetPort) {
+      throw new Error("Expected source and target ports.");
+    }
+
+    const flow = createMicroflowFlowFromPorts(base, sourcePort, targetPort);
+    const next = addFlow(base, flow);
+
+    expect(next.flows).toHaveLength(1);
+    expect(next.flows[0]).toMatchObject({
+      originObjectId: start.id,
+      destinationObjectId: retrieve.id,
+      originConnectionIndex: sourcePort.connectionIndex,
+      destinationConnectionIndex: targetPort.connectionIndex,
+    });
+    expect(next.flows[0]?.id).toBeTruthy();
+    expect(next.flows[0]?.id).not.toBe(start.id);
+    expect(addFlow(next, flow).flows).toHaveLength(1);
+  });
+
+  it("persists decision true and false branches as caseValues and connection indexes", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "branch-decision");
+    const trueTarget = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "branch-true");
+    const falseTarget = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 80 }, "branch-false");
+    const base = schemaWith([decision, trueTarget, falseTarget]);
+    const graph = toEditorGraph(base);
+    const decisionNode = graph.nodes.find(node => node.objectId === decision.id);
+    const truePort = decisionNode?.ports.find(port => port.label.toLowerCase() === "true");
+    const falsePort = decisionNode?.ports.find(port => port.label.toLowerCase() === "false");
+    const trueTargetPort = graph.nodes.find(node => node.objectId === trueTarget.id)?.ports.find(port => port.direction === "input");
+    const falseTargetPort = graph.nodes.find(node => node.objectId === falseTarget.id)?.ports.find(port => port.direction === "input");
+    if (!truePort || !falsePort || !trueTargetPort || !falseTargetPort) {
+      throw new Error("Expected decision and target ports.");
+    }
+
+    const trueFlow = createMicroflowFlowFromPorts(base, truePort, trueTargetPort);
+    const withTrue = addFlow(base, trueFlow);
+    const falseFlow = createMicroflowFlowFromPorts(withTrue, falsePort, falseTargetPort);
+    const withBranches = addFlow(withTrue, falseFlow);
+    const flows = withBranches.flows as Extract<MicroflowSchema["flows"][number], { kind: "sequence" }>[];
+
+    expect(flows.find(flow => flow.id === trueFlow.id)?.caseValues[0]).toMatchObject({ kind: "boolean", value: true, persistedValue: "true" });
+    expect(flows.find(flow => flow.id === falseFlow.id)?.caseValues[0]).toMatchObject({ kind: "boolean", value: false, persistedValue: "false" });
+    expect(flows.find(flow => flow.id === trueFlow.id)?.originConnectionIndex).toBe(truePort.connectionIndex);
+    expect(flows.find(flow => flow.id === falseFlow.id)?.originConnectionIndex).toBe(falsePort.connectionIndex);
+    const flowGram = authoringToFlowGram(withBranches, [], []);
+    expect(flowGram.edges.find(edge => (edge as { id?: string }).id === trueFlow.id)?.sourcePortID).toBe(truePort.id);
+    expect(flowGram.edges.find(edge => (edge as { id?: string }).id === falseFlow.id)?.sourcePortID).toBe(falsePort.id);
+  });
+
+  it("maps FlowGram edges to schema flows without losing handles or branch cases", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "map-decision");
+    const target = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 0 }, "map-target");
+    const base = schemaWith([decision, target]);
+    const graph = toEditorGraph(base);
+    const sourcePort = graph.nodes.find(node => node.objectId === decision.id)?.ports.find(port => port.label.toLowerCase() === "true");
+    const targetPort = graph.nodes.find(node => node.objectId === target.id)?.ports.find(port => port.direction === "input");
+    if (!sourcePort || !targetPort) {
+      throw new Error("Expected decision source and target ports.");
+    }
+
+    const flow = mapFlowGramEdgeToMicroflowFlow(base, {
+      id: "flowgram-edge",
+      sourceNodeID: decision.id,
+      targetNodeID: target.id,
+      sourcePortID: sourcePort.id,
+      targetPortID: targetPort.id,
+      data: { caseValues: [booleanCaseValue(true)], label: "High Amount" },
+    });
+
+    expect(flow?.kind).toBe("sequence");
+    expect(flow).toMatchObject({
+      originObjectId: decision.id,
+      destinationObjectId: target.id,
+      originConnectionIndex: sourcePort.connectionIndex,
+      destinationConnectionIndex: targetPort.connectionIndex,
+    });
+    expect(flow?.kind === "sequence" ? flow.caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: true });
+    expect(flow?.editor.label).toBe("High Amount");
+  });
+
+  it("maps schema flows back to FlowGram edges with connection-index based handles", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "map-start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "map-end");
+    const flow = createSequenceFlow({
+      originObjectId: start.id,
+      destinationObjectId: end.id,
+      originConnectionIndex: 0,
+      destinationConnectionIndex: 0,
+      label: "done",
+    });
+    const schema = schemaWith([start, end], [flow]);
+
+    const edge = mapMicroflowFlowToFlowGramEdge(schema, flow);
+
+    expect(edge.sourceNodeID).toBe(start.id);
+    expect(edge.targetNodeID).toBe(end.id);
+    expect(edge.sourcePortID).toBe(getSourceHandleFromConnectionIndex(start.id, "sequence", 0));
+    expect(edge.targetPortID).toBe(getTargetHandleFromConnectionIndex(end.id, "sequence", 0));
+    expect(getConnectionIndexFromSourceHandle(edge.sourcePortID)).toBe(flow.originConnectionIndex);
+    expect(getConnectionIndexFromTargetHandle(edge.targetPortID)).toBe(flow.destinationConnectionIndex);
+    expect(edge.data?.label).toBe("done");
+  });
+
+  it("deletes and updates flows through schema helpers", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "delete-flow-start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "delete-flow-end");
+    const flow = createSequenceFlow({ originObjectId: start.id, destinationObjectId: end.id });
+    const schema = {
+      ...schemaWith([start, end], [flow]),
+      editor: { ...sampleMicroflowSchema.editor, selection: { objectId: undefined, flowId: flow.id } }
+    };
+    const labelled = updateFlow(schema, flow.id, item => item.kind === "sequence"
+      ? { ...item, editor: { ...item.editor, label: "Ready" } }
+      : item);
+    const deleted = deleteFlow(labelled, flow.id);
+
+    expect(labelled.flows[0]?.editor.label).toBe("Ready");
+    expect(deleted.flows).toHaveLength(0);
+    expect(deleted.editor.selection.flowId).toBeUndefined();
+  });
+
+  it("detects FlowGram node deletion and removes related schema flows", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "delete-node-start");
+    const decision = createObjectFromRegistry(registry("decision"), { x: 200, y: 0 }, "delete-node-decision");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 400, y: 0 }, "delete-node-end");
+    const incoming = createSequenceFlow({ originObjectId: start.id, destinationObjectId: decision.id });
+    const outgoing = createSequenceFlow({
+      originObjectId: decision.id,
+      destinationObjectId: end.id,
+      originConnectionIndex: 1,
+      edgeKind: "decisionCondition",
+      caseValues: [booleanCaseValue(true)],
+    });
+    const schema = schemaWith([start, decision, end], [incoming, outgoing]);
+    const flowGram = authoringToFlowGram(schema, [], []);
+    const deletedObjectId = findDeletedObjectId(schema, {
+      ...flowGram,
+      nodes: flowGram.nodes.filter(node => node.id !== decision.id),
+      edges: flowGram.edges.filter(edge => edge.sourceNodeID !== decision.id && edge.targetNodeID !== decision.id),
+    });
+    const next = applyEditorGraphPatchToAuthoring(schema, { deleteObjectId: deletedObjectId });
+
+    expect(deletedObjectId).toBe(decision.id);
+    expect(next.objectCollection.objects.some(object => object.id === decision.id)).toBe(false);
+    expect(collectFlowsRecursive(next).some(flow => flow.originObjectId === decision.id || flow.destinationObjectId === decision.id)).toBe(false);
+  });
+
+  it("keeps flow creation isolated between separate microflow schemas", () => {
+    const aStart = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "a-flow-start");
+    const aEnd = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "a-flow-end");
+    const bStart = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "b-flow-start");
+    const bEnd = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "b-flow-end");
+    const schemaA = schemaWith([aStart, aEnd]);
+    const schemaB = schemaWith([bStart, bEnd]);
+    const graphA = toEditorGraph(schemaA);
+    const sourceA = graphA.nodes.find(node => node.objectId === aStart.id)?.ports.find(port => port.direction === "output");
+    const targetA = graphA.nodes.find(node => node.objectId === aEnd.id)?.ports.find(port => port.direction === "input");
+    if (!sourceA || !targetA) {
+      throw new Error("Expected A ports.");
+    }
+    const updatedA = addFlow(schemaA, createMicroflowFlowFromPorts(schemaA, sourceA, targetA));
+
+    expect(updatedA.flows).toHaveLength(1);
+    expect(schemaB.flows).toHaveLength(0);
+    expect(schemaB.objectCollection.objects.map(object => object.id)).toEqual([bStart.id, bEnd.id]);
+  });
+
+  it("keeps move, delete, duplicate, and rename isolated between separate schemas", () => {
+    const sourceA = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 100, y: 100 }, "a-retrieve");
+    const sourceB = createObjectFromRegistry(registry("decision"), { x: 300, y: 120 }, "b-decision");
+    const schemaA = updateObject(duplicateObject(moveObject(schemaWith([sourceA]), sourceA.id, { x: 180, y: 160 }), sourceA.id), sourceA.id, object => ({ ...object, caption: "Retrieve_A" }));
+    const schemaB = deleteObject(schemaWith([sourceB]), sourceB.id);
+
+    expect(schemaA.objectCollection.objects.some(object => object.caption === "Retrieve_A")).toBe(true);
+    expect(schemaA.objectCollection.objects).toHaveLength(2);
+    expect(schemaB.objectCollection.objects).toHaveLength(0);
+    expect(sourceB.caption).not.toBe("Retrieve_A");
+  });
+
+  it("creates concrete objects from registry entries", () => {
+    expect(createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }).kind).toBe("startEvent");
+    expect(createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 100, y: 0 }).kind).toBe("actionActivity");
+    expect(createObjectFromRegistry(registry("activity:callRest"), { x: 200, y: 0 }).kind).toBe("actionActivity");
+    expect(createObjectFromRegistry(registry("annotation"), { x: 300, y: 0 }).kind).toBe("annotation");
+    expect(createObjectFromRegistry(registry("parameter"), { x: 400, y: 0 }).kind).toBe("parameterObject");
+  });
+
+  it("allows normal sequence flow from start to retrieve", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "start-test");
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 0 }, "retrieve-test");
+    const schema = schemaWith([start, retrieve]);
+    const graph = toEditorGraph(schema);
+    const source = graph.nodes.find(node => node.objectId === start.id)?.ports.find(port => port.direction === "output");
+    const target = graph.nodes.find(node => node.objectId === retrieve.id)?.ports.find(port => port.direction === "input");
+    expect(source && target ? canConnectPorts(schema, source, target).allowed : false).toBe(true);
+  });
+
+  it("rejects terminal source and normal flow into error event", () => {
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 0, y: 0 }, "end-test");
+    const error = createObjectFromRegistry(registry("errorEvent"), { x: 200, y: 0 }, "error-test");
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 400, y: 0 }, "retrieve-test");
+    const schema = schemaWith([end, error, retrieve]);
+    const graph = toEditorGraph(schema);
+    const endOut = graph.nodes.find(node => node.objectId === end.id)?.ports.find(port => port.direction === "output");
+    expect(endOut).toBeUndefined();
+    const retrieveOut = graph.nodes.find(node => node.objectId === retrieve.id)?.ports.find(port => port.kind === "sequenceOut");
+    const errorIn = graph.nodes.find(node => node.objectId === error.id)?.ports.find(port => port.direction === "input");
+    expect(retrieveOut && errorIn ? canConnectPorts(schema, retrieveOut, errorIn).allowed : true).toBe(false);
+  });
+
+  it("detects duplicate decision cases", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "decision-test");
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "change-1");
+    const second = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 80 }, "change-2");
+    const flow = createSequenceFlow({
+      originObjectId: decision.id,
+      destinationObjectId: first.id,
+      originConnectionIndex: 1,
+      edgeKind: "decisionCondition",
+      caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }]
+    });
+    const schema = schemaWith([decision, first, second], [flow]);
+    const graph = toEditorGraph(schema);
+    const truePort = graph.nodes.find(node => node.objectId === decision.id)?.ports.find(port => port.label === "True");
+    const target = graph.nodes.find(node => node.objectId === second.id)?.ports.find(port => port.direction === "input");
+    expect(truePort && target ? canConnectPorts(schema, truePort, target).allowed : true).toBe(false);
+  });
+
+  it("derives FlowGram JSON from AuthoringSchema without losing flow semantics", () => {
+    const json = authoringToFlowGram(sampleMicroflowSchema, validateMicroflowSchema({ schema: sampleMicroflowSchema, metadata: mockMeta }).issues, []);
+    expect(json.nodes.length).toBeGreaterThan(0);
+    expect(json.edges.length).toBeGreaterThan(0);
+    expect(json.nodes[0]?.data).toHaveProperty("objectId");
+    const firstEdge = json.edges[0] as { data?: object } | undefined;
+    expect(firstEdge?.data).toHaveProperty("flowId");
+    const actionNode = json.nodes.find(node => (node.data as { actionKind?: string }).actionKind);
+    expect(actionNode?.data).toHaveProperty("action");
+    const semanticEdge = json.edges.find(edge => {
+      const data = (edge as { data?: { edgeKind?: string; isErrorHandler?: boolean } }).data;
+      return data && (data.edgeKind === "decisionCondition" || data.edgeKind === "objectTypeCondition" || data.isErrorHandler);
+    }) as { data?: object } | undefined;
+    if (semanticEdge) {
+      expect(semanticEdge.data).toHaveProperty("caseValues");
+      expect(semanticEdge.data).toHaveProperty("isErrorHandler");
+    }
+  });
+
+  it("creates AuthoringSchema patches from FlowGram move, resize, and selection changes", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "flowgram-patch-start");
+    const schema = schemaWith([start]);
+    const json = authoringToFlowGram(schema, [], []);
+    const node = json.nodes.find(item => item.id === start.id);
+    if (!node) {
+      throw new Error("Expected FlowGram node.");
+    }
+    node.meta = {
+      ...node.meta,
+      position: { x: 96, y: 64 },
+      size: { width: 180, height: 80 },
+    };
+    const patch = flowGramPositionPatch(schema, json);
+    expect(patch.movedNodes).toEqual([{ objectId: start.id, position: { x: 96, y: 64 } }]);
+    expect(patch.resizedNodes).toEqual([{ objectId: start.id, size: { width: 180, height: 80 } }]);
+    const next = applyEditorGraphPatchToAuthoring(schema, patch);
+    expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 96, y: 64 });
+    expect(next.objectCollection.objects[0]?.size).toEqual({ width: 180, height: 80 });
+    expect(flowGramSelectionPatch({ objectId: start.id })).toEqual({ selectedObjectId: start.id, selectedFlowId: undefined });
+  });
+
+  it("adds dragged action activities, parameters, annotations, and loops through AuthoringSchema", () => {
+    const base = schemaWith([]);
+    const retrieve = addMicroflowObjectFromDragPayload({
+      schema: base,
+      payload: createDragPayloadFromRegistryItem(registry("activity:objectRetrieve")),
+      position: { x: 160, y: 96 },
+    });
+    const retrieveObject = retrieve.objectId ? retrieve.schema.objectCollection.objects.find(object => object.id === retrieve.objectId) : undefined;
+    expect(retrieve.blockedReason).toBeUndefined();
+    expect(retrieveObject?.kind).toBe("actionActivity");
+    expect(retrieveObject?.kind === "actionActivity" ? retrieveObject.action.kind : undefined).toBe("retrieve");
+    expect(retrieve.schema.editor.selection.objectId).toBe(retrieve.objectId);
+
+    const parameter = addMicroflowObjectFromDragPayload({
+      schema: retrieve.schema,
+      payload: createDragPayloadFromRegistryItem(registry("parameter")),
+      position: { x: 320, y: 96 },
+    });
+    expect(parameter.schema.parameters.some(item => item.name === "parameter" && item.dataType.kind === "string")).toBe(true);
+    const parameterObject = parameter.objectId ? parameter.schema.objectCollection.objects.find(object => object.id === parameter.objectId) : undefined;
+    expect(parameterObject?.kind).toBe("parameterObject");
+
+    const annotation = addMicroflowObjectFromDragPayload({
+      schema: parameter.schema,
+      payload: createDragPayloadFromRegistryItem(registry("annotation")),
+      position: { x: 480, y: 96 },
+    });
+    expect(annotation.objectId ? annotation.schema.objectCollection.objects.find(object => object.id === annotation.objectId)?.kind : undefined).toBe("annotation");
+
+    const loop = addMicroflowObjectFromDragPayload({
+      schema: annotation.schema,
+      payload: createDragPayloadFromRegistryItem(registry("loop")),
+      position: { x: 640, y: 96 },
+    });
+    const loopObject = loop.objectId ? loop.schema.objectCollection.objects.find(object => object.id === loop.objectId) : undefined;
+    expect(loopObject?.kind).toBe("loopedActivity");
+    expect(loopObject?.kind === "loopedActivity" ? loopObject.objectCollection.objects : []).toEqual([]);
+  });
+
+  it("blocks invalid dragged nodes before mutating AuthoringSchema", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "existing-start");
+    const duplicateStart = addMicroflowObjectFromDragPayload({
+      schema: schemaWith([start]),
+      payload: createDragPayloadFromRegistryItem(registry("startEvent")),
+      position: { x: 200, y: 0 },
+    });
+    expect(duplicateStart.blockedReason).toContain("Start Event");
+    expect(duplicateStart.schema.objectCollection.objects).toHaveLength(1);
+
+    const breakResult = addMicroflowObjectFromDragPayload({
+      schema: schemaWith([]),
+      payload: createDragPayloadFromRegistryItem(registry("breakEvent")),
+      position: { x: 200, y: 0 },
+    });
+    expect(breakResult.blockedReason).toBeUndefined();
+    expect(breakResult.warnings).toContain("Requires a Loop context.");
+    expect(breakResult.schema.objectCollection.objects).toHaveLength(1);
+
+    const nanoflow = addMicroflowObjectFromDragPayload({
+      schema: schemaWith([]),
+      payload: createDragPayloadFromRegistryItem(registry("activity:callNanoflow")),
+      position: { x: 200, y: 0 },
+    });
+    expect(nanoflow.blockedReason).toBeTruthy();
+  });
+
+  it("creates a boolean decision condition flow from FlowGram ports", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "decision-flowgram");
+    const change = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 0 }, "change-flowgram");
+    const schema = schemaWith([decision, change]);
+    const graph = toEditorGraph(schema);
+    const source = graph.nodes.find(node => node.objectId === decision.id)?.ports.find(port => port.kind === "decisionOut");
+    const target = graph.nodes.find(node => node.objectId === change.id)?.ports.find(port => port.direction === "input");
+    if (!source || !target) {
+      throw new Error("Expected decision and target ports.");
+    }
+    const flow = createMicroflowFlowFromPorts(schema, source, target, {
+      caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: false, persistedValue: "false" }],
+      label: "否",
+    });
+    expect(flow.kind).toBe("sequence");
+    expect(flow.editor.edgeKind).toBe("decisionCondition");
+    expect(flow.editor.label).toBe("否");
+    expect((flow.caseValues ?? [])[0]).toMatchObject({ kind: "boolean", value: false, persistedValue: "false" });
+  });
+
+  it("creates an auto layout patch from root flow order", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 500, y: 500 }, "layout-start");
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 100, y: 500 }, "layout-retrieve");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 100, y: 100 }, "layout-end");
+    const first = createSequenceFlow({ originObjectId: start.id, destinationObjectId: retrieve.id, originConnectionIndex: 0 });
+    const second = createSequenceFlow({ originObjectId: retrieve.id, destinationObjectId: end.id, originConnectionIndex: 0 });
+    const patch = createAutoLayoutPatch(schemaWith([end, retrieve, start], [first, second]));
+    const positions = new Map(patch.movedNodes?.map(item => [item.objectId, item.position]));
+    expect(positions.get(start.id)?.x).toBeLessThan(positions.get(retrieve.id)?.x ?? 0);
+    expect(positions.get(retrieve.id)?.x).toBeLessThan(positions.get(end.id)?.x ?? 0);
+  });
+
+  it("blocks direct flows across loop objectCollection boundaries", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "boundary-loop");
+    const rootAction = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 0, y: 120 }, "boundary-root");
+    const loopAction = createObjectFromRegistry(registry("activity:objectChange"), { x: 220, y: 180 }, "boundary-child");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loopedActivity.");
+    }
+    const schema = schemaWith([{ ...loop, objectCollection: { ...loop.objectCollection, objects: [loopAction] } }, rootAction]);
+    const graph = toEditorGraph(schema);
+    const source = graph.nodes.find(node => node.objectId === rootAction.id)?.ports.find(port => port.kind === "sequenceOut");
+    const target = graph.nodes.find(node => node.objectId === loopAction.id)?.ports.find(port => port.direction === "input");
+    expect(source && target ? canConnectPorts(schema, source, target).allowed : true).toBe(false);
+
+    const invalidFlow = createSequenceFlow({ originObjectId: rootAction.id, destinationObjectId: loopAction.id });
+    const issues = validateMicroflowSchema({ schema: { ...schema, flows: [invalidFlow] }, metadata: mockMeta }).issues;
+    expect(issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(true);
+  });
+
+  it("adds loop internal objects to the loop collection and deletes descendant flows with the loop", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "delete-loop");
+    const rootAction = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 0, y: 120 }, "delete-root");
+    const loopAction = createObjectFromRegistry(registry("activity:objectChange"), { x: 220, y: 180 }, "delete-child");
+    const baseSchema = schemaWith([loop, rootAction]);
+    const withChild = applyEditorGraphPatchToAuthoring(baseSchema, {
+      addObject: { object: loopAction, parentLoopObjectId: loop.id },
+      selectedObjectId: loopAction.id,
+    });
+    const updatedLoop = withChild.objectCollection.objects.find(object => object.id === loop.id);
+    expect(updatedLoop?.kind === "loopedActivity" ? updatedLoop.objectCollection.objects.some(object => object.id === loopAction.id) : false).toBe(true);
+    expect(withChild.objectCollection.objects.some(object => object.id === loopAction.id)).toBe(false);
+
+    const danglingFlow = createSequenceFlow({ originObjectId: loopAction.id, destinationObjectId: rootAction.id });
+    const deleted = deleteObject({ ...withChild, flows: [danglingFlow] }, loop.id);
+    expect(deleted.flows.some(flow => flow.originObjectId === loopAction.id || flow.destinationObjectId === loopAction.id)).toBe(false);
+    expect(deleted.editor.selection.objectId).toBeUndefined();
+  });
+
+  it("projects loop body summary to FlowGram and resizes loop containers during auto layout", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "summary-loop");
+    const loopAction = createObjectFromRegistry(registry("activity:objectChange"), { x: 220, y: 180 }, "summary-child");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loopedActivity.");
+    }
+    const flow = createSequenceFlow({ originObjectId: loopAction.id, destinationObjectId: loopAction.id });
+    const schema = schemaWith([{ ...loop, objectCollection: { ...loop.objectCollection, objects: [loopAction] } }], [flow]);
+    const json = authoringToFlowGram(schema, validateMicroflowSchema({ schema, metadata: mockMeta }).issues, []);
+    const loopNode = json.nodes.find(node => node.id === loop.id);
+    expect(loopNode?.data).toMatchObject({
+      objectId: loop.id,
+      loopSummary: {
+        childCount: 1,
+        actionCount: 1,
+        flowCount: 1,
+      },
+    });
+
+    const patch = createAutoLayoutPatch(schema);
+    expect(patch.resizedNodes?.some(item => item.objectId === loop.id && item.size.height > loop.size.height)).toBe(true);
+  });
+
+  it("creates sequence flows between Loop internal objects without crossing collection boundaries", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "internal-flow-loop");
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 180, y: 180 }, "internal-first");
+    const second = createObjectFromRegistry(registry("activity:logMessage"), { x: 420, y: 180 }, "internal-second");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loopedActivity.");
+    }
+    const schema = schemaWith([{ ...loop, objectCollection: { ...loop.objectCollection, objects: [first, second] } }]);
+    const graph = toEditorGraph(schema);
+    const source = graph.nodes.find(node => node.objectId === first.id)?.ports.find(port => port.kind === "sequenceOut");
+    const target = graph.nodes.find(node => node.objectId === second.id)?.ports.find(port => port.direction === "input");
+    if (!source || !target) {
+      throw new Error("Expected loop internal ports.");
+    }
+    expect(canConnectPorts(schema, source, target).allowed).toBe(true);
+    const flow = createMicroflowFlowFromPorts(schema, source, target);
+    const next = applyEditorGraphPatchToAuthoring(schema, {
+      addFlow: flow,
+      selectedFlowId: flow.id,
+      selectedObjectId: undefined,
+    });
+    expect(collectFlowsRecursive(next).some(item => item.id === flow.id && item.originObjectId === first.id && item.destinationObjectId === second.id)).toBe(true);
+    expect(next.editor.selection.flowId).toBe(flow.id);
+    expect(validateMicroflowSchema({ schema: next, metadata: mockMeta }).issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(false);
+  });
+
+  it("creates FlowGram port connections as schema flows with the correct edge kind", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "line-start");
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 0 }, "line-retrieve");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 400, y: 0 }, "line-end");
+    const log = createObjectFromRegistry(registry("activity:logMessage"), { x: 400, y: 120 }, "line-log");
+    const annotation = createObjectFromRegistry(registry("annotation"), { x: 200, y: 160 }, "line-note");
+    const schema = schemaWith([start, retrieve, end, log, annotation]);
+    const graph = toEditorGraph(schema);
+    const port = (objectId: string, predicate: (port: ReturnType<typeof toEditorGraph>["nodes"][number]["ports"][number]) => boolean) => {
+      const found = graph.nodes.find(node => node.objectId === objectId)?.ports.find(predicate);
+      if (!found) {
+        throw new Error(`Missing port for ${objectId}.`);
+      }
+      return found;
+    };
+
+    const startOut = port(start.id, item => item.kind === "sequenceOut");
+    const retrieveIn = port(retrieve.id, item => item.kind === "sequenceIn");
+    expect(canConnectPorts(schema, startOut, retrieveIn)).toMatchObject({ allowed: true, suggestedEdgeKind: "sequence" });
+    const sequence = createMicroflowFlowFromPorts(schema, startOut, retrieveIn);
+    expect(sequence.kind).toBe("sequence");
+    expect(sequence.kind === "sequence" ? sequence.editor.edgeKind : undefined).toBe("sequence");
+
+    const errorOut = port(retrieve.id, item => item.kind === "errorOut");
+    const logIn = port(log.id, item => item.kind === "sequenceIn");
+    expect(canConnectPorts(schema, errorOut, logIn)).toMatchObject({ allowed: true, suggestedEdgeKind: "errorHandler" });
+    const errorFlow = createMicroflowFlowFromPorts(schema, errorOut, logIn);
+    expect(errorFlow.kind === "sequence" ? errorFlow.isErrorHandler : false).toBe(true);
+    expect(errorFlow.kind === "sequence" ? errorFlow.editor.label : undefined).toBe("Error");
+
+    const annotationOut = port(annotation.id, item => item.kind === "annotation" && item.direction === "output");
+    const endIn = port(end.id, item => item.kind === "sequenceIn");
+    expect(canConnectPorts(schema, annotationOut, endIn)).toMatchObject({ allowed: true, suggestedEdgeKind: "annotation" });
+    expect(createMicroflowFlowFromPorts(schema, annotationOut, endIn).kind).toBe("annotation");
+  });
+
+  it("blocks illegal FlowGram port connections before schema flow creation", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "illegal-start");
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 0 }, "illegal-retrieve");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 400, y: 0 }, "illegal-end");
+    const parameter = createObjectFromRegistry(registry("parameter"), { x: 200, y: 120 }, "illegal-parameter");
+    const error = createObjectFromRegistry(registry("errorEvent"), { x: 400, y: 120 }, "illegal-error");
+    const schema = schemaWith([start, retrieve, end, parameter, error]);
+    const graph = toEditorGraph(schema);
+    const port = (objectId: string, predicate: (port: ReturnType<typeof toEditorGraph>["nodes"][number]["ports"][number]) => boolean) => {
+      const found = graph.nodes.find(node => node.objectId === objectId)?.ports.find(predicate);
+      if (!found) {
+        throw new Error(`Missing port for ${objectId}.`);
+      }
+      return found;
+    };
+
+    expect(canConnectPorts(schema, port(end.id, item => item.direction === "input"), port(retrieve.id, item => item.direction === "input")).allowed).toBe(false);
+    expect(canConnectPorts(schema, port(retrieve.id, item => item.kind === "sequenceOut"), port(start.id, item => item.kind === "sequenceOut")).allowed).toBe(false);
+    expect(canConnectPorts(schema, port(parameter.id, item => item.kind === "annotation"), port(retrieve.id, item => item.kind === "sequenceIn")).allowed).toBe(false);
+    expect(canConnectPorts(schema, port(retrieve.id, item => item.kind === "sequenceOut"), port(error.id, item => item.kind === "sequenceIn")).allowed).toBe(false);
+  });
+
+  it("offers enumeration cases and validates duplicate enum values", () => {
+    const decision = {
+      ...createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "enum-decision"),
+      splitCondition: {
+        kind: "expression" as const,
+        expression: { raw: "$Order/Status", references: { variables: ["Order"], entities: [], attributes: ["Status"], associations: [], enumerations: [], functions: [] }, diagnostics: [], inferredType: { kind: "enumeration" as const, enumerationQualifiedName: "Sales.OrderStatus" } },
+        resultType: "enumeration" as const,
+        enumerationQualifiedName: "Sales.OrderStatus",
+      },
+    };
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "enum-change-1");
+    const second = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 80 }, "enum-change-2");
+    const flow = createSequenceFlow({
+      originObjectId: decision.id,
+      destinationObjectId: first.id,
+      originConnectionIndex: 1,
+      edgeKind: "decisionCondition",
+      caseValues: [enumerationCaseValue("Sales.OrderStatus", "New")]
+    });
+    const schema = schemaWith([decision, first, second], [flow]);
+    const options = getEnumerationCaseOptions(schema, decision.id, undefined, mockMeta);
+    expect(options.find(option => option.caseValue.kind === "enumeration" && option.caseValue.value === "New")?.disabled).toBe(true);
+    expect(options.find(option => option.caseValue.kind === "enumeration" && option.caseValue.value === "Paid")?.disabled).toBe(false);
+    const duplicateIssues = validateMicroflowSchema({
+      schema: {
+        ...schema,
+        flows: [
+          flow,
+          createSequenceFlow({
+            originObjectId: decision.id,
+            destinationObjectId: second.id,
+            originConnectionIndex: 1,
+            edgeKind: "decisionCondition",
+            caseValues: [enumerationCaseValue("Sales.OrderStatus", "New")]
+          })
+        ],
+      },
+      metadata: mockMeta,
+    }).issues;
+    expect(duplicateIssues.some(issue => issue.code === "MF_DECISION_CASE_DUPLICATED")).toBe(true);
+  });
+
+  it("updates flow case values immutably and derives case labels", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "case-utils-decision");
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "case-utils-change-1");
+    const second = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 80 }, "case-utils-change-2");
+    const flow = createSequenceFlow({
+      originObjectId: decision.id,
+      destinationObjectId: first.id,
+      originConnectionIndex: 1,
+      edgeKind: "decisionCondition",
+      caseValues: [booleanCaseValue(true)]
+    });
+    const schema = schemaWith([decision, first, second], [flow]);
+    expect(isCaseValueDuplicate(schema, decision.id, booleanCaseValue(true))).toBe(true);
+    expect(getCaseDisplayLabel(booleanCaseValue(false))).toBe("否");
+    expect(getCaseDisplayLabel(createNoCaseValue())).toBe("未配置条件");
+    const updated = updateFlowCaseValue(schema, flow.id, booleanCaseValue(false));
+    const updatedFlow = updated.flows.find(item => item.id === flow.id);
+    expect(updatedFlow?.kind === "sequence" ? updatedFlow.caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: false });
+    expect(updatedFlow?.editor.label).toBe("否");
+    expect(schema.flows[0]?.kind === "sequence" ? schema.flows[0].caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: true });
+  });
+
+  it("offers object type specialization, empty, and fallback cases", () => {
+    const split = {
+      ...createObjectFromRegistry(registry("objectTypeDecision"), { x: 0, y: 0 }, "type-decision"),
+      inputObjectVariableName: "payment",
+      entity: { generalizedEntityQualifiedName: "Sales.PaymentMethod", allowedSpecializations: ["Sales.CardPayment", "Sales.BankTransferPayment"] },
+    };
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "type-change-1");
+    const second = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 80 }, "type-change-2");
+    const flow = createSequenceFlow({
+      originObjectId: split.id,
+      destinationObjectId: first.id,
+      originConnectionIndex: 1,
+      edgeKind: "objectTypeCondition",
+      caseValues: [inheritanceCaseValue("Sales.CardPayment")]
+    });
+    const schema = schemaWith([split, first, second], [flow]);
+    const options = getObjectTypeCaseOptions(schema, split.id, undefined, mockMeta);
+    expect(options.find(option => option.caseValue.kind === "inheritance" && option.caseValue.entityQualifiedName === "Sales.CardPayment")?.disabled).toBe(true);
+    expect(options.some(option => option.caseValue.kind === "empty")).toBe(true);
+    expect(options.some(option => option.caseValue.kind === "fallback")).toBe(true);
+    const duplicateIssues = validateMicroflowSchema({
+      schema: {
+        ...schema,
+        flows: [
+          flow,
+          createSequenceFlow({
+            originObjectId: split.id,
+            destinationObjectId: second.id,
+            originConnectionIndex: 1,
+            edgeKind: "objectTypeCondition",
+            caseValues: [fallbackCaseValue(), fallbackCaseValue()]
+          })
+        ],
+      },
+      metadata: mockMeta,
+    }).issues;
+    expect(duplicateIssues.some(issue => issue.code === "MF_OBJECT_TYPE_CASE_DUPLICATED" || issue.code === "MF_DECISION_DUPLICATE_CASE")).toBe(true);
+  });
+
+  it("builds variable index and validates scoped expression errors", () => {
+    const index = buildVariableIndex(sampleMicroflowSchema, mockMeta);
+    expect(index.parameters.orderId.name).toBe("orderId");
+    expect(index.objectOutputs.order.name).toBe("order");
+    expect(index.systemVariables.$currentIndex.name).toBe("$currentIndex");
+    const issues = validateMicroflowSchema({
+      schema: {
+        ...sampleMicroflowSchema,
+        objectCollection: {
+          ...sampleMicroflowSchema.objectCollection,
+          objects: sampleMicroflowSchema.objectCollection.objects.map(object => object.kind === "endEvent"
+            ? { ...object, returnValue: { raw: "$currentIndex", references: { variables: ["$currentIndex"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] } } }
+            : object)
+        }
+      },
+      metadata: mockMeta,
+    }).issues;
+    expect(issues.some(issue => issue.code === "MF_EXPRESSION_INVALID" || issue.code === "MF_EXPRESSION_UNKNOWN_VARIABLE")).toBe(true);
+  });
+});

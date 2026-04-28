@@ -47,6 +47,7 @@ public sealed class AiPluginService : IAiPluginService
     public async Task<PagedResult<AiPluginListItem>> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        long? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken)
@@ -54,6 +55,7 @@ public sealed class AiPluginService : IAiPluginService
         var (items, total) = await _pluginRepository.GetPagedAsync(
             tenantId,
             keyword,
+            workspaceId,
             pageIndex,
             pageSize,
             cancellationToken);

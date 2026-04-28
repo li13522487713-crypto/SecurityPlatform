@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
+import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import { uploadFileV2 } from '../src/upload-file-v2';
+
+globalThis.APP_ID = 1;
+globalThis.IMAGE_FALLBACK_HOST = 'fallback.test';
+globalThis.BYTE_UPLOADER_REGION = 'cn-north-1';
+globalThis.IS_OVERSEA = false;
+
 vi.mock('@coze-arch/bot-api', () => ({
   DeveloperApi: {
     GetUploadAuthToken: vi.fn(() =>
@@ -39,6 +47,8 @@ vi.mock('@coze-studio/uploader-adapter', () => {
   }
   return {
     getUploader: vi.fn((props: any, isOverSea?: boolean) => new MockUploader()),
+    shouldUseAtlasLocalUpload: vi.fn(() => false),
+    createLocalUploader: vi.fn(() => new MockUploader()),
   };
 });
 
@@ -54,7 +64,7 @@ describe('upload-file', () => {
         fileItemList: [{ file: new File([], 'test_file'), fileType: 'image' }],
         userId: '123',
         timeout: undefined,
-        signal: new AbortSignal(),
+        signal: new AbortController().signal,
         onSuccess: event => {
           try {
             expect(event.uploadResult.Uri).equal('test_url');
@@ -77,7 +87,7 @@ describe('upload-file', () => {
         fileItemList: [{ file: new File([], 'test_file'), fileType: 'image' }],
         userId: '123',
         timeout: undefined,
-        signal: new AbortSignal(),
+        signal: new AbortController().signal,
         onSuccess: event => {
           try {
             expect(event.uploadResult.Uri).equal('test_url');
@@ -96,4 +106,27 @@ describe('upload-file', () => {
         },
       });
     }));
+
+  test('should use atlas local uploader when local upload is enabled', async () => {
+    const uploaderAdapter = await import('@coze-studio/uploader-adapter');
+    vi.mocked(uploaderAdapter.shouldUseAtlasLocalUpload).mockReturnValue(true);
+
+    await new Promise((resolve, reject) => {
+      uploadFileV2({
+        fileItemList: [{ file: new File([], 'test_file'), fileType: 'image' }],
+        userId: '123',
+        timeout: undefined,
+        signal: new AbortController().signal,
+        onSuccess: event => {
+          try {
+            expect(event.uploadResult.Uri).toBe('test_url');
+            expect(uploaderAdapter.createLocalUploader).toHaveBeenCalled();
+            resolve('ok');
+          } catch (error) {
+            reject(error);
+          }
+        },
+      });
+    });
+  });
 });

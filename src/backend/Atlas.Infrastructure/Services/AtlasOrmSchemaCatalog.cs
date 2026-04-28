@@ -1,22 +1,26 @@
 using Atlas.Domain.Alert.Entities;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.AiPlatform.Entities.Channels;
+using Atlas.Domain.AiPlatform.Entities.Knowledge;
 using Atlas.Domain.AgentTeam.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
+using Atlas.Domain.Microflows.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.Plugins;
 using Atlas.Domain.Setup.Entities;
 using Atlas.Domain.System.Entities;
+using Atlas.Domain.ExternalConnectors.Entities;
 using Atlas.Domain.Workflow.Entities;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
 /// <summary>
-/// AppHost / PlatformHost 共享的 ORM Schema 目录。
+/// AppHost 使用的 ORM Schema 目录。
 /// 将所有运行时实体集中在一处，避免 setup 初始化、运行时兜底建表和宿主自愈之间出现漂移。
 /// </summary>
 public static class AtlasOrmSchemaCatalog
@@ -83,12 +87,36 @@ public static class AtlasOrmSchemaCatalog
         typeof(ChatMessage),
         typeof(AgenticRagRunHistory),
         typeof(LongTermMemory),
+        typeof(VoiceAsset),
         typeof(LlmUsageRecord),
         typeof(KnowledgeBase),
         typeof(KnowledgeDocument),
         typeof(DocumentChunk),
+        typeof(KnowledgeSlice),
+        typeof(KnowledgeReview),
+        typeof(KnowledgeImportTask),
+        // v5 §32-44 / 计划 G2：知识库专题扩展实体（去重 + 新增 ParseJob/IndexJob/KnowledgeTable/DocumentVersion）
+        typeof(KnowledgeBaseMetaEntity),
+        typeof(KnowledgeDocumentMetaEntity),
+        typeof(KnowledgeJob),
+        typeof(KnowledgeParseJob),
+        typeof(KnowledgeIndexJob),
+        typeof(KnowledgeBindingEntity),
+        typeof(KnowledgePermissionEntity),
+        typeof(KnowledgeDocumentVersion),
+        typeof(KnowledgeRetrievalLogEntity),
+        typeof(KnowledgeProviderConfigEntity),
+        typeof(KnowledgeTable),
+        typeof(KnowledgeTableColumnEntity),
+        typeof(KnowledgeTableRowEntity),
+        typeof(KnowledgeImageItemEntity),
+        typeof(KnowledgeImageAnnotationEntity),
         typeof(AiWorkflowDefinition),
         typeof(AiDatabase),
+        typeof(AiDatabaseHostProfile),
+        typeof(AiDatabasePhysicalInstance),
+        typeof(AiDatabaseField),
+        typeof(AiDatabaseChannelConfig),
         typeof(AiDatabaseRecord),
         typeof(AiDatabaseImportTask),
         typeof(AiVariable),
@@ -96,6 +124,8 @@ public static class AtlasOrmSchemaCatalog
         typeof(AiPluginApi),
         typeof(AiApp),
         typeof(AiAppPublishRecord),
+        typeof(AiAppConversationTemplate),
+        typeof(AiAppResourceBinding),
         typeof(AiAppResourceCopyTask),
         typeof(AiPromptTemplate),
         typeof(AiProductCategory),
@@ -133,6 +163,21 @@ public static class AtlasOrmSchemaCatalog
         typeof(ApprovalParallelToken),
         typeof(ApprovalTimerJob),
         typeof(ApprovalTriggerJob),
+        // External Collaboration Connector 11 张表（v4 报告 27-31 章 P0 落地）
+        typeof(ExternalIdentityProvider),
+        typeof(ExternalIdentityBinding),
+        typeof(ExternalIdentityBindingAuditLog),
+        typeof(ExternalDepartmentMirror),
+        typeof(ExternalUserMirror),
+        typeof(ExternalDepartmentUserRelation),
+        typeof(LocalDepartmentMapping),
+        typeof(ExternalDirectorySyncJob),
+        typeof(ExternalDirectorySyncDiff),
+        typeof(ExternalApprovalTemplateCache),
+        typeof(ExternalApprovalTemplateMapping),
+        typeof(ExternalApprovalInstanceLink),
+        typeof(ExternalMessageDispatch),
+        typeof(ExternalCallbackEvent),
         typeof(PersistedWorkflow),
         typeof(PersistedExecutionPointer),
         typeof(PersistedEvent),
@@ -140,6 +185,9 @@ public static class AtlasOrmSchemaCatalog
         typeof(WorkflowMeta),
         typeof(WorkflowDraft),
         typeof(WorkflowVersion),
+        typeof(CozeWorkflowMeta),
+        typeof(CozeWorkflowDraft),
+        typeof(CozeWorkflowVersion),
         typeof(WorkflowExecution),
         typeof(WorkflowNodeExecution),
         typeof(DictType),
@@ -197,7 +245,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(LeakageEvent),
         typeof(EvidencePackage),
         typeof(ExternalShareApproval),
-        typeof(AppDesignerSnapshot),
         typeof(Atlas.Domain.LogicFlow.Flows.LogicFlowDefinition),
         typeof(Atlas.Domain.LogicFlow.Flows.FlowNodeBinding),
         typeof(Atlas.Domain.LogicFlow.Flows.FlowEdgeDefinition),
@@ -222,6 +269,31 @@ public static class AtlasOrmSchemaCatalog
         // Coze PRD Phase III - M2: 工作空间文件夹与发布渠道
         typeof(WorkspaceFolder),
         typeof(WorkspacePublishChannel),
+        // 治理 M-G02-C2 (S1): 渠道发布版本与回滚
+        typeof(WorkspaceChannelRelease),
+        // 治理 M-G02-C5 (S3): 飞书渠道凭据
+        typeof(FeishuChannelCredential),
+        // 治理 M-G02-C9 (S4): 微信公众号渠道凭据
+        typeof(WechatMpChannelCredential),
+        // 渠道凭据扩展：微信小程序 / 微信客服
+        typeof(WechatMiniappChannelCredential),
+        typeof(WechatCsChannelCredential),
+        // 治理 M-G05-C1 (S9): 组织实体
+        typeof(Organization),
+        // 治理 M-G05-C4 (S10): 组织成员
+        typeof(OrganizationMember),
+        // 治理 M-G06-C1 (S11): 成员邀请
+        typeof(MemberInvitation),
+        // 治理 M-G06-C3 (S12): 资源所有权移交
+        typeof(ResourceOwnershipTransfer),
+        // 治理 M-G07-C2 (S13): 租户级身份提供方
+        typeof(TenantIdentityProvider),
+        // 治理 M-G08-C1 + C2 (S15): 网络策略 + 数据驻留策略
+        typeof(TenantNetworkPolicy),
+        typeof(TenantDataResidencyPolicy),
+        // 治理 M-G10-C1 + C2 (S16): Agent 触发器与卡片
+        typeof(AgentTrigger),
+        typeof(AgentCard),
         // Coze PRD Phase III - M4.2: 文件夹与对象的关联表
         typeof(WorkspaceFolderItem),
         // Coze PRD Phase III - M4.5: 平台运营内容（首页 banner / tutorial / announcement / recommended）
@@ -235,6 +307,7 @@ public static class AtlasOrmSchemaCatalog
         typeof(DataMigrationJob),
         typeof(DataMigrationBatch),
         typeof(DataMigrationCheckpoint),
+        typeof(DataMigrationTableProgress),
         typeof(DataMigrationLog),
         typeof(DataMigrationReport),
         // M8 新增：ConsoleToken 持久化（A3） + 种子 bundle 应用日志（B1）
@@ -265,7 +338,19 @@ public static class AtlasOrmSchemaCatalog
         typeof(LowCodePluginAuthorization),
         typeof(LowCodePluginUsage),
         typeof(NodeStateEntry),
-        typeof(AppTemplate)
+        typeof(AppTemplate),
+        // Mendix Microflow backend storage（第 36 轮）：仅保存 AuthoringSchema / Runtime DTO / Trace / MetadataCache，不保存 FlowGram JSON。
+        typeof(MicroflowResourceEntity),
+        typeof(MicroflowFolderEntity),
+        typeof(MicroflowSchemaSnapshotEntity),
+        typeof(MicroflowVersionEntity),
+        typeof(MicroflowPublishSnapshotEntity),
+        typeof(MicroflowReferenceEntity),
+        typeof(MicroflowRunSessionEntity),
+        typeof(MicroflowRunTraceFrameEntity),
+        typeof(MicroflowRunLogEntity),
+        typeof(MicroflowMetadataCacheEntity),
+        typeof(MicroflowSchemaMigrationEntity)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =
@@ -291,7 +376,62 @@ public static class AtlasOrmSchemaCatalog
     public static void EnsureRuntimeSchema(ISqlSugarClient db)
     {
         ArgumentNullException.ThrowIfNull(db);
+        EnsureAiDatabaseManagementSchema(db);
         db.CodeFirst.InitTables(AllRuntimeEntityTypes);
+    }
+
+    private static void EnsureAiDatabaseManagementSchema(ISqlSugarClient db)
+    {
+        if (db.CurrentConnectionConfig?.DbType != DbType.Sqlite
+            || !db.DbMaintenance.IsAnyTable("AiDatabase", false))
+        {
+            return;
+        }
+
+        AddColumnIfMissing(db, "AiDatabase", "StorageMode", "INTEGER NOT NULL DEFAULT 1");
+        AddColumnIfMissing(db, "AiDatabase", "DriverCode", "TEXT NOT NULL DEFAULT 'SQLite'");
+        AddColumnIfMissing(db, "AiDatabase", "EncryptedDraftConnection", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "EncryptedOnlineConnection", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "PhysicalDatabaseName", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "DraftDatabaseName", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "OnlineDatabaseName", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "DefaultHostProfileId", "INTEGER NULL");
+        AddColumnIfMissing(db, "AiDatabase", "DraftInstanceId", "INTEGER NULL");
+        AddColumnIfMissing(db, "AiDatabase", "OnlineInstanceId", "INTEGER NULL");
+        AddColumnIfMissing(db, "AiDatabase", "DialectVersion", "TEXT NOT NULL DEFAULT 'v1'");
+        AddColumnIfMissing(db, "AiDatabase", "ProvisionState", "INTEGER NOT NULL DEFAULT 0");
+        AddColumnIfMissing(db, "AiDatabase", "ProvisionError", "TEXT NULL");
+
+        if (SqliteSchemaAlignment.RequiresNullableColumnFix<AiDatabaseHostProfile>(
+                db,
+                "Port",
+                "MaxDatabaseCount",
+                "LastTestAt",
+                "LastTestMessage"))
+        {
+            SqliteSchemaAlignment.RebuildTableViaOrm<AiDatabaseHostProfile>(db);
+        }
+
+        if (SqliteSchemaAlignment.RequiresNullableColumnFix<AiDatabasePhysicalInstance>(
+                db,
+                "ProvisionError",
+                "DriverVersion",
+                "LastConnectedAt",
+                "LastConnectionTestMessage"))
+        {
+            SqliteSchemaAlignment.RebuildTableViaOrm<AiDatabasePhysicalInstance>(db);
+        }
+    }
+
+    private static void AddColumnIfMissing(ISqlSugarClient db, string tableName, string columnName, string columnDefinition)
+    {
+        var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
+        if (columns.Any(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        db.Ado.ExecuteCommand($"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition}");
     }
 
     public static IReadOnlyList<string> GetMissingCriticalTableNames(ISqlSugarClient db)

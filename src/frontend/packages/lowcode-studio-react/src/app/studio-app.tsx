@@ -1,0 +1,135 @@
+import React, { useEffect, useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Banner, Layout, Tabs, TabPane, Empty } from '@douyinfe/semi-ui';
+import { LeftPanel } from '../panels/left-panel';
+import { RightInspector } from '../panels/right-inspector';
+import { TopToolbar } from '../panels/top-toolbar';
+import { CanvasViewport } from '../panels/canvas-viewport';
+import { WorkflowLeftPanel } from '../panels/workflow-left-panel';
+import { WorkflowCanvas } from '../panels/workflow-canvas';
+import { ShortcutPanel } from '../panels/shortcut-panel';
+import { useStudioCommands } from '../hooks/use-studio-commands';
+import { useDraftEditSession } from '../hooks/use-draft-autosave';
+import { setLocale, t, type Locale } from '../i18n';
+import { LowcodeStudioHostProvider, type LowcodeStudioHostConfig } from '../host';
+import { PublishPage } from '../panels/publish-page';
+import { shouldRetryLowcodeQuery } from '../query-retry';
+
+const { Header, Sider, Content } = Layout;
+
+// 包级单例 QueryClient，lowcode-studio-react 内部使用，不依赖宿主注入
+const studioQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: shouldRetryLowcodeQuery,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+/**
+ * LowcodeStudioApp —— 低代码设计器三栏壳层（M07 C07-2）。
+ *
+ * - 顶部 TopToolbar：业务逻辑 / 用户界面切换 + 预览 / 调试 / 发布 / 版本 / 协作入口
+ * - 左侧 LeftPanel：5 Tab（组件 / 模板 / 结构 / 数据 / 资源）
+ * - 中部 CanvasViewport：画布（接 lowcode-editor-canvas）
+ * - 右侧 RightInspector：三 Tab（属性 / 样式 / 事件）
+ * - 全局：ShortcutPanel（Mod+/）+ useStudioCommands（Esc / Delete / Mod+S）
+ */
+export interface LowcodeStudioAppProps {
+  appId: string;
+  locale?: Locale;
+  workspaceId?: string;
+  workspaceLabel?: string;
+  onBack?: () => void;
+  host?: LowcodeStudioHostConfig;
+  routeMode?: 'editor' | 'publish';
+}
+
+export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, locale, host, workspaceId, workspaceLabel, routeMode = 'editor', onBack }) => {
+  useEffect(() => {
+    if (locale) {
+      setLocale(locale);
+    }
+  }, [locale]);
+
+  if (!appId) return <Empty title="缺少应用 ID" />;
+
+  return (
+    <LowcodeStudioHostProvider host={host}>
+      <LowcodeStudioShell appId={appId} workspaceId={workspaceId} workspaceLabel={workspaceLabel} routeMode={routeMode} onBack={onBack} />
+    </LowcodeStudioHostProvider>
+  );
+};
+
+interface LowcodeStudioShellProps {
+  appId: string;
+  workspaceId?: string;
+  workspaceLabel?: string;
+  routeMode: 'editor' | 'publish';
+  onBack?: () => void;
+}
+
+function LowcodeStudioShell({ appId, workspaceId, workspaceLabel, routeMode, onBack }: LowcodeStudioShellProps) {
+  const [topMode, setTopMode] = useState<'business' | 'ui'>('business');
+
+  useStudioCommands({ appId });
+  // 这些 hook 必须在宿主 Provider 内执行，才能拿到 app-web 注入的 host.api/auth。
+  const draftSession = useDraftEditSession(appId);
+  const lockWarning = draftSession.status === 'conflict'
+    ? t('lowcode_studio.lock.conflict')
+    : draftSession.status === 'lost'
+      ? t('lowcode_studio.lock.lost')
+      : null;
+
+  return (
+    <>
+      <QueryClientProvider client={studioQueryClient}>
+        {routeMode === 'publish' ? (
+          <PublishPage appId={appId} onBack={onBack} />
+        ) : (
+          <Layout style={{ height: '100vh' }}>
+            <Header>
+              <TopToolbar appId={appId} mode={topMode} onModeChange={setTopMode} />
+              {lockWarning ? <Banner type="warning" description={lockWarning} /> : null}
+            </Header>
+          {topMode === 'ui' ? (
+            <Layout>
+              <Sider style={{ width: 280, background: '#f7f7f9', borderRight: '1px solid #eee' }}>
+                <LeftPanel appId={appId} />
+              </Sider>
+              <Content>
+                <CanvasViewport appId={appId} />
+              </Content>
+              <Sider style={{ width: 320, background: '#fff', borderLeft: '1px solid #eee' }}>
+                <Tabs type="line" defaultActiveKey="property">
+                  <TabPane tab={t('lowcode_studio.layout.right.property')} itemKey="property">
+                    <RightInspector appId={appId} kind="property" />
+                  </TabPane>
+                  <TabPane tab={t('lowcode_studio.layout.right.style')} itemKey="style">
+                    <RightInspector appId={appId} kind="style" />
+                  </TabPane>
+                  <TabPane tab={t('lowcode_studio.layout.right.events')} itemKey="events">
+                    <RightInspector appId={appId} kind="events" />
+                  </TabPane>
+                </Tabs>
+              </Sider>
+            </Layout>
+          ) : (
+            <Layout>
+              <Sider style={{ width: 280, background: '#f7f7f9', borderRight: '1px solid #eee' }}>
+                <WorkflowLeftPanel appId={appId} workspaceId={workspaceId} />
+              </Sider>
+              <Content>
+                <WorkflowCanvas appId={appId} workspaceId={workspaceId} workspaceLabel={workspaceLabel} />
+              </Content>
+            </Layout>
+          )}
+          <ShortcutPanel />
+        </Layout>
+        )}
+      </QueryClientProvider>
+    </>
+  );
+}

@@ -34,4 +34,17 @@ public static class ApiResponseAssert
         Assert.False(string.IsNullOrWhiteSpace(value), $"缺少属性: {propertyName}");
         return value!;
     }
+
+    public static async Task<JsonElement> ReadCozeSuccessAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken = default)
+    {
+        response.EnsureSuccessStatusCode();
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        var root = document.RootElement.Clone();
+        Assert.Equal(0, root.GetProperty("code").GetInt32());
+        return root.GetProperty("data").Clone();
+    }
 }

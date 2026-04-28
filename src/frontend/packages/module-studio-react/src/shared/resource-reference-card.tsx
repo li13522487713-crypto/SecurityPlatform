@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { Card, Empty, Spin, Table, Toast, Typography } from "@douyinfe/semi-ui";
 import type { ResourceReference, StudioLocale, StudioModuleApi } from "../types";
+import { getStudioCopy } from "../copy";
 
 export interface ResourceReferenceCardProps {
   api: Pick<StudioModuleApi, "getResourceReferences">;
@@ -13,20 +14,17 @@ export interface ResourceReferenceCardProps {
 }
 
 function referrerLabel(locale: StudioLocale, type: ResourceReference["referrerType"]): string {
-  if (locale === "en-US") {
-    const map: Record<ResourceReference["referrerType"], string> = {
-      agent: "Agent",
-      app: "App",
-      workflow: "Workflow"
-    };
-    return map[type] ?? type;
+  const copy = getStudioCopy(locale);
+  switch (type) {
+    case "agent":
+      return copy.resourceReference.referrerAgent;
+    case "app":
+      return copy.resourceReference.referrerApp;
+    case "workflow":
+      return copy.resourceReference.referrerWorkflow;
+    default:
+      return type;
   }
-  const map: Record<ResourceReference["referrerType"], string> = {
-    agent: "智能体",
-    app: "应用",
-    workflow: "工作流"
-  };
-  return map[type] ?? type;
 }
 
 export function ResourceReferenceCard({
@@ -37,12 +35,11 @@ export function ResourceReferenceCard({
   title,
   testId = "studio-resource-reference-card"
 }: ResourceReferenceCardProps) {
+  const copy = getStudioCopy(locale);
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<ResourceReference[]>([]);
 
-  const heading =
-    title ??
-    (locale === "en-US" ? "Inbound references" : "引用本资源的实体");
+  const heading = title ?? copy.resourceReference.defaultHeading;
 
   useEffect(() => {
     let disposed = false;
@@ -56,7 +53,7 @@ export function ResourceReferenceCard({
       })
       .catch((error: unknown) => {
         if (!disposed) {
-          Toast.error(error instanceof Error ? error.message : "加载引用关系失败。");
+          Toast.error(error instanceof Error ? error.message : copy.resourceReference.loadFailed);
           setRows([]);
         }
       })
@@ -69,18 +66,19 @@ export function ResourceReferenceCard({
     return () => {
       disposed = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, resourceType, resourceId]);
 
   const columns = useMemo<ColumnProps<ResourceReference>[]>(
     () => [
       {
-        title: locale === "en-US" ? "Referrer type" : "引用方类型",
+        title: copy.resourceReference.columnReferrerType,
         dataIndex: "referrerType",
         width: 120,
         render: (value: unknown) => referrerLabel(locale, value as ResourceReference["referrerType"])
       },
       {
-        title: locale === "en-US" ? "Name" : "名称",
+        title: copy.resourceReference.columnName,
         dataIndex: "referrerName",
         render: (value: unknown) => String(value ?? "-")
       },
@@ -95,32 +93,23 @@ export function ResourceReferenceCard({
         )
       },
       {
-        title: locale === "en-US" ? "Binding" : "绑定字段",
+        title: copy.resourceReference.columnBinding,
         dataIndex: "bindingField",
         render: (value: unknown) => String(value ?? "-")
       }
     ],
-    [locale]
+    [locale, copy]
   );
 
   return (
     <Card data-testid={testId} title={heading} bordered>
       <Typography.Paragraph type="tertiary" style={{ marginTop: 0 }}>
-        {locale === "en-US"
-          ? "Entities that depend on this resource (agents, apps, or workflows)."
-          : "依赖此资源的智能体、应用或工作流（用于影响分析与变更评估）。"}
+        {copy.resourceReference.bodyHint}
       </Typography.Paragraph>
       {loading ? (
         <Spin />
       ) : rows.length === 0 ? (
-        <Empty
-          title={locale === "en-US" ? "No references" : "暂无引用"}
-          description={
-            locale === "en-US"
-              ? "No other entities reference this resource yet."
-              : "当前没有其他实体引用该资源。"
-          }
-        />
+        <Empty title={copy.resourceReference.emptyTitle} description={copy.resourceReference.emptyDescription} />
       ) : (
         <Table<ResourceReference>
           rowKey={(row) => (row ? `${row.referrerType}:${row.referrerId}:${row.bindingField}` : "row")}

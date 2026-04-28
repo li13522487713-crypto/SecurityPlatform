@@ -2,6 +2,7 @@ using Atlas.Application.Plugins.Abstractions;
 using Atlas.Core.Governance;
 using Atlas.Infrastructure.DataScopes.AppRuntime;
 using Atlas.Infrastructure.DataScopes.Platform;
+using Atlas.Infrastructure.Channels.DependencyInjection;
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.Services.PlatformRuntime;
 using Microsoft.Extensions.Configuration;
@@ -13,6 +14,7 @@ public static class PlatformServiceCollectionExtensions
 {
     public static IServiceCollection AddAtlasInfrastructurePlatform(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddAtlasInfrastructureChannels(configuration);
         services.AddLicenseInfrastructure(configuration);
         services.AddPlatformInfrastructure();
         services.AddGovernanceInfrastructure();
@@ -36,6 +38,34 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<IAppSqlSugarScopeFactory, AppSqlSugarScopeFactory>();
         services.AddSingleton<IPluginCatalogService, Atlas.Infrastructure.Services.PluginCatalogService>();
         services.AddScoped<Atlas.Application.System.Abstractions.ISqlQueryService, Atlas.Infrastructure.Services.SqlQueryService>();
+        services.Configure<Atlas.Infrastructure.Options.AiDatabaseHostingOptions>(
+            configuration.GetSection("AiDatabaseHosting"));
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.IAiDatabaseProvisioner,
+            Atlas.Infrastructure.Services.AiPlatform.AiDatabaseProvisionService>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IAiDatabaseClientFactory,
+            Atlas.Infrastructure.Services.DatabaseStructure.AiDatabaseClientFactory>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.IDatabaseStructureService,
+            Atlas.Infrastructure.Services.DatabaseStructure.DatabaseStructureService>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.ISqlSafetyValidator,
+            Atlas.Infrastructure.Services.DatabaseStructure.SqlSafetyValidator>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IDatabaseDialectRegistry,
+            Atlas.Infrastructure.Services.DatabaseStructure.DatabaseDialectRegistry>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IDatabaseDialect,
+            Atlas.Infrastructure.Services.DatabaseStructure.SqliteDatabaseDialect>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IDatabaseDialect,
+            Atlas.Infrastructure.Services.DatabaseStructure.MySqlDatabaseDialect>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IDatabaseDialect,
+            Atlas.Infrastructure.Services.DatabaseStructure.PostgreSqlDatabaseDialect>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IDatabaseDialect,
+            Atlas.Infrastructure.Services.DatabaseStructure.SqlServerDatabaseDialect>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IDatabaseDialect,
+            Atlas.Infrastructure.Services.DatabaseStructure.OracleDatabaseDialect>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IDatabaseDialect,
+            Atlas.Infrastructure.Services.DatabaseStructure.DmDatabaseDialect>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IDatabaseDialect,
+            Atlas.Infrastructure.Services.DatabaseStructure.KingbaseDatabaseDialect>();
+        services.AddScoped<Atlas.Infrastructure.Services.DatabaseStructure.IDatabaseDialect,
+            Atlas.Infrastructure.Services.DatabaseStructure.OscarDatabaseDialect>();
 
         services.AddScoped<Atlas.Application.Plugins.Repositories.IPluginConfigRepository, Atlas.Infrastructure.Repositories.PluginConfigRepository>();
         services.AddScoped<Atlas.Application.Plugins.Abstractions.IPluginConfigService, Atlas.Infrastructure.Services.PluginConfigService>();
@@ -98,6 +128,99 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspacePublishChannelService,
             Atlas.Infrastructure.Services.Coze.WorkspacePublishChannelService>();
 
+        // 治理 M-G02-C2 (S1): 渠道发布版本与回滚
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.WorkspaceChannelReleaseRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWorkspaceChannelReleaseService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.WorkspaceChannelReleaseService>();
+
+        // 治理 M-G03-C2 (S5): 资源访问统一守卫（三级合并判定 + PDP 失效）
+        services.AddScoped<Atlas.Application.Authorization.IResourceAccessGuard,
+            Atlas.Infrastructure.Services.Authorization.ResourceAccessGuard>();
+        // 治理 M-G03-C3..C5 (S6): 写动作便捷网关
+        services.AddScoped<Atlas.Application.Authorization.IResourceWriteGate,
+            Atlas.Infrastructure.Services.Authorization.ResourceWriteGate>();
+        // 治理 R1-B4: 资源 workspaceId 自动解析（使 GuardByResourceAsync 能用）
+        services.AddScoped<Atlas.Application.Authorization.IResourceWorkspaceLookup,
+            Atlas.Infrastructure.Services.Authorization.ResourceWorkspaceLookup>();
+
+        // 治理 M-G03-C7 (S7): 通用资源协作者服务
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.IResourceCollaboratorService,
+            Atlas.Infrastructure.Services.AiPlatform.ResourceCollaboratorService>();
+
+        // 治理 M-G04-C2 (S8): 资源可见性解析器
+        services.AddScoped<Atlas.Application.Audit.Abstractions.IResourceVisibilityResolver,
+            Atlas.Infrastructure.Services.Audit.ResourceVisibilityResolver>();
+
+        // 治理 M-G05-C1 (S9): 组织实体 + Service
+        services.AddScoped<Atlas.Infrastructure.Repositories.OrganizationRepository>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.IOrganizationService,
+            Atlas.Infrastructure.Services.OrganizationService>();
+        // 治理 M-G05-C4..C5 (S10): 组织成员 + 跨组织迁移
+        services.AddScoped<Atlas.Infrastructure.Repositories.OrganizationMemberRepository>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.IOrganizationMemberService,
+            Atlas.Infrastructure.Services.OrganizationMemberService>();
+
+        // 治理 M-G06-C1..C2 (S11): 成员邀请 + 邮件 + 状态机
+        services.AddScoped<Atlas.Infrastructure.Repositories.MemberInvitationRepository>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.IInvitationEmailSender,
+            Atlas.Infrastructure.Services.Notifications.SmtpInvitationEmailSender>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.IMemberInvitationService,
+            Atlas.Infrastructure.Services.MemberInvitationService>();
+
+        // 治理 M-G06-C3..C4 (S12): 离职移交 + 组织间成员迁移
+        services.AddScoped<Atlas.Infrastructure.Repositories.ResourceOwnershipTransferRepository>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.IOffboardService,
+            Atlas.Infrastructure.Services.OffboardService>();
+
+        // 治理 M-G07-C2 (S13): 租户级身份提供方
+        services.AddScoped<Atlas.Infrastructure.Repositories.TenantIdentityProviderRepository>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.ITenantIdentityProviderService,
+            Atlas.Infrastructure.Services.TenantIdentityProviderService>();
+
+        // 治理 M-G07-C5 (S14): SSO 登录策略
+        services.AddScoped<Atlas.Application.Identity.Abstractions.ISsoLoginPolicyService,
+            Atlas.Infrastructure.Services.Sso.SsoLoginPolicyService>();
+
+        // 治理 M-G08-C1 + C2 (S15): 网络策略 + 数据驻留策略
+        services.AddScoped<Atlas.Infrastructure.Repositories.TenantNetworkPolicyRepository>();
+        services.AddScoped<Atlas.Infrastructure.Repositories.TenantDataResidencyPolicyRepository>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.ITenantPolicyService,
+            Atlas.Infrastructure.Services.TenantPolicyService>();
+
+        // 治理 M-G10-C1 + C2 (S16): Agent 触发器 + 卡片
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.IAgentTriggerService,
+            Atlas.Infrastructure.Services.AiPlatform.AgentTriggerService>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.IAgentCardService,
+            Atlas.Infrastructure.Services.AiPlatform.AgentCardService>();
+
+        // 治理 M-G02-C5..C8 (S3): 飞书渠道凭据 + ApiClient + Connector + Credential 服务
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.FeishuChannelCredentialRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IFeishuApiClient,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Feishu.FeishuApiClient>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IFeishuChannelCredentialService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Feishu.FeishuChannelCredentialService>();
+        services.AddHttpClient(Atlas.Infrastructure.Services.AiPlatform.Channels.Feishu.FeishuApiClient.HttpClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
+        // 治理 M-G02-C9..C11 (S4): 微信公众号渠道凭据 + ApiClient + Connector + Credential 服务
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.WechatMpChannelCredentialRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWechatMpApiClient,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpApiClient>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWechatMpChannelCredentialService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpChannelCredentialService>();
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.WechatMiniappChannelCredentialRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWechatMiniappChannelCredentialService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMiniappChannelCredentialService>();
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.WechatCsChannelCredentialRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWechatCsChannelCredentialService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatCsChannelCredentialService>();
+        services.AddHttpClient(Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpApiClient.HttpClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
         // Coze PRD Phase III - M4.4: 任务中心持久化（复用 EvaluationTask）。
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceTaskService,
             Atlas.Infrastructure.Services.Coze.WorkspaceTaskService>();
@@ -116,6 +239,14 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.SetupConsole.Abstractions.ISetupConsoleService,
             Atlas.Infrastructure.Services.SetupConsole.SetupConsoleService>();
         // ORM 跨库迁移引擎（M6）
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IDataMigrationPlanner,
+            Atlas.Infrastructure.Services.SetupConsole.DataMigrationPlanner>();
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IDataMigrationRunner,
+            Atlas.Infrastructure.Services.SetupConsole.DataMigrationRunner>();
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IMigrationBulkWriter,
+            Atlas.Infrastructure.Services.SetupConsole.SqlSugarMigrationBulkWriter>();
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IMigrationConnectionResolver,
+            Atlas.Infrastructure.Services.SetupConsole.MigrationConnectionResolver>();
         services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IDataMigrationOrmService,
             Atlas.Infrastructure.Services.SetupConsole.OrmDataMigrationService>();
         // 控制台写操作审计（M7） + M10/D5 IP/UA 上下文（per-request scoped）

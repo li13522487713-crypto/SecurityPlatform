@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react";
-import { Empty, Spin, TabPane, Tabs, Typography } from "@douyinfe/semi-ui";
+import { Banner, Empty, Spin, TabPane, Tabs, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../i18n";
 import { useWorkspaceContext } from "../workspace-context";
 import {
-  listEvaluations,
-  listTestsets,
-  type EvaluationItem,
-  type TestsetItem
-} from "../../services/mock";
+  listWorkspaceEvaluations,
+  listWorkspaceTestsets,
+  type WorkspaceEvaluationItemDto,
+  type WorkspaceTestsetItemDto
+} from "../../services/api-workspace-runtime";
 
 export function WorkspaceEvaluationsPage() {
   const { t } = useAppI18n();
   const workspace = useWorkspaceContext();
   const [tab, setTab] = useState<"runs" | "testsets">("runs");
-  const [evaluations, setEvaluations] = useState<EvaluationItem[]>([]);
-  const [testsets, setTestsets] = useState<TestsetItem[]>([]);
+  const [evaluations, setEvaluations] = useState<WorkspaceEvaluationItemDto[]>([]);
+  const [testsets, setTestsets] = useState<WorkspaceTestsetItemDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     if (!workspace.id) {
@@ -23,9 +24,10 @@ export function WorkspaceEvaluationsPage() {
     }
     let cancelled = false;
     setLoading(true);
+    setLoadFailed(false);
     Promise.all([
-      listEvaluations(workspace.id, { pageIndex: 1, pageSize: 20 }),
-      listTestsets(workspace.id, { pageIndex: 1, pageSize: 20 })
+      listWorkspaceEvaluations(workspace.id, { pageIndex: 1, pageSize: 20 }),
+      listWorkspaceTestsets(workspace.id, { pageIndex: 1, pageSize: 20 })
     ])
       .then(([evals, testsetsResult]) => {
         if (!cancelled) {
@@ -37,6 +39,7 @@ export function WorkspaceEvaluationsPage() {
         if (!cancelled) {
           setEvaluations([]);
           setTestsets([]);
+          setLoadFailed(true);
         }
       })
       .finally(() => {
@@ -55,6 +58,7 @@ export function WorkspaceEvaluationsPage() {
         <Typography.Title heading={3} style={{ margin: 0 }}>{t("cozeEvaluationsTitle")}</Typography.Title>
         <Typography.Text type="tertiary">{t("cozeEvaluationsSubtitle")}</Typography.Text>
       </header>
+      {loadFailed ? <Banner type="danger" fullMode={false} bordered description={t("cozeEvaluationsLoadFailed")} /> : null}
       <Tabs activeKey={tab} onChange={key => setTab((key as "runs" | "testsets") ?? "runs")}>
         <TabPane tab={t("cozeEvaluationsTabRuns")} itemKey="runs">
           {loading ? (

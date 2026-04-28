@@ -66,7 +66,7 @@ export interface AiPluginMutationRequest {
   authConfigJson?: string;
   toolSchemaJson?: string;
   openApiSpecJson?: string;
-  workspaceId?: number;
+  workspaceId?: string;
 }
 
 export interface TemplateListItem {
@@ -154,8 +154,15 @@ export interface TemplateInstantiateResult {
   schemaJson: string;
 }
 
-export async function getAiPluginsPaged(request: PagedRequest, keyword?: string): Promise<PagedResult<AiPluginListItem>> {
-  const response = await requestApi<ApiResponse<PagedResult<AiPluginListItem>>>(`/ai-plugins?${toQuery(request, { keyword })}`);
+export async function getAiPluginsPaged(
+  request: PagedRequest,
+  keyword?: string,
+  workspaceId?: string
+): Promise<PagedResult<AiPluginListItem>> {
+  const response = await requestApi<ApiResponse<PagedResult<AiPluginListItem>>>(`/ai-plugins?${toQuery(request, {
+    keyword,
+    workspaceId
+  })}`);
   if (!response.data) {
     throw new Error(response.message || "查询插件失败");
   }

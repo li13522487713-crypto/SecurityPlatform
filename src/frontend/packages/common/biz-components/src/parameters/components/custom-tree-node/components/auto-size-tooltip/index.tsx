@@ -41,9 +41,12 @@ export default function AutoSizeTooltip({
   tooltipStyle,
   containerClassName,
   containerStyle,
-  ...rest
+  mouseEnterDelay,
+  mouseLeaveDelay,
+  ...tooltipProps
 }: AutoSizeTooltipProps) {
   const nanoRef = useRef<HTMLDivElement | null>(null);
+  const resolvedMouseLeaveDelay = mouseLeaveDelay ?? mouseEnterDelay;
   const renderContent = () => (
     <>
       <div
@@ -52,7 +55,9 @@ export default function AutoSizeTooltip({
         style={containerStyle}
       />
       <Tooltip
-        {...rest}
+        {...tooltipProps}
+        mouseEnterDelay={mouseEnterDelay}
+        mouseLeaveDelay={resolvedMouseLeaveDelay}
         className={classNames(
           styles.tooltip,
           styles['top-level'],

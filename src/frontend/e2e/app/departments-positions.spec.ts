@@ -9,6 +9,7 @@ import {
 } from "./helpers";
 
 test.describe.serial("App Departments And Positions CRUD", () => {
+  test.fixme("旧壳组织管理页（部门/岗位）已下线，待新壳对应能力补齐后恢复。");
   let appKey = "";
 
   test.beforeAll(async ({ request, ensureLoggedInSession }) => {

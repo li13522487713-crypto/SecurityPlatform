@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Form, Modal, Toast } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../i18n";
-import { createFolder } from "../../services/mock";
+import { createFolder } from "../../services/api-folders";
 
 interface CreateFolderModalProps {
   visible: boolean;
@@ -49,7 +49,7 @@ export function CreateFolderModal({ visible, workspaceId, onClose, onCreated }: 
       visible={visible}
       onCancel={onClose}
       onOk={() => void handleSubmit()}
-      okText={t("homeEnter")}
+      okText="确定"
       confirmLoading={submitting}
       maskClosable={!submitting}
       data-testid="coze-create-folder-modal"
@@ -68,6 +68,7 @@ export function CreateFolderModal({ visible, workspaceId, onClose, onCreated }: 
           label={t("cozeCreateFolderDescLabel")}
           placeholder={t("cozeCreateFolderDescPlaceholder")}
           maxLength={800}
+          showCounter
           rows={4}
         />
       </Form>

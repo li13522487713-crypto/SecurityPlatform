@@ -48,6 +48,7 @@ public sealed class NodeExecutorRegistry
             [WorkflowNodeType.DatabaseUpdate] = typeof(DatabaseUpdateNodeExecutor),
             [WorkflowNodeType.DatabaseDelete] = typeof(DatabaseDeleteNodeExecutor),
             [WorkflowNodeType.DatabaseCustomSql] = typeof(DatabaseCustomSqlNodeExecutor),
+            [WorkflowNodeType.DatabaseNl2Sql] = typeof(DatabaseNl2SqlNodeExecutor),
             [WorkflowNodeType.CreateConversation] = typeof(CreateConversationNodeExecutor),
             [WorkflowNodeType.ConversationList] = typeof(ConversationListNodeExecutor),
             [WorkflowNodeType.ConversationUpdate] = typeof(ConversationUpdateNodeExecutor),
@@ -65,7 +66,38 @@ public sealed class NodeExecutorRegistry
             [WorkflowNodeType.VariableAggregator] = typeof(VariableAggregatorNodeExecutor),
             [WorkflowNodeType.JsonSerialization] = typeof(JsonSerializationNodeExecutor),
             [WorkflowNodeType.JsonDeserialization] = typeof(JsonDeserializationNodeExecutor),
-            [WorkflowNodeType.KnowledgeDeleter] = typeof(KnowledgeDeleterNodeExecutor)
+            [WorkflowNodeType.KnowledgeDeleter] = typeof(KnowledgeDeleterNodeExecutor),
+
+            // P0-2 修复：M12 三个触发器节点（PLAN §M12 S12-3）。
+            // 此前节点已声明但 Executor 未注册，DagExecutor 静默 SuccessResult 跳过 → 画布上 trigger 节点形同虚设。
+            [WorkflowNodeType.TriggerUpsert] = typeof(TriggerUpsertNodeExecutor),
+            [WorkflowNodeType.TriggerRead] = typeof(TriggerReadNodeExecutor),
+            [WorkflowNodeType.TriggerDelete] = typeof(TriggerDeleteNodeExecutor),
+
+            // P0-3 修复：M20 17 个节点 Executor（PLAN §M20 S20-1 + S20-2）。
+            // 同为"已声明未注册"项，且是节点 49 全集中的核心新增；DagExecutor 现已修正为
+            // 未注册时返回 NODE_EXECUTOR_NOT_REGISTERED 错误（不再静默吞业务）。
+            // ── 上游对齐节点 ──
+            [WorkflowNodeType.Variable] = typeof(VariableNodeExecutor),
+            [WorkflowNodeType.ImageGenerate] = typeof(ImageGenerateUpstreamNodeExecutor),
+            [WorkflowNodeType.Imageflow] = typeof(ImageflowNodeExecutor),
+            [WorkflowNodeType.ImageReference] = typeof(ImageReferenceNodeExecutor),
+            [WorkflowNodeType.ImageCanvas] = typeof(ImageCanvasUpstreamNodeExecutor),
+            [WorkflowNodeType.SceneVariable] = typeof(SceneVariableNodeExecutor),
+            [WorkflowNodeType.SceneChat] = typeof(SceneChatNodeExecutor),
+            [WorkflowNodeType.LtmUpstream] = typeof(LtmUpstreamNodeExecutor),
+            // ── Memory 拆分（自 Ltm，保留 Ltm 兼容映射）──
+            [WorkflowNodeType.MemoryRead] = typeof(MemoryReadNodeExecutor),
+            [WorkflowNodeType.MemoryWrite] = typeof(MemoryWriteNodeExecutor),
+            [WorkflowNodeType.MemoryDelete] = typeof(MemoryDeleteNodeExecutor),
+            // ── Atlas 私有图像 N44/N45/N46 ──
+            [WorkflowNodeType.ImageGeneration] = typeof(ImageGenerationNodeExecutor),
+            [WorkflowNodeType.Canvas] = typeof(CanvasNodeExecutor),
+            [WorkflowNodeType.ImagePlugin] = typeof(ImagePluginNodeExecutor),
+            // ── Atlas 私有视频 N47/N48/N49 ──
+            [WorkflowNodeType.VideoGeneration] = typeof(VideoGenerationNodeExecutor),
+            [WorkflowNodeType.VideoToAudio] = typeof(VideoToAudioNodeExecutor),
+            [WorkflowNodeType.VideoFrameExtraction] = typeof(VideoFrameExtractionNodeExecutor)
         };
         _metadata = new List<NodeTypeMetadata>();
         _declarations = BuiltInWorkflowNodeDeclarations.All

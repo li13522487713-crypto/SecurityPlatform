@@ -1,6 +1,8 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import { extractResourceId, requestApi, resolveAppHostPrefix, toQuery } from "./api-core";
 import type {
+  AgentDatabaseBinding,
+  AgentDatabaseBindingInput,
   AgentCreateRequest,
   AgentDetail,
   AgentListItem,
@@ -73,6 +75,7 @@ export async function getAiAssistantsPaged(params?: {
   pageSize?: number;
   keyword?: string;
   status?: string;
+  workspaceId?: string;
 }): Promise<PagedResult<AgentListItem>> {
   const request: PagedRequest = {
     pageIndex: params?.pageIndex ?? 1,
@@ -81,7 +84,8 @@ export async function getAiAssistantsPaged(params?: {
   const response = await requestApi<ApiResponse<PagedResult<AgentListItem>>>(
     `${assistantBase()}?${toQuery(request, {
       keyword: params?.keyword,
-      status: params?.status
+      status: params?.status,
+      workspaceId: params?.workspaceId
     })}`
   );
   if (!response.data) {
@@ -157,6 +161,36 @@ export async function bindAiAssistantWorkflow(id: string, workflowId?: string): 
     workflowId: response.data.workflowId !== undefined ? String(response.data.workflowId) : undefined,
     workflowName: response.data.workflowName
   };
+}
+
+export async function bindAiAssistantDatabase(id: string, request: AgentDatabaseBindingInput): Promise<AgentDatabaseBinding[]> {
+  const response = await requestApi<ApiResponse<AgentDatabaseBinding[]>>(
+    `${assistantBase()}/${encodeURIComponent(id)}/database-bindings`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "绑定智能体数据库失败");
+  }
+
+  return response.data;
+}
+
+export async function unbindAiAssistantDatabase(id: string, databaseId: number): Promise<AgentDatabaseBinding[]> {
+  const response = await requestApi<ApiResponse<AgentDatabaseBinding[]>>(
+    `${assistantBase()}/${encodeURIComponent(id)}/database-bindings/${databaseId}`,
+    {
+      method: "DELETE"
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "解绑智能体数据库失败");
+  }
+
+  return response.data;
 }
 
 export async function getAiAssistantPublications(id: string): Promise<AiAssistantPublicationListItem[]> {

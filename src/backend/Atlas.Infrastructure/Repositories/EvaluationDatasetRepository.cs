@@ -67,4 +67,28 @@ public sealed class EvaluationDatasetRepository : RepositoryBase<EvaluationDatas
             .ToPageListAsync(pageIndex, pageSize, cancellationToken);
         return (items, total);
     }
+
+    public async Task<List<EvaluationDataset>> GetByScenePrefixAsync(
+        TenantId tenantId,
+        string scenePrefix,
+        CancellationToken cancellationToken)
+    {
+        return await Db.Queryable<EvaluationDataset>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Scene.StartsWith(scenePrefix))
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .OrderBy(x => x.Id, OrderByType.Desc)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<EvaluationDataset>> GetBySceneTokenAsync(
+        TenantId tenantId,
+        string sceneToken,
+        CancellationToken cancellationToken)
+    {
+        return await Db.Queryable<EvaluationDataset>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Scene == sceneToken)
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .OrderBy(x => x.Id, OrderByType.Desc)
+            .ToListAsync(cancellationToken);
+    }
 }

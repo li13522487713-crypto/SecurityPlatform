@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Atlas.Infrastructure.Services.AiPlatform;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.AiPlatform.ValueObjects;
 
@@ -6,6 +7,8 @@ namespace Atlas.Infrastructure.Services.WorkflowEngine;
 
 public static class WorkflowCanvasJsonBridge
 {
+    private static readonly CozeWorkflowPlanCompiler CozePlanCompiler = new();
+
     public static bool TryParseCanvas(string canvasJson, out CanvasSchema? canvas)
     {
         canvas = null;
@@ -17,23 +20,103 @@ public static class WorkflowCanvasJsonBridge
         try
         {
             using var document = JsonDocument.Parse(canvasJson);
-            return TryConvertCanvas(document.RootElement, out canvas);
+            var schemaKind = DetectSchemaKind(document.RootElement);
+
+            if (schemaKind == CanvasSchemaKind.CozeNative)
+            {
+                var nativeCompileResult = CozePlanCompiler.Compile(canvasJson);
+                if (nativeCompileResult.IsSuccess && nativeCompileResult.Canvas is not null)
+                {
+                    canvas = nativeCompileResult.Canvas;
+                    return true;
+                }
+
+                canvas = null;
+                return false;
+            }
+
+            if (schemaKind == CanvasSchemaKind.AtlasRuntime &&
+                TryConvertCanvas(document.RootElement, out canvas))
+            {
+                return true;
+            }
+
+            // 兼容历史未知格式：先尝试 Atlas runtime，再尝试 Coze native。
+            if (TryConvertCanvas(document.RootElement, out canvas))
+            {
+                return true;
+            }
+
+            var compileResult = CozePlanCompiler.Compile(canvasJson);
+            if (compileResult.IsSuccess && compileResult.Canvas is not null)
+            {
+                canvas = compileResult.Canvas;
+                return true;
+            }
         }
         catch
         {
             canvas = null;
-            return false;
         }
+
+        canvas = null;
+        return false;
     }
 
-    public static string NormalizeToBackendCanvasJson(string canvasJson)
+    private static CanvasSchemaKind DetectSchemaKind(JsonElement root)
     {
-        if (!TryParseCanvas(canvasJson, out var canvas) || canvas is null)
+        if (root.ValueKind != JsonValueKind.Object ||
+            !TryGetProperty(root, "nodes", out var nodesElement) ||
+            nodesElement.ValueKind != JsonValueKind.Array)
         {
-            return canvasJson;
+            return CanvasSchemaKind.Unknown;
         }
 
-        return SerializeBackendCanvas(canvas);
+        var hasCozeNode = false;
+        var hasAtlasNode = false;
+        foreach (var nodeElement in nodesElement.EnumerateArray())
+        {
+            if (nodeElement.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            hasCozeNode |= TryGetProperty(nodeElement, "id", out _);
+            hasAtlasNode |= TryGetProperty(nodeElement, "key", out _);
+        }
+
+        var hasCozeEdge = false;
+        var hasAtlasConnection = TryGetProperty(root, "connections", out var connectionsElement) &&
+                                  connectionsElement.ValueKind == JsonValueKind.Array;
+        if (TryGetProperty(root, "edges", out var edgesElement) && edgesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var edgeElement in edgesElement.EnumerateArray())
+            {
+                if (edgeElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                hasCozeEdge |= TryGetProperty(edgeElement, "sourceNodeID", out _) ||
+                               TryGetProperty(edgeElement, "targetNodeID", out _);
+                hasAtlasConnection |= TryGetProperty(edgeElement, "sourceNodeKey", out _) ||
+                                      TryGetProperty(edgeElement, "targetNodeKey", out _) ||
+                                      TryGetProperty(edgeElement, "fromNode", out _) ||
+                                      TryGetProperty(edgeElement, "toNode", out _);
+            }
+        }
+
+        if (hasCozeEdge || hasCozeNode)
+        {
+            return CanvasSchemaKind.CozeNative;
+        }
+
+        if (hasAtlasConnection || hasAtlasNode)
+        {
+            return CanvasSchemaKind.AtlasRuntime;
+        }
+
+        return CanvasSchemaKind.Unknown;
     }
 
     private static bool TryConvertCanvas(JsonElement root, out CanvasSchema? canvas)
@@ -51,26 +134,58 @@ public static class WorkflowCanvasJsonBridge
 
         if (!TryGetProperty(root, "connections", out var connectionsElement) || connectionsElement.ValueKind != JsonValueKind.Array)
         {
-            return false;
+            if (!TryGetProperty(root, "edges", out connectionsElement) || connectionsElement.ValueKind != JsonValueKind.Array)
+            {
+                return false;
+            }
         }
 
         var nodes = new List<NodeSchema>();
+        var skippedNodeKeys = new List<string>();
         foreach (var nodeElement in nodesElement.EnumerateArray())
         {
             if (!TryConvertNode(nodeElement, out var node))
             {
-                return false;
+                // 软失败：跳过无法识别类型的节点（如 Coze 通用 Database=12 父节点，
+                // Atlas 已用 5 个细粒度 Database 节点替代），不中止整个画布解析。
+                // 孤儿连线将由 CanvasValidator 在后续校验中报告。
+                var skippedKey = TryGetString(nodeElement, "key") ?? "(unknown)";
+                var skippedType = nodeElement.TryGetProperty("type", out var tp) ? tp.ToString() : "(unknown)";
+                skippedNodeKeys.Add($"key={skippedKey},type={skippedType}");
+                continue;
             }
 
             nodes.Add(node);
         }
 
+        if (nodes.Count == 0 && nodesElement.GetArrayLength() > 0)
+        {
+            return false;
+        }
+
+        if (skippedNodeKeys.Count > 0)
+        {
+            // 使用 Debug 级别记录，避免在正常降级场景下产生 Error 告警
+            System.Diagnostics.Debug.WriteLine(
+                $"[WorkflowCanvasJsonBridge] Skipped {skippedNodeKeys.Count} unrecognized node(s): {string.Join("; ", skippedNodeKeys)}");
+        }
+
         var connections = new List<ConnectionSchema>();
+        var nodeKeySet = new HashSet<string>(nodes.Select(n => n.Key), StringComparer.OrdinalIgnoreCase);
         foreach (var connectionElement in connectionsElement.EnumerateArray())
         {
             if (!TryConvertConnection(connectionElement, out var connection))
             {
-                return false;
+                // 软失败：跳过格式非法的连线，不中止整个画布解析
+                continue;
+            }
+
+            // 跳过指向已被软失败跳过的节点的孤儿连线，避免执行器引用不存在的节点
+            if (!nodeKeySet.Contains(connection.SourceNodeKey) || !nodeKeySet.Contains(connection.TargetNodeKey))
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[WorkflowCanvasJsonBridge] Skipped orphan connection: {connection.SourceNodeKey} -> {connection.TargetNodeKey}");
+                continue;
             }
 
             connections.Add(connection);
@@ -190,71 +305,6 @@ public static class WorkflowCanvasJsonBridge
         return true;
     }
 
-    private static string SerializeBackendCanvas(CanvasSchema canvas)
-    {
-        var payload = new
-        {
-            nodes = canvas.Nodes.Select(SerializeNode).ToArray(),
-            connections = canvas.Connections.Select(SerializeConnection).ToArray(),
-            schemaVersion = canvas.SchemaVersion,
-            viewport = canvas.Viewport is null
-                ? null
-                : new
-                {
-                    x = canvas.Viewport.X,
-                    y = canvas.Viewport.Y,
-                    zoom = canvas.Viewport.Zoom
-                },
-            globals = canvas.Globals ?? new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
-        };
-
-        return JsonSerializer.Serialize(payload);
-    }
-
-    private static object SerializeNode(NodeSchema node)
-    {
-        object? childCanvas = null;
-        if (node.ChildCanvas is not null)
-        {
-            childCanvas = JsonDocument.Parse(SerializeBackendCanvas(node.ChildCanvas)).RootElement.Clone();
-        }
-
-        return new
-        {
-            key = node.Key,
-            type = (int)node.Type,
-            label = node.Label,
-            config = node.Config,
-            layout = new
-            {
-                x = node.Layout.X,
-                y = node.Layout.Y,
-                width = node.Layout.Width,
-                height = node.Layout.Height
-            },
-            childCanvas,
-            inputTypes = node.InputTypes,
-            outputTypes = node.OutputTypes,
-            inputSources = node.InputSources,
-            outputSources = node.OutputSources,
-            ports = node.Ports,
-            version = node.Version,
-            debugMeta = node.DebugMeta
-        };
-    }
-
-    private static object SerializeConnection(ConnectionSchema connection)
-    {
-        return new
-        {
-            sourceNodeKey = connection.SourceNodeKey,
-            sourcePort = connection.SourcePort,
-            targetNodeKey = connection.TargetNodeKey,
-            targetPort = connection.TargetPort,
-            condition = connection.Condition
-        };
-    }
-
     private static bool TryResolveNodeType(JsonElement element, out WorkflowNodeType nodeType)
     {
         nodeType = default;
@@ -263,7 +313,6 @@ public static class WorkflowCanvasJsonBridge
             return false;
         }
 
-        // 1) JSON 数字：直接当 Coze NodeType / Atlas WorkflowNodeType 的 int 值用。
         if (typeElement.ValueKind == JsonValueKind.Number && typeElement.TryGetInt32(out var numericType))
         {
             nodeType = (WorkflowNodeType)numericType;
@@ -283,8 +332,6 @@ public static class WorkflowCanvasJsonBridge
 
         var trimmed = raw.Trim();
 
-        // 2) JSON 字符串数字（Coze playground 保存回来的形态，如 "3"=Llm / "45"=HttpRequester）：
-        //    直接按 Atlas WorkflowNodeType 的 int 值还原。
         if (int.TryParse(trimmed, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var numericFromText))
         {
             var fromNumeric = (WorkflowNodeType)numericFromText;
@@ -295,7 +342,6 @@ public static class WorkflowCanvasJsonBridge
             }
         }
 
-        // 3) JSON 字符串枚举名（Atlas 自有保存形态，如 "Llm"）。
         if (Enum.TryParse<WorkflowNodeType>(trimmed, true, out var parsedType)
             && Enum.IsDefined(typeof(WorkflowNodeType), parsedType))
         {
@@ -493,5 +539,12 @@ public static class WorkflowCanvasJsonBridge
         }
 
         return value.TryGetDouble(out var result) ? result : null;
+    }
+
+    private enum CanvasSchemaKind
+    {
+        Unknown = 0,
+        AtlasRuntime = 1,
+        CozeNative = 2
     }
 }

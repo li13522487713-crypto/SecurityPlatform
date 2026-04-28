@@ -39,19 +39,19 @@
 | 25 | `e2e/app/console-workspace-workflow.smoke.spec.ts:142` | workflow 编辑器测试 | 依赖 workflow editor，与 #63-71 同源 | 同 workflow 系列 |
 | 31 | `e2e/app/app-builder.spec.ts:37` | `chooseSemiOption("安全事件处置流")` 30s 超时 | mock workflows 列表不在 select 中显示 | 重写 mock 与 select 的协议 |
 | 34 | `e2e/app/agent-workbench.spec.ts:238` | `app-bot-ide-page` 30s 不可见 | bot 创建后 navigate 到 detail 路由未触发 | 修复 `module-studio-react/agent dialog` 的 onOpenBot 调用链 |
-| 40 | `e2e/app/reports-dashboards.spec.ts:18` | POST `/api/v1/reports` 返回 500 | 后端 ReportsController **不存在** | 新增 `Atlas.PlatformHost/Controllers/ReportsController.cs` 真实控制器 |
+| 40 | `e2e/app/reports-dashboards.spec.ts:18` | POST `/api/v1/reports` 返回 500 | 后端 ReportsController **不存在** | 新增 `src/backend/Atlas.AppHost/Controllers/ReportsController.cs` 真实控制器 |
 | 63 | `e2e/app/workflow-editor.spec.ts:12` | `workflow.detail.title.save-draft` 15s 不可见 | Coze workflow 编辑器（`@coze-workflow/playground-adapter`）中无此 testId | (a) 在 packages/workflow 内补回 testId；或 (b) 重写 specs 适配 Coze 测试钩子 |
 | 66 | `e2e/app/workflow-collab.spec.ts:6` | 同 #63 | 同 #63 | 同 #63 |
 | 67 | `e2e/app/workflow-publish.spec.ts:5` | 同 #63 | 同 #63 | 同 #63 |
 | 68 | `e2e/app/workflow-run.spec.ts:30` | 同 #63 | 同 #63 | 同 #63 |
 | 71 | `e2e/app/workflow-complete-flow.spec.ts:22` | 同 #63 | 同 #63 | 同 #63 |
-| 72 | `e2e/app/workflow-v2-acceptance.spec.ts:268` | POST `/api/v2/workflows` 返回 500 | 后端 DAG workflow 创建端点错误 | 修复 DagWorkflowController.CreateAsync |
+| 72 | `e2e/app/workflow-v2-acceptance.spec.ts:268` | POST `/api/v2/workflows` 返回 500 | 历史 v2 工作流端点已退场 | 改写用例到 `api/app-web/workflow-sdk/create` 或直接移除旧 spec |
 
 ## 4. 独立专项立项建议
 
 **专项一：后端缺失的真实控制器**
 - ReportsController + DashboardsController + 对应 Service / DTO / xUnit / .http
-- DagWorkflowController 创建端点修复
+- 历史 DagWorkflowController 不再补修，相关用例统一迁移到新 gateway
 
 **专项二：Coze 工作流编辑器 testId 同步**
 - 在 `packages/workflow/playground` 节点头部 / 标题栏 / canvas 位置补齐 `workflow.detail.title.{save-draft,duplicate,canvas-json,run-inputs,...}` testId

@@ -29,6 +29,7 @@ export {
   addGlobalRequestInterceptor,
   removeGlobalRequestInterceptor,
   addGlobalResponseInterceptor,
+  setBotApiUnauthorizedHandler,
   ErrorCodes,
 } from './axios';
 export { ApiError, isApiError } from './api-error';

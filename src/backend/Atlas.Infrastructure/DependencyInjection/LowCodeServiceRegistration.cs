@@ -42,6 +42,9 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IAppDefinitionQueryService, AppDefinitionQueryService>();
         services.AddScoped<IAppDefinitionCommandService, AppDefinitionCommandService>();
         services.AddScoped<IAppDraftLockService, AppDraftLockService>();
+        services.AddScoped<IProjectIdeBootstrapService, ProjectIdeBootstrapService>();
+        services.AddScoped<IProjectIdeDependencyGraphService, ProjectIdeDependencyGraphService>();
+        services.AddScoped<IProjectIdePublishOrchestrator, ProjectIdePublishOrchestrator>();
         services.AddScoped<IAppComponentOverrideRepository, AppComponentOverrideRepository>();
         services.AddScoped<ILowCodeComponentManifestService, LowCodeComponentManifestService>();
 
@@ -72,6 +75,10 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IRuntimeTriggerService, RuntimeTriggerService>();
         services.AddScoped<IRuntimeWebviewDomainService, RuntimeWebviewDomainService>();
 
+        // P4-2 服务端表达式预求值器（默认骨架；生产用 services.Replace 注入真实 jsonata.NET 实现）
+        services.TryAddSingleton<IExpressionAuditor, NoopExpressionAuditor>();
+        services.AddScoped<IServerSideExpressionEvaluator, ServerSideExpressionEvaluator>();
+
         // M13 dispatch + trace + 脱敏
         services.AddSingleton<ISensitiveMaskingService, SensitiveMaskingService>();
         services.AddScoped<IRuntimeTraceRepository, RuntimeTraceRepository>();
@@ -87,7 +94,8 @@ public static class LowCodeServiceRegistration
         // M15 渲染器能力差异化
         services.AddSingleton<ILowCodeRendererCapabilityService, LowCodeRendererCapabilityService>();
 
-        // M17 发布服务
+        // M17 发布服务（P2-2：默认 NoopPipeline；生产部署可 services.Replace 为 MinIO+CDN 实现）
+        services.TryAddSingleton<IPublishBuildPipeline, NoopPublishBuildPipeline>();
         services.AddScoped<IAppPublishService, AppPublishService>();
 
         // M18 提示词模板 + 插件全域
@@ -102,7 +110,7 @@ public static class LowCodeServiceRegistration
         services.AddHttpClient("lowcode-webview-verify");
 
         // M08 S08-3 Preview HMR 推送：默认 NoOp（无 hub 时安全跳过）；
-        // PlatformHost / AppHost 在启动时通过 services.Replace 注入真实 SignalR 实现。
+        // AppHost 在启动时通过 services.Replace 注入真实 SignalR 实现。
         services.TryAddSingleton<ILowCodePreviewSignal, NoOpLowCodePreviewSignal>();
 
         // Hangfire 桥接：cron 触发器实际执行类（由 RuntimeTriggerService AddOrUpdate 注册）
@@ -116,6 +124,7 @@ public static class LowCodeServiceRegistration
 
         // M07 S07-3：应用资源聚合
         services.AddScoped<IAppResourceCatalogService, AppResourceCatalogService>();
+        services.AddScoped<ILowCodeAppResourceBindingService, LowCodeAppResourceBindingService>();
 
         // M07 S07-4：应用模板（CRUD + 共享市场）
         services.AddScoped<IAppTemplateRepository, AppTemplateRepository>();
@@ -124,9 +133,16 @@ public static class LowCodeServiceRegistration
         // M14 S14-4：资源引用增量索引器（应用 schema 变更时自动 reindex）
         services.AddScoped<IResourceReferenceIndex, ResourceReferenceIndex>();
 
-        // M20 节点状态 + 双哲学
+        // M20 节点状态 + 双哲学（P3-7：DualOrchestrationEngine 改为 Scoped 以接 IChatClientFactory）
         services.AddScoped<INodeStateStore, NodeStateStore>();
-        services.AddSingleton<IDualOrchestrationEngine, DualOrchestrationEngine>();
+        services.AddScoped<IDualOrchestrationEngine, DualOrchestrationEngine>();
+
+        // P3-1：4 个智能体渠道适配器 + 渠道运行实体注册中心
+        services.AddSingleton<IAgentRuntimeRegistry, Atlas.Infrastructure.Services.LowCode.AgentChannels.InMemoryAgentRuntimeRegistry>();
+        services.AddScoped<IAgentChannelAdapter, Atlas.Infrastructure.Services.LowCode.AgentChannels.FeishuChannelAdapter>();
+        services.AddScoped<IAgentChannelAdapter, Atlas.Infrastructure.Services.LowCode.AgentChannels.WeChatChannelAdapter>();
+        services.AddScoped<IAgentChannelAdapter, Atlas.Infrastructure.Services.LowCode.AgentChannels.DouyinChannelAdapter>();
+        services.AddScoped<IAgentChannelAdapter, Atlas.Infrastructure.Services.LowCode.AgentChannels.DoubaoChannelAdapter>();
 
         // M16 收尾：协同离线快照 Hangfire 周期任务
         services.AddSingleton<LowCodeCollabSnapshotJob>();

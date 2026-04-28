@@ -26,30 +26,6 @@ public sealed record AppManifestResponse(
     string? Icon,
     string? PublishedAt);
 
-public sealed record AppReleaseResponse(
-    string Id,
-    string ManifestId,
-    int Version,
-    string Status,
-    string ReleasedAt,
-    string? ReleaseNote);
-
-public sealed record PlatformOverviewResponse(
-    int AppCount,
-    int ReleaseCount,
-    int ActiveRouteCount,
-    int PolicyCount,
-    int LicenseCount);
-
-public sealed record PlatformResourceItem(
-    string Name,
-    string Value,
-    string Unit,
-    string Status);
-
-public sealed record PlatformResourcesResponse(
-    IReadOnlyList<PlatformResourceItem> Items);
-
 public sealed record RuntimePageResponse(
     string AppKey,
     string PageKey,
@@ -105,19 +81,3 @@ public sealed record WorkspacePermissionItem(
 public sealed record WorkspacePermissionResponse(
     IReadOnlyList<WorkspacePermissionItem> Items);
 
-public sealed record DesignerSnapshotResponse(
-    string ManifestId,
-    string Type,
-    string ItemId,
-    string SchemaJson,
-    int Version,
-    string CreatedBy,
-    DateTimeOffset CreatedAt);
-
-public sealed record DesignerSnapshotHistoryItem(
-    string Id,
-    int Version,
-    string CreatedBy,
-    DateTimeOffset CreatedAt);
-
-public sealed record DesignerSnapshotSaveRequest(string SchemaJson);

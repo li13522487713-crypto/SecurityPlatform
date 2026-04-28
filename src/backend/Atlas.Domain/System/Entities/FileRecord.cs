@@ -18,6 +18,7 @@ public sealed class FileRecord : TenantEntity
         UploadedByName = string.Empty;
         VersionNumber = 1;
         IsLatestVersion = true;
+        PreviousVersionId = 0;
     }
 
     public FileRecord(
@@ -48,7 +49,7 @@ public sealed class FileRecord : TenantEntity
         IsDeleted = false;
         VersionNumber = versionNumber;
         IsLatestVersion = isLatestVersion;
-        PreviousVersionId = previousVersionId;
+        PreviousVersionId = previousVersionId ?? 0;
     }
 
     public string OriginalName { get; private set; }
@@ -68,7 +69,7 @@ public sealed class FileRecord : TenantEntity
     public bool IsLatestVersion { get; private set; }
 
     /// <summary>指向上一版本 FileRecord 的 ID，首版本为 null。</summary>
-    public long? PreviousVersionId { get; private set; }
+    public long PreviousVersionId { get; private set; }
 
     public void SoftDelete() => IsDeleted = true;
 

@@ -6,7 +6,7 @@ const defaultTenantId = "00000000-0000-0000-0000-000000000001";
 const defaultUsername = "admin";
 const defaultPassword = "P@ssw0rd!";
 const platformDatabasePath = "Data Source=atlas.e2e.db";
-const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.PlatformHost/atlas.e2e.db")}`;
+const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.AppHost/atlas.e2e.db")}`;
 const fallbackAppKey = process.env.PLAYWRIGHT_APP_KEY ?? "dev-app";
 
 const appBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_APP_WEB_PORT ?? "5181"}`;
@@ -62,13 +62,13 @@ async function clearAuthStorage(page: Page) {
 }
 
 async function ensurePlatformSetup(request: APIRequestContext) {
-  const state = await request.get("http://127.0.0.1:5001/api/v1/setup/state");
+  const state = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
   const payload = await state.json();
   if (payload?.success && payload?.data?.status === "Ready") {
     return;
   }
 
-  const initializeResponse = await request.post("http://127.0.0.1:5001/api/v1/setup/initialize", {
+  const initializeResponse = await request.post("http://127.0.0.1:5002/api/v1/setup/initialize", {
     data: {
       database: {
         driverCode: "SQLite",
@@ -98,7 +98,7 @@ async function ensurePlatformSetup(request: APIRequestContext) {
 
   await expect
     .poll(async () => {
-      const response = await request.get("http://127.0.0.1:5001/api/v1/setup/state");
+      const response = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
       const statePayload = await response.json();
       return statePayload?.data?.status;
     }, { timeout: 45_000 })
@@ -170,7 +170,7 @@ async function resolvePlatformLoginMode(page: Page): Promise<"form" | "license-g
 }
 
 async function apiLoginAndSeedPlatformSession(page: Page, request: APIRequestContext) {
-  const tokenResponse = await request.post("http://127.0.0.1:5001/api/v1/auth/token", {
+  const tokenResponse = await request.post("http://127.0.0.1:5002/api/v1/auth/token", {
     headers: {
       "Content-Type": "application/json",
       "X-Tenant-Id": defaultTenantId
@@ -189,7 +189,7 @@ async function apiLoginAndSeedPlatformSession(page: Page, request: APIRequestCon
   const accessToken = tokenPayload.data?.accessToken ?? "";
   const refreshToken = tokenPayload.data?.refreshToken ?? "";
 
-  const profileResponse = await request.get("http://127.0.0.1:5001/api/v1/auth/me", {
+  const profileResponse = await request.get("http://127.0.0.1:5002/api/v1/auth/me", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "X-Tenant-Id": defaultTenantId
@@ -257,7 +257,6 @@ async function assertPlatformHomeVisible(page: Page) {
 }
 
 async function fillAppLoginForm(page: Page, password: string) {
-  await page.getByTestId("app-login-tenant").fill(defaultTenantId);
   await page.getByTestId("app-login-username").fill(defaultUsername);
   await page.getByTestId("app-login-password").fill(password);
 }
@@ -286,7 +285,7 @@ test.describe.skip("安装后认证到主页回归 E2E", () => {
     await loginPlatform(page, request);
     await assertPlatformHomeVisible(page);
 
-    const state = await request.get("http://127.0.0.1:5001/api/v1/setup/state");
+    const state = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
     const payload = await state.json();
     expect(payload?.data?.status).toBe("Ready");
   });
@@ -311,7 +310,7 @@ test.describe.skip("安装后认证到主页回归 E2E", () => {
       await expect(page).toHaveURL(/\/login/);
       await expect(page.locator(".error-banner")).toBeVisible();
     } else {
-      const response = await request.post("http://127.0.0.1:5001/api/v1/auth/token", {
+      const response = await request.post("http://127.0.0.1:5002/api/v1/auth/token", {
         headers: {
           "Content-Type": "application/json",
           "X-Tenant-Id": defaultTenantId
@@ -333,7 +332,7 @@ test.describe.skip("安装后认证到主页回归 E2E", () => {
     await page.goto(`${platformBaseUrl}/console`);
     await expect(page).toHaveURL(/\/login/);
 
-    const state = await request.get("http://127.0.0.1:5001/api/v1/setup/state");
+    const state = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
     const payload = await state.json();
     expect(payload?.data?.status).toBe("Ready");
   });

@@ -1,4 +1,5 @@
 using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Abstractions.Knowledge;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
@@ -13,7 +14,7 @@ public static class AiCoreServiceRegistration
 {
     /// <summary>
     /// AI 共享核心层：模型调用抽象、RAG 管道、向量检索、文档解析、代码执行。
-    /// PlatformHost 和 AppHost 均需注册。
+    /// AppHost 需注册。
     /// </summary>
     public static IServiceCollection AddAiCoreInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
@@ -55,7 +56,40 @@ public static class AiCoreServiceRegistration
 
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();
+        services.AddSingleton<IDocumentParseStrategy, DocumentParseStrategyService>();
         services.AddScoped<DocumentProcessingService>();
+
+        // v5 §32-44 / 计划 G2：知识库专题仓储（含 ParseJob/IndexJob/Table 拆分）
+        services.AddScoped<KnowledgeBaseMetaRepository>();
+        services.AddScoped<KnowledgeDocumentMetaRepository>();
+        services.AddScoped<KnowledgeBaseVersionRepository>();
+        services.AddScoped<KnowledgeJobRepository>();
+        services.AddScoped<KnowledgeParseJobRepository>();
+        services.AddScoped<KnowledgeIndexJobRepository>();
+        services.AddScoped<KnowledgeBaseBindingRepository>();
+        services.AddScoped<KnowledgeBasePermissionRepository>();
+        services.AddScoped<KnowledgeRetrievalLogRepository>();
+        services.AddScoped<KnowledgeProviderConfigRepository>();
+        services.AddScoped<KnowledgeTableRepository>();
+        services.AddScoped<KnowledgeTableColumnRepository>();
+        services.AddScoped<KnowledgeTableRowRepository>();
+        services.AddScoped<KnowledgeImageItemRepository>();
+        services.AddScoped<KnowledgeImageAnnotationRepository>();
+
+        // v5 §32-44 / 计划 G3：知识库专题应用服务（任务系统拆分为 Parse/Index 双链 + Hangfire runner）
+        services.AddScoped<KnowledgeJobService>();
+        services.AddScoped<IKnowledgeJobService>(sp => sp.GetRequiredService<KnowledgeJobService>());
+        services.AddScoped<IKnowledgeParseJobService, KnowledgeParseJobService>();
+        services.AddScoped<IKnowledgeIndexJobService, KnowledgeIndexJobService>();
+        services.AddScoped<KnowledgeParseJobRunner>();
+        services.AddScoped<KnowledgeIndexJobRunner>();
+        services.AddScoped<IRetrievalLogService, RetrievalLogService>();
+        services.AddScoped<IKnowledgeBindingService, KnowledgeBindingService>();
+        services.AddScoped<IKnowledgePermissionService, KnowledgePermissionService>();
+        services.AddScoped<IKnowledgeVersionService, KnowledgeVersionService>();
+        services.AddScoped<IKnowledgeProviderConfigService, KnowledgeProviderConfigService>();
+        services.AddScoped<IKnowledgeTableViewService, KnowledgeTableViewService>();
+        services.AddScoped<IKnowledgeImageItemService, KnowledgeImageItemService>();
 
         services.AddSingleton<TxtDocumentParser>();
         services.AddSingleton<PdfDocumentParser>();

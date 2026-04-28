@@ -18,12 +18,30 @@ import { type FC, type CSSProperties, useState } from 'react';
 
 import classnames from 'classnames';
 import { Image } from '@coze-arch/coze-design';
+import {
+  IconCode,
+  IconEdit,
+  IconLink,
+  IconBranch,
+  IconSearch,
+  IconSave,
+  IconSync,
+  IconCopy,
+  IconComment,
+  IconPlayCircle,
+  IconStopCircle,
+  IconComponent,
+  IconBox,
+  IconList,
+  IconFile
+} from '@douyinfe/semi-icons';
 
 import styles from './node-icon-outlined.module.less';
 export interface NodeIconOutlinedProps {
   borderRadius?: CSSProperties['borderRadius'];
   size?: number;
   icon?: string;
+  name?: string;
   hideOutline?: boolean;
   outlineColor?: string;
   style?: CSSProperties;
@@ -31,6 +49,7 @@ export interface NodeIconOutlinedProps {
 }
 export const NodeIconOutlined: FC<NodeIconOutlinedProps> = ({
   icon,
+  name,
   size = 18,
   hideOutline,
   borderRadius = 'var(--coze-3)',
@@ -39,6 +58,28 @@ export const NodeIconOutlined: FC<NodeIconOutlinedProps> = ({
   style,
 }) => {
   const [imgError, setImgError] = useState(false);
+
+  const getIconByName = (nodeName: string) => {
+    if (nodeName.includes('大模型')) return <IconBox />;
+    if (nodeName.includes('意图')) return <IconBranch />;
+    if (nodeName.includes('问答')) return <IconComment />;
+    if (nodeName.includes('代码')) return <IconCode />;
+    if (nodeName.includes('文本')) return <IconFile />;
+    if (nodeName.includes('JSON')) return <IconCode />;
+    if (nodeName.includes('聚合')) return <IconList />;
+    if (nodeName.includes('赋值')) return <IconEdit />;
+    if (nodeName.includes('插件')) return <IconComponent />;
+    if (nodeName.includes('HTTP')) return <IconLink />;
+    if (nodeName.includes('工作流')) return <IconBranch />;
+    if (nodeName.includes('检索')) return <IconSearch />;
+    if (nodeName.includes('写入')) return <IconSave />;
+    if (nodeName.includes('循环')) return <IconSync />;
+    if (nodeName.includes('批处理')) return <IconCopy />;
+    if (nodeName.includes('注释')) return <IconComment />;
+    if (nodeName.includes('开始')) return <IconPlayCircle />;
+    if (nodeName.includes('结束')) return <IconStopCircle />;
+    return <IconComponent />;
+  };
   
   return (
   <div
@@ -55,12 +96,12 @@ export const NodeIconOutlined: FC<NodeIconOutlinedProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'var(--coz-bg-plus)',
-          fontSize: size * 0.6,
-          color: 'var(--coz-fg-primary)'
+          background: 'rgba(22, 93, 255, 0.1)',
+          fontSize: size * 0.75,
+          color: 'var(--semi-color-primary, #165DFF)'
         }}
       >
-        ?
+        {name ? getIconByName(name) : <IconComponent />}
       </div>
     ) : (
       <Image

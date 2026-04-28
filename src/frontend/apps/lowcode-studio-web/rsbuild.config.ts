@@ -3,7 +3,6 @@ import { defineConfig } from '@rsbuild/core';
 import { pluginReact } from '@rsbuild/plugin-react';
 
 const port = Number(process.env.LOWCODE_STUDIO_PORT || '5183');
-const platformHostTarget = process.env.PLATFORM_HOST_TARGET || 'http://127.0.0.1:5001';
 const appHostTarget = process.env.APP_HOST_TARGET || 'http://127.0.0.1:5002';
 
 export default defineConfig({
@@ -20,9 +19,8 @@ export default defineConfig({
     host: '0.0.0.0',
     strictPort: true,
     proxy: [
-      // 设计态 v1 走 PlatformHost
-      { context: ['/api/v1'], target: platformHostTarget, changeOrigin: true },
-      // 运行时走 AppHost
+      // 当前设计态与运行时 API 默认统一走 AppHost（5002）。
+      { context: ['/api/v1'], target: appHostTarget, changeOrigin: true },
       { context: ['/api/runtime', '/hubs/lowcode-debug', '/hubs/lowcode-collab', '/hubs/lowcode-preview'], target: appHostTarget, changeOrigin: true }
     ]
   },

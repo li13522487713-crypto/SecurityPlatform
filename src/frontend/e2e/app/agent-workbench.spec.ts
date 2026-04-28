@@ -124,6 +124,7 @@ function getCurrentAgentId(page: import("@playwright/test").Page): string {
 }
 
 test.describe.serial("App Agent Workbench DeepSeek + Workflow", () => {
+  test.fixme("旧壳 Agent Workbench 页面路径已下线，待新壳编辑器场景补齐后恢复。");
   test.skip(!deepseekApiKey, "需要通过 PLAYWRIGHT_DEEPSEEK_API_KEY 提供真实 DeepSeek Key。");
 
   let appKey = "";

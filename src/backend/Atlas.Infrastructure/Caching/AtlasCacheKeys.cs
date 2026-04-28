@@ -73,6 +73,13 @@ public static class AtlasCacheTags
 
     public static string IdentityUser(TenantId tenantId, long userId) => $"tag:identity:u:{tenantId.Value:N}:{userId}";
 
+    /// <summary>
+    /// 治理 M-G03-C1：资源级 cache tag，用于 ResourceAccessGuard 的三级合并判定缓存失效。
+    /// 当某个资源（agent/workflow/app/...）的 ACL 变更时，按本 tag 失效相关条目。
+    /// </summary>
+    public static string Resource(TenantId tenantId, string resourceType, long resourceId)
+        => $"tag:resource:{tenantId.Value:N}:{resourceType.Trim().ToLowerInvariant()}:{resourceId}";
+
     public static string AppConfigTenant(TenantId tenantId) => $"tag:app-config:t:{tenantId.Value:N}";
 
     public static string TenantConnectionTenant(string tenantId) => $"tag:tenant-conn:t:{NormalizeId(tenantId)}";

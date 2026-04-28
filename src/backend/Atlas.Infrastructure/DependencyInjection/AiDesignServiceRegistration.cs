@@ -16,11 +16,13 @@ public static class AiDesignServiceRegistration
 {
     /// <summary>
     /// AI 平台设计态层：Agent 定义管理、模型配置、知识库管理、评测、
-    /// AI 工作流设计、Prompt 模板、插件管理等。仅 PlatformHost 注册。
+    /// AI 工作流设计、Prompt 模板、插件管理等。由 AppHost 统一注册。
     /// </summary>
     public static IServiceCollection AddAiPlatformDesignInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AgentFrameworkOptions>(configuration.GetSection("AgentFramework"));
+        services.Configure<KnowledgeBaseQuotaOptions>(configuration.GetSection("KnowledgeBaseQuota"));
+        services.Configure<AiDatabaseQuotaOptions>(configuration.GetSection("AiDatabaseQuota"));
 
         services.AddScoped<ModelConfigRepository>();
         services.AddScoped<AgentRepository>();
@@ -36,6 +38,10 @@ public static class AiDesignServiceRegistration
         services.AddScoped<KnowledgeDocumentRepository>();
         services.AddScoped<DocumentChunkRepository>();
         services.AddScoped<AiDatabaseRepository>();
+        services.AddScoped<AiDatabaseHostProfileRepository>();
+        services.AddScoped<AiDatabasePhysicalInstanceRepository>();
+        services.AddScoped<AiDatabaseFieldRepository>();
+        services.AddScoped<AiDatabaseChannelConfigRepository>();
         services.AddScoped<AiDatabaseRecordRepository>();
         services.AddScoped<AiDatabaseImportTaskRepository>();
         services.AddScoped<AiVariableRepository>();
@@ -44,6 +50,7 @@ public static class AiDesignServiceRegistration
         services.AddScoped<AiAppRepository>();
         services.AddScoped<AiAppPublishRecordRepository>();
         services.AddScoped<AiAppConversationTemplateRepository>();
+        services.AddScoped<AiAppResourceBindingRepository>();
         services.AddScoped<AgentPublicationRepository>();
         services.AddScoped<EvaluationDatasetRepository>();
         services.AddScoped<EvaluationCaseRepository>();
@@ -61,6 +68,9 @@ public static class AiDesignServiceRegistration
         services.AddScoped<AiWorkspaceRepository>();
         services.AddScoped<AiShortcutCommandRepository>();
         services.AddScoped<AiBotPopupInfoRepository>();
+        services.AddScoped<CozeWorkflowMetaRepository>();
+        services.AddScoped<CozeWorkflowDraftRepository>();
+        services.AddScoped<CozeWorkflowVersionRepository>();
         services.AddScoped<AgentTeamRepository>();
         services.AddScoped<SubAgentRepository>();
         services.AddScoped<OrchestrationNodeRepository>();
@@ -77,7 +87,16 @@ public static class AiDesignServiceRegistration
         services.AddScoped<IAgentQueryService, AgentQueryService>();
         services.AddScoped<ITeamAgentService, TeamAgentService>();
         services.AddScoped<ITeamAgentPublicationService, TeamAgentPublicationService>();
+        services.AddScoped<KnowledgeQuotaPolicy>();
+        services.AddScoped<AiDatabaseQuotaPolicy>();
+        services.AddScoped<AiDatabasePhysicalTableService>();
+        services.AddScoped<IAiDatabaseSecretProtector, AiDatabaseSecretProtector>();
+        services.AddScoped<IAiDatabaseHostProfileService, AiDatabaseHostProfileService>();
+        services.AddScoped<IAiDatabasePhysicalInstanceService, AiDatabasePhysicalInstanceService>();
+        services.AddScoped<IAiDatabaseProvisioningService, AiDatabaseProvisioningService>();
+        services.AddScoped<IDatabaseManagementService, DatabaseManagementService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
+        services.AddScoped<IAiAppResourceBindingService, AiAppResourceBindingService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();
         services.AddScoped<IAiVariableService, AiVariableService>();
         services.AddScoped<IAiPluginService, AiPluginService>();
@@ -95,6 +114,7 @@ public static class AiDesignServiceRegistration
         services.AddScoped<IRagFeedbackService, RagFeedbackService>();
         services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         services.AddScoped<IAiWorkspaceService, AiWorkspaceService>();
+        services.AddScoped<IVoiceAssetService, VoiceAssetService>();
         services.AddScoped<IAiShortcutCommandService, AiShortcutCommandService>();
         services.AddSingleton<BuiltInPluginMetadataProvider>();
         services.AddSingleton<OpenApiProjectRateLimiter>();
@@ -109,6 +129,13 @@ public static class AiDesignServiceRegistration
         services.AddSingleton<AiWorkflowDslBuilder>();
 
         services.AddScoped<ICanvasValidator, CanvasValidator>();
+        services.AddScoped<ICozeWorkflowMetaRepository>(sp => sp.GetRequiredService<CozeWorkflowMetaRepository>());
+        services.AddScoped<ICozeWorkflowDraftRepository>(sp => sp.GetRequiredService<CozeWorkflowDraftRepository>());
+        services.AddScoped<ICozeWorkflowVersionRepository>(sp => sp.GetRequiredService<CozeWorkflowVersionRepository>());
+        services.AddScoped<ICozeWorkflowPlanCompiler, CozeWorkflowPlanCompiler>();
+        services.AddScoped<ICozeWorkflowCommandService, CozeWorkflowCommandService>();
+        services.AddScoped<ICozeWorkflowQueryService, CozeWorkflowQueryService>();
+        services.AddScoped<ICozeWorkflowExecutionService, CozeWorkflowExecutionService>();
         services.AddTransient<LlmStep>();
         services.AddTransient<PluginStep>();
         services.AddTransient<CodeRunnerStep>();
@@ -117,8 +144,6 @@ public static class AiDesignServiceRegistration
         services.AddTransient<HttpRequesterStep>();
         services.AddTransient<OutputEmitterStep>();
 
-        services.AddScoped<IDagWorkflowCommandService, DagWorkflowCommandService>();
-        services.AddScoped<IDagWorkflowQueryService, DagWorkflowQueryService>();
         services.AddScoped<WorkflowCompatServices>();
         services.AddScoped<IWorkflowTraceService>(sp => sp.GetRequiredService<WorkflowCompatServices>());
         services.AddScoped<IWorkflowCollaboratorService>(sp => sp.GetRequiredService<WorkflowCompatServices>());

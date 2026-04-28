@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useBootstrap } from "./bootstrap-context";
 import { useAuth } from "./auth-context";
 import { loadAppFeatureFlags } from "./runtime-init";
+import { I18n, initI18nInstance } from "../../../../packages/arch/i18n/src/raw";
 
 /**
  * 启动前路由白名单：这些路由必须在 BootstrapProvider 完成之前就可以访问，
@@ -26,6 +27,25 @@ function isPreBootstrapPath(pathname: string): boolean {
 }
 
 type FeatureFlagsPhase = "idle" | "loading" | "ready" | "error";
+type CozeI18nPhase = "idle" | "loading" | "ready" | "error";
+
+/**
+ * 从 localStorage 读取 Atlas 语言设置，转为 cozelib i18next 语言代码。
+ * 仅在启动阶段同步读取一次，后续语言变更通过 I18n.setLang() 完成。
+ */
+function getInitialCozeLocale(): "en" | "zh-CN" {
+  try {
+    const saved = typeof window !== "undefined"
+      ? window.localStorage.getItem("atlas_locale")
+      : null;
+    if (saved && saved.trim().toLowerCase().startsWith("zh-")) {
+      return "zh-CN";
+    }
+  } catch {
+    // localStorage 不可用时使用默认值
+  }
+  return "zh-CN";
+}
 
 export interface AppStartupState {
   bootstrapReady: boolean;
@@ -36,6 +56,8 @@ export interface AppStartupState {
   spaceReady: boolean;
   workflowAllowed: boolean;
   featureFlagsError: Error | null;
+  /** cozelib i18next 实例是否已完成全局初始化 */
+  cozeI18nReady: boolean;
   refreshFeatureFlags: () => Promise<void>;
 }
 
@@ -52,7 +74,9 @@ export function AppStartupKernel({
   const auth = useAuth();
   const [featureFlagsPhase, setFeatureFlagsPhase] = useState<FeatureFlagsPhase>("idle");
   const [featureFlagsError, setFeatureFlagsError] = useState<Error | null>(null);
+  const [cozeI18nPhase, setCozeI18nPhase] = useState<CozeI18nPhase>("idle");
   const autoLoadedRef = useRef(false);
+  const cozeI18nLoadedRef = useRef(false);
 
   const refreshFeatureFlags = useCallback(async () => {
     setFeatureFlagsPhase("loading");
@@ -76,11 +100,33 @@ export function AppStartupKernel({
     void refreshFeatureFlags();
   }, [bootstrap.loading, refreshFeatureFlags]);
 
+  // cozelib i18next 全局初始化：在 AppStartupKernel 挂载时立即执行一次，
+  // 与 bootstrap 并行，不阻塞 featureFlags 加载，缩短 WorkflowRuntimeBoundary 等待时长。
+  useEffect(() => {
+    if (cozeI18nLoadedRef.current) {
+      return;
+    }
+    cozeI18nLoadedRef.current = true;
+    setCozeI18nPhase("loading");
+
+    const lng = getInitialCozeLocale();
+    initI18nInstance({ lng })
+      .then(() => {
+        I18n.setLang(lng);
+        setCozeI18nPhase("ready");
+      })
+      .catch(() => {
+        // 初始化失败时仍设为 ready，避免永久阻塞画布加载
+        setCozeI18nPhase("error");
+      });
+  }, []);
+
   const value = useMemo<AppStartupState>(() => {
     const bootstrapReady = !bootstrap.loading;
     const featureFlagsReady = featureFlagsPhase === "ready";
     const featureFlagsLoading = featureFlagsPhase === "loading" || featureFlagsPhase === "idle";
     const spaceReady = !auth.isAuthenticated || Boolean(bootstrap.spaceId);
+    const cozeI18nReady = cozeI18nPhase === "ready" || cozeI18nPhase === "error";
     const workflowAllowed =
       bootstrapReady &&
       bootstrap.platformReady &&
@@ -96,6 +142,7 @@ export function AppStartupKernel({
       featureFlagsLoading,
       spaceReady,
       workflowAllowed,
+      cozeI18nReady,
       featureFlagsError,
       refreshFeatureFlags
     };
@@ -105,6 +152,7 @@ export function AppStartupKernel({
     bootstrap.loading,
     bootstrap.platformReady,
     bootstrap.spaceId,
+    cozeI18nPhase,
     featureFlagsError,
     featureFlagsPhase,
     refreshFeatureFlags

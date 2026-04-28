@@ -52,4 +52,13 @@ public interface IWorkspaceTestsetService
         string workspaceId,
         TestsetCreateRequest request,
         CancellationToken cancellationToken);
+
+    Task<TestsetCasePageDto> ListCaseDataAsync(
+        TenantId tenantId,
+        string workspaceId,
+        string? workflowId,
+        string? caseName,
+        int pageLimit,
+        string? nextToken,
+        CancellationToken cancellationToken);
 }

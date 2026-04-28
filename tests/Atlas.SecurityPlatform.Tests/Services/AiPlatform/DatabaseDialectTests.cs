@@ -1,0 +1,170 @@
+using Atlas.Application.AiPlatform.Models;
+using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Infrastructure.Services.DatabaseStructure;
+
+namespace Atlas.SecurityPlatform.Tests.Services.AiPlatform;
+
+public sealed class DatabaseDialectRegistryTests
+{
+    private static DatabaseDialectRegistry CreateRegistry()
+        => new(
+        [
+            new SqliteDatabaseDialect(),
+            new MySqlDatabaseDialect(),
+            new PostgreSqlDatabaseDialect(),
+            new SqlServerDatabaseDialect(),
+            new OracleDatabaseDialect(),
+            new DmDatabaseDialect(),
+            new KingbaseDatabaseDialect(),
+            new OscarDatabaseDialect()
+        ]);
+
+    [Theory]
+    [InlineData("SQLite", "SQLite")]
+    [InlineData("sqlite", "SQLite")]
+    [InlineData("MySql", "MySql")]
+    [InlineData("mysql", "MySql")]
+    [InlineData("postgres", "PostgreSQL")]
+    [InlineData("PostgreSQL", "PostgreSQL")]
+    public void Resolve_KnownDriver_IsCaseInsensitive(string input, string expected)
+    {
+        Assert.Equal(expected, CreateRegistry().Resolve(input).DriverCode);
+    }
+
+    [Theory]
+    [InlineData("unknown-driver")]
+    [InlineData("Access")]
+    [InlineData("access")]
+    public void Resolve_UnsupportedDriver_DoesNotFallbackToSqlite(string driverCode)
+    {
+        Assert.Throws<NotSupportedException>(() => CreateRegistry().Resolve(driverCode));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Resolve_EmptyDriver_DoesNotFallbackToSqlite(string driverCode)
+    {
+        Assert.Throws<ArgumentException>(() => CreateRegistry().Resolve(driverCode));
+    }
+}
+
+public sealed class IdentifierValidatorTests
+{
+    private readonly SqliteDatabaseDialect _dialect = new();
+
+    [Theory]
+    [InlineData("users")]
+    [InlineData("sys_user_demo")]
+    [InlineData("T20260425")]
+    public void ValidateIdentifier_AllowsSafeAsciiNames(string name)
+    {
+        _dialect.ValidateIdentifier(name);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("user table")]
+    [InlineData("user;drop")]
+    [InlineData("public.users")]
+    [InlineData("用户")]
+    [InlineData("users--")]
+    public void ValidateIdentifier_RejectsUnsafeNames(string name)
+    {
+        Assert.Throws<InvalidOperationException>(() => _dialect.ValidateIdentifier(name));
+    }
+}
+
+public sealed class DialectSqlGenerationTests
+{
+    [Fact]
+    public void Sqlite_CreateTable_SupportsPrimaryKeyAutoIncrementAndPaging()
+    {
+        var dialect = new SqliteDatabaseDialect();
+        var sql = dialect.BuildCreateTableSql(new PreviewCreateTableDdlRequest(
+            null,
+            "sys_user_demo",
+            "ignored",
+            [
+                new TableColumnDesignDto("id", "INTEGER", Nullable: false, PrimaryKey: true, AutoIncrement: true),
+                new TableColumnDesignDto("name", "TEXT", Nullable: false, DefaultValue: "'anonymous'")
+            ]));
+
+        Assert.Contains("\"id\" INTEGER PRIMARY KEY AUTOINCREMENT", sql);
+        Assert.Contains("\"name\" TEXT NOT NULL DEFAULT 'anonymous'", sql);
+        Assert.Contains("LIMIT 20 OFFSET 20", dialect.BuildPagedSelectSql("sys_user_demo", null, 2, 20));
+    }
+
+    [Fact]
+    public void MySql_CreateTable_SupportsOptionsAndAutoIncrement()
+    {
+        var dialect = new MySqlDatabaseDialect();
+        var sql = dialect.BuildCreateTableSql(new PreviewCreateTableDdlRequest(
+            null,
+            "biz_order_demo",
+            "orders",
+            [
+                new TableColumnDesignDto("id", "BIGINT", Nullable: false, PrimaryKey: true, AutoIncrement: true),
+                new TableColumnDesignDto("payload", "JSON"),
+                new TableColumnDesignDto("amount", "DECIMAL", Precision: 12, Scale: 2)
+            ],
+            new TableOptionsDto("InnoDB", "utf8mb4", "utf8mb4_0900_ai_ci")));
+
+        Assert.Contains("AUTO_INCREMENT", sql);
+        Assert.Contains("ENGINE=InnoDB", sql);
+        Assert.Contains("DEFAULT CHARSET=utf8mb4", sql);
+        Assert.Contains("COLLATE=utf8mb4_0900_ai_ci", sql);
+        Assert.Contains("DECIMAL(12,2)", sql);
+    }
+
+    [Fact]
+    public void PostgreSql_CreateTable_UsesSchemaIdentityJsonbUuid()
+    {
+        var dialect = new PostgreSqlDatabaseDialect();
+        var sql = dialect.BuildCreateTableSql(new PreviewCreateTableDdlRequest(
+            "atlas_demo_draft",
+            "biz_order_demo",
+            null,
+            [
+                new TableColumnDesignDto("id", "BIGINT", Nullable: false, PrimaryKey: true, AutoIncrement: true),
+                new TableColumnDesignDto("row_id", "UUID", Nullable: false),
+                new TableColumnDesignDto("payload", "JSONB"),
+                new TableColumnDesignDto("enabled", "BOOLEAN")
+            ]));
+
+        Assert.Contains("\"atlas_demo_draft\".\"biz_order_demo\"", sql);
+        Assert.Contains("GENERATED BY DEFAULT AS IDENTITY", sql);
+        Assert.Contains("\"payload\" JSONB", sql);
+        Assert.Contains("\"row_id\" UUID", sql);
+        Assert.Contains("\"enabled\" BOOLEAN", sql);
+    }
+}
+
+public sealed class AiDatabasePhysicalNameBuilderTests
+{
+    [Fact]
+    public void Build_ProducesDistinctSafeNames()
+    {
+        var names = AiDatabasePhysicalNameBuilder.Build(new TenantId(Guid.Parse("00000000-0000-0000-0000-000000000001")), long.MaxValue, "PostgreSQL");
+
+        Assert.Matches("^[a-z0-9_]+$", names.LogicalName);
+        Assert.Matches("^[a-z0-9_]+$", names.DraftName);
+        Assert.Matches("^[a-z0-9_]+$", names.OnlineName);
+        Assert.NotEqual(names.DraftName, names.OnlineName);
+        Assert.Contains("9223372036854775807", names.LogicalName);
+    }
+
+    [Fact]
+    public void Build_RejectsEmptyTenant()
+    {
+        Assert.Throws<ArgumentException>(() => AiDatabasePhysicalNameBuilder.Build(TenantId.Empty, 1, "SQLite"));
+    }
+
+    [Fact]
+    public void BuildSqlitePath_RejectsPathTraversal()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Assert.Throws<InvalidOperationException>(() => AiDatabasePhysicalNameBuilder.BuildSqlitePath(root, "../evil.db"));
+    }
+}

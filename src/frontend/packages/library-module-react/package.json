@@ -11,7 +11,8 @@
   },
   "scripts": {
     "lint": "echo 'library-module-react: no lint configured yet'",
-    "build": "echo 'library-module-react: source-only package, no build step'"
+    "build": "echo 'library-module-react: source-only package, no build step'",
+    "test": "vitest --run --passWithNoTests"
   },
   "peerDependencies": {
     "react": "^18.2.0",
@@ -23,5 +24,8 @@
     "@types/react-dom": "^19.2.3",
     "@douyinfe/semi-icons": "^2.82.0",
     "@douyinfe/semi-ui": "^2.82.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
   }
 }

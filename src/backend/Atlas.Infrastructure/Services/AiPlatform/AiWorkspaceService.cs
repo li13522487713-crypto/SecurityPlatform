@@ -7,10 +7,13 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
+using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Repositories;
 using SqlSugar;
 using System.Text.Json;
+using System.Globalization;
 
+#pragma warning disable CS0618 // 工作区旧 AI 数据库字段兼容展示。
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class AiWorkspaceService : IAiWorkspaceService
@@ -23,6 +26,11 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
     private const string AgentResourceType = "agent";
     private const string AppResourceType = "app";
     private const string PromptResourceType = "prompt";
+    private const string CardResourceType = "card";
+    private const string VoiceResourceType = "voice";
+    private const string MemoryResourceType = "memory";
+    private const string SourceOfficial = "official";
+    private const string SourceCustom = "custom";
 
     private readonly AiWorkspaceRepository _workspaceRepository;
     private readonly AiPluginRepository _pluginRepository;
@@ -121,7 +129,7 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
     {
         var keyword = request.Keyword?.Trim();
         var hasKeyword = !string.IsNullOrWhiteSpace(keyword);
-        var resourceType = request.ResourceType?.Trim().ToLowerInvariant();
+        var normalizedType = NormalizeLibraryResourceTypeSlug(request.ResourceType);
         var pageIndex = Math.Max(1, request.PageIndex);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var perTypeLimit = 50;
@@ -139,7 +147,18 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             .Take(perTypeLimit)
             .ToListAsync(cancellationToken);
         var agents = agentEntities
-            .Select(x => new AiLibraryItem("agent", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, $"/ai/agents/{x.Id}/edit"));
+            .Select(x => new AiLibraryItem(
+                AgentResourceType,
+                x.Id,
+                x.Name,
+                x.Description,
+                x.UpdatedAt ?? x.CreatedAt,
+                $"/ai/agents/{x.Id}/edit",
+                SourceCustom,
+                null,
+                "智能体",
+                null,
+                null));
 
         var knowledgeBasesQuery = _db.Queryable<KnowledgeBase>()
             .Where(x => x.TenantIdValue == tenantId.Value);
@@ -154,7 +173,18 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             .Take(perTypeLimit)
             .ToListAsync(cancellationToken);
         var knowledgeBases = knowledgeBaseEntities
-            .Select(x => new AiLibraryItem("knowledge-base", x.Id, x.Name, x.Description, x.CreatedAt, $"/ai/knowledge-bases/{x.Id}"));
+            .Select(x => new AiLibraryItem(
+                KnowledgeBaseResourceType,
+                x.Id,
+                x.Name,
+                x.Description,
+                x.CreatedAt,
+                $"/ai/knowledge-bases/{x.Id}",
+                MapLibrarySourceToApi(x.ResourceSource),
+                KnowledgeSubType(x.Type),
+                KnowledgeTypeLabel(x.Type),
+                null,
+                null));
 
         var workflowsQuery = _db.Queryable<WorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted);
@@ -177,7 +207,12 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
                 x.UpdatedAt,
                 x.Mode == WorkflowMode.ChatFlow
                     ? $"/chat_flow/{x.Id}/editor"
-                    : $"/work_flow/{x.Id}/editor"));
+                    : $"/work_flow/{x.Id}/editor",
+                MapLibrarySourceToApi(x.ResourceSource),
+                x.Mode == WorkflowMode.ChatFlow ? "chatflow" : "workflow",
+                x.Mode == WorkflowMode.ChatFlow ? "对话流" : "工作流",
+                null,
+                null));
 
         var pluginsQuery = _db.Queryable<AiPlugin>()
             .Where(x => x.TenantIdValue == tenantId.Value);
@@ -198,7 +233,12 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
                 x.Name,
                 x.Description,
                 x.UpdatedAt ?? x.CreatedAt,
-                $"/plugins/{x.Id}"));
+                $"/plugins/{x.Id}",
+                MapLibrarySourceToApi(x.ResourceSource),
+                x.Type == AiPluginType.BuiltIn ? "builtin" : "custom",
+                x.Type == AiPluginType.BuiltIn ? "内置插件" : "自定义插件",
+                null,
+                null));
 
         var databasesQuery = _db.Queryable<AiDatabase>()
             .Where(x => x.TenantIdValue == tenantId.Value);
@@ -219,7 +259,39 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
                 x.Name,
                 x.Description,
                 x.UpdatedAt ?? x.CreatedAt,
-                $"/databases/{x.Id}"));
+                $"/databases/{x.Id}",
+                MapLibrarySourceToApi(x.ResourceSource),
+                "table",
+                "数据库",
+                null,
+                null));
+
+        var tenantDataSourcesQuery = _db.Queryable<TenantDataSource>()
+            .Where(x => x.TenantIdValue == tenantId.Value.ToString() && x.IsActive);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            tenantDataSourcesQuery = tenantDataSourcesQuery.Where(x => x.Name.Contains(safeKeyword) || x.DbType.Contains(safeKeyword));
+        }
+
+        var tenantDataSourcesEntities = await tenantDataSourcesQuery
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .OrderBy(x => x.CreatedAt, OrderByType.Desc)
+            .Take(perTypeLimit)
+            .ToListAsync(cancellationToken);
+        var tenantDataSources = tenantDataSourcesEntities
+            .Select(x => new AiLibraryItem(
+                DatabaseResourceType,
+                x.Id,
+                x.Name,
+                $"数据源 / {x.DbType}",
+                (x.UpdatedAt ?? x.CreatedAt).DateTime,
+                "/settings/system/datasources",
+                SourceCustom,
+                "datasource",
+                $"数据源（{x.DbType}）",
+                null,
+                null));
 
         var appsQuery = _db.Queryable<AiApp>()
             .Where(x => x.TenantIdValue == tenantId.Value);
@@ -234,7 +306,18 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             .Take(perTypeLimit)
             .ToListAsync(cancellationToken);
         var apps = appEntities
-            .Select(x => new AiLibraryItem("app", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, $"/ai/apps/{x.Id}/edit"));
+            .Select(x => new AiLibraryItem(
+                AppResourceType,
+                x.Id,
+                x.Name,
+                x.Description,
+                x.UpdatedAt ?? x.CreatedAt,
+                $"/ai/apps/{x.Id}/edit",
+                SourceCustom,
+                "app",
+                "应用",
+                null,
+                null));
 
         var promptsQuery = _db.Queryable<AiPromptTemplate>()
             .Where(x => x.TenantIdValue == tenantId.Value);
@@ -252,19 +335,137 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             .Take(perTypeLimit)
             .ToListAsync(cancellationToken);
         var prompts = promptEntities
-            .Select(x => new AiLibraryItem("prompt", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, "/ai/prompts"));
+            .Select(x => new AiLibraryItem(
+                PromptResourceType,
+                x.Id,
+                x.Name,
+                x.Description,
+                x.UpdatedAt ?? x.CreatedAt,
+                "/ai/prompts",
+                MapLibrarySourceToApi(x.ResourceSource),
+                "prompt",
+                "提示词",
+                null,
+                null));
 
-        var allItems = agents
-            .Concat(knowledgeBases)
-            .Concat(workflows)
-            .Concat(plugins)
-            .Concat(databases)
-            .Concat(apps)
-            .Concat(prompts);
-
-        if (!string.IsNullOrWhiteSpace(resourceType))
+        var cardsQuery = _db.Queryable<AgentCard>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
         {
-            allItems = allItems.Where(x => string.Equals(x.ResourceType, resourceType, StringComparison.OrdinalIgnoreCase));
+            var safeKeyword = keyword!;
+            cardsQuery = cardsQuery.Where(x => x.Name.Contains(safeKeyword));
+        }
+
+        var cardEntities = await cardsQuery
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .Take(perTypeLimit)
+            .ToListAsync(cancellationToken);
+        var cards = cardEntities
+            .Select(x => new AiLibraryItem(
+                CardResourceType,
+                x.Id,
+                x.Name,
+                null,
+                x.UpdatedAt == default ? x.CreatedAt : x.UpdatedAt,
+                $"/cards/{x.Id}",
+                MapLibrarySourceToApi(x.ResourceSource),
+                x.CardType,
+                $"卡片（{x.CardType}）",
+                null,
+                null));
+
+        var memoriesQuery = _db.Queryable<LongTermMemory>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            memoriesQuery = memoriesQuery.Where(x => x.MemoryKey.Contains(safeKeyword) || x.Content.Contains(safeKeyword));
+        }
+
+        var memoryEntities = await memoriesQuery
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .Take(perTypeLimit)
+            .ToListAsync(cancellationToken);
+        var memories = memoryEntities
+            .Select(x => new AiLibraryItem(
+                MemoryResourceType,
+                x.Id,
+                x.MemoryKey,
+                x.Content,
+                x.UpdatedAt,
+                $"/memories/{x.Id}",
+                MapLibrarySourceToApi(x.ResourceLibrarySource),
+                "long-term",
+                "记忆库",
+                null,
+                null));
+
+        var voicesQuery = _db.Queryable<VoiceAsset>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            voicesQuery = voicesQuery.Where(x =>
+                x.Name.Contains(safeKeyword)
+                || (x.Description != null && x.Description.Contains(safeKeyword)));
+        }
+
+        var voiceEntities = await voicesQuery
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .Take(perTypeLimit)
+            .ToListAsync(cancellationToken);
+        var voices = voiceEntities
+            .Select(x => new AiLibraryItem(
+                VoiceResourceType,
+                x.Id,
+                x.Name,
+                x.Description,
+                x.UpdatedAt,
+                $"/voice/{x.Id}",
+                MapLibrarySourceToApi(x.Source),
+                x.Language,
+                "音色",
+                null,
+                null));
+
+        var cozeLibraryItems = plugins
+            .Concat(workflows)
+            .Concat(knowledgeBases)
+            .Concat(databases)
+            .Concat(tenantDataSources)
+            .Concat(prompts)
+            .Concat(cards)
+            .Concat(memories)
+            .Concat(voices);
+
+        IEnumerable<AiLibraryItem> allItems;
+        if (string.IsNullOrWhiteSpace(normalizedType))
+        {
+            allItems = cozeLibraryItems;
+        }
+        else if (string.Equals(normalizedType, AgentResourceType, StringComparison.OrdinalIgnoreCase))
+        {
+            allItems = agents;
+        }
+        else if (string.Equals(normalizedType, AppResourceType, StringComparison.OrdinalIgnoreCase))
+        {
+            allItems = apps;
+        }
+        else
+        {
+            allItems = cozeLibraryItems.Where(x => string.Equals(x.ResourceType, normalizedType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var source = request.Source?.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(source) && source != "all")
+        {
+            allItems = allItems.Where(x => string.Equals(x.Source, source, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var subTypeFilter = request.SubType?.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(subTypeFilter) && subTypeFilter != "all")
+        {
+            allItems = allItems.Where(x => string.Equals(x.SubType, subTypeFilter, StringComparison.OrdinalIgnoreCase));
         }
 
         var ordered = allItems.OrderByDescending(x => x.UpdatedAt).ToList();
@@ -384,7 +585,9 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             meta.Description,
             meta.Mode,
             userId,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            meta.WorkspaceId,
+            LibrarySource.Custom);
         var canvasJson = draft?.CanvasJson ?? latestVersion?.CanvasJson ?? BuildMinimalStarterCanvasJson();
         var clonedDraft = new WorkflowDraft(tenantId, clonedMeta.Id, canvasJson, _idGeneratorAccessor.NextId());
 
@@ -423,7 +626,9 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             plugin.AuthConfigJson,
             plugin.ToolSchemaJson,
             plugin.OpenApiSpecJson,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            plugin.WorkspaceId,
+            LibrarySource.Custom);
         var clonedApis = apis
             .Select(api => new AiPluginApi(
                 tenantId,
@@ -464,7 +669,9 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             importedName,
             knowledgeBase.Description,
             knowledgeBase.Type,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            knowledgeBase.WorkspaceId,
+            LibrarySource.Custom);
         await _knowledgeBaseRepository.AddAsync(clonedKnowledgeBase, cancellationToken);
         return new AiLibraryMutationResult(clonedKnowledgeBase.Id, KnowledgeBaseResourceType, knowledgeBaseId);
     }
@@ -487,7 +694,11 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             database.Description,
             database.BotId,
             database.TableSchema,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            database.WorkspaceId,
+            database.QueryMode,
+            database.ChannelScope,
+            LibrarySource.Custom);
         await _databaseRepository.AddAsync(clonedDatabase, cancellationToken);
         return new AiLibraryMutationResult(clonedDatabase.Id, DatabaseResourceType, databaseId);
     }
@@ -573,6 +784,48 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             .CountAsync(cancellationToken) > 0;
     }
 
+    private static string MapLibrarySourceToApi(LibrarySource source) =>
+        source == LibrarySource.Official ? SourceOfficial : SourceCustom;
+
+    private static string KnowledgeSubType(KnowledgeBaseType t) => t switch
+    {
+        KnowledgeBaseType.Text => "text",
+        KnowledgeBaseType.Table => "table",
+        KnowledgeBaseType.Image => "image",
+        _ => "text"
+    };
+
+    private static string KnowledgeTypeLabel(KnowledgeBaseType t) => t switch
+    {
+        KnowledgeBaseType.Text => "文本知识库",
+        KnowledgeBaseType.Table => "表格知识库",
+        KnowledgeBaseType.Image => "图片知识库",
+        _ => "知识库"
+    };
+
+    private static string? NormalizeLibraryResourceTypeSlug(string? resourceType)
+    {
+        if (string.IsNullOrWhiteSpace(resourceType))
+        {
+            return null;
+        }
+
+        var t = resourceType.Trim().ToLowerInvariant();
+        return t switch
+        {
+            "plugins" => PluginResourceType,
+            "knowledge" => KnowledgeBaseResourceType,
+            "prompts" => PromptResourceType,
+            "databases" => DatabaseResourceType,
+            "voices" => VoiceResourceType,
+            "memories" => MemoryResourceType,
+            "cards" => CardResourceType,
+            "workflows" => WorkflowResourceType,
+            "all" => null,
+            _ => t
+        };
+    }
+
     private static string BuildMinimalStarterCanvasJson()
     {
         return JsonSerializer.Serialize(new
@@ -582,7 +835,7 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
                 new
                 {
                     key = "entry_1",
-                    type = (int)WorkflowNodeType.Entry,
+                    type = ((int)WorkflowNodeType.Entry).ToString(CultureInfo.InvariantCulture),
                     label = "开始",
                     config = new
                     {
@@ -600,7 +853,7 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
                 new
                 {
                     key = "exit_1",
-                    type = (int)WorkflowNodeType.Exit,
+                    type = ((int)WorkflowNodeType.Exit).ToString(CultureInfo.InvariantCulture),
                     label = "结束",
                     config = new
                     {

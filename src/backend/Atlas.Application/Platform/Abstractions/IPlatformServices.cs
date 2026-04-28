@@ -7,13 +7,6 @@ using Atlas.Domain.Platform.Entities;
 
 namespace Atlas.Application.Platform.Abstractions;
 
-public interface IPlatformQueryService
-{
-    Task<PlatformOverviewResponse> GetOverviewAsync(TenantId tenantId, CancellationToken cancellationToken = default);
-    Task<PlatformResourcesResponse> GetResourcesAsync(TenantId tenantId, CancellationToken cancellationToken = default);
-    Task<PagedResult<AppReleaseResponse>> GetReleasesAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default);
-}
-
 public interface ICapabilityRegistry
 {
     Task<IReadOnlyList<CapabilityManifestItem>> GetAllAsync(
@@ -94,26 +87,6 @@ public interface IAppReleaseCommandService
     Task<long> CreateReleaseAsync(TenantId tenantId, long userId, long manifestId, string? releaseNote, CancellationToken cancellationToken = default);
     Task<ReleaseRollbackResult> RollbackAsync(TenantId tenantId, long userId, long manifestId, long releaseId, CancellationToken cancellationToken = default);
     Task<ReleasePreCheckResult> PreCheckAsync(TenantId tenantId, long manifestId, CancellationToken cancellationToken = default);
-}
-
-public interface IReleaseBundleQueryService
-{
-    Task<ReleaseBundleResponse?> GetByReleaseIdAsync(
-        TenantId tenantId,
-        long releaseId,
-        CancellationToken cancellationToken = default);
-
-    Task<ReleaseBundleResponse?> GetActiveByManifestIdAsync(
-        TenantId tenantId,
-        long manifestId,
-        CancellationToken cancellationToken = default);
-}
-
-public interface IAppDesignerSnapshotService
-{
-    Task<DesignerSnapshotResponse?> GetSnapshotAsync(TenantId tenantId, long manifestId, string type, long itemId, CancellationToken cancellationToken = default);
-    Task SaveSnapshotAsync(TenantId tenantId, long userId, long manifestId, string type, long itemId, string schemaJson, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<DesignerSnapshotHistoryItem>> GetSnapshotHistoryAsync(TenantId tenantId, long manifestId, string type, long itemId, CancellationToken cancellationToken = default);
 }
 
 public interface IRuntimeRouteQueryService

@@ -1,0 +1,200 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "type": "1",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Start",
+          "description": "Start fixture node",
+          "icon": "",
+          "subTitle": "type 1",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "auto_save_history": false
+        },
+        "outputs": [
+          {
+            "name": "query",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "user_id",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "sub_a",
+      "type": "9",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Sub Workflow A",
+          "description": "Sub Workflow A fixture node",
+          "icon": "",
+          "subTitle": "type 9",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "workflowId": "9223372036854775807",
+          "workflowVersion": "draft",
+          "inputDefs": [
+            {
+              "name": "query",
+              "type": "String",
+              "required": false
+            }
+          ],
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ],
+          "batch": {
+            "enable": false
+          }
+        },
+        "outputs": [
+          {
+            "name": "sub_result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "sub_b",
+      "type": "9",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Sub Workflow B",
+          "description": "Sub Workflow B fixture node",
+          "icon": "",
+          "subTitle": "type 9",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "workflowId": "9223372036854775807",
+          "workflowVersion": "draft",
+          "inputDefs": [
+            {
+              "name": "query",
+              "type": "String",
+              "required": false
+            }
+          ],
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ],
+          "batch": {
+            "enable": false
+          }
+        },
+        "outputs": [
+          {
+            "name": "sub_result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "end",
+      "type": "2",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "End",
+          "description": "End fixture node",
+          "icon": "",
+          "subTitle": "type 2",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "terminatePlan": "returnVariables",
+          "outputEmitter": {
+            "streamingOutput": false,
+            "content": {
+              "value": "{{end.answer}}"
+            }
+          },
+          "inputParameters": [
+            {
+              "name": "answer",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "sourceNodeID": "start",
+      "targetNodeID": "sub_a"
+    },
+    {
+      "sourceNodeID": "sub_a",
+      "targetNodeID": "sub_b"
+    },
+    {
+      "sourceNodeID": "sub_b",
+      "targetNodeID": "end"
+    }
+  ]
+}

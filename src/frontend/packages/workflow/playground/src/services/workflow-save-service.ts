@@ -44,7 +44,7 @@ import {
 import { userStoreService } from '@coze-studio/user-store';
 import { REPORT_EVENTS } from '@coze-arch/report-events';
 import { logger } from '@coze-arch/logger';
-import { I18n } from '@coze-arch/i18n';
+import { I18n, type I18nKeysNoOptionsType } from '@coze-arch/i18n';
 import { getFlags } from '@coze-arch/bot-flags';
 import { CustomError } from '@coze-arch/bot-error';
 import { type Model } from '@coze-arch/bot-api/developer_api';
@@ -66,11 +66,21 @@ const START_NODE_ID = '100001';
 const END_NODE_ID = '900001';
 const CHAT_NODE_DEFAULT_ID = '110100';
 const HIGH_DEBOUNCE_TIME = 1000;
-const LOW_DEBOUNCE_TIME = 3000;
+const LOW_DEBOUNCE_TIME = 1500;
 const RELOAD_DELAY_TIME = 500;
 const RENDER_DELAY_TIME = 100;
 
 const ERROR_CODE_SAVE_VERSION_CONFLICT = '720702239';
+const SAVE_SCHEMA_INVALID_MESSAGE = I18n.t(
+  'workflow_save_schema_invalid' as I18nKeysNoOptionsType,
+  undefined,
+  'Workflow schema validation failed',
+);
+const LOAD_SCHEMA_INVALID_MESSAGE = I18n.t(
+  'workflow_load_schema_invalid' as I18nKeysNoOptionsType,
+  undefined,
+  'Workflow schema is invalid and cannot be loaded.',
+);
 
 /**
  * Create default, only start and end nodes
@@ -291,7 +301,9 @@ export class WorkflowSaveService {
    */
   async loadDocument(doc: WorkflowDocument): Promise<void> {
     this.workflowDocument = doc;
-    const { workflowId, getProjectApi } = this.globalState;
+    const { workflowId, getProjectApi, spaceId, playgroundProps } =
+      this.globalState;
+    const workflowFrom = playgroundProps?.from;
 
     const projectApi = getProjectApi();
 
@@ -299,7 +311,19 @@ export class WorkflowSaveService {
 
     try {
       if (!workflowId) {
-        throw Error(I18n.t('workflow_detail_error_interface_initialization'));
+        const initError = new Error(
+          I18n.t('workflow_detail_error_interface_initialization'),
+        );
+        logger.error({
+          message: 'workflow loadDocument missing workflowId',
+          error: initError,
+          meta: {
+            workflowId,
+            spaceId,
+            from: workflowFrom,
+          },
+        });
+        throw initError;
       }
       projectApi?.setWidgetUIState('saving');
       this.hideRenderLayer();
@@ -314,15 +338,21 @@ export class WorkflowSaveService {
         // this.loadGlobalVariables(),
       ]);
 
-      await this.loadGlobalVariables(workflowJSON);
-
-      await this.modelsService.load();
-
-      try {
-        await this.triggerService.load();
-      } catch (e) {
-        logger.error(e.message);
-      }
+      await Promise.all([
+        this.loadGlobalVariables(workflowJSON),
+        this.modelsService.load(),
+        this.triggerService.load().catch(e => {
+          logger.error({
+            message: 'workflow trigger service load failed',
+            error: e instanceof Error ? e : new Error(String(e)),
+            meta: {
+              workflowId,
+              spaceId,
+              from: workflowFrom,
+            },
+          });
+        }),
+      ]);
 
       // Load large model context
       this.context.models = this.modelsService.getModels() as Model[];
@@ -345,16 +375,18 @@ export class WorkflowSaveService {
         loading: false,
       });
       projectApi?.setWidgetUIState('normal');
-      // Only with permission can it be automatically saved.
+
+      const fitViewStartTime = Date.now();
+      await this.fitView();
+      const fitViewTime = Date.now() - fitViewStartTime;
+
+      // Only with permission can it be automatically saved. Attach after initial fitView
+      // so programmatic viewport calibration is never persisted as a user edit.
       if (!this.globalState.readonly) {
         this.saveOnChangeDisposable = doc.onContentChange(
           this.listenContentChange,
         );
       }
-
-      const fitViewStartTime = Date.now();
-      await this.fitView();
-      const fitViewTime = Date.now() - fitViewStartTime;
 
       const totalTime = Date.now() - loadingStartTime;
 
@@ -368,13 +400,29 @@ export class WorkflowSaveService {
         },
       });
     } catch (e) {
+      const loadError = e instanceof Error ? e : new Error(String(e));
+      const normalizedMessage =
+        loadError instanceof SyntaxError ||
+        (e instanceof CustomError && e.eventName === REPORT_EVENTS.parseJSON)
+          ? LOAD_SCHEMA_INVALID_MESSAGE
+          : loadError.message;
+      logger.error({
+        message: 'workflow loadDocument failed',
+        error: loadError,
+        meta: {
+          workflowId,
+          spaceId,
+          from: workflowFrom,
+          normalizedMessage,
+        },
+      });
       this.globalState.updateConfig({
-        loadingError: e.message,
+        loadingError: normalizedMessage,
         loading: false,
       });
       projectApi?.setWidgetUIState('error');
 
-      throw e;
+      throw loadError;
     } finally {
       this.showRenderLayer();
     }
@@ -465,7 +513,37 @@ export class WorkflowSaveService {
         throw new CustomError(REPORT_EVENTS.parmasValidation, 'Saving Error');
       }
 
-      await this.operationService.save(json, this.ignoreStatusTransfer);
+      const bind =
+        this.globalVariableService.state?.type === 'project'
+          ? {
+              projectId: this.globalVariableService.state.id,
+            }
+          : {
+              botId: this.globalVariableService.state?.id,
+            };
+      const { errors: schemaErrors, schema } =
+        await this.operationService.validateSchemaForSave(json, bind);
+
+      if (schemaErrors.length > 0) {
+        const firstError = schemaErrors[0] as { message?: string } | undefined;
+        const validationMessage = firstError?.message || SAVE_SCHEMA_INVALID_MESSAGE;
+        logger.warning({
+          message: 'workflow save schema validation failed',
+          meta: {
+            workflowId: this.globalState.workflowId,
+            spaceId: this.globalState.spaceId,
+            errorCount: schemaErrors.length,
+            firstError: validationMessage,
+          },
+        });
+        throw new CustomError(REPORT_EVENTS.parmasValidation, validationMessage);
+      }
+
+      await this.operationService.save(
+        json,
+        this.ignoreStatusTransfer,
+        schema,
+      );
 
       this.ignoreStatusTransfer = true;
 
@@ -523,9 +601,11 @@ export class WorkflowSaveService {
     if (entity instanceof FlowNodeEntity) {
       isAssociateChange = associatedNodes.some(node => node.id === entity.id);
     } else if (entity instanceof WorkflowLineEntity) {
-      isAssociateChange = associatedNodes.some(
-        node => node.id === entity.from.id,
-      );
+      if (entity.from) {
+        isAssociateChange = associatedNodes.some(
+          node => node.id === entity.from.id,
+        );
+      }
     }
     return isAssociateChange;
   }
@@ -576,6 +656,11 @@ export class WorkflowSaveService {
     this.highPrioritySave();
   }, LOW_DEBOUNCE_TIME - HIGH_DEBOUNCE_TIME);
 
+  public flushPendingSave = () => {
+    this.lowPrioritySave.flush();
+    this.highPrioritySave.flush();
+  };
+
   waitSaving = () => {
     if (!this.globalState.config.saving) {
       return;
@@ -616,13 +701,12 @@ export class WorkflowSaveService {
     // preload
     await this.initNodeData((workflowJson?.nodes as WorkflowNodeJSON[]) ?? []);
     await this.workflowDocument.reload(workflowJson, RELOAD_DELAY_TIME);
+    await this.fitView();
     if (!this.globalState.readonly) {
       this.saveOnChangeDisposable = this.workflowDocument.onContentChange(
         this.listenContentChange,
       );
     }
-
-    await this.fitView();
     this.showRenderLayer();
   };
 

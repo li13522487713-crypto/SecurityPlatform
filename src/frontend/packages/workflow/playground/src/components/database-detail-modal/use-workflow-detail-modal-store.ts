@@ -36,33 +36,44 @@ interface WorkflowDetailModalStore {
   close: () => void;
 }
 
+const ENABLE_ZUSTAND_DEVTOOLS =
+  IS_DEV_MODE &&
+  typeof window !== 'undefined' &&
+  '__REDUX_DEVTOOLS_EXTENSION__' in window;
+
 export const useWorkflowDetailModalStore = create<WorkflowDetailModalStore>()(
-  devtools(set => ({
-    isVisible: false,
-    databaseID: '',
-    isAddedInWorkflow: false,
-    tab: 'structure',
+  devtools(
+    set => ({
+      isVisible: false,
+      databaseID: '',
+      isAddedInWorkflow: false,
+      tab: 'structure',
 
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    onChangeDatabaseToWorkflow: () => {},
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      onChangeDatabaseToWorkflow: () => {},
 
-    open: ({
-      databaseID,
-      isAddedInWorkflow = false,
-      onChangeDatabaseToWorkflow,
-      tab,
-    }: OpenDatabaseDetailProps) => {
-      set({
-        isVisible: true,
+      open: ({
         databaseID,
-        isAddedInWorkflow,
+        isAddedInWorkflow = false,
         onChangeDatabaseToWorkflow,
         tab,
-      });
-    },
+      }: OpenDatabaseDetailProps) => {
+        set({
+          isVisible: true,
+          databaseID,
+          isAddedInWorkflow,
+          onChangeDatabaseToWorkflow,
+          tab,
+        });
+      },
 
-    close: () => {
-      set({ isVisible: false });
+      close: () => {
+        set({ isVisible: false });
+      },
+    }),
+    {
+      enabled: ENABLE_ZUSTAND_DEVTOOLS,
+      name: 'workflow.databaseDetailModalStore',
     },
-  })),
+  ),
 );

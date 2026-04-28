@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 
   // Try fetching license first to ensure backend is up
   try {
-    const r = await page.goto('http://127.0.0.1:5001/internal/health/live');
+    const r = await page.goto('http://127.0.0.1:5002/internal/health/live');
     console.log('Health check:', r?.status());
   } catch (e) {}
 

@@ -4,12 +4,19 @@
   "version": "0.0.0",
   "scripts": {
     "dev:app-web": "pnpm --filter atlas-app-web run dev",
-    "dev:app-web:platform": "pnpm --filter atlas-app-web run dev:platform",
-    "dev:app-web:direct": "pnpm --filter atlas-app-web run dev:direct",
+    "dev:lowcode-studio": "pnpm --filter atlas-lowcode-studio-web run dev",
     "build": "pnpm run build:app-web",
     "build:app-web": "pnpm --filter atlas-app-web run build",
     "lint": "pnpm run lint:app-web",
     "lint:app-web": "pnpm --filter atlas-app-web run lint",
+    "verify:microflow-contracts": "pnpm --filter @atlas/mendix-studio-core run verify-contracts",
+    "verify:microflow-metadata-contract": "node ./scripts/verify-microflow-metadata-contract.mjs",
+    "verify:microflow-adapter-modes": "node ./scripts/verify-microflow-adapter-modes.mjs",
+    "verify:microflow-no-production-mock": "node ./scripts/verify-microflow-no-production-mock.mjs",
+    "verify:microflow-http-error-handling": "node ./scripts/verify-microflow-http-error-handling.mjs",
+    "verify:microflow-contract-mock": "node ./scripts/verify-microflow-contract-mock.mjs",
+    "verify:microflow-resource-schema-integration": "node ./scripts/verify-microflow-resource-schema-integration.mjs",
+    "verify:microflow-create-hotfix": "node ./scripts/verify-microflow-create-hotfix.mjs",
     "test:unit": "pnpm exec vitest run --passWithNoTests \"packages/**/src/**/*.spec.ts\" \"packages/**/src/**/*.spec.tsx\" \"packages/**/src/**/*.test.ts\" \"packages/**/src/**/*.test.tsx\" \"apps/**/src/**/*.spec.ts\" \"apps/**/src/**/*.spec.tsx\" \"apps/**/src/**/*.test.ts\" \"apps/**/src/**/*.test.tsx\"",
     "format": "pnpm -r run format",
     "test:e2e:full": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --config playwright.e2e-all.config.ts",
@@ -17,7 +24,8 @@
     "test:e2e:app:only": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --config playwright.app.config.ts",
     "test:e2e:app:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --config playwright.app.config.ts --headed",
     "test:e2e:app:smoke": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --config playwright.app.config.ts --grep @smoke-main",
-    "i18n:check": "node ./scripts/i18n-audit.mjs --target app-web --strict"
+    "coze:diff": "node ../../tools/coze-source-diff/index.mjs",
+    "i18n:check": "node ./scripts/i18n-audit.mjs --target app-web --strict --scan-packages --check-labels-coverage"
   },
   "devDependencies": {
     "@atlas/app-shell-shared": "workspace:*",
@@ -38,7 +46,11 @@
       "react": "18.2.0",
       "react-dom": "18.2.0",
       "styled-components": "6.4.0",
-      "@swc/helpers": "0.5.21"
+      "@swc/helpers": "0.5.21",
+      "@douyinfe/semi-ui": "2.94.0",
+      "@douyinfe/semi-icons": "2.94.0",
+      "@douyinfe/semi-foundation": "2.94.0",
+      "@douyinfe/semi-illustrations": "2.94.0"
     }
   },
   "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319"

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Form, Modal, Toast } from "@douyinfe/semi-ui";
 import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
-import { createWorkspaceIdeApp } from "../../services/api-workspace-ide";
-import { appEditorPath } from "@atlas/app-shell-shared";
+import { createLowcodeProjectAppGateway } from "../gateways/project-app-gateway";
+import { notifyWorkspaceResourceCreated } from "../workspace-resource-events";
 
 interface CreateAppModalProps {
   visible: boolean;
@@ -17,9 +17,10 @@ interface AppFormValues {
   description?: string;
 }
 
-export function CreateAppModal({ visible, workspaceId: _workspaceId, onClose, onCreated }: CreateAppModalProps) {
-  const { t } = useAppI18n();
+export function CreateAppModal({ visible, workspaceId, onClose, onCreated }: CreateAppModalProps) {
+  const { t, locale } = useAppI18n();
   const navigate = useNavigate();
+  const appGateway = createLowcodeProjectAppGateway({ navigate });
   const [submitting, setSubmitting] = useState(false);
   const [values, setValues] = useState<AppFormValues>({ name: "", description: "" });
 
@@ -31,15 +32,23 @@ export function CreateAppModal({ visible, workspaceId: _workspaceId, onClose, on
     }
     setSubmitting(true);
     try {
-      const result = await createWorkspaceIdeApp({
+      const result = await appGateway.create({
         name: trimmed,
-        description: values.description?.trim() || undefined
+        description: values.description?.trim() || undefined,
+        workspaceId,
+        locale
+      });
+      notifyWorkspaceResourceCreated({
+        workspaceId,
+        resourceType: "app",
+        resourceId: result.appId,
+        resourceName: trimmed
       });
       Toast.success(t("cozeCreateSuccess"));
       onCreated?.(result.appId);
       onClose();
       setValues({ name: "", description: "" });
-      navigate(appEditorPath(result.appId));
+      appGateway.open(result.appId);
     } catch (error) {
       Toast.error((error as Error).message || t("cozeCreateFailed"));
     } finally {

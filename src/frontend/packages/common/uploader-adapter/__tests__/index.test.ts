@@ -22,17 +22,21 @@ import { getUploader, type FileOption, type CozeUploader } from '../src/index';
 // Define all mock in vi.mock factory function
 vi.mock('tt-uploader', () => {
   const mockAddImageFile = vi.fn().mockReturnValue('mock-key');
-  const mockUploader = vi.fn().mockImplementation(() => ({
-    addImageFile: mockAddImageFile,
-  }));
+  const mockCtor = vi.fn();
+  class MockUploader {
+    constructor(options?: unknown) {
+      mockCtor(options);
+    }
+    addImageFile = mockAddImageFile;
+  }
 
   // Mount the mock function on the global object for test case access
   (global as any).__mockAddImageFile = mockAddImageFile;
-  (global as any).__mockUploader = mockUploader;
+  (global as any).__mockUploader = mockCtor;
 
   return {
     __esModule: true,
-    default: mockUploader,
+    default: MockUploader,
   };
 });
 

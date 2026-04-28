@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { Button, Switch, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../../i18n";
 import { useBootstrap } from "../../bootstrap-context";
 import {
@@ -7,7 +8,10 @@ import {
   seedSystem
 } from "../../../services/mock";
 import { setUseRealConsoleApi, shouldUseRealConsoleApi } from "../../../services/mock/mock-switch";
+import { InfoBanner, SectionCard } from "../../_shared";
 import { RecoveryKeyDisplay } from "./components/recovery-key-display";
+
+const { Text } = Typography;
 
 /**
  * 控制台 Repair Tab（M10/D8）：暴露运维场景需要的 4 个高阶动作 + 1 个 mock/real 开关。
@@ -80,8 +84,13 @@ export function RepairTab() {
   return (
     <div data-testid="setup-console-repair">
       {message ? (
-        <div className="atlas-info-banner" data-testid="setup-console-repair-message">
-          {message}
+        <div style={{ marginBottom: 12 }}>
+          <InfoBanner
+            variant="info"
+            compact
+            description={message}
+            testId="setup-console-repair-message"
+          />
         </div>
       ) : null}
 
@@ -92,57 +101,60 @@ export function RepairTab() {
         />
       ) : null}
 
-      <section className="atlas-setup-panel" data-testid="setup-console-repair-actions">
-        <div className="atlas-section-title">{t("setupConsoleTabRepair")}</div>
+      <div data-testid="setup-console-repair-actions">
+        <SectionCard title={t("setupConsoleTabRepair")}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <Button
+              type="tertiary"
+              theme="light"
+              data-testid="setup-console-repair-reopen"
+              disabled={busy !== null}
+              loading={busy === "reopen"}
+              onClick={() => void handleReopen()}
+            >
+              {t("setupConsoleSystemReopen")}
+            </Button>
+            <Button
+              type="tertiary"
+              theme="light"
+              data-testid="setup-console-repair-reseed"
+              disabled={busy !== null}
+              loading={busy === "reseed"}
+              onClick={() => void handleForceReseed()}
+            >
+              {t("setupConsoleStepSeed")} v2
+            </Button>
+            <Button
+              type="primary"
+              theme="solid"
+              data-testid="setup-console-repair-regenerate-recovery"
+              disabled={busy !== null}
+              loading={busy === "regenerate-recovery"}
+              onClick={() => void handleRegenerateRecoveryKey()}
+            >
+              {t("setupConsoleSystemAdminGenerateRecoveryLabel")}
+            </Button>
+          </div>
+        </SectionCard>
+      </div>
 
-        <div className="atlas-setup-actions" style={{ flexWrap: "wrap", gap: 8, justifyContent: "flex-start" }}>
-          <button
-            type="button"
-            className="atlas-button atlas-button--secondary"
-            data-testid="setup-console-repair-reopen"
-            disabled={busy !== null}
-            onClick={() => void handleReopen()}
-          >
-            {t("setupConsoleSystemReopen")}
-          </button>
-          <button
-            type="button"
-            className="atlas-button atlas-button--secondary"
-            data-testid="setup-console-repair-reseed"
-            disabled={busy !== null}
-            onClick={() => void handleForceReseed()}
-          >
-            {t("setupConsoleStepSeed")} v2
-          </button>
-          <button
-            type="button"
-            className="atlas-button atlas-button--primary"
-            data-testid="setup-console-repair-regenerate-recovery"
-            disabled={busy !== null}
-            onClick={() => void handleRegenerateRecoveryKey()}
-          >
-            {t("setupConsoleSystemAdminGenerateRecoveryLabel")}
-          </button>
-        </div>
-      </section>
-
-      <section className="atlas-setup-panel" data-testid="setup-console-repair-mock-switch">
-        <div className="atlas-section-title">Mock / Real backend</div>
-        <label className="atlas-form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            data-testid="setup-console-repair-toggle-real"
-            checked={useReal}
-            onChange={(event) => handleToggleReal(event.target.checked)}
-          />
-          <span>{useReal ? "Use real backend" : "Use mock"}</span>
-        </label>
-        <p className="atlas-field-hint">
-          {useReal
-            ? "Console 调用走真实 setupConsoleApi（M5 后端落地后开启）。"
-            : "Console 走前端 mock，方便开发与 Playwright 测试。"}
-        </p>
-      </section>
+      <div data-testid="setup-console-repair-mock-switch">
+        <SectionCard title="Mock / Real backend">
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <Switch
+              data-testid="setup-console-repair-toggle-real"
+              checked={useReal}
+              onChange={(checked) => handleToggleReal(Boolean(checked))}
+            />
+            <Text>{useReal ? "Use real backend" : "Use mock"}</Text>
+          </label>
+          <Text type="tertiary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
+            {useReal
+              ? "Console 调用走真实 setupConsoleApi（M5 后端落地后开启）。"
+              : "Console 走前端 mock，方便开发与 Playwright 测试。"}
+          </Text>
+        </SectionCard>
+      </div>
     </div>
   );
 }

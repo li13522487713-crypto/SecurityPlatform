@@ -1,0 +1,36 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 1001
+@workflowId = 2001
+@agentId = 3001
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 解析低代码应用所属工作空间
+GET {{baseUrl}}/api/v1/editor-context/workspace?resourceType=app&resourceId={{appId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 解析工作流所属工作空间
+GET {{baseUrl}}/api/v1/editor-context/workspace?resourceType=workflow&resourceId={{workflowId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 解析智能体所属工作空间
+GET {{baseUrl}}/api/v1/editor-context/workspace?resourceType=agent&resourceId={{agentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

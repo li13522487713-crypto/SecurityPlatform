@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { AuthProfile } from "@atlas/shared-react-core/types";
 import {
@@ -38,11 +38,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<AuthProfile | null>(getAuthProfile());
   const [loading, setLoading] = useState(false);
+  const ensureProfileRequestRef = useRef<Promise<AuthProfile | null> | null>(null);
 
   const roles = profile?.roles ?? [];
   const permissions = profile?.permissions ?? [];
+  const isAuthenticated = Boolean(getAccessToken() && getTenantId());
 
-  const ensureProfile = async () => {
+  const ensureProfile = useCallback(async () => {
     if (!getAccessToken() || !getTenantId()) {
       setProfile(null);
       return null;
@@ -52,18 +54,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return profile;
     }
 
-    setLoading(true);
-    try {
-      const nextProfile = await getCurrentUser();
-      setAuthProfile(nextProfile);
-      setProfile(nextProfile);
-      return nextProfile;
-    } finally {
-      setLoading(false);
+    if (ensureProfileRequestRef.current) {
+      return ensureProfileRequestRef.current;
     }
-  };
 
-  const login = async (
+    setLoading(true);
+    const request = (async () => {
+      try {
+        const nextProfile = await getCurrentUser();
+        setAuthProfile(nextProfile);
+        setProfile(nextProfile);
+        return nextProfile;
+      } catch {
+        clearAuthStorage();
+        setProfile(null);
+        return null;
+      } finally {
+        ensureProfileRequestRef.current = null;
+        setLoading(false);
+      }
+    })();
+
+    ensureProfileRequestRef.current = request;
+    return request;
+  }, [profile]);
+
+  const login = useCallback(async (
     appKey: string,
     tenantId: string,
     username: string,
@@ -82,21 +98,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setLoading(true);
     try {
       await logoutApi();
     } finally {
+      ensureProfileRequestRef.current = null;
       clearAuthStorage();
       setProfile(null);
       setLoading(false);
     }
-  };
+  }, []);
+
+  const hasPermission = useCallback((permission?: string) => {
+    if (!permission) {
+      return true;
+    }
+
+    if (!profile) {
+      return false;
+    }
+
+    if (profile.isPlatformAdmin) {
+      return true;
+    }
+
+    if (permissions.includes("*:*:*")) {
+      return true;
+    }
+
+    if (roles.some(role => privilegedRoleCodes.has(role.trim().toLowerCase()))) {
+      return true;
+    }
+
+    return permissions.includes(permission);
+  }, [permissions, profile, roles]);
 
   const value = useMemo<AuthContextValue>(() => ({
-    isAuthenticated: Boolean(getAccessToken() && getTenantId()),
+    isAuthenticated,
     loading,
     profile,
     permissions,
@@ -104,30 +145,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     ensureProfile,
     logout,
-    hasPermission: (permission?: string) => {
-      if (!permission) {
-        return true;
-      }
-
-      if (!profile) {
-        return false;
-      }
-
-      if (profile.isPlatformAdmin) {
-        return true;
-      }
-
-      if (permissions.includes("*:*:*")) {
-        return true;
-      }
-
-      if (roles.some(role => privilegedRoleCodes.has(role.trim().toLowerCase()))) {
-        return true;
-      }
-
-      return permissions.includes(permission);
-    }
-  }), [loading, permissions, profile, roles]);
+    hasPermission
+  }), [ensureProfile, hasPermission, isAuthenticated, loading, login, logout, permissions, profile, roles]);
 
   return (
     <AuthContext.Provider value={value}>

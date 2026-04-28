@@ -74,6 +74,10 @@ interface SpaceStoreAction {
 }
 
 const DEFAULT_MAXIMUM_SPACE = 3;
+const ENABLE_ZUSTAND_DEVTOOLS =
+  IS_DEV_MODE &&
+  typeof window !== 'undefined' &&
+  '__REDUX_DEVTOOLS_EXTENSION__' in window;
 
 export const defaultState: SpaceStoreState = {
   space: {},
@@ -178,7 +182,20 @@ export const useSpaceStore = create<SpaceStoreState & SpaceStoreAction>()(
           return prePromise;
         }
 
-        let res = await currentPromise;
+        let res: SpaceInfo | undefined;
+        try {
+          res = await currentPromise;
+        } catch {
+          set(
+            {
+              loading: false,
+              inited: true,
+            },
+            false,
+            'fetchSpaces',
+          );
+          return undefined;
+        }
 
         if (!res?.has_personal_space) {
           await get().createSpace({
@@ -221,7 +238,7 @@ export const useSpaceStore = create<SpaceStoreState & SpaceStoreAction>()(
     }),
 
     {
-      enabled: IS_DEV_MODE,
+      enabled: ENABLE_ZUSTAND_DEVTOOLS,
       name: 'botStudio.spaceStore',
     },
   ),

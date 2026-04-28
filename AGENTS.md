@@ -1,289 +1,249 @@
 # Repository Guidelines (AGENTS.md)
 
-本文件为 AI 助理提供仓库级开发指南。详细技术说明可参考 `CLAUDE.md`，但若与当前代码、`package.json`、`.csproj`、`.cursor/environment.json` 或实际目录结构冲突，以当前仓库实际状态为准。
+本文件是 Atlas Security Platform 的仓库级 AI 协作规则。所有助理回复必须使用中文。若本文与当前代码、`package.json`、`.csproj`、`.cursor/environment.json` 或实际目录冲突，以当前仓库实际状态为准。
 
-**语言要求：** 所有助理回复必须使用中文。
+## 1. 项目事实
 
-## 项目概览
+- 项目：Atlas Security Platform，等保2.0 安全支撑平台。
+- 后端：.NET 10、ASP.NET Core、SqlSugar、SQLite、Hangfire、YARP、OpenTelemetry、Semantic Kernel、WorkflowCore / DSL、MassTransit、Qdrant / MinIO。
+- 前端：React 18、TypeScript、Semi Design、Rsbuild、pnpm monorepo。
+- 当前运行拓扑：后端统一收敛到 `src/backend/Atlas.AppHost`，端口 `5002`；前端只有 `src/frontend/apps/app-web`，端口 `5181`。
+- 历史：`Atlas.PlatformHost` 已从本仓库物理删除，不再存在兼容宿主；`Atlas.WebApp` 已删除，不再使用 Legacy 启动与构建命令。
+- 所有运行时 / API / 迁移 / 数据源逻辑必须落在 `Atlas.AppHost` 或下层 Application / Infrastructure / Presentation.Shared，不得再引入第二套 Web 宿主。
+- 关键文档：`docs/contracts.md`、`docs/plan-*.md`、`docs/workflow-editor-validation-matrix.md`、`docs/coze/`、`等保2.0要求清单.md`。
 
-**Atlas Security Platform** — 符合等保2.0（GB/T 22239-2019）的安全支撑平台，当前已演进为“平台控制面 + 应用运行时 + React 应用壳前端 + 多 package 能力层”的架构，支持多租户、AI 工作流、知识库与严格安全控制。
+## 2. 目录与边界
 
-- 后端：.NET 10 + ASP.NET Core + SqlSugar + SQLite，结合 Hangfire、YARP、OpenTelemetry、Semantic Kernel、WorkflowCore / WorkflowCore.DSL、MassTransit、Qdrant / MinIO 等运行时能力
-- AppWeb：React 18 + TypeScript + Semi Design + Rsbuild，支持 `platform` / `direct` 双运行模式
-- 前端共享：pnpm monorepo，采用“`app-web` 单宿主 + `packages/*` 多包能力层”的组织方式
-- 关键文档：`等保2.0要求清单.md`、`docs/contracts.md`、`docs/workflow-editor-validation-matrix.md`、`docs/plan-*.md`、`docs/coze/`
+- 方案文件：`Atlas.SecurityPlatform.slnx`。
+- 后端路径：`src/backend/**`。
+- 前端路径：`src/frontend/**`。
+- 后端分层：`Atlas.Core` → `Atlas.Shared.Contracts` → `Atlas.Domain*` → `Atlas.Application*` → `Atlas.Infrastructure*` → Host。
+- 后端模块：Workflow、LogicFlow、BatchProcess、AgentTeam、Approval、Assets、Audit、Alert 等。
+- 前端结构：`apps/*` 只做宿主、路由、页面编排和环境适配；跨页面/模块复用能力沉淀到 `packages/*`。
+- 重点前端包：`app-shell-shared`、`schema-protocol`、`shared-react-core`、`coze-shell-react`、`library-module-react`、`module-admin-react`、`module-explore-react`、`module-studio-react`、`workflow`。
+- 共享契约优先沉淀到 `Atlas.Shared.Contracts`、前端 workspace packages 与 `docs/contracts.md`。
 
-## 架构与目录
+## 3. 权威顺序
 
-- 方案：`Atlas.SecurityPlatform.slnx`，代码位于 `src/backend/`、`src/frontend/`
-- 后端分层：`Atlas.Core` → `Atlas.Shared.Contracts` → `Atlas.Domain*` → `Atlas.Application*` → `Atlas.Infrastructure*` → `Atlas.PlatformHost` / `Atlas.AppHost`
-- 后端纵向模块：在基础层之上按能力拆分为 `Workflow`、`LogicFlow`、`BatchProcess`、`AgentTeam`、`Approval`、`Assets`、`Audit`、`Alert` 等模块
-- 前端结构：`src/frontend/apps/*` 为宿主壳应用，`src/frontend/packages/*` 为共享核心、协议、编辑器、能力层与业务模块包
-- 前端当前重点包：
-  - 宿主与路由：`app-shell-shared`
-  - 协议与共享：`schema-protocol`、`shared-react-core`
-  - Shell 与业务模块：`coze-shell-react`、`library-module-react`、`module-admin-react`、`module-explore-react`、`module-studio-react`、`workflow`
-- 运行拓扑：`PlatformHost` 是平台控制面与 API 网关，`AppHost` 是应用运行时数据面；当前前端宿主只有 `app-web`
-- 共享契约：`docs/contracts.md` 定义 API / 画布 / 运行时契约，跨宿主共享类型优先沉淀到 `Atlas.Shared.Contracts` 与前端 workspace packages
+1. 本文件 `AGENTS.md`
+2. 当前代码、`package.json`、`.csproj`、`.cursor/environment.json`
+3. `docs/contracts.md` 与 `docs/plan-*.md`
+4. `CLAUDE.md` / `README.md`
 
-完整结构与依赖以仓库实际目录、各项目 `.csproj` / `package.json`、`.cursor/environment.json` 以及 `docs/contracts.md` 为准。
+`README.md` 与 `CLAUDE.md` 可能残留 Vue、`platform-web`、`Atlas.WebApi` 等旧信息，不得覆盖当前实现判断。
 
-## 文档优先级
+## 4. 工作流
 
-- 指令冲突时按以下优先级判断：`AGENTS.md` > 当前代码 / `package.json` / `.csproj` / `.cursor/environment.json` > `docs/contracts.md` 与 `docs/plan-*.md` > `CLAUDE.md` / `README.md`
-- `README.md` 与 `CLAUDE.md` 中仍可能残留旧前端形态（如 Vue / `platform-web` / `Atlas.WebApi` 等历史信息），禁止直接据此覆盖当前实现判断。
-- 涉及运行命令、端口、宿主数量、workspace 包名时，必须先以实际目录和脚本为准再执行。
+- 修改前先阅读相关文件，确认现有架构、契约、计划与实现模式。
+- 先分析再实施；先给出最小可行方案，再做最小化修改。
+- 禁止擅自扩需求、重构无关模块、替换技术栈或引入未要求依赖。
+- 遇到缺陷、重复逻辑、边界不清时，先做系统性诊断，再局部修补。
+- 新增功能按最小闭环推进：后端接口 → 前端 API 客户端 → 前端页面/组件 → i18n → `.http` 示例 → 必要测试 → 文档。
+- 每个用户需求都必须单独闭环：需求理解 → 影响面确认 → 实施 → 自审 → 构建/测试验证 → 规则对照 → 结果说明。未完成闭环前不得停止或声称完成。
+- 自审必须循环执行：若自审、构建/测试或规则对照发现缺口，必须回到“影响面确认 → 实施/修正 → 验证 → 再自审”，直到闭环通过或明确不可继续的阻塞。
+- 多个需求并行出现时，必须逐项建立闭环清单；每一项都要标明已完成、验证方式、剩余风险或阻塞原因。
+- 不得声称“完成 / 修复 / 可用”，除非相关验证已通过；无法完整完成时必须说明已完成部分、阻塞点、风险与下一步。
 
-## 构建与开发命令
+## 5. 多代理策略
 
-### 后端
+按技术域与复杂度分层 fan-out。子代理默认只读，用于探查、证据收集、复现、风险审查与边界确认；主代理统一收敛后再实现。具体子代理配置在 `.codex/agents/*.toml`。
+
+- `L0`：纯问答、说明、文档解释、根因明确且改动点单一的小任务；不启动子代理。
+- `L1`：单栈、小范围、根因基本明确；启动 1 个最贴近领域的探查代理。
+- `L2`：单栈但根因不清，或涉及运行时/测试/配置；启动 2 个子代理。
+- `L3`：跨前后端、跨模块、权限、登录、联调、回归或间歇性问题；启动 3 个子代理。
+- `L4`：多子系统、架构迁移、安全、性能、并发或数据一致性专题；启动 4-5 个子代理。
+
+固定角色：
+
+- `frontend_surface_explorer`：前端页面、路由、宿主、workspace packages、i18n、浏览器交互。
+- `backend_contract_explorer`：控制器、DTO、服务、仓储、认证、配置、后台作业与 API 契约。
+- `integration_boundary_checker`：前后端契约、登录链路、`.http`、mock/adapter、一致性。
+- `root_cause_explorer`：入口、调用链、配置开关、特性开关、真实执行路径。
+- `repro_tester`：复现、日志、堆栈、失败测试、边界场景。
+- `risk_reviewer`：正确性、回归、安全、权限、缺失测试。
+
+主代理必须先定级，再决定 fan-out；已启动的子代理必须全部返回后再合并判断。若结论冲突，先补证并消解冲突，再进入实现。不得让多个代理并行修改同一文件或同一逻辑区域。
+
+## 6. 常用命令
+
+后端：
+
 ```bash
-dotnet build                                    # 必须 0 错误 0 警告
-dotnet run --project src/backend/Atlas.PlatformHost   # 平台后端 http://localhost:5001
-dotnet run --project src/backend/Atlas.AppHost        # 应用后端 http://localhost:5002
 dotnet restore
+dotnet build
+dotnet run --project src/backend/Atlas.AppHost
+dotnet test tests/Atlas.WorkflowCore.Tests
+dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName!~Integration"
+dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName~Integration"
 ```
 
-### 前端（pnpm monorepo）
+前端：
+
 ```bash
 cd src/frontend
-pnpm install                    # 安装所有 workspace 依赖
-pnpm run dev:app-web            # AppWeb 开发服务器 http://localhost:5181
-pnpm run dev:app-web:platform   # AppWeb 以平台代理模式启动
-pnpm run dev:app-web:direct     # AppWeb 以直连模式启动
-pnpm run build                  # 构建前端（当前默认构建 app-web）
-pnpm run build:app-web          # 仅构建 AppWeb
-pnpm run test:unit              # 运行前端单元测试
-pnpm run test:e2e:app           # 运行应用壳 E2E
-pnpm run i18n:check             # 校验中英文词条与 i18n 对齐
-pnpm run lint                   # Lint 所有项目
-pnpm run format                 # 格式化所有项目
+pnpm install
+pnpm run dev:app-web
+pnpm run build
+pnpm run build:app-web
+pnpm run test:unit
+pnpm run test:e2e:app
+pnpm run i18n:check
+pnpm run lint
+pnpm run format
 ```
 
-### 前端（Legacy）
-`Atlas.WebApp` 已删除（2026-04-05），不再支持 Legacy 启动与构建命令。
+默认开发账号：
 
-### API 测试
-- 使用宿主对应的 `.http` 文件：
-  - `src/backend/Atlas.PlatformHost/Bosch.http/`
-  - `src/backend/Atlas.AppHost/Bosch.http/`
-- 每个新增或修改的接口需在对应 Host 下创建或更新 `.http` 文件
+- 租户 ID：`00000000-0000-0000-0000-000000000001`
+- 用户名：`admin`
+- 密码：`P@ssw0rd!`
 
-## 编码规范与约定
+## 7. 编码规范
 
-- **文档：** 标题层级连续（`#`、`##`、`###`），短句、 bullet 列表；文件名与现有模式一致（如 `等保2.0要求清单.md`）。
-- **.NET：** 4 空格缩进，PascalCase 类型/公开成员，camelCase 局部变量/字段；File-scoped namespaces；启用 Nullable reference types。
-- **AppWeb / React Packages（React/TSX）：** 2 空格缩进，优先沿用现有 kebab-case 页面/路由文件命名与 PascalCase 组件导出；hooks 使用 `useXxx`，context 使用 `XxxContext`；TypeScript 严格模式，禁止 `any`。
-- **安全与设计：** 强调安全编码与 OOP；优先清晰、可测试的抽象；避免过度抽象与不必要的模式。
-- **异步与仓储：** 所有 I/O 必须 async/await；控制器不得直接访问数据库，必须通过 Repository 与 Service。
-- **注释规范：** 禁止无上下文 TODO（必须包含需求/工单号与处理条件）；注释应优先说明“为什么”与约束背景，而非重复代码“做了什么”。
-- **前端分层：** 新增跨页面、跨壳、跨模块能力时，优先沉淀到 `src/frontend/packages/*`，`apps/*` 仅负责宿主装配、路由、页面编排与环境适配。
+- .NET：4 空格缩进，PascalCase 类型/公开成员，camelCase 局部变量，file-scoped namespace，启用 nullable。
+- React/TSX：2 空格缩进，kebab-case 页面/路由文件，PascalCase 组件导出，hooks 用 `useXxx`。
+- 后端 I/O 必须 async/await；Controller 只做编排，不直接访问数据库。
+- 注释只解释原因、约束和背景；禁止复述代码行为或留下无上下文 TODO。
+- 新增文件必须加入对应项目文件或 workspace 配置。
+- 构建必须 0 错误 0 警告。
 
-完整约定见 `CLAUDE.md` 的 Coding Standards 章节。
+## 8. 前端强约束
 
-## 文档驱动开发
+- 所有用户可见 UI 必须使用 `@douyinfe/semi-ui ^2.82.0` 及 Semi 相关包；禁止引入 Ant Design、MUI、Chakra UI、Element Plus 等其他组件库。
+- `app-web` 已完成 Semi 化；禁止新增 `atlas-button`、`atlas-input`、`atlas-pill`、`atlas-tab`、`atlas-form-field`、`atlas-result-card`、`atlas-setup-*`、`atlas-loading-page`、`atlas-status-card` 等自绘 className。
+- 新增 UI 优先使用 `apps/app-web/src/app/_shared/` 的 PageShell、FormCard、SectionCard、StateBadge、StepsBar、ResultCard、InfoBanner 或直接使用 Semi 组件。
+- `app.css` 只保留全局变量、reset、body 背景、`.app-nav-glyph` 与 `.coze-*` 命名空间布局规则。
+- 所有用户可见文案必须走 i18n；语言持久化键为 `atlas_locale`，值为 `zh-CN` 或 `en-US`。
+- 包级 UI 文案禁止硬编码 CJK。组件库类包用 Required Labels 模式；业务模块类包用 `copy.ts` 字典模式。`copy.ts` 若含 CJK，必须在 `i18n-baseline.json` 中白名单。
+- 搜索下拉框默认展示 20 条结果，必须提供搜索框并支持远程检索。
 
-- **开发方式：** 按文档驱动实施，先有产品架构清单，再针对每个小需求完整跟踪实现。
-- **需求文档：** `docs/plan-*.md` 为实施计划；如存在专题说明或迁移文档，优先结合 `docs/coze/`、`docs/coze-workflow-migration.md`、`docs/contracts.md` 一并阅读。
-- **Plan 模式：** 需求需拆分为前端与后端实现计划，小步慢跑完成；每个任务需可闭环。
-- **任务拆分：** 将需求梳理为很小的 case，每个 case 可独立完成并验证；实现过程中须满足等保要求。
-- **完整性：** 按要求文档完成所有任务，确保前后端、契约、测试文件同步更新。
-- **新增功能：** 先核对当前代码、契约文档与实施计划，再按最小闭环补齐实现、测试、`.http` 示例与文档。
+## 9. 后端与 API 强约束
 
-## 开发约束
+- 公共 API 输入输出必须使用显式强类型 DTO、实体与接口；禁止反射、`dynamic`、运行时编译、表达式树等弱类型绕行。
+- 禁止在循环内执行数据库操作；使用批量查询/更新/删除与字典/集合聚合。
+- 控制器遵循 RESTful：资源名复数，路径表示资源层级，HTTP 动词表达动作；禁止 `/create`、`/update` 等动词路径。
+- 所有 API 路由必须包含版本前缀，例如 `api/v1`。
+- 新增或修改 API 端点必须更新 `src/backend/Atlas.AppHost/Bosch.http/` 下的 `.http` 示例。
+- `/api/v1/setup-console/*`、`/api/v1/setup-console/migration/*` 与 `/api/v1/tenant-datasources/*` 的权威宿主是 `Atlas.AppHost`。setup-console 端点必须保持 `X-Setup-Console-Token`、IP 限流、审计 IP/UA、免普通登录态的安全模型。
+- 修改 API 契约时同步更新后端 DTO、前端类型/API client、mock/adapter、测试和 `docs/contracts.md`。
+- 当前仓库已废止 `Idempotency-Key` 与 `X-CSRF-TOKEN` 作为写接口公共前置要求；不得把它们写回实现、测试或契约文档。
 
-- **零警告：** 构建必须 0 错误 0 警告（由 `Directory.Build.props` 约束）。
-- **修改前：** 必须先阅读目标文件，理解既有模式后再做最小化修改。
-- **新增文件：** 必须将新文件加入对应项目文件（`.csproj`），并解决所有警告。
-- **实现顺序：** 先实现底层代码，再实现引用层代码。
-- **避免过度设计：** 仅实现所需功能，不添加未要求的能力。
-- **解题原则：** 解决问题时优先从架构、边界、契约与复用层面处理，先消除系统性问题，再做局部修补；用博士/研究生式思维解题，先定义问题、提出假设、收集证据、验证结论，再决定实现方案，避免只盯单个报错点钻牛角尖。
-- **国际化检查：** 新开发和更新现有功能时，必须检查并遵循国际化（i18n）实践；禁止硬编码面向用户的文案、日期/时间/数字/货币格式与区域相关内容，需统一走可本地化资源、配置或既有国际化机制，并同时关注中英文等多语言展示、回退文案与区域差异。
+## 10. 安全与合规
 
-### 前端界面语言与排查
+- 设计与实现必须符合等保2.0 要求，安全控制为必选项。
+- 禁止提交密钥；使用环境变量或安全密钥存储。
+- SqlSugar + SQLite 场景下执行最小权限数据访问，敏感字段按清单要求加密存储。
+- 权限、认证、租户隔离、审计、写接口和后台作业变更必须优先评估安全影响。
 
-- 语言持久化在浏览器 `localStorage` 键 **`atlas_locale`**，取值为 **`zh-CN`** 或 **`en-US`**（实现见 `src/frontend/apps/app-web/src/app/i18n.tsx`）。
-- **中英混杂**：先确认 `atlas_locale` 与语言切换器一致；再确认线上/本地使用的是否为最新 **`pnpm run build`** 产物（避免旧 bundle 缺少新版词条）。
-- **中英键对齐**：在各应用目录下对比 `zh-CN.ts` / `en-US.ts` 是否同步更新，避免新增 key 漏翻。
-- **当前前端形态**：现有前端以 React / TSX 为主；排查 i18n 时优先检查 `useAppI18n`、消息表和 `packages/*` 中的共享文案，而不是沿用历史 Vue 审计路径。
+## 11. 专题规则
 
-## 前后端约束
+### DAG 工作流
 
-- 后端：禁止反射、动态类型/`dynamic`、运行时编译或表达式树生成等弱类型特性；必须使用强类型 DTO、实体、配置对象和接口，所有公共 API 输入输出都需显式类型声明与验证。
-- 后端：后台接口操作数据库时不允许在循环内执行数据库操作；优先使用批量查询、批量更新、批量删除，并通过字典或集合聚合减少往返次数。
-- 前端：禁止使用 `any`、`unknown` 或运行时 `eval`/动态注入脚本；必须使用 TypeScript 全量类型标注，组件 props/emit/状态均需强类型定义，API 客户端与接口契约保持类型对齐。
-- 前端：搜索下拉框默认展示 20 条结果，必须提供搜索框并支持远程检索。
-- 前端：跨模块共享协议、类型、宿主桥接与能力注册逻辑，优先沉淀到 `shared-react-core`、`schema-protocol`、`app-shell-shared` 等 workspace 包，避免在 `apps/*` 中重复定义。
-- 前后端：遇到缺陷、重复逻辑、边界不清或频繁补丁时，优先检查架构分层、契约设计、复用边界和数据流；先做系统性诊断与验证，再做局部修补，而不是只对单点现象临时打补丁。
-- 合同：前后端共享的数据契约需集中于 `docs/contracts.md` 并保持与实现同步，修改契约时同步更新类型定义与相关校验。
+- `DagWorkflow*` / REST `api/v2/workflows` 必须与 LogicFlow 表达式能力对齐；节点表达式统一通过 `NodeExecutionContext.EvaluateExpression()`。
+- `app-web` 工作流页面优先复用 `@coze-workflow/playground-adapter`、`@coze-studio/workspace-adapter` 与 `src/frontend/packages/workflow/**`；禁止再引入 Atlas 自研桥接分叉。
+- Coze 画布编辑器保存的工作流必须是 Coze 原生合法 schema：`nodes[].id`、`nodes[].type`、`nodes[].meta.position`、`nodes[].data.nodeMeta`、`edges[].sourceNodeID`、`edges[].targetNodeID` 等字段必须真实持久化；读取接口必须原样读出该 schema，禁止在读取阶段临时转换、伪装或补坐标。
+- Coze 工作流新建、保存、测试脚本和夹具至少必须持久化开始节点与结束节点，并带合法坐标；任何工作流卡片不得因缺失 `meta.position` 叠加在同一位置。
+- `Atlas runtime schema`（如 `schemaVersion/nodes[key,type,config,layout]/edges[sourceNodeKey,targetNodeKey]`）仅允许用于 Atlas 微审批流、运行时内部 DSL 或显式标记的兼容执行层；禁止写入 Coze 画布编辑器工作流草稿，禁止把它作为 Coze Studio 的设计态持久化格式。
+- 若需要让 Coze 原生 schema 进入 Atlas 运行时执行，必须通过明确的编译/适配层把 `data.inputs`、`data.outputs`、`meta.position` 与 `edges` 转成运行时 `CanvasSchema`；不得反向要求 Coze 编辑器读取 Atlas runtime schema。
+- DAG 运行时需保障 Batch 子图、Loop + Break/Continue、Selector 分支裁剪、Resume（基于 preCompletedNodeKeys）。
+- 新增/修改节点能力必须同步节点目录/模板 API、前端节点面板与属性表单、i18n、单测/E2E、`.http` 示例和 `docs/workflow-editor-validation-matrix.md`。
 
-## API 测试文件
+### Mendix 微流 Runtime
 
-- 每个新增或修改的 API 端点需在对应 Host 下创建或更新 `*.http` 文件（`*` 为控制器名，如 `Bosch.http`）。
-- `.http` 文件需包含覆盖受影响端点的请求示例。
+- RestCall Runtime 默认不得真实访问网络；只有显式 `allowRealHttp=true` 且通过 `MicroflowRestSecurityPolicy` 后，才允许经 `IMicroflowRuntimeHttpClient` / `IHttpClientFactory` 执行真实 HTTP。
+- RestCall 必须使用 ExpressionEvaluator、VariableStore、ActionExecutorRegistry 和 Runtime HTTP security policy；不得在 executor 中散落裸 `HttpClient`。
+- LogMessage 必须写入结构化 RuntimeLog，不得直接 `Console.WriteLine`；template arguments 必须通过 ExpressionEvaluator。
+- SOAP/XML/Document/Workflow/ML/external object 等 connector-backed integration 在 connector 缺失时必须返回 `RUNTIME_CONNECTOR_REQUIRED`，禁止 silent success。
 
-## 控制器规范（RESTful + 版本控制）
+### 知识库 v5
 
-- 控制器必须遵循 RESTful 风格：资源名用复数、路径表示资源层级，HTTP 动词表达操作语义（GET/POST/PUT/PATCH/DELETE）。
-- 禁止在路径中使用动词（例如 `/create`、`/update`），改用标准动词与语义化路径。
-- 统一 API 版本控制：所有 API 路由必须包含版本前缀（例如 `api/v1`）。新增版本时保持向后兼容或明确弃用策略。
-- 版本并行策略：同一资源允许 `v1`/`v2` 并行存在，新增版本必须保持旧版本可用，除非明确进入弃用期。
-- 弃用流程：发布新版本时同步标记旧版本为 Deprecated，并给出至少 6 个月的弃用窗口；窗口期内不再新增旧版本功能，但允许安全修复与关键缺陷修复。
-- 终止策略：弃用窗口结束后方可移除旧版本路由，移除需在变更日志与发布说明中显式告知。
+- 知识库 API 唯一路由前缀为 `api/v1/knowledge-bases`。
+- 基础 CRUD 由 `KnowledgeBasesController` 提供；v5 扩展由 `KnowledgeBasesV5Controller` 同前缀挂载，禁止重复实现。
+- 前端统一通过 `@atlas/library-module-react` 的 `LibraryKnowledgeApi` 消费；`apps/app-web/src/services/api-knowledge.ts` 与 `mock/adapter.ts` 必须保持同型；切换走 `VITE_LIBRARY_MOCK`。
+- 新增 SqlSugar 实体/仓储必须挂入 `Atlas.Infrastructure.Services.AtlasOrmSchemaCatalog`。
+- ParsingStrategy、ChunkingProfile、RetrievalProfile、RetrievalCallerContext 是前后端共用契约，扩展字段必须双侧同步。
+- `KnowledgeRetriever` / `KnowledgeIndexer` DAG 节点扩展必须同步 `BuiltInWorkflowNodeDeclarations` 和 `docs/workflow-editor-validation-matrix.md`。
+- 所有知识库 parse/index 任务必须经 `IKnowledgeParseJobService` / `IKnowledgeIndexJobService` 走 Hangfire `IBackgroundJobClient.Enqueue<TRunner>`；禁止在 KB 处理中直接调用 `IBackgroundWorkQueue.Enqueue`。
+- Hangfire runner 必须带 `[AutomaticRetry(Attempts=3)]`；失败时 runner 内部 `IncrementAttempts()`，达 MaxAttempts 写 `DeadLetter`。
+- 详情以 `docs/plan-knowledge-platform-v5.md` 与 `docs/contracts.md` 为准。
 
-## 测试与验证
+### AI 数据库（Coze 复刻）
 
-- **后端：** 使用 xUnit，测试项目位于 `tests/Atlas.WorkflowCore.Tests` 与 `tests/Atlas.SecurityPlatform.Tests`；接口验证仍需配套 REST Client `.http` 文件。
-- **前端：** 使用 Vitest 进行单元测试、Playwright 进行 E2E 测试，并通过 `pnpm run i18n:check` 做词条完整性校验。
-- **新增测试时：** 优先复用现有 xUnit / Vitest / Playwright 体系，记录命名模式（如 `*Tests.cs`、`*.spec.ts`）与运行命令。
+- API 前缀：`api/v1/ai-databases`；详情 DTO 含 `fields[]`、`channelConfigs[]`；记录读写区分 `environment`（Draft=1 / Online=2）。
+- 物理存储：`AiDatabasePhysicalTableService` 按租户 + 库 ID 维护 `draft` / `online` 两张表；行数据为 `atlas_data_json` + owner/channel 元数据列。
+- 访问策略：`AiDatabaseAccessPolicy` 实现单用户 `OwnerUserId` 过滤与 `ChannelScope`（完全共享 / 渠道隔离 / 站内共享）；写操作前按 `AiDatabaseChannelConfig` 校验渠道对测试/线上域的开关。
+- 渠道注册表：`Atlas.Infrastructure.Channels.ChannelCatalog` 与 `AiDatabaseChannelCatalog` 保持一致；宿主通过 `AddAtlasInfrastructureChannels` 绑定微信等选项类（敏感凭据走配置/密钥存储）。
+- 渠道凭据入口：工作区设置页 `WorkspaceSettingsPublishPage` 的 `channels` Tab 复用 `module-studio-react` 的 `ChannelsListPanel` / `ChannelDetailRouter`；飞书、微信公众号、微信小程序、微信客服凭据统一走 `/api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/*-credential`，由前端页面可配置并加密落库。
+- 前端：`module-studio-react` 数据库详情页文案走 `copy.ts` 的 `databaseDetail`；资源库创建数据库默认 `SingleUser` + `ChannelIsolated`。
+- 计划与矩阵：见 `docs/plan-ai-database.md`；契约细节以 `docs/contracts.md`「AI 数据库补充契约」为准。
 
-## Dag 工作流引擎（Coze 复刻）补充约束
+### 表格个人视图
 
-- Dag 工作流引擎（原 WorkflowV2 命名已统一为后端 `DagWorkflow*` / REST `api/v2/workflows`，其中 `v2` 为 API 版本号）必须保持与 LogicFlow 表达式能力对齐，节点表达式统一通过 `NodeExecutionContext.EvaluateExpression()`。
-- `app-web` 工作流页面必须优先复用 Coze 原生适配层（`@coze-workflow/playground-adapter`、`@coze-studio/workspace-adapter`）与 `src/frontend/packages/workflow/**`，禁止再引入 Atlas 自研桥接包分叉实现。
-- DAG 运行时需保障以下能力长期可回归：
-  - Batch 子图执行
-  - Loop + Break/Continue
-  - Selector 分支裁剪
-  - Resume（基于 preCompletedNodeKeys）
-- 前端工作流编辑器应维持“节点声明驱动 + 动态表单渲染”模式，避免将节点配置 UI 写死在单一组件中。
-- 新增/修改节点能力时，必须同步更新：
-  - 节点目录/模板 API
-  - 前端节点面板分组与属性表单
-  - i18n 中英文词条
-  - 对应单测 / E2E / `.http` 示例
-  - `docs/workflow-editor-validation-matrix.md`
+- 员工、角色、权限、菜单、部门、职位、项目、应用管理页面已接入表格个人视图能力。
+- 视图只绑定当前登录用户，后台以 `tenant_id + user_id` 识别，前端不可传用户标识。
+- 默认配置由 `TableViewDefaultOptions` / `TableViewDefaults` 定义；调整时同步后端配置与 `docs/contracts.md`。
 
-## 提交与变更
+### 登录与入口 UX
 
-- **提交信息：** 采用清晰约定（如 conventional commits：`feat:`、`fix:`、`docs:`）。
-- **PR/变更：** 包含简要说明、关联需求、UI 变更需附截图。
-- **架构变更：** 修改架构时需同步更新 `AGENTS.md` 与 `docs/contracts.md`。
+- 涉及登录页或入口体验时，先检查 `src/frontend/apps/app-web` 现有实现、i18n、认证接口和相关计划文档。
+- 中英混杂先检查 `atlas_locale` 与语言切换器，再确认是否为最新构建产物。
 
-## 安全与合规（等保2.0）
+## 12. 验证与收尾
 
-- 设计与实现须符合等保2.0 要求，安全控制为必选项；各功能需满足相关控制点并留有文档。
-- 禁止在仓库中存放密钥；使用环境变量或安全密钥存储。
-- SqlSugar + SQLite：实施最小权限数据访问，敏感字段按清单要求加密存储。
-- 完整清单见 `等保2.0要求清单.md`；已实现安全控制见 `CLAUDE.md` 的 Security and Compliance 章节。
+- 收尾前必须执行三项对照：
+  1. 自审对照：检查需求是否逐项满足，是否引入回归、权限/安全风险、契约漂移、重复实现或无关改动。
+  2. 构建对照：按影响面运行最小必要的 build/test/lint/i18n/check；无法运行时必须说明原因、替代验证和残余风险。
+  3. 规则对照：逐项核对 `AGENTS.md`、相关计划文档、`docs/contracts.md`、前后端强约束和专题规则。
+- 任一对照不通过时不得收尾；必须继续修正并重新执行三项对照。只有三项对照均通过，或存在已说明且无法由当前任务消除的外部阻塞，才允许停止。
+- 后端变更至少运行相关 `dotnet build` / `dotnet test`。
+- 前端变更至少运行相关 `pnpm run build`、`pnpm run test:unit`、`pnpm run i18n:check`。
+- API 变更必须验证 `.http` 示例、契约、前端 client/mock 与必要测试。
+- UI 变更需附截图或说明浏览器验证结果。
+- 提交信息使用 conventional commits，例如 `feat:`、`fix:`、`docs:`。
+- 架构或契约变更必须同步 `AGENTS.md` 与 `docs/contracts.md`。
+- 最终回复必须包含闭环结果：改了什么、验证了什么、未验证什么、是否仍有风险或下一步。
 
-### 写接口安全基线（现行）
+## 13. 长任务规则
 
-- 当前仓库已废止基于请求头的 `Idempotency-Key` 防重放机制。
-- 当前仓库已废止基于 `X-CSRF-TOKEN` 的浏览器 Anti-Forgery 校验机制。
-- 新增或修改写接口时，不得再把 `Idempotency-Key` / `X-CSRF-TOKEN` 作为公共前置要求写回实现、测试、`.http` 示例或契约文档。
-- 如需重新引入等效保护，必须先补一份新的替代安全方案与契约说明，再整体落地，禁止局部回滚到旧机制。
+- 长任务先拆为小里程碑，每个里程碑按“分析 → 实施 → 验证 → 记录结果”闭环推进。
+- 开始编码前说明任务理解、范围边界、里程碑、涉及文件和验证方式。
+- 当前里程碑验证通过后默认继续下一步；除非遇到阻塞、约束冲突或上下文不足。
+- 上下文不足时立即停止，明确已完成、未完成、阻塞原因和建议下一步；不得草草收场或伪造完成。
 
-## 表格视图（个人）支持
+## 14. 跨项目精准复刻专项
 
-- 员工/角色/权限/菜单/部门/职位/项目/应用管理页面均已接入统一表格个人视图能力（见 `docs/contracts.md` “表格视图（个人）”章节）。
-- 视图只绑定当前登录用户（后台以 `tenant_id + user_id` 识别，前端不可传递用户标识），对每个 `tableKey` 仅保存用户自己的视图与默认映射。
-- `TableViewConfig` 支持列配置、密度、分页等项，相关 HTTP 测试存在于 `src/backend/Atlas.PlatformHost/Bosch.http/TableViews.http`。
-- 默认配置由 `TableViewDefaultOptions`（`appsettings.json` 的 `TableViewDefaults` 节）定义，需要调整请同步更新后端配置与 `docs/contracts.md` 的描述。
+当任务目标是把另一个项目的前端功能、交互或业务逻辑复刻到本项目时，默认按长任务处理。无论旧项目使用何种语言或框架，都必须先完成只读盘点和矩阵确认，再进入实现。
 
-## 登录与 UX 说明
+### 阶段 1：旧项目只读盘点
 
-- 当前仓库未固定 `docs/login-prd.md` 入口；涉及登录页或入口体验调整时，必须先检查 `src/frontend/apps/app-web` 的现有实现、对应 i18n 文案、认证接口与相关计划文档，再决定改动范围。
+- 识别旧项目技术栈、目录结构、启动方式、前端入口、路由系统、API client、权限体系、状态管理、i18n 与构建产物。
+- 按模块梳理所有前端功能：页面、路由、组件、列表、表单、弹窗、按钮操作、空状态、异常状态、权限入口、批量操作、导入导出、后台任务入口。
+- 对每个功能追踪 API 调用：URL、方法、请求参数、响应结构、分页/排序/筛选、错误处理、前端校验和状态更新。
+- 继续追踪旧项目后端实现：入口、服务逻辑、数据模型、数据库表、权限、租户、审计、异步任务、外部依赖。
+- 每条结论必须带证据文件路径和关键符号；不得凭猜测补齐功能。
 
-## Cursor Cloud specific instructions
+### 阶段 2：复刻矩阵
 
-### 系统依赖
+实现前必须输出并等待用户确认“功能复刻矩阵”。矩阵至少包含：
 
-- **后端：** 需要 .NET 10 SDK（`dotnet-sdk-10.0`），Ubuntu 24.04 可通过 `sudo apt-get install -y dotnet-sdk-10.0` 安装。
-- **前端：** 需要 Node.js 22，并使用 `pnpm` 管理 `src/frontend` workspace 依赖；如环境缺少 `pnpm`，通过 Corepack 自动启用。
-- **Cloud 预装：** 仓库提供 `.cursor/environment.json`，启动时执行 `scripts/cursor-cloud-install.sh`，自动校验 Node 22、执行 `dotnet restore`，并在 `src/frontend` 下运行 `pnpm install`。
+- 功能名称
+- 旧项目前端入口
+- 旧项目交互流程
+- 旧项目 API 契约
+- 旧项目后端实现路径
+- 当前 Atlas 前端落点
+- 当前 Atlas 后端落点
+- 契约差距
+- UI / i18n / 权限 / 数据 / 作业风险
+- 建议复刻方式
+- 验证方式
 
-### 服务概览
+矩阵未完成或未经用户确认前，不得开始写代码。
 
-| 服务 | 端口 | 启动命令 |
-|---|---|---|
-| PlatformHost | 5001 | `dotnet run --project src/backend/Atlas.PlatformHost` |
-| AppHost | 5002 | `dotnet run --project src/backend/Atlas.AppHost` |
-| AppWeb 开发服务器 | 5181 | `cd src/frontend && pnpm run dev:app-web` |
+### 阶段 3：Atlas 适配实现
 
-`app-web` 默认以 `platform` 模式启动；如需直连 `AppHost`，使用 `cd src/frontend && pnpm run dev:app-web:direct`。
-
-数据库为嵌入式 SQLite（`atlas.db`），无需外部数据库服务。Hangfire（`hangfire.db`）同样为嵌入式 SQLite 存储。首次启动时会自动创建数据库并初始化 BootstrapAdmin 账号。
-
-### 后端启动
-
-后端在 `Development` 模式下运行，配置来自 `appsettings.Development.json`。标准启动命令：
-
-```bash
-dotnet run --project src/backend/Atlas.PlatformHost
-# 如需运行应用数据面服务，再启动：
-dotnet run --project src/backend/Atlas.AppHost
-```
-
-### 开发默认账号
-
-- **租户 ID：** `00000000-0000-0000-0000-000000000001`
-- **用户名：** `admin`
-- **密码：** `P@ssw0rd!`（由 `appsettings.Development.json` 的 `Security.BootstrapAdmin.Password` 配置）
-
-### 测试
-
-- 后端工作流测试：`dotnet test tests/Atlas.WorkflowCore.Tests`
-- 后端单元/领域测试：`dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName!~Integration"`
-- 后端集成测试：`dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName~Integration"`（使用 `WebApplicationFactory`，需正确配置 Hangfire SQLite）
-- 前端单元测试：`cd src/frontend && pnpm run test:unit`
-- 前端 E2E：`cd src/frontend && pnpm run test:e2e:app`
-- 前端国际化校验：`cd src/frontend && pnpm run i18n:check`
-- 前端构建与 Lint：`cd src/frontend && pnpm run build`、`cd src/frontend && pnpm run lint`
-
-### 构建与 Lint 命令参考
-
-标准命令以 `AGENTS.md`、`.cursor/environment.json` 与实际 `package.json` / `.csproj` 为准；`CLAUDE.md` 仅作补充背景参考。
-
-## AI 助理执行约束
-
-- 所有回复必须使用中文。
-- 修改前必须先阅读相关文件，理解现有架构、分层、契约与既有实现模式。
-- 先分析，再实施；先给出最小可行方案，再进行代码修改。
-- 严禁擅自扩需求、重构无关模块、替换技术栈或引入未要求依赖。
-- 必须遵循现有分层与边界：
-  - Controller / 页面层只负责编排，不直接落数据库、不直接写业务核心逻辑。
-  - 数据访问必须通过 Repository / Service。
-  - 前端宿主 `apps/*` 只做装配、路由、页面编排与环境适配，共享能力优先沉淀到 `packages/*`。
-- 优先做最小化修改，保持 diff 可审查、可回滚、可验证。
-- 遇到问题先做系统性诊断：先看架构、边界、契约、复用与数据流，再决定是否局部修补。
-- 每完成一个阶段都必须验证：
-  - 后端改动至少执行相关 `dotnet build` / `dotnet test`
-  - 前端改动至少执行相关 `pnpm run build` / `pnpm run test:unit` / `pnpm run i18n:check`
-- 不得声称“已完成”“已修复”“可用”，除非已实际完成对应验证。
-- 新增或修改 API 时，必须同步更新对应 `.http` 文件、相关契约文档与必要测试。
-- 修改前后端共享契约时，必须同步更新 `docs/contracts.md` 与类型定义。
-- 新增用户可见文案必须走 i18n，禁止硬编码。
-- 如无法完整完成，必须明确说明阻塞点、已完成部分、风险与下一步建议，不得伪造结果。
-
-## 长任务执行规则
-
-- 长任务必须先拆分为多个里程碑，按“分析 → 实施 → 验证 → 自动进入下一里程碑”的方式闭环推进。
-- 开始编码前，必须先输出：
-  - 任务理解
-  - 范围边界
-  - 里程碑拆分
-  - 涉及文件
-  - 验证方式
-- 每个里程碑都必须遵循：
-  - 先做最小可行实现
-  - 完成后立即执行相关构建、测试、i18n 校验或接口验证
-  - 记录修改文件、关键改动、验证结果
-- 当前里程碑验证通过后，默认自动进入下一个里程碑继续执行，不因阶段性完成而中断。
-- 只有在以下情况才停止并汇报：
-  - 遇到明确阻塞，无法继续推进
-  - 继续执行会违反现有架构、契约、安全或本文件约束
-  - 需求本身存在冲突，继续实现会产生错误结果
-- 如发生阻塞，必须明确说明：
-  - 阻塞点
-  - 已完成部分
-  - 未完成部分
-  - 风险
-  - 建议下一步
-- 不得把长任务只完成一部分就当作整体完成；除非所有里程碑完成并通过验证，否则不得宣称任务完成。
-- 最终必须输出：
-  - 里程碑完成情况
-  - 修改文件清单
-  - 执行过的命令
-  - 验证结果
-  - 剩余风险与后续建议
+- 不直接照搬旧项目架构；必须映射到本项目 .NET 分层、React app-web、workspace packages、Semi Design、i18n、API 契约与安全规则。
+- 若旧项目逻辑与本项目架构、权限、租户、安全或契约冲突，先标记冲突并给出适配方案。
+- 每个复刻 case 必须独立闭环：后端契约/服务 → 前端 client/页面/组件 → i18n → `.http` → 测试 → 文档。
+- 每个 case 验证通过后，才进入下一个 case。

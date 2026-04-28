@@ -33,6 +33,17 @@ public sealed class KnowledgeDeleterNodeExecutor : INodeExecutor
         }
 
         var documentId = context.GetConfigInt64("documentId", 0L);
+        using var activity = AiNodeObservability.StartNodeActivity(
+            "Knowledge.Delete",
+            context.TenantId,
+            context.UserId,
+            context.ChannelId,
+            context.Node.Key,
+            new Dictionary<string, object?>
+            {
+                ["kb.id"] = knowledgeId,
+                ["kb.document_id"] = documentId
+            });
         if (documentId > 0)
         {
             var existing = await _knowledgeDocumentRepository.FindByKnowledgeBaseAndIdAsync(
@@ -54,6 +65,14 @@ public sealed class KnowledgeDeleterNodeExecutor : INodeExecutor
             outputs["deleted_scope"] = VariableResolver.CreateStringElement("document");
             outputs["knowledge_id"] = JsonSerializer.SerializeToElement(knowledgeId);
             outputs["document_id"] = JsonSerializer.SerializeToElement(documentId);
+            await AiNodeObservability.WriteAuditAsync(
+                context.ServiceProvider,
+                context.TenantId,
+                context.UserId,
+                "knowledge_node.delete_document",
+                "success",
+                $"kb:{knowledgeId}/doc:{documentId}/node:{context.Node.Key}",
+                cancellationToken);
             return new NodeExecutionResult(true, outputs);
         }
 
@@ -61,6 +80,14 @@ public sealed class KnowledgeDeleterNodeExecutor : INodeExecutor
         await _knowledgeDocumentRepository.DeleteByKnowledgeBaseAsync(context.TenantId, knowledgeId, cancellationToken);
         outputs["deleted_scope"] = VariableResolver.CreateStringElement("knowledge_base");
         outputs["knowledge_id"] = JsonSerializer.SerializeToElement(knowledgeId);
+        await AiNodeObservability.WriteAuditAsync(
+            context.ServiceProvider,
+            context.TenantId,
+            context.UserId,
+            "knowledge_node.delete_kb_data",
+            "success",
+            $"kb:{knowledgeId}/node:{context.Node.Key}",
+            cancellationToken);
         return new NodeExecutionResult(true, outputs);
     }
 }

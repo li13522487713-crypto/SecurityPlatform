@@ -1,5 +1,5 @@
 /**
- * 应用运行时目录与页面 schema API（经 PlatformHost 网关）。
+ * 应用运行时目录与页面 schema API（经 AppHost 运行时）。
  */
 import type { ApiResponse, PagedResult } from "@atlas/shared-react-core/types";
 import type { RuntimePageSchema } from "../types/runtime-page-schema";
@@ -46,15 +46,31 @@ export async function getAppInstanceIdByAppKey(appKey: string): Promise<string |
     return null;
   }
 
-  const query = new URLSearchParams({
-    pageIndex: "1",
-    pageSize: "1",
-    appKey: normalized
-  });
-  const response = await requestApi<ApiResponse<PagedResult<ApplicationCatalogListItemDto>>>(
-    `/api/v2/application-catalogs?${query.toString()}`
-  );
-  const first = response.data?.items?.[0];
-  const id = first?.id?.trim();
-  return id && id.length > 0 ? id : null;
+  // Direct 模式下不使用应用目录实例绑定，直接返回 null。
+  // 这样可避免运行时场景产生不必要的目录查询请求。
+  try {
+    const runtimeMode = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_APP_RUNTIME_MODE;
+    if (runtimeMode === "direct") {
+      return null;
+    }
+  } catch {
+    // Ignore env access failure.
+  }
+
+  try {
+    const query = new URLSearchParams({
+      pageIndex: "1",
+      pageSize: "1",
+      appKey: normalized
+    });
+    const response = await requestApi<ApiResponse<PagedResult<ApplicationCatalogListItemDto>>>(
+      `/api/v2/application-catalogs?${query.toString()}`
+    );
+    const first = response.data?.items?.[0];
+    const id = first?.id?.trim();
+    return id && id.length > 0 ? id : null;
+  } catch {
+    // Endpoint may not exist on current host — gracefully return null.
+    return null;
+  }
 }

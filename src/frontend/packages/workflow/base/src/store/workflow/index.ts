@@ -46,13 +46,24 @@ const initialStore: WorkflowStoreState = {
   isCreatingWorkflow: false,
 };
 
+const ENABLE_ZUSTAND_DEVTOOLS =
+  IS_DEV_MODE &&
+  typeof window !== 'undefined' &&
+  '__REDUX_DEVTOOLS_EXTENSION__' in window;
+
 export const useWorkflowStore = create<
   WorkflowStoreState & WorkflowStoreAction
 >()(
-  devtools(set => ({
-    ...initialStore,
-    setNodes: nodes => set({ nodes: nodes ?? [] }),
-    setEdges: edges => set({ edges: edges ?? [] }),
-    setIsCreatingWorkflow: value => set({ isCreatingWorkflow: value }),
-  })),
+  devtools(
+    set => ({
+      ...initialStore,
+      setNodes: nodes => set({ nodes: nodes ?? [] }),
+      setEdges: edges => set({ edges: edges ?? [] }),
+      setIsCreatingWorkflow: value => set({ isCreatingWorkflow: value }),
+    }),
+    {
+      enabled: ENABLE_ZUSTAND_DEVTOOLS,
+      name: 'workflow.baseStore',
+    },
+  ),
 );

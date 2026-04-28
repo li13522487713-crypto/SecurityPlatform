@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Button, Empty, Spin, TabPane, Tabs, Tag, Typography } from "@douyinfe/semi-ui";
+import { Avatar, Button, Card, Empty, Space, Spin, TabPane, Tabs, Tag, Typography } from "@douyinfe/semi-ui";
 import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
 import { useWorkspaceContext } from "../workspace-context";
@@ -15,7 +15,7 @@ import {
   getHomeRecentActivities,
   getHomeRecommendedAgents,
   getHomeTutorials
-} from "../../services/mock";
+} from "../../services/api-home-content";
 import { GlobalCreateModal } from "../components/global-create-modal";
 
 export function WorkspaceHomePage() {
@@ -89,18 +89,37 @@ export function WorkspaceHomePage() {
   );
 
   return (
-    <div className="coze-page coze-home-page" data-testid="coze-home-page">
+    <div
+      className="coze-page coze-home-page"
+      data-testid="coze-home-page"
+      style={{
+        gap: 24,
+        padding: "24px 32px"
+      }}
+    >
       {loading ? (
-        <div className="coze-page__loading"><Spin /></div>
+        <div className="coze-page__loading" style={{ padding: "80px 0" }}><Spin size="large" /></div>
       ) : (
         <>
           {banner ? (
-            <section className="coze-home-banner">
-              <div className="coze-home-banner__copy">
-                <Typography.Text type="tertiary">{workspaceContextHint}</Typography.Text>
-                <Typography.Title heading={2} style={{ margin: "8px 0 12px" }}>{banner.heroTitle}</Typography.Title>
-                <Typography.Paragraph>{banner.heroSubtitle}</Typography.Paragraph>
-                <div className="coze-home-banner__cta">
+            <Card
+              style={{
+                background: "linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%)",
+                borderRadius: 20,
+                border: "1px solid rgba(37, 99, 235, 0.1)",
+                boxShadow: "inset 0 2px 10px rgba(255, 255, 255, 0.6)"
+              }}
+              bodyStyle={{ padding: "40px 48px", display: "flex", gap: 24, alignItems: "center" }}
+            >
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                <Typography.Text type="tertiary" style={{ fontWeight: 500 }}>{workspaceContextHint}</Typography.Text>
+                <Typography.Title heading={2} style={{ margin: "4px 0 8px", lineHeight: 1.2, color: "#0f172a" }}>
+                  {banner.heroTitle}
+                </Typography.Title>
+                <Typography.Paragraph style={{ marginBottom: 16, color: "#334155", fontSize: 15 }}>
+                  {banner.heroSubtitle}
+                </Typography.Paragraph>
+                <Space spacing={12}>
                   {banner.ctaList.map(cta => (
                     <Button
                       key={cta.key}
@@ -108,122 +127,147 @@ export function WorkspaceHomePage() {
                       type={cta.key === "create" ? "primary" : "tertiary"}
                       onClick={() => handleCta(cta.key)}
                       data-testid={`coze-home-banner-cta-${cta.key}`}
+                      size="large"
+                      style={{ borderRadius: 8, fontWeight: 500 }}
                     >
                       {cta.label}
                     </Button>
                   ))}
-                </div>
+                </Space>
               </div>
-            </section>
+            </Card>
           ) : null}
 
-          <section className="coze-home-section">
-            <header className="coze-home-section__head">
-              <Typography.Title heading={5} style={{ margin: 0 }}>{t("cozeHomeTutorialsTitle")}</Typography.Title>
-            </header>
-            <div className="coze-card-grid coze-card-grid--3">
+          <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Typography.Title heading={4} style={{ margin: 0 }}>{t("cozeHomeTutorialsTitle")}</Typography.Title>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 }}>
               {tutorials.map(card => (
-                <button
+                <Card
                   key={card.id}
-                  type="button"
-                  className="coze-tutorial-card"
-                  onClick={() => navigate(card.link)}
+                  shadows="hover"
+                  style={{ borderRadius: 16, cursor: "pointer", border: "1px solid rgba(15, 23, 42, 0.06)" }}
+                  bodyStyle={{ padding: 20 }}
                   data-testid={`coze-home-tutorial-${card.id}`}
                 >
-                  <div className="coze-tutorial-card__icon" aria-hidden>
-                    {card.iconKey === "intro" ? "?" : card.iconKey === "quickstart" ? ">" : "i"}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(card.link)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        navigate(card.link);
+                      }
+                    }}
+                  >
+                    <Space align="start" spacing={14}>
+                      <div className="coze-tutorial-card__icon" aria-hidden>
+                        {card.iconKey === "intro" ? "?" : card.iconKey === "quickstart" ? ">" : "i"}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <Typography.Text strong style={{ fontSize: 15, color: "#1d2129" }}>{card.title}</Typography.Text>
+                        <Typography.Text type="tertiary" style={{ fontSize: 13 }}>{card.description}</Typography.Text>
+                      </div>
+                    </Space>
                   </div>
-                  <strong>{card.title}</strong>
-                  <span>{card.description}</span>
-                </button>
+                </Card>
               ))}
             </div>
           </section>
 
-          <section className="coze-home-row">
-            <div className="coze-home-row__main">
-              <header className="coze-home-section__head">
-                <Typography.Title heading={5} style={{ margin: 0 }}>{t("cozeHomeAnnouncementsTitle")}</Typography.Title>
-              </header>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+            <Card
+              style={{ borderRadius: 16, border: "1px solid rgba(15, 23, 42, 0.06)" }}
+              bodyStyle={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16, minHeight: 220 }}
+            >
+              <Typography.Title heading={4} style={{ margin: 0 }}>{t("cozeHomeAnnouncementsTitle")}</Typography.Title>
               <Tabs activeKey={announcementTab} onChange={key => setAnnouncementTab((key as AnnouncementTab) ?? "all")}>
                 <TabPane tab={t("cozeHomeAnnouncementsTabAll")} itemKey="all" />
                 <TabPane tab={t("cozeHomeAnnouncementsTabNotice")} itemKey="notice" />
               </Tabs>
               {announcements.length === 0 ? (
-                <Empty description={t("cozeHomeAnnouncementsEmpty")} />
+                <Empty description={t("cozeHomeAnnouncementsEmpty")} style={{ marginTop: 20 }} />
               ) : (
-                <ul className="coze-list">
+                <ul className="coze-list" style={{ maxHeight: 200, overflow: "auto" }}>
                   {announcements.map(item => (
-                    <li key={item.id} className="coze-list__item">
-                      <div>
-                        <strong>{item.title}</strong>
-                        <span>{item.summary}</span>
+                    <li key={item.id} className="coze-list__item" style={{ borderRadius: 10, padding: "14px 16px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <Typography.Text strong style={{ fontSize: 14 }}>{item.title}</Typography.Text>
+                        <Typography.Text type="tertiary" style={{ fontSize: 13 }}>{item.summary}</Typography.Text>
                       </div>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        {item.tag ? <Tag size="small" color="blue">{item.tag}</Tag> : null}
-                        <span style={{ color: "var(--semi-color-text-2)" }}>{item.publisher}</span>
-                      </div>
+                      <Space align="center" spacing={8}>
+                        {item.tag ? <Tag size="small" color="blue" shape="circle">{item.tag}</Tag> : null}
+                        <Typography.Text type="quaternary" style={{ fontSize: 12 }}>{item.publisher}</Typography.Text>
+                      </Space>
                     </li>
                   ))}
                 </ul>
               )}
-            </div>
+            </Card>
 
-            <aside className="coze-home-row__aside">
-              <header className="coze-home-section__head">
-                <Typography.Title heading={5} style={{ margin: 0 }}>{t("cozeHomeRecommendedTitle")}</Typography.Title>
-                <Button theme="borderless" onClick={() => navigate("/explore/template")}>
+            <Card
+              style={{ borderRadius: 16, border: "1px solid rgba(15, 23, 42, 0.06)" }}
+              bodyStyle={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16, minHeight: 220 }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Typography.Title heading={4} style={{ margin: 0 }}>{t("cozeHomeRecommendedTitle")}</Typography.Title>
+                <Button theme="borderless" onClick={() => navigate("/explore/template")} size="small">
                   {t("cozeHomeRecommendedMore")}
                 </Button>
-              </header>
-              <div className="coze-recommended-list">
+              </div>
+              <div className="coze-recommended-list" style={{ maxHeight: 200, overflow: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
                 {recommended.map(item => (
-                  <div key={item.id} className="coze-recommended-item">
-                    <Avatar size="small" color="light-blue">{item.name.slice(0, 1)}</Avatar>
-                    <div className="coze-recommended-item__meta">
-                      <strong>{item.name}</strong>
-                      <span>{item.description}</span>
-                    </div>
-                    <Button
-                      size="small"
-                      theme="light"
-                      type="primary"
-                      onClick={() => navigate(item.link)}
-                      data-testid={`coze-home-recommended-${item.id}`}
-                    >
-                      {t("cozeHomeRecommendedTryNow")}
-                    </Button>
+                  <div key={item.id} className="coze-recommended-item" style={{ padding: 10, borderRadius: 10, background: "#fafafa" }}>
+                    <Space align="center" spacing={12} style={{ width: "100%" }}>
+                      <Avatar size="small" color="light-blue" style={{ flexShrink: 0 }}>{item.name.slice(0, 1)}</Avatar>
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, overflow: "hidden" }}>
+                        <Typography.Text strong ellipsis style={{ fontSize: 14 }}>{item.name}</Typography.Text>
+                        <Typography.Text type="tertiary" ellipsis style={{ fontSize: 12 }}>{item.description}</Typography.Text>
+                      </div>
+                      <Button
+                        size="small"
+                        theme="light"
+                        type="primary"
+                        onClick={() => navigate(item.link)}
+                        data-testid={`coze-home-recommended-${item.id}`}
+                        style={{ borderRadius: 6 }}
+                      >
+                        {t("cozeHomeRecommendedTryNow")}
+                      </Button>
+                    </Space>
                   </div>
                 ))}
               </div>
-            </aside>
-          </section>
+            </Card>
+          </div>
 
-          <section className="coze-home-section">
-            <header className="coze-home-section__head">
-              <Typography.Title heading={5} style={{ margin: 0 }}>{t("cozeHomeRecentTitle")}</Typography.Title>
-            </header>
+          <Card
+            style={{ borderRadius: 16, border: "1px solid rgba(15, 23, 42, 0.06)" }}
+            bodyStyle={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}
+          >
+            <Typography.Title heading={4} style={{ margin: 0 }}>{t("cozeHomeRecentTitle")}</Typography.Title>
             {recents.length === 0 ? (
-              <Empty description={t("cozeHomeRecentEmpty")} />
+              <Empty description={t("cozeHomeRecentEmpty")} style={{ padding: "20px 0" }} />
             ) : (
-              <ul className="coze-list">
+              <ul className="coze-list" style={{ maxHeight: 200, overflow: "auto" }}>
                 {recents.map(item => (
                   <li
                     key={item.id}
                     className="coze-list__item coze-list__item--clickable"
                     onClick={() => navigate(item.entryRoute)}
                     role="button"
+                    style={{ borderRadius: 10, padding: "14px 16px" }}
                   >
-                    <div>
-                      <strong>{item.name}</strong>
-                      <span>{item.description ?? ""}</span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <Typography.Text strong style={{ fontSize: 14 }}>{item.name}</Typography.Text>
+                      <Typography.Text type="tertiary" style={{ fontSize: 13 }}>{item.description ?? ""}</Typography.Text>
                     </div>
-                    <Tag size="small" color="grey">{item.type}</Tag>
+                    <Tag size="small" color="grey" shape="circle">{item.type}</Tag>
                   </li>
                 ))}
               </ul>
             )}
-          </section>
+          </Card>
         </>
       )}
 

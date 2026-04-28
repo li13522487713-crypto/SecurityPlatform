@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.AiPlatform.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Enums;
@@ -9,6 +10,7 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 
 /// <summary>
 /// Coze 兼容层扩展服务的轻量实现，先提供可用接口契约，后续可逐步替换为持久化实现。
+/// 治理 M-G03-C6（S7）：协作者列表已切真实数据，不再返回空数组桩。
 /// </summary>
 public sealed class WorkflowCompatServices :
     IWorkflowTraceService,
@@ -22,10 +24,17 @@ public sealed class WorkflowCompatServices :
     private static readonly ConcurrentDictionary<string, List<WorkflowJobDto>> JobStore = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly IIdGeneratorAccessor _idGenerator;
+    private readonly IWorkflowMetaRepository _workflowMetaRepository;
+    private readonly IResourceCollaboratorService _resourceCollaboratorService;
 
-    public WorkflowCompatServices(IIdGeneratorAccessor idGenerator)
+    public WorkflowCompatServices(
+        IIdGeneratorAccessor idGenerator,
+        IWorkflowMetaRepository workflowMetaRepository,
+        IResourceCollaboratorService resourceCollaboratorService)
     {
         _idGenerator = idGenerator;
+        _workflowMetaRepository = workflowMetaRepository;
+        _resourceCollaboratorService = resourceCollaboratorService;
     }
 
     public Task<WorkflowTraceSnapshotDto?> GetTraceAsync(
@@ -48,12 +57,28 @@ public sealed class WorkflowCompatServices :
         return Task.FromResult<IReadOnlyList<WorkflowTraceSpanDto>>(Array.Empty<WorkflowTraceSpanDto>());
     }
 
-    public Task<IReadOnlyList<WorkflowCollaboratorDto>> ListAsync(
+    public async Task<IReadOnlyList<WorkflowCollaboratorDto>> ListAsync(
         TenantId tenantId,
         string workflowId,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult<IReadOnlyList<WorkflowCollaboratorDto>>(Array.Empty<WorkflowCollaboratorDto>());
+        // 治理 M-G03-C6（S7）：通过 workflow.WorkspaceId 派生协作者集合（workspace 成员 + 资源 ACL）
+        if (!long.TryParse(workflowId, out var workflowMetaId))
+        {
+            return Array.Empty<WorkflowCollaboratorDto>();
+        }
+        var meta = await _workflowMetaRepository.FindActiveByIdAsync(tenantId, workflowMetaId, cancellationToken);
+        if (meta?.WorkspaceId is null or <= 0)
+        {
+            return Array.Empty<WorkflowCollaboratorDto>();
+        }
+        var collaborators = await _resourceCollaboratorService.ListAsync(
+            tenantId, meta.WorkspaceId.Value, "workflow", workflowMetaId, cancellationToken);
+        return collaborators.Select(c => new WorkflowCollaboratorDto(
+            UserId: c.UserId,
+            DisplayName: c.DisplayName,
+            RoleCode: c.RoleCode,
+            Enabled: true)).ToArray();
     }
 
     public Task OpenAsync(TenantId tenantId, string workflowId, CancellationToken cancellationToken)

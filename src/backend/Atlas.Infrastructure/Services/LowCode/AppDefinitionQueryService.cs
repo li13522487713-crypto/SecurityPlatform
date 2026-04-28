@@ -33,15 +33,55 @@ public sealed class AppDefinitionQueryService : IAppDefinitionQueryService
         _mapper = mapper;
     }
 
-    public async Task<PagedResult<AppDefinitionListItem>> QueryAsync(PagedRequest request, TenantId tenantId, string? status, CancellationToken cancellationToken)
+    public async Task<PagedResult<AppDefinitionListItem>> QueryAsync(
+        PagedRequest request,
+        TenantId tenantId,
+        string? status,
+        string? workspaceId,
+        string? folderId,
+        CancellationToken cancellationToken)
     {
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 20 : Math.Min(request.PageSize, 200);
-        var (items, total) = await _appRepo.QueryPagedAsync(tenantId, pageIndex, pageSize, request.Keyword, status, cancellationToken);
+        var (items, total) = await _appRepo.QueryPagedAsync(
+            tenantId,
+            pageIndex,
+            pageSize,
+            request.Keyword,
+            status,
+            workspaceId,
+            cancellationToken);
         var dtoItems = _mapper.Map<IReadOnlyList<AppDefinitionListItem>>(items);
+
+        if (string.IsNullOrWhiteSpace(workspaceId))
+        {
+            return new PagedResult<AppDefinitionListItem>(
+                Items: dtoItems,
+                Total: total,
+                PageIndex: pageIndex,
+                PageSize: pageSize);
+        }
+
+        var folderLookup = await _appRepo.LoadFolderIdsAsync(
+            tenantId,
+            workspaceId,
+            items.Select(item => item.Id).ToArray(),
+            cancellationToken);
+
+        var filteredItems = dtoItems
+            .Select(item => item with
+            {
+                FolderId = folderLookup.TryGetValue(long.Parse(item.Id), out var resolvedFolderId) ? resolvedFolderId : null
+            })
+            .Where(item =>
+                string.IsNullOrWhiteSpace(folderId)
+                    ? string.IsNullOrWhiteSpace(item.FolderId)
+                    : string.Equals(item.FolderId, folderId, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
         return new PagedResult<AppDefinitionListItem>(
-            Items: dtoItems,
-            Total: total,
+            Items: filteredItems,
+            Total: filteredItems.Length,
             PageIndex: pageIndex,
             PageSize: pageSize);
     }

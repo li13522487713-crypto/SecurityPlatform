@@ -1,0 +1,209 @@
+@baseUrl = http://localhost:5002
+@token =
+@tenantId =
+@idempotencyKey = {{$guid}}
+
+### 获取 CSRF Token（执行写接口前先调用）
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### 创建流程定义（需要权限: approval:flow:create）
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "请假审批流程",
+  "category": "人事",
+  "description": "员工请假审批流程",
+  "visibilityScopeJson": "{\"scopeType\":\"Department\",\"departmentIds\":[\"10\",\"11\"]}",
+  "isQuickEntry": false,
+  "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程\",\"description\":\"员工请假审批流程\",\"category\":\"人事\",\"isQuickEntry\":false,\"isLowCodeFlow\":true},\"lfForm\":{\"formJson\":{\"widgetList\":[],\"formConfig\":{}},\"formFields\":[]},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"部门主管审批\",\"approverConfig\":{\"setType\":2,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"dept-leader\",\"name\":\"部门主管\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "缺幂等键流程",
+  "definitionJson": "{\"meta\":{\"flowName\":\"缺幂等键流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}"
+}
+
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "缺CSRF流程",
+  "definitionJson": "{\"meta\":{\"flowName\":\"缺CSRF流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}"
+}
+
+### 幂等冲突负例（同 key 不同 payload，第二次应返回 409）
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "请假审批流程-版本A",
+  "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程-版本A\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"审批\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"1001\",\"name\":\"管理员\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "请假审批流程-版本B",
+  "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程-版本B\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"审批\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"1002\",\"name\":\"审批人\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+### 获取流程定义列表（需要权限: approval:flow:view）
+GET {{baseUrl}}/api/v1/approval/flows?pageIndex=1&pageSize=10&status=Draft
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 未认证查询流程定义列表（应返回 401）
+GET {{baseUrl}}/api/v1/approval/flows?pageIndex=1&pageSize=10&status=Draft
+X-Tenant-Id: {{tenantId}}
+
+### 获取流程定义详情
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新流程定义（需要权限: approval:flow:update）
+PUT {{baseUrl}}/api/v1/approval/flows/{flowId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "请假审批流程v2",
+  "category": "人事",
+  "description": "请假流程v2",
+  "visibilityScopeJson": "{\"scopeType\":\"All\"}",
+  "isQuickEntry": true,
+  "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程v2\",\"description\":\"请假流程v2\",\"category\":\"人事\",\"isQuickEntry\":true,\"isLowCodeFlow\":false},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"直属领导审批\",\"approverConfig\":{\"setType\":4,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+### 校验流程定义（发布前检查，需要权限: approval:flow:view）
+POST {{baseUrl}}/api/v1/approval/flows/validation
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "请假审批流程",
+  "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}"
+}
+
+### 发布流程定义（需要权限: approval:flow:publish）
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/publication
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "remark": "首次发布"
+}
+
+### 禁用流程定义（需要权限: approval:flow:disable）
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/deactivation
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{}
+
+### 删除流程定义（需要权限: approval:flow:delete）
+DELETE {{baseUrl}}/api/v1/approval/flows/{flowId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 复制流程定义为新草稿
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/copy
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "请假审批流程-复制版"
+}
+
+### 导出流程定义 JSON（需要权限: approval:flow:manage）
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/export
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 导入流程定义 JSON 为草稿
+POST {{baseUrl}}/api/v1/approval/flows/import
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+### 复制流程定义为新草稿
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/copy
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "请假审批流程-复制版"
+}
+
+### 导出流程定义 JSON
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/export
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 导入流程定义 JSON 为草稿
+POST {{baseUrl}}/api/v1/approval/flows/import
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "导入的采购流程",
+  "category": "采购",
+  "description": "由导出 JSON 导入",
+  "isQuickEntry": false,
+  "definitionJson": "{\"meta\":{\"flowName\":\"导入的采购流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"采购负责人\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"buyer-role\",\"name\":\"采购负责人\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+### 版本对比（按流程名 + 版本号）
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/versions/{targetVersion}/compare
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###############################################
+# 版本历史与回滚（Case L2.2）
+###############################################
+
+### 获取审批流版本历史列表（发布后才有数据）
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/versions
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取指定版本详情（含 DefinitionJson）
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/versions/{versionId}/detail
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 回滚到指定版本
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/rollback/{versionId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 弃用审批流定义（不允许新发起实例，运行中实例可继续）
+POST {{baseUrl}}/api/v1/approval/flows/{{flowId}}/deprecate
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Length: 0

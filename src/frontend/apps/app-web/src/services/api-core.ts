@@ -1,9 +1,8 @@
 import { createApiClient } from "@atlas/shared-react-core/api";
 import type { RequestOptions } from "@atlas/shared-react-core/api";
 import { signPath } from "@atlas/app-shell-shared";
+import { setBotApiUnauthorizedHandler } from "@coze-arch/bot-api";
 import { clearAuthStorage } from "@atlas/shared-react-core/utils";
-
-export type AppRuntimeMode = "platform" | "direct";
 
 const LAST_APP_KEY_STORAGE = "atlas_app_last_appkey";
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
@@ -19,9 +18,6 @@ function readBuildEnv(key: string): string | undefined {
     return undefined;
   }
 }
-
-const APP_RUNTIME_MODE: AppRuntimeMode =
-  readBuildEnv("VITE_APP_RUNTIME_MODE") === "platform" ? "platform" : "direct";
 
 export const API_BASE = readBuildEnv("VITE_API_BASE") ?? "/api/v1";
 
@@ -64,16 +60,9 @@ export function resolveApiUrl(path: string): string {
   return resolveRequestUrl(path);
 }
 
-export function getAppRuntimeMode(): AppRuntimeMode {
-  return APP_RUNTIME_MODE;
-}
-
-export function isDirectRuntimeMode(): boolean {
-  return APP_RUNTIME_MODE === "direct";
-}
-
 export function setUnauthorizedHandler(handler: (() => void | Promise<void>) | null) {
   unauthorizedHandler = handler;
+  setBotApiUnauthorizedHandler(handler ?? forceLogout);
 }
 
 export function rememberConfiguredAppKey(appKey?: string | null) {
@@ -113,6 +102,8 @@ async function forceLogout() {
     window.location.assign(signPath());
   }
 }
+
+setBotApiUnauthorizedHandler(forceLogout);
 
 export type { RequestOptions };
 

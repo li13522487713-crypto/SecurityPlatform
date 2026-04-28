@@ -14,12 +14,18 @@ public sealed class KnowledgeBaseRepository : RepositoryBase<KnowledgeBase>
     public async Task<(List<KnowledgeBase> Items, long Total)> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        long? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken)
     {
         var query = Db.Queryable<KnowledgeBase>()
             .Where(x => x.TenantIdValue == tenantId.Value);
+
+        if (workspaceId.HasValue)
+        {
+            query = query.Where(x => x.WorkspaceId == workspaceId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -33,6 +39,13 @@ public sealed class KnowledgeBaseRepository : RepositoryBase<KnowledgeBase>
             .OrderBy(x => x.Id, OrderByType.Desc)
             .ToPageListAsync(pageIndex, pageSize, cancellationToken);
         return (items, total);
+    }
+
+    public async Task<int> CountByTenantAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        return await Db.Queryable<KnowledgeBase>()
+            .Where(x => x.TenantIdValue == tenantId.Value)
+            .CountAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsByNameAsync(

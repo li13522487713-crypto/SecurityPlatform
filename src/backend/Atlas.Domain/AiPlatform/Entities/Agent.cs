@@ -24,9 +24,16 @@ public sealed class Agent : TenantEntity
         LayoutConfigJson = "{}";
         DebugConfigJson = "{}";
         PublishedConnectorConfigJson = "{}";
+        WorkspaceId = 0;
+        ModelConfigId = 0;
         ModelName = string.Empty;
+        Temperature = 0;
+        MaxTokens = 0;
+        DefaultWorkflowId = 0;
+        DefaultWorkflowName = string.Empty;
         Mode = AgentMode.Single;
         PromptVersion = string.Empty;
+        CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UnixEpoch;
         PublishedAt = DateTime.UnixEpoch;
         Status = AgentStatus.Draft;
@@ -46,8 +53,23 @@ public sealed class Agent : TenantEntity
     {
         Id = id;
         Name = name;
-        WorkspaceId = workspaceId;
+        WorkspaceId = workspaceId ?? 0;
         CreatorId = creatorId;
+        Description = string.Empty;
+        AvatarUrl = string.Empty;
+        SystemPrompt = string.Empty;
+        PersonaMarkdown = string.Empty;
+        Goals = string.Empty;
+        ReplyLogic = string.Empty;
+        OutputFormat = string.Empty;
+        Constraints = string.Empty;
+        OpeningMessage = string.Empty;
+        ModelConfigId = 0;
+        ModelName = string.Empty;
+        Temperature = 0;
+        MaxTokens = 0;
+        DefaultWorkflowId = 0;
+        DefaultWorkflowName = string.Empty;
         Status = AgentStatus.Draft;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
@@ -81,7 +103,6 @@ public sealed class Agent : TenantEntity
     public string DatabaseBindingsJson { get; private set; }
     public string VariableBindingsJson { get; private set; }
     public AgentMode Mode { get; private set; }
-    public long? PromptTemplateId { get; private set; }
     public string PromptVersion { get; private set; }
     public string LayoutConfigJson { get; private set; }
     public string DebugConfigJson { get; private set; }
@@ -128,7 +149,6 @@ public sealed class Agent : TenantEntity
         bool? enableLongTermMemory = null,
         int? longTermMemoryTopK = null,
         AgentMode? mode = null,
-        long? promptTemplateId = null,
         string? promptVersion = null,
         string? layoutConfigJson = null,
         string? debugConfigJson = null,
@@ -153,7 +173,6 @@ public sealed class Agent : TenantEntity
         DatabaseBindingsJson = string.IsNullOrWhiteSpace(databaseBindingsJson) ? "[]" : databaseBindingsJson;
         VariableBindingsJson = string.IsNullOrWhiteSpace(variableBindingsJson) ? "[]" : variableBindingsJson;
         Mode = mode ?? Mode;
-        PromptTemplateId = promptTemplateId;
         PromptVersion = promptVersion ?? string.Empty;
         LayoutConfigJson = string.IsNullOrWhiteSpace(layoutConfigJson) ? "{}" : layoutConfigJson;
         DebugConfigJson = string.IsNullOrWhiteSpace(debugConfigJson) ? "{}" : debugConfigJson;

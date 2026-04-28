@@ -2,6 +2,7 @@
 
 > 基于全量代码阅读，以"菜单/页面/功能点"为单位逐一拆解
 > 日期：2026-04-09
+> 说明：本文记录的是上游 Coze Studio 逆向分析快照。文中出现的 `/api/workflow_api/*`、`/api/playground_api/*`、`/api/draftbot/*` 为历史上游路由，不代表当前 Atlas 运行期主链；当前 Atlas 已统一改为 `api/app-web/*` gateway。
 
 ---
 

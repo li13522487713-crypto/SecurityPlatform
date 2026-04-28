@@ -9,6 +9,7 @@ public sealed class DocumentChunk : TenantEntity
         : base(TenantId.Empty)
     {
         Content = string.Empty;
+        ColumnHeadersJson = "[]";
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -21,7 +22,9 @@ public sealed class DocumentChunk : TenantEntity
         int startOffset,
         int endOffset,
         bool hasEmbedding,
-        long id)
+        long id,
+        int? rowIndex = null,
+        string? columnHeadersJson = null)
         : base(tenantId)
     {
         Id = id;
@@ -32,6 +35,8 @@ public sealed class DocumentChunk : TenantEntity
         StartOffset = startOffset;
         EndOffset = endOffset;
         HasEmbedding = hasEmbedding;
+        RowIndex = rowIndex ?? 0;
+        ColumnHeadersJson = string.IsNullOrWhiteSpace(columnHeadersJson) ? "[]" : columnHeadersJson;
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -43,6 +48,12 @@ public sealed class DocumentChunk : TenantEntity
     public int EndOffset { get; private set; }
     public bool HasEmbedding { get; private set; }
     public DateTime CreatedAt { get; private set; }
+
+    /// <summary>1-based table row index when knowledge base type is table; null for text/image chunks.</summary>
+    public int RowIndex { get; private set; }
+
+    /// <summary>JSON array of column header strings shared by table row chunks.</summary>
+    public string ColumnHeadersJson { get; private set; }
 
     public void UpdateContent(string content, int startOffset, int endOffset)
     {

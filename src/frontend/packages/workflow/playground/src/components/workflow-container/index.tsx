@@ -21,7 +21,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
+  useLayoutEffect,
   useRef,
   type DragEventHandler,
 } from 'react';
@@ -108,14 +108,14 @@ const WorkflowContainer = forwardRef<
   const fallbackFitViewTriggeredRef = useRef(false);
   const isNodesMount = useNodesMount();
   // Synchronize component properties to globalStatus
-  useMemo(() => {
+  useLayoutEffect(() => {
     const { spaceList, ...playgroundProps } = props;
 
     workflowState.updateConfig({
       playgroundProps,
       spaceList,
     });
-  }, [props]);
+  }, [props, workflowState]);
 
   // Initialization successful
   useEffect(() => {
@@ -123,6 +123,28 @@ const WorkflowContainer = forwardRef<
       props.onInit?.(workflowState);
     }
   }, [loading, isNodesMount, loadingError, workflowState]);
+
+  useEffect(() => {
+    const flushPendingPositionSave = () => {
+      workflowSaveService.flushPendingSave();
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingPositionSave();
+      }
+    };
+
+    window.addEventListener('pointerup', flushPendingPositionSave);
+    window.addEventListener('beforeunload', flushPendingPositionSave);
+    document.addEventListener('visibilitychange', flushWhenHidden);
+
+    return () => {
+      flushPendingPositionSave();
+      window.removeEventListener('pointerup', flushPendingPositionSave);
+      window.removeEventListener('beforeunload', flushPendingPositionSave);
+      document.removeEventListener('visibilitychange', flushWhenHidden);
+    };
+  }, [workflowSaveService]);
 
   // Listen for TTI events, perform data compensation operations, and save drafts
   useDataCompensation(workflowState);
@@ -243,9 +265,19 @@ const WorkflowContainer = forwardRef<
           json: item.nodeJson,
         },
       }),
+    hover: (item: DragObject, monitor) => {
+      dragService.updateDropTarget({
+        coord: monitor.getSourceClientOffset() ?? { x: 0, y: 0 },
+        dragNode: {
+          type: item.nodeType,
+          json: item.nodeJson,
+        },
+      });
+    },
     drop: (item: DragObject, monitor) => {
       const coord = monitor.getClientOffset() ?? { x: 0, y: 0 };
       addNodeRef.current?.handleAddNode?.(item, coord, true);
+      dragService.clearDropNode();
     },
   }));
 

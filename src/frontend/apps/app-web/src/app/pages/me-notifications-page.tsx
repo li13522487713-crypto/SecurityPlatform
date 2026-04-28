@@ -1,42 +1,56 @@
 import { useEffect, useState } from "react";
-import { Empty, Spin, Tag, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, Spin, Tag, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../i18n";
-import { listPlatformNotices, type PlatformNoticeItem } from "../../services/mock";
+import {
+  getNotifications,
+  markAllAsRead,
+  markAsRead,
+  type UserNotificationItem
+} from "../../services/api-notifications";
 
-/**
- * 消息中心 - `/me/notifications`。
- *
- * 第一阶段直接复用 `listPlatformNotices` mock 当作消息源；
- * 第三阶段后端落地 `GET /api/v1/me/notifications` 后替换。
- */
 export function MeNotificationsPage() {
   const { t } = useAppI18n();
-  const [items, setItems] = useState<PlatformNoticeItem[]>([]);
+  const [items, setItems] = useState<UserNotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refresh = () => {
     setLoading(true);
-    listPlatformNotices()
-      .then(notices => {
-        if (!cancelled) {
-          setItems(notices);
-        }
+    getNotifications(1, 20)
+      .then(result => {
+        setItems(result.items);
       })
       .catch(() => {
-        if (!cancelled) {
-          setItems([]);
-        }
+        setItems([]);
       })
       .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+  };
+
+  useEffect(() => {
+    refresh();
   }, []);
+
+  const handleRead = async (id: string) => {
+    setSubmitting(true);
+    try {
+      await markAsRead(id);
+      refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReadAll = async () => {
+    setSubmitting(true);
+    try {
+      await markAllAsRead();
+      refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="coze-page" data-testid="coze-me-notifications-page">
@@ -44,6 +58,11 @@ export function MeNotificationsPage() {
         <Typography.Title heading={3} style={{ margin: 0 }}>{t("cozeMeNotificationsTitle")}</Typography.Title>
         <Typography.Text type="tertiary">{t("cozeMeNotificationsSubtitle")}</Typography.Text>
       </header>
+      <section className="coze-page__toolbar">
+        <Button theme="light" type="primary" onClick={() => void handleReadAll()} loading={submitting}>
+          {t("cozeMeNotificationsMarkAllRead")}
+        </Button>
+      </section>
       <section className="coze-page__body">
         {loading ? (
           <div className="coze-page__loading"><Spin /></div>
@@ -55,11 +74,18 @@ export function MeNotificationsPage() {
               <li key={item.id} className="coze-list__item">
                 <div>
                   <strong>{item.title}</strong>
-                  <span>{item.message}</span>
+                  <span>{item.content}</span>
                 </div>
-                <Tag size="small" color={item.level === "error" ? "red" : item.level === "warning" ? "amber" : "blue"}>
-                  {item.level}
-                </Tag>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Tag size="small" color={item.isRead ? "grey" : "blue"}>
+                    {item.isRead ? t("cozeMeNotificationsRead") : t("cozeMeNotificationsUnread")}
+                  </Tag>
+                  {!item.isRead ? (
+                    <Button theme="borderless" type="primary" onClick={() => void handleRead(item.id)} loading={submitting}>
+                      {t("cozeMeNotificationsMarkRead")}
+                    </Button>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

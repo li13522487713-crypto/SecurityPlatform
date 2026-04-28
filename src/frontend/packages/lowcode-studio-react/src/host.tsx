@@ -1,0 +1,153 @@
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import {
+  lowcodeApi,
+  type LowcodeApi,
+  type LowCodeAssetDescriptor,
+  type ProjectIdeBootstrap,
+  type ProjectIdeGraph,
+  type ProjectIdePublishPreview,
+  type ProjectIdePublishRequest,
+  type ProjectIdePublishResult,
+  type ProjectIdeValidationResult,
+  runtimeSessionApi,
+  type RuntimeSessionInfo,
+  type RuntimeDispatchResponse,
+  type RuntimeTrace
+} from './services/api-core';
+
+export interface LowcodeStudioAuth {
+  accessTokenFactory: () => string;
+  tenantIdFactory: () => string;
+  userIdFactory: () => string;
+}
+
+export interface ProjectIdeBootstrapApi {
+  getBootstrap: (appId: string) => Promise<ProjectIdeBootstrap>;
+  getGraph: (appId: string) => Promise<ProjectIdeGraph>;
+}
+
+export interface LowcodeValidationApi {
+  validate: (appId: string, schemaJson?: string) => Promise<ProjectIdeValidationResult>;
+}
+
+export interface LowcodePublishApi {
+  listArtifacts: (appId: string) => Promise<import('./services/api-core').PublishArtifact[]>;
+  getPreview: (appId: string) => Promise<ProjectIdePublishPreview>;
+  publish: (appId: string, request: ProjectIdePublishRequest) => Promise<ProjectIdePublishResult>;
+}
+
+export interface LowcodeAssetApi {
+  prepareUpload: (request: { fileName: string; contentType: string; size: number; sha256?: string }) => Promise<{
+    token: string;
+    uploadUrl: string;
+    instantHit?: boolean | null;
+    fileHandle?: string | null;
+  }>;
+  getAsset: (id: string) => Promise<LowCodeAssetDescriptor>;
+  deleteAsset: (id: string) => Promise<void>;
+}
+
+export interface LowcodeDispatchApi {
+  dispatch: (request: Record<string, unknown>) => Promise<RuntimeDispatchResponse>;
+  getTrace: (traceId: string) => Promise<RuntimeTrace>;
+  queryTraces: (query?: Record<string, string | number | undefined>) => Promise<RuntimeTrace[]>;
+}
+
+export interface LowcodeCollabConfig {
+  hubUrl?: string;
+  reconnectDelaysMs?: number[];
+}
+
+export interface LowcodeRuntimeSessionApi {
+  list: () => Promise<RuntimeSessionInfo[]>;
+  create: (request?: { title?: string }) => Promise<{ id: string }>;
+  clear: (sessionId: string) => Promise<unknown>;
+  pin: (sessionId: string, request: { pinned: boolean }) => Promise<unknown>;
+  archive: (sessionId: string, request: { archived: boolean }) => Promise<unknown>;
+  switchTo: (sessionId: string) => Promise<RuntimeSessionInfo>;
+}
+
+export interface LowcodeWorkflowEditorProps {
+  appId: string;
+  workflowId: string;
+  workspaceId?: string;
+  workspaceLabel?: string;
+}
+
+export interface LowcodeWorkflowCreateRequest {
+  appId: string;
+  name: string;
+  description?: string;
+  workspaceId?: string;
+}
+
+export interface LowcodeWorkflowDeleteRequest {
+  appId: string;
+  workflowId: string;
+  workspaceId?: string;
+}
+
+export interface LowcodeStudioHostConfig {
+  api: LowcodeApi;
+  auth: LowcodeStudioAuth;
+  bootstrapApi?: ProjectIdeBootstrapApi;
+  validationApi?: LowcodeValidationApi;
+  publishApi?: LowcodePublishApi;
+  assetApi?: LowcodeAssetApi;
+  dispatchApi?: LowcodeDispatchApi;
+  runtimeSessions?: LowcodeRuntimeSessionApi;
+  collabConfig?: LowcodeCollabConfig;
+  openPluginDetail?: (pluginId: string | number) => void;
+  /**
+   * 业务逻辑模式下渲染 DAG 工作流编辑器。
+   * 由宿主（通常是 app-web）注入，避免 Studio 壳层直接依赖 @coze-workflow 运行时。
+   */
+  renderWorkflowEditor?: (props: LowcodeWorkflowEditorProps) => ReactNode;
+  /**
+   * 业务逻辑模式下新建工作流。由宿主注入，直连 Coze/DAG 后端创建端点。
+   * 返回新建工作流的 ID。
+   */
+  createWorkflow?: (request: LowcodeWorkflowCreateRequest) => Promise<{ workflowId: string }>;
+  /**
+   * 业务逻辑模式下删除工作流。由宿主注入，必须删除 Coze 工作流并解除低代码 App 绑定。
+   */
+  deleteWorkflow?: (request: LowcodeWorkflowDeleteRequest) => Promise<void>;
+}
+
+function readStorageValue(key: string): string {
+  if (typeof localStorage === 'undefined') {
+    return '';
+  }
+  return localStorage.getItem(key) ?? '';
+}
+
+const defaultHostConfig: LowcodeStudioHostConfig = {
+  api: lowcodeApi,
+  auth: {
+    accessTokenFactory: () => readStorageValue('atlas_access_token'),
+    tenantIdFactory: () => readStorageValue('atlas_tenant_id') || '00000000-0000-0000-0000-000000000001',
+    userIdFactory: () => readStorageValue('atlas_user_id') || 'me'
+  },
+  runtimeSessions: runtimeSessionApi
+};
+
+const LowcodeStudioHostContext = createContext<LowcodeStudioHostConfig>(defaultHostConfig);
+
+export function LowcodeStudioHostProvider({
+  host,
+  children
+}: {
+  host?: LowcodeStudioHostConfig;
+  children: ReactNode;
+}) {
+  const value = useMemo(() => host ?? defaultHostConfig, [host]);
+  return (
+    <LowcodeStudioHostContext.Provider value={value}>
+      {children}
+    </LowcodeStudioHostContext.Provider>
+  );
+}
+
+export function useLowcodeStudioHost(): LowcodeStudioHostConfig {
+  return useContext(LowcodeStudioHostContext);
+}

@@ -25,7 +25,8 @@ public sealed class ModelConfig : TenantEntity
         string apiKey,
         string baseUrl,
         string defaultModel,
-        long id)
+        long id,
+        string? workspaceId = null)
         : base(tenantId)
     {
         Id = id;
@@ -39,6 +40,7 @@ public sealed class ModelConfig : TenantEntity
         IsEnabled = true;
         SupportsEmbedding = true;
         EnableStreaming = true;
+        WorkspaceId = NormalizeWorkspaceId(workspaceId);
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -89,6 +91,9 @@ public sealed class ModelConfig : TenantEntity
     [SugarColumn(IsNullable = true)]
     public DateTime? UpdatedAt { get; private set; }
 
+    [SugarColumn(Length = 64, IsNullable = true)]
+    public string? WorkspaceId { get; private set; }
+
     public void Update(
         string name,
         string apiKey,
@@ -107,7 +112,8 @@ public sealed class ModelConfig : TenantEntity
         int? maxTokens = null,
         float? topP = null,
         float? frequencyPenalty = null,
-        float? presencePenalty = null)
+        float? presencePenalty = null,
+        string? workspaceId = null)
     {
         Name = name;
         ApiKey = apiKey;
@@ -134,6 +140,14 @@ public sealed class ModelConfig : TenantEntity
         TopP = topP;
         FrequencyPenalty = frequencyPenalty;
         PresencePenalty = presencePenalty;
+        if (workspaceId is not null)
+            WorkspaceId = NormalizeWorkspaceId(workspaceId);
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static string? NormalizeWorkspaceId(string? workspaceId)
+    {
+        var trimmed = workspaceId?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 }

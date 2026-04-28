@@ -1,0 +1,26 @@
+[
+  {
+    "ViewName": "v_e2e_codex_user_profile_20260426_072450",
+    "SourceTable": "e2e_codex_user_profile",
+    "PreviewBeforeRows": 10,
+    "PreviewAfterRows": 10,
+    "Total": "10",
+    "DdlStartsWithCreate": true
+  },
+  {
+    "ViewName": "v_e2e_order_record_20260426_072450",
+    "SourceTable": "e2e_order_record",
+    "PreviewBeforeRows": 10,
+    "PreviewAfterRows": 10,
+    "Total": "10",
+    "DdlStartsWithCreate": true
+  },
+  {
+    "ViewName": "v_e2e_ui_table_20260426_072450",
+    "SourceTable": "e2e_ui_table_20260426_0123",
+    "PreviewBeforeRows": 10,
+    "PreviewAfterRows": 10,
+    "Total": "10",
+    "DdlStartsWithCreate": true
+  }
+]

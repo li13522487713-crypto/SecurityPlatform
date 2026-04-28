@@ -1,3 +1,4 @@
+import type { StudioCopy } from "../copy";
 import type { AppBuilderConfig, AppInputComponent, AppOutputComponent } from "../types";
 
 export function newComponentId(): string {
@@ -34,19 +35,19 @@ export function defaultAppBuilderConfig(): AppBuilderConfig {
   };
 }
 
-/** 保存或运行前校验：变量键非空且不重复。 */
-export function validateAppBuilderConfig(config: AppBuilderConfig): string | null {
+/** 保存或运行前校验：变量键非空且不重复；copy 注入文案。 */
+export function validateAppBuilderConfig(config: AppBuilderConfig, copy: StudioCopy): string | null {
   const keys = config.inputs.map(i => i.variableKey.trim()).filter(Boolean);
   const seen = new Set<string>();
   for (const k of keys) {
     if (seen.has(k)) {
-      return "存在重复的变量键，请修改后再保存。";
+      return copy.appBuilder.duplicateVariableKey;
     }
     seen.add(k);
   }
   for (const row of config.inputs) {
     if (!row.variableKey.trim()) {
-      return "存在未填写变量键的输入项，请补全或删除该项。";
+      return copy.appBuilder.missingVariableKey;
     }
   }
   return null;

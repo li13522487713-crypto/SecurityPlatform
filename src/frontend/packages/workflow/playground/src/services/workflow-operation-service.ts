@@ -32,8 +32,10 @@ import {
   type WorkflowNodeDebugV2Request,
   VCSCanvasType,
 } from '@coze-workflow/base/api';
+import { REPORT_EVENTS } from '@coze-arch/report-events';
 import { reporter } from '@coze-arch/logger';
 import { getFlags } from '@coze-arch/bot-flags';
+import { CustomError } from '@coze-arch/bot-error';
 import { type PublishWorkflowRequest } from '@coze-arch/bot-api/workflow_api';
 
 enum MockTrafficEnabled {
@@ -140,12 +142,48 @@ export class WorkflowOperationService {
     }
   };
 
-  save = async (json: WorkflowJSON, ignoreStatusTransfer: boolean) => {
+  buildSerializedSchema = (json: WorkflowJSON): string => {
+    try {
+      return JSON.stringify(json);
+    } catch (error) {
+      throw new CustomError(
+        REPORT_EVENTS.parseJSON,
+        error instanceof Error ? error.message : 'workflow schema stringify failed',
+      );
+    }
+  };
+
+  validateSchemaForSave = async (
+    json: WorkflowJSON,
+    bind?: {
+      projectId?: string;
+      botId?: string;
+    },
+  ) => {
+    const schema = this.buildSerializedSchema(json);
+    const { botId, projectId } = bind || {};
+    const { data } = await workflowApi.ValidateSchema({
+      schema,
+      bind_project_id: projectId,
+      bind_bot_id: botId,
+    });
+    return {
+      schema,
+      errors: data ?? [],
+    };
+  };
+
+  save = async (
+    json: WorkflowJSON,
+    ignoreStatusTransfer: boolean,
+    serializedSchema?: string,
+  ) => {
     const FLAGS = getFlags();
     const { vcsData } = this.globalState.info;
     const { saveVersion } = this.dependencyEntity;
+    const schema = serializedSchema ?? this.buildSerializedSchema(json);
     const reqParams = {
-      schema: JSON.stringify(json),
+      schema,
       workflow_id: this.workflowId,
       space_id: this.spaceId,
       submit_commit_id: vcsData?.submit_commit_id || '',
@@ -158,7 +196,23 @@ export class WorkflowOperationService {
     ) {
       set(reqParams, 'save_version', saveVersion.toString());
     }
-    await workflowApi.SaveWorkflow(reqParams);
+    const saveResponse = await workflowApi.SaveWorkflow(reqParams);
+    const nextCommitId = saveResponse.data?.submit_commit_id;
+    if (nextCommitId) {
+      this.globalState.updateConfig({
+        info: {
+          ...this.globalState.info,
+          vcsData: {
+            ...(this.globalState.info.vcsData || {}),
+            submit_commit_id: nextCommitId,
+            draft_commit_id: saveResponse.data?.draft_commit_id || nextCommitId,
+          },
+          workflow_version:
+            saveResponse.data?.workflow_version ||
+            this.globalState.info.workflow_version,
+        },
+      });
+    }
     if (this.globalState.projectId) {
       // In order to solve the problem that the canvas interface gets saveVersion and the long-chain push saveVersion are not synchronized, manually update here
       this.dependencyEntity.addSaveVersion();

@@ -1,19 +1,17 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Button,
+  Checkbox,
+  Input,
+  InputNumber,
+  Progress,
+  Select,
+  Table,
+  Typography
+} from "@douyinfe/semi-ui";
+import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useAppI18n } from "../../i18n";
 import { useBootstrap } from "../../bootstrap-context";
-import {
-  createMigrationJob,
-  cutoverMigrationJob,
-  getMigrationLogs,
-  getMigrationProgress,
-  getMigrationReport,
-  precheckMigrationJob,
-  retryMigrationJob,
-  rollbackMigrationJob,
-  startMigrationJob,
-  testMigrationConnection,
-  validateMigrationJob
-} from "../../../services/mock";
 import type {
   DataMigrationJobDto,
   DataMigrationLogItemDto,
@@ -21,6 +19,7 @@ import type {
   DataMigrationReportDto,
   DbConnectionConfig
 } from "../../../services/api-setup-console";
+import { setupConsoleApi } from "../../../services/api-setup-console";
 import type { AppMessageKey } from "../../messages";
 import {
   isMigrationBusy,
@@ -28,6 +27,25 @@ import {
   type DataMigrationMode,
   type DataMigrationState
 } from "../../setup-console-state-machine";
+import {
+  InfoBanner,
+  SectionCard,
+  StateBadge,
+  type StateBadgeVariant
+} from "../../_shared";
+
+const { Text } = Typography;
+
+const testMigrationConnection = setupConsoleApi.migrationTestConnection;
+const createMigrationJob = setupConsoleApi.createMigrationJob;
+const precheckMigrationJob = setupConsoleApi.precheckMigrationJob;
+const startMigrationJob = setupConsoleApi.startMigrationJob;
+const getMigrationProgress = setupConsoleApi.getMigrationProgress;
+const validateMigrationJob = setupConsoleApi.validateMigrationJob;
+const cutoverMigrationJob = setupConsoleApi.cutoverMigrationJob;
+const retryMigrationJob = setupConsoleApi.retryMigrationJob;
+const getMigrationReport = setupConsoleApi.getMigrationReport;
+const getMigrationLogs = setupConsoleApi.getMigrationLogs;
 
 interface MigrationTabProps {
   activeMigration: DataMigrationJobDto | null;
@@ -42,14 +60,25 @@ const MIGRATION_MODE_OPTIONS: ReadonlyArray<{ value: DataMigrationMode; labelKey
   { value: "re-execute", labelKey: "setupConsoleMigrationModeReExecute" }
 ];
 
-const MIGRATION_STATE_LABEL_KEY: Record<DataMigrationState, AppMessageKey> = {
+const MIGRATION_STATE_LABEL_KEY: Record<string, AppMessageKey> = {
+  created: "setupConsoleMigrationStateCreated",
   pending: "setupConsoleMigrationStatePending",
   prechecking: "setupConsoleMigrationStatePrechecking",
   ready: "setupConsoleMigrationStateReady",
+  queued: "setupConsoleMigrationStateQueued",
   running: "setupConsoleMigrationStateRunning",
+  cancelling: "setupConsoleMigrationStateCancelling",
+  cancelled: "setupConsoleMigrationStateCancelled",
+  succeeded: "setupConsoleMigrationStateSucceeded",
   validating: "setupConsoleMigrationStateValidating",
+  validation_failed: "setupConsoleMigrationStateValidationFailed",
+  validated: "setupConsoleMigrationStateValidated",
   "cutover-ready": "setupConsoleMigrationStateCutoverReady",
+  cutover_ready: "setupConsoleMigrationStateCutoverReady",
   "cutover-completed": "setupConsoleMigrationStateCutoverCompleted",
+  cutover_completed: "setupConsoleMigrationStateCutoverCompleted",
+  cutover_failed: "setupConsoleMigrationStateCutoverFailed",
+  "cutover-failed": "setupConsoleMigrationStateCutoverFailed",
   failed: "setupConsoleMigrationStateFailed",
   "rolled-back": "setupConsoleMigrationStateRolledBack"
 };
@@ -64,15 +93,15 @@ const DRIVER_OPTIONS: ReadonlyArray<{ code: string; dbType: DbConnectionConfig["
 const INITIAL_SOURCE: DbConnectionConfig = {
   driverCode: "SQLite",
   dbType: "SQLite",
-  mode: "raw",
-  connectionString: "Data Source=atlas.db"
+  mode: "ConnectionString",
+  connectionString: ""
 };
 
 const INITIAL_TARGET: DbConnectionConfig = {
   driverCode: "MySql",
   dbType: "MySql",
-  mode: "raw",
-  connectionString: "Server=localhost;Port=3306;Database=atlas;Uid=root;Pwd=password;"
+  mode: "ConnectionString",
+  connectionString: ""
 };
 
 export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTabProps) {
@@ -195,7 +224,7 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
         }
         const response = await precheckMigrationJob(job.id);
         if (response.success && response.data) {
-          setJob(response.data);
+          setJob(response.data.job);
         }
         await refreshLogsFor(job.id);
       }),
@@ -249,26 +278,16 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
         if (!job) {
           return;
         }
-        const response = await cutoverMigrationJob(job.id, { keepSourceReadonlyForDays });
+        const response = await cutoverMigrationJob(job.id, {
+          keepSourceReadonlyForDays,
+          confirmBackup: true,
+          confirmRestartRequired: true
+        });
         if (response.success && response.data) {
           setJob(response.data);
         }
       }),
     [guarded, job, keepSourceReadonlyForDays]
-  );
-
-  const handleRollback = useCallback(
-    () =>
-      guarded("rollback", async () => {
-        if (!job) {
-          return;
-        }
-        const response = await rollbackMigrationJob(job.id);
-        if (response.success && response.data) {
-          setJob(response.data);
-        }
-      }),
-    [guarded, job]
   );
 
   const handleRetry = useCallback(
@@ -299,19 +318,22 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
     [guarded, job]
   );
 
-  const jobBusy = useMemo(() => (job ? isMigrationBusy(job.state) : false), [job]);
-  const jobDone = useMemo(() => (job ? isMigrationDone(job.state) : false), [job]);
+  const jobBusy = useMemo(() => (job ? isMigrationBusy(job.state as DataMigrationState) : false), [job]);
+  const jobDone = useMemo(() => (job ? isMigrationDone(job.state as DataMigrationState) : false), [job]);
 
   return (
     <div data-testid="setup-console-migration">
       {errorMessage ? (
-        <div className="atlas-warning-banner" data-testid="setup-console-migration-error">
-          <strong>{t("setupConsoleStepStateFailed")}</strong>
-          <p>{errorMessage}</p>
+        <div style={{ marginBottom: 12 }}>
+          <InfoBanner
+            variant="danger"
+            title={t("setupConsoleStepStateFailed")}
+            description={errorMessage}
+            testId="setup-console-migration-error"
+          />
         </div>
       ) : null}
 
-      {/* ---- 计划 / Plan ---- */}
       <PlanSection
         source={source}
         target={target}
@@ -332,7 +354,6 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
         onCreateJob={() => void handleCreateJob()}
       />
 
-      {/* ---- 执行 / Execute ---- */}
       <ExecuteSection
         job={job}
         busyLabel={busy}
@@ -342,11 +363,9 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
         onStart={() => void handleStart()}
         onValidate={() => void handleValidate()}
         onCutover={() => void handleCutover()}
-        onRollback={() => void handleRollback()}
         onRetry={() => void handleRetry()}
       />
 
-      {/* ---- 进度 / Progress ---- */}
       <ProgressSection
         job={job}
         progress={progress}
@@ -354,7 +373,6 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
         onPoll={() => void handleProgressPoll()}
       />
 
-      {/* ---- 报告 / Report + Logs ---- */}
       <ReportSection
         report={report}
         logs={logs}
@@ -385,95 +403,99 @@ interface PlanSectionProps {
   onCreateJob: () => void;
 }
 
+function FieldStack({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <Text strong>{label}</Text>
+      {children}
+    </label>
+  );
+}
+
 function PlanSection(props: PlanSectionProps) {
   const { t } = useAppI18n();
   const submitBusy = props.busyLabel !== null;
   return (
-    <section className="atlas-setup-panel" data-testid="setup-console-migration-plan">
-      <div className="atlas-section-title">{t("setupConsoleMigrationCreate")}</div>
-      <div className="atlas-form-grid">
-        <ConnectionEditor
-          testIdPrefix="setup-console-migration-source"
-          titleKey="setupConsoleMigrationSourceTitle"
-          value={props.source}
-          onChange={props.onSourceChange}
-          onTest={props.onTestSource}
-          testResult={props.sourceTestResult}
-          busy={submitBusy}
-        />
-        <ConnectionEditor
-          testIdPrefix="setup-console-migration-target"
-          titleKey="setupConsoleMigrationTargetTitle"
-          value={props.target}
-          onChange={props.onTargetChange}
-          onTest={props.onTestTarget}
-          testResult={props.targetTestResult}
-          busy={submitBusy}
-        />
-
-        <label className="atlas-form-field atlas-form-field--full">
-          <span className="atlas-form-field__label">{t("setupConsoleMigrationModeLabel")}</span>
-          <select
-            className="atlas-input"
-            data-testid="setup-console-migration-mode"
-            value={props.mode}
-            onChange={(event) => props.onModeChange(event.target.value as DataMigrationMode)}
-            disabled={submitBusy}
-          >
-            {MIGRATION_MODE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {t(option.labelKey)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="atlas-form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            data-testid="setup-console-migration-allow-reexecute"
-            checked={props.allowReExecute}
-            onChange={(event) => props.onAllowReExecuteChange(event.target.checked)}
-            disabled={submitBusy}
+    <div data-testid="setup-console-migration-plan">
+      <SectionCard title={t("setupConsoleMigrationCreate")}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <ConnectionEditor
+            testIdPrefix="setup-console-migration-source"
+            titleKey="setupConsoleMigrationSourceTitle"
+            value={props.source}
+            onChange={props.onSourceChange}
+            onTest={props.onTestSource}
+            testResult={props.sourceTestResult}
+            busy={submitBusy}
           />
-          <div>
-            <div>{t("setupConsoleMigrationAllowReExecuteLabel")}</div>
-            <div className="atlas-field-hint">{t("setupConsoleMigrationAllowReExecuteHint")}</div>
+          <ConnectionEditor
+            testIdPrefix="setup-console-migration-target"
+            titleKey="setupConsoleMigrationTargetTitle"
+            value={props.target}
+            onChange={props.onTargetChange}
+            onTest={props.onTestTarget}
+            testResult={props.targetTestResult}
+            busy={submitBusy}
+          />
+
+          <FieldStack label={t("setupConsoleMigrationModeLabel")}>
+            <Select
+              data-testid="setup-console-migration-mode"
+              value={props.mode}
+              onChange={(value) => props.onModeChange(String(value ?? "structure-plus-data") as DataMigrationMode)}
+              disabled={submitBusy}
+              optionList={MIGRATION_MODE_OPTIONS.map((option) => ({
+                label: t(option.labelKey),
+                value: option.value
+              }))}
+              style={{ width: "100%" }}
+            />
+          </FieldStack>
+
+          <label style={{ display: "inline-flex", alignItems: "flex-start", gap: 8 }}>
+            <Checkbox
+              data-testid="setup-console-migration-allow-reexecute"
+              checked={props.allowReExecute}
+              onChange={(event) => props.onAllowReExecuteChange(Boolean(event.target.checked))}
+              disabled={submitBusy}
+            />
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <Text>{t("setupConsoleMigrationAllowReExecuteLabel")}</Text>
+              <Text type="tertiary" style={{ fontSize: 12 }}>
+                {t("setupConsoleMigrationAllowReExecuteHint")}
+              </Text>
+            </div>
+          </label>
+
+          <FieldStack label={t("setupConsoleMigrationKeepSourceLabel")}>
+            <InputNumber
+              data-testid="setup-console-migration-keep-source-days"
+              value={props.keepSourceReadonlyForDays}
+              min={0}
+              max={90}
+              onChange={(value) => {
+                const numericValue =
+                  typeof value === "number" ? value : Number.parseInt(String(value ?? "0"), 10) || 0;
+                props.onKeepSourceReadonlyForDaysChange(numericValue);
+              }}
+              disabled={submitBusy}
+            />
+          </FieldStack>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              type="primary"
+              theme="solid"
+              data-testid="setup-console-migration-create"
+              disabled={submitBusy || props.hasJob}
+              onClick={props.onCreateJob}
+            >
+              {t("setupConsoleMigrationCreate")}
+            </Button>
           </div>
-        </label>
-
-        <label className="atlas-form-field">
-          <span className="atlas-form-field__label">{t("setupConsoleMigrationKeepSourceLabel")}</span>
-          <input
-            className="atlas-input"
-            type="number"
-            inputMode="numeric"
-            data-testid="setup-console-migration-keep-source-days"
-            value={props.keepSourceReadonlyForDays}
-            min={0}
-            max={90}
-            onChange={(event) =>
-              props.onKeepSourceReadonlyForDaysChange(
-                Number.parseInt(event.target.value || "0", 10) || 0
-              )
-            }
-            disabled={submitBusy}
-          />
-        </label>
-      </div>
-      <div className="atlas-setup-actions">
-        <span />
-        <button
-          type="button"
-          className="atlas-button atlas-button--primary"
-          data-testid="setup-console-migration-create"
-          disabled={submitBusy || props.hasJob}
-          onClick={props.onCreateJob}
-        >
-          {t("setupConsoleMigrationCreate")}
-        </button>
-      </div>
-    </section>
+        </div>
+      </SectionCard>
+    </div>
   );
 }
 
@@ -489,8 +511,9 @@ interface ConnectionEditorProps {
 
 function ConnectionEditor(props: ConnectionEditorProps) {
   const { t } = useAppI18n();
-  const handleDriverChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    const code = event.target.value;
+
+  const handleDriverChange = (value: string | number | unknown[] | Record<string, unknown> | undefined) => {
+    const code = String(value ?? "");
     const found = DRIVER_OPTIONS.find((item) => item.code === code) ?? DRIVER_OPTIONS[0];
     props.onChange({
       ...props.value,
@@ -499,57 +522,51 @@ function ConnectionEditor(props: ConnectionEditorProps) {
     });
   };
 
-  const handleConnectionStringChange = (event: ChangeEvent<HTMLInputElement>) => {
-    props.onChange({ ...props.value, connectionString: event.target.value });
-  };
-
   return (
-    <div className="atlas-form-field atlas-form-field--full">
-      <span className="atlas-section-title" style={{ fontSize: 14 }}>
-        {t(props.titleKey)}
-      </span>
-      <label className="atlas-form-field">
-        <span className="atlas-form-field__label">{t("setupConsoleMigrationDriverLabel")}</span>
-        <select
-          className="atlas-input"
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        padding: 12,
+        borderRadius: 8,
+        border: "1px solid var(--semi-color-border)"
+      }}
+    >
+      <Text strong>{t(props.titleKey)}</Text>
+      <FieldStack label={t("setupConsoleMigrationDriverLabel")}>
+        <Select
           data-testid={`${props.testIdPrefix}-driver`}
           value={props.value.driverCode}
           onChange={handleDriverChange}
           disabled={props.busy}
-        >
-          {DRIVER_OPTIONS.map((option) => (
-            <option key={option.code} value={option.code}>
-              {option.code}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="atlas-form-field">
-        <span className="atlas-form-field__label">{t("setupConsoleMigrationConnectionStringLabel")}</span>
-        <input
-          className="atlas-input"
+          optionList={DRIVER_OPTIONS.map((option) => ({ label: option.code, value: option.code }))}
+          style={{ width: "100%" }}
+        />
+      </FieldStack>
+      <FieldStack label={t("setupConsoleMigrationConnectionStringLabel")}>
+        <Input
           data-testid={`${props.testIdPrefix}-connection`}
           value={props.value.connectionString ?? ""}
-          onChange={handleConnectionStringChange}
+          onChange={(value) => props.onChange({ ...props.value, connectionString: value })}
           disabled={props.busy}
         />
-      </label>
-      <div className="atlas-setup-actions">
-        <span />
-        <button
-          type="button"
-          className="atlas-button atlas-button--secondary"
+      </FieldStack>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+        <Button
+          type="tertiary"
+          theme="light"
           data-testid={`${props.testIdPrefix}-test`}
           onClick={props.onTest}
           disabled={props.busy}
         >
           {t("setupTestConnection")}
-        </button>
+        </Button>
       </div>
       {props.testResult ? (
-        <span className="atlas-pill is-info" data-testid={`${props.testIdPrefix}-test-result`}>
+        <StateBadge variant="info" testId={`${props.testIdPrefix}-test-result`}>
           {props.testResult}
-        </span>
+        </StateBadge>
       ) : null}
     </div>
   );
@@ -564,8 +581,13 @@ interface ExecuteSectionProps {
   onStart: () => void;
   onValidate: () => void;
   onCutover: () => void;
-  onRollback: () => void;
   onRetry: () => void;
+}
+
+function executeStateVariant(jobBusy: boolean, jobDone: boolean): StateBadgeVariant {
+  if (jobDone) return "success";
+  if (jobBusy) return "info";
+  return "neutral";
 }
 
 function ExecuteSection({
@@ -577,7 +599,6 @@ function ExecuteSection({
   onStart,
   onValidate,
   onCutover,
-  onRollback,
   onRetry
 }: ExecuteSectionProps) {
   const { t } = useAppI18n();
@@ -585,89 +606,81 @@ function ExecuteSection({
 
   if (!job) {
     return (
-      <section className="atlas-setup-panel" data-testid="setup-console-migration-execute">
-        <div className="atlas-section-title">{t("setupConsoleMigrationStart")}</div>
-        <p className="atlas-field-hint">{t("setupConsoleMigrationEmpty")}</p>
-      </section>
+      <div data-testid="setup-console-migration-execute">
+        <SectionCard title={t("setupConsoleMigrationStart")}>
+          <Text type="tertiary">{t("setupConsoleMigrationEmpty")}</Text>
+        </SectionCard>
+      </div>
     );
   }
 
   return (
-    <section className="atlas-setup-panel" data-testid="setup-console-migration-execute">
-      <div className="atlas-org-section__header">
-        <div>
-          <div className="atlas-section-title">{t("setupConsoleMigrationStart")}</div>
-          <div className="atlas-field-hint">
+    <div data-testid="setup-console-migration-execute">
+      <SectionCard
+        title={t("setupConsoleMigrationStart")}
+        subtitle={
+          <span>
             {t("setupConsoleMigrationColumnId")}: <code>{job.id}</code>
-          </div>
-        </div>
-        <span
-          className={`atlas-pill ${jobDone ? "is-success" : jobBusy ? "is-info" : ""}`.trim()}
-          data-testid="setup-console-migration-execute-state"
-        >
-          {t(MIGRATION_STATE_LABEL_KEY[job.state])}
-        </span>
-      </div>
-      <div className="atlas-setup-actions">
-        <span />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button
-            type="button"
-            className="atlas-button atlas-button--secondary"
+          </span>
+        }
+        actions={
+          <StateBadge
+            variant={executeStateVariant(jobBusy, jobDone)}
+            testId="setup-console-migration-execute-state"
+          >
+            {t(MIGRATION_STATE_LABEL_KEY[job.state] ?? "setupConsoleMigrationStatePending")}
+          </StateBadge>
+        }
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
+          <Button
+            type="tertiary"
+            theme="light"
             data-testid="setup-console-migration-precheck"
             disabled={submitBusy || jobDone}
             onClick={onPrecheck}
           >
             {t("setupConsoleMigrationPrecheck")}
-          </button>
-          <button
-            type="button"
-            className="atlas-button atlas-button--primary"
+          </Button>
+          <Button
+            type="primary"
+            theme="solid"
             data-testid="setup-console-migration-start"
             disabled={submitBusy || jobDone}
             onClick={onStart}
           >
             {t("setupConsoleMigrationStart")}
-          </button>
-          <button
-            type="button"
-            className="atlas-button atlas-button--secondary"
+          </Button>
+          <Button
+            type="tertiary"
+            theme="light"
             data-testid="setup-console-migration-validate"
             disabled={submitBusy || jobDone}
             onClick={onValidate}
           >
             {t("setupConsoleMigrationValidate")}
-          </button>
-          <button
-            type="button"
-            className="atlas-button atlas-button--primary"
+          </Button>
+          <Button
+            type="primary"
+            theme="solid"
             data-testid="setup-console-migration-cutover"
             disabled={submitBusy || jobDone}
             onClick={onCutover}
           >
             {t("setupConsoleMigrationCutover")}
-          </button>
-          <button
-            type="button"
-            className="atlas-button atlas-button--danger"
-            data-testid="setup-console-migration-rollback"
-            disabled={submitBusy || jobDone}
-            onClick={onRollback}
-          >
-            {t("setupConsoleMigrationRollback")}
-          </button>
-          <button
-            type="button"
-            className="atlas-button atlas-button--secondary"
+          </Button>
+          <Button
+            type="tertiary"
+            theme="light"
             data-testid="setup-console-migration-retry"
             disabled={submitBusy}
             onClick={onRetry}
           >
             {t("setupConsoleMigrationRetry")}
-          </button>
+          </Button>
         </div>
-      </div>
-    </section>
+      </SectionCard>
+    </div>
   );
 }
 
@@ -688,42 +701,42 @@ function ProgressSection({ job, progress, busyLabel, onPoll }: ProgressSectionPr
 
   const percent = progress?.progressPercent ?? job.progressPercent;
   return (
-    <section className="atlas-setup-panel" data-testid="setup-console-migration-progress">
-      <div className="atlas-org-section__header">
-        <div>
-          <div className="atlas-section-title">{t("setupConsoleMigrationColumnProgress")}</div>
-          <div className="atlas-field-hint">
-            {t("setupConsoleMigrationProgressTotalEntities")}: {progress?.totalEntities ?? job.totalEntities},
-            {" "}
-            {t("setupConsoleMigrationProgressCompletedEntities")}:{" "}
-            {progress?.completedEntities ?? job.completedEntities},
-            {" "}
-            {t("setupConsoleMigrationProgressFailedEntities")}: {progress?.failedEntities ?? job.failedEntities}
-          </div>
+    <div data-testid="setup-console-migration-progress">
+      <SectionCard
+        title={t("setupConsoleMigrationColumnProgress")}
+        subtitle={`${t("setupConsoleMigrationProgressTotalEntities")}: ${
+          progress?.totalEntities ?? job.totalEntities
+        }, ${t("setupConsoleMigrationProgressCompletedEntities")}: ${
+          progress?.completedEntities ?? job.completedEntities
+        }, ${t("setupConsoleMigrationProgressFailedEntities")}: ${
+          progress?.failedEntities ?? job.failedEntities
+        }`}
+        actions={
+          <Button
+            type="tertiary"
+            theme="light"
+            data-testid="setup-console-migration-progress-poll"
+            disabled={submitBusy}
+            onClick={onPoll}
+          >
+            {t("setupConsoleRefresh")}
+          </Button>
+        }
+      >
+        <div data-testid="setup-console-migration-progress-bar" aria-valuenow={percent}>
+          <Progress percent={percent} stroke="var(--semi-color-primary)" showInfo />
         </div>
-        <button
-          type="button"
-          className="atlas-button atlas-button--secondary"
-          data-testid="setup-console-migration-progress-poll"
-          disabled={submitBusy}
-          onClick={onPoll}
-        >
-          {t("setupConsoleRefresh")}
-        </button>
-      </div>
-      <div className="atlas-progress" data-testid="setup-console-migration-progress-bar" aria-valuenow={percent}>
-        <div className="atlas-progress__fill" style={{ width: `${percent}%` }} />
-      </div>
-      <p className="atlas-field-hint">
-        {t("setupConsoleMigrationProgressCurrentEntity")}:{" "}
-        <code>{progress?.currentEntityName ?? job.currentEntityName ?? "-"}</code>
-        {" / "}
-        {t("setupConsoleMigrationProgressCurrentBatch")}:{" "}
-        <code>{progress?.currentBatchNo ?? job.currentBatchNo ?? "-"}</code>
-        {" / "}
-        {t("setupConsoleMigrationProgressCopiedRows")}: {progress?.copiedRows ?? job.copiedRows}
-      </p>
-    </section>
+        <Text type="tertiary" style={{ display: "block", marginTop: 12 }}>
+          {t("setupConsoleMigrationProgressCurrentEntity")}:{" "}
+          <code>{progress?.currentEntityName ?? job.currentEntityName ?? "-"}</code>
+          {" / "}
+          {t("setupConsoleMigrationProgressCurrentBatch")}:{" "}
+          <code>{progress?.currentBatchNo ?? job.currentBatchNo ?? "-"}</code>
+          {" / "}
+          {t("setupConsoleMigrationProgressCopiedRows")}: {progress?.copiedRows ?? job.copiedRows}
+        </Text>
+      </SectionCard>
+    </div>
   );
 }
 
@@ -737,85 +750,79 @@ interface ReportSectionProps {
 function ReportSection({ report, logs, busyLabel, onFetchReport }: ReportSectionProps) {
   const { t } = useAppI18n();
   const submitBusy = busyLabel !== null;
-  return (
-    <section className="atlas-setup-panel" data-testid="setup-console-migration-report">
-      <div className="atlas-org-section__header">
-        <div>
-          <div className="atlas-section-title">{t("setupConsoleMigrationViewReport")}</div>
-          <div className="atlas-field-hint">{t("setupConsoleMigrationViewLogs")}</div>
-        </div>
-        <button
-          type="button"
-          className="atlas-button atlas-button--secondary"
-          data-testid="setup-console-migration-report-fetch"
-          disabled={submitBusy}
-          onClick={onFetchReport}
-        >
-          {t("setupConsoleMigrationViewReport")}
-        </button>
-      </div>
-      {report ? (
-        <div data-testid="setup-console-migration-report-summary">
-          <p className="atlas-field-hint">
-            {report.overallPassed
-              ? t("setupConsoleMigrationReportPassed")
-              : t("setupConsoleMigrationReportFailed")}
-            : {report.passedEntities} / {report.totalEntities}
-          </p>
-          <table className="atlas-table">
-            <thead>
-              <tr>
-                <th>{t("setupConsoleMigrationReportEntityColumn")}</th>
-                <th>{t("setupConsoleMigrationReportSourceCountColumn")}</th>
-                <th>{t("setupConsoleMigrationReportTargetCountColumn")}</th>
-                <th>{t("setupConsoleMigrationReportDiffColumn")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.rowDiff.map((item) => (
-                <tr key={item.entityName}>
-                  <td>{item.entityName}</td>
-                  <td>{item.sourceRowCount}</td>
-                  <td>{item.targetRowCount}</td>
-                  <td>{item.diff}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="atlas-field-hint" data-testid="setup-console-migration-report-empty">
-          {t("setupConsoleLogEmpty")}
-        </p>
-      )}
 
-      <div className="atlas-section-title" style={{ marginTop: 12, fontSize: 14 }}>
-        {t("setupConsoleMigrationViewLogs")}
-      </div>
-      {logs.length === 0 ? (
-        <p className="atlas-field-hint">{t("setupConsoleLogEmpty")}</p>
-      ) : (
-        <table className="atlas-table" data-testid="setup-console-migration-logs">
-          <thead>
-            <tr>
-              <th>{t("setupConsoleLogColumnLevel")}</th>
-              <th>{t("setupConsoleLogColumnEntity")}</th>
-              <th>{t("setupConsoleLogColumnMessage")}</th>
-              <th>{t("setupConsoleLogColumnOccurredAt")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log) => (
-              <tr key={log.id}>
-                <td>{log.level}</td>
-                <td>{log.entityName ?? "-"}</td>
-                <td>{log.message}</td>
-                <td>{log.occurredAt}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
+  const reportColumns: ColumnProps<DataMigrationReportDto["rowDiff"][number]>[] = [
+    { title: t("setupConsoleMigrationReportEntityColumn"), dataIndex: "entityName" },
+    { title: t("setupConsoleMigrationReportSourceCountColumn"), dataIndex: "sourceRowCount" },
+    { title: t("setupConsoleMigrationReportTargetCountColumn"), dataIndex: "targetRowCount" },
+    { title: t("setupConsoleMigrationReportDiffColumn"), dataIndex: "diff" }
+  ];
+
+  const logColumns: ColumnProps<DataMigrationLogItemDto>[] = [
+    { title: t("setupConsoleLogColumnLevel"), dataIndex: "level" },
+    {
+      title: t("setupConsoleLogColumnEntity"),
+      dataIndex: "entityName",
+      render: (value) => (typeof value === "string" && value ? value : "-")
+    },
+    { title: t("setupConsoleLogColumnMessage"), dataIndex: "message" },
+    { title: t("setupConsoleLogColumnOccurredAt"), dataIndex: "occurredAt" }
+  ];
+
+  return (
+    <div data-testid="setup-console-migration-report">
+      <SectionCard
+        title={t("setupConsoleMigrationViewReport")}
+        subtitle={t("setupConsoleMigrationViewLogs")}
+        actions={
+          <Button
+            type="tertiary"
+            theme="light"
+            data-testid="setup-console-migration-report-fetch"
+            disabled={submitBusy}
+            onClick={onFetchReport}
+          >
+            {t("setupConsoleMigrationViewReport")}
+          </Button>
+        }
+      >
+        {report ? (
+          <div data-testid="setup-console-migration-report-summary">
+            <Text type="tertiary" style={{ display: "block", marginBottom: 8 }}>
+              {report.overallPassed
+                ? t("setupConsoleMigrationReportPassed")
+                : t("setupConsoleMigrationReportFailed")}
+              : {report.passedEntities} / {report.totalEntities}
+            </Text>
+            <Table
+              columns={reportColumns}
+              dataSource={report.rowDiff.map((item) => ({ ...item, key: item.entityName }))}
+              pagination={false}
+              size="small"
+            />
+          </div>
+        ) : (
+          <Text type="tertiary" data-testid="setup-console-migration-report-empty">
+            {t("setupConsoleLogEmpty")}
+          </Text>
+        )}
+
+        <Text strong style={{ display: "block", marginTop: 16, marginBottom: 8 }}>
+          {t("setupConsoleMigrationViewLogs")}
+        </Text>
+        {logs.length === 0 ? (
+          <Text type="tertiary">{t("setupConsoleLogEmpty")}</Text>
+        ) : (
+          <div data-testid="setup-console-migration-logs">
+            <Table
+              columns={logColumns}
+              dataSource={logs.map((item) => ({ ...item, key: item.id }))}
+              pagination={false}
+              size="small"
+            />
+          </div>
+        )}
+      </SectionCard>
+    </div>
   );
 }

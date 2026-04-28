@@ -24,130 +24,291 @@ public sealed class LoopNodeExecutor : INodeExecutor
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
         var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-        var mode = context.GetConfigString("mode", "count").Trim().ToLowerInvariant();
-        var indexVariable = context.GetConfigString("indexVariable", "loop_index");
-        var currentIndex = ResolveCurrentIndex(context, indexVariable);
-        var maxIterations = NormalizeMaxIterations(context.GetConfigInt32("maxIterations", 10));
 
-        if (currentIndex >= maxIterations)
+        string loopType = "count"; 
+        if (context.Node.Config.TryGetValue("inputs", out var inputsRaw) && inputsRaw.ValueKind == JsonValueKind.Object)
         {
-            outputs[indexVariable] = JsonSerializer.SerializeToElement(currentIndex);
-            outputs["loop_completed"] = JsonSerializer.SerializeToElement(true);
-            outputs["loop_break_reason"] = VariableResolver.CreateStringElement("max_iterations_reached");
-            return Task.FromResult(new NodeExecutionResult(true, outputs));
+            if (inputsRaw.TryGetProperty("loopType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
+            {
+                loopType = typeProp.GetString()?.ToLowerInvariant() ?? "count";
+            }
+        }
+        else if (context.Node.Config.TryGetValue("mode", out var modeProp) && modeProp.ValueKind == JsonValueKind.String)
+        {
+            loopType = modeProp.GetString()?.ToLowerInvariant() ?? "count";
         }
 
-        return mode switch
+        string nodeKey = context.Node.Key;
+        string indexKey = $"{nodeKey}.locals.index";
+        int currentIndex = ResolveCurrentIndex(context, indexKey);
+
+        if (loopType == "array")
         {
-            "while" => Task.FromResult(RunWhile(context, outputs, indexVariable, currentIndex)),
-            "foreach" => Task.FromResult(RunForEach(context, outputs, indexVariable, currentIndex)),
-            _ => Task.FromResult(RunCount(outputs, indexVariable, currentIndex, maxIterations))
-        };
+            if (!string.IsNullOrWhiteSpace(context.GetConfigString("outputKey")))
+            {
+                return Task.FromResult(RunArrayProjection(context, outputs, nodeKey, indexKey, inputsRaw));
+            }
+
+            return Task.FromResult(RunArrayLoop(context, outputs, nodeKey, indexKey, currentIndex, inputsRaw));
+        }
+        else if (loopType == "infinite" || loopType == "while")
+        {
+            return Task.FromResult(RunInfiniteLoop(outputs, indexKey, currentIndex));
+        }
+        else 
+        {
+            return Task.FromResult(RunCountLoop(context, outputs, indexKey, currentIndex, inputsRaw));
+        }
     }
 
-    private static NodeExecutionResult RunCount(
+    private static NodeExecutionResult RunCountLoop(
+        NodeExecutionContext context,
         Dictionary<string, JsonElement> outputs,
-        string indexVariable,
+        string indexKey,
         int currentIndex,
-        int maxIterations)
+        JsonElement inputsRaw)
     {
+        int maxIterations = 10;
+        if (inputsRaw.ValueKind == JsonValueKind.Object && inputsRaw.TryGetProperty("loopCount", out var loopCountExpr))
+        {
+            maxIterations = ExtractValueExpressionInt32(loopCountExpr) ?? 10;
+        }
+        else
+        {
+            maxIterations = context.GetConfigInt32("maxIterations", 10);
+        }
+        
+        maxIterations = Math.Max(1, Math.Min(maxIterations, 10_000));
+
         if (currentIndex < maxIterations)
         {
-            outputs[indexVariable] = JsonSerializer.SerializeToElement(currentIndex + 1);
+            outputs[indexKey] = JsonSerializer.SerializeToElement(currentIndex + 1);
             outputs["loop_completed"] = JsonSerializer.SerializeToElement(false);
         }
         else
         {
-            outputs[indexVariable] = JsonSerializer.SerializeToElement(currentIndex);
+            outputs[indexKey] = JsonSerializer.SerializeToElement(currentIndex);
             outputs["loop_completed"] = JsonSerializer.SerializeToElement(true);
         }
 
         return new NodeExecutionResult(true, outputs);
     }
 
-    private static NodeExecutionResult RunWhile(
-        NodeExecutionContext context,
+    private static NodeExecutionResult RunInfiniteLoop(
         Dictionary<string, JsonElement> outputs,
-        string indexVariable,
+        string indexKey,
         int currentIndex)
     {
-        var condition = context.GetConfigString("condition");
-        if (string.IsNullOrWhiteSpace(condition))
-        {
-            return new NodeExecutionResult(false, outputs, "Loop 节点 mode=while 时 condition 不能为空。");
-        }
-
-        var shouldContinue = context.EvaluateCondition(condition);
-        outputs[indexVariable] = JsonSerializer.SerializeToElement(shouldContinue ? currentIndex + 1 : currentIndex);
-        outputs["loop_completed"] = JsonSerializer.SerializeToElement(!shouldContinue);
+        outputs[indexKey] = JsonSerializer.SerializeToElement(currentIndex + 1);
+        outputs["loop_completed"] = JsonSerializer.SerializeToElement(false);
         return new NodeExecutionResult(true, outputs);
     }
 
-    private static NodeExecutionResult RunForEach(
+    private static NodeExecutionResult RunArrayLoop(
         NodeExecutionContext context,
         Dictionary<string, JsonElement> outputs,
-        string indexVariable,
-        int currentIndex)
+        string nodeKey,
+        string indexKey,
+        int currentIndex,
+        JsonElement inputsRaw)
     {
-        var collectionPath = context.GetConfigString("collectionPath");
-        if (string.IsNullOrWhiteSpace(collectionPath))
+        string inputParamName = "input";
+        if (inputsRaw.ValueKind == JsonValueKind.Object && 
+            inputsRaw.TryGetProperty("inputParameters", out var inputParams) && 
+            inputParams.ValueKind == JsonValueKind.Array)
         {
-            return new NodeExecutionResult(false, outputs, "Loop 节点 mode=forEach 时 collectionPath 不能为空。");
+            foreach (var ip in inputParams.EnumerateArray())
+            {
+                if (ip.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                {
+                    inputParamName = n.GetString() ?? "input";
+                    break;
+                }
+            }
         }
 
-        if (!context.TryResolveVariable(collectionPath, out var collection))
+        string collectionKey = inputParamName;
+        
+        if (!context.Variables.TryGetValue(collectionKey, out var collection))
         {
-            return new NodeExecutionResult(false, outputs, $"Loop 节点未找到集合变量：{collectionPath}");
+            if (!context.TryResolveVariable(context.GetConfigString("collectionPath"), out collection))
+            {
+                outputs[indexKey] = JsonSerializer.SerializeToElement(currentIndex);
+                outputs["loop_completed"] = JsonSerializer.SerializeToElement(true);
+                outputs["loop_break_reason"] = VariableResolver.CreateStringElement("source_not_found");
+                return new NodeExecutionResult(true, outputs);
+            }
         }
 
         if (collection.ValueKind != JsonValueKind.Array)
         {
-            return new NodeExecutionResult(false, outputs, $"Loop 节点集合变量 {collectionPath} 不是数组。");
+            if (collection.ValueKind == JsonValueKind.String)
+            {
+                try 
+                {
+                    var parsed = JsonSerializer.Deserialize<JsonElement>(collection.GetString() ?? "[]");
+                    if (parsed.ValueKind == JsonValueKind.Array) collection = parsed;
+                } 
+                catch {}
+            }
         }
 
-        var itemVariable = context.GetConfigString("itemVariable", "loop_item");
-        var itemIndexVariable = context.GetConfigString("itemIndexVariable", "loop_item_index");
-        var total = collection.GetArrayLength();
+        if (collection.ValueKind != JsonValueKind.Array)
+        {
+            outputs[indexKey] = JsonSerializer.SerializeToElement(currentIndex);
+            outputs["loop_completed"] = JsonSerializer.SerializeToElement(true);
+            outputs["loop_break_reason"] = VariableResolver.CreateStringElement("source_not_array");
+            return new NodeExecutionResult(true, outputs);
+        }
+
+        int total = collection.GetArrayLength();
         if (currentIndex >= total)
         {
-            outputs[indexVariable] = JsonSerializer.SerializeToElement(currentIndex);
+            outputs[indexKey] = JsonSerializer.SerializeToElement(currentIndex);
             outputs["loop_completed"] = JsonSerializer.SerializeToElement(true);
             outputs["loop_break_reason"] = VariableResolver.CreateStringElement("source_exhausted");
             return new NodeExecutionResult(true, outputs);
         }
 
-        outputs[indexVariable] = JsonSerializer.SerializeToElement(currentIndex + 1);
-        outputs[itemIndexVariable] = JsonSerializer.SerializeToElement(currentIndex);
-        outputs[itemVariable] = collection[currentIndex].Clone();
+        outputs[indexKey] = JsonSerializer.SerializeToElement(currentIndex + 1);
+        outputs[$"{nodeKey}.locals.{inputParamName}"] = collection[currentIndex].Clone();
         outputs["loop_completed"] = JsonSerializer.SerializeToElement(false);
         return new NodeExecutionResult(true, outputs);
     }
 
-    private static int ResolveCurrentIndex(NodeExecutionContext context, string indexVariable)
+    private static NodeExecutionResult RunArrayProjection(
+        NodeExecutionContext context,
+        Dictionary<string, JsonElement> outputs,
+        string nodeKey,
+        string indexKey,
+        JsonElement inputsRaw)
     {
-        if (!context.Variables.TryGetValue(indexVariable, out var indexValue))
+        var outputKey = context.GetConfigString("outputKey", "loop_result");
+        var operation = context.GetConfigString("mapOperation", context.GetConfigString("operation", "identity"))
+            .Trim()
+            .ToLowerInvariant();
+        var inputParamName = ResolveInputParameterName(inputsRaw);
+        if (!TryResolveArray(context, inputParamName, out var collection))
         {
-            return 0;
+            outputs[indexKey] = JsonSerializer.SerializeToElement(0);
+            outputs["loop_completed"] = JsonSerializer.SerializeToElement(true);
+            outputs["loop_break_reason"] = VariableResolver.CreateStringElement("source_not_found");
+            outputs[outputKey] = JsonSerializer.SerializeToElement(Array.Empty<object>());
+            return new NodeExecutionResult(true, outputs);
         }
 
-        if (indexValue.ValueKind == JsonValueKind.Number && indexValue.TryGetInt32(out var numericIndex))
+        var result = new List<JsonElement>();
+        var index = 0;
+        foreach (var item in collection.EnumerateArray())
         {
-            return Math.Max(0, numericIndex);
+            outputs[$"{nodeKey}.locals.{inputParamName}"] = item.Clone();
+            outputs[$"{nodeKey}.locals.index"] = JsonSerializer.SerializeToElement(index);
+            result.Add(ApplyProjection(item, operation));
+            index++;
         }
 
-        var text = VariableResolver.ToDisplayText(indexValue);
-        return int.TryParse(text, out var parsedIndex)
-            ? Math.Max(0, parsedIndex)
-            : 0;
+        outputs[indexKey] = JsonSerializer.SerializeToElement(index);
+        outputs["loop_completed"] = JsonSerializer.SerializeToElement(true);
+        outputs[outputKey] = JsonSerializer.SerializeToElement(result);
+        return new NodeExecutionResult(true, outputs);
     }
 
-    private static int NormalizeMaxIterations(int maxIterations)
+    private static string ResolveInputParameterName(JsonElement inputsRaw)
     {
-        if (maxIterations <= 0)
+        if (inputsRaw.ValueKind == JsonValueKind.Object &&
+            inputsRaw.TryGetProperty("inputParameters", out var inputParams) &&
+            inputParams.ValueKind == JsonValueKind.Array)
         {
-            return 10;
+            foreach (var ip in inputParams.EnumerateArray())
+            {
+                if (ip.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                {
+                    return n.GetString() ?? "input";
+                }
+            }
         }
 
-        return Math.Min(maxIterations, 10_000);
+        return "input";
+    }
+
+    private static bool TryResolveArray(NodeExecutionContext context, string collectionKey, out JsonElement collection)
+    {
+        if (!context.Variables.TryGetValue(collectionKey, out collection) &&
+            !context.TryResolveVariable(context.GetConfigString("collectionPath"), out collection))
+        {
+            return false;
+        }
+
+        if (collection.ValueKind == JsonValueKind.String)
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<JsonElement>(collection.GetString() ?? "[]");
+                if (parsed.ValueKind == JsonValueKind.Array)
+                {
+                    collection = parsed;
+                }
+            }
+            catch
+            {
+                // Keep the original value and let the array check fail.
+            }
+        }
+
+        return collection.ValueKind == JsonValueKind.Array;
+    }
+
+    private static JsonElement ApplyProjection(JsonElement item, string operation)
+    {
+        if (operation is "double" or "multiply2" or "times2" &&
+            item.ValueKind == JsonValueKind.Number &&
+            item.TryGetDecimal(out var numeric))
+        {
+            return JsonSerializer.SerializeToElement(numeric * 2);
+        }
+
+        if (operation is "upper" or "uppercase")
+        {
+            return VariableResolver.CreateStringElement(VariableResolver.ToDisplayText(item).ToUpperInvariant());
+        }
+
+        return item.Clone();
+    }
+
+    private static int ResolveCurrentIndex(NodeExecutionContext context, string indexKey)
+    {
+        if (context.Variables.TryGetValue(indexKey, out var indexValue))
+        {
+            if (indexValue.ValueKind == JsonValueKind.Number && indexValue.TryGetInt32(out var numericIndex))
+            {
+                return Math.Max(0, numericIndex);
+            }
+
+            var text = VariableResolver.ToDisplayText(indexValue);
+            if (int.TryParse(text, out var parsedIndex))
+            {
+                return Math.Max(0, parsedIndex);
+            }
+        }
+        
+        // Legacy fallback
+        if (context.Variables.TryGetValue("loop_index", out var legacyIndexValue))
+        {
+            if (legacyIndexValue.ValueKind == JsonValueKind.Number && legacyIndexValue.TryGetInt32(out var numericIndex))
+                return Math.Max(0, numericIndex);
+        }
+
+        return 0;
+    }
+
+    private static int? ExtractValueExpressionInt32(JsonElement expr)
+    {
+        if (expr.ValueKind != JsonValueKind.Object) return null;
+        if (!expr.TryGetProperty("type", out var typeProp) || typeProp.ValueKind != JsonValueKind.String) return null;
+        if (typeProp.GetString() != "literal") return null;
+        if (!expr.TryGetProperty("content", out var contentProp)) return null;
+        if (contentProp.ValueKind == JsonValueKind.Number && contentProp.TryGetInt32(out var i)) return i;
+        if (contentProp.ValueKind == JsonValueKind.String && int.TryParse(contentProp.GetString(), out var i2)) return i2;
+        return null;
     }
 }

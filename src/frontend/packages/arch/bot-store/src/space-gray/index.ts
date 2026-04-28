@@ -39,6 +39,11 @@ const initialStore: TccStore = {
   grayFeatureItems: [],
 };
 
+const ENABLE_ZUSTAND_DEVTOOLS =
+  IS_DEV_MODE &&
+  typeof window !== 'undefined' &&
+  '__REDUX_DEVTOOLS_EXTENSION__' in window;
+
 const fetchTccConfig = async spaceId => {
   try {
     const getWorkflowGrayFeature = IS_BOT_OP
@@ -77,7 +82,7 @@ export const useSpaceGrayStore = create<TccStore & TccAction>()(
       },
     }),
     {
-      enabled: IS_DEV_MODE,
+      enabled: ENABLE_ZUSTAND_DEVTOOLS,
       name: 'botStudio.TccStore',
     },
   ),

@@ -473,13 +473,13 @@ public sealed class SetupConsoleService : ISetupConsoleService
             bool workspaceCreated;
             if (existingWorkspace is null)
             {
+                // 1→N 模型：workspace 创建时不再绑定 AppInstance/AppKey；
+                // 应用实例通过 POST .../workspaces/{id}/app-instances 单独创建。
                 workspace = new Workspace(
                     tenant,
                     name: request.WorkspaceName,
                     description: "Default workspace ensured by setup-console",
                     icon: null,
-                    appInstanceId: 0,
-                    appKey: "default",
                     createdBy: ownerUser.Id,
                     id: _idGen.NextId());
                 await _db.Insertable(workspace).ExecuteCommandAsync().ConfigureAwait(false);
@@ -885,6 +885,7 @@ public sealed class SetupConsoleService : ISetupConsoleService
             job.CopiedRows,
             job.ProgressPercent,
             job.CurrentEntityName,
+            job.CurrentTableName,
             job.CurrentBatchNo,
             job.StartedAt,
             job.FinishedAt,
@@ -901,6 +902,6 @@ public sealed class SetupConsoleService : ISetupConsoleService
                 connectionString,
                 @"(?i)(password|pwd)\s*=\s*[^;]+",
                 "$1=***");
-        return new DbConnectionConfig(dbType, dbType, "raw", safe, null);
+        return new DbConnectionConfig(dbType, dbType, "raw", safe, null, dbType);
     }
 }

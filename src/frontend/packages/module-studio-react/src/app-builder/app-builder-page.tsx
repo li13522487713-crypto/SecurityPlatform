@@ -5,6 +5,7 @@ import { formatDate } from "../assistant/agent-ide-helpers";
 import type { AppBuilderConfig, StudioApplicationSummary, StudioPageProps, WorkbenchTrace, WorkflowListItem } from "../types";
 import { AppPreviewPanel } from "./app-preview-panel";
 import { defaultAppBuilderConfig, validateAppBuilderConfig } from "./app-builder-helpers";
+import { getStudioCopy } from "../copy";
 import { InputComponentPanel } from "./input-component-panel";
 import { OutputComponentPanel } from "./output-component-panel";
 import { WorkflowBindCard } from "./workflow-bind-card";
@@ -46,6 +47,7 @@ function SurfaceAppBuilder({
 
 export function AppBuilderPage({
   api,
+  locale,
   appId,
   onOpenWorkflow,
   onOpenPublish
@@ -126,7 +128,7 @@ export function AppBuilderPage({
   }, [config.inputs]);
 
   async function handleSave() {
-    const err = validateAppBuilderConfig(config);
+    const err = validateAppBuilderConfig(config, getStudioCopy(locale));
     if (err) {
       Toast.warning(err);
       return;
@@ -143,7 +145,7 @@ export function AppBuilderPage({
   }
 
   async function handleRunPreview() {
-    const err = validateAppBuilderConfig(config);
+    const err = validateAppBuilderConfig(config, getStudioCopy(locale));
     if (err) {
       Toast.warning(err);
       return;
@@ -257,7 +259,7 @@ export function AppBuilderPage({
 
             <div className="module-studio__app-builder-layout">
               <div className="module-studio__app-builder-col">
-                <InputComponentPanel value={config.inputs} disabled={disabled} onChange={inputs => setConfig(c => ({ ...c, inputs }))} />
+                <InputComponentPanel value={config.inputs} disabled={disabled} onChange={inputs => setConfig(c => ({ ...c, inputs }))} locale={locale} />
               </div>
               <div className="module-studio__app-builder-col">
                 <WorkflowBindCard
@@ -267,8 +269,9 @@ export function AppBuilderPage({
                   disabled={disabled}
                   onChange={workflowId => setConfig(c => ({ ...c, boundWorkflowId: workflowId }))}
                   onOpenWorkflow={onOpenWorkflow}
+                  locale={locale}
                 />
-                <OutputComponentPanel value={config.outputs} disabled={disabled} onChange={outputs => setConfig(c => ({ ...c, outputs }))} />
+                <OutputComponentPanel value={config.outputs} disabled={disabled} onChange={outputs => setConfig(c => ({ ...c, outputs }))} locale={locale} />
                 <div className="module-studio__coze-inspector-card module-studio__app-builder-panel">
                   <div className="module-studio__card-head">
                     <span>布局模式</span>
@@ -296,6 +299,7 @@ export function AppBuilderPage({
                   running={running}
                   onRun={() => void handleRunPreview()}
                   disabled={disabled}
+                  locale={locale}
                 />
               </div>
             </div>

@@ -1,15 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Empty, List, Space, Modal, Form, Toast } from '@douyinfe/semi-ui';
+import { Button, Card, Empty, List, Space, Modal, Form, Toast, Banner } from '@douyinfe/semi-ui';
 import { lowcodeAppStudioPath } from '@atlas/app-shell-shared';
-import { lowcodeApi, type AppListItem } from '../services/api-core';
-import { t } from '../i18n';
+import { lowcodeApi, t, type AppListItem } from '@atlas/lowcode-studio-react';
 
 export const AppListPage: React.FC = () => {
   const nav = useNavigate();
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ['lowcode-apps'], queryFn: () => lowcodeApi.apps.list() });
+  const { data, isLoading, error } = useQuery({ queryKey: ['lowcode-apps'], queryFn: () => lowcodeApi.apps.list() });
 
   const createMut = useMutation({
     mutationFn: (vals: { code: string; displayName: string; description?: string }) =>
@@ -49,7 +48,9 @@ export const AppListPage: React.FC = () => {
         <h2>{t('lowcode_studio.app.list')}</h2>
         <Button type="primary" onClick={() => setOpen(true)}>{t('lowcode_studio.app.create')}</Button>
       </Space>
-      {isLoading ? <Empty title="加载中..." /> : (
+      {isLoading ? <Empty title="加载中..." /> : error ? (
+        <Banner type="danger" closeIcon={null} description={`加载应用列表失败：${(error as Error).message}`} />
+      ) : (
         <List
           dataSource={data?.items ?? []}
           renderItem={(app: AppListItem) => (

@@ -18,7 +18,7 @@ public static class AiRuntimeServiceRegistration
 {
     /// <summary>
     /// AI 应用运行态层：Agent 对话、会话管理、多 Agent 编排运行态、
-    /// 多模态调用、记忆服务、工作流执行。PlatformHost 和 AppHost 均需注册。
+    /// 多模态调用、记忆服务、工作流执行。AppHost 需注册。
     /// </summary>
     public static IServiceCollection AddAiRuntimeInfrastructure(this IServiceCollection services)
     {
@@ -112,8 +112,9 @@ public static class AiRuntimeServiceRegistration
         services.AddScoped<INodeExecutor, JsonDeserializationNodeExecutor>();
         services.AddScoped<INodeExecutor, KnowledgeDeleterNodeExecutor>();
 
-        services.AddScoped<IDagWorkflowExecutionService, DagWorkflowExecutionService>();
         services.AddHttpClient("WorkflowEngine", client => client.Timeout = TimeSpan.FromSeconds(30));
+
+        services.AddWorkspaceChannelInfrastructure();
 
         return services;
     }

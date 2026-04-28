@@ -43,6 +43,7 @@ public sealed class OpenBotsController : ControllerBase
             tenantId,
             keyword,
             status: null,
+            workspaceId: null,
             request.PageIndex,
             request.PageSize,
             cancellationToken);

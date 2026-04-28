@@ -40,6 +40,8 @@ import { ModelSetting } from './components/model-setting';
 
 const defaultGenerationDiversity = GenerationDiversity.Balance;
 
+const normalizeModelName = (value?: string) => value?.trim().toLowerCase();
+
 interface ModelSelectProps extends ComponentProps<IModelValue | undefined> {
   readonly?: boolean;
   popoverPosition?: PopoverProps['position'];
@@ -63,8 +65,13 @@ export const ModelSelect: FC<ModelSelectProps> = ({
     useService<WorkflowModelsService>(WorkflowModelsService)?.getModels() ?? [];
 
   const model = useMemo(
-    () => models.find(m => (m.model_type as number) === _value?.modelType),
-    [models, _value?.modelType],
+    () =>
+      models.find(m => Number(m.model_type) === Number(_value?.modelType)) ??
+      models.find(
+        m =>
+          normalizeModelName(m.name) === normalizeModelName(_value?.modelName),
+      ),
+    [models, _value?.modelName, _value?.modelType],
   );
 
   /**
@@ -92,8 +99,10 @@ export const ModelSelect: FC<ModelSelectProps> = ({
       generationDiversity: GenerationDiversity.Customize,
       ...defaultValue[value?.generationDiversity || defaultGenerationDiversity],
       ..._value,
+      modelName: model?.name ?? _value?.modelName,
+      modelType: model?.model_type ?? _value?.modelType,
     }),
-    [_value, defaultValue],
+    [_value, defaultValue, model?.model_type, model?.name],
   );
 
   const modelOptions = useMemo(() => {

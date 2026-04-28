@@ -1,5 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
@@ -15,6 +17,7 @@ public sealed class LongTermMemory : TenantEntity
         UpdatedAt = CreatedAt;
         LastReferencedAt = CreatedAt;
         HitCount = 1;
+        ResourceLibrarySource = LibrarySource.Custom;
     }
 
     public LongTermMemory(
@@ -25,7 +28,8 @@ public sealed class LongTermMemory : TenantEntity
         string memoryKey,
         string content,
         string source,
-        long id)
+        long id,
+        LibrarySource resourceLibrarySource = LibrarySource.Custom)
         : base(tenantId)
     {
         Id = id;
@@ -35,6 +39,7 @@ public sealed class LongTermMemory : TenantEntity
         MemoryKey = memoryKey;
         Content = content;
         Source = source;
+        ResourceLibrarySource = resourceLibrarySource;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
         LastReferencedAt = CreatedAt;
@@ -47,6 +52,11 @@ public sealed class LongTermMemory : TenantEntity
     public string MemoryKey { get; private set; }
     public string Content { get; private set; }
     public string Source { get; private set; }
+
+    /// <summary>资源库「官方/自定义」来源（区别于业务字段 <see cref="Source"/> 的记忆出处）。</summary>
+    [SugarColumn(IsNullable = false)]
+    public LibrarySource ResourceLibrarySource { get; private set; }
+
     public int HitCount { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }

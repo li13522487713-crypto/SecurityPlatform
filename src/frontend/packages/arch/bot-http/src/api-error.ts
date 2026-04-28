@@ -59,15 +59,16 @@ export const reportHttpError = (
 ) => {
   try {
     const { response, config } = error;
-    const {
-      code = '',
-      msg = '',
-      message,
-    } = response?.data as {
+    const payload = (response?.data ?? {}) as {
       code?: string;
       msg?: string;
       message?: string;
     };
+    const {
+      code = '',
+      msg = '',
+      message,
+    } = payload;
     const { status: httpStatusCode, headers } = response || {};
     const { method: httpMethod, url: urlPath } = config || {};
     const logId = headers?.['x-tt-logid'];

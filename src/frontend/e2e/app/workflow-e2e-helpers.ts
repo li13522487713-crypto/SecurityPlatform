@@ -7,7 +7,13 @@ import {
   randomBetween,
   resolveLocatorPoint
 } from "../fixtures/human-mouse";
-import { clickCrudSubmit, ensureAppSetup, loginApp, navigateBySidebar, uniqueName } from "./helpers";
+import { ensureAppSetup, loginApp, navigateBySidebar, uniqueName } from "./helpers";
+import {
+  appApiBase,
+  defaultPassword,
+  defaultTenantId,
+  defaultUsername
+} from "./helpers";
 
 export interface WorkflowSessionContext {
   appKey: string;
@@ -27,6 +33,20 @@ const workflowCanvasSelector = [
 const workflowNodeSelector = ".module-workflow__node-card";
 const workflowEdgeSelector = ".wf-react-edge-path";
 let cachedWorkflowSession: WorkflowSessionContext | null = null;
+let cachedAccessToken: string | null = null;
+
+interface WorkflowCreateResponse {
+  success?: boolean;
+  code?: string | number;
+  message?: string;
+  workflow_id?: string | number;
+  data?: {
+    workflow_id?: string | number;
+    workflowId?: string | number;
+    id?: string | number;
+    Id?: string | number;
+  };
+}
 
 async function ensureWorkflowListReady(
   page: Page,
@@ -46,7 +66,8 @@ async function ensureWorkflowListReady(
 
     try {
       await navigateBySidebar(page, "workflows", {
-        urlPattern: /\/org\/[^/]+\/workspaces\/[^/]+\/workflows(?:\?.*)?$/
+        pageTestId: "coze-resource-page",
+        urlPattern: /\/workspace\/[^/]+\/resources\/workflows(?:\?.*)?$/
       });
       return;
     } catch {
@@ -58,6 +79,70 @@ async function ensureWorkflowListReady(
       }
     }
   }
+}
+
+async function getAppAccessToken(request: APIRequestContext): Promise<string> {
+  if (cachedAccessToken) {
+    return cachedAccessToken;
+  }
+
+  const response = await request.post(`${appApiBase}/api/v1/auth/token`, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-Tenant-Id": defaultTenantId
+    },
+    data: {
+      username: defaultUsername,
+      password: defaultPassword
+    }
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = (await response.json()) as { data?: { accessToken?: string } };
+  const token = String(payload.data?.accessToken ?? "").trim();
+  expect(token).not.toBe("");
+  cachedAccessToken = token;
+  return token;
+}
+
+function parseWorkspaceIdFromUrl(url: string): string {
+  const pathname = new URL(url).pathname;
+  const match = pathname.match(/^\/workspace\/([^/]+)\/resources\/workflows(?:\/|$)/);
+  expect(match).toBeTruthy();
+  return decodeURIComponent((match as RegExpMatchArray)[1]);
+}
+
+async function createWorkflowViaApi(
+  request: APIRequestContext,
+  workspaceId: string,
+  name: string
+): Promise<string> {
+  const accessToken = await getAppAccessToken(request);
+  const response = await request.post(`${appApiBase}/api/app-web/workflow-sdk/create`, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      "X-Tenant-Id": defaultTenantId
+    },
+    data: {
+      name,
+      desc: "E2E workflow bootstrap",
+      icon_uri: "",
+      space_id: workspaceId,
+      flow_mode: 0
+    }
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = (await response.json()) as WorkflowCreateResponse;
+  const workflowId = String(
+    payload.data?.workflow_id ??
+    payload.data?.workflowId ??
+    payload.data?.id ??
+    payload.data?.Id ??
+    payload.workflow_id ??
+    ""
+  ).trim();
+  expect(workflowId).not.toBe("");
+  return workflowId;
 }
 
 export async function expectWorkflowEditorReady(page: Page): Promise<void> {
@@ -188,59 +273,21 @@ export async function loginToWorkflowList(
   return appKey;
 }
 
-export async function createWorkflowAndOpenEditor(page: Page, appKey: string): Promise<string> {
+export async function createWorkflowAndOpenEditor(
+  page: Page,
+  appKey: string,
+  request?: APIRequestContext
+): Promise<string> {
   await ensureWorkflowListReady(page, appKey);
-  await expect(page.getByTestId("app-develop-page")).toBeVisible({ timeout: 30_000 });
-
-  const createResponsePromise = page.waitForResponse((response) => {
-    if (response.request().method() !== "POST") {
-      return false;
-    }
-
-    return /\/api\/v2\/workflows(?:\?.*)?$/.test(response.url()) || /\/api\/workflow_api\/create(?:\?.*)?$/.test(response.url());
-  }, { timeout: 30_000 });
-
-  await page.getByTestId("app-develop-create-menu").click();
-  const createWorkflowAction = page.locator(".module-studio__coze-menu-item").filter({ hasText: "新建工作流" }).first();
-  await expect(createWorkflowAction).toBeVisible({ timeout: 30_000 });
-  await createWorkflowAction.click();
-
-  const dialog = page.locator(".semi-modal-content").last();
-  const dialogVisible = await dialog.isVisible().catch(() => false);
-  if (dialogVisible) {
-    const nameInput = dialog.getByRole("textbox").first();
-    const nameInputVisible = await nameInput.isVisible().catch(() => false);
-    if (nameInputVisible) {
-      await nameInput.fill(uniqueName("E2EWorkflow"));
-      await clickCrudSubmit(page);
-    }
+  const workspaceId = parseWorkspaceIdFromUrl(page.url());
+  if (!request) {
+    throw new Error("createWorkflowAndOpenEditor 缺少 request 上下文，无法通过 API 创建 workflow。");
   }
-
-  const createResponse = await createResponsePromise;
-  expect(createResponse.ok()).toBeTruthy();
-
-  const createPayload = (await createResponse.json()) as {
-    data?: { id?: string | number; Id?: string | number; workflow_id?: string | number } | string | number;
-    workflow_id?: string | number;
-  };
-  const createdWorkflowId =
-    typeof createPayload.data === "string" || typeof createPayload.data === "number"
-      ? String(createPayload.data)
-      : String(createPayload.data?.id ?? createPayload.data?.Id ?? createPayload.data?.workflow_id ?? createPayload.workflow_id ?? "");
-  expect(createdWorkflowId).not.toBe("");
-
-  const currentUrl = new URL(page.url());
-  const editorSearch = new URLSearchParams(currentUrl.search);
-  editorSearch.delete("create");
-  editorSearch.set("workflow_id", createdWorkflowId);
-  const editorUrl = `${currentUrl.origin}${currentUrl.pathname}?${editorSearch.toString()}`;
-  await page.goto(editorUrl);
-  await page.waitForURL((url) => {
-    const hasWorkflowQuery = url.searchParams.get("workflow_id") === createdWorkflowId;
-    const hasWorkflowPath = url.pathname.endsWith(`/workflows/${encodeURIComponent(createdWorkflowId)}`);
-    return url.pathname.includes("/workflows") && (hasWorkflowQuery || hasWorkflowPath);
-  }, { timeout: 30_000 });
-
+  const createdWorkflowId = await createWorkflowViaApi(request, workspaceId, uniqueName("E2EWorkflow"));
+  await page.goto(`/workflow/${encodeURIComponent(createdWorkflowId)}/editor`);
+  await page.waitForURL(new RegExp(`/workflow/${encodeURIComponent(createdWorkflowId)}/editor(?:\\?.*)?$`), {
+    timeout: 30_000
+  });
   await expectWorkflowEditorReady(page);
   return createdWorkflowId;
 }
@@ -262,7 +309,7 @@ export async function createWorkflowSession(
   }
 
   const appKey = await loginToWorkflowList(page, request, ensureLoggedInSession);
-  const workflowId = await createWorkflowAndOpenEditor(page, appKey);
+  const workflowId = await createWorkflowAndOpenEditor(page, appKey, request);
   const session = { appKey, workflowId };
   if (reuseExisting) {
     cachedWorkflowSession = session;
@@ -272,11 +319,8 @@ export async function createWorkflowSession(
 
 export async function openWorkflowEditor(page: Page, appKey: string, workflowId: string): Promise<void> {
   void appKey;
-  await ensureWorkflowListReady(page, appKey);
-  const currentUrl = new URL(page.url());
-  const nextUrl = `${currentUrl.origin}${currentUrl.pathname.replace(/\/workflows(?:\/[^/?]+)?$/, `/workflows/${encodeURIComponent(workflowId)}`)}${currentUrl.search}`;
-  await page.goto(nextUrl);
-  await page.waitForURL(new RegExp(`/org/[^/]+/workspaces/[^/]+/workflows/${encodeURIComponent(workflowId)}(?:\\?.*)?$`), {
+  await page.goto(`/workflow/${encodeURIComponent(workflowId)}/editor`);
+  await page.waitForURL(new RegExp(`/workflow/${encodeURIComponent(workflowId)}/editor(?:\\?.*)?$`), {
     timeout: 30_000
   });
   await expectWorkflowEditorReady(page);

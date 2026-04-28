@@ -1,15 +1,31 @@
 using System.Globalization;
 using System.Text.Json;
+using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
+using Atlas.Core.Exceptions;
+using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Infrastructure.Services.AiPlatform;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
 
+#pragma warning disable CS0618 // 工作流节点旧 JSON 行模型兼容路径，本任务不重写执行逻辑。
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
 internal sealed record DbClause(string Field, string Operator, string Value, string Logic);
 
 internal static class AiDatabaseNodeHelper
 {
+    public static IAiDatabaseService ResolveDatabaseService(NodeExecutionContext context)
+    {
+        return context.ServiceProvider.GetRequiredService<IAiDatabaseService>();
+    }
+
+    public static AiDatabaseRecordEnvironment ResolveEnvironment(NodeExecutionContext context)
+        => context.DatabaseEnvironment;
+
     public static long ResolveDatabaseId(NodeExecutionContext context)
     {
         var id = context.GetConfigInt64("databaseInfoId", 0L);
@@ -21,15 +37,106 @@ internal static class AiDatabaseNodeHelper
         return id;
     }
 
+    public static async Task<List<AiDatabaseRecordListItem>> LoadRecordItemsAsync(
+        NodeExecutionContext context,
+        long databaseId,
+        CancellationToken cancellationToken,
+        int pageSize)
+    {
+        var service = ResolveDatabaseService(context);
+        var result = await service.GetRecordsAsync(
+            context.TenantId,
+            databaseId,
+            1,
+            Math.Clamp(pageSize, 1, 500_000),
+            ResolveEnvironment(context),
+            cancellationToken,
+            context.UserId,
+            context.ChannelId);
+        return result.Items.ToList();
+    }
+
+    /// <param name="sqlTakeLimit">
+    /// 仅在查询场景使用：对 SQL 结果集上限（按 Id 升序截取），防止超大表一次性加载。
+    /// Update/Delete 应传 null 以加载策略下的全部候选行。
+    /// </param>
     public static async Task<List<AiDatabaseRecord>> LoadRecordsAsync(
         ISqlSugarClient db,
         TenantId tenantId,
         long databaseId,
+        CancellationToken cancellationToken,
+        AiDatabaseAccessPolicy? policy = null,
+        int? sqlTakeLimit = null)
+    {
+        var query = db.Queryable<AiDatabaseRecord>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.DatabaseId == databaseId);
+        if (policy is { OwnerUserId: { } ownerVal })
+        {
+            query = query.Where(x => x.OwnerUserId == 0 || x.OwnerUserId == ownerVal);
+        }
+        if (policy is { ChannelId: { } channelVal } && !string.IsNullOrWhiteSpace(channelVal))
+        {
+            query = query.Where(x => x.ChannelId == string.Empty || x.ChannelId == channelVal);
+        }
+
+        if (sqlTakeLimit is > 0)
+        {
+            query = query.OrderBy(x => x.Id, OrderByType.Asc).Take(sqlTakeLimit.Value);
+        }
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    /// <summary>D2：从执行上下文 + DB 读取构建访问策略。</summary>
+    public static async Task<AiDatabaseAccessPolicy> ResolvePolicyAsync(
+        ISqlSugarClient db,
+        NodeExecutionContext context,
+        long databaseId,
         CancellationToken cancellationToken)
     {
-        return await db.Queryable<AiDatabaseRecord>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.DatabaseId == databaseId)
-            .ToListAsync(cancellationToken);
+        var entity = await db.Queryable<AiDatabase>()
+            .Where(x => x.TenantIdValue == context.TenantId.Value && x.Id == databaseId)
+            .FirstAsync(cancellationToken);
+        if (entity is null)
+        {
+            throw new BusinessException("数据库不存在。", ErrorCodes.NotFound);
+        }
+
+        return AiDatabaseAccessPolicy.For(entity, context.UserId, context.ChannelId);
+    }
+
+    /// <summary>D3：加载数据库 schema JSON——给 Coercer 与节点表单使用。</summary>
+    public static async Task<string?> LoadSchemaAsync(
+        ISqlSugarClient db,
+        TenantId tenantId,
+        long databaseId,
+        CancellationToken cancellationToken,
+        IServiceProvider? serviceProvider = null)
+    {
+        var cacheKey = $"Atlas:AiDatabase:Schema:{tenantId.Value}:{databaseId}";
+        if (serviceProvider?.GetService<IMemoryCache>() is { } cache &&
+            cache.TryGetValue(cacheKey, out object? cachedObj) &&
+            cachedObj is string cached &&
+            !string.IsNullOrWhiteSpace(cached))
+        {
+            return cached;
+        }
+
+        var entity = await db.Queryable<AiDatabase>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == databaseId)
+            .Select(x => new { x.TableSchema })
+            .FirstAsync(cancellationToken);
+        var schema = entity?.TableSchema;
+        if (serviceProvider?.GetService<IMemoryCache>() is { } mem &&
+            !string.IsNullOrWhiteSpace(schema))
+        {
+            mem.Set(cacheKey, schema, new MemoryCacheEntryOptions
+            {
+                SlidingExpiration = TimeSpan.FromMinutes(2)
+            });
+        }
+
+        return schema;
     }
 
     public static List<DbClause> ResolveClauses(IReadOnlyDictionary<string, JsonElement> config)

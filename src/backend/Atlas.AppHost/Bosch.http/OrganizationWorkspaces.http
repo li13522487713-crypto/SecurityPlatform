@@ -28,7 +28,7 @@ GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/by-app-key/dev-app
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 创建工作空间
+### 创建工作空间（1→N 模型：不再需要 appInstanceId；应用实例由后续 POST app-instances 单独创建）
 # @name createWorkspace
 POST {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces
 Authorization: Bearer {{accessToken}}
@@ -38,12 +38,27 @@ Content-Type: application/json
 {
   "name": "新工作空间 {{$timestamp}}",
   "description": "用于验证组织-工作空间入口",
-  "icon": "workspace",
-  "appInstanceId": "1"
+  "icon": "workspace"
 }
 
 ###
 @createdWorkspaceId = {{createWorkspace.response.body.$.data.id}}
+
+### 1→N 模型：在工作空间内创建应用实例（AppManifest）
+# AppKey 留空时由后端按 ws-{workspaceId}-app-{seq} 自动生成。
+# @name createWorkspaceAppInstance
+POST {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/{{createdWorkspaceId}}/app-instances
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "默认应用 {{$timestamp}}",
+  "description": "用于验证 1→N 工作空间-应用实例创建链路",
+  "icon": "app",
+  "category": "general",
+  "appKey": null
+}
 
 ### 工作空间详情
 GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1

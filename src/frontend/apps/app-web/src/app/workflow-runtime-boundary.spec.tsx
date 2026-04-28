@@ -13,6 +13,7 @@ const startupState = {
   featureFlagsLoading: false,
   spaceReady: true,
   workflowAllowed: true,
+  cozeI18nReady: true,
   featureFlagsError: null,
   refreshFeatureFlags: vi.fn(async () => undefined),
 };
@@ -36,14 +37,6 @@ vi.mock("./i18n", () => ({
     locale: "zh-CN" as const,
     t: (key: string) => key,
   }),
-}));
-
-vi.mock("./auth-context", () => ({
-  useOptionalAuth: () => null,
-}));
-
-vi.mock("@atlas/foundation-bridge", () => ({
-  setAtlasFoundationHost: vi.fn(),
 }));
 
 vi.mock("./startup-kernel", () => ({
@@ -116,6 +109,26 @@ describe("WorkflowRuntimeBoundary", () => {
     });
 
     expect(container.querySelector('[data-testid="workflow-ready"]')?.textContent).toBe("ready");
+  });
+
+  it("显式传入 spaceId 时不再依赖 workspace.appKey", () => {
+    const container = document.createElement("div");
+    const root = ReactDOM.createRoot(container);
+    startupState.featureFlagsError = null;
+    startupState.featureFlagsReady = true;
+    startupState.featureFlagsLoading = false;
+    workspaceState.appKey = "";
+
+    act(() => {
+      root.render(
+        <WorkflowRuntimeBoundary spaceId="workspace-1">
+          <div data-testid="workflow-ready">ready</div>
+        </WorkflowRuntimeBoundary>
+      );
+    });
+
+    expect(container.querySelector('[data-testid="workflow-ready"]')?.textContent).toBe("ready");
+    workspaceState.appKey = "atlas-app";
   });
 });
 

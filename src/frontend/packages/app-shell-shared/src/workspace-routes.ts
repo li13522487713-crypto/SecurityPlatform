@@ -1,7 +1,7 @@
 /**
  * Coze 平台 PRD（07-前端路由表与菜单权限表）路径辅助函数。
  *
- * 注意：这一组函数是“工作空间为唯一维度”的扁平路由（/workspace/:workspaceId/...）。
+ * 注意：这一组函数是“工作空间为唯一维度”的扁平路由（/space/:workspaceId/...）。
  * 旧的 /org/:orgId/workspaces/:workspaceId/... 与 /apps/:appKey/... 仍由 ./routes.ts 提供，
  * 仅用于兼容跳转，不再用于菜单与新页面。
  */
@@ -26,11 +26,32 @@ function encodeSegment(value: string | number): string {
 }
 
 export function selectWorkspacePath(): string {
-  return "/select-workspace";
+  return "/space";
 }
 
 export function workspaceRootPath(workspaceId: string): string {
-  return `/workspace/${encodeSegment(workspaceId)}`;
+  return `/space/${encodeSegment(workspaceId)}`;
+}
+
+/** 与 Coze 风格资源库页 `WorkspaceLibraryPage` 的 tab 对齐（用于 `?tab=` 深链） */
+export type WorkspaceLibraryTab =
+  | "all"
+  | "plugin"
+  | "workflow"
+  | "microflow"
+  | "knowledge-base"
+  | "card"
+  | "prompt"
+  | "database"
+  | "voice"
+  | "memory";
+
+export function workspaceLibraryPath(workspaceId: string, tab?: WorkspaceLibraryTab): string {
+  const base = `${workspaceRootPath(workspaceId)}/library`;
+  if (!tab || tab === "all") {
+    return base;
+  }
+  return `${base}?tab=${encodeURIComponent(tab)}`;
 }
 
 export function workspaceHomePath(workspaceId: string): string {
@@ -74,6 +95,46 @@ export function workspaceSettingsPublishPath(
 
 export function workspaceSettingsModelsPath(workspaceId: string): string {
   return `${workspaceSettingsPath(workspaceId)}/models`;
+}
+
+function splitPathAndQuery(pathWithSearch: string): { pathname: string; search: string } {
+  const trimmed = pathWithSearch.trim();
+  if (!trimmed) {
+    return { pathname: "", search: "" };
+  }
+
+  const queryIndex = trimmed.indexOf("?");
+  if (queryIndex < 0) {
+    return { pathname: trimmed, search: "" };
+  }
+
+  return {
+    pathname: trimmed.slice(0, queryIndex),
+    search: trimmed.slice(queryIndex)
+  };
+}
+
+export function buildWorkspaceSwitchPath(pathWithSearch: string, workspaceId: string): string {
+  const { pathname, search } = splitPathAndQuery(pathWithSearch);
+  const decodedWorkspaceId = encodeSegment(workspaceId);
+
+  if (!pathname.startsWith("/space/")) {
+    return `${pathname}${search}`;
+  }
+
+  const detailFallbacks: Array<[RegExp, string]> = [
+    [/^\/space\/[^/]+\/projects\/folder\/[^/]+$/u, workspaceProjectsPath(workspaceId)],
+    [/^\/space\/[^/]+\/tasks\/[^/]+$/u, workspaceTasksPath(workspaceId)],
+    [/^\/space\/[^/]+\/evaluations\/[^/]+$/u, workspaceEvaluationsPath(workspaceId)]
+  ];
+
+  for (const [pattern, fallbackPath] of detailFallbacks) {
+    if (pattern.test(pathname)) {
+      return fallbackPath;
+    }
+  }
+
+  return pathname.replace(/^\/space\/[^/]+/u, `/space/${decodedWorkspaceId}`) + search;
 }
 
 export function marketTemplatesPath(): string {
@@ -131,6 +192,14 @@ export function appPublishPath(projectId: string): string {
 
 export function workflowEditorPath(workflowId: string): string {
   return `/workflow/${encodeSegment(workflowId)}/editor`;
+}
+
+export function microflowEditorPath(microflowId: string): string {
+  return `/microflow/${encodeSegment(microflowId)}/editor`;
+}
+
+export function workspaceMicroflowEditorPath(workspaceId: string, microflowId: string): string {
+  return `${workspaceRootPath(workspaceId)}/microflows/${encodeSegment(microflowId)}`;
 }
 
 export function workflowHistoryPath(workflowId: string): string {

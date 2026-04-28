@@ -1,0 +1,65 @@
+{
+  "name": "@atlas/microflow",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./schema/types": "./src/schema/types.ts",
+    "./schema/authoring": "./src/schema/authoring/index.ts",
+    "./schema/legacy": "./src/schema/legacy/index.ts",
+    "./schema/compat": "./src/schema/compat/index.ts",
+    "./schema/samples": "./src/schema/samples/index.ts",
+    "./schema/utils": "./src/schema/utils/index.ts",
+    "./editor": "./src/editor/index.tsx",
+    "./node-registry": "./src/node-registry/index.ts",
+    "./registry": "./src/registry/index.ts",
+    "./node-panel": "./src/node-panel/index.tsx",
+    "./property-panel": "./src/property-panel/index.tsx",
+    "./property-forms": "./src/property-forms/index.tsx",
+    "./runtime-adapter": "./src/runtime-adapter/index.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./adapters/runtime": "./src/adapters/microflow-adapters.ts",
+    "./resource": "./src/resource/index.ts",
+    "./flowgram": "./src/flowgram/index.ts",
+    "./flowgram/authoring-to-flowgram": "./src/flowgram/adapters/authoring-to-flowgram.ts",
+    "./history": "./src/history/index.ts",
+    "./layout": "./src/layout/index.ts",
+    "./metadata": "./src/metadata/index.ts",
+    "./variables": "./src/variables/index.ts",
+    "./expressions": "./src/expressions/index.ts",
+    "./validators": "./src/validators/index.ts",
+    "./debug": "./src/debug/index.ts",
+    "./debug/trace-utils": "./src/debug/trace-utils.ts",
+    "./versioning": "./src/versioning/index.ts",
+    "./samples": "./src/samples/index.ts",
+    "./mendix-compat": "./src/mendix-compat/index.ts",
+    "./performance": "./src/performance/index.ts",
+    "./runtime": "./src/runtime/index.ts"
+  },
+  "scripts": {
+    "build": "echo 'microflow: source-only package, no build step'",
+    "lint": "echo 'microflow: no package-local lint configured yet'",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "dependencies": {
+    "@coze-workflow/render": "workspace:*",
+    "@douyinfe/semi-icons": "^2.82.0",
+    "@douyinfe/semi-ui": "^2.82.0",
+    "@flowgram-adapter/common": "workspace:*",
+    "@flowgram-adapter/free-layout-editor": "workspace:*",
+    "inversify": "^6.2.2"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.37",
+    "@types/react-dom": "18.2.15",
+    "typescript": "~5.9.3"
+  }
+}

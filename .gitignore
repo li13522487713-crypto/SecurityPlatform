@@ -21,6 +21,8 @@ mono_crash.*
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
+!docs/microflow/release/
+!docs/microflow/release/**
 x64/
 x86/
 [Ww][Ii][Nn]32/
@@ -398,11 +400,6 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Local SQLite runtime data (must not be committed)
-src/backend/Atlas.PlatformHost/*.db
-src/backend/Atlas.PlatformHost/*.db-shm
-src/backend/Atlas.PlatformHost/*.db-wal
-src/backend/Atlas.PlatformHost/backups/
-src/backend/Atlas.PlatformHost/setup-state.json
 src/backend/Atlas.AppHost/*.db
 src/backend/Atlas.AppHost/*.db-shm
 src/backend/Atlas.AppHost/*.db-wal
@@ -420,7 +417,8 @@ src/frontend/packages/project-ide/view/src/components/scroll-bar/lib/
 **/dist-ssr/
 src/frontend/playwright-report/
 src/frontend/test-results/
+docs/test-reports/
 src/frontend/tmp/
 tmp/
 /output/playwright/workflow-debug
-/src/backend/Atlas.PlatformHost/uploads/00000000-0000-0000-0000-000000000001
+/src/backend/Atlas.AppHost/uploads/00000000-0000-0000-0000-000000000001

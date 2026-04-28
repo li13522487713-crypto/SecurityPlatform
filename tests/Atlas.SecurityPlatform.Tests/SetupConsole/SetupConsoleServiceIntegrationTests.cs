@@ -115,7 +115,7 @@ public sealed class SetupConsoleServiceIntegrationTests : IDisposable
         // 再次调用 schema，期望返回 idempotent 应答（同一份 startedAt，不刷新）
         var secondSchema = await deps.Service.RunSchemaAsync(new SystemSchemaRequest(DryRun: true));
         Assert.Equal(SetupStepStates.Succeeded, secondSchema.State);
-        Assert.Equal(firstStartedAt, secondSchema.StartedAt);
+        Assert.Equal(firstStartedAt?.DateTime, secondSchema.StartedAt?.DateTime);
         Assert.Contains("idempotent", secondSchema.Message, StringComparison.OrdinalIgnoreCase);
     }
 

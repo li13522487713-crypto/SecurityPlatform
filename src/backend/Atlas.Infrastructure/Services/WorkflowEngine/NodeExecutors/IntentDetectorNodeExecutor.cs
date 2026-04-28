@@ -3,7 +3,6 @@ using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
@@ -42,9 +41,11 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "IntentDetector 输入文本为空。");
         }
 
-        var model = context.GetConfigString("model.modelName", context.GetConfigString("model", "gpt-4o-mini"));
+        var model = context.GetConfigString(
+            "model.modelName",
+            context.GetConfigString("modelName", context.GetConfigString("model", "gpt-4o-mini")));
         var provider = context.GetConfigString("provider");
-        var modelConfig = await ResolveModelConfigAsync(context, cancellationToken);
+        var modelConfig = await CozeModelConfigResolver.ResolveAsync(context, cancellationToken);
         if (modelConfig is not null)
         {
             if (string.IsNullOrWhiteSpace(provider))
@@ -67,7 +68,9 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
         var prompt = BuildPrompt(systemPrompt, inputText, intents);
         try
         {
-            var llmProvider = _llmProviderFactory.GetLlmProvider(provider);
+            var llmProvider = modelConfig is null
+                ? _llmProviderFactory.GetLlmProvider(provider)
+                : _llmProviderFactory.GetLlmProviderByModelConfigId(modelConfig.Id);
             float.TryParse(
                 context.GetConfigString("temperature", modelConfig?.Temperature?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
                 NumberStyles.Float,
@@ -82,6 +85,14 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
             var result = await llmProvider.ChatAsync(request, cancellationToken);
 
             var parsed = ParseResult(result.Content, intents);
+            var classificationId = Math.Max(
+                1,
+                intents.FindIndex(x => string.Equals(x, parsed.Intent, StringComparison.OrdinalIgnoreCase)) + 1);
+            var displayReason = string.IsNullOrWhiteSpace(parsed.Reason)
+                ? parsed.Intent
+                : $"{parsed.Intent}: {parsed.Reason}";
+            outputs["classificationId"] = JsonSerializer.SerializeToElement(classificationId);
+            outputs["reason"] = VariableResolver.CreateStringElement(displayReason);
             outputs["detected_intent"] = VariableResolver.CreateStringElement(parsed.Intent);
             outputs["confidence"] = JsonSerializer.SerializeToElement(parsed.Confidence);
             outputs["intent_reason"] = VariableResolver.CreateStringElement(parsed.Reason);
@@ -94,25 +105,6 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
         }
     }
 
-    private static async Task<ModelConfigDto?> ResolveModelConfigAsync(
-        NodeExecutionContext context,
-        CancellationToken cancellationToken)
-    {
-        var modelType = context.GetConfigInt64("model.modelType", 0L);
-        if (modelType <= 0)
-        {
-            return null;
-        }
-
-        var queryService = context.ServiceProvider.GetService<IModelConfigQueryService>();
-        if (queryService is null)
-        {
-            return null;
-        }
-
-        return await queryService.GetByIdAsync(context.TenantId, modelType, cancellationToken);
-    }
-
     private static List<string> ResolveIntents(IReadOnlyDictionary<string, JsonElement> config)
     {
         if (VariableResolver.TryGetConfigValue(config, "intents", out var intentsRaw))
@@ -120,7 +112,7 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
             if (intentsRaw.ValueKind == JsonValueKind.Array)
             {
                 return intentsRaw.EnumerateArray()
-                    .Select(x => VariableResolver.ToDisplayText(x).Trim())
+                    .Select(ResolveIntentName)
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
@@ -136,6 +128,17 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
         }
 
         return [];
+    }
+
+    private static string ResolveIntentName(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty("name", out var nameElement))
+        {
+            return VariableResolver.ToDisplayText(nameElement).Trim();
+        }
+
+        return VariableResolver.ToDisplayText(element).Trim();
     }
 
     private static string BuildPrompt(string systemPrompt, string input, IReadOnlyList<string> intents)

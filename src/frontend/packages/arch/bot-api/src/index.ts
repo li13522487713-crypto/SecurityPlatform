@@ -64,6 +64,7 @@ export {
   addGlobalRequestInterceptor,
   removeGlobalRequestInterceptor,
   addGlobalResponseInterceptor,
+  setBotApiUnauthorizedHandler,
 } from '@coze-arch/bot-http';
 export { AgentInstanceInfo, AgentInfo } from './idl/card';
 

@@ -58,6 +58,9 @@ export type SLInputProps = ComponentProps<typeof Input> & {
 export const SLInput: React.FC<SLInputProps> = props => {
   const { ellipsis = true, maxCount, errorMsgFloat } = props;
   const showCount = isNumber(maxCount) && maxCount > 0;
+  const tooltipEnterDelay = props.tooltipProps?.mouseEnterDelay ?? 300;
+  const tooltipLeaveDelay =
+    props.tooltipProps?.mouseLeaveDelay ?? tooltipEnterDelay;
   useImperativeHandle(props.onRef, () => ({
     triggerFocus,
   }));
@@ -130,6 +133,7 @@ export const SLInput: React.FC<SLInputProps> = props => {
     >
       {!$state.inputEle && hasEllipsis ? (
         <Tooltip
+          {...props.tooltipProps}
           content={
             <article
               style={{
@@ -143,8 +147,8 @@ export const SLInput: React.FC<SLInputProps> = props => {
           }
           position={'top'}
           showArrow
-          mouseEnterDelay={300}
-          {...props.tooltipProps}
+          mouseEnterDelay={tooltipEnterDelay}
+          mouseLeaveDelay={tooltipLeaveDelay}
         >
           <div
             className={cs(props?.errorMsg ? s['error-wrapper'] : null)}

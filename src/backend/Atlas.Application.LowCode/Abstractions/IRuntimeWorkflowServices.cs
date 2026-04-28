@@ -6,7 +6,7 @@ namespace Atlas.Application.LowCode.Abstractions;
 /// <summary>
 /// 运行时工作流执行服务（M09 S09-1）。
 ///
-/// 内部桥接 IDagWorkflowExecutionService（已有 Coze DAG 引擎），
+/// 内部桥接 Coze workflow 执行服务，
 /// 增强：
 ///  - 弹性策略（超时 / 重试 / 熔断 / 降级）
 ///  - 异步任务持久化与查询

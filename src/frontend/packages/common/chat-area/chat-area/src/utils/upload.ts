@@ -22,6 +22,8 @@ import {
   getUploader,
   type CozeUploader,
   type EventPayloadMaps,
+  createLocalUploader,
+  shouldUseAtlasLocalUpload,
 } from '@coze-studio/uploader-adapter';
 import { DEFAULT_MAX_FILE_SIZE } from '@coze-common/chat-uikit-shared';
 import { SUCCESS_FILE_ICON_MAP } from '@coze-common/chat-uikit';
@@ -109,32 +111,8 @@ export function uploadFile({
       }
     };
 
-    const upload = (authToken: GetUploadAuthTokenData) => {
-      const { service_id, upload_host, auth, schema } =
-        authToken as GetUploadAuthTokenData & { schema: string };
-
-      bytedUploader = getUploader(
-        {
-          schema,
-          useFileExtension: true,
-          // Solve the error problem:
-          userId,
-          appId: APP_ID,
-          // cp-disable-next-line
-          imageHost: `https://${upload_host}`, //imageX upload required
-          imageConfig: {
-            serviceId: service_id || '', // The service id applied for in the video cloud.
-          },
-          objectConfig: {
-            serviceId: service_id || '',
-          },
-          imageFallbackHost: IMAGE_FALLBACK_HOST,
-          region: BYTE_UPLOADER_REGION,
-          uploadTimeout: UPLOAD_FILE_TIMEOUT,
-        },
-        IS_OVERSEA,
-      );
-
+    const bindUploader = (uploader: UploaderInstance) => {
+      bytedUploader = uploader;
       onUploaderReady?.(bytedUploader);
 
       bytedUploader.on('complete', inform => {
@@ -164,9 +142,40 @@ export function uploadFile({
 
       bytedUploader.start(fileKey);
     };
+
+    const upload = (authToken: GetUploadAuthTokenData) => {
+      const { service_id, upload_host, auth, schema } =
+        authToken as GetUploadAuthTokenData & { schema: string };
+
+      const uploader = getUploader(
+        {
+          schema,
+          useFileExtension: true,
+          userId,
+          appId: APP_ID,
+          imageHost: `https://${upload_host}`,
+          imageConfig: {
+            serviceId: service_id || '',
+          },
+          objectConfig: {
+            serviceId: service_id || '',
+          },
+          imageFallbackHost: IMAGE_FALLBACK_HOST,
+          region: BYTE_UPLOADER_REGION,
+          uploadTimeout: UPLOAD_FILE_TIMEOUT,
+        },
+        IS_OVERSEA,
+      );
+
+      bindUploader(uploader);
+    };
     const checkShouldContinue = () => shouldContinue;
     const start = async () => {
       if (!checkShouldContinue()) {
+        return;
+      }
+      if (shouldUseAtlasLocalUpload()) {
+        bindUploader(createLocalUploader());
         return;
       }
       const authData = await getToken();

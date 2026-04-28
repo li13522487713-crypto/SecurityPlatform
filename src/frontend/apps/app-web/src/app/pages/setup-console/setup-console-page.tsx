@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { Button, Tabs } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../../i18n";
 import { useBootstrap } from "../../bootstrap-context";
+import { FormCard, PageShell } from "../../_shared";
 import type { AppMessageKey } from "../../messages";
 import { ConsoleAuthGate } from "./console-auth-gate";
 import { DashboardTab } from "./dashboard-tab";
@@ -53,7 +55,6 @@ export function SetupConsolePage() {
 
   const activeTab = useMemo(() => parseTabFromParams(params.tab), [params.tab]);
 
-  // 加载时检查 sessionStorage，已 token 则直接进控制台。
   useEffect(() => {
     const snapshot = readConsoleToken();
     if (snapshot) {
@@ -61,7 +62,6 @@ export function SetupConsolePage() {
     }
   }, []);
 
-  // 控制台一旦认证通过，立刻拉取最新总览。
   useEffect(() => {
     if (authenticated) {
       void refreshSetupConsole();
@@ -93,76 +93,74 @@ export function SetupConsolePage() {
     [navigate]
   );
 
+  const handleTabChange = useCallback(
+    (key: string) => {
+      handleJumpToTab(parseTabFromParams(key));
+    },
+    [handleJumpToTab]
+  );
+
   return (
     <ConsoleAuthGate authenticated={authenticated} onAuthenticated={handleAuthenticated}>
-      <div className="atlas-setup-page" data-testid="setup-console-page">
-        <div className="atlas-setup-card" style={{ maxWidth: "min(960px, 100%)" }}>
-          <div className="atlas-org-section__header">
-            <div>
-              <h1 className="atlas-setup-card__title">{t("setupConsoleTitle")}</h1>
-              <p className="atlas-setup-card__subtitle">{t("setupConsoleSubtitle")}</p>
-            </div>
-            <div className="atlas-setup-actions" style={{ gap: 8 }}>
-              <button
-                type="button"
-                className="atlas-button atlas-button--secondary"
-                data-testid="setup-console-logout"
-                onClick={handleLogout}
-              >
-                {t("setupConsoleSystemDismiss")}
-              </button>
-            </div>
-          </div>
-
-          <nav className="atlas-tab-bar" data-testid="setup-console-tab-bar">
-            {TAB_LIST.map((tab) => {
-              const isActive = tab.id === activeTab;
-              const target = tab.id === "dashboard" ? "/setup-console" : `/setup-console/${tab.id}`;
-              return (
-                <Link
+      <PageShell centered maxWidth={960} testId="setup-console-page">
+        <FormCard
+          title={t("setupConsoleTitle")}
+          subtitle={t("setupConsoleSubtitle")}
+          headerExtra={
+            <Button
+              type="tertiary"
+              theme="light"
+              data-testid="setup-console-logout"
+              onClick={handleLogout}
+            >
+              {t("setupConsoleSystemDismiss")}
+            </Button>
+          }
+        >
+          <div data-testid="setup-console-tab-bar">
+            <Tabs type="line" activeKey={activeTab} onChange={handleTabChange} keepDOM={false}>
+              {TAB_LIST.map((tab) => (
+                <Tabs.TabPane
                   key={tab.id}
-                  to={target}
-                  data-testid={`setup-console-tab-${tab.id}`}
-                  className={`atlas-tab ${isActive ? "is-active" : ""}`.trim()}
-                  aria-current={isActive ? "page" : undefined}
+                  itemKey={tab.id}
+                  tab={
+                    <span data-testid={`setup-console-tab-${tab.id}`}>{t(tab.labelKey)}</span>
+                  }
                 >
-                  {t(tab.labelKey)}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {activeTab === "dashboard" ? (
-            <DashboardTab
-              overview={setupConsole}
-              loading={!setupConsole}
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              onJumpToTab={(next) => handleJumpToTab(next)}
-            />
-          ) : null}
-
-          {activeTab === "system-init" ? (
-            <SystemInitTab system={setupConsole?.system ?? null} onSnapshotChanged={handleRefresh} />
-          ) : null}
-
-          {activeTab === "workspace-init" ? (
-            <WorkspaceInitTab
-              workspaces={setupConsole?.workspaces ?? []}
-              onSnapshotChanged={handleRefresh}
-            />
-          ) : null}
-
-          {activeTab === "migration" ? (
-            <MigrationTab
-              activeMigration={setupConsole?.activeMigration ?? null}
-              onSnapshotChanged={handleRefresh}
-            />
-          ) : null}
-
-          {activeTab === "repair" ? <RepairTab /> : null}
-        </div>
-      </div>
+                  {tab.id === "dashboard" ? (
+                    <DashboardTab
+                      overview={setupConsole}
+                      loading={!setupConsole}
+                      refreshing={refreshing}
+                      onRefresh={handleRefresh}
+                      onJumpToTab={(next) => handleJumpToTab(next)}
+                    />
+                  ) : null}
+                  {tab.id === "system-init" ? (
+                    <SystemInitTab
+                      system={setupConsole?.system ?? null}
+                      onSnapshotChanged={handleRefresh}
+                    />
+                  ) : null}
+                  {tab.id === "workspace-init" ? (
+                    <WorkspaceInitTab
+                      workspaces={setupConsole?.workspaces ?? []}
+                      onSnapshotChanged={handleRefresh}
+                    />
+                  ) : null}
+                  {tab.id === "migration" ? (
+                    <MigrationTab
+                      activeMigration={setupConsole?.activeMigration ?? null}
+                      onSnapshotChanged={handleRefresh}
+                    />
+                  ) : null}
+                  {tab.id === "repair" ? <RepairTab /> : null}
+                </Tabs.TabPane>
+              ))}
+            </Tabs>
+          </div>
+        </FormCard>
+      </PageShell>
     </ConsoleAuthGate>
   );
 }

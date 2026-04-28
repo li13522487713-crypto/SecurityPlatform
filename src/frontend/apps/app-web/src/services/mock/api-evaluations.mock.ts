@@ -3,7 +3,7 @@ import { requestApi, toQuery } from "../api-core";
 
 /**
  * 效果评测 + 测试集（PRD 02-7.5 / PRD 05-4.8）。已切换为真实 REST：
- *   Atlas.PlatformHost/Controllers/WorkspaceEvaluationsController.cs
+ *   Atlas.AppHost/Controllers/WorkspaceEvaluationsController.cs
  *   Atlas.Infrastructure/Services/Coze/InMemoryWorkspaceEvaluationService.cs
  *   Atlas.Infrastructure/Services/Coze/InMemoryWorkspaceTestsetService.cs
  */

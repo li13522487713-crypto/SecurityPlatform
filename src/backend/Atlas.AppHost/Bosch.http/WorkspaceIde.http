@@ -2,6 +2,9 @@
 @tenantId = 00000000-0000-0000-0000-000000000001
 @username = admin
 @password = P@ssw0rd!
+@workspaceId = 1001
+@targetWorkspaceId = 1002
+@folderId = 2001
 
 ### 登录
 # @name login
@@ -28,7 +31,13 @@ GET {{baseUrl}}/api/v1/workspace-ide/summary
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 资源列表（含 folder/status/workspace 过滤）
+GET {{baseUrl}}/api/v1/workspace-ide/resources?pageIndex=1&pageSize=24&resourceType=app&folderId={{folderId}}&status=draft&workspaceId={{workspaceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 创建工作空间应用
+# @name createWorkspaceApp
 POST {{baseUrl}}/api/v1/workspace-ide/apps
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -36,5 +45,47 @@ Content-Type: application/json
 
 {
   "name": "Workspace App {{$timestamp}}",
-  "description": "用于验证 AppHost Workspace IDE 兼容入口"
+  "description": "用于验证 AppHost Workspace IDE 兼容入口",
+  "workspaceId": "{{workspaceId}}"
 }
+
+###
+@workspaceAppId = {{createWorkspaceApp.response.body.$.data.appId}}
+
+### 创建副本
+POST {{baseUrl}}/api/v1/workspace-ide/resources/app/{{workspaceAppId}}/duplicate
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "workspaceId": "{{workspaceId}}",
+  "folderId": "{{folderId}}"
+}
+
+### 迁移
+POST {{baseUrl}}/api/v1/workspace-ide/resources/app/{{workspaceAppId}}/migrate
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "sourceWorkspaceId": "{{workspaceId}}",
+  "targetWorkspaceId": "{{targetWorkspaceId}}"
+}
+
+### 复制到其它空间
+POST {{baseUrl}}/api/v1/workspace-ide/resources/app/{{workspaceAppId}}/copy-to-workspace
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "sourceWorkspaceId": "{{workspaceId}}",
+  "targetWorkspaceId": "{{targetWorkspaceId}}"
+}
+
+### 永久删除
+DELETE {{baseUrl}}/api/v1/workspace-ide/resources/app/{{workspaceAppId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

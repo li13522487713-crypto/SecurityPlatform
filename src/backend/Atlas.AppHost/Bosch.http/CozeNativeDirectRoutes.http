@@ -1,0 +1,443 @@
+@host = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@contentType = application/json
+
+### 登录
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.data.accessToken}}
+@workspaceId = 1
+
+### Coze 原生 playground：space list
+POST {{host}}/api/playground_api/space/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 20
+}
+
+### Coze 原生 playground：space info
+POST {{host}}/api/playground_api/space/info
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}"
+}
+
+### Coze 原生 playground：space save
+POST {{host}}/api/playground_api/space/save
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "Compat Workspace {{$timestamp}}",
+  "description": "created from compat playground route",
+  "icon_uri": "",
+  "space_type": 2
+}
+
+### Coze 原生 developer：space list
+POST {{host}}/api/space/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 20
+}
+
+### Coze 原生 developer：draftbot list
+POST {{host}}/api/draftbot/get_draft_bot_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 10
+}
+
+### Coze 原生 developer：draftbot duplicate
+POST {{host}}/api/draftbot/duplicate
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1"
+}
+
+### Coze 原生 developer：draftbot create
+POST {{host}}/api/draftbot/create
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "name": "Compat Agent",
+  "description": "created from compat route",
+  "work_info": {
+    "prompt": "You are a helpful assistant."
+  }
+}
+
+### Coze 原生 developer：draftbot get_bot_info
+POST {{host}}/api/draftbot/get_bot_info
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1"
+}
+
+### Coze 原生 developer：publish connector list
+POST {{host}}/api/draftbot/publish/connector/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1"
+}
+
+### Coze 原生 developer：connector query schemas
+POST {{host}}/api/connector/query_schemas
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "connector_id": "2001",
+  "scene": "bot"
+}
+
+### Coze 原生 developer：connector bind
+POST {{host}}/api/draftbot/bind/connector
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1",
+  "connector_id": "2001",
+  "connector_info": {
+    "endpoint_url": "https://example.test/webhook",
+    "api_key": "demo-key",
+    "share_link": "https://example.test/share/bot-1"
+  },
+  "agent_type": 0
+}
+
+### Coze 原生 developer：connector auth state
+GET {{host}}/api/user/auth/connector_state?connector_id=3001
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### Coze 原生 developer：cancel user auth
+POST {{host}}/api/user/auth/cancel
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "connector_id": "3001"
+}
+
+### Coze 原生 developer：publish draftbot
+POST {{host}}/api/draftbot/publish
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1",
+  "publish_id": "compat-publish-1",
+  "history_info": "compat publish",
+  "connectors": {
+    "1001": {},
+    "2001": {
+      "endpoint_url": "https://example.test/webhook",
+      "api_key": "demo-key",
+      "share_link": "https://example.test/share/bot-1"
+    }
+  }
+}
+
+### Coze 原生 playground：draftbot get_draft_bot_info
+POST {{host}}/api/playground_api/draftbot/get_draft_bot_info
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_id": "1"
+}
+
+### Coze 原生 workflow：读取画布
+POST {{host}}/api/workflow_api/canvas
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "1",
+  "space_id": "{{workspaceId}}"
+}
+
+### Coze 原生 workflow：节点模板列表
+POST {{host}}/api/workflow_api/node_template_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "node_types": ["1", "2", "3"]
+}
+
+### Coze 原生 marketplace：收藏列表
+GET {{host}}/api/marketplace/product/favorite/list?entity_type=2&page_num=1&page_size=9&sort_type=2
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### Coze 原生 intelligence：publish intelligence list
+POST {{host}}/api/intelligence_api/search/get_publish_intelligence_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "intelligence_type": 1,
+  "space_id": "{{workspaceId}}",
+  "size": 20,
+  "intelligence_ids": ["1"]
+}
+
+### Coze 原生 intelligence：publish record detail
+POST {{host}}/api/intelligence_api/publish/publish_record_detail
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1"
+}
+
+### Coze 原生 intelligence：publish record list
+POST {{host}}/api/intelligence_api/publish/publish_record_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1"
+}
+
+### Coze 原生 intelligence：publish log list
+POST {{host}}/api/intelligence_api/publish/log_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1",
+  "page_index": 1,
+  "page_size": 20
+}
+
+### Coze 原生 intelligence：publish trigger list
+POST {{host}}/api/intelligence_api/publish/trigger_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1"
+}
+
+### Coze 原生 intelligence：publish trigger create
+POST {{host}}/api/intelligence_api/publish/trigger_create
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1",
+  "name": "Morning digest",
+  "trigger_type": "schedule",
+  "config_json": "{\"cron\":\"0 8 * * *\"}",
+  "enabled": true
+}
+
+### Coze 原生 intelligence：publish trigger update
+POST {{host}}/api/intelligence_api/publish/trigger_update
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1",
+  "trigger_id": "701",
+  "enabled": false
+}
+
+### Coze 原生 intelligence：publish trigger delete
+POST {{host}}/api/intelligence_api/publish/trigger_delete
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1",
+  "trigger_id": "701"
+}
+
+### Coze 原生 playground：move draftbot preview
+POST {{host}}/api/playground_api/move_draft_bot
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_id": "1",
+  "from_spaceId": "{{workspaceId}}",
+  "target_spaceId": "2",
+  "move_action": 3
+}
+
+### Coze 原生 playground：move draftbot
+POST {{host}}/api/playground_api/move_draft_bot
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_id": "1",
+  "from_spaceId": "{{workspaceId}}",
+  "target_spaceId": "2",
+  "move_action": 0
+}
+
+### Coze 原生 playground：generate store category
+POST {{host}}/api/playground_api/draftbot/generate_store_category
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_name": "Compat Agent",
+  "bot_description": "Agent for workflow and knowledge automation",
+  "prompt": "Help users automate knowledge and workflow tasks."
+}
+
+### Coze 原生 playground：get user query collect option
+GET {{host}}/api/playground_api/draftbot/get_user_query_collect_option
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### Coze 原生 playground：generate user query collect policy
+POST {{host}}/api/playground_api/draftbot/generate_user_query_collect_policy
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_id": "1",
+  "developer_name": "Atlas Admin",
+  "contact_information": "admin@example.com"
+}
+
+### Coze 原生 playground：get imagex url
+POST {{host}}/api/playground_api/get_imagex_url
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "uris": ["atlas-file:1"]
+}
+
+### Coze 原生 plugin library：resource list
+POST {{host}}/api/plugin_api/library_resource_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "size": 15,
+  "res_type_filter": [2]
+}
+
+### Coze 原生 debugger：testcase casedata mget
+POST {{host}}/api/devops/debugger/v1/coze/testcase/casedata/mget
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bizCtx": {
+    "connectorID": "10000",
+    "connectorUID": "admin",
+    "bizSpaceID": "{{workspaceId}}"
+  },
+  "bizComponentSubject": {
+    "componentType": 10008,
+    "parentComponentType": 10002,
+    "componentID": "start-node-1",
+    "parentComponentID": "workflow-1"
+  },
+  "pageLimit": 20,
+  "caseName": ""
+}
+
+### Coze 原生 workspace openapi：list
+GET {{host}}/v1/workspaces?page_num=1&page_size=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### Coze 原生 workspace openapi：create
+POST {{host}}/v1/workspaces
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "Open Workspace {{$timestamp}}",
+  "description": "created from open workspace compat route"
+}
+
+### Coze 原生 passport：account info
+POST {{host}}/api/passport/account/info/v2/
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{}
+
+### Coze 原生 passport：logout
+GET {{host}}/api/passport/web/logout/?next=/
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}

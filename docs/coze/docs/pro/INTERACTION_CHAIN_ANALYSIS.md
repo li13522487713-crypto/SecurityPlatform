@@ -2,6 +2,7 @@
 
 > 基于核心源码全量阅读
 > 分析日期：2026-04-09
+> 说明：本文是上游 Coze Studio 交互链分析快照。文中旧 `/api/workflow_api/*`、`/api/playground_api/*` 路由仅作历史参考，不代表当前 Atlas 运行期入口。
 
 ---
 

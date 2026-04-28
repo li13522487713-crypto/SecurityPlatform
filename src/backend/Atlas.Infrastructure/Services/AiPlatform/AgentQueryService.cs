@@ -30,6 +30,7 @@ public sealed class AgentQueryService : IAgentQueryService
         TenantId tenantId,
         string? keyword,
         string? status,
+        long? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken)
@@ -39,6 +40,7 @@ public sealed class AgentQueryService : IAgentQueryService
             tenantId,
             keyword,
             statusFilter,
+            workspaceId,
             pageIndex,
             pageSize,
             cancellationToken);
@@ -98,7 +100,9 @@ public sealed class AgentQueryService : IAgentQueryService
                 binding.SortOrder,
                 binding.IsEnabled,
                 binding.ToolConfigJson,
-                ParsePluginToolBindings(binding.ToolConfigJson))).ToArray());
+                ParsePluginToolBindings(binding.ToolConfigJson))).ToArray(),
+            entity.PublishedConnectorConfigJson,
+            entity.WorkspaceId);
     }
 
     private static AgentListItem MapListItem(Agent entity)

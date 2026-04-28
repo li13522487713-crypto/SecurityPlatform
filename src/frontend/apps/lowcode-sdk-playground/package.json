@@ -12,7 +12,9 @@
     "test": "vitest --run --passWithNoTests"
   },
   "dependencies": {
-    "@atlas/lowcode-web-sdk": "workspace:*"
+    "@atlas/lowcode-web-sdk": "workspace:*",
+    "@douyinfe/semi-icons": "^2.82.0",
+    "@douyinfe/semi-ui": "^2.82.0"
   },
   "devDependencies": {
     "@rsbuild/core": "~1.1.0",

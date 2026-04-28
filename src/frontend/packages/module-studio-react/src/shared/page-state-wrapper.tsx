@@ -2,6 +2,8 @@ import React, { type ReactNode } from "react";
 import { Banner, Button, Empty, Spin } from "@douyinfe/semi-ui";
 import { IconAlertTriangle } from "@douyinfe/semi-icons";
 import type { PageStatus } from "./use-page-state";
+import type { StudioLocale } from "../types";
+import { getStudioCopy } from "../copy";
 
 export interface PageStateWrapperProps {
   status: PageStatus;
@@ -14,6 +16,7 @@ export interface PageStateWrapperProps {
     action?: ReactNode;
   };
   children: ReactNode;
+  locale: StudioLocale;
 }
 
 export function PageStateWrapper({
@@ -21,8 +24,10 @@ export function PageStateWrapper({
   error,
   onRetry,
   emptyProps,
-  children
+  children,
+  locale
 }: PageStateWrapperProps) {
+  const copy = getStudioCopy(locale);
   if (status === "loading" || status === "idle") {
     return (
       <div style={{ padding: 40, display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300 }}>
@@ -38,13 +43,13 @@ export function PageStateWrapper({
           type="danger"
           fullMode={false}
           icon={<IconAlertTriangle />}
-          title="加载数据失败"
+          title={copy.common.loadDataFailed}
           description={
             <div>
-              <p>{error?.message || "发生未知错误"}</p>
+              <p>{error?.message || copy.common.unknownError}</p>
               {onRetry && (
                 <Button theme="solid" type="danger" onClick={onRetry} style={{ marginTop: 12 }}>
-                  重试
+                  {copy.common.retry}
                 </Button>
               )}
             </div>
@@ -58,7 +63,7 @@ export function PageStateWrapper({
     return (
       <div style={{ padding: 40 }}>
         <Empty
-          title={emptyProps?.title || "暂无数据"}
+          title={emptyProps?.title || copy.common.emptyData}
           description={emptyProps?.description}
           image={emptyProps?.image}
         >

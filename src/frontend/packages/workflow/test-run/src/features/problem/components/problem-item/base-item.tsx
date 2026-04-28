@@ -21,6 +21,7 @@ import cls from 'classnames';
 import { I18n } from '@coze-arch/i18n';
 import { IconCozInfoCircle } from '@coze-arch/coze-design/icons';
 import { Popover, Typography, Tag } from '@coze-arch/coze-design';
+import { IconAlertTriangle, IconAlertCircle } from '@douyinfe/semi-icons';
 
 import { type ProblemItem } from '../../types';
 
@@ -100,7 +101,10 @@ export const TextItem: React.FC<{
   }, [problem, onClick]);
 
   return (
-    <BaseItemWrap className={styles['text-item']} onClick={handleClick}>
+    <BaseItemWrap className={styles['text-item']} onClick={handleClick} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+      <div style={{ marginTop: 2 }}>
+        {errorLevel === 'error' ? <IconAlertCircle style={{ color: 'var(--semi-color-danger)' }} size="small" /> : <IconAlertTriangle style={{ color: 'var(--semi-color-warning)' }} size="small" />}
+      </div>
       <Text
         size="small"
         className={

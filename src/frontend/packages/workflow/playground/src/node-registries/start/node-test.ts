@@ -65,12 +65,12 @@ export const test: NodeTestMeta = {
             node.id,
             item.name,
           ]);
-        const { dtoMeta } = variable;
-        const jsonSchema = generateInputJsonSchema(dtoMeta);
+        const dtoMeta = variable?.dtoMeta;
+        const jsonSchema = generateInputJsonSchema(dtoMeta ?? item);
         return {
           name: item.name,
           title: item.name,
-          type: variable.viewType || ViewVariableType.String,
+          type: variable?.viewType || item.type || ViewVariableType.String,
           defaultValue: item.defaultValue,
           description: item.description,
           required: item.required,

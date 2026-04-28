@@ -158,14 +158,16 @@ public sealed class DispatchExecutor : IDispatchExecutor
     private readonly IRuntimeWorkflowExecutor _workflow;
     private readonly IRuntimeMessageLogService _messageLog;
     private readonly IAuditWriter _auditWriter;
+    private readonly IRuntimeWebviewDomainService _webview;
     private readonly ILogger<DispatchExecutor> _logger;
 
-    public DispatchExecutor(IRuntimeTraceService trace, IRuntimeWorkflowExecutor workflow, IRuntimeMessageLogService messageLog, IAuditWriter auditWriter, ILogger<DispatchExecutor> logger)
+    public DispatchExecutor(IRuntimeTraceService trace, IRuntimeWorkflowExecutor workflow, IRuntimeMessageLogService messageLog, IAuditWriter auditWriter, IRuntimeWebviewDomainService webview, ILogger<DispatchExecutor> logger)
     {
         _trace = trace;
         _workflow = workflow;
         _messageLog = messageLog;
         _auditWriter = auditWriter;
+        _webview = webview;
         _logger = logger;
     }
 
@@ -236,14 +238,45 @@ public sealed class DispatchExecutor : IDispatchExecutor
                     break;
                 }
                 case "navigate":
-                case "open_external_link":
                 case "update_component":
                 {
-                    // 这些动作的具体行为依赖前端运行时（navigation / window.open / component.props 更新），
+                    // 这些动作的具体行为依赖前端运行时（navigation / component.props 更新），
                     // 后端只产出"指令型 outputs"由前端消费。
                     if (action.Payload is JsonElement p)
                     {
                         outputs[action.Kind] = p;
+                    }
+                    break;
+                }
+                case "open_external_link":
+                {
+                    // P0-5 修复（PLAN §M12 C12-5 + §1.3.6 等保 2.0）：
+                    // 此前 dispatch 仅原样塞入 outputs，未做服务端白名单校验，可被绕过；
+                    // 现在强制经 IRuntimeWebviewDomainService.IsAllowedAsync 校验：
+                    //  - URL 不合法 / host 不在 verified 域名白名单 → 拒绝并审计；不再写入 outputs；
+                    //  - 命中 → 透传 payload 给前端继续 window.open。
+                    if (action.Payload is JsonElement p)
+                    {
+                        var url = p.TryGetProperty("url", out var u) && u.ValueKind == JsonValueKind.String
+                            ? u.GetString() ?? string.Empty
+                            : string.Empty;
+                        var allowed = !string.IsNullOrEmpty(url) && await _webview.IsAllowedAsync(tenantId, url, cancellationToken);
+                        if (!allowed)
+                        {
+                            errors.Add(new DispatchErrorDto("WEBVIEW_DOMAIN_NOT_ALLOWED",
+                                $"open_external_link 拒绝：URL 未在租户 webview 域名白名单内（url={url}）",
+                                null));
+                            await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(),
+                                "lowcode.runtime.open_external_link", "failed",
+                                $"trace:{traceId}:url:{url}:reason:not-allowed", null, null), cancellationToken);
+                        }
+                        else
+                        {
+                            outputs["open_external_link"] = p;
+                            await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(),
+                                "lowcode.runtime.open_external_link", "success",
+                                $"trace:{traceId}:url:{url}", null, null), cancellationToken);
+                        }
                     }
                     break;
                 }

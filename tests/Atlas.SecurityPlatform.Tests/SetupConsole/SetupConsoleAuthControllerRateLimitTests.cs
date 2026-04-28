@@ -1,3 +1,5 @@
+extern alias AppHost;
+
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.SetupConsole.Abstractions;
 using Atlas.Application.SetupConsole.Models;
@@ -6,10 +8,11 @@ using Atlas.Core.Resilience;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Infrastructure.Services.SetupConsole;
-using Atlas.PlatformHost.Controllers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
+using RefreshConsoleTokenRequest = AppHost::Atlas.AppHost.Controllers.RefreshConsoleTokenRequest;
+using SetupConsoleAuthController = AppHost::Atlas.AppHost.Controllers.SetupConsoleAuthController;
 
 namespace Atlas.SecurityPlatform.Tests.SetupConsole;
 

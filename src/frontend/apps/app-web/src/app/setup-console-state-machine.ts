@@ -60,13 +60,21 @@ export const DATA_MIGRATION_MODES = [
 export type DataMigrationMode = typeof DATA_MIGRATION_MODES[number];
 
 export const DATA_MIGRATION_STATES = [
+  "created",
   "pending",
   "prechecking",
   "ready",
+  "queued",
   "running",
+  "cancelling",
+  "cancelled",
+  "succeeded",
   "validating",
+  "validation_failed",
+  "validated",
   "cutover-ready",
   "cutover-completed",
+  "cutover-failed",
   "failed",
   "rolled-back"
 ] as const;
@@ -184,11 +192,28 @@ export function isSystemBusy(state: SystemSetupState): boolean {
 }
 
 export function isMigrationBusy(state: DataMigrationState): boolean {
-  return state === "prechecking" || state === "running" || state === "validating";
+  return (
+    state === "created" ||
+    state === "prechecking" ||
+    state === "queued" ||
+    state === "running" ||
+    state === "cancelling" ||
+    state === "validating"
+  );
 }
 
 export function isMigrationDone(state: DataMigrationState): boolean {
-  return state === "cutover-completed";
+  return (
+    state === "cancelled" ||
+    state === "succeeded" ||
+    state === "validation_failed" ||
+    state === "validated" ||
+    state === "cutover-ready" ||
+    state === "cutover-completed" ||
+    state === "cutover-failed" ||
+    state === "failed" ||
+    state === "rolled-back"
+  );
 }
 
 /**
@@ -196,12 +221,20 @@ export function isMigrationDone(state: DataMigrationState): boolean {
  * 与后端 `AppMigrationTaskStatuses` 的 9 状态保持一致（仅命名风格转 kebab-case 适配前端）。
  */
 const MIGRATION_LEGAL_TRANSITIONS: Readonly<Record<DataMigrationState, readonly DataMigrationState[]>> = {
+  created: ["pending", "prechecking", "ready", "queued", "cancelled", "failed"],
   pending: ["prechecking", "failed"],
-  prechecking: ["ready", "failed"],
-  ready: ["running", "failed"],
-  running: ["validating", "failed", "rolled-back"],
-  validating: ["cutover-ready", "failed"],
+  prechecking: ["ready", "failed", "cancelled"],
+  ready: ["queued", "running", "failed", "cancelled"],
+  queued: ["running", "cancelling", "cancelled", "failed"],
+  running: ["succeeded", "validating", "cancelling", "cancelled", "failed", "rolled-back"],
+  cancelling: ["cancelled", "failed"],
+  cancelled: ["queued", "running"],
+  succeeded: ["validating", "validated", "failed"],
+  validating: ["validated", "validation_failed", "failed"],
+  validation_failed: ["validating", "failed"],
+  validated: ["cutover-ready", "cutover-completed", "cutover-failed", "failed"],
   "cutover-ready": ["cutover-completed", "failed", "rolled-back"],
+  "cutover-failed": ["cutover-ready", "cutover-completed", "failed"],
   // 终态
   "cutover-completed": [],
   failed: ["pending", "ready", "running"],

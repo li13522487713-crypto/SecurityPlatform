@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "AppWeb (Frontend :5181)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "atlas-app-web", "run", "dev"],
+      "cwd": "src/frontend",
+      "port": 5181
+    },
+    {
+      "name": "AppHost (.NET :5002)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/backend/Atlas.AppHost"],
+      "port": 5002
+    }
+  ]
+}

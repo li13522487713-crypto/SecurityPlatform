@@ -6,7 +6,7 @@
 ## 1. 总览
 
 - 与现有工作流 N10（`Plugin`）插件节点共享 PluginRegistry。
-- 设计态：`/api/v1/lowcode/plugins`（PlatformHost）；运行时：`/api/runtime/plugins/{id}:invoke`（AppHost）。
+- 设计态：`/api/v1/lowcode/plugins`（AppHost）；运行时：`/api/runtime/plugins/{id}:invoke`（AppHost）。
 - 插件域 4 张表：
   - `LowCodePluginDefinition`（市场可见性 / latestVersion / toolsJson）
   - `LowCodePluginVersion`（版本归档）

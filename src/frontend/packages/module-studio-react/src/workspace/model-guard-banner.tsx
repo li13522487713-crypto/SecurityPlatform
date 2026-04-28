@@ -3,6 +3,7 @@ import { Banner, Typography, Button } from "@douyinfe/semi-ui";
 import { IconAlertTriangle } from "@douyinfe/semi-icons";
 import type { StudioLocale } from "../types";
 import { useStudioContext } from "../shared";
+import { getStudioCopy } from "../copy";
 
 export interface ModelGuardBannerProps {
   locale: StudioLocale;
@@ -11,28 +12,15 @@ export interface ModelGuardBannerProps {
 
 export function ModelGuardBanner({ locale, onConfigureModels }: ModelGuardBannerProps) {
   const { hasEnabledModel, modelConfigs } = useStudioContext();
+  const copy = getStudioCopy(locale);
 
   if (hasEnabledModel) {
     return null;
   }
 
-  const title =
-    modelConfigs.length === 0
-      ? locale === "en-US"
-        ? "No AI model configured yet"
-        : "系统尚未配置 AI 模型"
-      : locale === "en-US"
-        ? "No enabled AI model is available"
-        : "当前没有已启用的 AI 模型";
-
+  const title = modelConfigs.length === 0 ? copy.modelGuard.noModelTitle : copy.modelGuard.noEnabledModelTitle;
   const description =
-    modelConfigs.length === 0
-      ? locale === "en-US"
-        ? "AI agents, workflows, and apps rely on a base large language model to run. Configure and enable at least one model provider in Model Settings first, such as OpenAI or Qianwen."
-        : "AI Agent、工作流和应用依赖底层大语言模型才能运行。请先在模型管理中配置并启用至少一个模型提供商（如 OpenAI、千问等）。"
-      : locale === "en-US"
-        ? "None of the models in your list are currently enabled. Before enabling at least one model, AI-related features such as testing and execution will not work properly."
-        : "您的模型列表中没有任何处于启用状态的模型。在启用至少一个模型之前，所有 AI 相关功能（如调试、运行）将无法正常工作。";
+    modelConfigs.length === 0 ? copy.modelGuard.noModelDescription : copy.modelGuard.noEnabledModelDescription;
 
   return (
     <div style={{ marginBottom: 24 }}>
@@ -45,7 +33,7 @@ export function ModelGuardBanner({ locale, onConfigureModels }: ModelGuardBanner
             <div style={{ marginBottom: 12 }}>{description}</div>
             {onConfigureModels && (
               <Button theme="solid" type="warning" onClick={onConfigureModels}>
-                {locale === "en-US" ? "Go to model settings" : "前往配置模型"}
+                {copy.modelGuard.goToModelSettings}
               </Button>
             )}
           </div>

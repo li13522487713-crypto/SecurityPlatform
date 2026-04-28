@@ -19,6 +19,18 @@ public interface IAgentCommandService
         long? workflowId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<AgentDatabaseBindingItem>> BindDatabaseAsync(
+        TenantId tenantId,
+        long id,
+        AgentDatabaseBindingInput request,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<AgentDatabaseBindingItem>> UnbindDatabaseAsync(
+        TenantId tenantId,
+        long id,
+        long databaseId,
+        CancellationToken cancellationToken);
+
     Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 
     Task<long> DuplicateAsync(TenantId tenantId, long creatorId, long id, CancellationToken cancellationToken);

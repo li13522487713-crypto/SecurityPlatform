@@ -3,7 +3,6 @@ import { createRequire } from "node:module";
 import { defineConfig } from "@coze-arch/rsbuild-config";
 
 const require = createRequire(import.meta.url);
-const mode = process.env.ENV_MODE ?? "direct";
 const isDevelopment = process.env.NODE_ENV !== "production";
 const appWebPort = Number(process.env.VITE_APP_WEB_PORT || "5181");
 const apiBase = process.env.VITE_API_BASE?.trim();
@@ -12,13 +11,14 @@ const derivedAppHostTarget = apiBase && /^https?:\/\//i.test(apiBase)
   : undefined;
 const appHostTarget =
   process.env.VITE_APP_HOST_TARGET || derivedAppHostTarget || "http://127.0.0.1:5002";
+const lowcodeDesignTarget = appHostTarget;
 const workspaceRoots = [
   "../../packages/app-shell-shared",
-  "../../packages/atlas-foundation-bridge",
   "../../packages/shared-react-core",
   "../../packages/schema-protocol",
-  "../../packages/coze-shell-react",
   "../../packages/library-module-react",
+  "../../packages/mendix/mendix-microflow",
+  "../../packages/mendix",
   "../../packages/module-admin-react",
   "../../packages/module-explore-react",
   "../../packages/module-studio-react",
@@ -36,10 +36,10 @@ const workspaceRoots = [
 const importWatchRoots = [
   path.resolve(__dirname, "src"),
   path.resolve(__dirname, "../../packages/app-shell-shared"),
-  path.resolve(__dirname, "../../packages/atlas-foundation-bridge"),
   path.resolve(__dirname, "../../packages/shared-react-core"),
-  path.resolve(__dirname, "../../packages/coze-shell-react"),
   path.resolve(__dirname, "../../packages/library-module-react"),
+  path.resolve(__dirname, "../../packages/mendix/mendix-microflow"),
+  path.resolve(__dirname, "../../packages/mendix"),
   path.resolve(__dirname, "../../packages/module-admin-react"),
   path.resolve(__dirname, "../../packages/module-explore-react"),
   path.resolve(__dirname, "../../packages/module-studio-react"),
@@ -55,6 +55,16 @@ const importWatchRoots = [
 ];
 
 const enablePollingWatch = process.env.ATLAS_RSBUILD_POLL === "true";
+const clientEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => key.startsWith("VITE_") || key.startsWith("MICROFLOW_")),
+) as Record<string, string | undefined>;
+
+const importMetaEnv = {
+  ...clientEnv,
+  DEV: isDevelopment,
+  PROD: !isDevelopment,
+  MODE: process.env.NODE_ENV ?? (isDevelopment ? "development" : "production"),
+};
 
 export default defineConfig({
   server: {
@@ -63,8 +73,20 @@ export default defineConfig({
     strictPort: true,
     proxy: [
       {
-        // `api/v2/workflows`：v2 为 REST API 版本前缀（后端 `DagWorkflowController`），非产品「V2」语义
-        context: ["/api/v2/workflows", "/api", "/v1"],
+        context: ["/api/v1/lowcode"],
+        target: lowcodeDesignTarget,
+        secure: false,
+        changeOrigin: true,
+      },
+      {
+        context: ["/hubs/lowcode-debug", "/hubs/lowcode-collab", "/hubs/lowcode-preview"],
+        target: appHostTarget,
+        secure: false,
+        changeOrigin: true,
+        ws: true,
+      },
+      {
+        context: ["/api", "/v1"],
         target: appHostTarget,
         secure: false,
         changeOrigin: true,
@@ -89,17 +111,30 @@ export default defineConfig({
       "react-dom$": require.resolve("react-dom"),
       "react/jsx-runtime": require.resolve("react/jsx-runtime"),
       "react/jsx-dev-runtime": require.resolve("react/jsx-dev-runtime"),
-      "@coze-arch/bot-api$": path.resolve(__dirname, "src/coze-shims/bot-api/index.ts"),
-      "@coze-arch/bot-api/developer_api$": path.resolve(__dirname, "src/coze-shims/bot-api/developer_api.ts"),
-      "@coze-arch/bot-api/intelligence_api$": path.resolve(__dirname, "src/coze-shims/bot-api/intelligence_api.ts"),
-      "@coze-arch/bot-api/playground_api$": path.resolve(__dirname, "src/coze-shims/bot-api/playground_api.ts"),
-      "@coze-arch/bot-api/workflow_api$": path.resolve(__dirname, "src/coze-shims/bot-api/workflow_api.ts"),
-      "@coze-arch/foundation-sdk": require.resolve("@atlas/foundation-bridge"),
-      "@coze-foundation/foundation-sdk": require.resolve("@atlas/foundation-bridge"),
+      "@coze-agent-ide/entry-adapter$": path.resolve(__dirname, "../../packages/agent-ide/entry-adapter/src/index.ts"),
+      "@coze-agent-ide/agent-publish$": path.resolve(__dirname, "../../packages/agent-ide/agent-publish/src/index.ts"),
+      "@coze-agent-ide/layout-adapter$": path.resolve(__dirname, "../../packages/agent-ide/layout-adapter/src/index.ts"),
+      "@coze-arch/bot-api$": path.resolve(__dirname, "../../packages/arch/bot-api/src/index.ts"),
+      "@coze-arch/bot-api/developer_api$": path.resolve(__dirname, "../../packages/arch/bot-api/src/idl/developer_api.ts"),
+      "@coze-arch/bot-api/intelligence_api$": path.resolve(__dirname, "../../packages/arch/bot-api/src/idl/intelligence_api.ts"),
+      "@coze-arch/bot-api/playground_api$": path.resolve(__dirname, "../../packages/arch/bot-api/src/idl/playground_api.ts"),
+      "@coze-arch/bot-api/workflow_api$": path.resolve(__dirname, "../../packages/arch/bot-api/src/idl/workflow_api.ts"),
+      "@coze-arch/foundation-sdk$": path.resolve(__dirname, "../../packages/foundation/foundation-sdk/src/index.ts"),
+      "@coze-foundation/foundation-sdk$": path.resolve(__dirname, "../../packages/foundation/foundation-sdk/src/index.ts"),
+      "@coze-foundation/space-store$": path.resolve(__dirname, "../../packages/foundation/space-store/src/index.ts"),
+      "@coze-foundation/space-ui-base$": path.resolve(__dirname, "../../packages/foundation/space-ui-base/src/index.tsx"),
+      "@coze-foundation/space-ui-adapter$": path.resolve(__dirname, "../../packages/foundation/space-ui-adapter/src/index.tsx"),
+      "@atlas/microflow$": path.resolve(__dirname, "../../packages/mendix/mendix-microflow/src/index.ts"),
+      "@atlas/mendix-debug$": path.resolve(__dirname, "../../packages/mendix/mendix-debug/src/index.tsx"),
+      "@atlas/mendix-expression$": path.resolve(__dirname, "../../packages/mendix/mendix-expression/src/index.ts"),
+      "@atlas/mendix-runtime$": path.resolve(__dirname, "../../packages/mendix/mendix-runtime/src/index.tsx"),
+      "@atlas/mendix-schema$": path.resolve(__dirname, "../../packages/mendix/mendix-schema/src/index.ts"),
+      "@atlas/mendix-studio-core$": path.resolve(__dirname, "../../packages/mendix/mendix-studio-core/src/index.tsx"),
+      "@atlas/mendix-validator$": path.resolve(__dirname, "../../packages/mendix/mendix-validator/src/index.ts"),
       "react-router-dom": require.resolve("react-router-dom"),
     },
     define: {
-      "process.env.ENV_MODE": JSON.stringify(mode),
+      "import.meta.env": JSON.stringify(importMetaEnv),
     },
     decorators: {
       version: "legacy",

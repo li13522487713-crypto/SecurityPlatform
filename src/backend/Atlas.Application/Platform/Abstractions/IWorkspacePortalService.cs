@@ -122,4 +122,17 @@ public interface IWorkspacePortalService
         long resourceId,
         WorkspaceResourcePermissionUpdateRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 1→N 模型：在已有工作空间内创建一个新的 AppManifest（应用实例）。
+    /// 复用 IAppManifestCommandService 创建底层 manifest，并把 AppManifest.WorkspaceId 设置为本 workspace。
+    /// 若工作空间尚未绑定默认主应用，会自动把首个创建的应用回填为 Workspace.AppInstanceId/AppKey 以保持前端兼容。
+    /// </summary>
+    Task<WorkspaceAppInstanceDto> CreateAppInstanceAsync(
+        TenantId tenantId,
+        long workspaceId,
+        long userId,
+        bool isPlatformAdmin,
+        WorkspaceAppInstanceCreateRequest request,
+        CancellationToken cancellationToken = default);
 }

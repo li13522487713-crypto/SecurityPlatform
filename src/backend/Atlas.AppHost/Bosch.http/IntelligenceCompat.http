@@ -1,0 +1,65 @@
+@host = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@contentType = application/json
+
+### 登录
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.data.accessToken}}
+@spaceId = atlas-workflow
+@projectId = compat-project-001
+
+### Coze Intelligence 兼容：开发列表
+POST {{host}}/api/intelligence_api/search/get_draft_intelligence_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{spaceId}}",
+  "types": [2],
+  "size": 24
+}
+
+### Coze Intelligence 兼容：详情
+POST {{host}}/api/intelligence_api/search/get_draft_intelligence_info
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "intelligence_id": "{{projectId}}",
+  "intelligence_type": 2
+}
+
+### Coze Intelligence 兼容：复制项目
+POST {{host}}/api/intelligence_api/draft_project/copy
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "{{projectId}}",
+  "to_space_id": "{{spaceId}}",
+  "name": "Compat Project Copy"
+}
+
+### Coze Intelligence 兼容：任务处理
+POST {{host}}/api/intelligence_api/entity_task/process
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "entity_id": "{{projectId}}",
+  "action": 2
+}

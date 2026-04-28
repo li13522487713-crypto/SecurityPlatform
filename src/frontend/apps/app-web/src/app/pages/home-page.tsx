@@ -1,13 +1,9 @@
-import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Spin } from "@douyinfe/semi-ui";
-import { getTenantId } from "@atlas/shared-react-core/utils";
-import { selectWorkspacePath, signPath, workspaceHomePath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
 import { useAuth } from "../auth-context";
-import { getWorkspaces } from "../../services/api-org-workspaces";
-import { rememberLastWorkspaceId, readLastWorkspaceId } from "../layouts/workspace-shell";
+import { PageShell } from "../_shared";
+import { resolveStartupRedirectTarget, STARTUP_ROUTE_PATHS } from "../startup-routing";
 
 /**
  * `/` 入口：纯重定向网关。
@@ -17,82 +13,22 @@ import { rememberLastWorkspaceId, readLastWorkspaceId } from "../layouts/workspa
  * 2. platform 未就绪 → /platform-not-ready
  * 3. app 未就绪 → /app-setup
  * 4. 未登录 → /sign
- * 5. 已登录 → 选目标工作空间：
- *    a) localStorage 的 last workspace
- *    b) 否则 getWorkspaces() 取第一个
- *    c) 否则 /select-workspace
+ * 5. 已登录 → 统一进入组织工作空间页
  */
 export function HomePage() {
   const { t } = useAppI18n();
   const auth = useAuth();
   const bootstrap = useBootstrap();
-  const [resolving, setResolving] = useState(true);
-  const [target, setTarget] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (bootstrap.loading || auth.loading) {
-      return;
-    }
-    if (!bootstrap.platformReady) {
-      setTarget("/platform-not-ready");
-      setResolving(false);
-      return;
-    }
-    if (!bootstrap.appReady) {
-      setTarget("/app-setup");
-      setResolving(false);
-      return;
-    }
-    if (!auth.isAuthenticated) {
-      setTarget(signPath());
-      setResolving(false);
-      return;
-    }
-
-    const lastWorkspaceId = readLastWorkspaceId();
-    if (lastWorkspaceId) {
-      setTarget(workspaceHomePath(lastWorkspaceId));
-      setResolving(false);
-      return;
-    }
-
-    const orgId = getTenantId();
-    if (!orgId) {
-      setTarget(selectWorkspacePath());
-      setResolving(false);
-      return;
-    }
-
-    getWorkspaces(orgId)
-      .then(list => {
-        if (list.length === 0) {
-          setTarget(selectWorkspacePath());
-          return;
-        }
-        const first = list[0];
-        rememberLastWorkspaceId(first.id);
-        setTarget(workspaceHomePath(first.id));
-      })
-      .catch(() => {
-        setTarget(selectWorkspacePath());
-      })
-      .finally(() => {
-        setResolving(false);
-      });
-  }, [auth.isAuthenticated, auth.loading, bootstrap.appReady, bootstrap.loading, bootstrap.platformReady]);
-
-  if (resolving) {
-    return (
-      <div className="atlas-loading-page">
-        <Spin size="large" />
-        <span style={{ marginLeft: 8 }}>{t("loading")}</span>
-      </div>
-    );
+  if (bootstrap.loading || auth.loading) {
+    return <PageShell loading loadingTip={t("loading")} />;
   }
 
-  if (target) {
-    return <Navigate to={target} replace />;
-  }
+  const target = resolveStartupRedirectTarget({
+    pathname: "/",
+    bootstrap,
+    auth
+  });
 
-  return <Navigate to={selectWorkspacePath()} replace />;
+  return <Navigate to={target ?? STARTUP_ROUTE_PATHS.selectWorkspace} replace />;
 }

@@ -79,40 +79,39 @@ export function CustomDragCard({
     { isDragging: boolean }
   >(() => ({
     type: DND_ACCEPT_KEY,
-    item: {
-      nodeType,
-      nodeJson,
-      modalProps: isPluginCategoryNodeTemplate(nodeTemplate)
-        ? {
-            initQuery: {
-              type: nodeTemplate.categoryInfo.categoryId,
-              isOfficial: nodeTemplate.categoryInfo.onlyOfficial
-                ? true
-                : undefined,
-            },
-          }
-        : undefined,
-      nodeVersionInfo: isPluginApiNodeTemplate(nodeTemplate)
-        ? { pluginId: nodeTemplate.plugin_id, version: nodeTemplate.version }
-        : isSubWorkflowNodeTemplate(nodeTemplate)
-        ? // The version information of the workflow is obtained through the interface when dropping
-          {
-            workflowId: nodeTemplate.workflow_id,
-            pluginId: nodeTemplate.plugin_id,
-          }
-        : {},
+    item: () => {
+      dragService.startDrag({
+        type: nodeType,
+        json: nodeJson,
+      });
+      return {
+        nodeType,
+        nodeJson,
+        modalProps: isPluginCategoryNodeTemplate(nodeTemplate)
+          ? {
+              initQuery: {
+                type: nodeTemplate.categoryInfo.categoryId,
+                isOfficial: nodeTemplate.categoryInfo.onlyOfficial
+                  ? true
+                  : undefined,
+              },
+            }
+          : undefined,
+        nodeVersionInfo: isPluginApiNodeTemplate(nodeTemplate)
+          ? { pluginId: nodeTemplate.plugin_id, version: nodeTemplate.version }
+          : isSubWorkflowNodeTemplate(nodeTemplate)
+          ? // The version information of the workflow is obtained through the interface when dropping
+            {
+              workflowId: nodeTemplate.workflow_id,
+              pluginId: nodeTemplate.plugin_id,
+            }
+          : {},
+      };
+    },
+    end: () => {
+      dragService.endDrag();
     },
     collect: monitor => {
-      const dragType = monitor.getItemType();
-      const item = monitor.getItem();
-      if (item && dragType === DND_ACCEPT_KEY) {
-        dragService.startDrag({
-          type: item.nodeType,
-          json: item.nodeJson,
-        });
-      } else {
-        dragService.endDrag();
-      }
       return {
         isDragging: monitor.isDragging(),
       };
@@ -160,6 +159,7 @@ export function CustomDragCard({
         content={nodeDesc}
         position={tooltipPosition}
         mouseEnterDelay={500}
+        mouseLeaveDelay={500}
       >
         {baseContent}
       </Tooltip>

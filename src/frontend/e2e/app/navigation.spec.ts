@@ -1,8 +1,7 @@
 import { expect, test } from "../fixtures/single-session";
-import { orgWorkspacesPath } from "@atlas/app-shell-shared";
+import { selectWorkspacePath } from "@atlas/app-shell-shared";
 import {
   appBaseUrl,
-  defaultTenantId,
   ensureAppSetup,
   expectNoI18nKeyLeak,
   navigateBySidebar,
@@ -10,12 +9,15 @@ import {
 } from "./helpers";
 
 async function openCanonicalWorkspace(page: import("@playwright/test").Page, appKey: string) {
-  await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
-  const workspaceCard = page.locator(`.atlas-workspace-card:has-text("${appKey}")`).first();
-  await expect(workspaceCard).toBeVisible({ timeout: 30_000 });
-  await workspaceCard.locator('[data-testid^="workspace-open-"]').first().click();
+  await page.goto(`${appBaseUrl}${selectWorkspacePath()}`);
+  const matchedWorkspaceButton = page.locator('[data-testid^="coze-select-workspace-"]', { hasText: appKey }).first();
+  if (await matchedWorkspaceButton.count()) {
+    await matchedWorkspaceButton.click();
+  } else {
+    await page.locator('[data-testid^="coze-select-workspace-"]').first().click();
+  }
   await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("app-dashboard-page")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("coze-home-page")).toBeVisible({ timeout: 30_000 });
 }
 
 test.describe.serial("@smoke App Navigation", () => {
@@ -34,24 +36,18 @@ test.describe.serial("@smoke App Navigation", () => {
 
   test("sidebar should navigate across canonical workspace areas", async ({ page }) => {
     const navigationCases = [
-      { itemKey: "dashboard", pageTestId: "app-dashboard-page" },
-      { itemKey: "develop", pageTestId: "app-develop-page" },
-      { itemKey: "library", pageTestId: "app-library-page" },
-      { itemKey: "manage", pageTestId: "app-organization-overview-page" },
-      { itemKey: "settings", pageTestId: "workspace-settings-page" },
-      { itemKey: "agent-chat", pageTestId: "app-agent-chat-page" },
-      { itemKey: "model-configs", pageTestId: "app-model-configs-page" },
-      { itemKey: "ai-assistant", pageTestId: "app-ai-assistant-page" },
-      { itemKey: "data", pageTestId: "app-studio-data-page" },
-      { itemKey: "variables", pageTestId: "app-studio-variables-page" },
-      { itemKey: "users", pageTestId: "app-users-page" },
-      { itemKey: "reports", pageTestId: "app-reports-page" },
-      { itemKey: "dashboards", pageTestId: "app-dashboards-page" },
-      { itemKey: "visualization", pageTestId: "app-visualization-page" },
-      // workflows / chatflows 路由在没有具体 id 时落到 WorkspaceStudioRoute(focus=workflow|chatflow)，
-      // 实际渲染 DevelopPage（testId=app-develop-page）。
-      { itemKey: "workflows", pageTestId: "app-develop-page" },
-      { itemKey: "chatflows", pageTestId: "app-develop-page" }
+      { itemKey: "home", pageTestId: "coze-home-page" },
+      { itemKey: "projects", pageTestId: "coze-projects-page" },
+      { itemKey: "resources", pageTestId: "coze-resource-page" },
+      { itemKey: "tasks", pageTestId: "coze-tasks-page" },
+      { itemKey: "evaluations", pageTestId: "coze-evaluations-page" },
+      { itemKey: "settings", pageTestId: "coze-settings-publish-page" },
+      { itemKey: "templates", pageTestId: "coze-market-templates-page" },
+      { itemKey: "plugins", pageTestId: "coze-market-plugins-page" },
+      { itemKey: "community", pageTestId: "coze-community-page" },
+      { itemKey: "open-api", pageTestId: "coze-open-api-page" },
+      { itemKey: "docs", pageTestId: "coze-docs-page" },
+      { itemKey: "platform", pageTestId: "coze-platform-general-page" }
     ];
 
     for (const navigationCase of navigationCases) {
@@ -65,30 +61,28 @@ test.describe.serial("@smoke App Navigation", () => {
   test("header user menu should route to canonical profile settings", async ({ page }) => {
     await page.getByTestId("app-header-user-menu").click();
     await page.getByTestId("app-header-menu-profile").click();
-    await expect(page.getByTestId("app-profile-page")).toBeVisible();
-    await expect(page.url()).toContain("/settings/profile");
-    await expectNoI18nKeyLeak(page, "app-profile-page");
+    await expect(page.getByTestId("coze-me-profile-page")).toBeVisible();
+    await expect(page.url()).toContain("/me/profile");
+    await expectNoI18nKeyLeak(page, "coze-me-profile-page");
   });
 
   test("workspace navigation should render the new zh-CN information architecture", async ({ page }) => {
     await seedLocale(page, "zh-CN");
     await openCanonicalWorkspace(page, appKey);
 
-    await expect(page.getByText("工作区导航")).toBeVisible();
-    await expect(page.getByTestId("app-sidebar-item-dashboard")).toContainText("主控台");
-    await expect(page.getByTestId("app-sidebar-item-develop")).toContainText("开发");
-    await expect(page.getByTestId("app-sidebar-item-library")).toContainText("资源");
-    await expect(page.getByTestId("app-sidebar-item-manage")).toContainText("管理");
-    await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("设置");
+    await expect(page.getByTestId("app-sidebar-item-home")).toContainText("首页");
+    await expect(page.getByTestId("app-sidebar-item-projects")).toContainText("项目开发");
+    await expect(page.getByTestId("app-sidebar-item-resources")).toContainText("资源库");
+    await expect(page.getByTestId("app-sidebar-item-tasks")).toContainText("任务中心");
+    await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("空间配置");
 
-    await navigateBySidebar(page, "dashboard", { pageTestId: "app-dashboard-page" });
-    await expect(page.getByTestId("app-shell-header-title")).toHaveText("主控台");
+    await navigateBySidebar(page, "home", { pageTestId: "coze-home-page" });
+    await expect(page.getByTestId("app-shell-header-title")).toHaveText("首页");
 
-    // 当前 IA 中"管理"分组的 header 文案为 i18n key shellHeaderManagementTitle = "团队治理"。
-    await navigateBySidebar(page, "manage", { pageTestId: "app-organization-overview-page" });
-    await expect(page.getByTestId("app-shell-header-title")).toHaveText("团队治理");
+    await navigateBySidebar(page, "tasks", { pageTestId: "coze-tasks-page" });
+    await expect(page.getByTestId("app-shell-header-title")).toHaveText("任务中心");
 
-    await navigateBySidebar(page, "settings", { pageTestId: "workspace-settings-page" });
-    await expect(page.getByTestId("app-shell-header-title")).toHaveText("设置");
+    await navigateBySidebar(page, "settings", { pageTestId: "coze-settings-publish-page" });
+    await expect(page.getByTestId("app-shell-header-title")).toHaveText("空间配置");
   });
 });

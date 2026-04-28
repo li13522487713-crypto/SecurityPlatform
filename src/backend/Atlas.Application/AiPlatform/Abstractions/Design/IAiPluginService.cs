@@ -9,6 +9,7 @@ public interface IAiPluginService
     Task<PagedResult<AiPluginListItem>> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        long? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken);

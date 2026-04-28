@@ -62,7 +62,9 @@ public sealed class DagExecutor
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken,
         IReadOnlyList<long>? workflowCallStack = null,
-        IReadOnlySet<string>? preCompletedNodeKeys = null)
+        IReadOnlySet<string>? preCompletedNodeKeys = null,
+        long? userId = null,
+        string? channelId = null)
     {
         _logger.LogInformation(
             "DagExecutor run start: ExecutionId={ExecutionId} NodeCount={NodeCount} ConnectionCount={ConnectionCount}",
@@ -74,6 +76,9 @@ public sealed class DagExecutor
         // RT-20: 执行指标收集。
         var executionSw = Stopwatch.StartNew();
         var executedNodeCount = 0;
+        var databaseEnvironment = execution.IsDebug || execution.VersionNumber == 0
+            ? AiDatabaseRecordEnvironment.Draft
+            : AiDatabaseRecordEnvironment.Online;
 
         var variables = new Dictionary<string, JsonElement>(inputs, StringComparer.OrdinalIgnoreCase);
         var currentCallStack = workflowCallStack is not null && workflowCallStack.Count > 0
@@ -136,7 +141,11 @@ public sealed class DagExecutor
                         connectionsBySource,
                         levelInput,
                         eventChannel,
-                        cancellationToken))
+                        cancellationToken,
+                        userId,
+                        channelId,
+                        execution.IsDebug,
+                        databaseEnvironment))
                     .ToArray();
 
                 // RT-12: 将每个并行任务包装为安全捕获模式，防止单个 OperationCanceledException 导致整层丢失结果。
@@ -199,10 +208,7 @@ public sealed class DagExecutor
                 // 同层全部成功后再合并输出，避免失败层产生部分提交。
                 foreach (var result in levelResults)
                 {
-                    foreach (var kvp in result.Outputs)
-                    {
-                        variables[kvp.Key] = kvp.Value;
-                    }
+                    MergeNodeOutputs(variables, result);
                     executedNodeCount++;
                 }
 
@@ -253,7 +259,11 @@ public sealed class DagExecutor
                         connectionsBySource,
                         variables,
                         eventChannel,
-                        cancellationToken);
+                        cancellationToken,
+                        userId,
+                        channelId,
+                        execution.IsDebug,
+                        databaseEnvironment);
 
                     if (!loopResult.Success)
                     {
@@ -311,7 +321,11 @@ public sealed class DagExecutor
                         nodeMap,
                         variables,
                         eventChannel,
-                        cancellationToken);
+                        cancellationToken,
+                        userId,
+                        channelId,
+                        execution.IsDebug,
+                        databaseEnvironment);
 
                     if (!batchResult.Success)
                     {
@@ -339,10 +353,7 @@ public sealed class DagExecutor
                         return;
                     }
 
-                    foreach (var kvp in batchResult.Outputs)
-                    {
-                        variables[kvp.Key] = kvp.Value;
-                    }
+                    MergeNodeOutputs(variables, batchResult);
                 }
             }
 
@@ -516,7 +527,11 @@ public sealed class DagExecutor
         IReadOnlyDictionary<string, List<ConnectionSchema>> connectionsBySource,
         Dictionary<string, JsonElement> inputVariables,
         Channel<SseEvent>? eventChannel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? userId = null,
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         if (!nodeMap.TryGetValue(nodeKey, out var node))
         {
@@ -537,13 +552,23 @@ public sealed class DagExecutor
         var executor = _registry.GetExecutor(node.Type);
         if (executor is null)
         {
+            // Comment 节点是纯画布注释，无运行时语义，明确跳过。
             if (node.Type == WorkflowNodeType.Comment)
             {
                 return NodeRunResult.SuccessResult(nodeKey, node.Type, EmptyOutputs);
             }
 
-            _logger.LogWarning("未找到节点类型 {NodeType} 的执行器，跳过节点 {NodeKey}", node.Type, nodeKey);
-            return NodeRunResult.SuccessResult(nodeKey, node.Type, EmptyOutputs);
+            // P0-3 修复（PLAN §P0-3 + 跨里程碑硬约束）：
+            // 此前对未注册执行器的节点返回 SuccessResult 空输出，导致已声明的 NodeType 在画布上"静默吞业务"——
+            // 比 NotImplementedException 更危险（用户看不到节点没跑）。
+            // 现修正为返回 FailedResult + 明确错误码 NODE_EXECUTOR_NOT_REGISTERED，让 DagExecutor 走标准失败链路：
+            //  - 通过 PersistBlockedByFailureAsync 把下游也标记 blocked
+            //  - 错误信息暴露给前端 / trace / 日志
+            // 这样上线时若忘了注册执行器，会立即在执行期暴露而非沉默。
+            var msg = $"NODE_EXECUTOR_NOT_REGISTERED: 未注册节点类型 {node.Type} 的执行器（节点 {nodeKey}）。" +
+                      $"请在 NodeExecutorRegistry._executorTypes 注册对应 INodeExecutor 实现。";
+            _logger.LogError("{Message}", msg);
+            return NodeRunResult.FailedResult(nodeKey, node.Type, msg, InterruptType.None);
         }
 
         var inputMaterialization = NodeInputMaterializer.Materialize(node, inputVariables);
@@ -583,7 +608,11 @@ public sealed class DagExecutor
             workflowId,
             executionId,
             workflowCallStack,
-            eventChannel);
+            eventChannel,
+            userId,
+            channelId,
+            isDebug,
+            databaseEnvironment);
         var nodeTimeout = ResolveNodeTimeout(node);
         var resolvedNodeTimeout = nodeTimeout ?? TimeSpan.Zero;
         using var timeoutCts = nodeTimeout is null
@@ -836,7 +865,11 @@ public sealed class DagExecutor
         Dictionary<string, List<ConnectionSchema>> connectionsBySource,
         Dictionary<string, JsonElement> variables,
         Channel<SseEvent>? eventChannel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? userId = null,
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         if (!nodeMap.TryGetValue(loopNodeKey, out var loopNode))
         {
@@ -868,7 +901,12 @@ public sealed class DagExecutor
 
             // 每轮迭代从入口快照 + 当前循环控制变量重建作用域，隔离迭代间副作用。
             var iterationScope = new Dictionary<string, JsonElement>(loopEntrySnapshot, StringComparer.OrdinalIgnoreCase);
-            foreach (var loopControlKey in new[] { "loop_index", "loop_item", "loop_item_index", "loop_completed", "loop_break_reason" })
+            var loopControlKeys = variables.Keys
+                .Where(k => k.StartsWith($"{loopNodeKey}.locals.", StringComparison.OrdinalIgnoreCase) || 
+                            new[] { "loop_index", "loop_item", "loop_item_index", "loop_completed", "loop_break_reason" }.Contains(k, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var loopControlKey in loopControlKeys)
             {
                 if (variables.TryGetValue(loopControlKey, out var ctrlVal))
                 {
@@ -890,7 +928,11 @@ public sealed class DagExecutor
                         connectionsBySource,
                         levelInput,
                         eventChannel,
-                        cancellationToken))
+                        cancellationToken,
+                        userId,
+                        channelId,
+                        isDebug,
+                        databaseEnvironment))
                     .ToArray();
 
                 var bodyResults = await Task.WhenAll(bodyTasks);
@@ -905,10 +947,7 @@ public sealed class DagExecutor
 
                 foreach (var bodyResult in bodyResults)
                 {
-                    foreach (var kvp in bodyResult.Outputs)
-                    {
-                        iterationScope[kvp.Key] = kvp.Value;
-                    }
+                    MergeNodeOutputs(iterationScope, bodyResult);
                 }
 
                 if (HasControlSignal(iterationScope, "loop_break"))
@@ -927,7 +966,7 @@ public sealed class DagExecutor
             }
 
             // 迭代执行完毕后，将本轮控制变量同步回父作用域。
-            foreach (var loopControlKey in new[] { "loop_index", "loop_item", "loop_item_index", "loop_completed", "loop_break_reason" })
+            foreach (var loopControlKey in loopControlKeys)
             {
                 if (iterationScope.TryGetValue(loopControlKey, out var ctrlVal))
                 {
@@ -946,16 +985,17 @@ public sealed class DagExecutor
                 connectionsBySource,
                 loopInput,
                 eventChannel,
-                cancellationToken);
+                cancellationToken,
+                userId,
+                channelId,
+                isDebug,
+                databaseEnvironment);
             if (!loopResult.Success)
             {
                 return LoopIterationResult.Failed(loopResult.NodeKey, loopResult.ErrorMessage, loopResult.InterruptType);
             }
 
-            foreach (var kvp in loopResult.Outputs)
-            {
-                variables[kvp.Key] = kvp.Value;
-            }
+            MergeNodeOutputs(variables, loopResult);
 
             if (IsLoopCompleted(loopResult.Outputs))
             {
@@ -994,7 +1034,11 @@ public sealed class DagExecutor
         IReadOnlyDictionary<string, NodeSchema> nodeMap,
         Dictionary<string, JsonElement> variables,
         Channel<SseEvent>? eventChannel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? userId = null,
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         if (!nodeMap.TryGetValue(batchNodeKey, out var batchNode))
         {
@@ -1006,34 +1050,75 @@ public sealed class DagExecutor
             return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, EmptyOutputs);
         }
 
-        var concurrentSize = Math.Clamp(VariableResolver.GetConfigInt32(batchNode.Config, "concurrentSize", 4), 1, 64);
-        var batchSize = Math.Clamp(VariableResolver.GetConfigInt32(batchNode.Config, "batchSize", 1), 1, 10_000);
-        var inputArrayPath = VariableResolver.GetConfigString(batchNode.Config, "inputArrayPath");
-        var itemVariable = VariableResolver.GetConfigString(batchNode.Config, "itemVariable", "batch_item");
-        var itemIndexVariable = VariableResolver.GetConfigString(batchNode.Config, "itemIndexVariable", "batch_item_index");
-        var outputKey = VariableResolver.GetConfigString(batchNode.Config, "outputKey", "batch_results");
-        // RT-18: 错误容忍策略：fail_fast（默认）立即终止；best_effort 收集错误继续处理其余项。
+        int concurrentSize = 4;
+        int batchSize = 1;
+        if (batchNode.Config.TryGetValue("inputs", out var inputsRaw) && inputsRaw.ValueKind == JsonValueKind.Object)
+        {
+            if (inputsRaw.TryGetProperty("concurrentSize", out var concExpr))
+                concurrentSize = Math.Clamp(ExtractValueExpressionInt32(concExpr) ?? 4, 1, 64);
+            if (inputsRaw.TryGetProperty("batchSize", out var batchExpr))
+                batchSize = Math.Clamp(ExtractValueExpressionInt32(batchExpr) ?? 1, 1, 10_000);
+        }
+
+        string inputParamName = "input";
+        if (inputsRaw.ValueKind == JsonValueKind.Object && 
+            inputsRaw.TryGetProperty("inputParameters", out var inputParams) && 
+            inputParams.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var ip in inputParams.EnumerateArray())
+            {
+                if (ip.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                {
+                    inputParamName = n.GetString() ?? "input";
+                    break;
+                }
+            }
+        }
+
         var errorTolerance = VariableResolver.GetConfigString(batchNode.Config, "errorTolerance", "fail_fast")
             .Trim().ToLowerInvariant();
         var isBestEffort = errorTolerance == "best_effort";
 
-        var items = ResolveBatchItems(variables, inputArrayPath);
-        var aggregatedResults = new List<JsonElement>();
+        IReadOnlyList<JsonElement> items = Array.Empty<JsonElement>();
+        if (variables.TryGetValue(inputParamName, out var arrayVar))
+        {
+            if (arrayVar.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<JsonElement>();
+                foreach (var element in arrayVar.EnumerateArray()) list.Add(element);
+                items = list;
+            }
+            else if (arrayVar.ValueKind == JsonValueKind.String)
+            {
+                try {
+                    var parsed = JsonSerializer.Deserialize<JsonElement>(arrayVar.GetString() ?? "[]");
+                    if (parsed.ValueKind == JsonValueKind.Array)
+                    {
+                        var list = new List<JsonElement>();
+                        foreach (var element in parsed.EnumerateArray()) list.Add(element);
+                        items = list;
+                    }
+                } catch {}
+            }
+        }
+
+        var iterationVariableSnapshots = new List<Dictionary<string, JsonElement>>();
         var batchErrors = new List<string>();
         var semaphore = new SemaphoreSlim(concurrentSize);
         var currentIndex = 0;
 
-        foreach (var chunk in Chunk(items, batchSize))
+        foreach (var chunk in items.Chunk(batchSize))
         {
             var tasks = chunk.Select(async item =>
             {
                 await semaphore.WaitAsync(cancellationToken);
                 try
                 {
+                    int index = Interlocked.Increment(ref currentIndex) - 1;
                     var localVariables = new Dictionary<string, JsonElement>(variables, StringComparer.OrdinalIgnoreCase)
                     {
-                        [itemVariable] = item,
-                        [itemIndexVariable] = JsonSerializer.SerializeToElement(Interlocked.Increment(ref currentIndex) - 1)
+                        [$"{batchNodeKey}.locals.{inputParamName}"] = item,
+                        [$"{batchNodeKey}.locals.index"] = JsonSerializer.SerializeToElement(index)
                     };
 
                     var fragmentResult = await ExecuteCanvasFragmentAsync(
@@ -1044,8 +1129,13 @@ public sealed class DagExecutor
                         batchNode.ChildCanvas,
                         localVariables,
                         eventChannel,
-                        cancellationToken);
-                    return fragmentResult;
+                        cancellationToken,
+                        userId,
+                        channelId,
+                        isDebug,
+                        databaseEnvironment);
+                    
+                    return (Result: fragmentResult, IterationVariables: localVariables);
                 }
                 finally
                 {
@@ -1056,23 +1146,23 @@ public sealed class DagExecutor
             var chunkResults = await Task.WhenAll(tasks);
             foreach (var chunkResult in chunkResults)
             {
-                if (!chunkResult.Success)
+                if (!chunkResult.Result.Success)
                 {
                     if (!isBestEffort)
                     {
-                        return chunkResult;
+                        return chunkResult.Result;
                     }
 
                     lock (batchErrors)
                     {
-                        batchErrors.Add(chunkResult.ErrorMessage ?? "批处理子任务失败");
+                        batchErrors.Add(chunkResult.Result.ErrorMessage ?? "批处理子任务失败");
                     }
                 }
                 else
                 {
-                    lock (aggregatedResults)
+                    lock (iterationVariableSnapshots)
                     {
-                        aggregatedResults.Add(JsonSerializer.SerializeToElement(chunkResult.Outputs));
+                        iterationVariableSnapshots.Add(chunkResult.IterationVariables);
                     }
                 }
             }
@@ -1084,18 +1174,57 @@ public sealed class DagExecutor
                 $"批处理失败（{batchErrors.Count} 项）: {batchErrors[0]}", InterruptType.None);
         }
 
-        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        
+        if (batchNode.Config.TryGetValue("outputs", out var outputsArr) && outputsArr.ValueKind == JsonValueKind.Array)
         {
-            [outputKey] = JsonSerializer.SerializeToElement(aggregatedResults),
-            ["batch_completed"] = JsonSerializer.SerializeToElement(true),
-            ["batch_error_count"] = JsonSerializer.SerializeToElement(batchErrors.Count)
-        };
+            foreach (var op in outputsArr.EnumerateArray())
+            {
+                if (!op.TryGetProperty("name", out var n) || n.ValueKind != JsonValueKind.String) continue;
+                string outName = n.GetString() ?? "";
+                
+                if (!op.TryGetProperty("input", out var inProp) || inProp.ValueKind != JsonValueKind.Object) continue;
+                if (!inProp.TryGetProperty("type", out var typeProp) || typeProp.ValueKind != JsonValueKind.String) continue;
+                
+                string type = typeProp.GetString() ?? "";
+                if (type == "ref" && inProp.TryGetProperty("content", out var contentObj) &&
+                    contentObj.TryGetProperty("keyPath", out var keyPathArr) && keyPathArr.ValueKind == JsonValueKind.Array)
+                {
+                    var pathSegments = keyPathArr.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() : x.GetRawText()).Where(x => !string.IsNullOrWhiteSpace(x));
+                    var refPath = string.Join(".", pathSegments);
+                    
+                    var aggregatedValues = new List<JsonElement>();
+                    foreach (var iterationVars in iterationVariableSnapshots)
+                    {
+                        if (VariableResolver.TryResolvePath(iterationVars, refPath, out var val))
+                        {
+                            aggregatedValues.Add(val);
+                        }
+                    }
+                    outputs[outName] = JsonSerializer.SerializeToElement(aggregatedValues);
+                }
+            }
+        }
+
+        outputs["batch_completed"] = JsonSerializer.SerializeToElement(true);
+        outputs["batch_error_count"] = JsonSerializer.SerializeToElement(batchErrors.Count);
         if (batchErrors.Count > 0)
         {
             outputs["batch_errors"] = JsonSerializer.SerializeToElement(batchErrors);
         }
 
         return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, outputs);
+    }
+
+    private static int? ExtractValueExpressionInt32(JsonElement expr)
+    {
+        if (expr.ValueKind != JsonValueKind.Object) return null;
+        if (!expr.TryGetProperty("type", out var typeProp) || typeProp.ValueKind != JsonValueKind.String) return null;
+        if (typeProp.GetString() != "literal") return null;
+        if (!expr.TryGetProperty("content", out var contentProp)) return null;
+        if (contentProp.ValueKind == JsonValueKind.Number && contentProp.TryGetInt32(out var i)) return i;
+        if (contentProp.ValueKind == JsonValueKind.String && int.TryParse(contentProp.GetString(), out var i2)) return i2;
+        return null;
     }
 
     private async Task<NodeRunResult> ExecuteCanvasFragmentAsync(
@@ -1106,7 +1235,11 @@ public sealed class DagExecutor
         CanvasSchema canvas,
         Dictionary<string, JsonElement> variables,
         Channel<SseEvent>? eventChannel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? userId = null,
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         var (nodeMap, topology) = GetOrCompileCanvas(canvas);
         var adjacency = topology.Adjacency;
@@ -1152,7 +1285,11 @@ public sealed class DagExecutor
                     connectionsBySource,
                     levelInput,
                     eventChannel,
-                    cancellationToken))
+                    cancellationToken,
+                    userId,
+                    channelId,
+                    isDebug,
+                    databaseEnvironment))
                 .ToArray();
             var levelResults = await Task.WhenAll(levelTasks);
             var failedNode = levelResults.FirstOrDefault(x => !x.Success);
@@ -1163,11 +1300,8 @@ public sealed class DagExecutor
 
             foreach (var levelResult in levelResults)
             {
-                foreach (var kvp in levelResult.Outputs)
-                {
-                    variables[kvp.Key] = kvp.Value;
-                    outputs[kvp.Key] = kvp.Value;
-                }
+                MergeNodeOutputs(variables, levelResult);
+                MergeNodeOutputs(outputs, levelResult);
             }
 
             foreach (var selectorNode in levelResults.Where(x => x.Success && x.NodeType == WorkflowNodeType.Selector))
@@ -1993,6 +2127,23 @@ public sealed class DagExecutor
         }
 
         return levels;
+    }
+
+    private static void MergeNodeOutputs(
+        IDictionary<string, JsonElement> variables,
+        NodeRunResult result)
+    {
+        foreach (var kvp in result.Outputs)
+        {
+            variables[kvp.Key] = kvp.Value;
+            if (string.IsNullOrWhiteSpace(result.NodeKey))
+            {
+                continue;
+            }
+
+            variables[$"{result.NodeKey}.{kvp.Key}"] = kvp.Value;
+            variables[$"block_output_{result.NodeKey}.{kvp.Key}"] = kvp.Value;
+        }
     }
 
     private static readonly Dictionary<string, JsonElement> EmptyOutputs = new(StringComparer.OrdinalIgnoreCase);

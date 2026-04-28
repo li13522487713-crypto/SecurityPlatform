@@ -9,6 +9,7 @@ import {
 } from "./helpers";
 
 test.describe.serial("App Users CRUD", () => {
+  test.fixme("旧壳用户管理页已下线，待新壳成员管理场景补齐后恢复。");
   let appKey = "";
 
   test.beforeAll(async ({ request, ensureLoggedInSession }) => {

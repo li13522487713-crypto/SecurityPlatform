@@ -2,6 +2,7 @@
 
 > 分析日期：2026-04-09
 > 分析范围：全项目源码（排除 node_modules、dist、.git 等非核心产物）
+> 说明：本文是上游 Coze Studio 项目分析快照。文中接口路径为上游原始路由，不等于当前 Atlas `app-web` gateway 路由。
 
 ---
 

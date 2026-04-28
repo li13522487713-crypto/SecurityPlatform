@@ -1,0 +1,233 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@profileId = 1
+@sourceId = ai:1
+@schemaName = main
+@tableName = customer_order_demo
+@viewName = v_customer_order_demo
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 创建托管型 AI 数据库（Draft / Online）
+# @name createManagedAiDatabase
+POST {{baseUrl}}/api/v1/ai-databases
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "数据库中心演示库",
+  "description": "Database Center Draft/Online 演示",
+  "workspaceId": 1,
+  "driverCode": "SQLite",
+  "hostProfileId": {{profileId}},
+  "provisionMode": "SQLiteFile",
+  "environmentMode": "DraftOnline",
+  "createSampleSchema": false,
+  "schemaName": "main",
+  "physicalDatabaseName": "database_center_demo",
+  "queryMode": 1,
+  "channelScope": 1,
+  "fields": [
+    { "name": "name", "type": "string", "required": false, "sortOrder": 0 }
+  ]
+}
+
+### 数据源列表
+GET {{baseUrl}}/api/v1/database-center/sources?pageIndex=1&pageSize=20&keyword=demo&environment=Draft
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Schema 树
+GET {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas?environment=Draft
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 实例详情
+GET {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/instance-summary
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 测试数据源连接
+POST {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/test
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 连接日志
+GET {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/connection-logs
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Schema 结构总览
+GET {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure?environment=Draft
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 表列表
+GET {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/objects?type=table&environment=Draft
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 视图列表
+GET {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/objects?type=view&environment=Draft
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 预览建表 DDL
+POST {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/tables/preview-ddl
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "tableName": "{{tableName}}",
+  "comment": "demo table",
+  "columns": [
+    { "name": "id", "dataType": "INTEGER", "nullable": false, "primaryKey": true, "autoIncrement": true },
+    { "name": "customer_name", "dataType": "TEXT", "nullable": false },
+    { "name": "amount", "dataType": "NUMERIC", "nullable": true },
+    { "name": "created_at", "dataType": "TEXT", "nullable": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "options": {}
+}
+
+### 可视化建表
+POST {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/tables
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "tableName": "{{tableName}}",
+  "comment": "demo table",
+  "columns": [
+    { "name": "id", "dataType": "INTEGER", "nullable": false, "primaryKey": true, "autoIncrement": true },
+    { "name": "customer_name", "dataType": "TEXT", "nullable": false },
+    { "name": "amount", "dataType": "NUMERIC", "nullable": true },
+    { "name": "created_at", "dataType": "TEXT", "nullable": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "options": {}
+}
+
+### SQL 建表
+POST {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/tables/sql
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "sql": "CREATE TABLE sql_customer_order_demo (id INTEGER PRIMARY KEY AUTOINCREMENT, customer_name TEXT NOT NULL, amount NUMERIC);"
+}
+
+### 字段列表
+GET {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/tables/{{tableName}}/columns
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 表 DDL
+GET {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/tables/{{tableName}}/ddl
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 数据预览
+POST {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/tables/{{tableName}}/preview
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "pageIndex": 1,
+  "pageSize": 20,
+  "environment": "Draft"
+}
+
+### SQL 只读执行
+POST {{baseUrl}}/api/v1/database-center/sql/execute
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "sourceId": "{{sourceId}}",
+  "schemaName": "{{schemaName}}",
+  "sql": "SELECT * FROM {{tableName}}",
+  "limit": 50,
+  "environment": "Draft"
+}
+
+### 危险 SQL 应被拒绝
+POST {{baseUrl}}/api/v1/database-center/sql/execute
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "sourceId": "{{sourceId}}",
+  "schemaName": "{{schemaName}}",
+  "sql": "SELECT * FROM {{tableName}}; DROP TABLE {{tableName}};",
+  "limit": 50,
+  "environment": "Draft"
+}
+
+### 预览视图 SQL
+POST {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/views/preview
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "sql": "SELECT id, customer_name, amount FROM {{tableName}}",
+  "limit": 50
+}
+
+### 创建视图
+POST {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/views
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "viewName": "{{viewName}}",
+  "sql": "SELECT id, customer_name, amount FROM {{tableName}}"
+}
+
+### 视图 DDL
+GET {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/views/{{viewName}}/ddl
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 删除视图（二次确认）
+DELETE {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/views/{{viewName}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "confirmName": "{{viewName}}",
+  "confirmDanger": true
+}
+
+### 删除表（二次确认）
+DELETE {{baseUrl}}/api/v1/database-center/sources/{{sourceId}}/schemas/{{schemaName}}/structure/tables/{{tableName}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "confirmName": "{{tableName}}",
+  "confirmDanger": true
+}

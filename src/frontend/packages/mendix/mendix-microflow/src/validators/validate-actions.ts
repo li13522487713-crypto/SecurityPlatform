@@ -1,0 +1,308 @@
+import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import { getMicroflowById } from "../metadata";
+import { isMicroflowP0ActionStronglyTyped, isP0ActionKind } from "../schema/authoring/p0-action-guards";
+import { flattenObjects, issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
+
+function textField(action: object, key: string): string {
+  const value = (action as Record<string, unknown>)[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function nestedText(action: { [key: string]: unknown }, key: string, nestedKey: string): string {
+  const value = action[key];
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+  const nested = (value as Record<string, unknown>)[nestedKey];
+  return typeof nested === "string" ? nested.trim() : "";
+}
+
+function expressionText(value: unknown): string {
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+  const record = value as Record<string, unknown>;
+  return typeof record.raw === "string" ? record.raw.trim() : typeof record.text === "string" ? record.text.trim() : "";
+}
+
+function required(issueList: MicroflowValidationIssue[], code: string, message: string, objectId: string, actionId: string, fieldPath: string, ok: boolean): void {
+  if (!ok) {
+    issueList.push(issue(code, message, { objectId, actionId, fieldPath }));
+  }
+}
+
+export function validateActions(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
+  const issues: MicroflowValidationIssue[] = [];
+  for (const { object } of flattenObjects(schema.objectCollection)) {
+    if (object.kind !== "actionActivity") {
+      continue;
+    }
+    const action = object.action;
+    if (!action.id || !action.kind || !action.officialType) {
+      issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Action must have id, kind and officialType.", { objectId: object.id, actionId: action.id, fieldPath: "action" }));
+    }
+    if (isP0ActionKind(action.kind) && !isMicroflowP0ActionStronglyTyped(action)) {
+      issues.push(issue("MF_ACTION_P0_MUST_BE_STRONGLY_TYPED", "P0 动作必须满足强类型结构（非 GenericAction/松散 JSON）。", { objectId: object.id, actionId: action.id, fieldPath: "action" }));
+    }
+    if (action.kind === "retrieve") {
+      if (!action.outputVariableName.trim()) {
+        issues.push(issue("MF_RETRIEVE_OUTPUT_MISSING", "RetrieveAction.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.outputVariableName" }));
+      }
+      if (action.retrieveSource.kind === "database" && !String(action.retrieveSource.entityQualifiedName ?? "").trim()) {
+        issues.push(issue("MF_RETRIEVE_ENTITY_MISSING", "DatabaseRetrieveSource.entityQualifiedName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.entityQualifiedName" }));
+      }
+      if (action.retrieveSource.kind === "association" && !action.retrieveSource.startVariableName.trim()) {
+        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "AssociationRetrieveSource.startVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.startVariableName" }));
+      }
+      if (action.retrieveSource.kind === "association" && !String(action.retrieveSource.associationQualifiedName ?? "").trim()) {
+        issues.push(issue("MF_RETRIEVE_ASSOCIATION_MISSING", "AssociationRetrieveSource.associationQualifiedName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.associationQualifiedName" }));
+      }
+    }
+    if (action.kind === "createObject") {
+      if (!action.entityQualifiedName.trim()) {
+        issues.push(issue("MF_CREATE_OBJECT_ENTITY_MISSING", "CreateObjectAction.entityQualifiedName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.entityQualifiedName" }));
+      }
+      if (!action.outputVariableName.trim()) {
+        issues.push(issue("MF_CREATE_OBJECT_OUTPUT_MISSING", "CreateObjectAction.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.outputVariableName" }));
+      }
+    }
+    if (action.editor.availability === "nanoflowOnlyDisabled") {
+      issues.push(issue("MF_ACTION_NANOFLOW_ONLY", `${action.officialType} is Nanoflow-only and cannot be used in a Microflow.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "edit" ? "warning" : "error"));
+    }
+    if (action.editor.availability === "requiresConnector") {
+      issues.push(issue("MF_ACTION_REQUIRES_CONNECTOR", `${action.officialType} requires connector runtime support.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "publish" || context.mode === "testRun" ? "error" : "warning"));
+    }
+    if (!isP0ActionKind(action.kind)) {
+      issues.push(issue("MF_ACTION_MODELED_ONLY", `${action.officialType} is modeled-only for the P0 runtime contract.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "testRun" ? "error" : "warning"));
+    }
+    if (action.editor.availability === "deprecated") {
+      issues.push(issue("MF_ACTION_DEPRECATED", `${action.officialType} is deprecated.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, "warning"));
+    }
+    if (action.kind === "cast") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "CastAction.sourceObjectVariableName is required.", object.id, action.id, "action.sourceObjectVariableName", Boolean(textField(action, "sourceObjectVariableName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "CastAction.targetEntityQualifiedName is required.", object.id, action.id, "action.targetEntityQualifiedName", Boolean(textField(action, "targetEntityQualifiedName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "CastAction.outputVariableName is required.", object.id, action.id, "action.outputVariableName", Boolean(textField(action, "outputVariableName")));
+    }
+    if (action.kind === "changeMembers") {
+      if (!action.changeVariableName.trim()) {
+        issues.push(issue("MF_CHANGE_OBJECT_TARGET_MISSING", "ChangeMembersAction.changeVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.changeVariableName" }));
+      }
+      if (action.memberChanges.length === 0) {
+        issues.push(issue("MF_CHANGE_OBJECT_NO_MEMBERS", "ChangeMembersAction.memberChanges should include at least one member change.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }, "warning"));
+      }
+      action.memberChanges.forEach((change, index) => {
+        if (!change.memberQualifiedName.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Member change requires memberQualifiedName.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.memberQualifiedName` }));
+        }
+        if (change.assignmentKind !== "clear" && !expressionText(change.valueExpression)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Member change requires valueExpression unless assignmentKind is clear.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.valueExpression` }));
+        }
+      });
+    }
+    if (action.kind === "createObject") {
+      if (action.memberChanges.length === 0) {
+        issues.push(issue("MF_CREATE_OBJECT_NO_MEMBERS", "CreateObjectAction.memberChanges is empty.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }, "warning"));
+      }
+      action.memberChanges.forEach((change, index) => {
+        if (!change.memberQualifiedName.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Member change requires memberQualifiedName.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.memberQualifiedName` }));
+        }
+        if (change.assignmentKind !== "clear" && !expressionText(change.valueExpression)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Member change requires valueExpression unless assignmentKind is clear.", { objectId: object.id, actionId: action.id, fieldPath: `action.memberChanges.${index}.valueExpression` }));
+        }
+      });
+    }
+    if (action.kind === "commit" || action.kind === "delete" || action.kind === "rollback") {
+      if (!action.objectOrListVariableName.trim()) {
+        const code =
+          action.kind === "commit"
+            ? "MF_COMMIT_VARIABLE_MISSING"
+            : action.kind === "delete"
+              ? "MF_DELETE_VARIABLE_MISSING"
+              : "MF_ROLLBACK_VARIABLE_MISSING";
+        issues.push(issue(code, `${action.officialType} requires objectOrListVariableName.`, { objectId: object.id, actionId: action.id, fieldPath: "action.objectOrListVariableName" }));
+      }
+    }
+    if (action.kind === "callMicroflow") {
+      const target = getMicroflowById(context.metadata, action.targetMicroflowId);
+      if (!action.targetMicroflowId.trim()) {
+        issues.push(issue("MF_CALL_MICROFLOW_TARGET_MISSING", "MicroflowCallAction.targetMicroflowId is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId", source: "callMicroflow" }));
+      }
+      if (action.targetMicroflowId && action.targetMicroflowId === schema.id) {
+        issues.push(issue("MF_CALL_MICROFLOW_SELF_REFERENCE", "MicroflowCallAction cannot target the current microflow.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId", source: "callMicroflow" }));
+      }
+      if (target && action.targetMicroflowQualifiedName && target.qualifiedName && action.targetMicroflowQualifiedName !== target.qualifiedName) {
+        issues.push(issue("MF_CALL_MICROFLOW_QUALIFIED_NAME_STALE", "MicroflowCallAction target qualified name is stale; targetMicroflowId still resolves to a different current name.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowQualifiedName", source: "callMicroflow" }, "warning"));
+      }
+      for (const parameter of target?.parameters ?? []) {
+        if (parameter.required && !action.parameterMappings.some(mapping => mapping.parameterName === parameter.name)) {
+          issues.push(issue("MF_CALL_MICROFLOW_PARAMETER_REQUIRED", `Required parameter "${parameter.name}" is not mapped.`, { objectId: object.id, actionId: action.id, fieldPath: "action.parameterMappings", source: "callMicroflow" }));
+        }
+      }
+      action.parameterMappings.forEach((mapping, index) => {
+        if (!expressionText(mapping.argumentExpression)) {
+          issues.push(issue("MF_CALL_MICROFLOW_MAPPING_EXPRESSION_MISSING", `MicroflowCallAction parameter "${mapping.parameterName}" requires an argument expression.`, { objectId: object.id, actionId: action.id, fieldPath: `action.parameterMappings.${index}.argumentExpression`, source: "callMicroflow" }));
+        }
+      });
+      if (action.returnValue.storeResult && !action.returnValue.outputVariableName?.trim()) {
+        issues.push(issue("MF_CALL_MICROFLOW_RETURN_TARGET_MISSING", "MicroflowCallAction.returnValue.outputVariableName is required when storeResult=true.", { objectId: object.id, actionId: action.id, fieldPath: "action.returnValue.outputVariableName", source: "callMicroflow" }));
+      }
+      if (action.returnValue.storeResult && target?.returnType.kind === "void") {
+        issues.push(issue("MF_ACTION_RETURN_VOID_STORE_RESULT", "Void microflow return cannot be stored.", { objectId: object.id, actionId: action.id, fieldPath: "action.returnValue.outputVariableName" }));
+      }
+    }
+    if (action.kind === "aggregateList") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "AggregateListAction.listVariableName is required.", object.id, action.id, "action.listVariableName", Boolean(textField(action, "listVariableName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "AggregateListAction.outputVariableName is required.", object.id, action.id, "action.outputVariableName", Boolean(textField(action, "outputVariableName")));
+      if (textField(action, "aggregateFunction") !== "count") {
+        required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "AggregateListAction.attributeQualifiedName is required for non-count aggregates.", object.id, action.id, "action.attributeQualifiedName", Boolean(textField(action, "attributeQualifiedName")));
+      }
+    }
+    if (action.kind === "createList") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "CreateListAction.entityQualifiedName is required.", object.id, action.id, "action.entityQualifiedName", Boolean(textField(action, "entityQualifiedName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "CreateListAction.outputListVariableName is required.", object.id, action.id, "action.outputListVariableName", Boolean(textField(action, "outputListVariableName")));
+    }
+    if (action.kind === "changeList") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ChangeListAction.targetListVariableName is required.", object.id, action.id, "action.targetListVariableName", Boolean(textField(action, "targetListVariableName")));
+    }
+    if (action.kind === "listOperation") {
+      required(issues, "MF_LIST_OPERATION_SOURCE_MISSING", "ListOperationAction source list is required.", object.id, action.id, "action.leftListVariableName", Boolean(textField(action, "leftListVariableName") || textField(action, "sourceListVariableName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ListOperationAction.operation is required.", object.id, action.id, "action.operation", Boolean(textField(action, "operation")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ListOperationAction.outputVariableName is required.", object.id, action.id, "action.outputVariableName", Boolean(textField(action, "outputVariableName")));
+    }
+    if (action.kind === "callJavaAction") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "JavaActionCallAction.javaActionQualifiedName is required.", object.id, action.id, "action.javaActionQualifiedName", Boolean(textField(action, "javaActionQualifiedName")));
+    }
+    if (action.kind === "showPage") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ShowPageAction.pageId is required.", object.id, action.id, "action.pageId", Boolean(textField(action, "pageId")));
+    }
+    if (action.kind === "showMessage") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ShowMessageAction.messageExpression is required.", object.id, action.id, "action.messageExpression", Boolean(expressionText(action.messageExpression)));
+    }
+    if (action.kind === "validationFeedback") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ValidationFeedbackAction.targetObjectVariableName is required.", object.id, action.id, "action.targetObjectVariableName", Boolean(textField(action, "targetObjectVariableName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ValidationFeedbackAction.targetMemberQualifiedName is required.", object.id, action.id, "action.targetMemberQualifiedName", Boolean(textField(action, "targetMemberQualifiedName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ValidationFeedbackAction.feedbackMessage is required.", object.id, action.id, "action.feedbackMessage", Boolean(textField(action, "feedbackMessage")));
+    }
+    if (action.kind === "downloadFile") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "DownloadFileAction.fileDocumentVariableName is required.", object.id, action.id, "action.fileDocumentVariableName", Boolean(textField(action, "fileDocumentVariableName")));
+    }
+    if (action.kind === "webServiceCall") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "WebServiceCallAction.webServiceQualifiedName is required.", object.id, action.id, "action.webServiceQualifiedName", Boolean(textField(action, "webServiceQualifiedName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "WebServiceCallAction.operationName is required.", object.id, action.id, "action.operationName", Boolean(textField(action, "operationName")));
+    }
+    if (action.kind === "importXml") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ImportXmlAction.sourceVariableName is required.", object.id, action.id, "action.sourceVariableName", Boolean(textField(action, "sourceVariableName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ImportXmlAction.importMappingQualifiedName is required.", object.id, action.id, "action.importMappingQualifiedName", Boolean(textField(action, "importMappingQualifiedName")));
+    }
+    if (action.kind === "exportXml") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ExportXmlAction.sourceVariableName is required.", object.id, action.id, "action.sourceVariableName", Boolean(textField(action, "sourceVariableName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ExportXmlAction.exportMappingQualifiedName is required.", object.id, action.id, "action.exportMappingQualifiedName", Boolean(textField(action, "exportMappingQualifiedName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ExportXmlAction.outputVariableName is required.", object.id, action.id, "action.outputVariableName", Boolean(textField(action, "outputVariableName")));
+    }
+    if (action.kind === "callExternalAction") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "CallExternalAction.consumedServiceQualifiedName is required.", object.id, action.id, "action.consumedServiceQualifiedName", Boolean(textField(action, "consumedServiceQualifiedName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "CallExternalAction.externalActionName is required.", object.id, action.id, "action.externalActionName", Boolean(textField(action, "externalActionName")));
+    }
+    if (action.kind === "restOperationCall") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "RestOperationCall.consumedRestServiceQualifiedName is required.", object.id, action.id, "action.consumedRestServiceQualifiedName", Boolean(textField(action, "consumedRestServiceQualifiedName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "RestOperationCall.operationName is required.", object.id, action.id, "action.operationName", Boolean(textField(action, "operationName")));
+    }
+    if (action.kind === "restCall" && !action.request.method) {
+      issues.push(issue("MF_REST_METHOD_MISSING", "RestCallAction.request.method is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.request.method" }));
+    }
+    if (action.kind === "restCall" && !(action.request.urlExpression.raw ?? action.request.urlExpression.text ?? "").trim()) {
+      issues.push(issue("MF_REST_URL_MISSING", "RestCallAction.request.urlExpression is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.request.urlExpression" }));
+    }
+    if (action.kind === "restCall") {
+      action.request.headers.forEach((header, index) => {
+        if (!header.key.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST header key is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.headers.${index}.key` }));
+        }
+        if (!expressionText(header.valueExpression)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST header value expression is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.headers.${index}.valueExpression` }));
+        }
+      });
+      action.request.queryParameters.forEach((parameter, index) => {
+        if (!parameter.key.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST query key is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.queryParameters.${index}.key` }));
+        }
+        if (!expressionText(parameter.valueExpression)) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST query value expression is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.queryParameters.${index}.valueExpression` }));
+        }
+      });
+      if (action.request.body.kind === "form") {
+        action.request.body.fields.forEach((field, index) => {
+          if (!field.key.trim()) {
+            issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST form body field key is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.body.fields.${index}.key` }));
+          }
+          if (!expressionText(field.valueExpression)) {
+            issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "REST form body field value expression is required.", { objectId: object.id, actionId: action.id, fieldPath: `action.request.body.fields.${index}.valueExpression` }));
+          }
+        });
+      }
+    }
+    if (action.kind === "restCall" && action.timeoutSeconds <= 0) {
+      issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "RestCallAction.timeoutSeconds must be greater than 0.", { objectId: object.id, actionId: action.id, fieldPath: "action.timeoutSeconds" }));
+    }
+    if (action.kind === "restCall" && action.response.handling.kind !== "ignore" && !action.response.handling.outputVariableName.trim()) {
+      issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "RestCallAction.response.handling.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.response.handling.outputVariableName" }));
+    }
+    if (action.kind === "createVariable") {
+      if (!action.variableName.trim()) {
+        issues.push(issue("MF_CREATE_VARIABLE_NAME_MISSING", "CreateVariableAction.variableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.variableName" }));
+      }
+    }
+    if (action.kind === "changeVariable") {
+      if (!action.targetVariableName.trim()) {
+        issues.push(issue("MF_CHANGE_VARIABLE_TARGET_MISSING", "ChangeVariableAction.targetVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetVariableName" }));
+      }
+      if (!expressionText(action.newValueExpression)) {
+        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "ChangeVariableAction.newValueExpression is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.newValueExpression" }));
+      }
+    }
+    if (action.kind === "logMessage") {
+      if (!action.logNodeName.trim()) {
+        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "LogMessageAction.logNodeName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.logNodeName" }));
+      }
+      if (!action.template.text.trim()) {
+        issues.push(issue("MF_LOG_MESSAGE_EMPTY", "LogMessageAction.template.text is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.template.text" }));
+      }
+    }
+    if (action.kind === "generateDocument") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "GenerateDocumentAction.documentTemplateQualifiedName is required.", object.id, action.id, "action.documentTemplateQualifiedName", Boolean(textField(action, "documentTemplateQualifiedName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "GenerateDocumentAction.outputFileDocumentVariableName is required.", object.id, action.id, "action.outputFileDocumentVariableName", Boolean(textField(action, "outputFileDocumentVariableName")));
+    }
+    if (action.kind === "counter" || action.kind === "incrementCounter" || action.kind === "gauge") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", `${action.officialType}.metricName is required.`, object.id, action.id, "action.metricName", Boolean(textField(action, "metricName")));
+      if (action.kind !== "incrementCounter") {
+        required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", `${action.officialType}.valueExpression is required.`, object.id, action.id, "action.valueExpression", Boolean(expressionText(action.valueExpression)));
+      }
+    }
+    if (action.kind === "mlModelCall") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "MLModelCallAction.modelMappingQualifiedName is required.", object.id, action.id, "action.modelMappingQualifiedName", Boolean(textField(action, "modelMappingQualifiedName")));
+    }
+    if (action.kind === "callWorkflow") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "CallWorkflowAction.targetWorkflowId is required.", object.id, action.id, "action.targetWorkflowId", Boolean(textField(action, "targetWorkflowId")));
+    }
+    if (action.kind === "changeWorkflowState") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ChangeWorkflowStateAction.workflowInstanceVariableName is required.", object.id, action.id, "action.workflowInstanceVariableName", Boolean(textField(action, "workflowInstanceVariableName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "ChangeWorkflowStateAction.operation is required.", object.id, action.id, "action.operation", Boolean(textField(action, "operation")));
+    }
+    if (["applyJumpToOption", "generateJumpToOptions", "retrieveWorkflowActivityRecords", "retrieveWorkflowContext", "showWorkflowAdminPage", "lockWorkflow", "unlockWorkflow", "notifyWorkflow"].includes(action.kind)) {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", `${action.officialType}.workflowInstanceVariableName is required.`, object.id, action.id, "action.workflowInstanceVariableName", Boolean(textField(action, "workflowInstanceVariableName")));
+    }
+    if (action.kind === "completeUserTask" || action.kind === "showUserTaskPage") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", `${action.officialType}.userTaskVariableName is required.`, object.id, action.id, "action.userTaskVariableName", Boolean(textField(action, "userTaskVariableName")));
+    }
+    if (action.kind === "retrieveWorkflows") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "RetrieveWorkflowsAction.outputListVariableName is required.", object.id, action.id, "action.outputListVariableName", Boolean(textField(action, "outputListVariableName")));
+    }
+    if (action.kind === "deleteExternalObject" || action.kind === "sendExternalObject") {
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", `${action.officialType}.externalObjectVariableName is required.`, object.id, action.id, "action.externalObjectVariableName", Boolean(textField(action, "externalObjectVariableName")));
+      required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", `${action.officialType}.serviceOperationName is required.`, object.id, action.id, "action.serviceOperationName", Boolean(textField(action, "serviceOperationName")));
+    }
+  }
+  return issues;
+}

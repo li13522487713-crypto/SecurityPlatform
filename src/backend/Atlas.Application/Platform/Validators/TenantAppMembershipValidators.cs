@@ -130,11 +130,6 @@ public sealed class WorkspaceCreateRequestValidator : AbstractValidator<Workspac
         RuleFor(x => x.Icon)
             .MaximumLength(256)
             .When(x => x.Icon is not null);
-
-        RuleFor(x => x.AppInstanceId)
-            .NotEmpty()
-            .Must(value => long.TryParse(value, out var appInstanceId) && appInstanceId > 0)
-            .WithMessage("应用实例标识必须为正整数。");
     }
 }
 
@@ -153,5 +148,34 @@ public sealed class WorkspaceUpdateRequestValidator : AbstractValidator<Workspac
         RuleFor(x => x.Icon)
             .MaximumLength(256)
             .When(x => x.Icon is not null);
+    }
+}
+
+public sealed class WorkspaceAppInstanceCreateRequestValidator : AbstractValidator<WorkspaceAppInstanceCreateRequest>
+{
+    public WorkspaceAppInstanceCreateRequestValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .MaximumLength(128);
+
+        RuleFor(x => x.Description)
+            .MaximumLength(1024)
+            .When(x => x.Description is not null);
+
+        RuleFor(x => x.Icon)
+            .MaximumLength(256)
+            .When(x => x.Icon is not null);
+
+        RuleFor(x => x.Category)
+            .MaximumLength(64)
+            .When(x => x.Category is not null);
+
+        // 1→N 模型：AppKey 可为空，留空时由 Service 层按 workspace 自动生成。
+        RuleFor(x => x.AppKey)
+            .MaximumLength(64)
+            .Matches(@"^[A-Za-z][A-Za-z0-9_-]*$")
+            .When(x => !string.IsNullOrWhiteSpace(x.AppKey))
+            .WithMessage("AppKey 必须以字母开头，仅包含字母、数字、下划线和短横线。");
     }
 }

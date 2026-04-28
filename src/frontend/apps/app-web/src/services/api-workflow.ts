@@ -1,6 +1,8 @@
 import type { ApiResponse, PagedResult } from "@atlas/shared-react-core/types";
 import { requestApi } from "./api-core";
 
+const WORKFLOW_GATEWAY_BASE = "/api/app-web/workflow-sdk";
+
 export interface WorkflowCreateRequest {
   name: string;
   description?: string;
@@ -60,7 +62,7 @@ function normalizeWorkspaceId(workspaceId?: string | number): string {
 }
 
 export async function createWorkflow(request: WorkflowCreateRequest): Promise<ApiResponse<string>> {
-  const result = await requestApi<CozeResponse<{ workflow_id?: string }>>("/api/workflow_api/create", {
+  const result = await requestApi<CozeResponse<{ workflow_id?: string }>>(`${WORKFLOW_GATEWAY_BASE}/create`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -88,7 +90,7 @@ export async function saveWorkflowDraft(
   workflowId: string,
   request: WorkflowSaveRequest
 ): Promise<ApiResponse<boolean>> {
-  const result = await requestApi<CozeResponse<object>>("/api/workflow_api/save", {
+  const result = await requestApi<CozeResponse<object>>(`${WORKFLOW_GATEWAY_BASE}/save`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -110,6 +112,31 @@ export async function saveWorkflowDraft(
   );
 }
 
+export async function deleteWorkflow(
+  workflowId: string,
+  workspaceId?: string | number
+): Promise<ApiResponse<boolean>> {
+  const result = await requestApi<CozeResponse<object>>(`${WORKFLOW_GATEWAY_BASE}/delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      workflow_id: workflowId,
+      space_id: normalizeWorkspaceId(workspaceId)
+    })
+  });
+
+  return toApiResponse<boolean>(
+    {
+      code: result.code,
+      msg: result.msg,
+      data: (result.code ?? -1) === 0
+    },
+    false
+  );
+}
+
 export async function listWorkflows(
   pageIndex = 1,
   pageSize = 20,
@@ -117,7 +144,7 @@ export async function listWorkflows(
   workspaceId?: string | number
 ): Promise<ApiResponse<PagedResult<WorkflowListItem>>> {
   const result = await requestApi<CozeResponse<{ workflow_list?: Array<Record<string, unknown>>; total?: number }>>(
-    "/api/workflow_api/workflow_list",
+    `${WORKFLOW_GATEWAY_BASE}/workflow_list`,
     {
       method: "POST",
       headers: {

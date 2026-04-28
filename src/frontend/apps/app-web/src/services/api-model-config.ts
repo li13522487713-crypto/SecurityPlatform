@@ -24,6 +24,7 @@ export interface ModelConfigDto {
   presencePenalty?: number;
   apiKeyMasked?: string;
   createdAt: string;
+  workspaceId?: string;
 }
 
 export interface ModelConfigCreateRequest {
@@ -45,6 +46,7 @@ export interface ModelConfigCreateRequest {
   topP?: number;
   frequencyPenalty?: number;
   presencePenalty?: number;
+  workspaceId?: string;
 }
 
 export interface ModelConfigUpdateRequest {
@@ -66,6 +68,7 @@ export interface ModelConfigUpdateRequest {
   topP?: number;
   frequencyPenalty?: number;
   presencePenalty?: number;
+  workspaceId?: string;
 }
 
 export interface ModelConfigStatsDto {
@@ -93,8 +96,14 @@ export interface ModelConfigPromptTestRequest {
   enableStreaming?: boolean;
 }
 
-export async function getModelConfigsPaged(request: PagedRequest): Promise<PagedResult<ModelConfigDto>> {
-  const query = toQuery(request);
+export async function getModelConfigsPaged(
+  request: PagedRequest,
+  filters?: { keyword?: string; workspaceId?: string }
+): Promise<PagedResult<ModelConfigDto>> {
+  const query = toQuery(request, {
+    keyword: filters?.keyword,
+    workspaceId: filters?.workspaceId
+  });
   const response = await requestApi<ApiResponse<PagedResult<ModelConfigDto>>>(`/model-configs?${query}`);
   if (!response.data) throw new Error(response.message || "Failed to query model configs");
   return response.data;
@@ -106,9 +115,10 @@ export async function getModelConfigById(id: number): Promise<ModelConfigDto> {
   return response.data;
 }
 
-export async function getModelConfigStats(keyword?: string): Promise<ModelConfigStatsDto> {
+export async function getModelConfigStats(keyword?: string, workspaceId?: string): Promise<ModelConfigStatsDto> {
   const query = new URLSearchParams();
   if (keyword) query.set("keyword", keyword);
+  if (workspaceId) query.set("workspaceId", workspaceId);
   const url = query.size > 0 ? `/model-configs/stats?${query.toString()}` : "/model-configs/stats";
   const response = await requestApi<ApiResponse<ModelConfigStatsDto>>(url);
   if (!response.data) throw new Error(response.message || "Failed to query stats");

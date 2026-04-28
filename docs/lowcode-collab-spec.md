@@ -74,3 +74,29 @@ await provider.connect();
 
 - 服务端不允许在 SendUpdate 内反序列化 base64 → 解析 CRDT；这会破坏 Yjs 的 CRDT 不变性。
 - 客户端 collab provider 与本地 LocalSliceHistoryProvider 同时启用；必须互斥（IHistoryProvider 接口切换）。
+
+## 11. 冲突解决策略（P5-3 新增）
+
+协同冲突由 Yjs CRDT 自动解决，无需用户参与。具体策略：
+
+- **CRDT 合并**：所有 Y.Map / Y.Array 操作天然可交换（commutative），多客户端并发写入时按操作时间戳合并，最终一致。
+- **组件级锁**：`lowcode-collab-yjs/lock` 提供组件 id 级 acquire/renew/release；同一组件同一时间只允许一人编辑属性面板（默认 TTL 30s，5s 心跳 renew）。
+- **离线合并**：本地 IndexedDB persistence（`lowcode-collab-yjs/offline`，y-indexeddb）保留离线编辑；重连时 SignalR provider 自动 sync 历史 update，CRDT 合并不丢稿。
+- **冲突可视化**：当组件锁被他人持有，UI 显示锁图标 + 持有者头像；强制夺锁需高权限 + 二次确认（接口预留，UI 留增量）。
+
+## 12. awareness 同步帧格式（P1-6 + P5-3 补完）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| Hub 方法 | string | `SendAwareness(appId, userId, base64Awareness)` |
+| 广播事件 | string | `awareness`（与 yjsUpdate 并行通道） |
+| 帧 payload | `{ from: userId, awareness: base64String }` | base64 编码的 awareness 协议二进制（y-protocols/awareness encodeAwarenessUpdate） |
+| 接收处理 | applyAwarenessUpdate | origin 标记为 provider.origin 防回声 |
+| 客户端断开 | removeAwarenessStates([clientID]) | 清理本地状态让其它客户端立即感知 "对方下线" |
+
+## 13. 性能实证（留增量）
+
+- 5 浏览器并发 100 组件页面：Playwright 多 BrowserContext 脚本（P4-6 留增量）
+- 协同延迟：局域网 < 200 ms（基线，未实证）
+- awareness 帧大小：每客户端 cursor 状态约 200 bytes，10 客户端并发 100 帧/秒 ≈ 200KB/s，可承受
+

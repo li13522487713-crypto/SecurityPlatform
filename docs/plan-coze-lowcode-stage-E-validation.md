@@ -17,7 +17,8 @@
   - `/api/v1/lowcode/plugins`（6 端点）
   - `/api/runtime/plugins/{id}:invoke`
 - M19：
-  - `/api/v2/workflows/generate` / `/{id}/batch` / `/{id}/compose` / `/{id}/decompose` / `/quota`
+  - 历史草案中的 `/api/v2/workflows/generate` / `/{id}/batch` / `/{id}/compose` / `/{id}/decompose` / `/quota` 已在当前代码库下线
+  - 当前保留的运行时工作流入口为 `/api/runtime/workflows/{id}:invoke` / `:invoke-async` / `:invoke-batch`
 - M20：
   - `/api/v2/workflows/orchestration/plan`
 

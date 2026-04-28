@@ -68,6 +68,28 @@ public class UserAccount : TenantEntity
 
     public string Username { get; private set; }
     public string DisplayName { get; private set; }
+    /// <summary>
+    /// 治理 M-G06-C2（S11）：账号状态机。
+    /// 取值：active / pending-activation / disabled / offboarded。
+    /// 默认 active 保持向后兼容；登录前置检查根据本字段决定是否拒绝。
+    /// </summary>
+    [SqlSugar.SugarColumn(Length = 32, IsNullable = false, DefaultValue = "active")]
+    public string Status { get; private set; } = "active";
+
+    public const string StatusActive = "active";
+    public const string StatusPendingActivation = "pending-activation";
+    public const string StatusDisabled = "disabled";
+    public const string StatusOffboarded = "offboarded";
+
+    public void TransitionStatus(string status)
+    {
+        var normalized = (status ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalized is StatusActive or StatusPendingActivation or StatusDisabled or StatusOffboarded)
+        {
+            Status = normalized;
+        }
+    }
+
     public string PasswordHash { get; private set; }
     public string Roles { get; private set; }
     public string? Email { get; private set; }

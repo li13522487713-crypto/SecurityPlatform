@@ -27,6 +27,13 @@ public interface IAppDefinitionRepository
         int pageSize,
         string? keyword,
         string? status,
+        string? workspaceId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyDictionary<long, string>> LoadFolderIdsAsync(
+        TenantId tenantId,
+        string workspaceId,
+        IReadOnlyCollection<long> appIds,
         CancellationToken cancellationToken);
 }
 

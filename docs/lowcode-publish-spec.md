@@ -37,7 +37,7 @@ inst.unmount();
 
 ## 3. 端点双套
 
-### 设计态（PlatformHost / `/api/v1/lowcode/apps/{id}`）
+### 设计态（AppHost / `/api/v1/lowcode/apps/{id}`）
 - `POST /publish/{kind}`            发布（hosted / embedded-sdk / preview）
 - `GET  /artifacts`                 列出产物
 - `POST /publish/rollback`          按 artifactId 撤回
@@ -52,7 +52,7 @@ inst.unmount();
 ## 5. 外链白名单（M12 + M17 联动）
 
 - 发布 hosted 类型必须先在 webview-domains 注册并验证（dns_txt / http_file）。
-- runtime 端点 `open_external_link` 由 lowcode-webview-policy-adapter `isAllowed` 校验；未通过的域名直接拒绝跳转。
+- runtime 端点 `open_external_link` 由运行时 webview 域名白名单策略校验；未通过的域名直接拒绝跳转。
 
 ## 6. 三种嵌入示例
 
@@ -73,3 +73,14 @@ inst.unmount();
 
 - 直接修改 `AppPublishArtifact.PublicUrl` 跳过 publish 流程 —— 拒绝；必须经 `IAppPublishService.PublishAsync` 重新计算指纹。
 - `<script>` 引入未在白名单 CDN 的 SDK 文件 —— CSP 阻断。
+
+## 9. P2 对齐说明（2026-04 P5-1 修正）
+
+| spec 条款 | 代码实现位置 | P2 修复点 |
+|---|---|---|
+| 发布 hosted 必须先验证域名 | `AppPublishService.PublishAsync` | P2-2：扫 `IRuntimeWebviewDomainService.ListAsync` 必须有 ≥1 个 `Verified=true`，否则抛 `WEBVIEW_DOMAIN_REQUIRED` |
+| 严格 CSP（去 unsafe-eval） | `SecurityHeadersMiddleware` | P2-5：移除 `'unsafe-eval'`，script-src 引入 nonce 机制；`connect-src 'self' https://*.atlas.local` |
+| SDK UMD/ESM 双输出 | `lowcode-web-sdk/rsbuild.lib.config.ts` | P2-1：rsbuild library 模式真实双输出；prepublishOnly 自动 build |
+| SDK 拉运行时 schema | `lowcode-web-sdk/src/index.ts` | P2-1：numeric appId → /api/runtime/apps/{id}/schema；非 numeric → 回退 design draft + console.warn |
+| sdk-playground 真实三种嵌入 | `apps/lowcode-sdk-playground/src/main.tsx` | P2-3：npm + window.AtlasLowcode + iframe 切换 |
+| 构建流水线抽象 | `IPublishBuildPipeline` 接口 | P2-2：默认 NoopPublishBuildPipeline；生产用 `services.Replace<IPublishBuildPipeline, MinioPublishBuildPipeline>` |

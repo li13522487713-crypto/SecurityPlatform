@@ -169,7 +169,29 @@ interface SdkAppNode {
 
 async function loadAndRender(root: HTMLElement, opts: MountOptions): Promise<void> {
   const baseUrl = (opts.baseUrl ?? '').replace(/\/+$/, '');
-  const url = `${baseUrl}/api/v1/lowcode/apps/${encodeURIComponent(opts.appId)}/draft`;
+  // P2-1 修复（PLAN §M17 C17-1）：
+  // 此前 SDK 拉的是 /api/v1/lowcode/apps/{id}/draft（设计态草稿）—— 嵌入页面仅应消费"已发布运行时 schema"。
+  // 现修正为：当 appId 为 numeric long → 走运行时 /api/runtime/apps/{id}/schema 或 /versions/{ver}/schema；
+  // 当 appId 非 numeric（设计期开发 / preview demo）→ 回退到设计态 draft 并发出 console.warn。
+  // version 优先：若调用方提供 version（且为 numeric） → /versions/{ver}/schema。
+  const numericAppId = /^\d+$/.test(opts.appId) ? opts.appId : null;
+  const numericVersion = opts.version && /^\d+$/.test(opts.version) ? opts.version : null;
+  let url: string;
+  let isRuntime: boolean;
+  if (numericAppId && numericVersion) {
+    url = `${baseUrl}/api/runtime/apps/${numericAppId}/versions/${numericVersion}/schema`;
+    isRuntime = true;
+  } else if (numericAppId) {
+    url = `${baseUrl}/api/runtime/apps/${numericAppId}/schema`;
+    isRuntime = true;
+  } else {
+    url = `${baseUrl}/api/v1/lowcode/apps/${encodeURIComponent(opts.appId)}/draft`;
+    isRuntime = false;
+    if (typeof console !== 'undefined') {
+      console.warn(`[AtlasLowcode] appId="${opts.appId}" 非 numeric long，已回退到设计态 draft；生产环境请使用已发布版本的 numeric appId。`);
+    }
+  }
+
   try {
     const res = await fetch(url, {
       headers: {
@@ -178,10 +200,24 @@ async function loadAndRender(root: HTMLElement, opts: MountOptions): Promise<voi
       }
     });
     if (!res.ok) throw new Error(`fetch ${url} ${res.status}`);
-    const json = (await res.json()) as { data?: { schemaJson: string } };
-    const schemaJson = json?.data?.schemaJson;
-    if (!schemaJson) throw new Error('empty schemaJson');
-    const app = JSON.parse(schemaJson) as SdkAppNode;
+    const json = (await res.json()) as {
+      // 运行时 schema 直接是 AppSchemaSnapshotDto（含 pages）；设计态 draft 含 schemaJson 字段
+      data?: { schemaJson?: string; pages?: SdkPageNode[]; appId?: string; code?: string };
+    };
+    let app: SdkAppNode;
+    if (isRuntime && json.data && Array.isArray(json.data.pages)) {
+      // 运行时 schema 路径：snapshot 已是结构化对象
+      app = {
+        appId: json.data.appId,
+        code: json.data.code,
+        pages: json.data.pages
+      };
+    } else if (json.data?.schemaJson) {
+      // 设计态 draft 路径：schemaJson 是序列化字符串
+      app = JSON.parse(json.data.schemaJson) as SdkAppNode;
+    } else {
+      throw new Error('empty schema response');
+    }
     const page = app.pages?.[0];
     if (!page) {
       root.textContent = `[AtlasLowcode] empty app ${opts.appId}`;
@@ -193,7 +229,7 @@ async function loadAndRender(root: HTMLElement, opts: MountOptions): Promise<voi
     title.textContent = `${page.displayName} (${page.path})`;
     root.appendChild(title);
     root.appendChild(renderTree(page.root, 0));
-    opts.onEvent?.({ type: 'rendered', payload: { appId: opts.appId, pageCode: page.code } });
+    opts.onEvent?.({ type: 'rendered', payload: { appId: opts.appId, pageCode: page.code, source: isRuntime ? 'runtime' : 'design-draft' } });
   } catch (e) {
     root.textContent = `[AtlasLowcode] load failed: ${(e as Error).message}`;
     opts.onEvent?.({ type: 'error', payload: { message: (e as Error).message } });

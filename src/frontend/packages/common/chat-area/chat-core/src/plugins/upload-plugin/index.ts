@@ -19,6 +19,8 @@ import {
   getUploader,
   type CozeUploader,
   type Config,
+  createLocalUploader,
+  shouldUseAtlasLocalUpload,
 } from '@coze-studio/uploader-adapter';
 import { safeAsyncThrow } from '@coze-common/chat-area-utils';
 
@@ -51,6 +53,22 @@ export class ChatCoreUploadPlugin implements UploadPluginInterface {
 
   private async initUploader() {
     try {
+      if (shouldUseAtlasLocalUpload()) {
+        this.uploader = createLocalUploader();
+        this.addFile(this.uploaderConfig.file, this.uploaderConfig.type);
+        this.uploader.on('complete', info => {
+          this.eventBus.emit('complete', info);
+        });
+        this.uploader.on('progress', info => {
+          this.eventBus.emit('progress', info);
+        });
+        this.uploader.on('error', info => {
+          this.eventBus.emit('error', info);
+        });
+        this.uploader.start();
+        return;
+      }
+
       const dataAuth = await requestInstance.post(GET_AUTH_URL, {
         data: {
           // TODO: Confirm whether the parameter should support the incoming configuration

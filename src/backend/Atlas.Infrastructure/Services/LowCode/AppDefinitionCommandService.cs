@@ -10,6 +10,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.LowCode.Entities;
+using Microsoft.Extensions.Hosting;
 
 namespace Atlas.Infrastructure.Services.LowCode;
 
@@ -23,6 +24,8 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
     private readonly IMapper _mapper;
     private readonly IResourceReferenceIndex _referenceIndex;
     private readonly ILowCodePreviewSignal _previewSignal;
+    private readonly IAppDraftLockService _draftLockService;
+    private readonly IHostEnvironment _hostEnvironment;
 
     public AppDefinitionCommandService(
         IAppDefinitionRepository appRepo,
@@ -31,7 +34,9 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         IIdGeneratorAccessor idGen,
         IMapper mapper,
         IResourceReferenceIndex referenceIndex,
-        ILowCodePreviewSignal previewSignal)
+        ILowCodePreviewSignal previewSignal,
+        IAppDraftLockService draftLockService,
+        IHostEnvironment hostEnvironment)
     {
         _appRepo = appRepo;
         _versionRepo = versionRepo;
@@ -40,6 +45,8 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         _mapper = mapper;
         _referenceIndex = referenceIndex;
         _previewSignal = previewSignal;
+        _draftLockService = draftLockService;
+        _hostEnvironment = hostEnvironment;
     }
 
     public async Task<long> CreateAsync(TenantId tenantId, long currentUserId, AppDefinitionCreateRequest request, CancellationToken cancellationToken)
@@ -56,14 +63,29 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
             request.Code,
             request.DisplayName,
             request.TargetTypes,
-            request.DefaultLocale);
+            request.DefaultLocale,
+            request.WorkspaceId);
         if (!string.IsNullOrWhiteSpace(request.Description))
         {
-            app.UpdateMetadata(request.DisplayName, request.Description, request.TargetTypes, request.DefaultLocale ?? "zh-CN", _mapper.Map<AppThemeConfig?>(request.Theme), currentUserId);
+            app.UpdateMetadata(
+                request.DisplayName,
+                request.Description,
+                request.TargetTypes,
+                request.DefaultLocale ?? "zh-CN",
+                _mapper.Map<AppThemeConfig?>(request.Theme),
+                currentUserId,
+                request.WorkspaceId);
         }
         else if (request.Theme is not null)
         {
-            app.UpdateMetadata(request.DisplayName, request.Description, request.TargetTypes, request.DefaultLocale ?? "zh-CN", _mapper.Map<AppThemeConfig?>(request.Theme), currentUserId);
+            app.UpdateMetadata(
+                request.DisplayName,
+                request.Description,
+                request.TargetTypes,
+                request.DefaultLocale ?? "zh-CN",
+                _mapper.Map<AppThemeConfig?>(request.Theme),
+                currentUserId,
+                request.WorkspaceId);
         }
 
         app.SetCreatedByUser(currentUserId);
@@ -78,7 +100,14 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         var app = await _appRepo.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, $"应用不存在：{id}");
 
-        app.UpdateMetadata(request.DisplayName, request.Description, request.TargetTypes, request.DefaultLocale, _mapper.Map<AppThemeConfig?>(request.Theme), currentUserId);
+        app.UpdateMetadata(
+            request.DisplayName,
+            request.Description,
+            request.TargetTypes,
+            request.DefaultLocale,
+            _mapper.Map<AppThemeConfig?>(request.Theme),
+            currentUserId,
+            request.WorkspaceId);
         await _appRepo.UpdateAsync(app, cancellationToken);
 
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.app.update", "success", $"app:{id}", null, null), cancellationToken);
@@ -96,6 +125,7 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
     public async Task ReplaceDraftAsync(TenantId tenantId, long currentUserId, long id, AppDraftReplaceRequest request, CancellationToken cancellationToken)
     {
         EnsureValidJson(request.SchemaJson, nameof(request.SchemaJson));
+        await EnsureDraftSessionCanWriteAsync(tenantId, id, request.DraftSessionId, cancellationToken);
         var app = await _appRepo.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, $"应用不存在：{id}");
 
@@ -110,6 +140,7 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
     public async Task AutoSaveDraftAsync(TenantId tenantId, long currentUserId, long id, AppDraftAutoSaveRequest request, CancellationToken cancellationToken)
     {
         EnsureValidJson(request.SchemaJson, nameof(request.SchemaJson));
+        await EnsureDraftSessionCanWriteAsync(tenantId, id, request.DraftSessionId, cancellationToken);
         var app = await _appRepo.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, $"应用不存在：{id}");
 
@@ -163,5 +194,16 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         {
             throw new BusinessException(ErrorCodes.ValidationError, $"{fieldName} 不是合法 JSON：{ex.Message}");
         }
+    }
+
+    private async Task EnsureDraftSessionCanWriteAsync(TenantId tenantId, long appId, string? draftSessionId, CancellationToken cancellationToken)
+    {
+        var validation = await _draftLockService.ValidateAsync(tenantId, appId, draftSessionId, cancellationToken);
+        if (validation.IsValid || _hostEnvironment.IsDevelopment())
+        {
+            return;
+        }
+
+        throw new BusinessException(ErrorCodes.Conflict, "草稿编辑锁已失效，请重新获取后再保存");
     }
 }

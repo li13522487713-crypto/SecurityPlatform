@@ -1,0 +1,416 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "type": "1",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Start",
+          "description": "Start fixture node",
+          "icon": "",
+          "subTitle": "type 1",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "auto_save_history": false
+        },
+        "outputs": [
+          {
+            "name": "query",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "user_id",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "plugin",
+      "type": "4",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Plugin",
+          "description": "Plugin fixture node",
+          "icon": "",
+          "subTitle": "type 4",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "pluginFrom": "library",
+          "apiParam": [
+            {
+              "name": "pluginID",
+              "input": {
+                "type": "literal",
+                "content": "9223372036854770001",
+                "rawMeta": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "name": "apiID",
+              "input": {
+                "type": "literal",
+                "content": "9223372036854770002",
+                "rawMeta": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "name": "pluginVersion",
+              "input": {
+                "type": "literal",
+                "content": "v1",
+                "rawMeta": {
+                  "type": "string"
+                }
+              }
+            }
+          ],
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "plugin_result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "database",
+      "type": "43",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Database Query",
+          "description": "Database Query fixture node",
+          "icon": "",
+          "subTitle": "type 43",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "databaseInfoList": [
+            {
+              "databaseInfoID": "9223372036854770201",
+              "name": "fixture_db"
+            }
+          ],
+          "selectParam": {
+            "limit": 20,
+            "conditionList": [],
+            "orderByList": [],
+            "fieldList": []
+          },
+          "inputParameters": [
+            {
+              "name": "user_id",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "user_id"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "rows",
+            "type": "Array",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "knowledge",
+      "type": "6",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Knowledge",
+          "description": "Knowledge fixture node",
+          "icon": "",
+          "subTitle": "type 6",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "datasetParam": [
+            {
+              "name": "datasetList",
+              "input": {
+                "type": "literal",
+                "content": [
+                  "9223372036854770101"
+                ],
+                "rawMeta": {
+                  "type": "array"
+                }
+              }
+            },
+            {
+              "name": "topK",
+              "input": {
+                "type": "literal",
+                "content": 5,
+                "rawMeta": {
+                  "type": "integer"
+                }
+              }
+            },
+            {
+              "name": "minScore",
+              "input": {
+                "type": "literal",
+                "content": 0.3,
+                "rawMeta": {
+                  "type": "number"
+                }
+              }
+            }
+          ],
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "documents",
+            "type": "Array",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "http",
+      "type": "45",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "HTTP",
+          "description": "HTTP fixture node",
+          "icon": "",
+          "subTitle": "type 45",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "method": "POST",
+          "url": "https://example.com/api/fixture",
+          "headers": [],
+          "body": {
+            "type": "json",
+            "value": "{\"ok\":true}"
+          },
+          "inputParameters": [
+            {
+              "name": "payload",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "status",
+            "type": "Integer",
+            "required": false
+          },
+          {
+            "name": "body",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "message",
+      "type": "55",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Message",
+          "description": "Message fixture node",
+          "icon": "",
+          "subTitle": "type 55",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "conversationID": {
+            "type": "literal",
+            "content": "9223372036854770301",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "content": {
+            "type": "literal",
+            "content": "fixture message",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "inputParameters": [
+            {
+              "name": "content",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "message_id",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "end",
+      "type": "2",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "End",
+          "description": "End fixture node",
+          "icon": "",
+          "subTitle": "type 2",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "terminatePlan": "returnVariables",
+          "outputEmitter": {
+            "streamingOutput": false,
+            "content": {
+              "value": "{{end.answer}}"
+            }
+          },
+          "inputParameters": [
+            {
+              "name": "answer",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "sourceNodeID": "start",
+      "targetNodeID": "plugin"
+    },
+    {
+      "sourceNodeID": "plugin",
+      "targetNodeID": "database"
+    },
+    {
+      "sourceNodeID": "database",
+      "targetNodeID": "knowledge"
+    },
+    {
+      "sourceNodeID": "knowledge",
+      "targetNodeID": "http"
+    },
+    {
+      "sourceNodeID": "http",
+      "targetNodeID": "message"
+    },
+    {
+      "sourceNodeID": "message",
+      "targetNodeID": "end"
+    }
+  ]
+}

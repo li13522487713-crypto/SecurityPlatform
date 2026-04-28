@@ -1,0 +1,225 @@
+### 应用级权限与组织治理（平台 JWT + 应用库内 AppRole / AppPermission）
+### 覆盖：创建租户应用实例后的默认角色/权限播种、成员管理、应用角色 DataScope、页面与字段权限。
+### 平台侧写接口需 CSRF；应用 appKey 须全局唯一，冲突时请修改 @newAppKey。
+### 成员接口 userIds 为平台用户 Id 字符串（示例使用 "1" 表示 bootstrap 管理员，可按环境替换）。
+
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@adminUser = admin
+@adminPassword = P@ssw0rd!
+@newAppKey = apppremhttp2026x
+@clientType = WebH5
+@clientPlatform = Web
+@clientChannel = Browser
+@clientAgent = Chrome
+@localeZh = zh-CN
+@noAppPermUsername = http_no_apps_perm
+@noAppPermPassword = P@ssw0rd!2026
+
+### 管理员登录（需 AppsView / AppsUpdate / AppMembersUpdate / AppRoles* 等平台权限）
+# @name adminLogin
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+Accept-Language: {{localeZh}}
+
+{
+  "username": "{{adminUser}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+@adminToken = {{adminLogin.response.body.$.data.accessToken}}
+
+### CSRF
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+
+###
+
+### 创建应用实例（触发 AppBootstrap：默认 AppAdmin/AppMember、应用权限码、根部门、创建者应用角色）
+# @name createTenantApp
+POST {{baseUrl}}/api/v2/tenant-app-instances
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "appKey": "{{newAppKey}}",
+  "name": "HTTP 应用权限探测",
+  "description": "AppPermissions.http",
+  "category": "Test",
+  "icon": "appstore",
+  "dataSourceId": 1
+}
+
+###
+@testAppId = {{createTenantApp.response.body.$.data.id}}
+
+### 治理总览（应含系统预置角色、成员覆盖等统计）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/governance-overview
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 按 Code 定位 AppAdmin（默认全量应用权限 + DataScope All）
+# @name listAppAdminRole
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles?keyword=AppAdmin&pageIndex=1&pageSize=5
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@appAdminRoleId = {{listAppAdminRole.response.body.$.data.items[0].id}}
+
+### 按 Code 定位 AppMember（默认仅 view 类权限 + DataScope OnlySelf）
+# @name listAppMemberRole
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles?keyword=AppMember&pageIndex=1&pageSize=5
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@appMemberRoleId = {{listAppMemberRole.response.body.$.data.items[0].id}}
+
+### 列举应用内已播种的权限定义（应与 Bootstrap 默认码一致，条数 > 0）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/permissions?pageIndex=1&pageSize=50
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 组织工作区（需 Permission:apps:view）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/organization/workspace?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 读取 AppAdmin 数据范围（预期 dataScope 0 = All）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/{{appAdminRoleId}}/data-scope
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 读取 AppMember 数据范围（预期 dataScope 5 = OnlySelf）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/{{appMemberRoleId}}/data-scope
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 将 AppMember 数据范围调整为 CurrentTenant(1)（验证 PUT；可按需改回 5）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/{{appMemberRoleId}}/data-scope
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "dataScope": 1,
+  "deptIds": []
+}
+
+### 可分配页面列表（低代码页面）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/available-pages
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### AppAdmin 已分配页面 Id
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/{{appAdminRoleId}}/pages
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### AppMember 页面权限（读取）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/{{appMemberRoleId}}/pages
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 应用角色 — 字段权限读取（AppAdmin）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/{{appAdminRoleId}}/field-permissions
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 应用角色 — 字段权限全量替换为空（清空 AppMember 字段级覆盖）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/{{appMemberRoleId}}/field-permissions
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "groups": []
+}
+
+### 可选动态表列表（字段权限配置入口）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/available-dynamic-tables
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 成员管理 — 将平台用户加入应用（需 Permission:apps:members:update）
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/organization/members
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "userIds": ["1"],
+  "roleIds": [],
+  "projectIds": []
+}
+
+### —— 反向：无平台「应用」相关权限的用户 ——
+
+### 创建无平台角色的用户（不含 apps:view 等）
+# @name createNoAppPermUser
+POST {{baseUrl}}/api/v1/users
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{noAppPermUsername}}",
+  "password": "{{noAppPermPassword}}",
+  "displayName": "HTTP 无应用权限用户",
+  "email": "http.no.apps@atlas.local",
+  "phoneNumber": "13800000003",
+  "isActive": true,
+  "roleIds": [],
+  "departmentIds": [],
+  "positionIds": []
+}
+
+###
+@noAppPermUserId = {{createNoAppPermUser.response.body.$.data.id}}
+
+### 无应用权限用户登录
+# @name noAppPermLogin
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+
+{
+  "username": "{{noAppPermUsername}}",
+  "password": "{{noAppPermPassword}}"
+}
+
+###
+@noAppPermToken = {{noAppPermLogin.response.body.$.data.accessToken}}
+
+### [反向 403] 无应用权限 — 组织工作区
+# @expected-status 403
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/organization/workspace?pageIndex=1&pageSize=5
+Authorization: Bearer {{noAppPermToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [反向 403] 无应用权限 — 应用角色列表
+# @expected-status 403
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles?pageIndex=1&pageSize=5
+Authorization: Bearer {{noAppPermToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [反向 401] 未认证 — 应用权限列表
+# @expected-status 401
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/permissions?pageIndex=1&pageSize=5
+X-Tenant-Id: {{tenantId}}

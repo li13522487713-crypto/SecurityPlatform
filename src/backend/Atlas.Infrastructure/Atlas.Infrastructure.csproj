@@ -10,11 +10,13 @@
     <PackageReference Include="AutoMapper" Version="14.0.0" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.19.1" />
     <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="DnsClient" Version="1.8.0" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.4.1" />
     <PackageReference Include="FluentValidation" Version="11.4.0" />
     <PackageReference Include="Hangfire.Core" Version="1.8.23" />
     <PackageReference Include="Hangfire.Storage.SQLite" Version="0.4.3" />
     <PackageReference Include="JiebaNet.Segmenter" Version="1.0.6" />
+    <PackageReference Include="Jint" Version="4.8.0" />
     <PackageReference Include="Lucene.Net" Version="4.8.0-beta00017" />
     <PackageReference Include="MassTransit" Version="9.1.0" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="9.1.0" />
@@ -53,17 +55,21 @@
     <ProjectReference Include="..\Atlas.Application.LogicFlow\Atlas.Application.LogicFlow.csproj" />
     <ProjectReference Include="..\Atlas.Application.BatchProcess\Atlas.Application.BatchProcess.csproj" />
     <ProjectReference Include="..\Atlas.Application.LowCode\Atlas.Application.LowCode.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Microflows\Atlas.Application.Microflows.csproj" />
     <ProjectReference Include="..\Atlas.Domain.LowCode\Atlas.Domain.LowCode.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.Microflows\Atlas.Domain.Microflows.csproj" />
     <ProjectReference Include="..\Atlas.Domain.LogicFlow\Atlas.Domain.LogicFlow.csproj" />
     <ProjectReference Include="..\Atlas.Domain.BatchProcess\Atlas.Domain.BatchProcess.csproj" />
     <ProjectReference Include="..\Atlas.Infrastructure.LogicFlow\Atlas.Infrastructure.LogicFlow.csproj" />
     <ProjectReference Include="..\Atlas.Infrastructure.BatchProcess\Atlas.Infrastructure.BatchProcess.csproj" />
     <ProjectReference Include="..\Atlas.Domain.AgentTeam\Atlas.Domain.AgentTeam.csproj" />
     <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.ExternalConnectors\Atlas.Domain.ExternalConnectors.csproj" />
     <ProjectReference Include="..\Atlas.Domain.Workflow\Atlas.Domain.Workflow.csproj" />
     <ProjectReference Include="..\Atlas.WorkflowCore\Atlas.WorkflowCore.csproj" />
     <ProjectReference Include="..\Atlas.WorkflowCore.DSL\Atlas.WorkflowCore.DSL.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
+    <ProjectReference Include="..\Atlas.Infrastructure.Channels\Atlas.Infrastructure.Channels.csproj" />
     <ProjectReference Include="..\Atlas.Shared.Contracts\Atlas.Shared.Contracts.csproj" />
   </ItemGroup>
 

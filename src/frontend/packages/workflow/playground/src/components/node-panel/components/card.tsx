@@ -51,6 +51,7 @@ export const NodeCard: FC<NodesContainerProps> = props => {
       <NodeIconOutlined
         size={20}
         icon={icon}
+        name={name}
         hideOutline={hideOutline}
         borderRadius="var(--coze-4)"
         outlineColor="var(--coz-stroke-plus)"

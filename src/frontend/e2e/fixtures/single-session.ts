@@ -5,8 +5,8 @@ import {
   type Locator,
   type Page
 } from "@playwright/test";
-import { orgWorkspacesPath, signPath } from "@atlas/app-shell-shared";
-import { appBaseUrl, defaultTenantId, loginApp } from "../app/helpers";
+import { selectWorkspacePath, signPath } from "@atlas/app-shell-shared";
+import { appBaseUrl, loginApp } from "../app/helpers";
 import {
   clamp,
   gazeDelay,
@@ -722,16 +722,27 @@ async function clearAuthState(page: Page) {
 }
 
 async function isWorkspaceSessionReady(page: Page, appKey: string): Promise<boolean> {
-  await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
+  await page.goto(`${appBaseUrl}${selectWorkspacePath()}`);
 
   const loginRegex = new RegExp(`${signPath().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?.*)?$`);
   if (loginRegex.test(page.url())) {
     return false;
   }
 
-  await expect(page.getByTestId("workspace-list-page")).toBeVisible({ timeout: 30_000 });
-  const workspaceCard = page.locator(`.atlas-workspace-card:has-text("${appKey}")`).first();
-  await expect(workspaceCard).toBeVisible({ timeout: 30_000 });
+  const workspaceHomePattern = /\/workspace\/[^/]+\/home(?:\?.*)?$/;
+  if (workspaceHomePattern.test(new URL(page.url()).pathname + new URL(page.url()).search)) {
+    return true;
+  }
+
+  await expect(page.getByTestId("coze-select-workspace-page")).toBeVisible({ timeout: 30_000 });
+  const matchedWorkspaceButton = page.locator('[data-testid^="coze-select-workspace-"]', { hasText: appKey }).first();
+  if (await matchedWorkspaceButton.count()) {
+    await expect(matchedWorkspaceButton).toBeVisible({ timeout: 30_000 });
+    return true;
+  }
+
+  const anyWorkspaceButton = page.locator('[data-testid^="coze-select-workspace-"]').first();
+  await expect(anyWorkspaceButton).toBeVisible({ timeout: 30_000 });
   return true;
 }
 
@@ -779,11 +790,15 @@ async function ensureFreshWorkspaceSession(page: Page, appKey: string): Promise<
     throw new Error("无法同步应用级认证档案，当前会话可能已失效。");
   }
 
-  await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
-  const workspaceCard = page.locator(`.atlas-workspace-card:has-text("${appKey}")`).first();
-  await expect(workspaceCard).toBeVisible({ timeout: 30_000 });
-  await workspaceCard.locator('[data-testid^="workspace-open-"]').first().click();
-  await page.waitForURL(new RegExp(`/org/${defaultTenantId}/workspaces/[^/]+/dashboard(?:\\?.*)?$`), { timeout: 30_000 });
+  await page.goto(`${appBaseUrl}${selectWorkspacePath()}`);
+  await expect(page.getByTestId("coze-select-workspace-page")).toBeVisible({ timeout: 30_000 });
+  const matchedWorkspaceButton = page.locator('[data-testid^="coze-select-workspace-"]', { hasText: appKey }).first();
+  if (await matchedWorkspaceButton.count()) {
+    await matchedWorkspaceButton.click();
+  } else {
+    await page.locator('[data-testid^="coze-select-workspace-"]').first().click();
+  }
+  await page.waitForURL(/\/workspace\/[^/]+\/home(?:\?.*)?$/, { timeout: 30_000 });
   await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
 }
 

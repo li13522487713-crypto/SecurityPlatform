@@ -28,3 +28,11 @@ public sealed record WorkspacePublishChannelUpdateRequest(
     [StringLength(512)] string? Description,
     [StringLength(16)] string? Status,
     IReadOnlyList<string>? SupportedTargets);
+
+public sealed record PublishChannelCatalogItemDto(
+    string ChannelKey,
+    string DisplayName,
+    string? PublishChannelType,
+    string? CredentialKind,
+    bool AllowDraft,
+    bool AllowOnline);

@@ -17,7 +17,7 @@ namespace Atlas.Infrastructure.Services.SetupConsole;
 /// - ConsoleToken 30 分钟过期；持久化到 <c>setup_console_token</c> 表。
 /// - 校验通过：恢复密钥 hash 匹配 <see cref="SystemSetupState.RecoveryKeyHash"/>，
 ///   或 BootstrapAdmin 凭证（密码用 PBKDF2 哈希后存到 <see cref="SystemSetupState.BootstrapPasswordHash"/>，
-///   PlatformHost 启动时由 <c>SetupConsoleBootstrapInitializer</c> 自动哈希；运行时 timing-safe 比对）。
+///   AppHost 启动时由 <c>SetupConsoleBootstrapInitializer</c> 自动哈希；运行时 timing-safe 比对）。
 /// - 仅存哈希；明文 token 仅在颁发时返回客户端一次。
 /// - 多实例部署时所有实例共享 token 生命周期。
 /// </summary>
@@ -77,12 +77,12 @@ public sealed class SetupRecoveryKeyService : ISetupRecoveryKeyService
             .Where(item => item.TenantIdValue == tenant && item.TokenHash == hash)
             .FirstAsync()
             .ConfigureAwait(false);
-        if (record is null || !record.IsActive(DateTimeOffset.UtcNow))
+        if (record is null || !record.IsActive(DateTimeOffset.Now))
         {
             return null;
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.Now;
         record.Renew(now, now.Add(TokenLifetime));
         await _db.Updateable(record).ExecuteCommandAsync().ConfigureAwait(false);
 
@@ -106,7 +106,7 @@ public sealed class SetupRecoveryKeyService : ISetupRecoveryKeyService
             .Where(item => item.TenantIdValue == tenant && item.TokenHash == hash)
             .FirstAsync()
             .ConfigureAwait(false);
-        return record is not null && record.IsActive(DateTimeOffset.UtcNow);
+        return record is not null && record.IsActive(DateTimeOffset.Now);
     }
 
     public async Task RevokeAsync(string consoleToken, CancellationToken cancellationToken = default)
@@ -125,7 +125,7 @@ public sealed class SetupRecoveryKeyService : ISetupRecoveryKeyService
         {
             return;
         }
-        record.Revoke(DateTimeOffset.UtcNow);
+        record.Revoke(DateTimeOffset.Now);
         await _db.Updateable(record).ExecuteCommandAsync().ConfigureAwait(false);
     }
 
@@ -258,7 +258,7 @@ public sealed class SetupRecoveryKeyService : ISetupRecoveryKeyService
 
     private async Task<ConsoleAuthTokenDto> IssueTokenAsync(CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.Now;
         var plain = GenerateConsoleToken();
         var hash = HashToken(plain);
         var permissions = "system,workspace,migration";

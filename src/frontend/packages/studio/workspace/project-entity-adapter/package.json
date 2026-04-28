@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@coze-arch/idl": "workspace:*",
+    "@coze-studio/entity-adapter": "workspace:*",
     "@coze-studio/project-entity-base": "workspace:*"
   },
   "devDependencies": {

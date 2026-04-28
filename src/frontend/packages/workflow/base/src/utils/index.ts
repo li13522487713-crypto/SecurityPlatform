@@ -48,3 +48,9 @@ export {
   traverse,
 } from './traverse';
 export { getFileAccept } from './get-file-accept';
+export { stableStringifyWorkflowSchema } from './stable-json';
+export {
+  validateWorkflowSchemaInvariants,
+  type WorkflowSchemaInvariantIssue,
+  type WorkflowSchemaInvariantResult,
+} from './schema-invariants';

@@ -70,6 +70,13 @@ export const WORKSPACE_WORKFLOW_ROUTE_HANDLE = createHandle({
   subMenuKey: "workflow",
   responsive: true
 });
+export const MENDIX_STUDIO_ROUTE_HANDLE = createHandle({
+  hasSider: true,
+  requireAuth: true,
+  menuKey: "develop",
+  subMenuKey: "mendix-studio",
+  responsive: true
+});
 export const WORKSPACE_CHATFLOW_ROUTE_HANDLE = createHandle({
   hasSider: true,
   requireAuth: true,

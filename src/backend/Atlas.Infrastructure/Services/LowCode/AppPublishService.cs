@@ -13,6 +13,47 @@ using Atlas.Domain.LowCode.Entities;
 
 namespace Atlas.Infrastructure.Services.LowCode;
 
+/// <summary>
+/// 发布产物构建流水线（P2-2 抽象）。
+///
+/// 默认实现 <see cref="NoopPublishBuildPipeline"/> 不做真实 build —— 仅按 kind 生成稳定 URL，
+/// 与 FINAL 报告"模型/外部依赖延后项"一致；生产部署时由宿主用 <c>services.Replace(...)</c> 注入
+/// MinIO + CDN 实现（如 <c>MinioPublishBuildPipeline</c>，调用 <c>IFileObjectStore</c> 上传 JS/CSS/Schema 包，
+/// 然后调 CDN 刷新 API）。
+/// </summary>
+public interface IPublishBuildPipeline
+{
+    /// <summary>
+    /// 构建产物：返回最终的 PublicUrl。
+    /// 抛 <see cref="BusinessException"/> 视为构建失败，调用方将 <see cref="AppPublishArtifact.MarkFailed"/>。
+    /// </summary>
+    Task<string> BuildAsync(
+        TenantId tenantId,
+        AppPublishArtifact artifact,
+        AppDefinition app,
+        string versionedSchemaJson,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// 默认 NoopPublishBuildPipeline：不做真实 build，仅按 kind 拼装稳定 URL。
+/// 与 FINAL 报告一致：MinIO/CDN 真实接入由生产环境通过 services.Replace 注入。
+/// </summary>
+public sealed class NoopPublishBuildPipeline : IPublishBuildPipeline
+{
+    public Task<string> BuildAsync(TenantId tenantId, AppPublishArtifact artifact, AppDefinition app, string versionedSchemaJson, CancellationToken cancellationToken)
+    {
+        var url = artifact.Kind switch
+        {
+            "hosted" => $"https://apps.atlas.local/{app.Code}",
+            "embedded-sdk" => $"https://cdn.atlas.local/lowcode-sdk/v1/atlas-lowcode.umd.js?app={app.Code}&fp={artifact.Fingerprint}",
+            "preview" => $"https://preview.atlas.local/{app.Code}?v={artifact.Fingerprint}",
+            _ => string.Empty
+        };
+        return Task.FromResult(url);
+    }
+}
+
 public sealed class AppPublishService : IAppPublishService
 {
     private static readonly HashSet<string> AllowedKinds = new(StringComparer.OrdinalIgnoreCase) { "hosted", "embedded-sdk", "preview" };
@@ -20,14 +61,25 @@ public sealed class AppPublishService : IAppPublishService
     private readonly IAppDefinitionRepository _appRepo;
     private readonly IAppPublishArtifactRepository _artifactRepo;
     private readonly IAppVersionArchiveRepository _versionRepo;
+    private readonly IRuntimeWebviewDomainService _webview;
+    private readonly IPublishBuildPipeline _buildPipeline;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
 
-    public AppPublishService(IAppDefinitionRepository appRepo, IAppPublishArtifactRepository artifactRepo, IAppVersionArchiveRepository versionRepo, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
+    public AppPublishService(
+        IAppDefinitionRepository appRepo,
+        IAppPublishArtifactRepository artifactRepo,
+        IAppVersionArchiveRepository versionRepo,
+        IRuntimeWebviewDomainService webview,
+        IPublishBuildPipeline buildPipeline,
+        IIdGeneratorAccessor idGen,
+        IAuditWriter auditWriter)
     {
         _appRepo = appRepo;
         _artifactRepo = artifactRepo;
         _versionRepo = versionRepo;
+        _webview = webview;
+        _buildPipeline = buildPipeline;
         _idGen = idGen;
         _auditWriter = auditWriter;
     }
@@ -39,27 +91,51 @@ public sealed class AppPublishService : IAppPublishService
         var app = await _appRepo.FindByIdAsync(tenantId, appId, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, $"应用不存在：{appId}");
 
+        // P2-2 修复（PLAN §M17 S17-2 + lowcode-publish-spec.md "发布 hosted 必须先验证域名"）：
+        // hosted 类型必须保证当前租户至少有一个 verified webview 域名（用于 hosted app 的最终 CNAME 指向）；
+        // 否则禁止发布并写审计。embedded-sdk / preview 不强制（preview 由内部域名提供）。
+        if (string.Equals(request.Kind, "hosted", StringComparison.OrdinalIgnoreCase))
+        {
+            var domains = await _webview.ListAsync(tenantId, cancellationToken);
+            var hasVerified = domains.Any(d => d.Verified);
+            if (!hasVerified)
+            {
+                await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.app.publish", "failed", $"app:{appId}:kind:hosted:reason:no-verified-domain", null, null), cancellationToken);
+                throw new BusinessException("WEBVIEW_DOMAIN_REQUIRED", "发布 hosted 类型前必须先在 webview-domains 完成至少一个域名归属验证。");
+            }
+        }
+
+        var effectiveCurrentVersionId = app.CurrentVersionId.GetValueOrDefault() > 0
+            ? app.CurrentVersionId
+            : null;
+
         long versionId = !string.IsNullOrWhiteSpace(request.VersionId) && long.TryParse(request.VersionId, out var vId)
             ? vId
-            : (app.CurrentVersionId ?? await CreateImplicitSnapshotAsync(tenantId, currentUserId, appId, app.DraftSchemaJson, cancellationToken));
+            : (effectiveCurrentVersionId ?? await CreateImplicitSnapshotAsync(tenantId, currentUserId, appId, app.DraftSchemaJson, cancellationToken));
 
         var fingerprint = ComputeFingerprint(app.DraftSchemaJson, request.Kind, versionId);
         var artifactId = _idGen.NextId();
         var matrix = string.IsNullOrWhiteSpace(request.RendererMatrixJson) ? "{\"web\":true}" : request.RendererMatrixJson!;
         var entity = new AppPublishArtifact(tenantId, artifactId, appId, versionId, request.Kind, fingerprint, matrix, currentUserId);
 
-        // 模拟 build 流水线：直接 ready，URL 按 kind 生成。
         entity.MarkBuilding();
         await _artifactRepo.InsertAsync(entity, cancellationToken);
 
-        var publicUrl = request.Kind switch
+        // P2-2：构建流水线（默认 NoopPipeline 仅返回 URL；生产用 MinioPipeline 注入）
+        string publicUrl;
+        try
         {
-            "hosted" => $"https://apps.atlas.local/{app.Code}",
-            "embedded-sdk" => $"https://cdn.atlas.local/sdk/{fingerprint}/atlas-lowcode.umd.js",
-            "preview" => $"https://preview.atlas.local/{app.Code}?v={fingerprint}",
-            _ => null
-        };
-        entity.MarkReady(publicUrl ?? string.Empty);
+            publicUrl = await _buildPipeline.BuildAsync(tenantId, entity, app, app.DraftSchemaJson, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            entity.MarkFailed(ex.Message);
+            await _artifactRepo.UpdateAsync(entity, cancellationToken);
+            await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.app.publish", "failed", $"app:{appId}:kind:{request.Kind}:artifact:{artifactId}:reason:{ex.GetType().Name}", null, null), cancellationToken);
+            throw;
+        }
+
+        entity.MarkReady(publicUrl);
         await _artifactRepo.UpdateAsync(entity, cancellationToken);
 
         if (request.Kind == "hosted")

@@ -1,0 +1,303 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "type": "1",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Start",
+          "description": "Start fixture node",
+          "icon": "",
+          "subTitle": "type 1",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "auto_save_history": false
+        },
+        "outputs": [
+          {
+            "name": "query",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "user_id",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "batch",
+      "type": "28",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Batch",
+          "description": "Batch fixture node",
+          "icon": "",
+          "subTitle": "type 28",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "batch": {
+            "inputArray": {
+              "type": "ref",
+              "content": {
+                "source": "block-output",
+                "blockID": "start",
+                "name": "query"
+              }
+            },
+            "itemVariable": "item",
+            "indexVariable": "index",
+            "concurrency": 5
+          },
+          "inputParameters": [
+            {
+              "name": "items",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "batch_result",
+            "type": "Array",
+            "required": false
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "id": "batch_http",
+          "type": "45",
+          "meta": {
+            "position": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "data": {
+            "nodeMeta": {
+              "title": "Batch HTTP",
+              "description": "Batch HTTP fixture node",
+              "icon": "",
+              "subTitle": "type 45",
+              "mainColor": "#4D53E8"
+            },
+            "inputs": {
+              "method": "POST",
+              "url": "https://example.com/api/fixture",
+              "headers": [],
+              "body": {
+                "type": "json",
+                "value": "{\"ok\":true}"
+              },
+              "inputParameters": [
+                {
+                  "name": "payload",
+                  "input": {
+                    "type": "ref",
+                    "content": {
+                      "source": "block-output",
+                      "blockID": "start",
+                      "name": "result"
+                    }
+                  }
+                }
+              ]
+            },
+            "outputs": [
+              {
+                "name": "status",
+                "type": "Integer",
+                "required": false
+              },
+              {
+                "name": "body",
+                "type": "String",
+                "required": false
+              }
+            ]
+          }
+        },
+        {
+          "id": "batch_code",
+          "type": "5",
+          "meta": {
+            "position": {
+              "x": 320,
+              "y": 0
+            }
+          },
+          "data": {
+            "nodeMeta": {
+              "title": "Batch Code",
+              "description": "Batch Code fixture node",
+              "icon": "",
+              "subTitle": "type 5",
+              "mainColor": "#4D53E8"
+            },
+            "inputs": {
+              "code": "async function main(params) { return { result: params.input }; }",
+              "inputParameters": [
+                {
+                  "name": "input",
+                  "input": {
+                    "type": "ref",
+                    "content": {
+                      "source": "block-output",
+                      "blockID": "start",
+                      "name": "result"
+                    }
+                  }
+                }
+              ]
+            },
+            "outputs": [
+              {
+                "name": "result",
+                "type": "String",
+                "required": false
+              }
+            ]
+          }
+        },
+        {
+          "id": "batch_merge",
+          "type": "32",
+          "meta": {
+            "position": {
+              "x": 640,
+              "y": 0
+            }
+          },
+          "data": {
+            "nodeMeta": {
+              "title": "Batch Merge",
+              "description": "Batch Merge fixture node",
+              "icon": "",
+              "subTitle": "type 32",
+              "mainColor": "#4D53E8"
+            },
+            "inputs": {
+              "mergeGroups": [
+                {
+                  "name": "merged",
+                  "variables": [
+                    {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "result"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "outputs": [
+              {
+                "name": "merged",
+                "type": "Object",
+                "required": false
+              }
+            ]
+          }
+        }
+      ],
+      "edges": [
+        {
+          "sourceNodeID": "batch_http",
+          "targetNodeID": "batch_code"
+        },
+        {
+          "sourceNodeID": "batch_code",
+          "targetNodeID": "batch_merge"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "2",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "End",
+          "description": "End fixture node",
+          "icon": "",
+          "subTitle": "type 2",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "terminatePlan": "returnVariables",
+          "outputEmitter": {
+            "streamingOutput": false,
+            "content": {
+              "value": "{{end.answer}}"
+            }
+          },
+          "inputParameters": [
+            {
+              "name": "answer",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "sourceNodeID": "start",
+      "targetNodeID": "batch"
+    },
+    {
+      "sourceNodeID": "batch",
+      "targetNodeID": "end",
+      "sourcePortID": "batch-output"
+    }
+  ]
+}

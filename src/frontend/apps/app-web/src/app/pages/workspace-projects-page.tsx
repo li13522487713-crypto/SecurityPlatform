@@ -1,126 +1,482 @@
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Button, Empty, Input, Select, Spin, TabPane, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
-import { IconFolder, IconPlus } from "@douyinfe/semi-icons";
-import { useNavigate } from "react-router-dom";
-import { agentEditorPath, appEditorPath } from "@atlas/app-shell-shared";
+import { Avatar, Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { IconFolder, IconMore, IconPlus } from "@douyinfe/semi-icons";
+import {
+  agentEditorPath,
+  workspaceProjectsFolderPath,
+  workspaceProjectsPath
+} from "@atlas/app-shell-shared";
+import { getTenantId } from "@atlas/shared-react-core/utils";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAppI18n } from "../i18n";
+import type { AppMessageKey } from "../messages";
+import { useAuth } from "../auth-context";
 import { useWorkspaceContext } from "../workspace-context";
-import { CreateAgentModal } from "../components/create-agent-modal";
-import { CreateAppModal } from "../components/create-app-modal";
+import {
+  consumeWorkspaceResourceCreated,
+  subscribeWorkspaceResourceCreated
+} from "../workspace-resource-events";
 import { CreateFolderModal } from "../components/create-folder-modal";
 import { GlobalCreateModal } from "../components/global-create-modal";
-import { getAiAssistantsPaged } from "../../services/api-ai-assistant";
-import type { AgentListItem } from "../../services/api-agent";
-import { getWorkspaceIdeResources } from "../../services/api-workspace-ide";
-import type { WorkspaceIdeResourceCardDto } from "../../services/api-workspace-ide";
-import { listFolders, type FolderListItem } from "../../services/mock";
+import {
+  copyWorkspaceIdeResourceToWorkspace,
+  deleteWorkspaceIdeResource,
+  duplicateWorkspaceIdeResource,
+  getWorkspaceIdeResources,
+  migrateWorkspaceIdeResource,
+  updateWorkspaceIdeFavorite,
+  type WorkspaceIdeResourceCardDto
+} from "../../services/api-workspace-ide";
+import { getWorkspaces, type WorkspaceSummaryDto } from "../../services/api-org-workspaces";
+import { createFolder, listFolders, moveItemToFolder, type FolderListItem } from "../../services/api-folders";
+import { createLowcodeProjectAppGateway } from "../gateways/project-app-gateway";
 
-type ProjectsTab = "all" | "agents" | "apps" | "folders";
+type ProjectsResourceTypeFilter = "all" | "app";
+type ProjectsStatusFilter = "all" | "draft" | "published" | "archived";
+type WorkspaceActionMode = "migrate" | "copy";
 
-interface UnifiedCard {
-  key: string;
-  type: "agent" | "app" | "folder";
+interface ProjectsResourceCapabilities {
+  canFavorite: boolean;
+  canDuplicate: boolean;
+  canMove: boolean;
+  canMigrate: boolean;
+  canCopyToWorkspace: boolean;
+  canDelete: boolean;
+}
+
+type ProjectsResourceCard = {
+  source: "workspace-ide" | "lowcode";
+  resourceType: "agent" | "app";
+  resourceId: string;
   name: string;
   description?: string;
-  status?: string;
-  updatedAt?: string;
-  iconLetter: string;
-  onOpen: () => void;
+  status: string;
+  publishStatus: string;
+  updatedAt: string;
+  isFavorite: boolean;
+  lastOpenedAt?: string;
+  lastEditedAt?: string;
+  entryRoute: string;
+  badge?: string;
+  linkedWorkflowId?: string;
+  folderId?: string;
+  ownerDisplayName?: string;
+  lastEditedByDisplayName?: string;
+  capabilities: ProjectsResourceCapabilities;
+};
+
+interface MoveDialogState {
+  resource: ProjectsResourceCard;
+  folderKeyword: string;
+  selectedFolderId: string;
+  submitting: boolean;
+}
+
+interface WorkspaceDialogState {
+  resource: ProjectsResourceCard;
+  mode: WorkspaceActionMode;
+  workspaceKeyword: string;
+  selectedWorkspaceId: string;
+  submitting: boolean;
 }
 
 export function WorkspaceProjectsPage() {
-  const { t } = useAppI18n();
+  const { t, locale } = useAppI18n();
+  const auth = useAuth();
   const workspace = useWorkspaceContext();
+  const { folderId } = useParams<{ folderId?: string }>();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<ProjectsTab>("all");
+  const lowcodeGateway = useMemo(
+    () => createLowcodeProjectAppGateway({
+      canDelete: auth.hasPermission("lowcode-app:delete"),
+      navigate
+    }),
+    [auth, navigate]
+  );
+
   const [keyword, setKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [resourceTypeFilter, setResourceTypeFilter] = useState<ProjectsResourceTypeFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<ProjectsStatusFilter>("all");
   const [loading, setLoading] = useState(true);
-  const [agents, setAgents] = useState<AgentListItem[]>([]);
-  const [apps, setApps] = useState<WorkspaceIdeResourceCardDto[]>([]);
+  const [resources, setResources] = useState<ProjectsResourceCard[]>([]);
   const [folders, setFolders] = useState<FolderListItem[]>([]);
+  const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null);
   const [globalCreateOpen, setGlobalCreateOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [createAgentOpen, setCreateAgentOpen] = useState(false);
-  const [createAppOpen, setCreateAppOpen] = useState(false);
+  const [moveDialog, setMoveDialog] = useState<MoveDialogState | null>(null);
+  const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
+  const [workspaceOptions, setWorkspaceOptions] = useState<WorkspaceSummaryDto[]>([]);
+  const [workspaceOptionsLoading, setWorkspaceOptionsLoading] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
-  const refresh = async () => {
+  const normalizedKeyword = keyword.trim();
+  const projectsRootPath = workspaceProjectsPath(workspace.id);
+
+  const currentFolder = useMemo(
+    () => folders.find(item => item.id === folderId),
+    [folderId, folders]
+  );
+
+  const visibleFolders = useMemo(() => {
+    if (folderId) {
+      return [];
+    }
+    if (!normalizedKeyword) {
+      return folders;
+    }
+    const lowered = normalizedKeyword.toLowerCase();
+    return folders.filter(item => item.name.toLowerCase().includes(lowered));
+  }, [folderId, folders, normalizedKeyword]);
+
+  const filteredWorkspaceOptions = useMemo(() => {
+    if (!workspaceDialog) {
+      return workspaceOptions;
+    }
+    const filterText = workspaceDialog.workspaceKeyword.trim().toLowerCase();
+    if (!filterText) {
+      return workspaceOptions;
+    }
+    return workspaceOptions.filter(item => item.name.toLowerCase().includes(filterText));
+  }, [workspaceDialog, workspaceOptions]);
+
+  const filteredMoveFolders = useMemo(() => {
+    if (!moveDialog) {
+      return folders;
+    }
+    const filterText = moveDialog.folderKeyword.trim().toLowerCase();
+    if (!filterText) {
+      return folders;
+    }
+    return folders.filter(item => item.name.toLowerCase().includes(filterText));
+  }, [folders, moveDialog]);
+
+  const loadData = async () => {
     if (!workspace.id) {
       return;
     }
     setLoading(true);
     try {
-      const [agentResult, appResult, folderResult] = await Promise.all([
-        getAiAssistantsPaged({ pageIndex: 1, pageSize: 50, keyword: keyword.trim() || undefined }).catch(() => ({ items: [], total: 0, pageIndex: 1, pageSize: 50 })),
-        getWorkspaceIdeResources({ resourceType: "app", pageIndex: 1, pageSize: 50, keyword: keyword.trim() || undefined }).catch(() => ({ items: [], total: 0, pageIndex: 1, pageSize: 50 })),
-        listFolders(workspace.id, { pageIndex: 1, pageSize: 50, keyword: keyword.trim() || undefined }).catch(() => ({ items: [], total: 0, pageIndex: 1, pageSize: 50 }))
+      const status = statusFilter === "all" ? undefined : statusFilter;
+      const keyword = normalizedKeyword || undefined;
+
+      const [workspaceIdeAppResult, lowcodeAppResult, folderResult] = await Promise.all([
+        getWorkspaceIdeResources({
+          pageIndex: 1,
+          pageSize: 120,
+          keyword,
+          resourceType: "app",
+          status,
+          folderId: folderId || undefined,
+          workspaceId: workspace.id
+        }),
+        lowcodeGateway.list({ pageIndex: 1, pageSize: 120, keyword, status, workspaceId: workspace.id, folderId: folderId || undefined }),
+        listFolders(workspace.id, { pageIndex: 1, pageSize: 200 })
       ]);
-      setAgents(agentResult.items);
-      setApps(appResult.items);
+
+      const workspaceIdeAppMap = new Map(
+        workspaceIdeAppResult.items
+          .filter(isAppResourceCard)
+          .map(item => [item.resourceId, item] as const)
+      );
+
+      const mergedAppResources = lowcodeAppResult.items.map(item => {
+        const ideCard = workspaceIdeAppMap.get(item.id);
+        return ideCard ? mapAppResourceCard(ideCard) : mapLowcodeAppCard(item);
+      });
+
+      for (const item of workspaceIdeAppResult.items.filter(isAppResourceCard)) {
+        if (lowcodeAppResult.items.some(app => app.id === item.resourceId)) {
+          continue;
+        }
+        mergedAppResources.push(mapAppResourceCard(item));
+      }
+
+      const nextResources = [
+        ...mergedAppResources
+      ].sort((left, right) => {
+        const leftTime = Date.parse(left.lastEditedAt || left.updatedAt);
+        const rightTime = Date.parse(right.lastEditedAt || right.updatedAt);
+        return rightTime - leftTime;
+      });
+
+      setResources(nextResources);
       setFolders(folderResult.items);
     } catch (error) {
       Toast.error((error as Error).message || t("cozeCreateFailed"));
+      setResources([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void refresh();
-  }, [workspace.id, keyword]);
+    void loadData();
+  }, [workspace.id, normalizedKeyword, resourceTypeFilter, statusFilter, folderId, lowcodeGateway, refreshVersion]);
 
-  const cards = useMemo<UnifiedCard[]>(() => {
-    const agentCards: UnifiedCard[] = agents
-      .filter(item => filterByStatus(item.status, statusFilter))
-      .map(item => ({
-        key: `agent-${item.id}`,
-        type: "agent",
-        name: item.name,
-        description: item.description,
-        status: item.status,
-        iconLetter: (item.name || "A").slice(0, 1).toUpperCase(),
-        onOpen: () => navigate(agentEditorPath(String(item.id)))
-      }));
-
-    const appCards: UnifiedCard[] = apps
-      .filter(item => filterByStatus(item.status, statusFilter))
-      .map(item => ({
-        key: `app-${item.resourceId}`,
-        type: "app",
-        name: item.name,
-        description: item.description,
-        status: item.status,
-        updatedAt: item.updatedAt,
-        iconLetter: (item.name || "P").slice(0, 1).toUpperCase(),
-        onOpen: () => navigate(appEditorPath(String(item.resourceId)))
-      }));
-
-    const folderCards: UnifiedCard[] = folders.map(item => ({
-      key: `folder-${item.id}`,
-      type: "folder",
-      name: item.name,
-      description: item.description,
-      iconLetter: "F",
-      onOpen: () => Toast.info(t("cozeCommonComingSoon"))
-    }));
-
-    if (tab === "agents") {
-      return agentCards;
+  useEffect(() => {
+    if (!workspace.id) {
+      return;
     }
-    if (tab === "apps") {
-      return appCards;
+    const pendingItems = consumeWorkspaceResourceCreated(workspace.id);
+    if (pendingItems.length > 0) {
+      setRefreshVersion(value => value + 1);
     }
-    if (tab === "folders") {
-      return folderCards;
+    return subscribeWorkspaceResourceCreated(detail => {
+      if (detail.workspaceId !== workspace.id) {
+        return;
+      }
+      setRefreshVersion(value => value + 1);
+    });
+  }, [workspace.id]);
+
+  const ensureWorkspaceOptions = async () => {
+    const orgId = workspace.orgId || getTenantId() || "";
+    if (!orgId || !workspace.id) {
+      return [];
     }
-    return [...folderCards, ...agentCards, ...appCards];
-  }, [agents, apps, folders, navigate, statusFilter, t, tab]);
+    setWorkspaceOptionsLoading(true);
+    try {
+      const items = await getWorkspaces(orgId);
+      const filteredItems = items.filter(item => item.id !== workspace.id);
+      setWorkspaceOptions(filteredItems);
+      return filteredItems;
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozeCreateFailed"));
+      setWorkspaceOptions([]);
+      return [];
+    } finally {
+      setWorkspaceOptionsLoading(false);
+    }
+  };
+
+  const handleOpenFolder = (targetFolderId: string) => {
+    const targetPath = workspaceProjectsFolderPath(workspace.id, targetFolderId);
+    navigate(targetPath);
+  };
+
+  const handleOpenResource = (item: ProjectsResourceCard) => {
+    if (item.resourceType === "agent") {
+      navigate(agentEditorPath(item.resourceId));
+      return;
+    }
+    lowcodeGateway.open(item.resourceId);
+  };
+
+  const handleToggleFavorite = async (item: ProjectsResourceCard) => {
+    if (!item.capabilities.canFavorite) {
+      return;
+    }
+    const actionKey = `${item.resourceType}-${item.resourceId}-favorite`;
+    setActionLoadingKey(actionKey);
+    try {
+      await updateWorkspaceIdeFavorite(item.resourceType, item.resourceId, !item.isFavorite);
+      setResources(previous =>
+        previous.map(resource =>
+          resource.resourceId === item.resourceId && resource.resourceType === item.resourceType
+            ? { ...resource, isFavorite: !resource.isFavorite }
+            : resource
+        )
+      );
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozeCreateFailed"));
+    } finally {
+      setActionLoadingKey(null);
+    }
+  };
+
+  const handleDuplicate = async (item: ProjectsResourceCard) => {
+    if (!item.capabilities.canDuplicate) {
+      return;
+    }
+    const actionKey = `${item.resourceType}-${item.resourceId}-duplicate`;
+    setActionLoadingKey(actionKey);
+    try {
+      if (item.source === "lowcode") {
+        const result = await lowcodeGateway.duplicate(item.resourceId, {
+          name: item.name,
+          description: item.description,
+          workspaceId: workspace.id,
+          locale
+        });
+
+        const targetFolderId = folderId || item.folderId;
+        if (targetFolderId) {
+          await moveItemToFolder(workspace.id, targetFolderId, {
+            itemType: item.resourceType,
+            itemId: result.appId
+          });
+        }
+      } else {
+        await duplicateWorkspaceIdeResource(item.resourceType, item.resourceId, {
+          workspaceId: workspace.id,
+          folderId: folderId || item.folderId
+        });
+      }
+      Toast.success(t("cozeProjectsMenuDuplicateSuccess"));
+      await loadData();
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozeCreateFailed"));
+    } finally {
+      setActionLoadingKey(null);
+    }
+  };
+
+  const openMoveDialog = (item: ProjectsResourceCard) => {
+    if (!item.capabilities.canMove) {
+      return;
+    }
+    setMoveDialog({
+      resource: item,
+      folderKeyword: "",
+      selectedFolderId: item.folderId ?? "",
+      submitting: false
+    });
+  };
+
+  const handleMoveConfirm = async () => {
+    if (!moveDialog || !workspace.id) {
+      return;
+    }
+    if (!moveDialog.selectedFolderId) {
+      Toast.warning(t("cozeProjectsMoveSelectFolderRequired"));
+      return;
+    }
+
+    setMoveDialog(prev => (prev ? { ...prev, submitting: true } : prev));
+    try {
+      await moveItemToFolder(workspace.id, moveDialog.selectedFolderId, {
+        itemType: moveDialog.resource.resourceType,
+        itemId: moveDialog.resource.resourceId
+      });
+      Toast.success(t("cozeProjectsMenuMoveSuccess"));
+      setMoveDialog(null);
+      await loadData();
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozeCreateFailed"));
+      setMoveDialog(prev => (prev ? { ...prev, submitting: false } : prev));
+    }
+  };
+
+  const openWorkspaceActionDialog = async (item: ProjectsResourceCard, mode: WorkspaceActionMode) => {
+    if (mode === "migrate" && !item.capabilities.canMigrate) {
+      return;
+    }
+    if (mode === "copy" && !item.capabilities.canCopyToWorkspace) {
+      return;
+    }
+    const options = await ensureWorkspaceOptions();
+    setWorkspaceDialog({
+      resource: item,
+      mode,
+      workspaceKeyword: "",
+      selectedWorkspaceId: options[0]?.id ?? "",
+      submitting: false
+    });
+  };
+
+  const handleWorkspaceActionConfirm = async () => {
+    if (!workspaceDialog) {
+      return;
+    }
+
+    if (!workspaceDialog.selectedWorkspaceId) {
+      Toast.warning(t("cozeProjectsWorkspaceSelectRequired"));
+      return;
+    }
+
+    setWorkspaceDialog(prev => (prev ? { ...prev, submitting: true } : prev));
+    try {
+      if (workspaceDialog.mode === "migrate") {
+        await migrateWorkspaceIdeResource(workspaceDialog.resource.resourceType, workspaceDialog.resource.resourceId, {
+          sourceWorkspaceId: workspace.id,
+          targetWorkspaceId: workspaceDialog.selectedWorkspaceId
+        });
+        Toast.success(t("cozeProjectsMenuMigrateSuccess"));
+      } else if (workspaceDialog.resource.source === "lowcode") {
+        await lowcodeGateway.copyToWorkspace(workspaceDialog.resource.resourceId, {
+          name: workspaceDialog.resource.name,
+          description: workspaceDialog.resource.description,
+          workspaceId: workspace.id,
+          targetWorkspaceId: workspaceDialog.selectedWorkspaceId,
+          locale
+        });
+        Toast.success(t("cozeProjectsMenuCopyWorkspaceSuccess"));
+      } else {
+        await copyWorkspaceIdeResourceToWorkspace(workspaceDialog.resource.resourceType, workspaceDialog.resource.resourceId, {
+          sourceWorkspaceId: workspace.id,
+          targetWorkspaceId: workspaceDialog.selectedWorkspaceId
+        });
+        Toast.success(t("cozeProjectsMenuCopyWorkspaceSuccess"));
+      }
+      setWorkspaceDialog(null);
+      await loadData();
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozeCreateFailed"));
+      setWorkspaceDialog(prev => (prev ? { ...prev, submitting: false } : prev));
+    }
+  };
+
+  const handleDelete = (item: ProjectsResourceCard) => {
+    if (!item.capabilities.canDelete) {
+      return;
+    }
+    Modal.confirm({
+      title: t("cozeProjectsDeleteConfirmTitle"),
+      content: t("cozeProjectsDeleteConfirmMessage").replace("{name}", item.name),
+      okType: "danger",
+      okText: t("cozeProjectsMenuDelete"),
+      cancelText: t("cozeCommonGoBack"),
+      onOk: async () => {
+        if (item.source === "lowcode") {
+          await lowcodeGateway.delete(item.resourceId);
+        } else {
+          await deleteWorkspaceIdeResource(item.resourceType, item.resourceId);
+        }
+        Toast.success(t("cozeProjectsMenuDeleteSuccess"));
+        await loadData();
+      }
+    });
+  };
+
+  const handleMoveModalCreateFolder = async () => {
+    if (!workspace.id) {
+      return;
+    }
+    const folderName = `${t("cozeProjectsMoveDefaultFolderName")} ${Date.now().toString().slice(-4)}`;
+    try {
+      const result = await createFolder(workspace.id, { name: folderName });
+      await loadData();
+      setMoveDialog(previous => previous ? { ...previous, selectedFolderId: result.folderId } : previous);
+      Toast.success(t("cozeCreateSuccess"));
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozeCreateFailed"));
+    }
+  };
 
   return (
-    <div className="coze-page coze-projects-page" data-testid="coze-projects-page">
-      <header className="coze-page__header coze-projects-page__header">
-        <div>
-          <Typography.Title heading={3} style={{ margin: 0 }}>{t("cozeProjectsTitle")}</Typography.Title>
+    <div 
+      className="coze-page coze-projects-page" 
+      data-testid="coze-projects-page"
+      style={{ height: "calc(100vh - 60px)", display: "flex", flexDirection: "column", overflow: "hidden", padding: "24px 32px 0", gap: 20 }}
+    >
+      <header className="coze-page__header coze-projects-page__header" style={{ flexShrink: 0 }}>
+        <div className="coze-projects-page__title-wrap">
+          <Typography.Title heading={3} style={{ margin: 0 }}>
+            {t("cozeProjectsTitle")}
+          </Typography.Title>
+          {folderId ? (
+            <div className="coze-projects-page__breadcrumb" data-testid="coze-projects-breadcrumb">
+              <button
+                type="button"
+                className="coze-projects-page__breadcrumb-link"
+                onClick={() => navigate(projectsRootPath)}
+              >
+                {t("cozeProjectsTitle")}
+              </button>
+              <span className="coze-projects-page__breadcrumb-divider">›</span>
+              <span>{currentFolder?.name ?? folderId}</span>
+            </div>
+          ) : null}
         </div>
         <div className="coze-projects-page__actions">
           <Input
@@ -128,20 +484,86 @@ export function WorkspaceProjectsPage() {
             onChange={value => setKeyword(value)}
             placeholder={t("cozeProjectsSearchPlaceholder")}
             showClear
-            style={{ width: 240 }}
+            style={{ width: 280, borderRadius: 8 }}
           />
-          <Button icon={<IconFolder />} onClick={() => setCreateFolderOpen(true)} data-testid="coze-projects-create-folder">
+          <Button
+            theme="light"
+            type="tertiary"
+            icon={<IconPlus />}
+            style={{ borderRadius: 8 }}
+            onClick={() => setCreateFolderOpen(true)}
+          >
             {t("cozeProjectsCreateFolder")}
           </Button>
-          <Button theme="solid" type="primary" icon={<IconPlus />} onClick={() => setGlobalCreateOpen(true)} data-testid="coze-projects-create-project">
+          <Button
+            theme="solid"
+            type="primary"
+            icon={<IconPlus />}
+            style={{ borderRadius: 8, fontWeight: 500, boxShadow: "0 4px 10px rgba(37,99,235,0.2)" }}
+            onClick={() => setGlobalCreateOpen(true)}
+          >
             {t("cozeProjectsCreateProject")}
           </Button>
         </div>
       </header>
 
-      <section className="coze-page__toolbar">
+      {!folderId ? (
+        <section className="coze-projects-page__folder-section" style={{ flexShrink: 0, marginBottom: 8 }}>
+          {visibleFolders.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+              {visibleFolders.map(item => (
+                <Card
+                  key={item.id}
+                  shadows="hover"
+                  style={{ borderRadius: 16, cursor: "pointer", border: "1px solid rgba(15, 23, 42, 0.06)" }}
+                  bodyStyle={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                  data-testid={`coze-projects-folder-${item.id}`}
+                >
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleOpenFolder(item.id)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleOpenFolder(item.id);
+                      }
+                    }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}
+                  >
+                    <Space align="center" spacing={12}>
+                      <IconFolder size="large" style={{ color: "#1677ff" }} />
+                      <Typography.Text strong style={{ fontSize: 16 }}>{item.name}</Typography.Text>
+                    </Space>
+                    <IconMore style={{ color: "#86909c" }} />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Empty description={t("cozeProjectsFoldersEmpty")} style={{ padding: "20px 0" }} />
+          )}
+        </section>
+      ) : null}
+
+      <section className="coze-projects-page__projects-header" style={{ flexShrink: 0 }}>
+        <Typography.Title heading={5} style={{ margin: 0 }}>
+          {t("cozeProjectsSectionTitle")}
+        </Typography.Title>
+      </section>
+
+      <section className="coze-page__toolbar" style={{ flexShrink: 0, marginBottom: 4 }}>
         <Select
-          style={{ width: 160 }}
+          style={{ width: 140, borderRadius: 8 }}
+          value={resourceTypeFilter}
+          optionList={[
+            { label: t("cozeProjectsFilterTypeAll"), value: "all" },
+            { label: t("cozeProjectsFilterTypeApp"), value: "app" }
+          ]}
+          onChange={value => setResourceTypeFilter((value as ProjectsResourceTypeFilter) ?? "all")}
+        />
+        <Select
+          style={{ width: 140, borderRadius: 8 }}
           value={statusFilter}
           optionList={[
             { label: t("cozeProjectsFilterStatusAll"), value: "all" },
@@ -149,45 +571,150 @@ export function WorkspaceProjectsPage() {
             { label: t("cozeProjectsFilterStatusPublished"), value: "published" },
             { label: t("cozeProjectsFilterStatusArchived"), value: "archived" }
           ]}
-          onChange={value => setStatusFilter(String(value))}
+          onChange={value => setStatusFilter((value as ProjectsStatusFilter) ?? "all")}
         />
       </section>
 
-      <Tabs activeKey={tab} onChange={key => setTab((key as ProjectsTab) ?? "all")}>
-        <TabPane tab={t("cozeProjectsTabAll")} itemKey="all" />
-        <TabPane tab={t("cozeProjectsTabAgents")} itemKey="agents" />
-        <TabPane tab={t("cozeProjectsTabApps")} itemKey="apps" />
-        <TabPane tab={t("cozeProjectsTabFolders")} itemKey="folders" />
-      </Tabs>
-
-      <section className="coze-page__body">
+      <section className="coze-page__body" style={{ flex: 1, overflowY: "auto", paddingBottom: 32, minHeight: 0 }}>
         {loading ? (
-          <div className="coze-page__loading"><Spin /></div>
-        ) : cards.length === 0 ? (
+          <div className="coze-page__loading">
+            <Spin />
+          </div>
+        ) : resources.length === 0 ? (
           <Empty title={t("cozeProjectsEmptyTitle")} description={t("cozeProjectsEmptyTip")} />
         ) : (
-          <div className="coze-card-grid">
-            {cards.map(card => (
-              <button
-                key={card.key}
-                type="button"
-                className="coze-project-card"
-                onClick={card.onOpen}
-                data-testid={`coze-project-card-${card.key}`}
-              >
-                <div className="coze-project-card__head">
-                  <Avatar size="small" color="light-blue">{card.iconLetter}</Avatar>
-                  <div className="coze-project-card__meta">
-                    <strong>{card.name}</strong>
-                    <span>{card.description || ""}</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+            {resources.map(item => {
+              const actionPrefix = `${item.resourceType}-${item.resourceId}`;
+              const menuItems: Array<{
+                node: "item";
+                key: string;
+                name: string;
+                type?: "danger";
+                onClick: () => void;
+              }> = [];
+
+              if (item.resourceType === "app") {
+                menuItems.push({
+                  node: "item" as const,
+                  key: `${actionPrefix}-open-designer`,
+                  name: t("cozeProjectsMenuOpenDesigner"),
+                  onClick: () => {
+                    navigate(
+                      `/space/${encodeURIComponent(workspace.id)}/mendix-studio/${encodeURIComponent(item.resourceId)}`
+                    );
+                  }
+                });
+              }
+
+              if (item.capabilities.canDuplicate) {
+                menuItems.push({
+                  node: "item" as const,
+                  key: `${actionPrefix}-duplicate`,
+                  name: t("cozeProjectsMenuDuplicate"),
+                  onClick: () => {
+                    void handleDuplicate(item);
+                  }
+                });
+              }
+
+              if (item.capabilities.canMove) {
+                menuItems.push({
+                  node: "item" as const,
+                  key: `${actionPrefix}-move`,
+                  name: t("cozeProjectsMenuMove"),
+                  onClick: () => openMoveDialog(item)
+                });
+              }
+
+              if (item.capabilities.canMigrate) {
+                menuItems.push({
+                  node: "item" as const,
+                  key: `${actionPrefix}-migrate`,
+                  name: t("cozeProjectsMenuMigrate"),
+                  onClick: () => {
+                    void openWorkspaceActionDialog(item, "migrate");
+                  }
+                });
+              }
+
+              if (item.capabilities.canCopyToWorkspace) {
+                menuItems.push({
+                  node: "item" as const,
+                  key: `${actionPrefix}-copy`,
+                  name: t("cozeProjectsMenuCopyToWorkspace"),
+                  onClick: () => {
+                    void openWorkspaceActionDialog(item, "copy");
+                  }
+                });
+              }
+
+              if (item.capabilities.canDelete) {
+                menuItems.push({
+                  node: "item" as const,
+                  key: `${actionPrefix}-delete`,
+                  type: "danger" as const,
+                  name: t("cozeProjectsMenuDelete"),
+                  onClick: () => handleDelete(item)
+                });
+              }
+
+              return (
+                <Card
+                  key={`${item.resourceType}-${item.resourceId}`}
+                  shadows="hover"
+                  style={{ borderRadius: 16, border: "1px solid rgba(15, 23, 42, 0.06)", display: "flex", flexDirection: "column", minHeight: 180 }}
+                  bodyStyle={{ padding: "20px 24px", flex: 1, display: "flex", flexDirection: "column" }}
+                  data-testid={`coze-project-card-${item.resourceType}-${item.resourceId}`}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", cursor: "pointer", marginBottom: 16 }} onClick={() => handleOpenResource(item)}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, paddingRight: 20 }}>
+                      <Typography.Text strong style={{ fontSize: 18, color: "#1d2129", lineHeight: 1.4 }} ellipsis={{ rows: 2 }}>{item.name}</Typography.Text>
+                      <Typography.Text type="tertiary" style={{ fontSize: 14 }} ellipsis={{ rows: 2 }}>{item.description || "—"}</Typography.Text>
+                    </div>
+                    <Avatar 
+                      shape="square" 
+                      color={item.resourceType === "app" ? "orange" : "light-blue"} 
+                      style={{ flexShrink: 0, width: 64, height: 64, borderRadius: 16, fontSize: 24, fontWeight: 600 }}
+                    >
+                      {(item.name || "R").slice(0, 1).toUpperCase()}
+                    </Avatar>
                   </div>
-                </div>
-                <div className="coze-project-card__footer">
-                  <Tag size="small">{cardTypeLabel(card.type, t)}</Tag>
-                  {card.status ? <Tag size="small" color="blue">{card.status}</Tag> : null}
-                </div>
-              </button>
-            ))}
+
+                  <Space spacing={8} wrap style={{ marginBottom: "auto", paddingBottom: 16 }}>
+                    {renderCardTags(item, t)}
+                  </Space>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Space spacing={6}>
+                      <Avatar size="extra-small" color="blue" style={{ width: 18, height: 18, fontSize: 10 }}>
+                        <Typography.Text style={{ color: "#fff", fontSize: 10 }}>{(item.lastEditedByDisplayName || item.ownerDisplayName || "U").slice(0, 1).toUpperCase()}</Typography.Text>
+                      </Avatar>
+                      <Typography.Text type="tertiary" style={{ fontSize: 13 }}>
+                         {item.ownerDisplayName || "RootUser"} · {t("cozeProjectsEditedAt")} {formatShortDateTime(item.lastEditedAt || item.updatedAt)}
+                      </Typography.Text>
+                    </Space>
+                    <Space spacing={8}>
+                      {item.capabilities.canFavorite ? (
+                        <Button
+                          icon={<Typography.Text style={{ fontSize: 16, lineHeight: 1 }}>{item.isFavorite ? "★" : "☆"}</Typography.Text>}
+                          theme="light"
+                          type={item.isFavorite ? "warning" : "tertiary"}
+                          loading={actionLoadingKey === `${actionPrefix}-favorite`}
+                          onClick={() => void handleToggleFavorite(item)}
+                          style={{ borderRadius: 8, padding: 6, height: 32, width: 32 }}
+                        />
+                      ) : null}
+                      {menuItems.length > 0 ? (
+                        <Dropdown trigger="click" position="bottomRight" menu={menuItems}>
+                          <Button icon={<IconMore />} theme="light" type="tertiary" style={{ borderRadius: 8, padding: 6, height: 32, width: 32 }} />
+                        </Dropdown>
+                      ) : null}
+                    </Space>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>
@@ -197,7 +724,7 @@ export function WorkspaceProjectsPage() {
         workspaceId={workspace.id}
         onClose={() => {
           setGlobalCreateOpen(false);
-          void refresh();
+          void loadData();
         }}
       />
       <CreateFolderModal
@@ -205,42 +732,176 @@ export function WorkspaceProjectsPage() {
         workspaceId={workspace.id}
         onClose={() => {
           setCreateFolderOpen(false);
-          void refresh();
+          void loadData();
         }}
       />
-      <CreateAgentModal
-        visible={createAgentOpen}
-        workspaceId={workspace.id}
-        onClose={() => {
-          setCreateAgentOpen(false);
-          void refresh();
-        }}
-      />
-      <CreateAppModal
-        visible={createAppOpen}
-        workspaceId={workspace.id}
-        onClose={() => {
-          setCreateAppOpen(false);
-          void refresh();
-        }}
-      />
+
+      <Modal
+        title={t("cozeProjectsMoveModalTitle")}
+        visible={Boolean(moveDialog)}
+        width={980}
+        onCancel={() => setMoveDialog(null)}
+        onOk={() => void handleMoveConfirm()}
+        okText={t("homeEnter")}
+        confirmLoading={Boolean(moveDialog?.submitting)}
+      >
+        <div className="coze-projects-move-modal">
+          <Input
+            value={moveDialog?.folderKeyword ?? ""}
+            onChange={value => setMoveDialog(previous => previous ? { ...previous, folderKeyword: value } : previous)}
+            placeholder={t("cozeProjectsMoveSearchPlaceholder")}
+            showClear
+          />
+          <div className="coze-projects-move-modal__tree">
+            <div className="coze-projects-move-modal__root">{t("cozeProjectsTitle")}</div>
+            {filteredMoveFolders.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                className={`coze-projects-move-modal__folder${moveDialog?.selectedFolderId === item.id ? " is-selected" : ""}`}
+                onClick={() => setMoveDialog(previous => previous ? { ...previous, selectedFolderId: item.id } : previous)}
+              >
+                <IconFolder size="small" />
+                <span>{item.name}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className="coze-projects-move-modal__create"
+              onClick={() => {
+                void handleMoveModalCreateFolder();
+              }}
+            >
+              <IconPlus size="small" />
+              {t("cozeProjectsMoveCreateFolder")}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        title={workspaceDialog?.mode === "migrate" ? t("cozeProjectsMenuMigrate") : t("cozeProjectsMenuCopyToWorkspace")}
+        visible={Boolean(workspaceDialog)}
+        width={780}
+        onCancel={() => setWorkspaceDialog(null)}
+        onOk={() => void handleWorkspaceActionConfirm()}
+        okText={t("homeEnter")}
+        confirmLoading={Boolean(workspaceDialog?.submitting)}
+      >
+        <div className="coze-projects-workspace-modal">
+          <Input
+            value={workspaceDialog?.workspaceKeyword ?? ""}
+            onChange={value => setWorkspaceDialog(previous => previous ? { ...previous, workspaceKeyword: value } : previous)}
+            placeholder={t("cozeProjectsWorkspaceSearchPlaceholder")}
+            showClear
+          />
+          <div className="coze-projects-workspace-modal__list">
+            {workspaceOptionsLoading ? (
+              <div className="coze-page__loading">
+                <Spin size="small" />
+              </div>
+            ) : filteredWorkspaceOptions.length === 0 ? (
+              <Empty title={t("cozeProjectsWorkspaceEmptyTitle")} description={t("cozeProjectsWorkspaceEmptyTip")} />
+            ) : (
+              filteredWorkspaceOptions.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`coze-projects-workspace-modal__item${workspaceDialog?.selectedWorkspaceId === item.id ? " is-selected" : ""}`}
+                  onClick={() => setWorkspaceDialog(previous => previous ? { ...previous, selectedWorkspaceId: item.id } : previous)}
+                >
+                  <span className="coze-projects-workspace-modal__name">{item.name}</span>
+                  <span className="coze-projects-workspace-modal__meta">{item.id}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function filterByStatus(status: string | undefined, filter: string): boolean {
-  if (filter === "all" || !filter) {
-    return true;
-  }
-  return (status ?? "").toLowerCase() === filter;
+function isAppResourceCard(item: WorkspaceIdeResourceCardDto): item is WorkspaceIdeResourceCardDto & { resourceType: "app" } {
+  return item.resourceType === "app";
 }
 
-function cardTypeLabel(type: UnifiedCard["type"], t: ReturnType<typeof useAppI18n>["t"]): string {
-  if (type === "agent") {
-    return t("cozeProjectsFilterTypeAgent");
+function mapAppResourceCard(item: WorkspaceIdeResourceCardDto & { resourceType: "app" }): ProjectsResourceCard {
+  return {
+    ...item,
+    source: "workspace-ide",
+    capabilities: {
+      ...lowcodeGatewayStaticCapabilities
+    }
+  };
+}
+
+function mapLowcodeAppCard(
+  item: { id: string; name: string; description?: string; status: string; updatedAt: string; folderId?: string }
+): ProjectsResourceCard {
+  return {
+    source: "lowcode",
+    resourceType: "app",
+    resourceId: item.id,
+    name: item.name,
+    description: item.description,
+    status: item.status,
+    publishStatus: item.status,
+    updatedAt: item.updatedAt,
+    isFavorite: false,
+    lastOpenedAt: undefined,
+    lastEditedAt: item.updatedAt,
+    entryRoute: "",
+    badge: "lowcode",
+    linkedWorkflowId: undefined,
+    folderId: item.folderId,
+    ownerDisplayName: undefined,
+    lastEditedByDisplayName: undefined,
+    capabilities: {
+      canFavorite: false,
+      canDuplicate: true,
+      canMove: true,
+      canMigrate: false,
+      canCopyToWorkspace: true,
+      canDelete: true
+    }
+  };
+}
+
+const lowcodeGatewayStaticCapabilities: ProjectsResourceCapabilities = {
+  canFavorite: true,
+  canDuplicate: true,
+  canMove: true,
+  canMigrate: false,
+  canCopyToWorkspace: true,
+  canDelete: true
+};
+
+function renderCardTags(item: ProjectsResourceCard, t: (key: AppMessageKey) => string) {
+  if (item.resourceType === "agent") {
+    return <Tag color="violet" type="light" style={{ borderRadius: 6, padding: "2px 8px", fontSize: 13, fontWeight: 500 }}>{t("cozeProjectsFilterTypeAgent")}</Tag>;
   }
-  if (type === "app") {
-    return t("cozeProjectsFilterTypeApp");
+  return (
+    <>
+      <Tag color="violet" type="light" style={{ borderRadius: 6, padding: "2px 8px", fontSize: 13, fontWeight: 500 }}>{t("cozeProjectsFilterTypeApp")}</Tag>
+      <Tag color="blue" type="light" style={{ borderRadius: 6, padding: "2px 8px", fontSize: 13, fontWeight: 500 }}>
+        {t("cozeProjectsTagLowcode")}
+      </Tag>
+    </>
+  );
+}
+
+function formatShortDateTime(value?: string): string {
+  if (!value) {
+    return "--";
   }
-  return t("cozeProjectsFilterTypeFolder");
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  return `${month}-${day} ${hours}:${minutes}`;
 }

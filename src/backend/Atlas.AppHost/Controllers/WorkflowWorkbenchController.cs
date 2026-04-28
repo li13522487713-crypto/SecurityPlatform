@@ -16,15 +16,15 @@ namespace Atlas.AppHost.Controllers;
 [Route("api/v1/workflow-playground")]
 public sealed class WorkflowWorkbenchController : ControllerBase
 {
-    private readonly IDagWorkflowExecutionService _executionService;
-    private readonly IDagWorkflowQueryService _queryService;
+    private readonly ICozeWorkflowExecutionService _executionService;
+    private readonly ICozeWorkflowQueryService _queryService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<WorkflowWorkbenchExecuteRequest> _validator;
 
     public WorkflowWorkbenchController(
-        IDagWorkflowExecutionService executionService,
-        IDagWorkflowQueryService queryService,
+        ICozeWorkflowExecutionService executionService,
+        ICozeWorkflowQueryService queryService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IValidator<WorkflowWorkbenchExecuteRequest> validator)
@@ -59,7 +59,7 @@ public sealed class WorkflowWorkbenchController : ControllerBase
             tenantId,
             id,
             userId,
-            new DagWorkflowRunRequest(inputsJson, normalizedSource),
+            new CozeWorkflowRunCommand(inputsJson, normalizedSource),
             cancellationToken);
 
         WorkflowWorkbenchTraceDto? traceDto = null;

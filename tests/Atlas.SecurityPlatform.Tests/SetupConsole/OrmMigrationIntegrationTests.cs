@@ -174,7 +174,7 @@ public sealed class OrmMigrationIntegrationTests : IDisposable
         Assert.Equal(systemStateRowDiff!.SourceRowCount, systemStateRowDiff.TargetRowCount);
 
         // cutover：写 appsettings.runtime.json + 状态终态
-        var afterCutover = await service.CutoverJobAsync(job.Id, new DataMigrationCutoverRequest(7));
+        var afterCutover = await service.CutoverJobAsync(job.Id, new DataMigrationCutoverRequest(7, true, true));
         Assert.Equal(DataMigrationStates.CutoverCompleted, afterCutover.State);
 
         var runtimeConfigPath = Path.Combine(runtimeConfigDir, "appsettings.runtime.json");
@@ -202,7 +202,7 @@ public sealed class OrmMigrationIntegrationTests : IDisposable
         await service.PrecheckJobAsync(job.Id);
         await service.StartJobAsync(job.Id);
         await service.ValidateJobAsync(job.Id);
-        await service.CutoverJobAsync(job.Id, new DataMigrationCutoverRequest(7));
+        await service.CutoverJobAsync(job.Id, new DataMigrationCutoverRequest(7, true, true));
 
         // 再创建相同源/目标的 job 必须被拒绝
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>

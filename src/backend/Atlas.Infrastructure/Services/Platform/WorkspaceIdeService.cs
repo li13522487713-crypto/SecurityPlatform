@@ -8,9 +8,11 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
+using Atlas.Domain.Identity.Entities;
 using System.Globalization;
 using SqlSugar;
 
+#pragma warning disable CS0618 // 工作区 IDE 旧 AI 数据库字段兼容展示。
 namespace Atlas.Infrastructure.Services.Platform;
 
 public sealed class WorkspaceIdeService : IWorkspaceIdeService
@@ -28,17 +30,20 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
 
     private readonly ISqlSugarClient _db;
     private readonly IAiAppService _aiAppService;
-    private readonly IDagWorkflowCommandService _workflowCommandService;
+    private readonly IAgentCommandService _agentCommandService;
+    private readonly ICozeWorkflowCommandService _workflowCommandService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public WorkspaceIdeService(
         ISqlSugarClient db,
         IAiAppService aiAppService,
-        IDagWorkflowCommandService workflowCommandService,
+        IAgentCommandService agentCommandService,
+        ICozeWorkflowCommandService workflowCommandService,
         IIdGeneratorAccessor idGeneratorAccessor)
     {
         _db = db;
         _aiAppService = aiAppService;
+        _agentCommandService = agentCommandService;
         _workflowCommandService = workflowCommandService;
         _idGeneratorAccessor = idGeneratorAccessor;
     }
@@ -54,7 +59,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         var appCountTask = _db.Queryable<AiApp>()
             .Where(x => x.TenantIdValue == tenantId.Value)
             .CountAsync(cancellationToken);
-        var workflowCountTask = _db.Queryable<WorkflowMeta>()
+        var workflowCountTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && x.Mode == WorkflowMode.Standard)
             .CountAsync(cancellationToken);
         var enabledModelCountTask = _db.Queryable<ModelConfig>()
@@ -101,10 +106,10 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         var agentCountTask = _db.Queryable<Agent>()
             .Where(x => x.TenantIdValue == tenantId.Value)
             .CountAsync(cancellationToken);
-        var workflowCountTask = _db.Queryable<WorkflowMeta>()
+        var workflowCountTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && x.Mode == WorkflowMode.Standard)
             .CountAsync(cancellationToken);
-        var chatflowCountTask = _db.Queryable<WorkflowMeta>()
+        var chatflowCountTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && x.Mode == WorkflowMode.ChatFlow)
             .CountAsync(cancellationToken);
         var pluginCountTask = _db.Queryable<AiPlugin>()
@@ -156,6 +161,9 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         var pageSize = Math.Clamp(request.PageSize <= 0 ? 24 : request.PageSize, 1, 100);
         var normalizedKeyword = request.Keyword?.Trim();
         var normalizedResourceType = NormalizeResourceType(request.ResourceType);
+        var normalizedStatus = NormalizeStatusFilter(request.Status);
+        var normalizedFolderId = string.IsNullOrWhiteSpace(request.FolderId) ? null : request.FolderId.Trim();
+        var normalizedWorkspaceId = string.IsNullOrWhiteSpace(request.WorkspaceId) ? null : request.WorkspaceId.Trim();
 
         var favorites = await _db.Queryable<WorkspaceIdeFavorite>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId)
@@ -182,10 +190,39 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         resources.AddRange(await LoadKnowledgeBasesAsync(tenantId, normalizedKeyword, favoriteKeys, recentByKey, cancellationToken));
         resources.AddRange(await LoadDatabasesAsync(tenantId, normalizedKeyword, favoriteKeys, recentByKey, cancellationToken));
 
+        var folderLookup = await LoadFolderLookupAsync(tenantId, normalizedWorkspaceId, cancellationToken);
+        var lastEditedByLookup = await LoadLastEditedByLookupAsync(tenantId, resources, cancellationToken);
+        var ownerLookup = await LoadOwnerLookupAsync(tenantId, resources, cancellationToken);
+
+        resources = resources.Select(resource =>
+        {
+            var key = BuildCompositeKey(resource.ResourceType, ParseResourceIdOrZero(resource.ResourceId));
+            var folderId = folderLookup.TryGetValue(key, out var resolvedFolderId) ? resolvedFolderId : null;
+            var owner = ownerLookup.TryGetValue(key, out var ownerDisplayName) ? ownerDisplayName : null;
+            var lastEditor = lastEditedByLookup.TryGetValue(key, out var lastEditedByDisplayName) ? lastEditedByDisplayName : null;
+
+            return resource with
+            {
+                FolderId = folderId,
+                OwnerDisplayName = owner,
+                LastEditedByDisplayName = lastEditor
+            };
+        }).ToList();
+
         IEnumerable<WorkspaceIdeResourceCardResponse> filtered = resources;
         if (!string.IsNullOrWhiteSpace(normalizedResourceType))
         {
             filtered = filtered.Where(item => string.Equals(item.ResourceType, normalizedResourceType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatus))
+        {
+            filtered = filtered.Where(item => string.Equals(item.Status, normalizedStatus, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedFolderId))
+        {
+            filtered = filtered.Where(item => string.Equals(item.FolderId, normalizedFolderId, StringComparison.OrdinalIgnoreCase));
         }
 
         if (request.FavoriteOnly)
@@ -220,11 +257,24 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
             throw new BusinessException("应用名称不能为空。", ErrorCodes.ValidationError);
         }
 
+        var workspaceIdValue = request.WorkspaceId?.Trim();
+        if (string.IsNullOrWhiteSpace(workspaceIdValue))
+        {
+            throw new BusinessException("创建应用必须指定工作空间。", ErrorCodes.ValidationError);
+        }
+
+        var workspaceId = ParseWorkspaceIdOrThrow(workspaceIdValue);
+        await EnsureWorkspaceEditableByUserAsync(tenantId, userId, workspaceId, cancellationToken);
+
         var workflowName = NormalizeWorkflowName(normalizedName);
         var workflowId = await _workflowCommandService.CreateAsync(
             tenantId,
             userId,
-            new DagWorkflowCreateRequest(workflowName, request.Description?.Trim() ?? normalizedName, WorkflowMode.Standard),
+            new CozeWorkflowCreateCommand(
+                workflowName,
+                request.Description?.Trim() ?? normalizedName,
+                WorkflowMode.Standard,
+                workspaceId),
             cancellationToken);
 
         var appId = await _aiAppService.CreateAsync(
@@ -235,11 +285,41 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
                 request.Icon?.Trim(),
                 null,
                 workflowId,
-                null),
+                null,
+                workspaceId),
             cancellationToken);
 
         var entryRoute = BuildWorkflowEntryRoute(workflowId, WorkflowMode.Standard);
         return new WorkspaceIdeCreateAppResult(appId.ToString(), workflowId.ToString(), entryRoute);
+    }
+
+    private async Task EnsureWorkspaceEditableByUserAsync(
+        TenantId tenantId,
+        long userId,
+        long workspaceId,
+        CancellationToken cancellationToken)
+    {
+        var workspaceExists = await _db.Queryable<Workspace>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.Id == workspaceId
+                && !x.IsArchived)
+            .CountAsync(cancellationToken) > 0;
+        if (!workspaceExists)
+        {
+            throw new BusinessException("工作空间不存在或已归档。", ErrorCodes.NotFound);
+        }
+
+        var hasMembership = await _db.Queryable<WorkspaceMember>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.WorkspaceId == workspaceId
+                && x.UserId == userId)
+            .CountAsync(cancellationToken) > 0;
+        if (!hasMembership)
+        {
+            throw new BusinessException("当前用户无权在目标工作空间创建应用。", ErrorCodes.Forbidden);
+        }
     }
 
     public async Task UpdateFavoriteAsync(
@@ -431,7 +511,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         var appsTask = _db.Queryable<AiApp>()
             .Where(x => x.TenantIdValue == tenantId.Value)
             .ToListAsync(cancellationToken);
-        var workflowsTask = _db.Queryable<WorkflowMeta>()
+        var workflowsTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted)
             .ToListAsync(cancellationToken);
         var pluginsTask = _db.Queryable<AiPlugin>()
@@ -513,7 +593,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
                 draftVersion,
                 workflow.PublishedAt,
                 ResolvePublishStatus(currentVersion, hasDraft),
-                $"/api/v2/workflows/{workflow.Id.ToString(CultureInfo.InvariantCulture)}/run",
+                $"/api/runtime/workflows/{workflow.Id.ToString(CultureInfo.InvariantCulture)}:invoke",
                 null);
         }));
 
@@ -546,6 +626,219 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
             .ToArray();
     }
 
+    public async Task<WorkspaceIdeResourceActionResult> DuplicateResourceAsync(
+        TenantId tenantId,
+        long userId,
+        string resourceType,
+        long resourceId,
+        WorkspaceIdeResourceDuplicateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedResourceType = NormalizeResourceType(resourceType);
+        var workspaceId = request.WorkspaceId?.Trim();
+        if (string.IsNullOrWhiteSpace(workspaceId))
+        {
+            throw new BusinessException("工作空间标识不能为空。", ErrorCodes.ValidationError);
+        }
+
+        if (normalizedResourceType == AppResourceType)
+        {
+            var source = await _aiAppService.GetByIdAsync(tenantId, resourceId, cancellationToken)
+                ?? throw new BusinessException("应用不存在。", ErrorCodes.NotFound);
+
+            var targetWorkspace = ParseWorkspaceIdOrThrow(workspaceId);
+            var duplicateName = await GenerateUniqueResourceNameAsync(
+                tenantId,
+                $"{source.Name} 副本",
+                name => _db.Queryable<AiApp>()
+                    .Where(x => x.TenantIdValue == tenantId.Value && x.Name == name)
+                    .CountAsync(cancellationToken));
+
+            var newId = await _aiAppService.CreateAsync(
+                tenantId,
+                new AiAppCreateRequest(
+                    duplicateName,
+                    source.Description,
+                    source.Icon,
+                    source.AgentId,
+                    source.WorkflowId,
+                    source.PromptTemplateId,
+                    targetWorkspace),
+                cancellationToken);
+
+            await TryAssignFolderAsync(tenantId, workspaceId, normalizedResourceType, newId.ToString(CultureInfo.InvariantCulture), request.FolderId, cancellationToken);
+            return new WorkspaceIdeResourceActionResult(normalizedResourceType, newId.ToString(CultureInfo.InvariantCulture), "duplicate", workspaceId);
+        }
+
+        if (normalizedResourceType == AgentResourceType)
+        {
+            var targetWorkspace = ParseWorkspaceIdOrThrow(workspaceId);
+            var newId = await _agentCommandService.DuplicateAsync(tenantId, userId, resourceId, cancellationToken);
+            var duplicate = await _db.Queryable<Agent>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == newId)
+                .FirstAsync(cancellationToken)
+                ?? throw new BusinessException("智能体复制失败。", ErrorCodes.ValidationError);
+
+            duplicate.AssignWorkspace(targetWorkspace);
+            await _db.Updateable(duplicate)
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == newId)
+                .ExecuteCommandAsync(cancellationToken);
+
+            await TryAssignFolderAsync(tenantId, workspaceId, normalizedResourceType, newId.ToString(CultureInfo.InvariantCulture), request.FolderId, cancellationToken);
+            return new WorkspaceIdeResourceActionResult(normalizedResourceType, newId.ToString(CultureInfo.InvariantCulture), "duplicate", workspaceId);
+        }
+
+        throw new BusinessException("当前资源类型暂不支持创建副本。", ErrorCodes.ValidationError);
+    }
+
+    public async Task<WorkspaceIdeResourceActionResult> MigrateResourceAsync(
+        TenantId tenantId,
+        long userId,
+        string resourceType,
+        long resourceId,
+        WorkspaceIdeResourceMoveWorkspaceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _ = userId;
+        var normalizedResourceType = NormalizeResourceType(resourceType);
+        var sourceWorkspaceId = request.SourceWorkspaceId?.Trim();
+        var targetWorkspaceId = request.TargetWorkspaceId?.Trim();
+        if (string.IsNullOrWhiteSpace(sourceWorkspaceId) || string.IsNullOrWhiteSpace(targetWorkspaceId))
+        {
+            throw new BusinessException("源/目标工作空间不能为空。", ErrorCodes.ValidationError);
+        }
+
+        var targetWorkspaceLong = ParseWorkspaceIdOrThrow(targetWorkspaceId);
+        if (normalizedResourceType == AppResourceType)
+        {
+            var entity = await _db.Queryable<AiApp>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == resourceId)
+                .FirstAsync(cancellationToken)
+                ?? throw new BusinessException("应用不存在。", ErrorCodes.NotFound);
+            entity.AssignWorkspace(targetWorkspaceLong);
+            await _db.Updateable(entity)
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == entity.Id)
+                .ExecuteCommandAsync(cancellationToken);
+        }
+        else if (normalizedResourceType == AgentResourceType)
+        {
+            var entity = await _db.Queryable<Agent>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == resourceId)
+                .FirstAsync(cancellationToken)
+                ?? throw new BusinessException("智能体不存在。", ErrorCodes.NotFound);
+            entity.AssignWorkspace(targetWorkspaceLong);
+            await _db.Updateable(entity)
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == entity.Id)
+                .ExecuteCommandAsync(cancellationToken);
+        }
+        else
+        {
+            throw new BusinessException("当前资源类型暂不支持迁移。", ErrorCodes.ValidationError);
+        }
+
+        await _db.Deleteable<WorkspaceFolderItem>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.WorkspaceId == sourceWorkspaceId
+                && x.ItemType == normalizedResourceType
+                && x.ItemId == resourceId.ToString(CultureInfo.InvariantCulture))
+            .ExecuteCommandAsync(cancellationToken);
+
+        return new WorkspaceIdeResourceActionResult(
+            normalizedResourceType,
+            resourceId.ToString(CultureInfo.InvariantCulture),
+            "migrate",
+            sourceWorkspaceId,
+            targetWorkspaceId);
+    }
+
+    public async Task<WorkspaceIdeResourceActionResult> CopyToWorkspaceAsync(
+        TenantId tenantId,
+        long userId,
+        string resourceType,
+        long resourceId,
+        WorkspaceIdeResourceMoveWorkspaceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedResourceType = NormalizeResourceType(resourceType);
+        var sourceWorkspaceId = request.SourceWorkspaceId?.Trim();
+        var targetWorkspaceId = request.TargetWorkspaceId?.Trim();
+        if (string.IsNullOrWhiteSpace(sourceWorkspaceId) || string.IsNullOrWhiteSpace(targetWorkspaceId))
+        {
+            throw new BusinessException("源/目标工作空间不能为空。", ErrorCodes.ValidationError);
+        }
+
+        if (normalizedResourceType == AppResourceType)
+        {
+            var source = await _aiAppService.GetByIdAsync(tenantId, resourceId, cancellationToken)
+                ?? throw new BusinessException("应用不存在。", ErrorCodes.NotFound);
+            var targetWorkspaceLong = ParseWorkspaceIdOrThrow(targetWorkspaceId);
+            var copyName = await GenerateUniqueResourceNameAsync(
+                tenantId,
+                $"{source.Name} 副本",
+                name => _db.Queryable<AiApp>()
+                    .Where(x => x.TenantIdValue == tenantId.Value && x.Name == name)
+                    .CountAsync(cancellationToken));
+            var newId = await _aiAppService.CreateAsync(
+                tenantId,
+                new AiAppCreateRequest(
+                    copyName,
+                    source.Description,
+                    source.Icon,
+                    source.AgentId,
+                    source.WorkflowId,
+                    source.PromptTemplateId,
+                    targetWorkspaceLong),
+                cancellationToken);
+            return new WorkspaceIdeResourceActionResult(normalizedResourceType, newId.ToString(CultureInfo.InvariantCulture), "copy-to-workspace", sourceWorkspaceId, targetWorkspaceId);
+        }
+
+        if (normalizedResourceType == AgentResourceType)
+        {
+            var targetWorkspaceLong = ParseWorkspaceIdOrThrow(targetWorkspaceId);
+            var newId = await _agentCommandService.DuplicateAsync(tenantId, userId, resourceId, cancellationToken);
+            var duplicate = await _db.Queryable<Agent>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == newId)
+                .FirstAsync(cancellationToken)
+                ?? throw new BusinessException("智能体复制失败。", ErrorCodes.ValidationError);
+            duplicate.AssignWorkspace(targetWorkspaceLong);
+            await _db.Updateable(duplicate)
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == duplicate.Id)
+                .ExecuteCommandAsync(cancellationToken);
+            return new WorkspaceIdeResourceActionResult(normalizedResourceType, newId.ToString(CultureInfo.InvariantCulture), "copy-to-workspace", sourceWorkspaceId, targetWorkspaceId);
+        }
+
+        throw new BusinessException("当前资源类型暂不支持跨空间复制。", ErrorCodes.ValidationError);
+    }
+
+    public async Task DeleteResourceAsync(
+        TenantId tenantId,
+        string resourceType,
+        long resourceId,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedResourceType = NormalizeResourceType(resourceType);
+        if (normalizedResourceType == AppResourceType)
+        {
+            await _aiAppService.DeleteAsync(tenantId, resourceId, cancellationToken);
+        }
+        else if (normalizedResourceType == AgentResourceType)
+        {
+            await _agentCommandService.DeleteAsync(tenantId, resourceId, cancellationToken);
+        }
+        else
+        {
+            throw new BusinessException("当前资源类型暂不支持删除。", ErrorCodes.ValidationError);
+        }
+
+        await _db.Deleteable<WorkspaceFolderItem>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.ItemType == normalizedResourceType
+                && x.ItemId == resourceId.ToString(CultureInfo.InvariantCulture))
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     private async Task<IReadOnlyList<WorkspaceIdePendingPublishItem>> LoadPendingPublishItemsAsync(
         TenantId tenantId,
         int top,
@@ -565,7 +858,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
             .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .Take(Math.Max(top, 8))
             .ToListAsync(cancellationToken);
-        var workflowsTask = _db.Queryable<WorkflowMeta>()
+        var workflowsTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x =>
                 x.TenantIdValue == tenantId.Value
                 && !x.IsDeleted
@@ -672,8 +965,8 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
                 .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(agentIds, x.Id))
                 .ToListAsync(cancellationToken);
         var workflowsTask = workflowIds.Length == 0
-            ? Task.FromResult(new List<WorkflowMeta>())
-            : _db.Queryable<WorkflowMeta>()
+            ? Task.FromResult(new List<CozeWorkflowMeta>())
+            : _db.Queryable<CozeWorkflowMeta>()
                 .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && SqlFunc.ContainsArray(workflowIds, x.Id))
                 .ToListAsync(cancellationToken);
         var pluginsTask = pluginIds.Length == 0
@@ -1043,6 +1336,232 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
             .ToArray();
     }
 
+    private async Task<IReadOnlyDictionary<string, string>> LoadFolderLookupAsync(
+        TenantId tenantId,
+        string? workspaceId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceId))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var rows = await _db.Queryable<WorkspaceFolderItem>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.WorkspaceId == workspaceId)
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => new
+            {
+                Key = BuildCompositeKey(row.ItemType, ParseResourceIdOrZero(row.ItemId)),
+                FolderId = row.FolderId.ToString(CultureInfo.InvariantCulture)
+            })
+            .Where(item => !item.Key.EndsWith(":0", StringComparison.Ordinal))
+            .GroupBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().FolderId, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>> LoadLastEditedByLookupAsync(
+        TenantId tenantId,
+        IReadOnlyList<WorkspaceIdeResourceCardResponse> resources,
+        CancellationToken cancellationToken)
+    {
+        var appIds = resources
+            .Where(item => string.Equals(item.ResourceType, AppResourceType, StringComparison.OrdinalIgnoreCase))
+            .Select(item => ParseResourceIdOrZero(item.ResourceId))
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
+        var agentIds = resources
+            .Where(item => string.Equals(item.ResourceType, AgentResourceType, StringComparison.OrdinalIgnoreCase))
+            .Select(item => ParseResourceIdOrZero(item.ResourceId))
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
+
+        var edits = new List<AiRecentEdit>(capacity: appIds.Length + agentIds.Length);
+        if (appIds.Length > 0)
+        {
+            edits.AddRange(await _db.Queryable<AiRecentEdit>()
+                .Where(x =>
+                    x.TenantIdValue == tenantId.Value
+                    && x.ResourceType == AppResourceType
+                    && SqlFunc.ContainsArray(appIds, x.ResourceId))
+                .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+                .OrderBy(x => x.CreatedAt, OrderByType.Desc)
+                .ToListAsync(cancellationToken));
+        }
+
+        if (agentIds.Length > 0)
+        {
+            edits.AddRange(await _db.Queryable<AiRecentEdit>()
+                .Where(x =>
+                    x.TenantIdValue == tenantId.Value
+                    && x.ResourceType == AgentResourceType
+                    && SqlFunc.ContainsArray(agentIds, x.ResourceId))
+                .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+                .OrderBy(x => x.CreatedAt, OrderByType.Desc)
+                .ToListAsync(cancellationToken));
+        }
+
+        if (edits.Count == 0)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var latestEdits = edits
+            .GroupBy(item => BuildCompositeKey(item.ResourceType, item.ResourceId), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+        var userIds = latestEdits.Select(item => item.UserId).Distinct().ToArray();
+        var users = await _db.Queryable<UserAccount>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(userIds, x.Id))
+            .Select(x => new { x.Id, x.DisplayName, x.Username })
+            .ToListAsync(cancellationToken);
+        var userNameMap = users.ToDictionary(
+            item => item.Id,
+            item => string.IsNullOrWhiteSpace(item.DisplayName) ? item.Username : item.DisplayName);
+
+        return latestEdits.ToDictionary(
+            item => BuildCompositeKey(item.ResourceType, item.ResourceId),
+            item => userNameMap.TryGetValue(item.UserId, out var name) ? name : "Atlas",
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>> LoadOwnerLookupAsync(
+        TenantId tenantId,
+        IReadOnlyList<WorkspaceIdeResourceCardResponse> resources,
+        CancellationToken cancellationToken)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var appIds = resources
+            .Where(item => string.Equals(item.ResourceType, AppResourceType, StringComparison.OrdinalIgnoreCase))
+            .Select(item => ParseResourceIdOrZero(item.ResourceId))
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
+        foreach (var appId in appIds)
+        {
+            map[BuildCompositeKey(AppResourceType, appId)] = "Atlas";
+        }
+
+        var agentIds = resources
+            .Where(item => string.Equals(item.ResourceType, AgentResourceType, StringComparison.OrdinalIgnoreCase))
+            .Select(item => ParseResourceIdOrZero(item.ResourceId))
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
+        if (agentIds.Length == 0)
+        {
+            return map;
+        }
+
+        var agents = await _db.Queryable<Agent>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(agentIds, x.Id))
+            .Select(x => new { x.Id, x.CreatorId })
+            .ToListAsync(cancellationToken);
+        var creatorIds = agents.Select(item => item.CreatorId).Distinct().ToArray();
+        Dictionary<long, string> creatorNameMap;
+        if (creatorIds.Length == 0)
+        {
+            creatorNameMap = new Dictionary<long, string>();
+        }
+        else
+        {
+            var creators = await _db.Queryable<UserAccount>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(creatorIds, x.Id))
+                .Select(x => new { x.Id, x.DisplayName, x.Username })
+                .ToListAsync(cancellationToken);
+            creatorNameMap = creators.ToDictionary(
+                item => item.Id,
+                item => string.IsNullOrWhiteSpace(item.DisplayName) ? item.Username : item.DisplayName);
+        }
+
+        foreach (var agent in agents)
+        {
+            var key = BuildCompositeKey(AgentResourceType, agent.Id);
+            map[key] = creatorNameMap.TryGetValue(agent.CreatorId, out var name) ? name : "Atlas";
+        }
+
+        return map;
+    }
+
+    private async Task TryAssignFolderAsync(
+        TenantId tenantId,
+        string workspaceId,
+        string itemType,
+        string itemId,
+        string? folderId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(folderId))
+        {
+            return;
+        }
+
+        if (!long.TryParse(folderId.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var folderIdLong) || folderIdLong <= 0)
+        {
+            throw new BusinessException("文件夹标识无效。", ErrorCodes.ValidationError);
+        }
+
+        var folderExists = await _db.Queryable<WorkspaceFolder>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.WorkspaceId == workspaceId
+                && x.Id == folderIdLong)
+            .CountAsync(cancellationToken) > 0;
+        if (!folderExists)
+        {
+            throw new BusinessException("文件夹不存在。", ErrorCodes.NotFound);
+        }
+
+        var existing = await _db.Queryable<WorkspaceFolderItem>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.WorkspaceId == workspaceId
+                && x.ItemType == itemType
+                && x.ItemId == itemId)
+            .FirstAsync(cancellationToken);
+        if (existing is not null)
+        {
+            if (existing.FolderId == folderIdLong)
+            {
+                return;
+            }
+
+            await _db.Deleteable<WorkspaceFolderItem>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == existing.Id)
+                .ExecuteCommandAsync(cancellationToken);
+        }
+
+        var assignment = new WorkspaceFolderItem(
+            tenantId,
+            workspaceId,
+            folderIdLong,
+            itemType,
+            itemId,
+            _idGeneratorAccessor.NextId());
+        await _db.Insertable(assignment).ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task<string> GenerateUniqueResourceNameAsync(
+        TenantId tenantId,
+        string preferredName,
+        Func<string, Task<int>> countAsync)
+    {
+        _ = tenantId;
+        var seed = string.IsNullOrWhiteSpace(preferredName) ? "资源副本" : preferredName.Trim();
+        var candidate = seed;
+        var suffix = 2;
+        while (await countAsync(candidate) > 0)
+        {
+            candidate = $"{seed}_{suffix}";
+            suffix++;
+        }
+
+        return candidate;
+    }
+
     private static long ParseResourceIdOrThrow(string resourceId)
     {
         if (!long.TryParse(resourceId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId) || parsedId <= 0)
@@ -1051,6 +1570,41 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         }
 
         return parsedId;
+    }
+
+    private static long ParseWorkspaceIdOrThrow(string workspaceId)
+    {
+        if (!long.TryParse(workspaceId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId) || parsedId <= 0)
+        {
+            throw new BusinessException("工作空间标识无效。", ErrorCodes.ValidationError);
+        }
+
+        return parsedId;
+    }
+
+    private static long ParseResourceIdOrZero(string? resourceId)
+    {
+        return long.TryParse(resourceId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId) && parsedId > 0
+            ? parsedId
+            : 0;
+    }
+
+    private static long? ParseNullableLong(string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return null;
+        }
+
+        return long.TryParse(rawValue.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId) && parsedId > 0
+            ? parsedId
+            : null;
+    }
+
+    private static string? NormalizeStatusFilter(string? status)
+    {
+        var normalized = status?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static string NormalizeReferenceResourceType(string resourceType)
@@ -1181,7 +1735,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         IReadOnlyDictionary<string, AiRecentEdit> recentByKey,
         CancellationToken cancellationToken)
     {
-        var entities = await _db.Queryable<WorkflowMeta>()
+        var entities = await _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted)
             .WhereIF(!string.IsNullOrWhiteSpace(keyword), x => x.Name.Contains(keyword!) || x.Description!.Contains(keyword!))
             .OrderBy(x => x.UpdatedAt, OrderByType.Desc)

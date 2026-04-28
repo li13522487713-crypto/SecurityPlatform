@@ -25,6 +25,22 @@ public sealed class BM25RetrievalService
         _options = options.Value;
     }
 
+    /// <summary>
+    /// v5 §38 / 计划 G4：profile-aware overload。
+    /// profile 中 TopK / MinScore 优先于参数 topK；其它字段（hybrid / rerank）由上层 RagRetrievalService 负责。
+    /// </summary>
+    public Task<IReadOnlyList<RagSearchResult>> SearchAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> knowledgeBaseIds,
+        string query,
+        int topK,
+        RetrievalProfile? profile,
+        CancellationToken cancellationToken)
+    {
+        var effectiveTopK = profile?.TopK > 0 ? profile.TopK : topK;
+        return SearchAsync(tenantId, knowledgeBaseIds, query, effectiveTopK, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<RagSearchResult>> SearchAsync(
         TenantId tenantId,
         IReadOnlyList<long> knowledgeBaseIds,
@@ -123,6 +139,7 @@ public sealed class BM25RetrievalService
         var documents = await _knowledgeDocumentRepository.QueryByIdsAsync(tenantId, documentIds, cancellationToken);
         var documentMap = documents.ToDictionary(item => item.Id, item => item.FileName);
         var documentCreatedAtMap = documents.ToDictionary(item => item.Id, item => (DateTime?)item.CreatedAt);
+        var documentTagsMap = documents.ToDictionary(item => item.Id, item => item.TagsJson);
 
         return topChunkIds
             .Where(id => topChunkMap.ContainsKey(id))
@@ -131,6 +148,7 @@ public sealed class BM25RetrievalService
                 var chunk = topChunkMap[id];
                 documentMap.TryGetValue(chunk.DocumentId, out var documentName);
                 documentCreatedAtMap.TryGetValue(chunk.DocumentId, out var documentCreatedAt);
+                documentTagsMap.TryGetValue(chunk.DocumentId, out var tagsJson);
                 return new RagSearchResult(
                     chunk.KnowledgeBaseId,
                     chunk.DocumentId,
@@ -138,7 +156,11 @@ public sealed class BM25RetrievalService
                     chunk.Content,
                     scoreMap[id],
                     documentName,
-                    documentCreatedAt);
+                    documentCreatedAt,
+                    chunk.StartOffset,
+                    chunk.EndOffset,
+                    tagsJson,
+                    DocumentNamespace: null);
             })
             .ToArray();
     }
