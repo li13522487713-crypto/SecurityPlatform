@@ -10,6 +10,8 @@ export interface StudioMicroflowDefinitionView {
   id: string;
   moduleId: string;
   moduleName?: string;
+  folderId?: string;
+  folderPath?: string;
   name: string;
   displayName: string;
   qualifiedName: string;

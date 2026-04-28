@@ -3,6 +3,12 @@ import type { MicroflowAuthoringSchema } from "@atlas/microflow";
 import type { MicroflowPublishImpactAnalysis, MicroflowPublishInput, MicroflowPublishResult } from "../publish/microflow-publish-types";
 import type { MicroflowReference } from "../references/microflow-reference-types";
 import type {
+  CreateMicroflowFolderInput,
+  ListMicroflowFoldersQuery,
+  MicroflowFolder,
+  MicroflowFolderTreeNode
+} from "../folders/microflow-folder-types";
+import type {
   MicroflowCreateInput,
   MicroflowDuplicateInput,
   MicroflowAppAsset,
@@ -37,6 +43,13 @@ export interface MicroflowResourceAdapter {
   saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema, options?: SaveMicroflowSchemaOptions): Promise<MicroflowResource>;
   duplicateMicroflow(id: string, input?: MicroflowDuplicateInput): Promise<MicroflowResource>;
   renameMicroflow(id: string, name: string, displayName?: string): Promise<MicroflowResource>;
+  moveMicroflow(id: string, targetFolderId?: string): Promise<MicroflowResource>;
+  listMicroflowFolders(query: ListMicroflowFoldersQuery): Promise<MicroflowFolder[]>;
+  getMicroflowFolderTree(query: ListMicroflowFoldersQuery): Promise<MicroflowFolderTreeNode[]>;
+  createMicroflowFolder(input: CreateMicroflowFolderInput): Promise<MicroflowFolder>;
+  renameMicroflowFolder(id: string, name: string): Promise<MicroflowFolder>;
+  moveMicroflowFolder(id: string, parentFolderId?: string): Promise<MicroflowFolder>;
+  deleteMicroflowFolder(id: string): Promise<void>;
   toggleFavorite(id: string, favorite: boolean): Promise<MicroflowResource>;
   archiveMicroflow(id: string): Promise<MicroflowResource>;
   restoreMicroflow(id: string): Promise<MicroflowResource>;

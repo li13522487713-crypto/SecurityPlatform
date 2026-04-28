@@ -1,11 +1,10 @@
-import type { MicroflowVersionSummary } from "../resource/resource-types";
+import type { MicroflowDataType } from "@atlas/microflow";
+
+import type { MicroflowVersionDiff, MicroflowVersionSummary } from "./microflow-version-types";
 
 export function sortMicroflowVersionsDesc(versions: MicroflowVersionSummary[]) {
   return [...versions].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
 }
-import type { MicroflowDataType } from "@atlas/microflow";
-
-import type { MicroflowVersionDiff, MicroflowVersionSummary } from "./microflow-version-types";
 
 export function formatVersionStatus(status: MicroflowVersionSummary["status"]): string {
   const labels: Record<MicroflowVersionSummary["status"], string> = {

@@ -31,7 +31,8 @@ export function createAppMicroflowAdapterConfig(input: {
   currentUser?: MicroflowAdapterFactoryConfig["currentUser"];
   requestHeaders?: Record<string, string>;
 }): MicroflowAdapterFactoryConfig {
-  const mode = parseMicroflowAdapterMode(import.meta.env.VITE_MICROFLOW_ADAPTER_MODE ?? import.meta.env.MICROFLOW_ADAPTER_MODE);
+  const configuredMode = parseMicroflowAdapterMode(import.meta.env.VITE_MICROFLOW_ADAPTER_MODE ?? import.meta.env.MICROFLOW_ADAPTER_MODE);
+  const mode = import.meta.env.PROD ? "http" : configuredMode;
   const contractMockEnabled = isMicroflowContractMockEnabled();
   const microflowApiBaseUrl = resolveMicroflowApiBaseUrl();
   return {

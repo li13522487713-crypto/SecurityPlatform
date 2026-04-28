@@ -6,7 +6,7 @@ import type { MicroflowDuplicateInput, MicroflowResource } from "./resource-type
 
 type DuplicateMicroflowSource = Pick<MicroflowResource, "name" | "displayName" | "moduleId"> & Partial<Pick<MicroflowResource, "moduleName" | "tags">>;
 
-interface DuplicateMicroflowModalProps {
+export interface DuplicateMicroflowModalProps {
   resource?: DuplicateMicroflowSource;
   visible: boolean;
   onClose: () => void;

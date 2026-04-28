@@ -31,6 +31,8 @@ export function mapMicroflowResourceToStudioDefinitionView(
     id: resource.id,
     moduleId: resource.moduleId,
     moduleName: resource.moduleName,
+    folderId: resource.folderId,
+    folderPath: resource.folderPath,
     name: resource.name,
     displayName,
     qualifiedName: getStudioMicroflowQualifiedName(resource),
