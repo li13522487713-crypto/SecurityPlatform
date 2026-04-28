@@ -1,8 +1,9 @@
 import "./studio.css";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Space, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconArrowRight } from "@douyinfe/semi-icons";
+import type { MicroflowEditorHandle } from "@atlas/microflow";
 
 import type { MicroflowAdapterFactoryConfig } from "./microflow/config/microflow-adapter-config";
 import type { MicroflowAdapterBundle } from "./microflow/adapter/microflow-adapter-factory";
@@ -13,6 +14,7 @@ import { ExplorerSplitLayout } from "./components/explorer-split-layout";
 import { WidgetToolbox } from "./components/widget-toolbox";
 import { WorkbenchTabs } from "./components/workbench-tabs";
 import { WorkbenchToolbar } from "./components/workbench-toolbar";
+import { MicroflowWorkbenchToolbar } from "./components/microflow-workbench-toolbar";
 import { PageDesignerCanvas } from "./components/page-designer-canvas";
 import { WidgetStructurePanel } from "./components/widget-structure-panel";
 import { PropertiesPanel } from "./components/properties-panel";
@@ -109,6 +111,10 @@ export function MendixStudioApp({
     ? microflowResourcesById[activeMicroflowId]
     : undefined;
   const activeMicroflowTabId = isMicroflow ? activeWorkbenchTab.id : undefined;
+  // The workbench-level toolbar drives the active microflow editor through this
+  // shared imperative ref. The ref is reset whenever the active microflow tab
+  // changes (via the editor's `key` prop) so each tab has an isolated handle.
+  const microflowEditorHandleRef = useRef<MicroflowEditorHandle | null>(null);
   const referencesResource = referencesMicroflowId
     ? microflowResourcesById[referencesMicroflowId]
     : undefined;
@@ -213,8 +219,16 @@ export function MendixStudioApp({
               {/* Tab 栏 */}
               <WorkbenchTabs />
 
-              {/* 工具栏 */}
-              <WorkbenchToolbar onViewMicroflowReferences={openReferencesPanel} />
+              {/* 工具栏：微流模式渲染外置工具栏，否则渲染页面/通用工具栏 */}
+              {isMicroflow ? (
+                <MicroflowWorkbenchToolbar
+                  microflowId={activeMicroflowId}
+                  editorRef={microflowEditorHandleRef}
+                  onViewReferences={openReferencesPanel}
+                />
+              ) : (
+                <WorkbenchToolbar onViewMicroflowReferences={openReferencesPanel} />
+              )}
 
               {/* 内容区 */}
               {isMicroflow ? (
@@ -227,6 +241,8 @@ export function MendixStudioApp({
                       moduleId={activeWorkbenchTab?.moduleId ?? activeMicroflowResource?.moduleId}
                       adapterBundle={_resolvedBundle}
                       microflowResourceIndex={microflowResourcesById}
+                      editorRef={microflowEditorHandleRef}
+                      toolbarMode="external"
                       onRefreshResourceList={() => setMicroflowResourceRefreshToken(token => token + 1)}
                       onCloseTab={() => closeWorkbenchTab(activeMicroflowTabId, { force: true })}
                       onOpenMicroflow={openMicroflowWorkbenchTab}
