@@ -43,6 +43,7 @@ export interface MicroflowNodePanelLabels {
   filterAll: string;
   filterFavorites: string;
   filterEnabled: string;
+  filterSupported: string;
   favoritesTitle: string;
   favoritesEmpty: string;
   addToCanvas: string;
@@ -72,6 +73,7 @@ export const defaultMicroflowNodePanelLabels: MicroflowNodePanelLabels = {
   filterAll: "All nodes",
   filterFavorites: "Favorites only",
   filterEnabled: "Enabled only",
+  filterSupported: "Runtime supported only",
   favoritesTitle: "My favorites",
   favoritesEmpty: "Favorite frequently used nodes for quick access.",
   addToCanvas: "Add to canvas",
@@ -240,6 +242,27 @@ function iconTone(item: MicroflowNodeRegistryItem): { background: string; color:
   return { background: "#f2f3f5", color: "#4e5969" };
 }
 
+function EngineSupportTag({ support }: { support: MicroflowNodeRegistryItem["engineSupport"] }) {
+  if (!support) {
+    return null;
+  }
+  if (support.level === "supported") {
+    // 默认 supported 不显示徽标，避免视觉噪声；用户能假定可执行。
+    return null;
+  }
+  const palette = support.level === "partial"
+    ? { color: "amber", label: "Partial Runtime" }
+    : { color: "red", label: "Runtime Unsupported" };
+  const reason = support.reason ?? (support.level === "partial"
+    ? "Runtime 仅在 connector / allowRealHttp 启用时真实执行。"
+    : "Runtime 引擎当前不支持，testRun 会返回 RUNTIME_UNSUPPORTED_ACTION。");
+  return (
+    <Tooltip content={reason} position="top">
+      <Tag size="small" color={palette.color as never}>{palette.label}</Tag>
+    </Tooltip>
+  );
+}
+
 function MicroflowNodeIcon({ item }: { item: MicroflowNodeRegistryItem }) {
   const tone = iconTone(item);
   const label = item.activityType?.slice(0, 1) ?? item.type.slice(0, 1);
@@ -285,6 +308,12 @@ function TooltipContent({ item, labels, createContext }: { item: MicroflowNodeRe
       <Text type="tertiary">{labels.outputs}: {(item.outputs ?? []).map(output => output.title).join(", ") || "-"}</Text>
       {item.useCases?.length ? <Text type="tertiary">{labels.useCases}: {item.useCases.join(" ")}</Text> : null}
       {item.availability !== "supported" ? <Tag color={item.availability === "deprecated" ? "orange" : item.availability === "beta" ? "blue" : "grey"}>{item.availabilityReason ?? item.availability}</Tag> : null}
+      {item.engineSupport && item.engineSupport.level !== "supported" ? (
+        <Tag color={item.engineSupport.level === "partial" ? "amber" : "red"}>
+          {item.engineSupport.level === "partial" ? "Partial Runtime: " : "Runtime Unsupported: "}
+          {item.engineSupport.reason ?? "see action registry"}
+        </Tag>
+      ) : null}
       {warning ? <Tag color="orange">{warning}</Tag> : null}
       {getMicroflowNodeDisabledReason(item, createContext) ? <Tag color="grey">{getMicroflowNodeDisabledReason(item, createContext)}</Tag> : null}
     </Space>
@@ -300,6 +329,9 @@ export function MicroflowNodePanelRegistryAdapter({ registry, keyword, filterKey
     }
     if (filterKey === "enabled") {
       return canDragRegistryItem(item);
+    }
+    if (filterKey === "supported") {
+      return item.engineSupport?.level === "supported";
     }
     if (isCategoryFilter(filterKey)) {
       return categoryKeyFromEntry(item) === filterKey;
@@ -344,6 +376,7 @@ export function MicroflowNodeSearch({
     { key: "all", label: labels.filterAll },
     { key: "favorites", label: labels.filterFavorites },
     { key: "enabled", label: labels.filterEnabled },
+    { key: "supported", label: labels.filterSupported },
     ...Object.entries(categoryFilterLabels).map(([key, label]) => ({ key: key as MicroflowNodePanelCategoryKey, label }))
   ];
 
@@ -450,6 +483,7 @@ export function MicroflowNodeCard({
             {item.availability === "deprecated" ? <Tag size="small" color="orange">Deprecated</Tag> : null}
             {item.availability === "requiresConnector" ? <Tag size="small" color="grey">Connector Required</Tag> : null}
             {item.availability === "nanoflowOnlyDisabled" ? <Tag size="small" color="grey">Nanoflow Only</Tag> : null}
+            <EngineSupportTag support={item.engineSupport} />
             {resolveWarning(item, createContext) ? <Tag size="small" color="orange">Needs Config</Tag> : null}
           </Space>
           <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: "block", maxWidth: "100%" }}>
