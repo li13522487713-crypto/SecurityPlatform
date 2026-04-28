@@ -1394,6 +1394,10 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             }
 
             var plan = ResolveExecutionPlan();
+            // Reuse the engine's existing variable store so action executors can
+            // read variables created by createVariable / createList earlier in the
+            // run and write back into the same scope (otherwise loop-aware actions
+            // would push iterator scopes onto an empty store).
             _executionContext = RuntimeExecutionContext.Create(
                 runId: RunId,
                 executionPlan: plan,
@@ -1405,7 +1409,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 parentRunId: ParentRunId,
                 rootRunId: RootRunId,
                 callCorrelationId: CorrelationId,
-                maxCallDepth: MaxCallDepth);
+                maxCallDepth: MaxCallDepth,
+                variableStore: _expressionVariableStore);
             return _executionContext;
         }
 

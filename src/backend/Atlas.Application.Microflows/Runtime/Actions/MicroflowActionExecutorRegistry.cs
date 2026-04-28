@@ -190,6 +190,36 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             }
         }
 
+        if (string.Equals(actionKind, "throwException", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<ThrowExceptionActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "filterList", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<FilterListActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "sortList", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<SortListActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(actionKind) && _executors.TryGetValue(actionKind, out var resolved))
         {
             executor = resolved;
@@ -265,6 +295,8 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Server("changeList", "ChangeListAction", "list", "ChangeListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("listOperation", "ListOperationAction", "list", "ListOperationActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("aggregateList", "AggregateListAction", "list", "AggregateListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
+            Server("filterList", "FilterListAction", "list", "FilterListActionExecutor", producesVariables: true, producesTransaction: false, reason: "Filter List evaluates a per-item expression and produces a new list variable."),
+            Server("sortList", "SortListAction", "list", "SortListActionExecutor", producesVariables: true, producesTransaction: false, reason: "Sort List orders items by a primitive member and produces a new list variable."),
 
             Server("createVariable", "CreateVariableAction", "variable", "CreateVariableActionExecutor", producesVariables: true, producesTransaction: false),
             Server("changeVariable", "ChangeVariableAction", "variable", "ChangeVariableActionExecutor", producesVariables: true, producesTransaction: false),
@@ -292,6 +324,7 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Unsupported("synchronize", "SynchronizeAction", "client", MicroflowActionSupportLevel.NanoflowOnly, "Synchronize is nanoflow/client-device only."),
 
             Server("logMessage", "LogMessageAction", "logging", "LogMessageActionExecutor", producesVariables: false, producesTransaction: false),
+            Server("throwException", "ThrowExceptionAction", "errorHandling", "ThrowExceptionActionExecutor", producesVariables: false, producesTransaction: false, reason: "Server-side throwException stops the run with a structured RuntimeError."),
             Connector("generateDocument", "GenerateDocumentAction", "documentGeneration", "DocumentGenerationExecutor", MicroflowRuntimeConnectorCapability.DocumentGeneration, "Document generation is deprecated and requires document connector.", supportLevel: MicroflowActionSupportLevel.Deprecated),
 
             Server("counter", "MetricsCounterAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted, reason: "Metrics fallback writes runtime log when metrics connector is absent."),

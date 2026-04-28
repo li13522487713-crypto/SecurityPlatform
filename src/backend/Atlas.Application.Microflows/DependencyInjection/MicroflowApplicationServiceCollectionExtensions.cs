@@ -67,6 +67,9 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<CallMicroflowActionExecutor>();
         services.TryAddScoped<RestCallActionExecutor>();
         services.TryAddScoped<LogMessageActionExecutor>();
+        services.TryAddScoped<ThrowExceptionActionExecutor>();
+        services.TryAddScoped<FilterListActionExecutor>();
+        services.TryAddScoped<SortListActionExecutor>();
         services.TryAddSingleton<MicroflowRestExecutionOptions>();
         services.TryAddSingleton<MicroflowRestSecurityPolicy>();
         services.TryAddScoped<MicroflowRestRequestBuilder>();

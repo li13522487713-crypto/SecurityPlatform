@@ -149,6 +149,95 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
     }
 
     [Fact]
+    public async Task Run_ThrowExceptionAction_FailsRunWithStructuredError()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("throw", "throwException", new
+                {
+                    errorCode = "DEMO_ERROR",
+                    message = "Something happened"
+                }),
+                End()),
+            Flows(
+                Flow("f1", "start", "throw"),
+                Flow("f2", "throw", "end")));
+
+        var session = await RunWithRegistryAsync(schema);
+
+        Assert.Equal("failed", session.Status);
+        Assert.Equal("DEMO_ERROR", session.Error?.Code);
+        Assert.Equal("Something happened", session.Error?.Message);
+    }
+
+    [Fact]
+    public async Task Run_FilterList_FiltersItemsByExpression()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("create", "createList", new
+                {
+                    outputVariableName = "items",
+                    items = new[] { new { score = 70 }, new { score = 90 }, new { score = 110 } }
+                }),
+                Action("filter", "filterList", new
+                {
+                    listVariableName = "items",
+                    outputVariableName = "passed",
+                    itemVariableName = "$item",
+                    conditionExpression = "$item/score > 80"
+                }),
+                End(returnValue: "$passed")),
+            Flows(
+                Flow("f1", "start", "create"),
+                Flow("f2", "create", "filter"),
+                Flow("f3", "filter", "end")));
+
+        var session = await RunWithRegistryAsync(schema);
+
+        Assert.Equal("success", session.Status);
+        Assert.NotNull(session.Output);
+        Assert.Equal(JsonValueKind.Array, session.Output!.Value.ValueKind);
+        Assert.Equal(2, session.Output.Value.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Run_SortList_OrdersByFieldAscending()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("create", "createList", new
+                {
+                    outputVariableName = "items",
+                    items = new[] { new { score = 70 }, new { score = 110 }, new { score = 90 } }
+                }),
+                Action("sort", "sortList", new
+                {
+                    listVariableName = "items",
+                    outputVariableName = "ordered",
+                    sortField = "score",
+                    direction = "asc"
+                }),
+                End(returnValue: "$ordered")),
+            Flows(
+                Flow("f1", "start", "create"),
+                Flow("f2", "create", "sort"),
+                Flow("f3", "sort", "end")));
+
+        var session = await RunWithRegistryAsync(schema);
+
+        Assert.Equal("success", session.Status);
+        Assert.NotNull(session.Output);
+        var output = session.Output!.Value;
+        Assert.Equal(JsonValueKind.Array, output.ValueKind);
+        var ordered = output.EnumerateArray().Select(item => item.GetProperty("score").GetInt32()).ToArray();
+        Assert.Equal(new[] { 70, 90, 110 }, ordered);
+    }
+
+    [Fact]
     public async Task Run_RetrieveAction_ExecutesAndReturnsItemsViaRegistry()
     {
         var schema = Schema(
