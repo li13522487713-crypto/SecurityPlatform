@@ -2364,6 +2364,16 @@ export function formatStudioTemplate(template: string, params: Record<string, st
   - `/space/:space_id/mendix-studio`
   - `/space/:space_id/mendix-studio/:appId`
 - 左导航新增 `Mendix Studio` 菜单；资源中心微流 Tab 新增“在 Mendix Studio 中打开”。
+- 微流资源 API 统一使用 `/api/v1` 前缀；资源列表/创建/更新返回的 `MicroflowResource` 包含可选 `folderId`、`folderPath`。`GET /api/v1/microflows` 支持可选 `folderId` 过滤，`POST /api/v1/microflows/{id}/move` 请求体为 `{ "targetFolderId": string | null }`，用于在模块内移动单个微流到目标文件夹或未分组根。
+- 微流文件夹由后端真实 `MicroflowFolder` 实体持久化，REST 前缀为 `/api/v1/microflow-folders`：
+  - `GET /api/v1/microflow-folders?workspaceId=&moduleId=` 返回扁平文件夹列表；
+  - `GET /api/v1/microflow-folders/tree?workspaceId=&moduleId=` 返回多级树；
+  - `POST /api/v1/microflow-folders` 创建 `{ workspaceId?, moduleId, parentFolderId?, name }`；
+  - `POST /api/v1/microflow-folders/{id}/rename` 重命名 `{ name }`；
+  - `POST /api/v1/microflow-folders/{id}/move` 移动文件夹 `{ parentFolderId? }`；
+  - `DELETE /api/v1/microflow-folders/{id}` 仅允许删除空文件夹。
+- 文件夹名称必须匹配 `^[A-Za-z][A-Za-z0-9_ -]*$`，最多 8 级，路径分隔符固定 `/`。同一 `workspaceId + tenantId + moduleId + parentFolderId` 下名称唯一；重命名/移动文件夹时后端级联同步关联微流的 `folderPath` 缓存列。
+- 文件夹错误码：`MICROFLOW_FOLDER_NOT_FOUND`(404)、`MICROFLOW_FOLDER_NAME_DUPLICATED`(409)、`MICROFLOW_FOLDER_NOT_EMPTY`(409)、`MICROFLOW_FOLDER_DEPTH_EXCEEDED`(422)、`MICROFLOW_FOLDER_CYCLE`(409)。
 - Runtime Renderer / Action Executor / Debug Trace 采用本地模拟执行闭环，用于采购审批 MVP 验证；后续版本可替换为服务端强校验执行。
 - 后端第 49 轮已新增 Runtime FlowNavigator 诊断能力：`POST /api/microflows/runtime/navigate` 与 `GET /api/microflows/{id}/runtime/navigate` 仅消费 `MicroflowExecutionPlan` 做控制流 dry-run，输出 `MicroflowNavigationResult` / trace skeleton，不执行真实 action、表达式、数据库 CRUD、REST 或事务，不替代既有 TestRun Mock API。
 - 后端第 51 轮新增 Runtime ExpressionEvaluator P0：受控解析/AST/type inference/evaluator 只读取 `RuntimeExecutionContext.VariableStore` 与 `MetadataCatalog`，支持变量、member、literal、comparison、boolean、`empty()`、`if then else`、枚举和基础算术；Decision/CreateVariable/ChangeVariable/End/LogMessage/Rest preview 可写入 trace `output.expressionResult`，仍不执行真实 CRUD/REST/事务。

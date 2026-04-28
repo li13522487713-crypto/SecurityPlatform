@@ -1,1 +1,1 @@
-export * from "./app-explorer";
+export * from "./app-explorer/index";

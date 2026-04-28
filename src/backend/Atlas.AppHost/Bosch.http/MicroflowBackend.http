@@ -47,6 +47,79 @@ X-Trace-Id: {{traceId}}
   }
 }
 
+### Microflow folders - create folder
+# @name microflowFolderCreate
+POST {{host}}/api/v1/microflow-folders
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "workspaceId": "{{workspaceId}}",
+  "moduleId": "verify-module",
+  "parentFolderId": null,
+  "name": "Validation"
+}
+
+### Microflow folders - list by module
+GET {{host}}/api/v1/microflow-folders?workspaceId={{workspaceId}}&moduleId=verify-module
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow folders - tree by module
+GET {{host}}/api/v1/microflow-folders/tree?workspaceId={{workspaceId}}&moduleId=verify-module
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow folders - rename
+POST {{host}}/api/v1/microflow-folders/{{microflowFolderId}}/rename
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "name": "ValidationRenamed"
+}
+
+### Microflow folders - move folder
+POST {{host}}/api/v1/microflow-folders/{{microflowFolderId}}/move
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "parentFolderId": null
+}
+
+### Microflow folders - move microflow
+POST {{host}}/api/v1/microflows/{{microflowId}}/move
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "targetFolderId": "{{microflowFolderId}}"
+}
+
+### Microflow folders - delete empty folder
+DELETE {{host}}/api/v1/microflow-folders/{{microflowFolderId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Round 60 - Save AuthoringSchema
 # Expected JSON path:
 # - $.success=true

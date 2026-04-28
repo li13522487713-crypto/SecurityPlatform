@@ -31,6 +31,9 @@ vi.mock("@douyinfe/semi-ui", async () => {
       error: vi.fn(),
       warning: vi.fn(),
     },
+    Modal: Object.assign(({ visible, children }: any) => visible ? <div>{children}</div> : null, {
+      confirm: vi.fn(),
+    }),
     Button: ({ children, onClick, title }: any) => (
       <button type="button" title={title} onClick={onClick}>{children}</button>
     ),

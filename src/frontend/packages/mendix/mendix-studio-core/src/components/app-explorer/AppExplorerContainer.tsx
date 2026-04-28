@@ -192,6 +192,9 @@ function formatMicroflowListError(error: MicroflowApiError): string {
 
 export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refreshToken, onViewMicroflowReferences }: AppExplorerProps) {
   const [searchText, setSearchText] = useState("");
+  const [microflowStatus, setMicroflowStatus] = useState<MicroflowLoadStatus>("idle");
+  const [microflowError, setMicroflowError] = useState<MicroflowApiError>();
+  const [microflows, setMicroflows] = useState<StudioMicroflowDefinitionView[]>([]);
   const [modules, setModules] = useState<MicroflowModuleAsset[]>([]);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [createContext, setCreateContext] = useState<{ moduleId?: string; folderId?: string; folderPath?: string }>();
@@ -210,6 +213,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
   const setActiveMicroflowId = useMendixStudioStore(state => state.setActiveMicroflowId);
   const setModuleMicroflows = useMendixStudioStore(state => state.setModuleMicroflows);
   const setFoldersForModule = useMendixStudioStore(state => state.setFoldersForModule);
+  const upsertFolder = useMendixStudioStore(state => state.upsertFolder);
   const setFolderLoading = useMendixStudioStore(state => state.setFolderLoading);
   const setFolderError = useMendixStudioStore(state => state.setFolderError);
   const setModuleMicroflowsLoadState = useMendixStudioStore(state => state.setModuleMicroflowsLoadState);
@@ -282,13 +286,13 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
     const requestKey = `${workspaceId}:${targetModuleId}:${adapterBundle.mode}`;
     if (force) {
       explorerMicroflowRequests.delete(requestKey);
-      lastRequestKeyRef.current = undefined;
+      delete lastRequestKeyByModuleRef.current[targetModuleId];
     }
-    if (!force && lastRequestKeyRef.current === requestKey) {
+    if (!force && lastRequestKeyByModuleRef.current[targetModuleId] === requestKey) {
       return;
     }
 
-    lastRequestKeyRef.current = requestKey;
+    lastRequestKeyByModuleRef.current[targetModuleId] = requestKey;
     setMicroflowStatus("loading");
     setModuleMicroflowsLoadState(targetModuleId, "loading");
     setMicroflowError(undefined);
@@ -311,11 +315,15 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
           explorerMicroflowRequests.delete(requestKey);
         });
       const folderRequestKey = `${requestKey}:folders`;
-      const folderRequest = explorerFolderRequests.get(folderRequestKey) ?? adapterBundle.resourceAdapter
-        .listMicroflowFolders({ workspaceId, moduleId: targetModuleId })
-        .finally(() => {
-          explorerFolderRequests.delete(folderRequestKey);
-        });
+      const folderRequest = explorerFolderRequests.get(folderRequestKey) ?? (
+        typeof adapterBundle.resourceAdapter.listMicroflowFolders === "function"
+          ? adapterBundle.resourceAdapter
+            .listMicroflowFolders({ workspaceId, moduleId: targetModuleId })
+            .finally(() => {
+              explorerFolderRequests.delete(folderRequestKey);
+            })
+          : Promise.resolve([])
+      );
 
       explorerMicroflowRequests.set(requestKey, microflowRequest);
       explorerFolderRequests.set(folderRequestKey, folderRequest);
@@ -430,20 +438,20 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
 
   const createFolder = useCallback(async (name: string) => {
     const adapter = adapterBundle?.resourceAdapter;
-    const targetModuleId = folderCreateContext?.moduleId ?? moduleId;
+    const targetModuleId = createFolderContext?.moduleId ?? moduleId;
     if (!adapter || !targetModuleId) {
       throw new Error("无法创建文件夹：缺少微流资源适配器或模块上下文。");
     }
     const folder = await adapter.createMicroflowFolder({
       workspaceId,
       moduleId: targetModuleId,
-      parentFolderId: folderCreateContext?.parentFolderId,
+      parentFolderId: createFolderContext?.parentFolderId,
       name
     });
     upsertFolder(folder);
     await loadModuleMicroflows(folder.moduleId, true);
     Toast.success("文件夹已创建");
-  }, [adapterBundle?.resourceAdapter, folderCreateContext, loadModuleMicroflows, moduleId, upsertFolder, workspaceId]);
+  }, [adapterBundle?.resourceAdapter, createFolderContext, loadModuleMicroflows, moduleId, upsertFolder, workspaceId]);
 
   const renameFolder = useCallback(async (name: string) => {
     const adapter = adapterBundle?.resourceAdapter;
@@ -596,10 +604,8 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
     fallbackModuleId,
     folderErrorByModuleId,
     foldersByModuleId,
-    microflowError,
     microflowIdsByModuleId,
     microflowResourcesById,
-    microflowStatus,
     moduleId,
     moduleLoadStateByModuleId,
     modules,
@@ -663,46 +669,56 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
         onDeleteMicroflow={deleteMicroflow}
         microflowErrorText={microflowError ? formatMicroflowListError(microflowError) : undefined}
       />
-      <CreateMicroflowModal
-        visible={createModalVisible}
-        existingResources={microflows}
-        defaultModuleId={createContext?.moduleId ?? moduleId}
-        initialModuleId={createContext?.moduleId ?? moduleId}
-        initialModuleName={modules.find(item => item.moduleId === (createContext?.moduleId ?? moduleId))?.name}
-        initialFolderId={createContext?.folderId}
-        initialFolderPath={createContext?.folderPath}
-        moduleOptions={modules.map(module => ({ value: module.moduleId, label: module.name || module.qualifiedName || module.moduleId }))}
-        moduleLocked
-        onClose={() => {
-          setCreateModalVisible(false);
-          setCreateContext(undefined);
-        }}
-        onSubmit={createMicroflow}
-      />
-      <RenameMicroflowModal
-        visible={Boolean(renameMicroflowId)}
-        resource={renameMicroflowId ? microflowResourcesById[renameMicroflowId] : undefined}
-        onClose={() => setRenameMicroflowId(undefined)}
-        onSubmit={renameMicroflow}
-      />
-      <DuplicateMicroflowModal
-        visible={Boolean(duplicateMicroflowId)}
-        resource={duplicateMicroflowId ? microflowResourcesById[duplicateMicroflowId] : undefined}
-        onClose={() => setDuplicateMicroflowId(undefined)}
-        onSubmit={duplicateMicroflow}
-      />
-      <CreateMicroflowFolderDialog
-        visible={Boolean(folderCreateContext)}
-        parentPath={folderCreateContext?.parentPath}
-        onClose={() => setCreateFolderContext(undefined)}
-        onSubmit={createFolder}
-      />
-      <RenameMicroflowFolderDialog
-        visible={Boolean(renameFolderId)}
-        folder={renameFolderId ? Object.values(foldersByModuleId).flat().find(folder => folder.id === renameFolderId) : undefined}
-        onClose={() => setRenameFolderId(undefined)}
-        onSubmit={renameFolder}
-      />
+      {createModalVisible ? (
+        <CreateMicroflowModal
+          visible={createModalVisible}
+          existingResources={microflows}
+          defaultModuleId={createContext?.moduleId ?? moduleId}
+          initialModuleId={createContext?.moduleId ?? moduleId}
+          initialModuleName={modules.find(item => item.moduleId === (createContext?.moduleId ?? moduleId))?.name}
+          initialFolderId={createContext?.folderId}
+          initialFolderPath={createContext?.folderPath}
+          moduleOptions={modules.map(module => ({ value: module.moduleId, label: module.name || module.qualifiedName || module.moduleId }))}
+          moduleLocked
+          onClose={() => {
+            setCreateModalVisible(false);
+            setCreateContext(undefined);
+          }}
+          onSubmit={createMicroflow}
+        />
+      ) : null}
+      {renameMicroflowId ? (
+        <RenameMicroflowModal
+          visible
+          resource={microflowResourcesById[renameMicroflowId]}
+          onClose={() => setRenameMicroflowId(undefined)}
+          onSubmit={renameMicroflow}
+        />
+      ) : null}
+      {duplicateMicroflowId ? (
+        <DuplicateMicroflowModal
+          visible
+          resource={microflowResourcesById[duplicateMicroflowId]}
+          onClose={() => setDuplicateMicroflowId(undefined)}
+          onSubmit={duplicateMicroflow}
+        />
+      ) : null}
+      {createFolderContext ? (
+        <CreateMicroflowFolderDialog
+          visible
+          parentPath={createFolderContext.parentPath}
+          onClose={() => setCreateFolderContext(undefined)}
+          onSubmit={createFolder}
+        />
+      ) : null}
+      {renameFolderId ? (
+        <RenameMicroflowFolderDialog
+          visible
+          folder={Object.values(foldersByModuleId).flat().find(folder => folder.id === renameFolderId)}
+          onClose={() => setRenameFolderId(undefined)}
+          onSubmit={renameFolder}
+        />
+      ) : null}
     </>
   );
 }
