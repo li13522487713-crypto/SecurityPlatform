@@ -23,6 +23,12 @@ import type {
   MicroflowResourcePatch,
   MicroflowResourceQuery
 } from "../resource/resource-types";
+import type {
+  CreateMicroflowFolderInput,
+  ListMicroflowFoldersQuery,
+  MicroflowFolder,
+  MicroflowFolderTreeNode
+} from "../folders/microflow-folder-types";
 
 export interface LocalMicroflowResourceAdapterOptions {
   workspaceId?: string;
@@ -41,6 +47,14 @@ function makeId(prefix: string): string {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function isDevelopmentRuntime(): boolean {
+  try {
+    return Boolean((import.meta as { env?: { DEV?: boolean } }).env?.DEV);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeResource(resource: MicroflowResource): MicroflowResource {
@@ -121,6 +135,7 @@ function createResourceFromInput(input: MicroflowCreateInput, options: Required<
     workspaceId: options.workspaceId,
     moduleId: input.moduleId,
     moduleName: input.moduleName,
+    folderId: input.folderId,
     name: input.name,
     displayName: input.displayName || input.name,
     description: input.description,
@@ -351,6 +366,7 @@ function isInRange(value: string, from?: string, to?: string): boolean {
 
 export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
   private resources = new Map<string, MicroflowResource>();
+  private folders = new Map<string, MicroflowFolder>();
   private versions = new Map<string, MicroflowVersionSummary[]>();
   private snapshots = new Map<string, MicroflowPublishedSnapshot>();
   private references = new Map<string, MicroflowReference[]>();
@@ -360,11 +376,14 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
   private readonly enableLocalStorage: boolean;
 
   constructor(options: LocalMicroflowResourceAdapterOptions = {}) {
+    if (!isDevelopmentRuntime()) {
+      throw new Error("LocalMicroflowResourceAdapter 仅允许在开发/测试环境使用，生产环境必须使用 HTTP adapter。");
+    }
     this.workspaceId = options.workspaceId || "default-workspace";
     this.currentUser = options.currentUser || { id: "current-user", name: "Current User" };
     this.storageKey = options.storageKey;
-    this.enableLocalStorage = options.enableLocalStorage !== false;
-    // local development only: persistence is opt-out so tests can run in-memory.
+    this.enableLocalStorage = options.enableLocalStorage === true;
+    // local development only: persistence is opt-in so production paths cannot accidentally rely on it.
     const restored = (this.enableLocalStorage ? readStoredMicroflowResources(this.storageKey) : undefined) ?? seedResources({ workspaceId: this.workspaceId, currentUser: this.currentUser });
     restored.resources.forEach(resource => this.resources.set(resource.id, clone(normalizeResource(resource))));
     Object.entries(restored.versions ?? {}).forEach(([id, versions]) => this.versions.set(id, clone(versions)));
@@ -401,6 +420,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
       .filter(resource => !query.favoriteOnly || resource.favorite)
       .filter(resource => !query.ownerId || resource.ownerId === query.ownerId || resource.createdBy === query.ownerId)
       .filter(resource => !query.moduleId || resource.moduleId === query.moduleId)
+      .filter(resource => query.folderId === undefined || (resource.folderId ?? "") === query.folderId)
       .filter(resource => !tags.length || tags.some(tag => resource.tags.includes(tag)))
       .filter(resource => isInRange(resource.updatedAt, query.updatedFrom, query.updatedTo))
       .filter(resource => {
@@ -444,7 +464,12 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
   }
 
   async createMicroflow(input: MicroflowCreateInput): Promise<MicroflowResource> {
-    const resource = createResourceFromInput(input, { workspaceId: this.workspaceId, currentUser: this.currentUser });
+    const folder = input.folderId ? this.requireFolder(input.folderId) : undefined;
+    const resource = {
+      ...createResourceFromInput(input, { workspaceId: this.workspaceId, currentUser: this.currentUser }),
+      folderId: folder?.id,
+      folderPath: folder?.path
+    };
     this.resources.set(resource.id, resource);
     this.versions.set(resource.id, [createDraftVersion(resource)]);
     this.references.set(resource.id, []);
@@ -510,6 +535,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     schema.moduleId = input.moduleId || current.moduleId;
     schema.moduleName = input.moduleName || current.moduleName;
     schema.audit = { version: "0.1.0", status: "draft", createdAt: timestamp, createdBy: this.currentUser.name, updatedAt: timestamp, updatedBy: this.currentUser.name };
+    const folder = input.folderId ? this.requireFolder(input.folderId) : undefined;
     const duplicate: MicroflowResource = {
       ...current,
       id: nextId,
@@ -518,6 +544,8 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
       displayName: schema.displayName,
       moduleId: schema.moduleId,
       moduleName: schema.moduleName,
+      folderId: input.folderId === undefined ? current.folderId : folder?.id,
+      folderPath: input.folderId === undefined ? current.folderPath : folder?.path,
       tags: input.tags ?? [...current.tags],
       createdAt: timestamp,
       createdBy: this.currentUser.name,
@@ -547,6 +575,125 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
       displayName: displayName || name,
       schema: { ...current.schema, name, displayName: displayName || name }
     });
+  }
+
+  async moveMicroflow(id: string, targetFolderId?: string): Promise<MicroflowResource> {
+    const folder = targetFolderId ? this.requireFolder(targetFolderId) : undefined;
+    return this.updateMicroflow(id, {
+      folderId: folder?.id,
+      schema: this.requireResource(id).schema
+    }).then(resource => {
+      const next = { ...resource, folderId: folder?.id, folderPath: folder?.path };
+      this.resources.set(id, next);
+      this.persist();
+      return clone(next);
+    });
+  }
+
+  async listMicroflowFolders(query: ListMicroflowFoldersQuery): Promise<MicroflowFolder[]> {
+    return clone([...this.folders.values()]
+      .filter(folder => !query.workspaceId || folder.workspaceId === query.workspaceId)
+      .filter(folder => folder.moduleId === query.moduleId)
+      .sort((left, right) => left.path.localeCompare(right.path, undefined, { sensitivity: "base" })));
+  }
+
+  async getMicroflowFolderTree(query: ListMicroflowFoldersQuery): Promise<MicroflowFolderTreeNode[]> {
+    const folders = await this.listMicroflowFolders(query);
+    const childrenByParent = new Map<string, MicroflowFolder[]>();
+    for (const folder of folders) {
+      const key = folder.parentFolderId ?? "";
+      childrenByParent.set(key, [...(childrenByParent.get(key) ?? []), folder]);
+    }
+    const build = (parentId = ""): MicroflowFolderTreeNode[] => (childrenByParent.get(parentId) ?? [])
+      .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }))
+      .map(folder => ({ ...folder, children: build(folder.id) }));
+    return build();
+  }
+
+  async createMicroflowFolder(input: CreateMicroflowFolderInput): Promise<MicroflowFolder> {
+    const parent = input.parentFolderId ? this.requireFolder(input.parentFolderId) : undefined;
+    const name = input.name.trim();
+    if (!/^[A-Za-z][A-Za-z0-9_ -]*$/u.test(name)) {
+      throw new Error("文件夹名称必须以字母开头，且只能包含字母、数字、空格、下划线和短横线。");
+    }
+    const depth = parent ? parent.depth + 1 : 1;
+    if (depth > 8) {
+      throw new Error("微流文件夹最多支持 8 级。");
+    }
+    const duplicated = [...this.folders.values()].some(folder =>
+      folder.moduleId === input.moduleId &&
+      (folder.parentFolderId ?? "") === (parent?.id ?? "") &&
+      folder.name.toLowerCase() === name.toLowerCase()
+    );
+    if (duplicated) {
+      throw new Error("同一父级下已存在同名微流文件夹。");
+    }
+    const timestamp = nowIso();
+    const folder: MicroflowFolder = {
+      id: makeId("mff"),
+      workspaceId: input.workspaceId ?? this.workspaceId,
+      moduleId: input.moduleId,
+      parentFolderId: parent?.id,
+      name,
+      path: parent ? `${parent.path}/${name}` : name,
+      depth,
+      createdBy: this.currentUser.name,
+      createdAt: timestamp,
+      updatedBy: this.currentUser.name,
+      updatedAt: timestamp
+    };
+    this.folders.set(folder.id, folder);
+    this.persist();
+    return clone(folder);
+  }
+
+  async renameMicroflowFolder(id: string, name: string): Promise<MicroflowFolder> {
+    const folder = this.requireFolder(id);
+    const trimmed = name.trim();
+    const next = {
+      ...folder,
+      name: trimmed,
+      path: folder.parentFolderId ? `${this.requireFolder(folder.parentFolderId).path}/${trimmed}` : trimmed,
+      updatedBy: this.currentUser.name,
+      updatedAt: nowIso()
+    };
+    this.folders.set(id, next);
+    this.syncFolderPaths();
+    this.persist();
+    return clone(this.requireFolder(id));
+  }
+
+  async moveMicroflowFolder(id: string, parentFolderId?: string): Promise<MicroflowFolder> {
+    const folder = this.requireFolder(id);
+    const parent = parentFolderId ? this.requireFolder(parentFolderId) : undefined;
+    if (parent && (parent.id === folder.id || parent.path.startsWith(`${folder.path}/`))) {
+      throw new Error("不能将文件夹移动到自身或子文件夹下。");
+    }
+    const next = {
+      ...folder,
+      parentFolderId: parent?.id,
+      depth: parent ? parent.depth + 1 : 1,
+      path: parent ? `${parent.path}/${folder.name}` : folder.name,
+      updatedBy: this.currentUser.name,
+      updatedAt: nowIso()
+    };
+    if (next.depth > 8) {
+      throw new Error("微流文件夹最多支持 8 级。");
+    }
+    this.folders.set(id, next);
+    this.syncFolderPaths();
+    this.persist();
+    return clone(this.requireFolder(id));
+  }
+
+  async deleteMicroflowFolder(id: string): Promise<void> {
+    const hasChild = [...this.folders.values()].some(folder => folder.parentFolderId === id);
+    const hasResource = [...this.resources.values()].some(resource => resource.folderId === id);
+    if (hasChild || hasResource) {
+      throw new Error("该微流文件夹不为空，不能删除。");
+    }
+    this.folders.delete(id);
+    this.persist();
   }
 
   async toggleFavorite(id: string, favorite: boolean): Promise<MicroflowResource> {
@@ -802,6 +949,37 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
       throw new Error(`Microflow ${id} was not found.`);
     }
     return clone(resource);
+  }
+
+  private requireFolder(id: string): MicroflowFolder {
+    const folder = this.folders.get(id);
+    if (!folder) {
+      throw new Error(`Microflow folder ${id} was not found.`);
+    }
+    return clone(folder);
+  }
+
+  private syncFolderPaths(): void {
+    const folders = [...this.folders.values()].sort((left, right) => left.depth - right.depth);
+    for (const folder of folders) {
+      const parent = folder.parentFolderId ? this.folders.get(folder.parentFolderId) : undefined;
+      const next = {
+        ...folder,
+        depth: parent ? parent.depth + 1 : 1,
+        path: parent ? `${parent.path}/${folder.name}` : folder.name
+      };
+      this.folders.set(folder.id, next);
+    }
+    for (const resource of this.resources.values()) {
+      if (!resource.folderId) {
+        continue;
+      }
+      const folder = this.folders.get(resource.folderId);
+      this.resources.set(resource.id, {
+        ...resource,
+        folderPath: folder?.path
+      });
+    }
   }
 
   private persist(): void {

@@ -11,6 +11,7 @@ import type { StudioMicroflowDefinitionView } from "./microflow/studio/studio-mi
 import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
 import type { MicroflowResource } from "./microflow/resource/resource-types";
 import type { MicroflowApiError } from "./microflow/contracts/api/api-envelope";
+import type { MicroflowFolder } from "./microflow/folders/microflow-folder-types";
 
 export type MendixStudioTab =
   | "domainModel"
@@ -151,6 +152,12 @@ type StudioState = {
   activeMicroflowId?: string;
   microflowResourcesById: Record<string, StudioMicroflowDefinitionView>;
   microflowIdsByModuleId: Record<string, string[]>;
+  foldersByModuleId: Record<string, MicroflowFolder[]>;
+  folderLoadingByModuleId: Record<string, boolean>;
+  folderErrorByModuleId: Record<string, MicroflowApiError | undefined>;
+  microflowsLoadStateByModuleId: Record<string, "idle" | "loading" | "success" | "error">;
+  expandedExplorerNodeIds: string[];
+  microflowTreeSearchKeyword: string;
   validationByMicroflowId: Record<string, StudioMicroflowValidationState>;
   validationSummaryByMicroflowId: Record<string, MicroflowValidationSummary>;
   problemsPanelOpen: boolean;
@@ -191,6 +198,14 @@ type StudioState = {
 
   /** 微流资产 CRUD action（仅更新 store 索引，不调用 API） */
   setModuleMicroflows: (moduleId: string, microflows: StudioMicroflowDefinitionView[]) => void;
+  setFoldersForModule: (moduleId: string, folders: MicroflowFolder[]) => void;
+  upsertFolder: (folder: MicroflowFolder) => void;
+  removeFolder: (folderId: string, moduleId?: string) => void;
+  setFolderLoading: (moduleId: string, loading: boolean) => void;
+  setFolderError: (moduleId: string, error?: MicroflowApiError) => void;
+  setModuleMicroflowsLoadState: (moduleId: string, loadState: "idle" | "loading" | "success" | "error") => void;
+  setExpandedExplorerNodeIds: (nodeIds: string[]) => void;
+  setMicroflowTreeSearchKeyword: (keyword: string) => void;
   upsertStudioMicroflow: (resource: StudioMicroflowDefinitionView) => void;
   updateStudioMicroflowFromResource: (resource: MicroflowResource) => void;
   removeStudioMicroflow: (id: string) => void;
@@ -394,6 +409,12 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
 
   microflowResourcesById: {},
   microflowIdsByModuleId: {},
+  foldersByModuleId: {},
+  folderLoadingByModuleId: {},
+  folderErrorByModuleId: {},
+  microflowsLoadStateByModuleId: {},
+  expandedExplorerNodeIds: [],
+  microflowTreeSearchKeyword: "",
   validationByMicroflowId: {},
   validationSummaryByMicroflowId: {},
   problemsPanelOpen: false,
@@ -755,6 +776,72 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       })
     });
   },
+
+  setFoldersForModule: (moduleId, folders) => set({
+    foldersByModuleId: {
+      ...get().foldersByModuleId,
+      [moduleId]: folders
+    }
+  }),
+
+  upsertFolder: folder => {
+    const current = get().foldersByModuleId[folder.moduleId] ?? [];
+    const nextFolders = current.some(item => item.id === folder.id)
+      ? current.map(item => item.id === folder.id ? folder : item)
+      : [...current, folder];
+    set({
+      foldersByModuleId: {
+        ...get().foldersByModuleId,
+        [folder.moduleId]: nextFolders
+      }
+    });
+  },
+
+  removeFolder: (folderId, moduleId) => {
+    const foldersByModuleId = get().foldersByModuleId;
+    if (moduleId) {
+      set({
+        foldersByModuleId: {
+          ...foldersByModuleId,
+          [moduleId]: (foldersByModuleId[moduleId] ?? []).filter(folder => folder.id !== folderId)
+        }
+      });
+      return;
+    }
+    set({
+      foldersByModuleId: Object.fromEntries(
+        Object.entries(foldersByModuleId).map(([key, folders]) => [
+          key,
+          folders.filter(folder => folder.id !== folderId)
+        ])
+      )
+    });
+  },
+
+  setFolderLoading: (moduleId, loading) => set({
+    folderLoadingByModuleId: {
+      ...get().folderLoadingByModuleId,
+      [moduleId]: loading
+    }
+  }),
+
+  setFolderError: (moduleId, error) => set({
+    folderErrorByModuleId: {
+      ...get().folderErrorByModuleId,
+      [moduleId]: error
+    }
+  }),
+
+  setModuleMicroflowsLoadState: (moduleId, loadState) => set({
+    microflowsLoadStateByModuleId: {
+      ...get().microflowsLoadStateByModuleId,
+      [moduleId]: loadState
+    }
+  }),
+
+  setExpandedExplorerNodeIds: expandedExplorerNodeIds => set({ expandedExplorerNodeIds }),
+
+  setMicroflowTreeSearchKeyword: microflowTreeSearchKeyword => set({ microflowTreeSearchKeyword }),
 
   upsertStudioMicroflow: resource => {
     const { microflowResourcesById, microflowIdsByModuleId } = get();

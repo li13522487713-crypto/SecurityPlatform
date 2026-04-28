@@ -9,10 +9,11 @@ import type { MicroflowCreateInput, MicroflowResource } from "./resource-types";
 type ExistingMicroflowName = Pick<MicroflowResource, "name">;
 const { Text } = Typography;
 
-interface CreateMicroflowModalProps {
+export interface CreateMicroflowModalProps {
   visible: boolean;
   existingResources?: ExistingMicroflowName[];
   defaultModuleId?: string;
+  initialFolderId?: string;
   moduleOptions?: Array<{ value: string; label: string }>;
   initialModuleId?: string;
   initialModuleName?: string;
@@ -106,6 +107,7 @@ export function CreateMicroflowModal({
   visible,
   existingResources = [],
   defaultModuleId,
+  initialFolderId,
   moduleOptions = [],
   initialModuleId,
   initialModuleName,
@@ -217,6 +219,7 @@ export function CreateMicroflowModal({
         description: description.trim(),
         moduleId: moduleId.trim(),
         moduleName: initialModuleName?.trim() || moduleId.trim(),
+        folderId: initialFolderId,
         tags: tags.split(",").map(tag => tag.trim()).filter(Boolean),
         parameters,
         returnType: toDataType(returnType),

@@ -22,6 +22,12 @@ import type { GetMicroflowSchemaResponse, SaveMicroflowSchemaResponse } from "..
 import type { MicroflowResourceAdapter, SaveMicroflowSchemaOptions } from "../microflow-resource-adapter";
 import { MicroflowApiClient, type MicroflowApiClientOptions, type MicroflowQuery } from "./microflow-api-client";
 import { getMicroflowApiError } from "./microflow-api-error";
+import type {
+  CreateMicroflowFolderInput,
+  ListMicroflowFoldersQuery,
+  MicroflowFolder,
+  MicroflowFolderTreeNode
+} from "../../folders/microflow-folder-types";
 
 export interface HttpMicroflowResourceAdapterOptions extends MicroflowApiClientOptions {
   apiClient?: MicroflowApiClient;
@@ -75,6 +81,27 @@ export function createHttpMicroflowResourceAdapter(options: HttpMicroflowResourc
         pageSize: result.pageSize,
         hasMore: result.hasMore,
       };
+    },
+    async listMicroflowFolders(query: ListMicroflowFoldersQuery) {
+      return client.get<MicroflowFolder[]>("/microflow-folders", query);
+    },
+    async getMicroflowFolderTree(query: ListMicroflowFoldersQuery) {
+      return client.get<MicroflowFolderTreeNode[]>("/microflow-folders/tree", query);
+    },
+    async createMicroflowFolder(input: CreateMicroflowFolderInput) {
+      return client.post<MicroflowFolder>("/microflow-folders", input);
+    },
+    async renameMicroflowFolder(id: string, name: string) {
+      return client.post<MicroflowFolder>(`/microflow-folders/${encodeURIComponent(id)}/rename`, { name });
+    },
+    async moveMicroflowFolder(id: string, parentFolderId?: string) {
+      return client.post<MicroflowFolder>(`/microflow-folders/${encodeURIComponent(id)}/move`, { parentFolderId });
+    },
+    async deleteMicroflowFolder(id: string) {
+      await client.delete<{ id: string }>(`/microflow-folders/${encodeURIComponent(id)}`);
+    },
+    async moveMicroflow(id: string, targetFolderId?: string) {
+      return client.post<MicroflowResource>(`/microflows/${encodeURIComponent(id)}/move`, { targetFolderId });
     },
     async getMicroflow(id) {
       return client.get<MicroflowResource>(`/microflows/${encodeURIComponent(id)}`);

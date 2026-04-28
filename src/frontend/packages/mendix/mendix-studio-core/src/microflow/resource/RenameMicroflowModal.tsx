@@ -6,7 +6,7 @@ import type { MicroflowResource } from "./resource-types";
 
 type RenameMicroflowSource = Pick<MicroflowResource, "name" | "displayName">;
 
-interface RenameMicroflowModalProps {
+export interface RenameMicroflowModalProps {
   resource?: RenameMicroflowSource;
   visible: boolean;
   onClose: () => void;

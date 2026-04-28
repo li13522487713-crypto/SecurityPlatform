@@ -32,6 +32,8 @@ export interface MicroflowResource {
   workspaceId?: string;
   moduleId: string;
   moduleName?: string;
+  folderId?: string;
+  folderPath?: string;
   name: string;
   displayName: string;
   qualifiedName?: string;
@@ -66,6 +68,7 @@ export interface MicroflowResourceQuery extends MicroflowPageQuery {
   favoriteOnly?: boolean;
   ownerId?: string;
   moduleId?: string;
+  folderId?: string;
   /**
    * 多选为 **OR** 语义：至少匹配其一（与 `ListMicroflowsRequest` / 后端 API 一致）。
    */
@@ -84,6 +87,7 @@ export interface MicroflowCreateInput {
   description?: string;
   moduleId: string;
   moduleName?: string;
+  folderId?: string;
   tags: string[];
   parameters: MicroflowParameter[];
   returnType: MicroflowDataType;
@@ -101,6 +105,7 @@ export interface MicroflowResourcePatch {
   tags?: string[];
   moduleId?: string;
   moduleName?: string;
+  folderId?: string;
   status?: MicroflowResourceStatus;
   publishStatus?: MicroflowPublishStatus;
   favorite?: boolean;
@@ -114,6 +119,7 @@ export interface MicroflowDuplicateInput {
   displayName?: string;
   moduleId?: string;
   moduleName?: string;
+  folderId?: string;
   tags?: string[];
 }
 
