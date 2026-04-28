@@ -13,12 +13,14 @@ export type MicroflowRunStatus =
   | "running"
   | "success"
   | "failed"
+  | "unsupported"
   | "cancelled";
 
 export type MicroflowTraceFrameStatus =
   | "running"
   | "success"
   | "failed"
+  | "unsupported"
   | "skipped";
 
 export interface MicroflowRuntimeVariableValue {
@@ -150,11 +152,16 @@ export interface MicroflowRunSession {
 }
 
 export interface MicroflowTestRunOptions {
+  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
   simulateRestError?: boolean;
   allowRealHttp?: boolean;
+  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
   decisionBooleanResult?: boolean;
+  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
   enumerationCaseValue?: string;
+  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
   objectTypeCase?: string;
+  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
   loopIterations?: number;
   maxSteps?: number;
   disableExpressionEvaluation?: boolean;

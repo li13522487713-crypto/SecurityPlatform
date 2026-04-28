@@ -67,7 +67,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             runId!,
             parent?.ParentRunId,
             rootRunId,
-            parent?.CorrelationId ?? Guid.NewGuid().ToString("N"),
+            parent?.CorrelationId ?? request.CorrelationId ?? Guid.NewGuid().ToString("N"),
             parent?.CallDepth ?? 0,
             parent?.CallStack ?? [request.ResourceId],
             parent?.CallerObjectId,
@@ -463,6 +463,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 Input = boundInput,
                 Options = context.Options,
                 RequestContext = context.RequestContext,
+                CorrelationId = context.CorrelationId,
                 MaxCallDepth = context.MaxCallDepth
             },
             state,

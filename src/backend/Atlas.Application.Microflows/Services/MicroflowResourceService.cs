@@ -231,16 +231,22 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var resource = await LoadResourceAsync(id, cancellationToken);
         EnsureEditable(resource);
         var currentSnapshot = await LoadCurrentSnapshotAsync(resource, false, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(request.BaseVersion)
-            && !string.Equals(request.BaseVersion, resource.Version, StringComparison.Ordinal)
-            && !string.Equals(request.BaseVersion, resource.ConcurrencyStamp, StringComparison.Ordinal)
-            && !string.Equals(request.BaseVersion, currentSnapshot?.Id, StringComparison.Ordinal)
-            && !string.Equals(request.BaseVersion, currentSnapshot?.SchemaVersion, StringComparison.Ordinal))
+        var baseVersion = request.BaseVersion
+            ?? request.SchemaId
+            ?? request.Version;
+        if (!request.Force
+            && !string.IsNullOrWhiteSpace(baseVersion)
+            && !string.Equals(baseVersion, resource.Version, StringComparison.Ordinal)
+            && !string.Equals(baseVersion, resource.Version, StringComparison.Ordinal)
+            && !string.Equals(baseVersion, resource.ConcurrencyStamp, StringComparison.Ordinal)
+            && !string.Equals(baseVersion, currentSnapshot?.Id, StringComparison.Ordinal)
+            && !string.Equals(baseVersion, currentSnapshot?.SchemaVersion, StringComparison.Ordinal))
         {
             throw new MicroflowApiException(
                 MicroflowApiErrorCode.MicroflowVersionConflict,
                 "微流 Schema 已被其他操作更新，请刷新后重试。",
-                409);
+                409,
+                details: resource.SchemaId ?? resource.Version);
         }
 
         if (!request.Schema.HasValue)
@@ -251,11 +257,12 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var schemaJson = NormalizeAndValidateAuthoringSchema(request.Schema.Value);
         var context = _requestContextAccessor.Current;
         var now = _clock.UtcNow;
-        var snapshot = CreateSnapshot(resource.Id, resource.WorkspaceId, context, schemaJson, "1.0.0", request.SaveReason, request.BaseVersion, now);
+        var snapshot = CreateSnapshot(resource.Id, resource.WorkspaceId, context, schemaJson, "1.0.0", request.SaveReason, baseVersion, now);
         await _schemaSnapshotRepository.InsertAsync(snapshot, cancellationToken);
 
         resource.CurrentSchemaSnapshotId = snapshot.Id;
         resource.SchemaId = snapshot.Id;
+        resource.ConcurrencyStamp = Guid.NewGuid().ToString("N");
         var changedAfterPublish = string.Equals(resource.Status, "published", StringComparison.OrdinalIgnoreCase);
         if (changedAfterPublish)
         {

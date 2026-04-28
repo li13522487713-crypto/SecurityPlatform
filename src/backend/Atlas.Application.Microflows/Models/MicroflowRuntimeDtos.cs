@@ -13,6 +13,27 @@ public record TestRunMicroflowApiRequest
     [JsonPropertyName("input")]
     public IReadOnlyDictionary<string, JsonElement>? Input { get; init; }
 
+    [JsonPropertyName("inputs")]
+    public IReadOnlyDictionary<string, JsonElement>? Inputs { get; init; }
+
+    [JsonPropertyName("schemaId")]
+    public string? SchemaId { get; init; }
+
+    [JsonPropertyName("version")]
+    public string? Version { get; init; }
+
+    [JsonPropertyName("debug")]
+    public bool? Debug { get; init; }
+
+    [JsonPropertyName("correlationId")]
+    public string? CorrelationId { get; init; }
+
+    [JsonPropertyName("timeout")]
+    public int? Timeout { get; init; }
+
+    [JsonPropertyName("mode")]
+    public string? Mode { get; init; }
+
     [JsonPropertyName("options")]
     public MicroflowTestRunOptionsDto? Options { get; init; }
 }
@@ -50,6 +71,45 @@ public sealed record TestRunMicroflowApiResponse
 {
     [JsonPropertyName("session")]
     public MicroflowRunSessionDto Session { get; init; } = new();
+
+    [JsonPropertyName("runId")]
+    public string RunId { get; init; } = string.Empty;
+
+    [JsonPropertyName("microflowId")]
+    public string MicroflowId { get; init; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = "failed";
+
+    [JsonPropertyName("result")]
+    public JsonElement? Result { get; init; }
+
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; init; }
+
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; init; }
+
+    [JsonPropertyName("durationMs")]
+    public int DurationMs { get; init; }
+
+    [JsonPropertyName("startedAt")]
+    public DateTimeOffset StartedAt { get; init; }
+
+    [JsonPropertyName("completedAt")]
+    public DateTimeOffset? CompletedAt { get; init; }
+
+    [JsonPropertyName("traceId")]
+    public string TraceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("logs")]
+    public IReadOnlyList<MicroflowRuntimeLogDto> Logs { get; init; } = Array.Empty<MicroflowRuntimeLogDto>();
+
+    [JsonPropertyName("nodeResults")]
+    public IReadOnlyList<MicroflowTraceFrameDto> NodeResults { get; init; } = Array.Empty<MicroflowTraceFrameDto>();
+
+    [JsonPropertyName("callStack")]
+    public IReadOnlyList<string> CallStack { get; init; } = Array.Empty<string>();
 }
 
 public record CancelMicroflowRunResponse

@@ -220,6 +220,22 @@ function ExplorerTreeNodeView({
           ref {node.referenceCount}
         </span>
       ) : null}
+      {node.kind === "microflow" && node.problemSummary && (node.problemSummary.errorCount > 0 || node.problemSummary.warningCount > 0) ? (
+        <span
+          style={{
+            marginLeft: 4,
+            padding: "0 5px",
+            borderRadius: 10,
+            fontSize: 10,
+            lineHeight: "16px",
+            background: node.problemSummary.errorCount > 0 ? "var(--semi-color-danger-light-default)" : "var(--semi-color-warning-light-default)",
+            color: node.problemSummary.errorCount > 0 ? "var(--semi-color-danger)" : "var(--semi-color-warning)"
+          }}
+          title={`Validation status from last check. ${node.problemSummary.errorCount} errors, ${node.problemSummary.warningCount} warnings.`}
+        >
+          {node.problemSummary.errorCount > 0 ? `err ${node.problemSummary.errorCount}` : `warn ${node.problemSummary.warningCount}`}
+        </span>
+      ) : null}
 
       {node.action === "retryMicroflows" ? (
         <Button

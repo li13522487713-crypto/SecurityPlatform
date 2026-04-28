@@ -342,9 +342,16 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     this.traces.set(session.id, session.trace);
     this.sessions.set(session.id, session);
     this.runMicroflowIndex.set(session.id, microflowId);
+    const errorCode = session.error?.code ?? session.trace.find(frame => frame.error)?.error?.code;
     return {
       runId: session.id,
-      status: session.status === "success" ? "succeeded" : session.status === "cancelled" ? "cancelled" : "failed",
+      status: errorCode?.toUpperCase().includes("UNSUPPORTED")
+        ? "unsupported"
+        : session.status === "success"
+          ? "succeeded"
+          : session.status === "cancelled"
+            ? "cancelled"
+            : "failed",
       startedAt: session.startedAt,
       durationMs: session.trace.reduce((total, frame) => total + frame.durationMs, 0),
       frames: session.trace,

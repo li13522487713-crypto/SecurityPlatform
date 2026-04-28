@@ -3,11 +3,14 @@ import type { MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import { MicroflowApiClient, type MicroflowApiClientOptions } from "./http/microflow-api-client";
 
-function asServerValidationIssue(issue: MicroflowValidationIssue): MicroflowValidationIssue {
+function asServerValidationIssue(issue: MicroflowValidationIssue, microflowId: string): MicroflowValidationIssue {
   return {
     ...issue,
-    id: issue.id.startsWith("server:") ? issue.id : `server:${issue.id}`,
-    source: "server",
+    id: issue.id.startsWith(`${microflowId}:server:`) ? issue.id : `${microflowId}:server:${issue.id}`,
+    microflowId,
+    source: issue.source ?? "server",
+    blockSave: issue.blockSave ?? issue.severity === "error",
+    blockPublish: issue.blockPublish ?? issue.severity === "error",
   };
 }
 
@@ -71,7 +74,7 @@ export function createHttpMicroflowValidationAdapter(options: HttpMicroflowValid
         includeWarnings: input.includeWarnings ?? true,
         includeInfo: input.includeInfo ?? true,
       });
-      const issues = result.issues.map(asServerValidationIssue);
+      const issues = result.issues.map(issue => asServerValidationIssue(issue, id));
       return {
         ...result,
         issues,

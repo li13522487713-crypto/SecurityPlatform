@@ -150,7 +150,7 @@ export function getMicroflowErrorUserMessage(error: unknown): string {
     case "MICROFLOW_UNAUTHORIZED":
       return "登录已失效，请重新登录。";
     case "MICROFLOW_PERMISSION_DENIED":
-      return "当前账号无权限创建微流。";
+      return "当前账号无权限执行该微流操作。";
     case "MICROFLOW_NAME_DUPLICATED":
       return "同名微流已存在。";
     case "MICROFLOW_NOT_FOUND":
@@ -169,8 +169,9 @@ export function getMicroflowErrorUserMessage(error: unknown): string {
       return "元数据服务不可用，请稍后重试。";
     case "MICROFLOW_NETWORK_ERROR":
     case "MICROFLOW_TIMEOUT":
-    case "MICROFLOW_SERVICE_UNAVAILABLE":
       return "微流服务不可用，请检查后端服务或网络。";
+    case "MICROFLOW_SERVICE_UNAVAILABLE":
+      return "微流服务异常，请稍后重试。";
     default:
       return apiError.message || "微流服务异常。";
   }

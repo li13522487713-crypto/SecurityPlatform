@@ -165,6 +165,9 @@ X-Trace-Id: {{traceId}}
 # @name round60TestRun
 # Expected JSON path:
 # - $.success=true
+# - $.data.runId exists
+# - $.data.nodeResults is array
+# - $.data.traceId exists
 # - $.data.session.status="success"
 # - $.data.session.trace is array
 POST {{host}}/api/microflows/{{microflowId}}/test-run
@@ -176,6 +179,9 @@ X-Trace-Id: {{traceId}}
 
 {
   "input": {},
+  "inputs": {},
+  "debug": true,
+  "correlationId": "round60-basic-{{$guid}}",
   "options": { "maxSteps": 50, "allowRealHttp": false }
 }
 
@@ -2668,7 +2674,7 @@ X-Trace-Id: {{traceId}}
 
 {
   "version": "61.0.{{$timestamp}}",
-  "notes": "Round61 readiness publish smoke",
+  "description": "Round61 readiness publish smoke",
   "confirmBreakingChanges": false
 }
 

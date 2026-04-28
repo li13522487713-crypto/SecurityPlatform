@@ -40,13 +40,17 @@ export interface ValidateMicroflowResponse {
 export interface TestRunMicroflowRequest {
   microflowId?: string;
   input: Record<string, unknown>;
-  schema: MicroflowAuthoringSchema;
+  schema?: MicroflowAuthoringSchema;
+  schemaId?: string;
+  version?: string;
+  debug?: boolean;
+  correlationId?: string;
   options?: MicroflowTestRunOptions;
 }
 
 export interface TestRunMicroflowResponse {
   runId: string;
-  status: "succeeded" | "failed" | "cancelled";
+  status: "succeeded" | "failed" | "unsupported" | "cancelled";
   startedAt: string;
   durationMs: number;
   frames: MicroflowTraceFrame[];

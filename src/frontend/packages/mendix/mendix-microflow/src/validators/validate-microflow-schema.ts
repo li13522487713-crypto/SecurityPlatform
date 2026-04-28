@@ -60,6 +60,37 @@ function normalizeIssues(issues: MicroflowValidationIssue[]): MicroflowValidatio
   );
 }
 
+const saveBlockerCodes = new Set([
+  "MF_ROOT_SCHEMA_INVALID",
+  "MF_OBJECT_COLLECTION_MISSING",
+  "MF_FLOWS_MISSING",
+  "MF_OBJECT_ID_DUPLICATED",
+  "MF_FLOW_ID_DUPLICATED",
+  "MF_FLOW_INVALID_SOURCE",
+  "MF_FLOW_INVALID_TARGET",
+  "MF_FLOW_ORIGIN_MISSING",
+  "MF_FLOW_DESTINATION_MISSING",
+  "MF_OBJECT_MISSING",
+]);
+
+function normalizeIssueModel(schema: MicroflowAuthoringSchema, issues: MicroflowValidationIssue[]): MicroflowValidationIssue[] {
+  return issues.map(item => {
+    const object = item.objectId ? schema.objectCollection.objects.find(candidate => candidate.id === item.objectId) : undefined;
+    const microflowId = item.microflowId ?? schema.id;
+    const blockSave = item.blockSave ?? (item.severity === "error" && saveBlockerCodes.has(item.code));
+    const blockPublish = item.blockPublish ?? item.severity === "error";
+    return {
+      ...item,
+      id: item.id.startsWith(`${microflowId}:`) ? item.id : `${microflowId}:${item.id}`,
+      microflowId,
+      blockSave,
+      blockPublish,
+      nodeKind: item.nodeKind ?? object?.kind,
+      actionKind: item.actionKind ?? (object?.kind === "actionActivity" ? object.action.kind : undefined),
+    };
+  });
+}
+
 function cloneValidationInput<T>(value: T): T {
   if (typeof globalThis.structuredClone === "function") {
     return globalThis.structuredClone(value);
@@ -189,7 +220,7 @@ export function validateMicroflowSchema(input: MicroflowAuthoringSchema | Microf
       const context: MicroflowValidatorContext = { metadata: EMPTY_MICROFLOW_METADATA_CATALOG, variableIndex, mode };
       const includeWarnings = input.options?.includeWarnings !== false;
       const includeInfo = input.options?.includeInfo === true;
-      const issues = applyMode(normalizeIssues([...rawShapeIssues, missing, ...runValidators(schema, context)]), mode).filter(item =>
+      const issues = normalizeIssueModel(schema, applyMode(normalizeIssues([...rawShapeIssues, missing, ...runValidators(schema, context)]), mode)).filter(item =>
         item.severity === "error" ||
         (item.severity === "warning" && includeWarnings) ||
         (item.severity === "info" && includeInfo),
@@ -206,7 +237,7 @@ export function validateMicroflowSchema(input: MicroflowAuthoringSchema | Microf
     const context: MicroflowValidatorContext = { metadata, variableIndex, mode };
     const includeWarnings = input.options?.includeWarnings !== false;
     const includeInfo = input.options?.includeInfo === true;
-    const issues = applyMode(normalizeIssues([...rawShapeIssues, ...runValidators(schema, context)]), mode).filter(item =>
+    const issues = normalizeIssueModel(schema, applyMode(normalizeIssues([...rawShapeIssues, ...runValidators(schema, context)]), mode)).filter(item =>
       item.severity === "error" ||
       (item.severity === "warning" && includeWarnings) ||
       (item.severity === "info" && includeInfo),

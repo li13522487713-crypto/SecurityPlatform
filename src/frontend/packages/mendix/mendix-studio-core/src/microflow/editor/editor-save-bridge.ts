@@ -12,6 +12,10 @@ import {
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import type { MicroflowResource } from "../resource/resource-types";
 
+export interface MicroflowEditorSaveBridgeOptions {
+  saveMicroflow?: (request: SaveMicroflowRequest) => Promise<MicroflowResource>;
+}
+
 function unavailableRuntimeMethod(name: string): never {
   throw new Error(`${name} 需要真实 runtimeAdapter；当前 Stage 06 仅接入真实 schema 加载与保存。`);
 }
@@ -35,7 +39,7 @@ function toRuntimeResource(resource: MicroflowResource): RuntimeMicroflowResourc
   };
 }
 
-export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter, resource: MicroflowResource, runtimeAdapter?: MicroflowApiClient): MicroflowApiClient {
+export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter, resource: MicroflowResource, runtimeAdapter?: MicroflowApiClient, options: MicroflowEditorSaveBridgeOptions = {}): MicroflowApiClient {
   return {
     ...(runtimeAdapter ?? {}),
     async listMicroflows() {
@@ -77,10 +81,14 @@ export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter
       if (resource.archived || resource.permissions?.canEdit === false) {
         throw new Error("归档或无编辑权限的微流不可保存。");
       }
-      const saved = await adapter.saveMicroflowSchema(resource.id, request.schema, {
-        baseVersion: resource.schemaId || resource.version,
-        saveReason: "editor-save",
-      });
+      const saved = options.saveMicroflow
+        ? await options.saveMicroflow(request)
+        : await adapter.saveMicroflowSchema(resource.id, request.schema, {
+            baseVersion: resource.schemaId || resource.version,
+            schemaId: resource.schemaId,
+            version: resource.version,
+            saveReason: "editor-save",
+          });
       return {
         microflowId: saved.id,
         version: saved.version,

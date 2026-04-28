@@ -1,5 +1,18 @@
 import type { MicroflowObject, MicroflowObjectCollection, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 
+const saveBlockerCodes = new Set([
+  "MF_ROOT_SCHEMA_INVALID",
+  "MF_OBJECT_COLLECTION_MISSING",
+  "MF_FLOWS_MISSING",
+  "MF_OBJECT_ID_DUPLICATED",
+  "MF_FLOW_ID_DUPLICATED",
+  "MF_FLOW_INVALID_SOURCE",
+  "MF_FLOW_INVALID_TARGET",
+  "MF_FLOW_ORIGIN_MISSING",
+  "MF_FLOW_DESTINATION_MISSING",
+  "MF_OBJECT_MISSING",
+]);
+
 function sourceFromCode(code: string): NonNullable<MicroflowValidationIssue["source"]> {
   if (code.startsWith("MF_ROOT") || code === "MF_OBJECT_COLLECTION_MISSING" || code === "MF_FLOWS_MISSING" || code.startsWith("MF_SELECTION")) {
     return "schema";
@@ -26,13 +39,16 @@ function sourceFromCode(code: string): NonNullable<MicroflowValidationIssue["sou
     return "callMicroflow";
   }
   if (code.startsWith("MF_METADATA")) {
-    return "domainModel";
+    return "metadata";
   }
   if (code.startsWith("MF_VARIABLE") || code.startsWith("MF_CURRENT") || code.startsWith("MF_LATEST")) {
     return "variable";
   }
   if (code.startsWith("MF_CREATE_OBJECT") || code.startsWith("MF_CHANGE_OBJECT") || code.startsWith("MF_COMMIT") || code.startsWith("MF_DELETE") || code.startsWith("MF_ROLLBACK")) {
-    return "domainModel";
+    return "object";
+  }
+  if (code.startsWith("MF_LIST") || code.includes("_LIST_")) {
+    return "list";
   }
   if (code.startsWith("MF_EXPR") || code.startsWith("MF_EXPRESSION")) {
     return "expression";
@@ -49,16 +65,20 @@ function sourceFromCode(code: string): NonNullable<MicroflowValidationIssue["sou
 export function issue(
   code: MicroflowValidationIssue["code"],
   message: string,
-  target: Partial<Pick<MicroflowValidationIssue, "objectId" | "flowId" | "actionId" | "fieldPath" | "nodeId" | "edgeId" | "parameterId" | "collectionId" | "source" | "details" | "relatedObjectIds" | "relatedFlowIds">> = {},
+  target: Partial<Pick<MicroflowValidationIssue, "microflowId" | "objectId" | "flowId" | "actionId" | "fieldPath" | "nodeId" | "edgeId" | "parameterId" | "collectionId" | "source" | "details" | "relatedObjectIds" | "relatedFlowIds" | "actionKind" | "nodeKind" | "blockSave" | "blockPublish">> = {},
   severity: MicroflowValidationIssue["severity"] = "error"
 ): MicroflowValidationIssue {
   const source = target.source ?? sourceFromCode(code);
+  const blockSave = target.blockSave ?? (severity === "error" && saveBlockerCodes.has(code));
+  const blockPublish = target.blockPublish ?? severity === "error";
   return {
-    id: `${code}:${source}:${target.objectId ?? target.flowId ?? target.actionId ?? target.nodeId ?? target.edgeId ?? target.parameterId ?? target.collectionId ?? "schema"}:${target.fieldPath ?? "root"}`,
+    id: `${target.microflowId ?? "microflow"}:${code}:${source}:${target.objectId ?? target.flowId ?? target.actionId ?? target.nodeId ?? target.edgeId ?? target.parameterId ?? target.collectionId ?? "schema"}:${target.fieldPath ?? "root"}`,
     code,
     message,
     severity,
     source,
+    blockSave,
+    blockPublish,
     ...target
   };
 }

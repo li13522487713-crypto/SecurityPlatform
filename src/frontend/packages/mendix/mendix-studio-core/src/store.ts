@@ -5,11 +5,12 @@ import type {
   LowCodeAppSchema,
   ValidationErrorSchema
 } from "@atlas/mendix-schema";
-import type { MicroflowSchema } from "@atlas/microflow";
+import type { MicroflowSchema, MicroflowValidationIssue } from "@atlas/microflow";
 import { SAMPLE_PROCUREMENT_APP, SAMPLE_RUNTIME_OBJECT } from "./sample-app";
 import type { StudioMicroflowDefinitionView } from "./microflow/studio/studio-microflow-types";
 import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
 import type { MicroflowResource } from "./microflow/resource/resource-types";
+import type { MicroflowApiError } from "./microflow/contracts/api/api-envelope";
 
 export type MendixStudioTab =
   | "domainModel"
@@ -51,6 +52,65 @@ export interface StudioWorkbenchTab {
   historyKey?: string;
 }
 
+export interface MicroflowValidationSummary {
+  errorCount: number;
+  warningCount: number;
+  infoCount: number;
+  totalCount: number;
+  saveBlockerCount: number;
+  publishBlockerCount: number;
+  lastValidatedAt?: string;
+  status?: string;
+}
+
+export interface StudioMicroflowValidationState {
+  microflowId: string;
+  issues: MicroflowValidationIssue[];
+  running: boolean;
+  lastValidatedAt?: string;
+  lastError?: string;
+  requestId?: string;
+}
+
+export type MicroflowSaveStatus =
+  | "idle"
+  | "dirty"
+  | "saving"
+  | "saved"
+  | "error"
+  | "conflict"
+  | "autosaving"
+  | "queued";
+
+export interface MicroflowSaveConflict {
+  microflowId: string;
+  localVersion?: string;
+  baseVersion?: string;
+  remoteVersion?: string;
+  remoteUpdatedAt?: string;
+  remoteUpdatedBy?: string;
+  traceId?: string;
+  message: string;
+}
+
+export interface MicroflowSaveState {
+  microflowId: string;
+  tabId: string;
+  status: MicroflowSaveStatus;
+  dirty: boolean;
+  saving: boolean;
+  queued: boolean;
+  lastSavedAt?: string;
+  lastSavedBy?: string;
+  lastSaveDurationMs?: number;
+  lastError?: MicroflowApiError;
+  conflict?: MicroflowSaveConflict;
+  localVersion?: string;
+  remoteVersion?: string;
+  schemaId?: string;
+  baseVersion?: string;
+}
+
 type StudioState = {
   appSchema: LowCodeAppSchema;
   activeTab: MendixStudioTab;
@@ -58,6 +118,10 @@ type StudioState = {
   workbenchTabs: StudioWorkbenchTab[];
   activeWorkbenchTabId?: string;
   dirtyByWorkbenchTabId: Record<string, boolean>;
+  saveStateByMicroflowId: Record<string, MicroflowSaveState>;
+  savingByMicroflowId: Record<string, boolean>;
+  saveErrorByMicroflowId: Record<string, MicroflowApiError | undefined>;
+  saveConflictByMicroflowId: Record<string, MicroflowSaveConflict | undefined>;
   canUndoByWorkbenchTabId: Record<string, boolean>;
   canRedoByWorkbenchTabId: Record<string, boolean>;
   lastActiveMicroflowTabId?: string;
@@ -87,6 +151,10 @@ type StudioState = {
   activeMicroflowId?: string;
   microflowResourcesById: Record<string, StudioMicroflowDefinitionView>;
   microflowIdsByModuleId: Record<string, string[]>;
+  validationByMicroflowId: Record<string, StudioMicroflowValidationState>;
+  validationSummaryByMicroflowId: Record<string, MicroflowValidationSummary>;
+  problemsPanelOpen: boolean;
+  activeProblemsMicroflowId?: string;
 
   setAppSchema: (schema: LowCodeAppSchema) => void;
   setActiveTab: (tab: MendixStudioTab) => void;
@@ -116,6 +184,9 @@ type StudioState = {
   renameMicroflowWorkbenchTab: (microflowId: string, title: string, subtitle?: string) => void;
   removeMicroflowWorkbenchTab: (microflowId: string) => void;
   markWorkbenchTabDirty: (tabId: string, dirty: boolean) => void;
+  markMicroflowDirty: (microflowId: string, dirty: boolean) => void;
+  updateMicroflowSaveState: (microflowId: string, patch: Partial<MicroflowSaveState>) => void;
+  clearMicroflowSaveState: (microflowId: string) => void;
   updateMicroflowWorkbenchTabFromResource: (resource: StudioMicroflowDefinitionView) => void;
 
   /** 微流资产 CRUD action（仅更新 store 索引，不调用 API） */
@@ -123,6 +194,11 @@ type StudioState = {
   upsertStudioMicroflow: (resource: StudioMicroflowDefinitionView) => void;
   updateStudioMicroflowFromResource: (resource: MicroflowResource) => void;
   removeStudioMicroflow: (id: string) => void;
+  setMicroflowValidationState: (input: { microflowId: string; issues: MicroflowValidationIssue[]; status?: string; lastValidatedAt?: Date | string }) => void;
+  setValidationRunning: (microflowId: string, running: boolean, requestId?: string) => void;
+  setValidationError: (microflowId: string, error?: unknown) => void;
+  openProblemsPanel: (microflowId: string) => void;
+  clearValidationForMicroflow: (microflowId: string) => void;
 };
 
 const INITIAL_MICROFLOW_SCHEMA: MicroflowSchema = {
@@ -198,6 +274,39 @@ function getMicroflowWorkbenchTabId(microflowId: string): string {
   return `microflow:${microflowId}`;
 }
 
+function ensureMicroflowSaveState(
+  current: Record<string, MicroflowSaveState>,
+  microflowId: string,
+  patch: Partial<MicroflowSaveState> = {}
+): Record<string, MicroflowSaveState> {
+  const previous = current[microflowId];
+  const tabId = patch.tabId ?? previous?.tabId ?? getMicroflowWorkbenchTabId(microflowId);
+  const dirty = patch.dirty ?? previous?.dirty ?? false;
+  const saving = patch.saving ?? previous?.saving ?? false;
+  const queued = patch.queued ?? previous?.queued ?? false;
+  const status = patch.status ?? previous?.status ?? (dirty ? "dirty" : "idle");
+  return {
+    ...current,
+    [microflowId]: {
+      microflowId,
+      tabId,
+      status,
+      dirty,
+      saving,
+      queued,
+      lastSavedAt: patch.lastSavedAt ?? previous?.lastSavedAt,
+      lastSavedBy: patch.lastSavedBy ?? previous?.lastSavedBy,
+      lastSaveDurationMs: patch.lastSaveDurationMs ?? previous?.lastSaveDurationMs,
+      lastError: Object.prototype.hasOwnProperty.call(patch, "lastError") ? patch.lastError : previous?.lastError,
+      conflict: Object.prototype.hasOwnProperty.call(patch, "conflict") ? patch.conflict : previous?.conflict,
+      localVersion: patch.localVersion ?? previous?.localVersion,
+      remoteVersion: patch.remoteVersion ?? previous?.remoteVersion,
+      schemaId: patch.schemaId ?? previous?.schemaId,
+      baseVersion: patch.baseVersion ?? previous?.baseVersion
+    }
+  };
+}
+
 function createMicroflowWorkbenchTab(resource: StudioMicroflowDefinitionView): StudioWorkbenchTab {
   const tabId = getMicroflowWorkbenchTabId(resource.id);
   const now = new Date().toISOString();
@@ -243,6 +352,23 @@ function omitTabRecord<T>(
   return next;
 }
 
+function summarizeMicroflowValidationIssues(
+  issues: MicroflowValidationIssue[],
+  lastValidatedAt?: string,
+  status?: string
+): MicroflowValidationSummary {
+  return {
+    errorCount: issues.filter(issue => issue.severity === "error").length,
+    warningCount: issues.filter(issue => issue.severity === "warning").length,
+    infoCount: issues.filter(issue => issue.severity === "info").length,
+    totalCount: issues.length,
+    saveBlockerCount: issues.filter(issue => issue.severity === "error" && issue.blockSave).length,
+    publishBlockerCount: issues.filter(issue => issue.severity === "error" && issue.blockPublish).length,
+    lastValidatedAt,
+    status,
+  };
+}
+
 export const useMendixStudioStore = create<StudioState>((set, get) => ({
   appSchema: SAMPLE_PROCUREMENT_APP,
   activeTab: "pageBuilder",
@@ -250,6 +376,10 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   workbenchTabs: INITIAL_WORKBENCH_TABS,
   activeWorkbenchTabId: "page",
   dirtyByWorkbenchTabId: {},
+  saveStateByMicroflowId: {},
+  savingByMicroflowId: {},
+  saveErrorByMicroflowId: {},
+  saveConflictByMicroflowId: {},
   canUndoByWorkbenchTabId: {},
   canRedoByWorkbenchTabId: {},
   selectedWidgetId: "widget_submit_btn",
@@ -264,6 +394,9 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
 
   microflowResourcesById: {},
   microflowIdsByModuleId: {},
+  validationByMicroflowId: {},
+  validationSummaryByMicroflowId: {},
+  problemsPanelOpen: false,
 
   setAppSchema: appSchema => set({ appSchema }),
   setActiveTab: activeTab => set({ activeTab }),
@@ -350,6 +483,7 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       workbenchTabs,
       activeWorkbenchTabId,
       dirtyByWorkbenchTabId,
+      saveStateByMicroflowId,
       canUndoByWorkbenchTabId,
       canRedoByWorkbenchTabId
     } = get();
@@ -363,7 +497,9 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       return;
     }
 
-    if ((dirtyByWorkbenchTabId[tabId] || closingTab.dirty) && options?.force !== true) {
+    const microflowId = closingTab.microflowId ?? closingTab.resourceId;
+    const saveState = microflowId ? saveStateByMicroflowId[microflowId] : undefined;
+    if ((dirtyByWorkbenchTabId[tabId] || closingTab.dirty || saveState?.saving || saveState?.queued) && options?.force !== true) {
       set({
         pendingCloseTabId: tabId,
         tabCloseGuardOpen: true
@@ -373,6 +509,7 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
 
     const nextTabs = workbenchTabs.filter(tab => tab.id !== tabId);
     const nextDirtyByTabId = omitTabRecord(dirtyByWorkbenchTabId, tabId);
+    const nextSaveStateByMicroflowId = microflowId ? omitTabRecord(saveStateByMicroflowId, microflowId) : saveStateByMicroflowId;
     const nextCanUndoByTabId = omitTabRecord(canUndoByWorkbenchTabId, tabId);
     const nextCanRedoByTabId = omitTabRecord(canRedoByWorkbenchTabId, tabId);
     if (activeWorkbenchTabId !== tabId) {
@@ -383,6 +520,10 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       set({
         workbenchTabs: nextTabs,
         dirtyByWorkbenchTabId: nextDirtyByTabId,
+        saveStateByMicroflowId: nextSaveStateByMicroflowId,
+        savingByMicroflowId: microflowId ? omitTabRecord(get().savingByMicroflowId, microflowId) : get().savingByMicroflowId,
+        saveErrorByMicroflowId: microflowId ? omitTabRecord(get().saveErrorByMicroflowId, microflowId) : get().saveErrorByMicroflowId,
+        saveConflictByMicroflowId: microflowId ? omitTabRecord(get().saveConflictByMicroflowId, microflowId) : get().saveConflictByMicroflowId,
         canUndoByWorkbenchTabId: nextCanUndoByTabId,
         canRedoByWorkbenchTabId: nextCanRedoByTabId,
         pendingCloseTabId: get().pendingCloseTabId === tabId ? undefined : get().pendingCloseTabId,
@@ -401,6 +542,10 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       set({
         workbenchTabs: nextTabs,
         dirtyByWorkbenchTabId: nextDirtyByTabId,
+        saveStateByMicroflowId: nextSaveStateByMicroflowId,
+        savingByMicroflowId: microflowId ? omitTabRecord(get().savingByMicroflowId, microflowId) : get().savingByMicroflowId,
+        saveErrorByMicroflowId: microflowId ? omitTabRecord(get().saveErrorByMicroflowId, microflowId) : get().saveErrorByMicroflowId,
+        saveConflictByMicroflowId: microflowId ? omitTabRecord(get().saveConflictByMicroflowId, microflowId) : get().saveConflictByMicroflowId,
         canUndoByWorkbenchTabId: nextCanUndoByTabId,
         canRedoByWorkbenchTabId: nextCanRedoByTabId,
         activeWorkbenchTabId: undefined,
@@ -417,6 +562,10 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
     set({
       workbenchTabs: nextTabs,
       dirtyByWorkbenchTabId: nextDirtyByTabId,
+      saveStateByMicroflowId: nextSaveStateByMicroflowId,
+      savingByMicroflowId: microflowId ? omitTabRecord(get().savingByMicroflowId, microflowId) : get().savingByMicroflowId,
+      saveErrorByMicroflowId: microflowId ? omitTabRecord(get().saveErrorByMicroflowId, microflowId) : get().saveErrorByMicroflowId,
+      saveConflictByMicroflowId: microflowId ? omitTabRecord(get().saveConflictByMicroflowId, microflowId) : get().saveConflictByMicroflowId,
       canUndoByWorkbenchTabId: nextCanUndoByTabId,
       canRedoByWorkbenchTabId: nextCanRedoByTabId,
       activeWorkbenchTabId: nextActiveTab.id,
@@ -475,6 +624,70 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
         : tab
     )
   }),
+
+  markMicroflowDirty: (microflowId, dirty) => {
+    const tabId = getMicroflowWorkbenchTabId(microflowId);
+    const currentState = get().saveStateByMicroflowId[microflowId];
+    set({
+      dirtyByWorkbenchTabId: getDirtyTabRecord(get().dirtyByWorkbenchTabId, tabId, dirty),
+      saveStateByMicroflowId: ensureMicroflowSaveState(get().saveStateByMicroflowId, microflowId, {
+        tabId,
+        dirty,
+        status: dirty ? (currentState?.saving ? "queued" : "dirty") : "saved",
+        queued: dirty && Boolean(currentState?.saving) ? true : currentState?.queued ?? false,
+        lastError: dirty ? undefined : currentState?.lastError,
+        conflict: dirty && currentState?.status !== "conflict" ? undefined : currentState?.conflict
+      }),
+      workbenchTabs: get().workbenchTabs.map(tab =>
+        tab.id === tabId
+          ? { ...tab, dirty }
+          : tab
+      )
+    });
+  },
+
+  updateMicroflowSaveState: (microflowId, patch) => {
+    const tabId = patch.tabId ?? getMicroflowWorkbenchTabId(microflowId);
+    const nextSaveStateByMicroflowId = ensureMicroflowSaveState(get().saveStateByMicroflowId, microflowId, {
+      ...patch,
+      tabId
+    });
+    const nextState = nextSaveStateByMicroflowId[microflowId];
+    set({
+      saveStateByMicroflowId: nextSaveStateByMicroflowId,
+      savingByMicroflowId: nextState.saving
+        ? { ...get().savingByMicroflowId, [microflowId]: true }
+        : omitTabRecord(get().savingByMicroflowId, microflowId),
+      saveErrorByMicroflowId: nextState.lastError
+        ? { ...get().saveErrorByMicroflowId, [microflowId]: nextState.lastError }
+        : omitTabRecord(get().saveErrorByMicroflowId, microflowId),
+      saveConflictByMicroflowId: nextState.conflict
+        ? { ...get().saveConflictByMicroflowId, [microflowId]: nextState.conflict }
+        : omitTabRecord(get().saveConflictByMicroflowId, microflowId),
+      dirtyByWorkbenchTabId: getDirtyTabRecord(get().dirtyByWorkbenchTabId, tabId, nextState.dirty),
+      workbenchTabs: get().workbenchTabs.map(tab =>
+        tab.id === tabId
+          ? { ...tab, dirty: nextState.dirty, updatedAt: patch.lastSavedAt ?? tab.updatedAt }
+          : tab
+      )
+    });
+  },
+
+  clearMicroflowSaveState: microflowId => {
+    const tabId = getMicroflowWorkbenchTabId(microflowId);
+    set({
+      saveStateByMicroflowId: omitTabRecord(get().saveStateByMicroflowId, microflowId),
+      savingByMicroflowId: omitTabRecord(get().savingByMicroflowId, microflowId),
+      saveErrorByMicroflowId: omitTabRecord(get().saveErrorByMicroflowId, microflowId),
+      saveConflictByMicroflowId: omitTabRecord(get().saveConflictByMicroflowId, microflowId),
+      dirtyByWorkbenchTabId: omitTabRecord(get().dirtyByWorkbenchTabId, tabId),
+      workbenchTabs: get().workbenchTabs.map(tab =>
+        tab.id === tabId
+          ? { ...tab, dirty: false }
+          : tab
+      )
+    });
+  },
 
   updateMicroflowWorkbenchTabFromResource: resource => {
     const tabId = getMicroflowWorkbenchTabId(resource.id);
@@ -577,15 +790,22 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   },
 
   removeStudioMicroflow: id => {
-    const { microflowResourcesById, microflowIdsByModuleId, selectedExplorerNodeId } = get();
+    const { microflowResourcesById, microflowIdsByModuleId, selectedExplorerNodeId, validationByMicroflowId, validationSummaryByMicroflowId } = get();
     const resource = microflowResourcesById[id];
     get().removeMicroflowWorkbenchTab(id);
+    get().clearMicroflowSaveState(id);
     const nextById = { ...microflowResourcesById };
     delete nextById[id];
+    const nextValidationById = { ...validationByMicroflowId };
+    delete nextValidationById[id];
+    const nextValidationSummaryById = { ...validationSummaryByMicroflowId };
+    delete nextValidationSummaryById[id];
     if (!resource) {
       set({
         activeMicroflowId: get().activeMicroflowId === id ? undefined : get().activeMicroflowId,
         microflowResourcesById: nextById,
+        validationByMicroflowId: nextValidationById,
+        validationSummaryByMicroflowId: nextValidationSummaryById,
         selectedExplorerNodeId: selectedExplorerNodeId === `microflow:${id}` ? "microflows" : selectedExplorerNodeId
       });
       return;
@@ -595,7 +815,69 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       activeMicroflowId: get().activeMicroflowId === id ? undefined : get().activeMicroflowId,
       microflowResourcesById: nextById,
       microflowIdsByModuleId: { ...microflowIdsByModuleId, [resource.moduleId]: filteredIds },
+      validationByMicroflowId: nextValidationById,
+      validationSummaryByMicroflowId: nextValidationSummaryById,
       selectedExplorerNodeId: selectedExplorerNodeId === `microflow:${id}` ? "microflows" : selectedExplorerNodeId
+    });
+  },
+
+  setMicroflowValidationState: ({ microflowId, issues, status, lastValidatedAt }) => {
+    const normalizedValidatedAt = lastValidatedAt instanceof Date ? lastValidatedAt.toISOString() : lastValidatedAt;
+    const normalizedIssues = issues.map(issue => ({ ...issue, microflowId: issue.microflowId ?? microflowId }));
+    set({
+      validationByMicroflowId: {
+        ...get().validationByMicroflowId,
+        [microflowId]: {
+          ...(get().validationByMicroflowId[microflowId] ?? { microflowId, issues: [], running: false }),
+          microflowId,
+          issues: normalizedIssues,
+          running: status === "validating",
+          lastValidatedAt: normalizedValidatedAt,
+          lastError: status === "failed" ? get().validationByMicroflowId[microflowId]?.lastError : undefined,
+        },
+      },
+      validationSummaryByMicroflowId: {
+        ...get().validationSummaryByMicroflowId,
+        [microflowId]: summarizeMicroflowValidationIssues(normalizedIssues, normalizedValidatedAt, status),
+      },
+    });
+  },
+
+  setValidationRunning: (microflowId, running, requestId) => set({
+    validationByMicroflowId: {
+      ...get().validationByMicroflowId,
+      [microflowId]: {
+        ...(get().validationByMicroflowId[microflowId] ?? { microflowId, issues: [] }),
+        microflowId,
+        running,
+        requestId,
+      },
+    },
+  }),
+
+  setValidationError: (microflowId, error) => set({
+    validationByMicroflowId: {
+      ...get().validationByMicroflowId,
+      [microflowId]: {
+        ...(get().validationByMicroflowId[microflowId] ?? { microflowId, issues: [], running: false }),
+        microflowId,
+        running: false,
+        lastError: error instanceof Error ? error.message : error ? String(error) : undefined,
+      },
+    },
+  }),
+
+  openProblemsPanel: microflowId => set({ problemsPanelOpen: true, activeProblemsMicroflowId: microflowId }),
+
+  clearValidationForMicroflow: microflowId => {
+    const nextValidationById = { ...get().validationByMicroflowId };
+    const nextSummaryById = { ...get().validationSummaryByMicroflowId };
+    delete nextValidationById[microflowId];
+    delete nextSummaryById[microflowId];
+    set({
+      validationByMicroflowId: nextValidationById,
+      validationSummaryByMicroflowId: nextSummaryById,
+      activeProblemsMicroflowId: get().activeProblemsMicroflowId === microflowId ? undefined : get().activeProblemsMicroflowId,
     });
   },
 }));

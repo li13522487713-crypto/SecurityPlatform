@@ -32,6 +32,7 @@ export interface MicroflowResource {
   moduleName?: string;
   name: string;
   displayName: string;
+  qualifiedName?: string;
   description?: string;
   tags: string[];
   ownerId?: string;

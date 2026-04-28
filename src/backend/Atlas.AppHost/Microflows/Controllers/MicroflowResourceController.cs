@@ -434,6 +434,8 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
 
     [HttpPut("{id}/schema")]
     [ProducesResponseType(typeof(MicroflowApiResponse<SaveMicroflowSchemaResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<MicroflowApiResponse<SaveMicroflowSchemaResponseDto>>> SaveSchema(
         string id,
         [FromBody] SaveMicroflowSchemaRequestDto request,

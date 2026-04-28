@@ -29,7 +29,11 @@ export type GetMicroflowSchemaApiResponse = MicroflowApiResponse<GetMicroflowSch
 export interface SaveMicroflowSchemaRequest {
   schema: MicroflowAuthoringSchema;
   baseVersion?: string;
+  schemaId?: string;
+  version?: string;
   saveReason?: string;
+  clientRequestId?: string;
+  force?: boolean;
 }
 
 export interface SaveMicroflowSchemaResponse {

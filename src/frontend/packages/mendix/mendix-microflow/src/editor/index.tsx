@@ -227,6 +227,7 @@ export interface MicroflowEditorProps {
   onPublish?: (schema: MicroflowSchema) => Promise<void> | void;
   onSaveComplete?: (response: SaveMicroflowResponse) => void;
   onValidateComplete?: (response: ValidateMicroflowResponse) => void;
+  onValidationStateChange?: (state: { microflowId: string; issues: MicroflowValidationIssue[]; status: string; lastValidatedAt?: Date }) => void;
   onTestRunComplete?: (response: TestRunMicroflowResponse) => void;
   onSchemaChange?: (schema: MicroflowSchema) => void;
   /** 生产路径必须由宿主注入真实 metadata adapter；缺失时不回落 mock。 */
@@ -273,14 +274,17 @@ const defaultLabels: MicroflowEditorLabels = {
   debug: "Debug"
 };
 
-function createValidationServiceIssue(error: unknown, mode: MicroflowValidationMode): MicroflowValidationIssue {
+function createValidationServiceIssue(error: unknown, mode: MicroflowValidationMode, microflowId: string): MicroflowValidationIssue {
   return {
-    id: `MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE:${mode}`,
-    code: "MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE",
+    id: `${microflowId}:server:MICROFLOW_VALIDATION_API_FAILED:${mode}`,
+    microflowId,
+    code: "MICROFLOW_VALIDATION_API_FAILED",
     severity: mode === "edit" ? "warning" : "error",
     source: "server",
     fieldPath: "validation",
-    message: error instanceof Error ? `校验服务不可用：${error.message}` : "校验服务不可用，请检查后端服务或网络。",
+    message: error instanceof Error ? `后端校验失败：${error.message}` : "后端校验失败，请检查网络、权限或服务状态。",
+    blockSave: mode !== "edit",
+    blockPublish: mode !== "edit",
   };
 }
 
@@ -308,8 +312,8 @@ function summarizeValidationIssues(issues: MicroflowValidationIssue[]) {
 function asServerValidationIssue(issue: MicroflowValidationIssue): MicroflowValidationIssue {
   return {
     ...issue,
-    id: issue.id.startsWith("server:") ? issue.id : `server:${issue.id}`,
-    source: "server",
+    id: issue.id.includes(":server:") ? issue.id : `server:${issue.id}`,
+    source: issue.source ?? "server",
   };
 }
 
@@ -1042,12 +1046,16 @@ function ProblemPanel({
   issues,
   status,
   lastValidatedAt,
+  lastError,
   onSelect,
+  onRetry,
 }: {
   issues: MicroflowValidationIssue[];
   status?: string;
   lastValidatedAt?: Date;
+  lastError?: unknown;
   onSelect: (issue: MicroflowValidationIssue) => void;
+  onRetry: () => void;
 }) {
   const [severityFilter, setSeverityFilter] = useState<"all" | MicroflowValidationIssue["severity"]>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
@@ -1122,7 +1130,15 @@ function ProblemPanel({
         </Space>
       </Space>
       {status === "validating" && issues.length === 0 ? <Empty title="Validating" description="Schema validation is running in the background." /> : null}
-      {status !== "validating" && issues.length === 0 ? <Empty title="No problems found" description="Schema validation passed." /> : null}
+      {status === "failed" ? (
+        <Empty
+          title="Validation failed"
+          description={lastError instanceof Error ? lastError.message : "后端或本地校验执行失败，请重试。"}
+        >
+          <Button size="small" type="primary" onClick={onRetry}>Retry</Button>
+        </Empty>
+      ) : null}
+      {status !== "validating" && status !== "failed" && issues.length === 0 ? <Empty title="No problems found" description="Schema validation passed." /> : null}
       {issues.length > 0 && filteredIssues.length === 0 ? <Empty title="No matching problems" description="Adjust filters to see validation issues." /> : null}
       {groupedIssues.map(([source, sourceIssues]) => (
         <div key={source} style={{ width: "100%" }}>
@@ -1253,6 +1269,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setIssues,
     validationStatus,
     lastValidatedAt,
+    lastError,
     runValidationNow,
   } = useDebouncedMicroflowValidation({
     schema,
@@ -1279,6 +1296,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const schemaRevisionRef = useRef(0);
   const [leftOpen, setLeftOpen] = useState(() => {
     if (!persistAuxPanelState) {
       return true;
@@ -1310,7 +1328,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         options: { mode, includeWarnings: true, includeInfo: true },
       });
       setIssues(localResult.issues);
-      if (localResult.summary.errorCount > 0 || !props.validationAdapter) {
+      if (!props.validationAdapter) {
         return localResult;
       }
       const serverResult = await props.validationAdapter.validate({
@@ -1321,7 +1339,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         includeWarnings: true,
         includeInfo: true,
       });
-      const serverIssues = serverResult.issues.map(asServerValidationIssue);
+      const serverIssues = serverResult.issues.map(issue => ({
+        ...asServerValidationIssue(issue),
+        microflowId: targetSchema.id,
+        blockSave: issue.blockSave ?? issue.severity === "error",
+        blockPublish: issue.blockPublish ?? issue.severity === "error",
+      }));
       const issues = [...localResult.issues, ...serverIssues];
       const summary = summarizeValidationIssues(issues);
       setIssues(issues);
@@ -1331,7 +1354,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         summary,
       };
     } catch (error) {
-      const issue = createValidationServiceIssue(error, mode);
+      const issue = createValidationServiceIssue(error, mode, targetSchema.id);
       setIssues([issue]);
       return {
         issues: [issue],
@@ -1370,6 +1393,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
   const selectedFlow = schema.editor.selection.flowId ? findFlowWithCollection(schema, schema.editor.selection.flowId)?.flow ?? null : null;
   const activeMicroflowId = schema.id;
+  const saveBlockers = issues.filter(issue => issue.blockSave && issue.severity === "error");
+  const publishBlockers = issues.filter(issue => issue.blockPublish && issue.severity === "error");
+  const onValidationStateChange = props.onValidationStateChange;
   const runSession = runSessionByMicroflowId[activeMicroflowId];
   const runtimeServiceError = runtimeServiceErrorByMicroflowId[activeMicroflowId];
   const selectedRunId = selectedRunIdByMicroflowId[activeMicroflowId];
@@ -1382,6 +1408,15 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     () => filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId),
     [selectedRunSession, activeMicroflowId]
   );
+
+  useEffect(() => {
+    onValidationStateChange?.({
+      microflowId: activeMicroflowId,
+      issues,
+      status: validationStatus,
+      lastValidatedAt,
+    });
+  }, [activeMicroflowId, issues, lastValidatedAt, onValidationStateChange, validationStatus]);
 
   const refreshHistoryState = () => setHistoryState(historyManager.getState());
 
@@ -1459,6 +1494,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setValidationTrigger(value => value + 1);
     }
     if (!options.skipDirty) {
+      schemaRevisionRef.current += 1;
       setDirty(!microflowSchemasEqual(refreshed, savedSchemaRef.current));
     }
     if (!options.skipDirty && source !== "runtime") {
@@ -1540,27 +1576,40 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const saveCurrentSchema = async (reason: "save" | "saveAndRun" = "save"): Promise<boolean> => {
-    const validation = await validateForMode(schema, "save");
-    if (validation.summary.errorCount > 0) {
-      setBottomOpen(true);
-      setBottomTab("problems");
-      Toast.error(`${reason === "saveAndRun" ? "Save & Run" : "Save"} blocked by ${validation.summary.errorCount} validation error(s).`);
+    if (props.readonly) {
+      Toast.warning("Readonly microflow cannot be saved.");
       return false;
     }
-    if (validation.summary.warningCount > 0) {
+    if (!dirty) {
+      Toast.info("Already saved.");
+      return true;
+    }
+    const saveRevision = schemaRevisionRef.current;
+    const schemaToSave = schema;
+    const validation = await validateForMode(schemaToSave, "save");
+    const blockers = validation.issues.filter(issue => issue.blockSave && issue.severity === "error");
+    if (blockers.length > 0) {
       setBottomOpen(true);
       setBottomTab("problems");
-      Toast.warning(`Save allowed with ${validation.summary.warningCount} warning(s).`);
+      Toast.error(`${reason === "saveAndRun" ? "Save & Run" : "Save"} blocked by ${blockers.length} schema-breaking validation error(s).`);
+      return false;
+    }
+    if (validation.summary.errorCount > 0 || validation.summary.warningCount > 0) {
+      setBottomOpen(true);
+      setBottomTab("problems");
+      Toast.warning(`Draft save allowed with ${validation.summary.errorCount} publish blocker(s) and ${validation.summary.warningCount} warning(s).`);
     }
     setSaving(true);
     try {
-      const response = await apiClient.saveMicroflow({ schema });
+      const response = await apiClient.saveMicroflow({ schema: schemaToSave });
       props.onSaveComplete?.(response);
-      savedSchemaRef.current = schema;
-      historyManager.replaceCurrent(schema, "bulkUpdate");
-      refreshHistoryState();
-      setDirty(false);
-      void runValidationNow(schema);
+      if (schemaRevisionRef.current === saveRevision) {
+        savedSchemaRef.current = schemaToSave;
+        historyManager.replaceCurrent(schemaToSave, "bulkUpdate");
+        refreshHistoryState();
+        setDirty(false);
+      }
+      void runValidationNow(latestSchemaRef.current);
       Toast.success(`Saved ${response.version}`);
       return true;
     } catch (error) {
@@ -2058,6 +2107,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           <Tag color={validationStatus === "validating" ? "blue" : issues.some(issue => issue.severity === "error") ? "red" : "green"}>
             {validationStatus === "validating" ? "validating..." : `${issues.length} issues`}
           </Tag>
+          {saveBlockers.length > 0 ? <Tag color="red">Save blocked {saveBlockers.length}</Tag> : null}
+          {publishBlockers.length > 0 ? <Tag color="red">Publish blocked by {publishBlockers.length} errors</Tag> : null}
           {runSession ? <Tag color={runSession.status === "success" ? "green" : "red"}>{runSession.status} · {runSession.trace.length} frames</Tag> : null}
         </Space>
         <Space wrap style={{ justifyContent: "flex-end", rowGap: 4 }}>
@@ -2076,7 +2127,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </Button>
           </Tooltip>
           <Tooltip content={dirty ? labels.save : "No unsaved changes"}>
-            <Button aria-label={labels.save} icon={<IconSave />} loading={saving} type="primary" onClick={handleSave}>{labels.save}</Button>
+            <Button aria-label={labels.save} icon={<IconSave />} loading={saving} disabled={saving || props.readonly || !dirty || !schema.id} type="primary" onClick={handleSave}>{labels.save}</Button>
           </Tooltip>
           <Dropdown
             trigger="click"
@@ -2316,6 +2367,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   issues={issues}
                   status={validationStatus}
                   lastValidatedAt={lastValidatedAt}
+                  lastError={lastError}
+                  onRetry={() => void runValidationNow(schema)}
                   onSelect={issue => {
                     const selectedFlowId = issue.flowId ?? issue.edgeId;
                     const selectedObjectId = selectedFlowId ? undefined : issue.objectId ?? issue.nodeId;

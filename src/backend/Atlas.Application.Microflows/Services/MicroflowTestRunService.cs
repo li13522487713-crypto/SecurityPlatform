@@ -57,7 +57,9 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     {
         var resource = await _resourceRepository.GetByIdAsync(resourceId, cancellationToken)
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
-        var (schema, schemaId) = await ResolveSchemaAsync(resource, request.Schema, cancellationToken);
+        var (schema, schemaId) = await ResolveSchemaAsync(resource, request.Schema, request.SchemaId, cancellationToken);
+        var input = request.Inputs ?? request.Input ?? new Dictionary<string, JsonElement>();
+        var options = request.Options ?? new MicroflowTestRunOptionsDto();
 
         var validation = await _validationService.ValidateAsync(
             resourceId,
@@ -95,13 +97,15 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             {
                 ResourceId = resource.Id,
                 SchemaId = schemaId,
-                Version = resource.Version,
+                Version = request.Version ?? resource.Version,
                 Schema = schema,
                 ExecutionPlan = executionPlan,
-                Input = request.Input ?? new Dictionary<string, JsonElement>(),
-                Options = request.Options ?? new MicroflowTestRunOptionsDto(),
+                Input = input,
+                Options = options,
                 Metadata = metadata,
-                RequestContext = _requestContextAccessor.Current
+                RequestContext = _requestContextAccessor.Current,
+                CorrelationId = request.CorrelationId,
+                MaxCallDepth = 10
             },
             cancellationToken);
 
@@ -129,7 +133,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 innerException: ex);
         }
 
-        return new TestRunMicroflowApiResponse { Session = session };
+        return ToApiResponse(session, _requestContextAccessor.Current.TraceId);
     }
 
     private async Task PersistSessionGraphAsync(MicroflowRunSessionDto session, MicroflowResourceEntity fallbackResource, CancellationToken cancellationToken)
@@ -274,6 +278,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private async Task<(JsonElement Schema, string SchemaId)> ResolveSchemaAsync(
         MicroflowResourceEntity resource,
         JsonElement? draftSchema,
+        string? requestedSchemaId,
         CancellationToken cancellationToken)
     {
         if (draftSchema.HasValue)
@@ -286,7 +291,10 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             return (draftSchema.Value.Clone(), resource.CurrentSchemaSnapshotId ?? resource.SchemaId ?? string.Empty);
         }
 
-        var snapshot = !string.IsNullOrWhiteSpace(resource.CurrentSchemaSnapshotId)
+        var snapshot = !string.IsNullOrWhiteSpace(requestedSchemaId)
+            ? await _schemaSnapshotRepository.GetByIdAsync(requestedSchemaId!, cancellationToken)
+            : null;
+        snapshot ??= !string.IsNullOrWhiteSpace(resource.CurrentSchemaSnapshotId)
             ? await _schemaSnapshotRepository.GetByIdAsync(resource.CurrentSchemaSnapshotId, cancellationToken)
             : await _schemaSnapshotRepository.GetLatestByResourceIdAsync(resource.Id, cancellationToken);
         if (snapshot is null || string.IsNullOrWhiteSpace(snapshot.SchemaJson))
@@ -295,6 +303,36 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         }
 
         return (MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), snapshot.Id);
+    }
+
+    private static TestRunMicroflowApiResponse ToApiResponse(MicroflowRunSessionDto session, string traceId)
+    {
+        var durationMs = session.EndedAt.HasValue
+            ? Math.Max(0, (int)(session.EndedAt.Value - session.StartedAt).TotalMilliseconds)
+            : 0;
+        var errorCode = session.Error?.Code ?? session.Trace.FirstOrDefault(frame => frame.Error is not null)?.Error?.Code;
+        var status = !string.IsNullOrWhiteSpace(errorCode) && errorCode.Contains("UNSUPPORTED", StringComparison.OrdinalIgnoreCase)
+            ? "unsupported"
+            : string.Equals(session.Status, "success", StringComparison.OrdinalIgnoreCase)
+                ? "succeeded"
+                : session.Status;
+        return new TestRunMicroflowApiResponse
+        {
+            Session = session,
+            RunId = session.Id,
+            MicroflowId = session.ResourceId,
+            Status = status,
+            Result = session.Output,
+            ErrorCode = errorCode,
+            ErrorMessage = session.Error?.Message ?? session.Trace.FirstOrDefault(frame => frame.Error is not null)?.Error?.Message,
+            DurationMs = durationMs,
+            StartedAt = session.StartedAt,
+            CompletedAt = session.EndedAt,
+            TraceId = traceId,
+            Logs = session.Logs,
+            NodeResults = session.Trace,
+            CallStack = session.CallStack
+        };
     }
 
     private static (MicroflowRunSessionEntity Session, IReadOnlyList<MicroflowRunTraceFrameEntity> TraceFrames, IReadOnlyList<MicroflowRunLogEntity> Logs) ToEntities(

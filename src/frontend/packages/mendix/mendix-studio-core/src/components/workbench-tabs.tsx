@@ -38,11 +38,12 @@ export function WorkbenchTabs() {
   const tabs = useMendixStudioStore(state => state.workbenchTabs);
   const activeWorkbenchTabId = useMendixStudioStore(state => state.activeWorkbenchTabId);
   const dirtyByWorkbenchTabId = useMendixStudioStore(state => state.dirtyByWorkbenchTabId);
+  const saveStateByMicroflowId = useMendixStudioStore(state => state.saveStateByMicroflowId);
   const pendingCloseTabId = useMendixStudioStore(state => state.pendingCloseTabId);
   const tabCloseGuardOpen = useMendixStudioStore(state => state.tabCloseGuardOpen);
+  const validationSummaryByMicroflowId = useMendixStudioStore(state => state.validationSummaryByMicroflowId);
   const setActiveWorkbenchTab = useMendixStudioStore(state => state.setActiveWorkbenchTab);
   const closeWorkbenchTab = useMendixStudioStore(state => state.closeWorkbenchTab);
-  const markWorkbenchTabDirty = useMendixStudioStore(state => state.markWorkbenchTabDirty);
   const cancelWorkbenchTabCloseGuard = useMendixStudioStore(state => state.cancelWorkbenchTabCloseGuard);
   const setSelectedExplorerNodeId = useMendixStudioStore(state => state.setSelectedExplorerNodeId);
   const pendingCloseTab = pendingCloseTabId
@@ -53,18 +54,10 @@ export function WorkbenchTabs() {
     if (activeWorkbenchTabId && activeWorkbenchTabId !== tab.id && dirtyByWorkbenchTabId[activeWorkbenchTabId]) {
       const currentTab = tabs.find(item => item.id === activeWorkbenchTabId);
       Modal.confirm({
-        title: "切换未保存的微流？",
-        content: `${currentTab?.title ?? "当前微流"} 有未保存更改。切换会卸载编辑器并丢弃未保存草稿。`,
-        okText: "丢弃并切换",
-        cancelText: "取消",
-        onOk: () => {
-          markWorkbenchTabDirty(activeWorkbenchTabId, false);
-          const tabType = getTabType(tab);
-          setActiveWorkbenchTab(tab.id);
-          if (tabType.explorerNodeId) {
-            setSelectedExplorerNodeId(tabType.explorerNodeId);
-          }
-        }
+        title: "当前微流尚未保存",
+        content: `${currentTab?.title ?? "当前微流"} 有未保存更改。当前编辑器尚未持有跨 tab 草稿，切换前请先保存或关闭时选择 Discard。`,
+        okText: "留在当前 Tab",
+        cancelText: "取消"
       });
       return;
     }
@@ -75,6 +68,18 @@ export function WorkbenchTabs() {
     }
   };
 
+  const requestSaveAndClose = () => {
+    if (!pendingCloseTab?.microflowId || !pendingCloseTabId) {
+      return;
+    }
+    window.dispatchEvent(new CustomEvent("atlas:microflow-save-request", {
+      detail: {
+        microflowId: pendingCloseTab.microflowId,
+        onSaved: () => closeWorkbenchTab(pendingCloseTabId, { force: true })
+      }
+    }));
+  };
+
   return (
     <>
       <div className="studio-workbench-tabs">
@@ -82,6 +87,8 @@ export function WorkbenchTabs() {
           const tabType = getTabType(tab);
           const isActive = activeWorkbenchTabId === tab.id;
           const isDirty = dirtyByWorkbenchTabId[tab.id] || tab.dirty;
+          const summary = tab.microflowId ? validationSummaryByMicroflowId[tab.microflowId] : undefined;
+          const problemCount = summary ? summary.errorCount || summary.warningCount : 0;
           return (
             <div
               key={tab.id}
@@ -108,6 +115,19 @@ export function WorkbenchTabs() {
               {tab.status ? (
                 <span className="studio-workbench-tab__status" title={tab.publishStatus}>
                   {tab.status}
+                </span>
+              ) : null}
+              {summary && problemCount > 0 ? (
+                <span
+                  className="studio-workbench-tab__status"
+                  title={`Validation status from last check. ${summary.errorCount} errors, ${summary.warningCount} warnings.`}
+                  style={{
+                    color: summary.errorCount > 0 ? "var(--semi-color-danger)" : "var(--semi-color-warning)",
+                    borderColor: summary.errorCount > 0 ? "var(--semi-color-danger-light-active)" : "var(--semi-color-warning-light-active)",
+                    background: summary.errorCount > 0 ? "var(--semi-color-danger-light-default)" : "var(--semi-color-warning-light-default)"
+                  }}
+                >
+                  {summary.errorCount > 0 ? `E${summary.errorCount}` : `W${summary.warningCount}`}
                 </span>
               ) : null}
               {isDirty && <span className="studio-workbench-tab__dirty-dot" />}
@@ -147,7 +167,12 @@ export function WorkbenchTabs() {
         onCancel={cancelWorkbenchTabCloseGuard}
         footer={
           <Space>
-            <Button disabled title="Release Stage 05 schema editor integration 后启用保存">
+            <Button
+              type="primary"
+              disabled={!pendingCloseTab?.microflowId || Boolean(pendingCloseTab?.microflowId && saveStateByMicroflowId[pendingCloseTab.microflowId]?.saving)}
+              loading={Boolean(pendingCloseTab?.microflowId && saveStateByMicroflowId[pendingCloseTab.microflowId]?.saving)}
+              onClick={requestSaveAndClose}
+            >
               Save
             </Button>
             <Button onClick={cancelWorkbenchTabCloseGuard}>
@@ -167,7 +192,7 @@ export function WorkbenchTabs() {
         }
       >
         <Text>
-          {pendingCloseTab?.title ?? "当前文档"} 有未保存更改。Release Stage 05 接入 schema editor 后将启用 Save；本轮可选择 Discard 丢弃 dirty 状态并关闭，或 Cancel 保留 tab。
+          {pendingCloseTab?.title ?? "当前文档"} 有未保存更改或仍在保存中。可以 Save 后关闭、Discard 丢弃本地更改并关闭，或 Cancel 保留 tab。
         </Text>
       </Modal>
     </>

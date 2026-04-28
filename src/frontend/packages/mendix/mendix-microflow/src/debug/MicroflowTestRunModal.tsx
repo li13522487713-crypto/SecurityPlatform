@@ -25,12 +25,12 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
   const model = useMemo(() => buildRunInputModel(props.schema), [props.schema]);
   const defaults = useMemo(() => buildDefaultRunInputValues(model), [model]);
   const parameters = props.values ?? defaults;
-  const [options, setOptions] = useState<MicroflowTestRunOptions>({ decisionBooleanResult: true, loopIterations: 2 });
+  const [options, setOptions] = useState<MicroflowTestRunOptions>({ maxSteps: 200 });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (props.visible) {
-      setOptions({ decisionBooleanResult: true, loopIterations: 2 });
+      setOptions({ maxSteps: 200 });
       setErrors({});
     }
   }, [props.visible]);
@@ -71,7 +71,7 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
           {props.dirty ? <Tag color="orange">dirty - Save & Run</Tag> : <Tag color="green">saved draft</Tag>}
           {props.validationErrorCount ? <Tag color="red">{props.validationErrorCount} validation errors</Tag> : <Tag color="green">validation gate ready</Tag>}
         </Space>
-        <Text type="secondary">Run 会先执行 Stage 20 validation；无 error 后调用真实后端 POST /api/microflows/{model.microflowId}/test-run，并提交当前 schema draft 与输入参数。</Text>
+        <Text type="secondary">Run 会先执行本地与后端 validation；dirty 时先 Save & Run，保存成功后调用真实后端 POST /api/microflows/{model.microflowId}/test-run，并提交类型转换后的输入参数。</Text>
         {model.warnings.map(warning => <Text key={warning} type="warning" size="small">{warning}</Text>)}
         {model.fields.length === 0 ? <Text type="tertiary">当前微流没有输入参数。</Text> : null}
         {model.fields.map(field => (
@@ -90,31 +90,6 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
               <Switch checked={Boolean(options.allowRealHttp)} onChange={allowRealHttp => setOptions(current => ({ ...current, allowRealHttp }))} />
               <Text>allowRealHttp</Text>
               <Text size="small" type="tertiary">默认关闭，后端策略不允许时会真实返回错误。</Text>
-            </label>
-            <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <Switch checked={Boolean(options.simulateRestError)} onChange={simulateRestError => setOptions(current => ({ ...current, simulateRestError }))} />
-              <Text>simulateRestError</Text>
-            </label>
-            <label style={{ display: "grid", gap: 6, width: "100%" }}>
-              <Text size="small" strong>decisionBooleanResult</Text>
-              <Select
-                value={String(options.decisionBooleanResult ?? true)}
-                style={{ width: 220 }}
-                optionList={[{ label: "true", value: "true" }, { label: "false", value: "false" }]}
-                onChange={value => setOptions(current => ({ ...current, decisionBooleanResult: String(value) === "true" }))}
-              />
-            </label>
-            <label style={{ display: "grid", gap: 6, width: "100%" }}>
-              <Text size="small" strong>enumerationCaseValue</Text>
-              <Input value={options.enumerationCaseValue ?? ""} placeholder="可选，枚举 case value" onChange={enumerationCaseValue => setOptions(current => ({ ...current, enumerationCaseValue }))} />
-            </label>
-            <label style={{ display: "grid", gap: 6, width: "100%" }}>
-              <Text size="small" strong>objectTypeCase</Text>
-              <Input value={options.objectTypeCase ?? ""} placeholder="可选，specialization entity qualified name" onChange={objectTypeCase => setOptions(current => ({ ...current, objectTypeCase }))} />
-            </label>
-            <label style={{ display: "grid", gap: 6, width: 220 }}>
-              <Text size="small" strong>loopIterations</Text>
-              <Input value={String(options.loopIterations ?? 2)} onChange={value => setOptions(current => ({ ...current, loopIterations: Number.isFinite(Number(value)) ? Number(value) : 2 }))} />
             </label>
             <label style={{ display: "grid", gap: 6, width: 220 }}>
               <Text size="small" strong>maxSteps</Text>
@@ -159,7 +134,7 @@ function renderInput(dataType: MicroflowDataType, value: unknown, onChange: (val
       <Select
         value={String(value ?? false)}
         optionList={[{ label: "true", value: "true" }, { label: "false", value: "false" }]}
-        onChange={next => onChange(String(next) === "true")}
+        onChange={(next: unknown) => onChange(String(next) === "true")}
       />
     );
   }

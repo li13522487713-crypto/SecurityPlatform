@@ -63,7 +63,9 @@ describe("Microflow Stage 21 run input model", () => {
     const request = buildRunRequest(schema, { amount: 100, userName: "alice" }, { maxSteps: 10 });
 
     expect(request.microflowId).toBe("MF_ACTIVE");
-    expect(request.schema.schemaVersion).toBe("1.0.0");
+    expect(request.schema).toBeUndefined();
+    expect(request.debug).toBe(true);
+    expect(request.correlationId).toContain("mf-run-MF_ACTIVE-");
     expect(request.input).toEqual({ amount: 100, userName: "alice" });
     expect(request.options?.maxSteps).toBe(10);
   });

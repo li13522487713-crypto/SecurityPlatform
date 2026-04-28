@@ -21,6 +21,18 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         "exclusiveMerge", "actionActivity", "loopedActivity", "parameterObject", "annotation"
     };
 
+    private static readonly HashSet<string> SaveBlockerCodes = new(StringComparer.Ordinal)
+    {
+        MicroflowValidationCodes.RootSchemaInvalid,
+        MicroflowValidationCodes.ObjectIdDuplicated,
+        MicroflowValidationCodes.FlowDuplicated,
+        MicroflowValidationCodes.FlowInvalidSource,
+        MicroflowValidationCodes.FlowInvalidTarget,
+        MicroflowValidationCodes.FlowOriginMissing,
+        MicroflowValidationCodes.FlowDestinationMissing,
+        MicroflowValidationCodes.ObjectMissing
+    };
+
     private readonly IMicroflowResourceRepository _resourceRepository;
     private readonly IMicroflowSchemaSnapshotRepository _schemaSnapshotRepository;
     private readonly IMicroflowMetadataService _metadataService;
@@ -1345,7 +1357,8 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
     {
         context.Issues.Add(new MicroflowValidationIssueDto
         {
-            Id = StableId(code, objectId, flowId, actionId, parameterId, collectionId, fieldPath),
+            Id = StableId(context.ResourceId, code, objectId, flowId, actionId, parameterId, collectionId, fieldPath),
+            MicroflowId = context.ResourceId,
             Severity = severity,
             Code = code,
             Message = message,
@@ -1358,7 +1371,9 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             Source = source,
             RelatedObjectIds = relatedObjectIds ?? Array.Empty<string>(),
             RelatedFlowIds = relatedFlowIds ?? Array.Empty<string>(),
-            Details = details
+            Details = details,
+            BlockSave = severity == "error" && SaveBlockerCodes.Contains(code),
+            BlockPublish = severity == "error"
         });
     }
 

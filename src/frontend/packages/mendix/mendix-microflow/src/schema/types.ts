@@ -1349,6 +1349,31 @@ export interface MicroflowValidationState {
   issues: MicroflowValidationIssue[];
 }
 
+export type MicroflowValidationSeverity = "error" | "warning" | "info";
+export type MicroflowValidationSource =
+  | "schema"
+  | "document"
+  | "node"
+  | "flow"
+  | "parameter"
+  | "variable"
+  | "expression"
+  | "decision"
+  | "callMicroflow"
+  | "loop"
+  | "list"
+  | "object"
+  | "metadata"
+  | "reference"
+  | "server"
+  | "domainModel"
+  | "root"
+  | "objectCollection"
+  | "event"
+  | "action"
+  | "errorHandling"
+  | "reachability";
+
 export interface MicroflowValidator {
   validate(schema: MicroflowSchema): MicroflowValidationIssue[];
 }
@@ -1444,7 +1469,7 @@ export interface MicroflowAuthoringPersistedTraceFrame {
   incomingEdgeId?: string;
   outgoingEdgeId?: string;
   selectedCaseValue?: MicroflowCaseValue;
-  status: "idle" | "running" | "success" | "failed" | "skipped" | "completed";
+  status: "idle" | "running" | "success" | "failed" | "unsupported" | "skipped" | "completed";
   startedAt?: string;
   durationMs: number;
   input?: Record<string, unknown>;
@@ -1857,41 +1882,29 @@ export interface MicroflowReference {
 
 export interface MicroflowValidationIssue {
   id: string;
-  severity: "error" | "warning" | "info";
+  microflowId?: string;
+  severity: MicroflowValidationSeverity;
   message: string;
   nodeId?: string;
   edgeId?: string;
   objectId?: string;
   flowId?: string;
   actionId?: string;
+  actionKind?: string;
+  nodeKind?: string;
   parameterId?: string;
   collectionId?: string;
   fieldPath?: string;
   code: string;
-  source?:
-    | "schema"
-    | "node"
-    | "flow"
-    | "parameter"
-    | "variable"
-    | "callMicroflow"
-    | "domainModel"
-    | "loop"
-    | "server"
-    | "root"
-    | "objectCollection"
-    | "event"
-    | "decision"
-    | "action"
-    | "metadata"
-    | "expression"
-    | "errorHandling"
-    | "reachability";
+  source?: MicroflowValidationSource;
+  blockSave?: boolean;
+  blockPublish?: boolean;
+  createdAt?: string;
   quickFixAvailable?: boolean;
   quickFixes?: MicroflowQuickFix[];
   relatedObjectIds?: string[];
   relatedFlowIds?: string[];
-  details?: string;
+  details?: string | Record<string, unknown>;
 }
 
 export interface MicroflowQuickFix {

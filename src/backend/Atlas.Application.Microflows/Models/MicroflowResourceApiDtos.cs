@@ -143,8 +143,20 @@ public sealed record SaveMicroflowSchemaRequestDto
     [JsonPropertyName("baseVersion")]
     public string? BaseVersion { get; init; }
 
+    [JsonPropertyName("schemaId")]
+    public string? SchemaId { get; init; }
+
+    [JsonPropertyName("version")]
+    public string? Version { get; init; }
+
     [JsonPropertyName("saveReason")]
     public string? SaveReason { get; init; }
+
+    [JsonPropertyName("clientRequestId")]
+    public string? ClientRequestId { get; init; }
+
+    [JsonPropertyName("force")]
+    public bool Force { get; init; }
 }
 
 public sealed record SaveMicroflowSchemaResponseDto

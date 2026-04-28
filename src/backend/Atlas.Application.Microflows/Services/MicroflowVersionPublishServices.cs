@@ -335,6 +335,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
     private readonly IMicroflowPublishSnapshotRepository _publishSnapshotRepository;
     private readonly IMicroflowReferenceRepository _referenceRepository;
     private readonly IMicroflowPublishImpactService _impactService;
+    private readonly IMicroflowValidationService _validationService;
     private readonly IMicroflowStorageTransaction _transaction;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowClock _clock;
@@ -346,6 +347,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         IMicroflowPublishSnapshotRepository publishSnapshotRepository,
         IMicroflowReferenceRepository referenceRepository,
         IMicroflowPublishImpactService impactService,
+        IMicroflowValidationService validationService,
         IMicroflowStorageTransaction transaction,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowClock clock)
@@ -356,6 +358,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         _publishSnapshotRepository = publishSnapshotRepository;
         _referenceRepository = referenceRepository;
         _impactService = impactService;
+        _validationService = validationService;
         _transaction = transaction;
         _requestContextAccessor = requestContextAccessor;
         _clock = clock;
@@ -373,11 +376,21 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
 
         var currentSnapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId, cancellationToken);
         var currentSchema = MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson);
-        var validationIssues = MicroflowSchemaJsonHelper.ValidateForPublish(currentSchema);
-        var validationSummary = new MicroflowValidationSummaryDto { ErrorCount = validationIssues.Count(x => x.Severity == "error") };
+        var validation = await _validationService.ValidateAsync(
+            resource.Id,
+            new ValidateMicroflowRequestDto
+            {
+                Schema = currentSchema,
+                Mode = "publish",
+                IncludeWarnings = true,
+                IncludeInfo = true
+            },
+            cancellationToken);
+        var validationIssues = validation.Issues;
+        var validationSummary = validation.Summary;
         if (validationSummary.ErrorCount > 0)
         {
-            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowPublishBlocked, "微流发布前校验未通过。", 409, validationIssues: validationIssues);
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowPublishBlocked, "微流发布前校验未通过。", 422, validationIssues: validationIssues);
         }
 
         var latestPublished = await _publishSnapshotRepository.GetLatestByResourceIdAsync(resource.Id, cancellationToken);

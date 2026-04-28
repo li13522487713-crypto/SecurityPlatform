@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Toast } from "@douyinfe/semi-ui";
 
 import { useMendixStudioStore } from "../store";
-import type { ActiveTabId, MendixStudioTab } from "../store";
+import type { ActiveTabId, MendixStudioTab, MicroflowValidationSummary } from "../store";
 import { SAMPLE_PROCUREMENT_APP } from "../sample-app";
 import type { MicroflowAdapterBundle } from "../microflow/adapter/microflow-adapter-factory";
 import { getMicroflowApiError } from "../microflow/adapter/http/microflow-api-error";
@@ -49,6 +49,7 @@ export interface ExplorerTreeNode {
   title?: string;
   errorMessage?: string;
   error?: MicroflowApiError;
+  problemSummary?: MicroflowValidationSummary;
   action?: "retryMicroflows";
   children?: ExplorerTreeNode[];
   defaultOpen?: boolean;
@@ -222,6 +223,7 @@ export function AppExplorerContainer({ adapterBundle, workspaceId, refreshToken,
   const setModuleMicroflows = useMendixStudioStore(state => state.setModuleMicroflows);
   const openMicroflowWorkbenchTab = useMendixStudioStore(state => state.openMicroflowWorkbenchTab);
   const removeStudioMicroflow = useMendixStudioStore(state => state.removeStudioMicroflow);
+  const validationSummaryByMicroflowId = useMendixStudioStore(state => state.validationSummaryByMicroflowId);
 
   const moduleNode = useMemo(() => STATIC_TREE_DATA[0], []);
   const moduleId = getCurrentExplorerModuleId(moduleNode);
@@ -321,6 +323,7 @@ export function AppExplorerContainer({ adapterBundle, workspaceId, refreshToken,
     const microflowId = node.microflowId;
     const label = node.displayName || node.name || node.label;
     const adapter = adapterBundle?.resourceAdapter;
+    const saveState = useMendixStudioStore.getState().saveStateByMicroflowId[microflowId];
     if (!adapter) {
       Toast.error("无法验证引用关系：缺少 microflow resource adapter。");
       return;
@@ -348,7 +351,7 @@ export function AppExplorerContainer({ adapterBundle, workspaceId, refreshToken,
 
       Modal.confirm({
         title: "确认删除微流",
-        content: `已完成 callers 预检查，未发现 active callers。确认删除 ${label}？`,
+        content: `${saveState?.dirty ? "该微流有未保存更改，删除后本地更改会丢失。" : ""}已完成 callers 预检查，未发现 active callers。确认删除 ${label}？`,
         okText: "删除",
         cancelText: "取消",
         onOk: async () => {
@@ -373,8 +376,8 @@ export function AppExplorerContainer({ adapterBundle, workspaceId, refreshToken,
   }, [adapterBundle, loadMicroflows, onViewMicroflowReferences, removeStudioMicroflow]);
 
   const treeData = useMemo(
-    () => withMicroflowChildren(STATIC_TREE_DATA, createMicroflowStateChildren(microflowStatus, microflows, microflowError)),
-    [microflowError, microflowStatus, microflows]
+    () => withMicroflowChildren(STATIC_TREE_DATA, createMicroflowStateChildren(microflowStatus, microflows, microflowError, validationSummaryByMicroflowId)),
+    [microflowError, microflowStatus, microflows, validationSummaryByMicroflowId]
   );
 
   const handleSelect = useCallback((node: ExplorerTreeNode) => {

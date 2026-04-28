@@ -18,7 +18,11 @@ import type { AnalyzeMicroflowImpactRequest, GetMicroflowReferencesRequest } fro
  */
 export interface SaveMicroflowSchemaOptions {
   baseVersion?: string;
+  schemaId?: string;
+  version?: string;
   saveReason?: string;
+  clientRequestId?: string;
+  force?: boolean;
 }
 
 export interface MicroflowResourceAdapter {

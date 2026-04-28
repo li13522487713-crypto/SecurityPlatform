@@ -7,6 +7,9 @@ public sealed record MicroflowValidationIssueDto
     [JsonPropertyName("id")]
     public string Id { get; init; } = string.Empty;
 
+    [JsonPropertyName("microflowId")]
+    public string MicroflowId { get; init; } = string.Empty;
+
     [JsonPropertyName("severity")]
     public string Severity { get; init; } = "error";
 
@@ -36,6 +39,12 @@ public sealed record MicroflowValidationIssueDto
 
     [JsonPropertyName("source")]
     public string? Source { get; init; }
+
+    [JsonPropertyName("blockSave")]
+    public bool BlockSave { get; init; }
+
+    [JsonPropertyName("blockPublish")]
+    public bool BlockPublish { get; init; }
 
     [JsonPropertyName("quickFixes")]
     public IReadOnlyList<MicroflowValidationQuickFixDto> QuickFixes { get; init; } = Array.Empty<MicroflowValidationQuickFixDto>();

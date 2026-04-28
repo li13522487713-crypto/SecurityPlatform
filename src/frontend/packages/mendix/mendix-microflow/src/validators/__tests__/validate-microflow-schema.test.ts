@@ -129,12 +129,24 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_LIST_OPERATION_SOURCE_MISSING", severity: "error" })]));
   });
 
-  it("reports stale Object Activity entity as a domain model issue", () => {
+  it("reports stale Object Activity entity as a metadata issue", () => {
     const createObject = actionObject("activity:objectCreate", "create-object");
     const stale = { ...createObject, action: { ...createObject.action, entityQualifiedName: "Missing.Entity", outputVariableName: "missingEntity" } };
     const issues = validate(schemaWith([objectFrom("startEvent", "start"), stale, objectFrom("endEvent", "end")]));
 
-    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_METADATA_ENTITY_NOT_FOUND", source: "domainModel" })]));
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_METADATA_ENTITY_NOT_FOUND", source: "metadata" })]));
+  });
+
+  it("normalizes issue microflow id and blocker flags", () => {
+    const schema = { ...validSchema(), objectCollection: { ...validSchema().objectCollection, objects: [] } };
+    const issues = validate(schema);
+    const missingStart = issues.find(issue => issue.code === "MF_START_MISSING");
+
+    expect(missingStart).toEqual(expect.objectContaining({
+      microflowId: "MF_VALIDATION_TEST",
+      blockPublish: true,
+    }));
+    expect(missingStart?.id.startsWith("MF_VALIDATION_TEST:")).toBe(true);
   });
 
   it("keeps A/B schema validation isolated and does not mutate input", () => {

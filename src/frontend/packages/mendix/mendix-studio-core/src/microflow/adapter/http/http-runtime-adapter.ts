@@ -130,16 +130,20 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
     },
     async validateMicroflow(request) {
       const id = request.schema.id;
+      const mode = (request as { mode?: "edit" | "save" | "publish" | "testRun" }).mode ?? "edit";
       const response = await client.post<{ issues: ValidateMicroflowResponse["issues"]; summary?: { errorCount: number } }>(`/api/microflows/${encodeURIComponent(id)}/validate`, {
         schema: request.schema,
-        mode: "edit",
+        mode,
         includeWarnings: true,
         includeInfo: true,
       });
       const issues = response.issues.map(issue => ({
         ...issue,
-        id: issue.id.startsWith("server:") ? issue.id : `server:${issue.id}`,
-        source: "server" as const,
+        id: issue.id.startsWith(`${id}:server:`) ? issue.id : `${id}:server:${issue.id}`,
+        microflowId: id,
+        source: issue.source ?? "server" as const,
+        blockSave: issue.blockSave ?? issue.severity === "error",
+        blockPublish: issue.blockPublish ?? issue.severity === "error",
       }));
       return {
         valid: response.summary ? response.summary.errorCount === 0 : issues.every(issue => issue.severity !== "error"),
@@ -147,16 +151,32 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       };
     },
     async testRunMicroflow(request): Promise<TestRunMicroflowResponse> {
-      const id = request.microflowId ?? request.schema.id;
+      const id = request.microflowId ?? request.schema?.id;
+      if (!id) {
+        throw new Error("Microflow test-run requires microflowId.");
+      }
       const response = await client.post<{ session: MicroflowRunSession }>(`/api/microflows/${encodeURIComponent(id)}/test-run`, {
         schema: request.schema,
         input: request.input,
+        inputs: request.input,
+        schemaId: request.schemaId,
+        version: request.version,
+        debug: request.debug ?? true,
+        correlationId: request.correlationId,
         options: request.options,
       });
       const session = response.session;
+      const errorCode = session.error?.code ?? session.trace?.find(frame => frame.error)?.error?.code;
+      const status = errorCode?.toUpperCase().includes("UNSUPPORTED")
+        ? "unsupported"
+        : session.status === "success"
+          ? "succeeded"
+          : session.status === "failed"
+            ? "failed"
+            : "cancelled";
       return {
         runId: session.id,
-        status: session.status === "success" ? "succeeded" : session.status === "failed" ? "failed" : "cancelled",
+        status,
         startedAt: session.startedAt,
         durationMs: session.endedAt ? Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) : 0,
         frames: session.trace,

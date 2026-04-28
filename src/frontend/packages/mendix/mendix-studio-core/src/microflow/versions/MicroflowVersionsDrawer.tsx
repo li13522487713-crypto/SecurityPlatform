@@ -94,6 +94,11 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
           await loadVersions();
         } catch (caught) {
           Toast.error(getMicroflowErrorUserMessage(caught));
+          Modal.error({
+            title: "回滚失败",
+            width: 560,
+            content: <MicroflowErrorState error={caught} compact />
+          });
         }
       }
     });

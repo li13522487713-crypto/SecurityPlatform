@@ -50,9 +50,10 @@ export function MendixStudioApp({
       : undefined
   );
   const dirtyByWorkbenchTabId = useMendixStudioStore(state => state.dirtyByWorkbenchTabId);
+  const saveStateByMicroflowId = useMendixStudioStore(state => state.saveStateByMicroflowId);
   const setStudioContext = useMendixStudioStore(state => state.setStudioContext);
   const microflowResourcesById = useMendixStudioStore(state => state.microflowResourcesById);
-  const markWorkbenchTabDirty = useMendixStudioStore(state => state.markWorkbenchTabDirty);
+  const markMicroflowDirty = useMendixStudioStore(state => state.markMicroflowDirty);
   const upsertStudioMicroflow = useMendixStudioStore(state => state.upsertStudioMicroflow);
   const updateMicroflowWorkbenchTabFromResource = useMendixStudioStore(state => state.updateMicroflowWorkbenchTabFromResource);
   const openMicroflowWorkbenchTab = useMendixStudioStore(state => state.openMicroflowWorkbenchTab);
@@ -98,7 +99,8 @@ export function MendixStudioApp({
 
   useEffect(() => {
     const hasDirtyTab = Object.values(dirtyByWorkbenchTabId).some(Boolean);
-    if (!hasDirtyTab) {
+    const hasSavingTab = Object.values(saveStateByMicroflowId).some(state => state.saving || state.queued);
+    if (!hasDirtyTab && !hasSavingTab) {
       return undefined;
     }
 
@@ -108,7 +110,7 @@ export function MendixStudioApp({
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [dirtyByWorkbenchTabId]);
+  }, [dirtyByWorkbenchTabId, saveStateByMicroflowId]);
 
   return (
     <div
@@ -177,7 +179,7 @@ export function MendixStudioApp({
                       onRefreshResourceList={() => setMicroflowResourceRefreshToken(token => token + 1)}
                       onCloseTab={() => closeWorkbenchTab(activeMicroflowTabId, { force: true })}
                       onOpenMicroflow={openMicroflowWorkbenchTab}
-                      onDirtyChange={dirty => markWorkbenchTabDirty(activeMicroflowTabId, dirty)}
+                      onDirtyChange={dirty => markMicroflowDirty(activeMicroflowId, dirty)}
                       onResourceUpdated={resource => {
                         const view = mapMicroflowResourceToStudioDefinitionView(resource);
                         upsertStudioMicroflow(view);

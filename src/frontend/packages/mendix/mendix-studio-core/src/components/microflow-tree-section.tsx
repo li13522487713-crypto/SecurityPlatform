@@ -1,4 +1,5 @@
 import type { MicroflowApiError } from "../microflow/contracts/api/api-envelope";
+import type { MicroflowValidationSummary } from "../store";
 import type { StudioMicroflowDefinitionView } from "../microflow/studio/studio-microflow-types";
 import type { ExplorerTreeNode, MicroflowLoadStatus } from "./app-explorer";
 
@@ -7,7 +8,8 @@ export const MicroflowsSectionKey = "microflows";
 export function createMicroflowStateChildren(
   status: MicroflowLoadStatus,
   microflows: StudioMicroflowDefinitionView[],
-  error?: MicroflowApiError
+  error?: MicroflowApiError,
+  validationSummaryByMicroflowId: Record<string, MicroflowValidationSummary> = {}
 ): ExplorerTreeNode[] {
   if (status === "loading" || status === "idle") {
     return [{ key: "microflows:loading", label: "Loading microflows...", kind: "loading", readonly: true }];
@@ -43,6 +45,7 @@ export function createMicroflowStateChildren(
     status: resource.status,
     publishStatus: resource.publishStatus,
     referenceCount: resource.referenceCount,
+    problemSummary: validationSummaryByMicroflowId[resource.id],
     dynamic: true,
     title: resource.qualifiedName
   }));

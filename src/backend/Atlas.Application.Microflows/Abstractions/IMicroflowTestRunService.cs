@@ -63,6 +63,8 @@ public sealed record MicroflowMockRuntimeRequest
 
     public MicroflowRequestContext RequestContext { get; init; } = new();
 
+    public string? CorrelationId { get; init; }
+
     public RuntimeExecutionContext? ParentRuntimeContext { get; init; }
 
     public MicroflowCallStackFrame? CallFrame { get; init; }

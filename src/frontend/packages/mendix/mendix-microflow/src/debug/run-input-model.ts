@@ -141,8 +141,22 @@ export function coerceRunInputValue(rawValue: unknown, dataType: MicroflowDataTy
   return { value: String(rawValue) };
 }
 
-export function buildRunRequest(schema: MicroflowSchema, values: Record<string, unknown>, options?: MicroflowTestRunOptions): TestRunMicroflowRequest {
-  return { microflowId: schema.id, schema, input: values, options };
+export function buildRunRequest(
+  schema: MicroflowSchema,
+  values: Record<string, unknown>,
+  options?: MicroflowTestRunOptions,
+  includeDraftSchema = false,
+): TestRunMicroflowRequest {
+  return {
+    microflowId: schema.id,
+    input: values,
+    schema: includeDraftSchema ? schema : undefined,
+    schemaId: undefined,
+    version: undefined,
+    debug: true,
+    correlationId: `mf-run-${schema.id}-${Date.now()}`,
+    options,
+  };
 }
 
 export function shouldBlockRun(

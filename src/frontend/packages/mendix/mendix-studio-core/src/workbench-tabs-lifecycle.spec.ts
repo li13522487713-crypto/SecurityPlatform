@@ -57,6 +57,10 @@ beforeEach(() => {
     selectedKind: undefined,
     selectedId: undefined,
     dirtyByWorkbenchTabId: {},
+    saveStateByMicroflowId: {},
+    savingByMicroflowId: {},
+    saveErrorByMicroflowId: {},
+    saveConflictByMicroflowId: {},
     canUndoByWorkbenchTabId: {},
     canRedoByWorkbenchTabId: {},
     pendingCloseTabId: undefined,
@@ -139,5 +143,56 @@ describe("Workbench microflow document lifecycle", () => {
     useMendixStudioStore.getState().removeStudioMicroflow("mf-source");
     expect(useMendixStudioStore.getState().workbenchTabs.some(tab => tab.id === "microflow:mf-source")).toBe(false);
     expect(useMendixStudioStore.getState().activeMicroflowId).toBeUndefined();
+  });
+
+  it("keeps dirty and save status isolated per microflow", () => {
+    const first = createMicroflow({ id: "mf-a", name: "MF_A" });
+    const second = createMicroflow({ id: "mf-b", name: "MF_B" });
+    useMendixStudioStore.getState().setModuleMicroflows("mod_procurement", [first, second]);
+    useMendixStudioStore.getState().openMicroflowWorkbenchTab("mf-a");
+    useMendixStudioStore.getState().openMicroflowWorkbenchTab("mf-b");
+
+    useMendixStudioStore.getState().markMicroflowDirty("mf-a", true);
+    useMendixStudioStore.getState().updateMicroflowSaveState("mf-b", {
+      status: "error",
+      dirty: true,
+      saving: false,
+      queued: false,
+      lastError: { code: "MICROFLOW_SERVICE_UNAVAILABLE", message: "boom" },
+    });
+    useMendixStudioStore.getState().updateMicroflowSaveState("mf-a", {
+      status: "saved",
+      dirty: false,
+      saving: false,
+      queued: false,
+      lastSavedAt: "2026-04-28T01:00:00.000Z",
+    });
+
+    const state = useMendixStudioStore.getState();
+    expect(state.saveStateByMicroflowId["mf-a"].dirty).toBe(false);
+    expect(state.saveStateByMicroflowId["mf-a"].status).toBe("saved");
+    expect(state.saveStateByMicroflowId["mf-b"].dirty).toBe(true);
+    expect(state.saveStateByMicroflowId["mf-b"].status).toBe("error");
+    expect(state.dirtyByWorkbenchTabId["microflow:mf-b"]).toBe(true);
+    expect(state.dirtyByWorkbenchTabId["microflow:mf-a"]).toBeUndefined();
+  });
+
+  it("clears save state on delete but keeps it on rename", () => {
+    const source = createMicroflow({ id: "mf-source", name: "MF_Source", displayName: "Source" });
+    useMendixStudioStore.getState().setModuleMicroflows("mod_procurement", [source]);
+    useMendixStudioStore.getState().openMicroflowWorkbenchTab("mf-source");
+    useMendixStudioStore.getState().updateMicroflowSaveState("mf-source", {
+      status: "dirty",
+      dirty: true,
+      saving: false,
+      queued: false,
+    });
+
+    useMendixStudioStore.getState().renameMicroflowWorkbenchTab("mf-source", "Renamed", "Procurement.Renamed");
+    expect(useMendixStudioStore.getState().saveStateByMicroflowId["mf-source"].dirty).toBe(true);
+
+    useMendixStudioStore.getState().removeStudioMicroflow("mf-source");
+    expect(useMendixStudioStore.getState().saveStateByMicroflowId["mf-source"]).toBeUndefined();
+    expect(useMendixStudioStore.getState().dirtyByWorkbenchTabId["microflow:mf-source"]).toBeUndefined();
   });
 });
