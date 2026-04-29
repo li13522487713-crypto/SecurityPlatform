@@ -3,6 +3,58 @@ using Atlas.Application.Microflows.Runtime.Transactions;
 
 namespace Atlas.Application.Microflows.Runtime.Branches;
 
+public sealed record GatewayToken
+{
+    public string Id { get; init; } = Guid.NewGuid().ToString("N");
+    public string SplitInstanceId { get; init; } = string.Empty;
+    public string BranchId { get; init; } = string.Empty;
+    public string? LoopIterationId { get; init; }
+    public string? CallStackFrameId { get; init; }
+    public string Status { get; init; } = GatewayTokenStatus.Created;
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedAt { get; init; }
+}
+
+public static class GatewayTokenStatus
+{
+    public const string Created = "created";
+    public const string Arrived = "arrived";
+    public const string Completed = "completed";
+    public const string Failed = "failed";
+    public const string Cancelled = "cancelled";
+    public const string Handled = "handled";
+}
+
+public sealed record GatewayTokenSet
+{
+    public string SplitInstanceId { get; init; } = string.Empty;
+    public IReadOnlyList<GatewayToken> Tokens { get; init; } = Array.Empty<GatewayToken>();
+
+    public IReadOnlyList<GatewayToken> ActiveTokens => Tokens
+        .Where(static token => token.Status is GatewayTokenStatus.Created or GatewayTokenStatus.Arrived)
+        .ToArray();
+
+    public bool IsComplete => Tokens.Count > 0 && Tokens.All(static token =>
+        token.Status is GatewayTokenStatus.Completed or GatewayTokenStatus.Failed or GatewayTokenStatus.Cancelled or GatewayTokenStatus.Handled);
+}
+
+public readonly record struct SplitInstanceId(string Value)
+{
+    public static SplitInstanceId New(string? prefix = null)
+        => new($"{(string.IsNullOrWhiteSpace(prefix) ? "split" : prefix)}-{Guid.NewGuid():N}");
+
+    public override string ToString() => Value;
+}
+
+public sealed record ActivationSet
+{
+    public string SplitInstanceId { get; init; } = string.Empty;
+    public IReadOnlySet<string> ActiveBranchIds { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+    public string? OtherwiseBranchId { get; init; }
+
+    public bool Contains(string branchId) => ActiveBranchIds.Contains(branchId);
+}
+
 public sealed record MicroflowBranchExecutionRequest
 {
     public string BranchId { get; init; } = Guid.NewGuid().ToString("N");

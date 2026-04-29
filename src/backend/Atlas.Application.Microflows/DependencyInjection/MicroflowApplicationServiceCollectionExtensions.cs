@@ -92,6 +92,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowCallStackService, MicroflowCallStackService>();
         services.TryAddScoped<IMicroflowLoopExecutor, MicroflowLoopExecutor>();
         services.TryAddScoped<IBranchScheduler, SequentialBranchScheduler>();
+        services.TryAddScoped<ParallelBranchScheduler>();
         services.TryAddScoped<IBranchUnitOfWorkFactory, DefaultBranchUnitOfWorkFactory>();
         services.TryAddSingleton<IGatewayJoinStateStore, InMemoryGatewayJoinStateStore>();
         services.TryAddScoped<IMicroflowRuntimeConnectorRegistry, MicroflowRuntimeConnectorRegistry>();
