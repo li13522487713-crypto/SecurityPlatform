@@ -18,6 +18,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
 {
     private static readonly Regex MicroflowNameRegex = new("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.Compiled);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const int SaveIdempotencyWindowMinutes = 30;
 
     private readonly IMicroflowResourceRepository _resourceRepository;
     private readonly IMicroflowFolderRepository _folderRepository;
@@ -27,6 +28,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
+    private readonly Dictionary<string, SaveMicroflowSchemaResponseDto> _saveResponsesByClientRequestId = new(StringComparer.Ordinal);
 
     public MicroflowResourceService(
         IMicroflowResourceRepository resourceRepository,
@@ -282,12 +284,17 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var resource = await LoadResourceAsync(id, cancellationToken);
         EnsureEditable(resource);
         var currentSnapshot = await LoadCurrentSnapshotAsync(resource, false, cancellationToken);
+        if (TryReadLastSaveIdempotency(resource, request.ClientRequestId, out var cachedResponse)
+            && cachedResponse is not null)
+        {
+            return cachedResponse;
+        }
+
         var baseVersion = request.BaseVersion
             ?? request.SchemaId
             ?? request.Version;
         if (!request.Force
             && !string.IsNullOrWhiteSpace(baseVersion)
-            && !string.Equals(baseVersion, resource.Version, StringComparison.Ordinal)
             && !string.Equals(baseVersion, resource.Version, StringComparison.Ordinal)
             && !string.Equals(baseVersion, resource.ConcurrencyStamp, StringComparison.Ordinal)
             && !string.Equals(baseVersion, currentSnapshot?.Id, StringComparison.Ordinal)
@@ -297,7 +304,17 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
                 MicroflowApiErrorCode.MicroflowVersionConflict,
                 "微流 Schema 已被其他操作更新，请刷新后重试。",
                 409,
-                details: resource.SchemaId ?? resource.Version);
+                details: JsonSerializer.Serialize(
+                    new MicroflowSaveConflictDetailsDto
+                    {
+                        RemoteVersion = resource.Version,
+                        RemoteSchemaId = currentSnapshot?.Id ?? resource.SchemaId,
+                        RemoteUpdatedAt = resource.UpdatedAt,
+                        RemoteUpdatedBy = resource.UpdatedBy,
+                        RemoteConcurrencyStamp = resource.ConcurrencyStamp,
+                        BaseVersion = baseVersion
+                    },
+                    JsonOptions));
         }
 
         if (!request.Schema.HasValue)
@@ -321,6 +338,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         }
 
         Touch(resource, context);
+        RememberSaveIdempotency(resource, request.ClientRequestId, snapshot, changedAfterPublish, resource.UpdatedAt);
         await _resourceRepository.UpdateAsync(resource, cancellationToken);
         await TryRebuildOutgoingReferencesAsync(resource.Id, cancellationToken);
 
@@ -329,7 +347,9 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             Resource = MicroflowResourceMapper.ToDto(resource, snapshot),
             SchemaVersion = snapshot.SchemaVersion,
             UpdatedAt = resource.UpdatedAt,
-            ChangedAfterPublish = changedAfterPublish
+            ChangedAfterPublish = changedAfterPublish,
+            ClientRequestId = request.ClientRequestId,
+            SaveReason = request.SaveReason
         };
     }
 
@@ -778,6 +798,103 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         resource.UpdatedBy = context.UserId;
     }
 
+    private static bool TryReadLastSaveIdempotency(
+        MicroflowResourceEntity resource,
+        string? clientRequestId,
+        out SaveMicroflowSchemaResponseDto? response)
+    {
+        response = null;
+        if (string.IsNullOrWhiteSpace(clientRequestId) || string.IsNullOrWhiteSpace(resource.ExtraJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            var extra = JsonNode.Parse(resource.ExtraJson) as JsonObject;
+            var node = extra?["microflow"]?["lastSaveIdempotency"];
+            var idempotency = node?.Deserialize<MicroflowLastSaveIdempotencyDto>(JsonOptions);
+            if (idempotency is null
+                || !string.Equals(idempotency.ClientRequestId, clientRequestId, StringComparison.Ordinal)
+                || idempotency.SavedAt < DateTimeOffset.UtcNow.AddMinutes(-SaveIdempotencyWindowMinutes))
+            {
+                return false;
+            }
+
+            response = new SaveMicroflowSchemaResponseDto
+            {
+                Resource = MicroflowResourceMapper.ToDto(resource),
+                SchemaVersion = idempotency.SchemaVersion,
+                UpdatedAt = idempotency.UpdatedAt,
+                ChangedAfterPublish = idempotency.ChangedAfterPublish,
+                ClientRequestId = clientRequestId,
+                SaveReason = idempotency.SaveReason,
+                IdempotentReplay = true
+            };
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static void RememberSaveIdempotency(
+        MicroflowResourceEntity resource,
+        string? clientRequestId,
+        MicroflowSchemaSnapshotEntity snapshot,
+        bool changedAfterPublish,
+        DateTimeOffset updatedAt)
+    {
+        if (string.IsNullOrWhiteSpace(clientRequestId))
+        {
+            return;
+        }
+
+        JsonObject extra;
+        try
+        {
+            extra = string.IsNullOrWhiteSpace(resource.ExtraJson)
+                ? new JsonObject()
+                : JsonNode.Parse(resource.ExtraJson) as JsonObject ?? new JsonObject();
+        }
+        catch (JsonException)
+        {
+            extra = new JsonObject();
+        }
+
+        var microflow = extra["microflow"] as JsonObject ?? new JsonObject();
+        microflow["lastSaveIdempotency"] = JsonSerializer.SerializeToNode(new MicroflowLastSaveIdempotencyDto
+        {
+            ClientRequestId = clientRequestId,
+            SchemaId = snapshot.Id,
+            SchemaVersion = snapshot.SchemaVersion,
+            SaveReason = snapshot.Reason,
+            UpdatedAt = updatedAt,
+            SavedAt = DateTimeOffset.UtcNow,
+            ChangedAfterPublish = changedAfterPublish
+        }, JsonOptions);
+        extra["microflow"] = microflow;
+        resource.ExtraJson = extra.ToJsonString(JsonOptions);
+    }
+
+    private sealed record MicroflowLastSaveIdempotencyDto
+    {
+        public string ClientRequestId { get; init; } = string.Empty;
+
+        public string SchemaId { get; init; } = string.Empty;
+
+        public string SchemaVersion { get; init; } = string.Empty;
+
+        public string? SaveReason { get; init; }
+
+        public DateTimeOffset UpdatedAt { get; init; }
+
+        public DateTimeOffset SavedAt { get; init; }
+
+        public bool ChangedAfterPublish { get; init; }
+    }
+
     private static JsonElement CreateBlankSchemaElement(
         MicroflowCreateInputDto input,
         string id,
@@ -893,5 +1010,25 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string? ReadStringProperty(string? json, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 }
