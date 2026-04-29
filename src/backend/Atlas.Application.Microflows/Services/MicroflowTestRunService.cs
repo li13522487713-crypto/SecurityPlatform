@@ -212,8 +212,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     public async Task<CancelMicroflowRunResponse> CancelAsync(string runId, CancellationToken cancellationToken)
     {
-        var session = await _runRepository.GetSessionAsync(runId, cancellationToken)
-            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
+        var session = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
 
         // P0-6: 真正中断正在执行的引擎主循环。即使 cancellation registry 没记录
         // (例如 run 已经返回还没写库时的极少数竞态)，也仍然落 DB 状态以保证最终一致。
@@ -237,6 +236,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     public async Task<MicroflowRunSessionDto> GetRunSessionAsync(string runId, CancellationToken cancellationToken)
     {
+        _ = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
         return await BuildRunSessionGraphAsync(runId, cancellationToken);
     }
 
@@ -245,6 +245,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         string runId,
         CancellationToken cancellationToken)
     {
+        _ = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
         var session = await BuildRunSessionGraphAsync(runId, cancellationToken);
         if (!string.Equals(session.ResourceId, resourceId, StringComparison.Ordinal))
         {
@@ -297,8 +298,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     public async Task<GetMicroflowRunTraceResponse> GetRunTraceAsync(string runId, CancellationToken cancellationToken)
     {
-        _ = await _runRepository.GetSessionAsync(runId, cancellationToken)
-            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
+        _ = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
         var frames = await _runRepository.ListTraceFramesAsync(runId, cancellationToken);
         var logs = await _runRepository.ListLogsAsync(runId, cancellationToken);
         return new GetMicroflowRunTraceResponse
@@ -440,6 +440,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         {
             Id = frame.Id,
             RunId = session.Id,
+            WorkspaceId = resource.WorkspaceId,
+            TenantId = resource.TenantId,
             Sequence = index + 1,
             ObjectId = frame.ObjectId,
             ActionId = frame.ActionId,
@@ -474,6 +476,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         {
             Id = Guid.NewGuid().ToString("N"),
             RunId = session.Id,
+            WorkspaceId = resource.WorkspaceId,
+            TenantId = resource.TenantId,
             Timestamp = log.Timestamp,
             Level = log.Level,
             ObjectId = log.ObjectId,
