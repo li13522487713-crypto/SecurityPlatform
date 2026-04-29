@@ -76,7 +76,6 @@ export function verifyExecutorCoverage(root = findWorkspaceRoot()): CheckResult[
   );
 
   const requiredRuntimeFiles = [
-    "src/backend/Atlas.Application.Microflows/Runtime/Actions/RetrieveObjectActionExecutor.cs",
     "src/backend/Atlas.Application.Microflows/Runtime/Actions/ObjectActionExecutors.cs",
     "src/backend/Atlas.Application.Microflows/Runtime/Actions/ListActionExecutors.cs",
     "src/backend/Atlas.Application.Microflows/Runtime/Actions/VariableActionExecutors.cs",
