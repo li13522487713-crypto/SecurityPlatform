@@ -4,7 +4,7 @@ import {
   detectLegacyAliasesInText,
   parseBackendDescriptorsFromSource,
   parseMarkdownMatrixActionKinds,
-} from "../../../../../../scripts/microflow-production-gate-lib";
+} from "../../../../../../../scripts/microflow-production-gate-lib";
 
 describe("microflow production gate collectors", () => {
   it("parses backend descriptor factories and connector gates", () => {
