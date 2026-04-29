@@ -53,9 +53,25 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         CancellationToken cancellationToken)
     {
         var context = _requestContextAccessor.Current;
+        var workspaceId = request.WorkspaceId ?? context.WorkspaceId;
+        // P0-8: 列表强制要求 workspaceId/tenantId，否则会跨租户/工作区返回。
+        if (string.IsNullOrWhiteSpace(workspaceId))
+        {
+            throw new MicroflowApiException(
+                MicroflowApiErrorCode.MicroflowWorkspaceForbidden,
+                "微流列表必须指定 workspaceId（query 或 X-Workspace-Id header）。",
+                403);
+        }
+        if (string.IsNullOrWhiteSpace(context.TenantId))
+        {
+            throw new MicroflowApiException(
+                MicroflowApiErrorCode.MicroflowWorkspaceForbidden,
+                "微流列表缺少租户上下文。",
+                403);
+        }
         var query = new MicroflowResourceQueryDto
         {
-            WorkspaceId = request.WorkspaceId ?? context.WorkspaceId,
+            WorkspaceId = workspaceId,
             TenantId = context.TenantId,
             Keyword = request.Keyword,
             Status = request.Status,
@@ -568,7 +584,30 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
         }
 
+        EnsureScoped(resource);
         return resource;
+    }
+
+    /// <summary>
+    /// P0-8: 强制单资源命中的 microflow 必须属于当前请求上下文的 workspace/tenant；
+    /// 不一致时统一抛 <see cref="MicroflowApiErrorCode.MicroflowNotFound"/>(404) 不暴露存在性。
+    /// 仅在请求上下文显式给出 workspace 时校验，避免把后台/系统级调用误拦。
+    /// </summary>
+    private void EnsureScoped(MicroflowResourceEntity resource)
+    {
+        var ctx = _requestContextAccessor.Current;
+        if (!string.IsNullOrWhiteSpace(ctx.WorkspaceId)
+            && !string.IsNullOrWhiteSpace(resource.WorkspaceId)
+            && !string.Equals(resource.WorkspaceId, ctx.WorkspaceId, StringComparison.Ordinal))
+        {
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
+        }
+        if (!string.IsNullOrWhiteSpace(ctx.TenantId)
+            && !string.IsNullOrWhiteSpace(resource.TenantId)
+            && !string.Equals(resource.TenantId, ctx.TenantId, StringComparison.Ordinal))
+        {
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
+        }
     }
 
     private async Task<MicroflowFolderEntity?> ResolveFolderAsync(
