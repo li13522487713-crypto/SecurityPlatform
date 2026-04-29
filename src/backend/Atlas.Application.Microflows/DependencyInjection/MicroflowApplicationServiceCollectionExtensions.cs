@@ -63,6 +63,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<CommitObjectActionExecutor>();
         services.TryAddScoped<DeleteObjectActionExecutor>();
         services.TryAddScoped<RollbackObjectActionExecutor>();
+        services.TryAddScoped<CastObjectActionExecutor>();
         services.TryAddScoped<CreateListActionExecutor>();
         services.TryAddScoped<ChangeListActionExecutor>();
         services.TryAddScoped<AggregateListActionExecutor>();

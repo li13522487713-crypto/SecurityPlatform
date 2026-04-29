@@ -140,6 +140,16 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             }
         }
 
+        if (string.Equals(actionKind, "cast", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<CastObjectActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (string.Equals(actionKind, "createList", StringComparison.OrdinalIgnoreCase))
         {
             var specialized = _serviceProvider?.GetService<CreateListActionExecutor>();
@@ -301,10 +311,9 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Server("rollback", "RollbackAction", "object", "RollbackObjectActionExecutor",
                 producesVariables: false, producesTransaction: true,
                 reason: "Rollback reverts staged runtime object changes through UnitOfWork/transaction tracking and reports reverted/noop/invalidated status."),
-            Server("cast", "CastObjectAction", "object", "ConfiguredMicroflowActionExecutor",
+            Server("cast", "CastObjectAction", "object", "CastObjectActionExecutor",
                 producesVariables: true, producesTransaction: false,
-                supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted,
-                reason: "Cast 当前由 ConfiguredMicroflowActionExecutor 返回 success；真实 CastObjectActionExecutor（按 metadata 校验继承/实现关系，失败返回 RUNTIME_TYPE_MISMATCH）待 P1 后续轮次补齐。"),
+                reason: "Cast validates runtime object metadata inheritance, entity access, strict/allowNull modes, and binds a typed object variable."),
 
             Server("createList", "CreateListAction", "list", "CreateListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("changeList", "ChangeListAction", "list", "ChangeListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
