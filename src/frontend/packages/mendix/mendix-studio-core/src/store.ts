@@ -247,26 +247,7 @@ const INITIAL_MICROFLOW_SCHEMA: MicroflowSchema = {
   }
 };
 
-const INITIAL_WORKBENCH_TABS: StudioWorkbenchTab[] = [
-  {
-    id: "page",
-    kind: "page",
-    title: "PurchaseRequest_EditPage",
-    resourceId: "page_purchase_request_edit",
-    closable: false,
-    openedAt: "2026-04-28T00:00:00.000Z",
-    historyKey: "page"
-  },
-  {
-    id: "workflow",
-    kind: "workflow",
-    title: "WF_PurchaseApproval",
-    resourceId: "wf_purchase_approval",
-    closable: false,
-    openedAt: "2026-04-28T00:00:00.000Z",
-    historyKey: "workflow"
-  }
-];
+const INITIAL_WORKBENCH_TABS: StudioWorkbenchTab[] = [];
 
 function getStudioTabForWorkbenchKind(kind: StudioWorkbenchTabKind): MendixStudioTab {
   switch (kind) {
@@ -385,9 +366,9 @@ function summarizeMicroflowValidationIssues(
 export const useMendixStudioStore = create<StudioState>((set, get) => ({
   appSchema: EMPTY_APP_SCHEMA,
   activeTab: "pageBuilder",
-  activeTabId: "page",
+  activeTabId: undefined,
   workbenchTabs: INITIAL_WORKBENCH_TABS,
-  activeWorkbenchTabId: "page",
+  activeWorkbenchTabId: undefined,
   dirtyByWorkbenchTabId: {},
   saveStateByMicroflowId: {},
   savingByMicroflowId: {},
@@ -395,8 +376,8 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   saveConflictByMicroflowId: {},
   canUndoByWorkbenchTabId: {},
   canRedoByWorkbenchTabId: {},
-  selectedWidgetId: "widget_submit_btn",
-  selectedExplorerNodeId: "page_purchase_request_edit",
+  selectedWidgetId: "",
+  selectedExplorerNodeId: "",
   previewMode: false,
   inspectorTab: "property",
   bottomTab: "errors",
@@ -422,7 +403,7 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   setActiveTabId: activeTabId => {
     const tab = get().workbenchTabs.find(item => item.id === activeTabId);
     if (!tab) {
-      set({ activeTabId, activeWorkbenchTabId: activeTabId });
+      console.warn(`[MendixStudioStore] Cannot activate missing workbench tab: ${activeTabId}`);
       return;
     }
     get().setActiveWorkbenchTab(tab.id);

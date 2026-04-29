@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   WorkflowDocument,
   WorkflowSelectService,
+  type WorkflowEdgeJSON,
   type WorkflowJSON,
   useService,
 } from "@flowgram-adapter/free-layout-editor";
@@ -25,6 +26,33 @@ import { getCaseEditorKind } from "../adapters/flowgram-case-options";
 import { FlowGramMicroflowBridgeService } from "../FlowGramMicroflowEvents";
 import type { FlowGramMicroflowPendingLine, FlowGramMicroflowSelection } from "../FlowGramMicroflowTypes";
 
+export function hasSameNodeAndEdgeIdentity(a: WorkflowJSON | undefined, b: WorkflowJSON | undefined): boolean {
+  if (!a || !b) {
+    return false;
+  }
+  const nodeIdentity = (json: WorkflowJSON) => (json.nodes ?? [])
+    .map(node => {
+      const meta = node.meta as { parentObjectId?: string; collectionId?: string } | undefined;
+      return [String(node.id), String(node.type ?? ""), meta?.parentObjectId ?? "", meta?.collectionId ?? ""].join("::");
+    })
+    .sort()
+    .join("|");
+  const edgeIdentity = (json: WorkflowJSON) => (json.edges ?? [])
+    .map(edge => {
+      const edgeData = edge as WorkflowEdgeJSON & { id?: string };
+      return [
+        String(edgeData.id ?? ""),
+        String(edge.sourceNodeID ?? ""),
+        String(edge.sourcePortID ?? ""),
+        String(edge.targetNodeID ?? ""),
+        String(edge.targetPortID ?? ""),
+      ].join("::");
+    })
+    .sort()
+    .join("|");
+  return nodeIdentity(a) === nodeIdentity(b) && edgeIdentity(a) === edgeIdentity(b);
+}
+
 function portById(schema: MicroflowSchema, portId?: string) {
   if (!portId) {
     return undefined;
@@ -45,6 +73,7 @@ export function useFlowGramMicroflowBridge(params: {
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
   const bridgeService = useService<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeService);
   const reloadingRef = useRef(false);
+  const pendingInternalPositionSyncRef = useRef(false);
   const latestSchemaRef = useRef(params.schema);
   const paramsRef = useRef(params);
   paramsRef.current = params;
@@ -57,8 +86,16 @@ export function useFlowGramMicroflowBridge(params: {
   );
 
   useEffect(() => {
+    if (
+      pendingInternalPositionSyncRef.current &&
+      hasSameNodeAndEdgeIdentity(doc.toJSON() as WorkflowJSON, workflowJson)
+    ) {
+      pendingInternalPositionSyncRef.current = false;
+      return;
+    }
     reloadingRef.current = true;
     void Promise.resolve(doc.fromJSON(workflowJson)).finally(() => {
+      pendingInternalPositionSyncRef.current = false;
       reloadingRef.current = false;
     });
   }, [doc, workflowJson]);
@@ -123,8 +160,11 @@ export function useFlowGramMicroflowBridge(params: {
         }
         return;
       }
-      const patch = flowGramPositionPatch(schema, json);
+      const patch = flowGramPositionPatch(schema, json, {
+        gridEnabled: schema.editor.gridEnabled !== false,
+      });
       if (patch.movedNodes?.length || patch.resizedNodes?.length) {
+        pendingInternalPositionSyncRef.current = true;
         paramsRef.current.onSchemaChange(applyEditorGraphPatchToAuthoring(schema, patch), "flowgramNodeMove");
       }
     });

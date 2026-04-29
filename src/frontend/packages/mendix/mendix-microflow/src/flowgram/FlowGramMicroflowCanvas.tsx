@@ -11,8 +11,11 @@ import {
 
 import {
   canDragRegistryItem,
+  canCreateRegistryItem,
   getDisabledDragReason,
+  hasMicroflowNodeDragType,
   microflowNodeRegistryByKey,
+  readMicroflowNodeDragPayload,
   type MicroflowNodeDragPayload,
   type MicroflowNodeRegistryItem,
 } from "../node-registry";
@@ -28,6 +31,7 @@ import {
   clientPointToFlowGramPoint,
   flowGramPointToAuthoringPoint,
   getFlowGramCanvasContainerRect,
+  MICROFLOW_GRID_SIZE,
   snapMicroflowPoint,
 } from "./adapters/flowgram-coordinate";
 import type { FlowGramMicroflowPendingLine, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
@@ -46,7 +50,12 @@ export interface FlowGramMicroflowCanvasProps {
   readonly?: boolean;
   onSchemaChange: (nextSchema: MicroflowSchema, reason: string) => void;
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
-  onDropRegistryItem?: (item: MicroflowNodeRegistryItem, position: MicroflowPoint, payload: MicroflowNodeDragPayload) => void;
+  onDropRegistryItem?: (
+    item: MicroflowNodeRegistryItem,
+    position: MicroflowPoint,
+    payload: MicroflowNodeDragPayload,
+    options?: { parentLoopObjectId?: string },
+  ) => void;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
@@ -55,19 +64,6 @@ export interface FlowGramMicroflowCanvasProps {
   onViewportChange?: (viewport: MicroflowSchema["editor"]["viewport"]) => void;
   onToggleMiniMap?: (visible: boolean) => void;
   onToggleGrid?: (enabled: boolean) => void;
-}
-
-function readNodeDragPayload(dataTransfer: DataTransfer): MicroflowNodeDragPayload | undefined {
-  const raw = dataTransfer.getData("application/x-atlas-microflow-node") || dataTransfer.getData("application/json");
-  if (!raw) {
-    return undefined;
-  }
-  try {
-    const parsed = JSON.parse(raw) as MicroflowNodeDragPayload;
-    return parsed.dragType === "microflow-node" ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSchema; onFocusNode: (objectId: string) => void }) {
@@ -198,7 +194,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pendingCaseLine, setPendingCaseLine] = useState<FlowGramMicroflowPendingLine>();
   const [dropActive, setDropActive] = useState(false);
-  const miniMapVisible = props.schema.editor.showMiniMap !== false;
+  const miniMapVisible = props.schema.editor.showMiniMap === true;
   const gridEnabled = props.schema.editor.gridEnabled !== false;
   const bridge = useFlowGramMicroflowBridge({
     schema: props.schema,
@@ -217,18 +213,23 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     [pendingCaseLine, props.schema, metadataCatalog],
   );
 
+  useEffect(() => {
+    const config = playground.config as typeof playground.config & { readonly?: boolean };
+    const previous = config.readonly;
+    config.readonly = Boolean(props.readonly);
+    return () => {
+      config.readonly = previous;
+    };
+  }, [playground.config, props.readonly]);
+
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
-    const payload = readNodeDragPayload(event.dataTransfer);
-    if (!payload || props.readonly) {
-      return;
-    }
-    const item = microflowNodeRegistryByKey.get(payload.registryKey);
-    if (!item || !canDragRegistryItem(item)) {
-      event.dataTransfer.dropEffect = "none";
+    if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {
       return;
     }
     event.preventDefault();
+    event.stopPropagation();
     event.dataTransfer.dropEffect = "copy";
+    setDropActive(true);
   };
 
   const dropPointFromEvent = (event: DragEvent<HTMLDivElement>): MicroflowPoint => {
@@ -238,25 +239,34 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       clientPointToFlowGramPoint({ x: event.clientX, y: event.clientY }, rect, viewport),
     );
     const rawPosition = playground.config.getPosFromMouseEvent?.(event.nativeEvent) ?? fallback;
-    return snapMicroflowPoint({ x: rawPosition.x, y: rawPosition.y });
+    const position = { x: rawPosition.x, y: rawPosition.y };
+    return gridEnabled ? snapMicroflowPoint(position, MICROFLOW_GRID_SIZE) : position;
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-    setDropActive(false);
-    const payload = readNodeDragPayload(event.dataTransfer);
-    if (!payload || props.readonly) {
+    if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {
       return;
     }
     event.preventDefault();
     event.stopPropagation();
+    setDropActive(false);
+    const payload = readMicroflowNodeDragPayload(event.dataTransfer);
+    if (!payload) {
+      Toast.warning("无法读取拖拽的微流节点。");
+      return;
+    }
     const item = microflowNodeRegistryByKey.get(payload.registryKey);
     if (!item) {
       console.warn(`Unknown microflow node registry key: ${payload.registryKey}`);
-      Toast.warning("Unknown microflow node type.");
+      Toast.warning("未找到对应的微流节点定义。");
       return;
     }
     if (!canDragRegistryItem(item)) {
       Toast.warning(getDisabledDragReason(item) ?? "This node cannot be added to Microflow.");
+      return;
+    }
+    if (!canCreateRegistryItem(item, { microflowId: props.schema.id, schemaLoaded: true, readonly: props.readonly })) {
+      Toast.warning("该节点当前不可拖拽创建。");
       return;
     }
     const loopTarget = getLoopContainerByClientPoint(containerRef.current, { x: event.clientX, y: event.clientY });
@@ -264,7 +274,9 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       props.onSelectionChange({ objectId: loopTarget.loopObjectId, flowId: undefined });
       return;
     }
-    props.onDropRegistryItem?.(item, dropPointFromEvent(event), payload);
+    props.onDropRegistryItem?.(item, dropPointFromEvent(event), payload, {
+      parentLoopObjectId: loopTarget?.isBody ? loopTarget.loopObjectId : undefined,
+    });
   };
 
   const focusNodeFromMiniMap = (objectId: string) => {
@@ -311,18 +323,20 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     <div
       ref={containerRef}
       className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}${gridEnabled ? "" : " is-grid-hidden"}`}
-      onDragEnter={event => {
-        if (readNodeDragPayload(event.dataTransfer) && !props.readonly) {
-          setDropActive(true);
+      onDragEnterCapture={event => {
+        if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {
+          return;
         }
+        event.preventDefault();
+        setDropActive(true);
       }}
-      onDragOver={handleDragOver}
-      onDragLeave={event => {
-        if (event.currentTarget === event.target) {
+      onDragOverCapture={handleDragOver}
+      onDragLeaveCapture={event => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           setDropActive(false);
         }
       }}
-      onDrop={handleDrop}
+      onDropCapture={handleDrop}
     >
       <PlaygroundReactRenderer />
       <FlowGramMicroflowToolbar

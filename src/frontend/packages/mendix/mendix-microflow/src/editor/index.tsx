@@ -1680,10 +1680,16 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const handleAddNode = (
     item: MicroflowNodeRegistryItem,
-    options?: { source?: "doubleClick" | "contextMenu" | "drop"; position?: { x: number; y: number }; insertFlowId?: string; payload?: MicroflowNodeDragPayload }
+    options?: {
+      source?: "doubleClick" | "contextMenu" | "drop";
+      position?: { x: number; y: number };
+      insertFlowId?: string;
+      payload?: MicroflowNodeDragPayload;
+      parentLoopObjectId?: string;
+    }
   ) => {
     const position = options?.position ?? quickAddPosition();
-    const parentLoopObjectId = findLoopAtPosition(graph, position);
+    const parentLoopObjectId = options?.parentLoopObjectId ?? findLoopAtPosition(graph, position);
     const parentLoopNode = parentLoopObjectId ? graph.nodes.find(node => node.objectId === parentLoopObjectId) : undefined;
     const authoringPosition = parentLoopNode
       ? {
@@ -2204,7 +2210,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           bottomHeight: BOTTOM_PANEL_EXPANDED_PX,
           activeBottomTab: bottomTab,
           focusMode,
-          minimapVisible: schema.editor.showMiniMap !== false,
+          minimapVisible: schema.editor.showMiniMap === true,
           gridVisible: schema.editor.gridEnabled !== false
         });
       }, 160);
@@ -2503,7 +2509,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               selectedCollectionId: selection.collectionId
             }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
           }}
-          onDropRegistryItem={(item, position, payload) => handleAddNode(item, { position, payload, source: "drop" })}
+          onDropRegistryItem={(item, position, payload, options) => handleAddNode(item, {
+            position,
+            payload,
+            source: "drop",
+            parentLoopObjectId: options?.parentLoopObjectId,
+          })}
           canUndo={historyState.canUndo}
           canRedo={historyState.canRedo}
           onUndo={handleUndo}

@@ -10,13 +10,25 @@ import type {
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import type { FlowGramMicroflowSelection } from "../FlowGramMicroflowTypes";
 import { mapFlowGramEdgeToMicroflowFlow } from "./flowgram-edge-mapping";
+import { MICROFLOW_GRID_SIZE, snapMicroflowPoint } from "./flowgram-coordinate";
 
 function edgeKey(edge: Pick<WorkflowEdgeJSON, "sourceNodeID" | "targetNodeID" | "sourcePortID" | "targetPortID">): string {
   return [edge.sourceNodeID, edge.sourcePortID ?? "", edge.targetNodeID, edge.targetPortID ?? ""].map(value => String(value ?? "")).join("::");
 }
 
-export function flowGramPositionPatch(schema: MicroflowSchema, json: WorkflowJSON): MicroflowEditorGraphPatch {
+export function flowGramPositionPatch(
+  schema: MicroflowSchema,
+  json: WorkflowJSON,
+  options?: { gridEnabled?: boolean; gridSize?: number },
+): MicroflowEditorGraphPatch {
   const nodes = new Map(toEditorGraph(schema).nodes.map(node => [node.objectId, node]));
+  const absolutePositionByObjectId = new Map<string, { x: number; y: number }>();
+  for (const node of json.nodes ?? []) {
+    const rawPosition = node.meta?.position;
+    if (rawPosition) {
+      absolutePositionByObjectId.set(String(node.id), { x: rawPosition.x, y: rawPosition.y });
+    }
+  }
   const movedNodes: NonNullable<MicroflowEditorGraphPatch["movedNodes"]> = [];
   const resizedNodes: NonNullable<MicroflowEditorGraphPatch["resizedNodes"]> = [];
   for (const node of json.nodes ?? []) {
@@ -27,14 +39,23 @@ export function flowGramPositionPatch(schema: MicroflowSchema, json: WorkflowJSO
       continue;
     }
     const parent = previous.parentObjectId ? nodes.get(previous.parentObjectId) : undefined;
+    const parentPosition = previous.parentObjectId
+      ? absolutePositionByObjectId.get(previous.parentObjectId) ?? parent?.position
+      : undefined;
     const position = rawPosition && parent
       ? {
-          x: rawPosition.x - parent.position.x,
-          y: rawPosition.y - parent.position.y - 76,
+          x: rawPosition.x - (parentPosition?.x ?? parent.position.x),
+          y: rawPosition.y - (parentPosition?.y ?? parent.position.y) - 76,
         }
       : rawPosition;
-    if (position && (previous.position.x !== position.x || previous.position.y !== position.y)) {
-      movedNodes.push({ objectId: node.id, position });
+    const rawPositionChanged = position && (previous.position.x !== position.x || previous.position.y !== position.y);
+    if (rawPositionChanged) {
+      const nextPosition = options?.gridEnabled
+        ? snapMicroflowPoint(position, options.gridSize ?? MICROFLOW_GRID_SIZE)
+        : position;
+      if (previous.position.x !== nextPosition.x || previous.position.y !== nextPosition.y) {
+        movedNodes.push({ objectId: node.id, position: nextPosition });
+      }
     }
     if (size && (previous.size.width !== size.width || previous.size.height !== size.height)) {
       resizedNodes.push({ objectId: node.id, size });

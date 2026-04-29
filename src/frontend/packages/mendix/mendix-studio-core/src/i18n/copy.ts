@@ -13,6 +13,8 @@ export interface MendixStudioCopy {
     readonly microflowMissingTitle: string;
     readonly microflowTabMissingIdTitle: string;
     readonly microflowMissingDescription: string;
+    readonly emptyWorkbenchTitle: string;
+    readonly emptyWorkbenchDescription: string;
   };
   readonly index: {
     readonly workspaceLabel: string;
@@ -82,6 +84,8 @@ const zhCN: MendixStudioCopy = {
     microflowTabMissingIdTitle: "微流 Workbench tab 缺少 microflowId",
     microflowMissingDescription:
       "本轮不会创建 fake resource，也不会加载真实 schema。请刷新资源列表或关闭该 tab 后从 App Explorer 重新打开真实微流。",
+    emptyWorkbenchTitle: "请选择一个资源开始编辑",
+    emptyWorkbenchDescription: "从左侧 App Explorer 打开微流，或通过 URL deep link 进入指定微流。工作台不会再自动创建示例 Page / Workflow Tab。",
   },
   index: {
     workspaceLabel: "工作区",
@@ -151,6 +155,8 @@ const enUS: MendixStudioCopy = {
     microflowTabMissingIdTitle: "Microflow workbench tab is missing microflowId",
     microflowMissingDescription:
       "No fake resource will be created. Refresh resources or reopen a real microflow from App Explorer.",
+    emptyWorkbenchTitle: "Select a resource to start editing",
+    emptyWorkbenchDescription: "Open a microflow from App Explorer, or use a URL deep link. The workbench no longer creates sample Page / Workflow tabs automatically.",
   },
   index: {
     workspaceLabel: "Workspace",

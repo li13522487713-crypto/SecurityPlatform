@@ -115,7 +115,7 @@ describe("microflow editor interactions", () => {
     const first = addMicroflowObjectFromDragPayload({
       schema: base,
       payload: createDragPayloadFromRegistryItem(registry("activity:callMicroflow")),
-      position: { x: 160, y: 96 },
+      position: { x: 160.5, y: 96.25 },
     });
     const second = addMicroflowObjectFromDragPayload({
       schema: first.schema,
@@ -128,7 +128,7 @@ describe("microflow editor interactions", () => {
     expect(base.objectCollection.objects).toHaveLength(0);
     expect(objects).toHaveLength(2);
     expect(ids.size).toBe(objects.length);
-    expect(objects[0]?.relativeMiddlePoint).toEqual({ x: 160, y: 96 });
+    expect(objects[0]?.relativeMiddlePoint).toEqual({ x: 160.5, y: 96.25 });
     expect(second.schema.editor.selection.objectId).toBe(objects[1]?.id);
     expect(JSON.stringify(objects)).not.toMatch(/Sales|MF_ValidateOrder|ProcessOrder|CheckInventory|NotifyUser|api\.example\.com/i);
   });
@@ -475,26 +475,90 @@ describe("microflow editor interactions", () => {
     }
   });
 
-  it("creates AuthoringSchema patches from FlowGram move, resize, and selection changes", () => {
+  it("creates AuthoringSchema patches from FlowGram start/end move, resize, and selection changes", () => {
     const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "flowgram-patch-start");
-    const schema = schemaWith([start]);
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 240, y: 0 }, "flowgram-patch-end");
+    const schema = schemaWith([start, end]);
     const json = authoringToFlowGram(schema, [], []);
-    const node = json.nodes.find(item => item.id === start.id);
-    if (!node) {
-      throw new Error("Expected FlowGram node.");
+    const startNode = json.nodes.find(item => item.id === start.id);
+    const endNode = json.nodes.find(item => item.id === end.id);
+    if (!startNode || !endNode) {
+      throw new Error("Expected FlowGram start/end nodes.");
     }
-    node.meta = {
-      ...node.meta,
-      position: { x: 96, y: 64 },
+    startNode.meta = {
+      ...startNode.meta,
+      position: { x: 96.5, y: 64.25 },
       size: { width: 180, height: 80 },
     };
+    endNode.meta = {
+      ...endNode.meta,
+      position: { x: 360.75, y: 128.5 },
+    };
     const patch = flowGramPositionPatch(schema, json);
-    expect(patch.movedNodes).toEqual([{ objectId: start.id, position: { x: 96, y: 64 } }]);
+    expect(patch.movedNodes).toEqual([
+      { objectId: start.id, position: { x: 96.5, y: 64.25 } },
+      { objectId: end.id, position: { x: 360.75, y: 128.5 } },
+    ]);
     expect(patch.resizedNodes).toEqual([{ objectId: start.id, size: { width: 180, height: 80 } }]);
     const next = applyEditorGraphPatchToAuthoring(schema, patch);
-    expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 96, y: 64 });
+    expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 96.5, y: 64.25 });
     expect(next.objectCollection.objects[0]?.size).toEqual({ width: 180, height: 80 });
+    expect(next.objectCollection.objects[1]?.relativeMiddlePoint).toEqual({ x: 360.75, y: 128.5 });
     expect(flowGramSelectionPatch({ objectId: start.id })).toEqual({ selectedObjectId: start.id, selectedFlowId: undefined });
+  });
+
+  it("keeps loop child relative coordinates stable when a parent loop moves in FlowGram", () => {
+    const child = createObjectFromRegistry(registry("activity:logMessage"), { x: 80, y: 42 }, "loop-child-log");
+    const loop = createObjectFromRegistry(registry("loop"), { x: 320, y: 160 }, "loop-parent");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loop registry item to create a loopedActivity.");
+    }
+    const loopWithChild: typeof loop = {
+      ...loop,
+      objectCollection: {
+        ...loop.objectCollection,
+        objects: [child],
+      },
+    };
+    const schema = schemaWith([loopWithChild]);
+    const json = authoringToFlowGram(schema, [], []);
+    const loopNode = json.nodes.find(item => item.id === loopWithChild.id);
+    const childNode = json.nodes.find(item => item.id === child.id);
+    if (!loopNode || !childNode) {
+      throw new Error("Expected FlowGram loop and child nodes.");
+    }
+    loopNode.meta = {
+      ...loopNode.meta,
+      position: { x: 420, y: 210 },
+    };
+    childNode.meta = {
+      ...childNode.meta,
+      position: { x: 500, y: 328 },
+    };
+    const patch = flowGramPositionPatch(schema, json);
+    expect(patch.movedNodes).toEqual([{ objectId: loopWithChild.id, position: { x: 420, y: 210 } }]);
+  });
+
+  it("snaps FlowGram moved nodes to the 24px microflow grid when enabled", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "flowgram-grid-start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 240, y: 0 }, "flowgram-grid-end");
+    const schema = schemaWith([start, end]);
+    const json = authoringToFlowGram(schema, [], []);
+    const startNode = json.nodes.find(item => item.id === start.id);
+    const endNode = json.nodes.find(item => item.id === end.id);
+    if (!startNode || !endNode) {
+      throw new Error("Expected FlowGram start/end nodes.");
+    }
+    startNode.meta = { ...startNode.meta, position: { x: 95, y: 61 } };
+    endNode.meta = { ...endNode.meta, position: { x: 361, y: 133 } };
+    const patch = flowGramPositionPatch(schema, json, { gridEnabled: true });
+    expect(patch.movedNodes).toEqual([
+      { objectId: start.id, position: { x: 96, y: 72 } },
+      { objectId: end.id, position: { x: 360, y: 144 } },
+    ]);
+    const next = applyEditorGraphPatchToAuthoring(schema, patch);
+    expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 96, y: 72 });
+    expect(next.objectCollection.objects[1]?.relativeMiddlePoint).toEqual({ x: 360, y: 144 });
   });
 
   it("adds dragged action activities, parameters, annotations, and loops through AuthoringSchema", () => {
@@ -551,9 +615,8 @@ describe("microflow editor interactions", () => {
       payload: createDragPayloadFromRegistryItem(registry("breakEvent")),
       position: { x: 200, y: 0 },
     });
-    expect(breakResult.blockedReason).toBeUndefined();
-    expect(breakResult.warnings).toContain("Requires a Loop context.");
-    expect(breakResult.schema.objectCollection.objects).toHaveLength(1);
+    expect(breakResult.blockedReason).toContain("Break / Continue");
+    expect(breakResult.schema.objectCollection.objects).toHaveLength(0);
 
     const nanoflow = addMicroflowObjectFromDragPayload({
       schema: schemaWith([]),

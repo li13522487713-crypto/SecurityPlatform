@@ -1,5 +1,7 @@
 import type { MicroflowPoint } from "../../schema";
 
+export const MICROFLOW_GRID_SIZE = 24;
+
 export interface FlowGramViewportLike {
   x: number;
   y: number;
@@ -28,10 +30,9 @@ export function flowGramPointToAuthoringPoint(point: MicroflowPoint): MicroflowP
   return point;
 }
 
-export function snapMicroflowPoint(point: MicroflowPoint, gridSize = 16): MicroflowPoint {
+export function snapMicroflowPoint(point: MicroflowPoint, gridSize = MICROFLOW_GRID_SIZE): MicroflowPoint {
   return {
     x: Math.round(point.x / gridSize) * gridSize,
     y: Math.round(point.y / gridSize) * gridSize,
   };
 }
-

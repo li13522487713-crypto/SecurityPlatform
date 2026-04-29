@@ -17,11 +17,17 @@ import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] {
   return defaultMicroflowObjectNodeRegistry.map(item => {
     const kind = objectKindFromRegistryItem(item);
+    const isEndLike = ["endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(kind);
     return ({
       type: kind,
       meta: {
+        isStart: kind === "startEvent",
+        isNodeEnd: isEndLike,
+        isContainer: kind === "loopedActivity",
         nodeDTOType: kind,
         size: { width: item.render.width, height: item.render.height },
+        deleteDisable: kind === "startEvent",
+        copyDisable: kind === "startEvent",
         useDynamicPort: true,
         defaultPorts: flowGramPortsForObjectKind(kind),
       },

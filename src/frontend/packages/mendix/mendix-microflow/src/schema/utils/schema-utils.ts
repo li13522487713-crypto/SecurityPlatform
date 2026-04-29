@@ -8,7 +8,7 @@ export function createDefaultEditorState(): MicroflowEditorState {
     leftPanelCollapsed: false,
     rightPanelCollapsed: false,
     bottomPanelCollapsed: false,
-    showMiniMap: true,
+    showMiniMap: false,
     gridEnabled: true,
     selection: {},
     layoutMode: "freeform"

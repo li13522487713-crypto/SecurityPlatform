@@ -9,12 +9,15 @@ import type {
 } from "../schema";
 import {
   canDragRegistryItem,
+  createDragPayloadFromRegistryItem,
   defaultMicroflowNodePanelRegistry,
   getDisabledDragReason,
   microflowNodeRegistryByKey,
   type MicroflowNodeDragPayload,
 } from "./registry";
 import { createActionActivityFromActionRegistry, createObjectFromNodeRegistry } from "./factories";
+
+export const MICROFLOW_NODE_DND_TYPE = "application/x-atlas-microflow-node";
 
 export interface AddMicroflowObjectFromDragPayloadInput {
   schema: MicroflowSchema;
@@ -28,6 +31,45 @@ export interface AddMicroflowObjectFromDragPayloadResult {
   objectId?: string;
   warnings: string[];
   blockedReason?: string;
+}
+
+export function hasMicroflowNodeDragType(dataTransfer?: DataTransfer | null): boolean {
+  const types = Array.from(dataTransfer?.types ?? []);
+  return (
+    types.includes(MICROFLOW_NODE_DND_TYPE) ||
+    types.includes("application/json") ||
+    types.includes("text/plain")
+  );
+}
+
+export function readMicroflowNodeDragPayload(dataTransfer: DataTransfer): MicroflowNodeDragPayload | undefined {
+  const raw = dataTransfer.getData(MICROFLOW_NODE_DND_TYPE) || dataTransfer.getData("application/json");
+  if (!raw) {
+    const text = dataTransfer.getData("text/plain");
+    const item = text ? microflowNodeRegistryByKey.get(text) : undefined;
+    if (item) {
+      return createDragPayloadFromRegistryItem(item);
+    }
+    return text
+      ? {
+          dragType: "microflow-node",
+          source: "node-panel",
+          registryKind: "node",
+          nodeType: "activity",
+          objectKind: "actionActivity",
+          registryKey: text,
+          title: text,
+          availability: "supported",
+          sourcePanel: "nodes",
+        }
+      : undefined;
+  }
+  try {
+    const parsed = JSON.parse(raw) as MicroflowNodeDragPayload;
+    return parsed.dragType === "microflow-node" ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function nextParameterName(schema: MicroflowSchema): string {
@@ -231,6 +273,9 @@ export function validateDropAllowedInCollection(
   }
   if (!isRoot && payload.objectKind === "parameterObject") {
     return { allowed: false, message: "ParameterObject cannot be placed inside Loop." };
+  }
+  if (isRoot && (payload.objectKind === "breakEvent" || payload.objectKind === "continueEvent")) {
+    return { allowed: false, message: "Break / Continue can only be placed inside Loop." };
   }
   return { allowed: true };
 }

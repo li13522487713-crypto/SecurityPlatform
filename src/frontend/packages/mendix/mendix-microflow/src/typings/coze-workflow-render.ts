@@ -8,9 +8,11 @@ export const WorkflowPortRender: FC<Record<string, unknown>> = () => null;
 
 export function WorkflowRenderProvider({
   children,
-  containerModules: _containerModules
+  containerModules: _containerModules,
+  preset: _preset
 }: PropsWithChildren<{
   containerModules?: readonly unknown[];
+  preset?: () => unknown[];
 }>): ReactElement {
   return createElement(Fragment, null, children) as ReactElement;
 }

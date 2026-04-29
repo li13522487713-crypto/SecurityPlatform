@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { Button, Empty, Input, Popover, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Button, Empty, Input, Popover, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
   IconChevronRight,
@@ -27,7 +27,8 @@ import {
   type MicroflowNodeFilterKey,
   type MicroflowNodePanelCategoryKey,
   type MicroflowNodeRegistryEntry,
-  type MicroflowNodeRegistryItem
+  type MicroflowNodeRegistryItem,
+  MICROFLOW_NODE_DND_TYPE
 } from "../node-registry";
 
 const { Text } = Typography;
@@ -132,27 +133,25 @@ const categoryFilterLabels: Record<MicroflowNodePanelCategoryKey, string> = {
 };
 
 const categoryStyle: CSSProperties = {
-  border: "1px solid rgba(78, 89, 105, 0.12)",
-  borderRadius: 12,
-  background: "rgba(255, 255, 255, 0.9)",
+  borderBottom: "1px solid var(--semi-color-border)",
+  background: "transparent",
   overflow: "hidden"
 };
 
 const cardBaseStyle: CSSProperties = {
   position: "relative",
-  display: "grid",
-  gridTemplateColumns: "26px minmax(0, 1fr) 24px",
+  display: "flex",
   gap: 8,
   alignItems: "center",
   width: "100%",
-  minHeight: 48,
-  padding: "8px 8px",
-  border: "1px solid rgba(78, 89, 105, 0.14)",
-  borderRadius: 10,
-  background: "var(--semi-color-bg-2, #fff)",
+  minHeight: 34,
+  padding: "6px 8px",
+  border: "1px solid transparent",
+  borderRadius: 6,
+  background: "transparent",
   boxSizing: "border-box",
   textAlign: "left",
-  transition: "background 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
+  transition: "background 120ms ease, border-color 120ms ease",
   userSelect: "none"
 };
 
@@ -242,81 +241,27 @@ function iconTone(item: MicroflowNodeRegistryItem): { background: string; color:
   return { background: "#f2f3f5", color: "#4e5969" };
 }
 
-function EngineSupportTag({ support }: { support: MicroflowNodeRegistryItem["engineSupport"] }) {
-  if (!support) {
-    return null;
-  }
-  if (support.level === "supported") {
-    // 默认 supported 不显示徽标，避免视觉噪声；用户能假定可执行。
-    return null;
-  }
-  const palette = support.level === "partial"
-    ? { color: "amber", label: "Partial Runtime" }
-    : { color: "red", label: "Runtime Unsupported" };
-  const reason = support.reason ?? (support.level === "partial"
-    ? "Runtime 仅在 connector / allowRealHttp 启用时真实执行。"
-    : "Runtime 引擎当前不支持，testRun 会返回 RUNTIME_UNSUPPORTED_ACTION。");
-  return (
-    <Tooltip content={reason} position="top">
-      <Tag size="small" color={palette.color as never}>{palette.label}</Tag>
-    </Tooltip>
-  );
-}
-
 function MicroflowNodeIcon({ item }: { item: MicroflowNodeRegistryItem }) {
   const tone = iconTone(item);
   const label = item.activityType?.slice(0, 1) ?? item.type.slice(0, 1);
   return (
     <span
       style={{
-        width: 24,
-        height: 24,
+        width: 22,
+        height: 22,
         borderRadius: item.render.shape === "diamond" ? 7 : item.render.shape === "event" ? 999 : 8,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
         background: tone.background,
         color: tone.color,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 700,
         border: `1px solid ${tone.color}22`
       }}
     >
       {label.toUpperCase()}
     </span>
-  );
-}
-
-function resolveWarning(item: MicroflowNodeRegistryItem, context?: MicroflowNodeCreateContext): string | undefined {
-  if (item.metadataRequirements?.length && context?.metadataAvailable === false) {
-    return "Metadata required for full configuration.";
-  }
-  if (item.type === "breakEvent" || item.type === "continueEvent") {
-    return "Requires a Loop context.";
-  }
-  return typeof item.warning === "function" ? item.warning(context ?? {}) : item.warning;
-}
-
-function TooltipContent({ item, labels, createContext }: { item: MicroflowNodeRegistryItem; labels: MicroflowNodePanelLabels; createContext?: MicroflowNodeCreateContext }) {
-  const warning = resolveWarning(item, createContext);
-  return (
-    <Space vertical align="start" spacing={6} style={{ maxWidth: 280 }}>
-      <Text strong>{item.title}</Text>
-      <Text type="tertiary">{item.titleZh}</Text>
-      <Text>{item.description}</Text>
-      <Text type="tertiary">{labels.inputs}: {(item.inputs ?? []).map(input => input.title).join(", ") || "-"}</Text>
-      <Text type="tertiary">{labels.outputs}: {(item.outputs ?? []).map(output => output.title).join(", ") || "-"}</Text>
-      {item.useCases?.length ? <Text type="tertiary">{labels.useCases}: {item.useCases.join(" ")}</Text> : null}
-      {item.availability !== "supported" ? <Tag color={item.availability === "deprecated" ? "orange" : item.availability === "beta" ? "blue" : "grey"}>{item.availabilityReason ?? item.availability}</Tag> : null}
-      {item.engineSupport && item.engineSupport.level !== "supported" ? (
-        <Tag color={item.engineSupport.level === "partial" ? "amber" : "red"}>
-          {item.engineSupport.level === "partial" ? "Partial Runtime: " : "Runtime Unsupported: "}
-          {item.engineSupport.reason ?? "see action registry"}
-        </Tag>
-      ) : null}
-      {warning ? <Tag color="orange">{warning}</Tag> : null}
-      {getMicroflowNodeDisabledReason(item, createContext) ? <Tag color="grey">{getMicroflowNodeDisabledReason(item, createContext)}</Tag> : null}
-    </Space>
   );
 }
 
@@ -422,10 +367,8 @@ export function MicroflowNodeSearch({
 export function MicroflowNodeCard({
   item,
   favorite,
-  labels,
   compact,
   onAdd,
-  onFavoriteToggle,
   onContextMenu,
   onStartDrag,
   createContext
@@ -443,83 +386,111 @@ export function MicroflowNodeCard({
   const disabledReason = getMicroflowNodeDisabledReason(item, createContext);
   const disabled = Boolean(disabledReason);
   const key = getMicroflowNodeRegistryKey(item);
+  const draggingRef = useRef(false);
+  const [active, setActive] = useState(false);
+  const [keyboardFocus, setKeyboardFocus] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const cardActive = active || keyboardFocus;
   const cardStyle: CSSProperties = {
     ...cardBaseStyle,
-    minHeight: compact ? 42 : 52,
+    minHeight: compact ? 30 : 34,
+    padding: compact ? "4px 8px" : cardBaseStyle.padding,
     opacity: disabled ? 0.58 : 1,
-    cursor: disabled ? "not-allowed" : "grab",
-    background: favorite ? "rgba(255, 250, 232, 0.95)" : cardBaseStyle.background,
-    borderColor: favorite ? "rgba(255, 177, 0, 0.48)" : cardBaseStyle.border as string
+    cursor: disabled ? "not-allowed" : dragging ? "grabbing" : "grab",
+    background: cardActive
+      ? favorite ? "var(--semi-color-warning-light-default, rgba(255, 247, 217, 0.98))" : "var(--semi-color-fill-0)"
+      : favorite ? "var(--semi-color-warning-light-default, rgba(255, 250, 232, 0.4))" : cardBaseStyle.background,
+    borderColor: cardActive
+      ? favorite ? "rgba(255, 177, 0, 0.66)" : "var(--semi-color-border)"
+      : favorite ? "rgba(255, 177, 0, 0.38)" : cardBaseStyle.border as string
   };
 
   return (
-    <Tooltip content={<TooltipContent item={item} labels={labels} createContext={createContext} />} position="right">
-      <div
-        role="button"
-        tabIndex={disabled ? -1 : 0}
-        draggable={!disabled}
-        data-testid={`microflow-node-panel-item-${key.replace(/[^A-Za-z0-9_-]+/gu, "-")}`}
-        data-registry-key={key}
-        data-node-type={item.type}
-        data-action-kind={item.actionKind}
-        style={cardStyle}
-        onClick={() => {
-          if (!disabled) {
-            onAdd(item);
-          }
-        }}
-        onContextMenu={event => {
+    <div
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      draggable={!disabled}
+      data-testid={`microflow-node-panel-item-${key.replace(/[^A-Za-z0-9_-]+/gu, "-")}`}
+      data-registry-key={key}
+      data-node-type={item.type}
+      data-action-kind={item.actionKind}
+      style={cardStyle}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => setKeyboardFocus(true)}
+      onBlur={() => setKeyboardFocus(false)}
+      onClick={event => {
+        if (draggingRef.current) {
           event.preventDefault();
-          onContextMenu(item, { x: event.clientX, y: event.clientY });
-        }}
-        onDragStart={event => {
-          if (disabled) {
-            event.preventDefault();
-            return;
-          }
-          const payload = createDragPayloadFromRegistryItem(item);
-          event.dataTransfer.effectAllowed = "copy";
-          event.dataTransfer.setData("application/x-atlas-microflow-node", JSON.stringify(payload));
-          event.dataTransfer.setData("application/json", JSON.stringify(payload));
-          event.dataTransfer.setData("text/plain", payload.registryKey);
-          onStartDrag?.(payload);
+          event.stopPropagation();
+        }
+      }}
+      onDoubleClick={() => {
+        if (!disabled) {
+          onAdd(item);
+        }
+      }}
+      onKeyDown={event => {
+        if (disabled) {
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          onAdd(item);
+        }
+      }}
+      onContextMenu={event => {
+        event.preventDefault();
+        onContextMenu(item, { x: event.clientX, y: event.clientY });
+      }}
+      onDragStart={event => {
+        if (disabled) {
+          event.preventDefault();
+          return;
+        }
+        draggingRef.current = true;
+        setDragging(true);
+        const payload = createDragPayloadFromRegistryItem(item);
+        event.dataTransfer.effectAllowed = "copy";
+        event.dataTransfer.setData(MICROFLOW_NODE_DND_TYPE, JSON.stringify(payload));
+        event.dataTransfer.setData("application/json", JSON.stringify(payload));
+        event.dataTransfer.setData("text/plain", payload.registryKey);
+        onStartDrag?.(payload);
+      }}
+      onDragEnd={() => {
+        window.setTimeout(() => {
+          draggingRef.current = false;
+          setDragging(false);
+        }, 0);
+      }}
+    >
+      <MicroflowNodeIcon item={item} />
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 6
         }}
       >
-        <MicroflowNodeIcon item={item} />
-        <div style={{ minWidth: 0 }}>
-          <Space spacing={4} style={{ maxWidth: "100%" }}>
-            <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 128 }}>
-              {item.titleZh}
-            </Text>
-            {item.availability === "beta" ? <Tag size="small" color="blue">Beta</Tag> : null}
-            {item.availability === "deprecated" ? <Tag size="small" color="orange">Deprecated</Tag> : null}
-            {item.availability === "requiresConnector" ? <Tag size="small" color="grey">Connector Required</Tag> : null}
-            {item.availability === "nanoflowOnlyDisabled" ? <Tag size="small" color="grey">Nanoflow Only</Tag> : null}
-            <EngineSupportTag support={item.engineSupport} />
-            {resolveWarning(item, createContext) ? <Tag size="small" color="orange">Needs Config</Tag> : null}
-          </Space>
-          <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: "block", maxWidth: "100%" }}>
-            {item.title}
-          </Text>
-          {!compact ? (
-            <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: "block", maxWidth: "100%" }}>
-              {disabled && disabledReason ? disabledReason : item.description}
-            </Text>
-          ) : null}
-        </div>
-        <Button
+        <Text
+          strong
+          title={item.titleZh}
+          style={{ flexShrink: 0, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "18px" }}
+        >
+          {item.titleZh}
+        </Text>
+        <Text
+          type="tertiary"
           size="small"
-          type={favorite ? "warning" : "tertiary"}
-          theme="borderless"
-          disabled={disabled && !favorite}
-          icon={favorite ? <IconStar /> : disabled ? <IconStop /> : <IconStarStroked />}
-          onClick={event => {
-            event.stopPropagation();
-            onFavoriteToggle(item);
-          }}
-        />
+          title={item.title}
+          style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "17px", textAlign: "right" }}
+        >
+          {item.title}
+        </Text>
       </div>
-    </Tooltip>
+    </div>
   );
 }
 
@@ -556,7 +527,7 @@ export function MicroflowNodeFavorites({
       {favoriteItems.length === 0 ? (
         <Text type="tertiary" size="small">{labels.favoritesEmpty}</Text>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {favoriteItems.map(item => (
             <MicroflowNodeCard
               key={getMicroflowNodeRegistryKey(item)}
@@ -631,12 +602,12 @@ export function MicroflowNodeCategorySection({
         <Tag size="small">{category.entries.length}</Tag>
       </button>
       {open ? (
-        <div style={{ padding: "8px 8px 10px", display: "grid", gap: 8 }}>
+        <div style={{ padding: "4px 4px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
           {category.groups.length > 0 ? category.groups.map(group => {
             const groupPanelKey = `${category.category.key}:${group.key}`;
             const groupOpen = expandedGroups.includes(groupPanelKey);
             return (
-              <div key={group.key} data-testid={`microflow-node-panel-group-${group.key}`} style={{ display: "grid", gap: 6 }}>
+              <div key={group.key} data-testid={`microflow-node-panel-group-${group.key}`} style={{ display: "flex", flexDirection: "column", gap: 2, paddingBottom: 4 }}>
                 <button
                   type="button"
                   data-testid={`microflow-node-panel-group-toggle-${group.key}`}
@@ -719,7 +690,7 @@ export function MicroflowNodeCategoryList({
   onStartDrag?: (payload: MicroflowNodeDragPayload) => void;
 }) {
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column" }}>
       {grouped.map(category => (
         <MicroflowNodeCategorySection
           key={category.category.key}

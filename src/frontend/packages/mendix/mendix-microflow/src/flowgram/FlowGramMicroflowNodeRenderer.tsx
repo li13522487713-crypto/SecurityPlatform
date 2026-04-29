@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useRef } from "react";
 
-import { Tag, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Tag, Typography } from "@douyinfe/semi-ui";
 import {
   FlowNodeFormData,
   type FormModelV2,
   type WorkflowNodeRenderProps,
+  usePlaygroundReadonlyState,
   useNodeRender,
 } from "@flowgram-adapter/free-layout-editor";
 
@@ -38,21 +39,15 @@ function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): string {
 }
 
 export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
-  const { selected, ports, selectNode } = useNodeRender();
+  const { selected, ports, selectNode, nodeRef, startDrag, onFocus, onBlur } = useNodeRender();
+  const readonly = usePlaygroundReadonlyState();
+  const draggingRef = useRef(false);
   const data = readNodeData(props);
   const tone = nodeTone(data.objectKind);
-  const validationTag = useMemo(() => {
-    if (data.validationState === "error") {
-      return <Tag color="red">Error</Tag>;
-    }
-    if (data.validationState === "warning") {
-      return <Tag color="orange">Warning</Tag>;
-    }
-    return null;
-  }, [data.validationState]);
 
   return (
     <div
+      ref={nodeRef}
       className={[
         "microflow-flowgram-node",
         `microflow-flowgram-node--${tone}`,
@@ -61,18 +56,43 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         data.validationState !== "valid" ? `is-${data.validationState}` : "",
         data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
       ].filter(Boolean).join(" ")}
-      onClick={event => selectNode(event)}
+      draggable={!readonly}
+      onDragStart={event => {
+        if (readonly) {
+          event.preventDefault();
+          return;
+        }
+        draggingRef.current = true;
+        startDrag(event);
+      }}
+      onDragEnd={() => {
+        window.setTimeout(() => {
+          draggingRef.current = false;
+        }, 0);
+      }}
+      onClick={event => {
+        if (draggingRef.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        selectNode(event);
+      }}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      data-testid={`microflow-node-${data.objectId}`}
       data-microflow-object-id={data.objectId}
       data-microflow-collection-id={data.collectionId}
+      tabIndex={0}
     >
       <div className="microflow-flowgram-node__header">
         <span className="microflow-flowgram-node__icon" />
         <div className="microflow-flowgram-node__text">
-          <Typography.Text strong ellipsis={{ showTooltip: true }}>
+          <Typography.Text strong title={data.title} style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {data.title}
           </Typography.Text>
           {data.subtitle ? (
-            <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }}>
+            <Typography.Text type="tertiary" size="small" title={data.subtitle} style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {data.subtitle}
             </Typography.Text>
           ) : null}
@@ -85,7 +105,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         {data.availability === "requiresConnector" ? <Tag size="small" color="grey">Connector Required</Tag> : null}
         {data.availability === "nanoflowOnlyDisabled" ? <Tag size="small" color="grey">Nanoflow Only</Tag> : null}
         {data.runtimeState && data.runtimeState !== "idle" ? (
-          <Tooltip content={data.runtimeErrorMessage ?? data.runtimeErrorCode}>
+          <span title={data.runtimeErrorMessage ?? data.runtimeErrorCode}>
             <Tag
               color={
                 data.runtimeState === "failed"
@@ -101,9 +121,10 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
             >
               {data.runtimeState}
             </Tag>
-          </Tooltip>
+          </span>
         ) : null}
-        {validationTag}
+        {data.validationState === "error" ? <Tag color="red">Error</Tag> : null}
+        {data.validationState === "warning" ? <Tag color="orange">Warning</Tag> : null}
       </div>
       {data.objectKind === "loopedActivity" && data.loopSummary ? (
         <div

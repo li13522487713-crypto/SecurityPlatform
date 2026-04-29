@@ -112,6 +112,7 @@ export function MendixStudioApp({
     ? microflowResourcesById[activeMicroflowId]
     : undefined;
   const activeMicroflowTabId = isMicroflow ? activeWorkbenchTab.id : undefined;
+  const hasActiveWorkbenchTab = Boolean(activeWorkbenchTab);
   // The workbench-level toolbar drives the active microflow editor through this
   // shared imperative ref. The ref is reset whenever the active microflow tab
   // changes (via the editor's `key` prop) so each tab has an isolated handle.
@@ -220,19 +221,42 @@ export function MendixStudioApp({
               {/* Tab 栏 */}
               <WorkbenchTabs />
 
-              {/* 工具栏：微流模式渲染外置工具栏，否则渲染页面/通用工具栏 */}
-              {isMicroflow ? (
-                <MicroflowWorkbenchToolbar
-                  microflowId={activeMicroflowId}
-                  editorRef={microflowEditorHandleRef}
-                  onViewReferences={openReferencesPanel}
-                />
-              ) : (
-                <WorkbenchToolbar onViewMicroflowReferences={openReferencesPanel} />
-              )}
+              {/* 工具栏：仅在已打开资源时显示，避免空工作台自动呈现 Page/Workflow 操作。 */}
+              {hasActiveWorkbenchTab ? (
+                isMicroflow ? (
+                  <MicroflowWorkbenchToolbar
+                    microflowId={activeMicroflowId}
+                    editorRef={microflowEditorHandleRef}
+                    onViewReferences={openReferencesPanel}
+                  />
+                ) : (
+                  <WorkbenchToolbar onViewMicroflowReferences={openReferencesPanel} />
+                )
+              ) : null}
 
               {/* 内容区 */}
-              {isMicroflow ? (
+              {!hasActiveWorkbenchTab ? (
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#f8fafc"
+                  }}
+                  data-testid="mendix-studio-empty-workbench"
+                >
+                  <Card style={{ width: 420, borderRadius: 8 }}>
+                    <Space vertical align="start" spacing={8}>
+                      <Text strong>{copy.app.emptyWorkbenchTitle}</Text>
+                      <Text type="tertiary" size="small">
+                        {copy.app.emptyWorkbenchDescription}
+                      </Text>
+                    </Space>
+                  </Card>
+                </div>
+              ) : isMicroflow ? (
                 <div
                   style={{
                     flex: 1,
@@ -315,10 +339,10 @@ export function MendixStudioApp({
             </div>
 
             {/* 右侧属性面板（微流模式下隐藏，MicroflowEditor 自带） */}
-            {!isMicroflow && <PropertiesPanel />}
+            {hasActiveWorkbenchTab && !isMicroflow && <PropertiesPanel />}
 
             {/* 最右侧 Inspector Rail（微流模式下隐藏） */}
-            {!isMicroflow && <RightInspectorRail />}
+            {hasActiveWorkbenchTab && !isMicroflow && <RightInspectorRail />}
           </div>
         </ExplorerSplitLayout>
       </div>

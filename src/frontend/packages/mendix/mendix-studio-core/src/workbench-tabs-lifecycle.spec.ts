@@ -38,22 +38,12 @@ function createMicroflow(input: Partial<StudioMicroflowDefinitionView> & Pick<St
 beforeEach(() => {
   useMendixStudioStore.setState({
     activeTab: "pageBuilder",
-    activeTabId: "page",
-    workbenchTabs: [
-      {
-        id: "page",
-        kind: "page",
-        title: "Page",
-        resourceId: "page",
-        closable: false,
-        openedAt: "2026-04-28T00:00:00.000Z",
-        historyKey: "page",
-      },
-    ],
-    activeWorkbenchTabId: "page",
+    activeTabId: undefined,
+    workbenchTabs: [],
+    activeWorkbenchTabId: undefined,
     activeModuleId: undefined,
     activeMicroflowId: undefined,
-    selectedExplorerNodeId: "page",
+    selectedExplorerNodeId: "",
     selectedKind: undefined,
     selectedId: undefined,
     dirtyByWorkbenchTabId: {},
@@ -71,6 +61,14 @@ beforeEach(() => {
 });
 
 describe("Workbench microflow document lifecycle", () => {
+  it("starts without hardcoded page or workflow tabs", () => {
+    const state = useMendixStudioStore.getState();
+
+    expect(state.workbenchTabs).toEqual([]);
+    expect(state.activeWorkbenchTabId).toBeUndefined();
+    expect(state.activeTabId).toBeUndefined();
+  });
+
   it("opens one tab per microflowId and activates existing tabs on repeated open", () => {
     const first = createMicroflow({ id: "mf-a", name: "MF_ValidatePurchaseRequest", displayName: "Validate Purchase Request" });
     const second = createMicroflow({ id: "mf-b", name: "MF_CalculateApprovalLevel", displayName: "Calculate Approval Level" });
@@ -103,7 +101,7 @@ describe("Workbench microflow document lifecycle", () => {
     expect(useMendixStudioStore.getState().activeMicroflowId).toBe("mf-b");
 
     useMendixStudioStore.getState().closeWorkbenchTab("microflow:mf-b");
-    expect(useMendixStudioStore.getState().activeWorkbenchTabId).toBe("page");
+    expect(useMendixStudioStore.getState().activeWorkbenchTabId).toBeUndefined();
     expect(useMendixStudioStore.getState().activeMicroflowId).toBeUndefined();
   });
 
