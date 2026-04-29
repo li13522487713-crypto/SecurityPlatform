@@ -1,0 +1,86 @@
+{
+  "generatedAt": "2026-04-29T04:34:50.801Z",
+  "round": "R1",
+  "conclusion": "conditional-go",
+  "results": [
+    {
+      "id": "r1-documents-present",
+      "status": "pass",
+      "summary": "R1 文档交付物存在性检查。",
+      "details": [
+        "docs/microflow/production-upgrade-audit.md: present",
+        "docs/microflow/production-node-capability-matrix.md: present",
+        "docs/microflow/contracts/action-kind-naming.md: present",
+        "docs/microflow/contracts/action-descriptor-naming.md: present",
+        "docs/microflow/executor-implementation-plan.md: present"
+      ]
+    },
+    {
+      "id": "backend-descriptor-count",
+      "status": "pass",
+      "summary": "后端 BuiltInDescriptors 当前 80 项。"
+    },
+    {
+      "id": "future-round-blockers",
+      "status": "pending",
+      "summary": "R2-R5 生产化能力仍待后续轮次实现。",
+      "details": [
+        "R2: P0 安全、ownership、mock purge、save conflict。",
+        "R3: rollback/cast/listOperation 真实 executor、schema migration、connector stub、property forms。",
+        "R4: trueParallel、Expression API/editor、Step Debug。",
+        "R5: E2E、性能基线、production gate 终版。"
+      ]
+    },
+    {
+      "id": "production-rest-safe-defaults",
+      "status": "pass",
+      "summary": "生产配置默认禁止真实 HTTP 与私网访问。"
+    },
+    {
+      "id": "node ../../scripts/verify-microflow-node-capability-matrix.ts",
+      "status": "pass",
+      "summary": "命令执行成功。",
+      "details": [
+        "PASS matrix-covers-backend-descriptors: 节点能力矩阵覆盖全部后端 descriptor actionKind。",
+        "PASS frontend-action-kinds-covered-by-backend: 前端 registry 暴露的 actionKind 均有后端 descriptor。",
+        "PASS r1-known-modeled-only-blockers-marked: rollback/cast/listOperation 在 R1 被识别为 modeled-only blocker。",
+        "PASS connector-backed-has-capability: ConnectorBacked descriptor 均声明 capability gate。",
+        "PASS property-form-registry-readable: property form registry 可解析；当前显式注册 key 数量 0。",
+        "  - R1 仅建立矩阵，专用 forms 将在 R3 补齐。",
+        "PASS frontend-action-collector: 前端 action registry collector 采集到 54 个 action。",
+        "PASS frontend-node-collector: 前端 node registry collector 采集到 68 个节点。",
+        "",
+        "verify-microflow-node-capability-matrix: PASS"
+      ]
+    },
+    {
+      "id": "node ../../scripts/verify-microflow-action-descriptor-naming.ts",
+      "status": "pass",
+      "summary": "命令执行成功。",
+      "details": [
+        "ok - descriptor-canonical-action-kind: 后端 BuiltInDescriptors 未注册禁止进入 schema 的旧 actionKind。",
+        "ok - legacy-alias-not-in-schema-or-registry: 旧 actionKind 别名未进入 schema 样例、前端 registry 或后端 descriptor。",
+        "ok - naming-documents: 命名规范文档存在，并列出禁止旧别名与迁移策略。",
+        "",
+        "Microflow action descriptor naming checks passed."
+      ]
+    },
+    {
+      "id": "node ../../scripts/verify-microflow-executor-coverage.ts",
+      "status": "pass",
+      "summary": "命令执行成功。",
+      "details": [
+        "PASS coverage.specialized-dispatch: supported 真实 executor 必须在 TryGet 中有 DI 派发。",
+        "PASS coverage.no-unexpected-configured-server: ServerExecutable 不得通过 ConfiguredMicroflowActionExecutor 假成功，R1 已知 blocker 除外。",
+        "  - rollback 是 R1 已知 blocker，production gate 标 conditional-go。",
+        "  - cast 是 R1 已知 blocker，production gate 标 conditional-go。",
+        "  - listOperation 是 R1 已知 blocker，production gate 标 conditional-go。",
+        "PASS coverage.connector-capability-gate: connectorBacked action 必须具备 capability gate 并返回 RUNTIME_CONNECTOR_REQUIRED。",
+        "PASS coverage.explicit-unsupported-no-success: explicitUnsupported action 不得返回 success。",
+        "PASS coverage.runtime-files-present: R1 coverage 依赖的真实 executor 源文件必须存在。",
+        "",
+        "verify-microflow-executor-coverage passed."
+      ]
+    }
+  ]
+}
