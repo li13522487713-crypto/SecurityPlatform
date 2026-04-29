@@ -1554,7 +1554,7 @@
   "apps_config_client_new": "New Client Secret",
   "apps_config_client_notice": "Maximum 20 Client Secrets",
   "apps_config_client_secret": "Client Secret",
-  "apps_config_client_secret_notice": "This client secret is displayed only once. Please save this secretsomewhere safe and accessible. Do not share with others, or expose it in enviroment. ",
+  "apps_config_client_secret_notice": "This client secret is displayed only once. Please save this secretsomewhere safe and accessible. Do not share with others, or expose it in environment. ",
   "apps_config_client_tips": "The client_id is a public identifier for apps.The client_secret is a secret known only to the application and the authorization server.",
   "apps_config_edit_title": "Edit App",
   "apps_config_effect_tag": "Take effect immediately",
