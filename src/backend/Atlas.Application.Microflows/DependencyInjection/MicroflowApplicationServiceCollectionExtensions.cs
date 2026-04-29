@@ -86,6 +86,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowCallStackService, MicroflowCallStackService>();
         services.TryAddScoped<IMicroflowLoopExecutor, MicroflowLoopExecutor>();
         services.TryAddScoped<IMicroflowRuntimeConnectorRegistry, MicroflowRuntimeConnectorRegistry>();
+        services.TryAddSingleton<IMicroflowRunCancellationRegistry, MicroflowRunCancellationRegistry>();
         services.TryAddScoped<IMicroflowTestRunService, MicroflowTestRunService>();
         services.TryAddScoped<IMicroflowVersionDiffService, MicroflowVersionDiffService>();
         services.TryAddScoped<IMicroflowPublishImpactService, MicroflowPublishImpactService>();
