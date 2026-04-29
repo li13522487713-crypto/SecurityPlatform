@@ -45,6 +45,11 @@ public sealed class MicroflowReferenceIndexer : IMicroflowReferenceIndexer
             references = ExtractReferencesFromSchema(resource, schema.Value);
         }
 
+        // P0-8: 引用必须保持 source 与 target 同 workspace/tenant；
+        // 跨 workspace 的 callMicroflow 在写入 reference 索引前被剔除，
+        // 防止跨工作区的 reference 列表泄漏（同时 callees/callers 自然干净）。
+        references = await FilterReferencesBySourceScopeAsync(resource, references, cancellationToken);
+
         var previousTargetIds = (await _referenceRepository.ListBySourceAsync("microflow", resource.Id, cancellationToken))
             .Select(static reference => reference.TargetMicroflowId)
             .ToArray();
@@ -55,6 +60,60 @@ public sealed class MicroflowReferenceIndexer : IMicroflowReferenceIndexer
             previousTargetIds.Concat(references.Select(static reference => reference.TargetMicroflowId)).ToArray(),
             cancellationToken);
         return references;
+    }
+
+    private async Task<IReadOnlyList<MicroflowReferenceEntity>> FilterReferencesBySourceScopeAsync(
+        MicroflowResourceEntity sourceResource,
+        IReadOnlyList<MicroflowReferenceEntity> references,
+        CancellationToken cancellationToken)
+    {
+        if (references.Count == 0)
+        {
+            return references;
+        }
+
+        var sourceWorkspace = sourceResource.WorkspaceId;
+        var sourceTenant = sourceResource.TenantId;
+        var targetIds = references
+            .Where(r => string.Equals(r.SourceType, "microflow", StringComparison.OrdinalIgnoreCase) && r.TargetMicroflowId != sourceResource.Id)
+            .Select(r => r.TargetMicroflowId)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (targetIds.Length == 0)
+        {
+            return references;
+        }
+
+        var allowed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var targetId in targetIds)
+        {
+            var target = await _resourceRepository.GetByIdAsync(targetId, cancellationToken);
+            if (target is null)
+            {
+                continue;
+            }
+            if (!string.IsNullOrWhiteSpace(sourceWorkspace)
+                && !string.IsNullOrWhiteSpace(target.WorkspaceId)
+                && !string.Equals(sourceWorkspace, target.WorkspaceId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            if (!string.IsNullOrWhiteSpace(sourceTenant)
+                && !string.IsNullOrWhiteSpace(target.TenantId)
+                && !string.Equals(sourceTenant, target.TenantId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            allowed.Add(targetId);
+        }
+
+        return references
+            .Where(r =>
+                !string.Equals(r.SourceType, "microflow", StringComparison.OrdinalIgnoreCase)
+                || r.TargetMicroflowId == sourceResource.Id
+                || allowed.Contains(r.TargetMicroflowId))
+            .ToArray();
     }
 
     public IReadOnlyList<MicroflowReferenceEntity> ExtractReferencesFromSchema(MicroflowResourceEntity sourceResource, JsonElement schema)
@@ -242,6 +301,48 @@ public sealed class MicroflowReferenceService : IMicroflowReferenceService
     {
         var references = await _referenceIndexer.RebuildReferencesForMicroflowAsync(resourceId, cancellationToken);
         return references.Select(ToDto).ToArray();
+    }
+
+    public async Task<IReadOnlyList<MicroflowReferenceDto>> ListCallersAsync(
+        string resourceId,
+        GetMicroflowReferencesRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        // P0-7: callers 等价于 GetReferences（target 维度）；保留显式入口便于前端语义化调用。
+        return await GetReferencesAsync(resourceId, request, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MicroflowReferenceDto>> ListCalleesAsync(
+        string resourceId,
+        GetMicroflowReferencesRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        // P0-7: callees 通过 sourceType=microflow + sourceId=resourceId 过滤 reference index。
+        _ = await LoadResourceAsync(resourceId, cancellationToken);
+        var references = await _referenceRepository.ListBySourceAsync("microflow", resourceId, cancellationToken);
+        return ApplyReferenceFilters(references, request).Select(ToDto).ToArray();
+    }
+
+    private static IEnumerable<MicroflowReferenceEntity> ApplyReferenceFilters(
+        IReadOnlyList<MicroflowReferenceEntity> references,
+        GetMicroflowReferencesRequestDto request)
+    {
+        IEnumerable<MicroflowReferenceEntity> stream = references;
+        if (!request.IncludeInactive)
+        {
+            stream = stream.Where(r => r.Active);
+        }
+        if (request.SourceType is { Count: > 0 } types)
+        {
+            var set = new HashSet<string>(types, StringComparer.OrdinalIgnoreCase);
+            stream = stream.Where(r => set.Contains(r.SourceType));
+        }
+        if (request.ImpactLevel is { Count: > 0 } levels)
+        {
+            var set = new HashSet<string>(levels, StringComparer.OrdinalIgnoreCase);
+            stream = stream.Where(r => set.Contains(r.ImpactLevel));
+        }
+        return stream;
     }
 
     public async Task<int> RebuildAllReferencesAsync(string? workspaceId, CancellationToken cancellationToken)

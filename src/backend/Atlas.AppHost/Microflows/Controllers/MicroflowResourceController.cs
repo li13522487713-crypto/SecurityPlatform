@@ -65,6 +65,17 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         return MicroflowOk(result);
     }
 
+    [HttpPost("{id}/unpublish")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowResourceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowResourceDto>>> Unpublish(
+        string id,
+        [FromBody] UnpublishMicroflowRequestDto? request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _publishService.UnpublishAsync(id, request ?? new UnpublishMicroflowRequestDto(), cancellationToken);
+        return MicroflowOk(result);
+    }
+
     [HttpGet("{id}/impact")]
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowPublishImpactAnalysisDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MicroflowPublishImpactAnalysisDto>>> AnalyzeImpact(
@@ -109,6 +120,48 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _referenceService.RebuildReferencesAsync(id, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/callers")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<IReadOnlyList<MicroflowReferenceDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<IReadOnlyList<MicroflowReferenceDto>>>> ListCallers(
+        string id,
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] string[]? sourceType = null,
+        [FromQuery] string[]? impactLevel = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _referenceService.ListCallersAsync(
+            id,
+            new GetMicroflowReferencesRequestDto
+            {
+                IncludeInactive = includeInactive,
+                SourceType = sourceType ?? Array.Empty<string>(),
+                ImpactLevel = impactLevel ?? Array.Empty<string>()
+            },
+            cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/callees")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<IReadOnlyList<MicroflowReferenceDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<IReadOnlyList<MicroflowReferenceDto>>>> ListCallees(
+        string id,
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] string[]? sourceType = null,
+        [FromQuery] string[]? impactLevel = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _referenceService.ListCalleesAsync(
+            id,
+            new GetMicroflowReferencesRequestDto
+            {
+                IncludeInactive = includeInactive,
+                SourceType = sourceType ?? Array.Empty<string>(),
+                ImpactLevel = impactLevel ?? Array.Empty<string>()
+            },
+            cancellationToken);
         return MicroflowOk(result);
     }
 

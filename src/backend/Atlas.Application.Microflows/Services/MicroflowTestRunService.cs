@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Atlas.Application.Microflows.Abstractions;
-using Microsoft.Extensions.Configuration;
+using Atlas.Application.Microflows.Audit;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
@@ -25,8 +25,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private readonly IMicroflowRuntimeEngine _runner;
     private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
-    private readonly IMicroflowRunCancellationRegistry _cancellationRegistry;
-    private readonly IConfiguration _configuration;
+    private readonly IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
 
     public MicroflowTestRunService(
@@ -39,8 +38,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         IMicroflowRuntimeEngine runner,
         IMicroflowExecutionPlanLoader executionPlanLoader,
         IMicroflowRequestContextAccessor requestContextAccessor,
-        IMicroflowRunCancellationRegistry cancellationRegistry,
-        IConfiguration configuration,
+        IMicroflowAuditWriter auditWriter,
         IMicroflowClock clock)
     {
         _resourceRepository = resourceRepository;
@@ -52,8 +50,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         _runner = runner;
         _executionPlanLoader = executionPlanLoader;
         _requestContextAccessor = requestContextAccessor;
-        _cancellationRegistry = cancellationRegistry;
-        _configuration = configuration;
+        _auditWriter = auditWriter;
         _clock = clock;
     }
 
@@ -161,18 +158,42 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 innerException: ex);
         }
 
+        await SafeAuditAsync(new MicroflowAuditEvent
+        {
+            Action = "microflow.test_run",
+            Result = string.Equals(session.Status, "success", StringComparison.OrdinalIgnoreCase) ? "success" : "failure",
+            ResourceId = resource.Id,
+            ResourceName = resource.Name,
+            WorkspaceId = resource.WorkspaceId,
+            Target = $"{resource.ModuleId}/{resource.Name}#{session.Id}",
+            ErrorCode = session.Error?.Code,
+            Details = new Dictionary<string, object?>
+            {
+                ["runId"] = session.Id,
+                ["status"] = session.Status,
+                ["durationMs"] = (session.EndedAt is { } endedAt
+                    ? (long)(endedAt - session.StartedAt).TotalMilliseconds
+                    : 0)
+            }
+        }, cancellationToken);
+
         return ToApiResponse(session, _requestContextAccessor.Current.TraceId);
     }
 
-    private int ResolveRunTimeoutSeconds()
+    private async Task SafeAuditAsync(MicroflowAuditEvent auditEvent, CancellationToken cancellationToken)
     {
-        // 默认 300s；clamp 到 [1, 3600] 防止配置值异常或 0 导致永不超时。
-        var configured = _configuration.GetValue("Microflow:Runtime:RunTimeoutSeconds", 300);
-        if (configured <= 0)
+        try
         {
-            return 0; // 0 表示禁用
+            await _auditWriter.WriteAsync(auditEvent, cancellationToken);
         }
-        return Math.Clamp(configured, 1, 3600);
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // best-effort
+        }
     }
 
     private async Task PersistSessionGraphAsync(MicroflowRunSessionDto session, MicroflowResourceEntity fallbackResource, CancellationToken cancellationToken)

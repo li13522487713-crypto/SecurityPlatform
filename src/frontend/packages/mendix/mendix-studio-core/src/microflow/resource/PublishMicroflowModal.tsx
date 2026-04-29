@@ -48,7 +48,10 @@ export function PublishMicroflowModal({ resource, visible, onClose, onSubmit }: 
         <List
           dataSource={[
             { type: hasError ? "error" : "success", text: hasError ? "已归档微流不能发布" : "基础结构校验通过" },
-            { type: "warning", text: "引用影响分析为 mock 数据，真实治理将在后续接入" }
+            // P1-4: 该 modal 为旧 demo 版本（仍由 MicroflowResourceTab 使用），生产路径
+            // 已切到 microflow/publish/PublishMicroflowModal，那里展示真实 impact /
+            // breaking change。这里删除"引用影响为 mock"的提示，避免误导。
+            { type: "info", text: "完整引用影响请在 Mendix Studio 编辑器内的 Publish Dialog 查看（接入真实 GET /api/v1/microflows/{id}/impact）" }
           ]}
           renderItem={item => (
             <List.Item>

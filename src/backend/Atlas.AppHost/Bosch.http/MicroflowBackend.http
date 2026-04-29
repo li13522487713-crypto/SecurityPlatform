@@ -3266,3 +3266,34 @@ X-Trace-Id: {{traceId}}
     "flows": []
   }
 }
+
+### P0-7 - Unpublish microflow (resource keeps history; status -> draft, publishStatus -> unpublished)
+# Expected:
+# - $.success=true; $.data.publishStatus="unpublished"; $.data.latestPublishedVersion is null/empty
+# - 409 MICROFLOW_REFERENCE_BLOCKED when active references exist and force=false
+# - 409 MICROFLOW_PUBLISH_BLOCKED when the microflow has never been published
+POST {{host}}/api/v1/microflows/{{microflowId}}/unpublish
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "reason": "Manual unpublish via Mendix Studio",
+  "force": false
+}
+
+### P0-7 - List callers (resources that call this microflow; equivalent to GET .../references with target dimension)
+GET {{host}}/api/v1/microflows/{{microflowId}}/callers?includeInactive=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### P0-7 - List callees (downstream microflows that this microflow calls; sourceType=microflow + sourceId={{microflowId}})
+GET {{host}}/api/v1/microflows/{{microflowId}}/callees?includeInactive=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
