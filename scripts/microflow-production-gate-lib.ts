@@ -31,32 +31,9 @@ export interface FrontendActionRegistryEntry {
   actionKind: string;
   legacyActivityType: string;
   officialType: string;
-  title: string;
-  titleZh: string;
-  description: string;
-  category: string;
-  availability: string;
-  runtimeSupportLevel: string;
-  propertyTabs: string[];
-}
-
-export interface FrontendNodeRegistryEntry {
-  registryKey: string;
-  type: string;
-  kind: string;
-  activityType?: string;
-  actionKind?: string;
-  category: string;
-  availability: string;
-  engineSupportLevel: string;
-  propertyFormKey: string;
-  toolboxVisible: boolean;
-}
-
-export interface FrontendActionRegistryEntry {
-  actionKind: string;
-  legacyActivityType: string;
-  officialType: string;
+  title?: string;
+  titleZh?: string;
+  description?: string;
   category: string;
   availability: string;
   runtimeSupportLevel: string;
@@ -75,6 +52,7 @@ export interface FrontendNodeRegistryEntry {
   engineSupportLevel: string;
   propertyFormKey: string;
   validationSupport: boolean;
+  toolboxVisible?: boolean;
 }
 
 export interface FrontendPropertyFormRegistryEntry {
@@ -529,7 +507,9 @@ function extractArrayBody(source: string, marker: string): string {
   if (markerIndex < 0) {
     return "";
   }
-  const start = source.indexOf("[", markerIndex);
+  const assignmentIndex = source.indexOf("=", markerIndex);
+  const searchFrom = assignmentIndex > markerIndex ? assignmentIndex : markerIndex;
+  const start = source.indexOf("[", searchFrom);
   if (start < 0) {
     return "";
   }
@@ -790,4 +770,182 @@ export function summarizeResults(results: CheckResult[]): "go" | "conditional-go
     return "conditional-go";
   }
   return "go";
+}
+
+function markdownCell(value: unknown): string {
+  const text = value === undefined || value === null || value === "" ? "-" : String(value);
+  return text.replace(/\|/gu, "/").replace(/\r?\n/gu, "<br>");
+}
+
+export interface CapabilityMatrixRow {
+  actionKind: string;
+  category: string;
+  frontendRegistryKey: string;
+  mendixSemanticName: string;
+  schemaKind: string;
+  toolboxVisible: string;
+  propertyPanelFormPath: string;
+  validationSupport: string;
+  runtimeExecutor: string;
+  runtimeSupportLevel: string;
+  transactionBehavior: string;
+  variableOutputBehavior: string;
+  errorHandling: string;
+  traceBehavior: string;
+  connectorCapability: string;
+  knownLimitations: string;
+  productionDecision: string;
+  targetRound: string;
+}
+
+export function productionDecisionForDescriptor(descriptor: BackendDescriptor): { decision: string; limitation: string; targetRound: string } {
+  if (R1_KNOWN_MODELED_ONLY_BLOCKERS.has(descriptor.actionKind)) {
+    return {
+      decision: "blocked-before-r3",
+      limitation: "R1 识别为 ConfiguredMicroflowActionExecutor modeled-only blocker，R3 前不得生产放行。",
+      targetRound: "R3"
+    };
+  }
+  if (descriptor.runtimeCategory === "ConnectorBacked") {
+    return {
+      decision: "blocked-without-capability",
+      limitation: "缺 connector capability 时必须返回 RUNTIME_CONNECTOR_REQUIRED，publish 应阻断。",
+      targetRound: "R3"
+    };
+  }
+  if (descriptor.runtimeCategory === "ExplicitUnsupported") {
+    return {
+      decision: "unsupported",
+      limitation: "Nanoflow/client-only 或 legacy unsupported，不进入服务端生产运行。",
+      targetRound: "R5"
+    };
+  }
+  if (descriptor.runtimeCategory === "RuntimeCommand") {
+    return {
+      decision: "server-command-preview",
+      limitation: "服务端只产 RuntimeCommand，由客户端处理，不等同服务端真实执行。",
+      targetRound: "R5"
+    };
+  }
+  if (descriptor.actionKind === "restCall") {
+    return {
+      decision: "supported-with-security-policy",
+      limitation: "默认 AllowRealHttp=false；显式开启并通过 SSRF policy 后才允许真实 HTTP。",
+      targetRound: "R2/R5"
+    };
+  }
+  return {
+    decision: "supported",
+    limitation: descriptor.supportLevel === "ModeledOnlyConverted" ? "支持级别仍为 modeled-only converted，需后续测试固化语义。" : "无 R1 已知阻断项。",
+    targetRound: "R1"
+  };
+}
+
+export function buildCapabilityMatrixRows(root = findWorkspaceRoot()): CapabilityMatrixRow[] {
+  const frontend = collectFrontendRegistryMetadata(root);
+  const descriptors = parseBackendDescriptors(root);
+  return descriptors.map(descriptor => {
+    const fe = frontend.actionsByKind.get(descriptor.actionKind);
+    const node = fe?.legacyActivityType ? frontend.nodesByActionKind.get(descriptor.actionKind) : undefined;
+    const propertyFormKey = node?.propertyFormKey ?? (fe?.legacyActivityType ? `activity:${fe.legacyActivityType}` : "");
+    const propertyFormRegistered = propertyFormKey ? frontend.propertyFormKeys.has(propertyFormKey) : false;
+    const decision = productionDecisionForDescriptor(descriptor);
+    return {
+      actionKind: descriptor.actionKind,
+      category: fe?.category ?? descriptor.registryCategory,
+      frontendRegistryKey: fe?.key ?? node?.key ?? "-",
+      mendixSemanticName: fe?.officialType ?? descriptor.schemaType,
+      schemaKind: descriptor.schemaType,
+      toolboxVisible: fe ? (fe.availability === "hidden" ? "hidden" : fe.availability === "nanoflowOnlyDisabled" ? "disabled" : "visible") : "backend-only",
+      propertyPanelFormPath: propertyFormKey ? `${propertyFormKey}${propertyFormRegistered ? " (registered)" : " (missing)"}` : "n/a",
+      validationSupport: fe ? "frontend-validateAction + backend-validation-matrix" : "backend-only-validation",
+      runtimeExecutor: descriptor.executor,
+      runtimeSupportLevel: `${descriptor.runtimeCategory}/${descriptor.supportLevel}`,
+      transactionBehavior: descriptor.producesTransaction ? "writes-transaction" : "no-transaction-write",
+      variableOutputBehavior: descriptor.producesVariables ? "produces-variable" : "no-variable-output",
+      errorHandling: descriptor.runtimeCategory === "ConnectorBacked"
+        ? "RUNTIME_CONNECTOR_REQUIRED"
+        : descriptor.runtimeCategory === "ExplicitUnsupported"
+          ? "RUNTIME_UNSUPPORTED_ACTION"
+          : fe?.supportsErrorHandling === false ? "no-error-flow" : "rollback/custom/continue-by-node",
+      traceBehavior: descriptor.realExecution ? "runtime-trace-frame" : "diagnostic-only",
+      connectorCapability: descriptor.connectorCapability ?? "-",
+      knownLimitations: decision.limitation,
+      productionDecision: decision.decision,
+      targetRound: decision.targetRound
+    };
+  }).sort((left, right) => left.category.localeCompare(right.category) || left.actionKind.localeCompare(right.actionKind));
+}
+
+export function capabilityMatrixMarkdown(root = findWorkspaceRoot()): string {
+  const rows = buildCapabilityMatrixRows(root);
+  const descriptors = parseBackendDescriptors(root);
+  const frontend = collectFrontendRegistryMetadata(root);
+  const headers = [
+    "actionKind",
+    "category",
+    "frontend registry key",
+    "Mendix semantic name",
+    "schema kind",
+    "toolbox visible",
+    "property panel form path",
+    "validation support",
+    "runtime executor",
+    "runtime support level",
+    "transaction behavior",
+    "variable output behavior",
+    "error handling",
+    "trace behavior",
+    "connector capability",
+    "known limitations",
+    "production decision",
+    "target round"
+  ];
+  return [
+    "# Microflow 生产节点能力矩阵",
+    "",
+    "> R1 机器可读矩阵。来源：前端 node registry、action registry、property form registry 与后端 `MicroflowActionExecutorRegistry.BuiltInDescriptors()` collector。",
+    "",
+    "## 采集摘要",
+    "",
+    `- 后端 BuiltInDescriptors：${descriptors.length} 个 actionKind。`,
+    `- 前端 action registry：${frontend.actions.length} 个 actionKind。`,
+    `- 前端 node registry：${frontend.nodes.length} 个节点条目。`,
+    `- 前端 property form 显式注册：${frontend.propertyFormKeys.size} 个 key。`,
+    `- 用户目标：≥80 actionKind；当前源码事实不足时 production gate 保持 conditional-go。`,
+    "",
+    "## 决策规则",
+    "",
+    "- `supported`：R1 未发现生产阻断，但后续轮次仍可能补充更细测试。",
+    "- `blocked-before-r3`：`rollback` / `cast` / `listOperation` 当前为 modeled-only fake success，R3 真实 executor 前禁止生产放行。",
+    "- `blocked-without-capability`：connector-backed 节点缺 capability 时必须返回 `RUNTIME_CONNECTOR_REQUIRED` 并阻断 publish。",
+    "- `server-command-preview`：服务端只产 RuntimeCommand，由客户端完成动作。",
+    "- `unsupported`：Nanoflow/client-only 或 legacy unsupported。",
+    "",
+    "## 三合一矩阵",
+    "",
+    `| ${headers.join(" | ")} |`,
+    `| ${headers.map(() => "---").join(" | ")} |`,
+    ...rows.map(row => `| ${[
+      row.actionKind,
+      row.category,
+      row.frontendRegistryKey,
+      row.mendixSemanticName,
+      row.schemaKind,
+      row.toolboxVisible,
+      row.propertyPanelFormPath,
+      row.validationSupport,
+      row.runtimeExecutor,
+      row.runtimeSupportLevel,
+      row.transactionBehavior,
+      row.variableOutputBehavior,
+      row.errorHandling,
+      row.traceBehavior,
+      row.connectorCapability,
+      row.knownLimitations,
+      row.productionDecision,
+      row.targetRound
+    ].map(markdownCell).join(" | ")} |`),
+    ""
+  ].join("\n");
 }
