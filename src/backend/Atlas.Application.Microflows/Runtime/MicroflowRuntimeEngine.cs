@@ -8,6 +8,7 @@ using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Debug;
 using Atlas.Application.Microflows.Runtime.Expressions;
+using Atlas.Application.Microflows.Runtime.Loops;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Services;
 
@@ -31,11 +32,12 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     // Legacy unit tests construct the engine without them; in that case the engine
     // keeps the previous fast-path-only behaviour and reports unsupported actions.
     private readonly IMicroflowActionExecutorRegistry? _actionExecutorRegistry;
+    private readonly IMicroflowLoopExecutor? _loopExecutor;
     private readonly IMicroflowRuntimeConnectorRegistry? _connectorRegistry;
     private readonly IMicroflowDebugCoordinator? _debugCoordinator;
 
     public MicroflowRuntimeEngine(IMicroflowSchemaReader schemaReader, IMicroflowClock clock)
-        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null, null)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null, null, null)
     {
     }
 
@@ -44,7 +46,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowClock clock,
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
-        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), resourceRepository, schemaSnapshotRepository, null, null, null)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), resourceRepository, schemaSnapshotRepository, null, null, null, null)
     {
     }
 
@@ -54,7 +56,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowExpressionEvaluator expressionEvaluator,
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
-        : this(schemaReader, clock, expressionEvaluator, resourceRepository, schemaSnapshotRepository, null, null, null)
+        : this(schemaReader, clock, expressionEvaluator, resourceRepository, schemaSnapshotRepository, null, null, null, null)
     {
     }
 
@@ -65,6 +67,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository,
         IMicroflowActionExecutorRegistry? actionExecutorRegistry,
+        IMicroflowLoopExecutor? loopExecutor,
         IMicroflowRuntimeConnectorRegistry? connectorRegistry,
         IMicroflowDebugCoordinator? debugCoordinator = null)
     {
@@ -74,6 +77,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
         _actionExecutorRegistry = actionExecutorRegistry;
+        _loopExecutor = loopExecutor;
         _connectorRegistry = connectorRegistry;
         _debugCoordinator = debugCoordinator;
     }
@@ -316,10 +320,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             "endEvent" => ExecuteEnd(context, node, incomingFlowId),
             "exclusiveSplit" => ExecuteDecision(context, graph, node, incomingFlowId),
             "actionActivity" => await ExecuteActionAsync(context, graph, node, incomingFlowId, state, cancellationToken),
-            // P0-4: 显式 unsupported 节点（控制面接受 modeling，但 runtime 主路径未实现）。
-            "loopedActivity" => UnsupportedNode(
-                context, node, incomingFlowId,
-                "Loop activity 节点暂未在主 runtime 路径执行；请在 Loop 体内使用 break/continue 子节点（或将循环改造为 list filter/aggregate）。"),
+            "loopedActivity" => await ExecuteLoopActivityAsync(context, graph, node, incomingFlowId, cancellationToken).ConfigureAwait(false),
             "errorEvent" => ExecuteErrorEvent(context, node, incomingFlowId),
             "annotation" => ExecuteAnnotationPassThrough(context, graph, node, incomingFlowId),
             "parallelGateway" or "parallelSplit" or "parallelMerge"
@@ -335,6 +336,51 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         var error = Error(RuntimeErrorCode.RuntimeUnsupportedAction, message, node.Id, flowId: incomingFlowId);
         context.AddNodeFailure(node, incomingFlowId, error);
         return NodeExecution.Failed(error);
+    }
+
+    private async Task<NodeExecution> ExecuteLoopActivityAsync(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        MicroflowObjectModel node,
+        string? incomingFlowId,
+        CancellationToken cancellationToken)
+    {
+        if (_loopExecutor is null || _actionExecutorRegistry is null)
+        {
+            var executorMissing = Error(RuntimeErrorCode.RuntimeLoopBodyNotFound, "Loop executor 未注册，无法执行 loopedActivity。", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, executorMissing);
+            return NodeExecution.Failed(executorMissing);
+        }
+
+        var actionContext = new MicroflowActionExecutionContext
+        {
+            RuntimeExecutionContext = context.AsRuntimeExecutionContext(),
+            ExecutionPlan = context.ResolveExecutionPlan(),
+            ExecutionNode = context.ResolveLoopExecutionNode(node),
+            ActionConfig = node.Raw,
+            ActionKind = "loopedActivity",
+            ObjectId = node.Id,
+            CollectionId = node.CollectionId,
+            VariableStore = context.VariableStore,
+            ExpressionEvaluator = _expressionEvaluator
+        };
+
+        var loopResult = await _loopExecutor.ExecuteLoopAsync(actionContext, actionContext.ExecutionNode, cancellationToken).ConfigureAwait(false);
+        if (string.Equals(loopResult.Status, MicroflowLoopExecutionStatus.Failed, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(loopResult.Status, MicroflowLoopExecutionStatus.Cancelled, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(loopResult.Status, MicroflowLoopExecutionStatus.MaxIterationsExceeded, StringComparison.OrdinalIgnoreCase))
+        {
+            var loopError = loopResult.Error ?? Error(RuntimeErrorCode.RuntimeLoopMaxIterationsExceeded, $"循环执行失败：{loopResult.Status}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, loopError);
+            return NodeExecution.Failed(loopError);
+        }
+
+        return ContinueAfterAction(
+            context,
+            graph,
+            node,
+            incomingFlowId,
+            loopResult.OutputPreview ?? JsonObj(new { status = loopResult.Status, iterations = loopResult.IterationCount }));
     }
 
     private static NodeExecution ExecuteErrorEvent(RuntimeContext context, MicroflowObjectModel node, string? incomingFlowId)
@@ -1656,6 +1702,30 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 ActionOfficialType = action.OfficialType,
                 SupportLevel = MicroflowRuntimeSupportLevel.Supported,
                 ConfigJson = action.Raw
+            };
+        }
+
+        public MicroflowExecutionNode ResolveLoopExecutionNode(MicroflowObjectModel node)
+        {
+            var plan = ResolveExecutionPlan();
+            foreach (var planNode in plan.Nodes)
+            {
+                if (string.Equals(planNode.ObjectId, node.Id, StringComparison.Ordinal))
+                {
+                    return planNode;
+                }
+            }
+
+            return new MicroflowExecutionNode
+            {
+                ObjectId = node.Id,
+                CollectionId = node.CollectionId,
+                Kind = node.Kind,
+                OfficialType = node.OfficialType,
+                Caption = node.Caption,
+                ActionKind = "loopedActivity",
+                SupportLevel = MicroflowRuntimeSupportLevel.Supported,
+                ConfigJson = node.Raw
             };
         }
 
