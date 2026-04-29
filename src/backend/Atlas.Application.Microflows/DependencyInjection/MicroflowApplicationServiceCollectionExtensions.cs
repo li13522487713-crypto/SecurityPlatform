@@ -66,6 +66,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<CastObjectActionExecutor>();
         services.TryAddScoped<CreateListActionExecutor>();
         services.TryAddScoped<ChangeListActionExecutor>();
+        services.TryAddScoped<ListOperationActionExecutor>();
         services.TryAddScoped<AggregateListActionExecutor>();
         services.TryAddScoped<CallMicroflowActionExecutor>();
         services.TryAddScoped<RestCallActionExecutor>();

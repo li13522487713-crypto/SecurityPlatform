@@ -72,15 +72,23 @@ add(
   frontendMissing.length === 0 ? undefined : [`后端缺失：${frontendMissing.join(", ")}`]
 );
 
+const modeledOnlyExpected = ["rollback", "cast", "listOperation"];
 const supportedButModeled = descriptors
-  .filter(descriptor => ["rollback", "cast", "listOperation"].includes(descriptor.actionKind))
+  .filter(descriptor => modeledOnlyExpected.includes(descriptor.actionKind))
   .filter(descriptor => descriptor.executor === "ConfiguredMicroflowActionExecutor" || descriptor.supportLevel === "ModeledOnlyConverted")
+  .map(descriptor => descriptor.actionKind);
+const implementedR3Executors = descriptors
+  .filter(descriptor => modeledOnlyExpected.includes(descriptor.actionKind))
+  .filter(descriptor => descriptor.executor !== "ConfiguredMicroflowActionExecutor" && descriptor.supportLevel !== "ModeledOnlyConverted")
   .map(descriptor => descriptor.actionKind);
 add(
   "r1-known-modeled-only-blockers-marked",
-  supportedButModeled.length === 3 ? "pass" : "fail",
-  "rollback/cast/listOperation 在 R1 被识别为 modeled-only blocker。",
-  supportedButModeled.length === 3 ? undefined : [`识别结果：${supportedButModeled.join(", ") || "(none)"}`]
+  supportedButModeled.length + implementedR3Executors.length === modeledOnlyExpected.length ? "pass" : "fail",
+  "rollback/cast/listOperation 在 R1 被识别为 modeled-only blocker；R3 后允许升级为真实 executor。",
+  [
+    `modeled-only：${supportedButModeled.join(", ") || "(none)"}`,
+    `implemented：${implementedR3Executors.join(", ") || "(none)"}`
+  ]
 );
 
 const connectorWithoutCapability = descriptors

@@ -170,6 +170,16 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             }
         }
 
+        if (string.Equals(actionKind, "listOperation", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<ListOperationActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (string.Equals(actionKind, "aggregateList", StringComparison.OrdinalIgnoreCase))
         {
             var specialized = _serviceProvider?.GetService<AggregateListActionExecutor>();
@@ -317,10 +327,9 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
 
             Server("createList", "CreateListAction", "list", "CreateListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("changeList", "ChangeListAction", "list", "ChangeListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
-            Server("listOperation", "ListOperationAction", "list", "ConfiguredMicroflowActionExecutor",
+            Server("listOperation", "ListOperationAction", "list", "ListOperationActionExecutor",
                 producesVariables: true, producesTransaction: false,
-                supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted,
-                reason: "ListOperation 当前由 ConfiguredMicroflowActionExecutor 返回 success；真实 add/remove/clear/contains/insert/distinct executor 待 P1 后续轮次补齐。"),
+                reason: "ListOperation implements union/intersect/subtract/equals/distinct and scalar positional operations without mutating input lists."),
             Server("aggregateList", "AggregateListAction", "list", "AggregateListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("filterList", "FilterListAction", "list", "FilterListActionExecutor", producesVariables: true, producesTransaction: false, reason: "Filter List evaluates a per-item expression and produces a new list variable."),
             Server("sortList", "SortListAction", "list", "SortListActionExecutor", producesVariables: true, producesTransaction: false, reason: "Sort List orders items by a primitive member and produces a new list variable."),
