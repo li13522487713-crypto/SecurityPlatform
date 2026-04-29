@@ -6,6 +6,7 @@ using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Actions.Http;
 using Atlas.Application.Microflows.Runtime.Calls;
+using Atlas.Application.Microflows.Runtime.Connectors;
 using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Loops;
@@ -90,6 +91,14 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowCallStackService, MicroflowCallStackService>();
         services.TryAddScoped<IMicroflowLoopExecutor, MicroflowLoopExecutor>();
         services.TryAddScoped<IMicroflowRuntimeConnectorRegistry, MicroflowRuntimeConnectorRegistry>();
+        services.TryAddSingleton<IServerActionRuntime, DisabledServerActionRuntime>();
+        services.TryAddSingleton<ISoapWebServiceConnector, DisabledSoapWebServiceConnector>();
+        services.TryAddSingleton<IXmlMappingConnector, DisabledXmlMappingConnector>();
+        services.TryAddSingleton<IDocumentGenerationRuntime, DisabledDocumentGenerationRuntime>();
+        services.TryAddSingleton<IWorkflowRuntimeClient, DisabledWorkflowRuntimeClient>();
+        services.TryAddSingleton<IMlRuntime, DisabledMlRuntime>();
+        services.TryAddSingleton<IExternalActionConnector, DisabledExternalActionConnector>();
+        services.TryAddSingleton<IExternalObjectConnector, DisabledExternalObjectConnector>();
         services.TryAddSingleton<IMicroflowRunCancellationRegistry, MicroflowRunCancellationRegistry>();
         services.TryAddScoped<IMicroflowRunOwnershipGuard, MicroflowRunOwnershipGuard>();
         // P0-9: AppHost 层会用真实 audit adapter 覆盖；Application 默认 NoOp 防止 nullref。
