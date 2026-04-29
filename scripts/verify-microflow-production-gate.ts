@@ -71,16 +71,16 @@ function staticChecks(): CheckResult[] {
   const productionConfig = readWorkspaceFile("src/backend/Atlas.AppHost/appsettings.Production.json", root);
   results.push({
     id: "production-rest-safe-defaults",
-    status: productionConfig.includes("\"AllowRealHttp\":false") && productionConfig.includes("\"AllowPrivateNetwork\":false") ? "pass" : "fail",
+    status: /"AllowRealHttp"\s*:\s*false/u.test(productionConfig) && /"AllowPrivateNetwork"\s*:\s*false/u.test(productionConfig) ? "pass" : "fail",
     summary: "生产配置默认禁止真实 HTTP 与私网访问。"
   });
   return results;
 }
 
 const commandResults = [
-  run("pnpm", ["exec", "tsx", "../../scripts/verify-microflow-node-capability-matrix.ts"], resolve(root, "src/frontend")),
-  run("pnpm", ["exec", "tsx", "../../scripts/verify-microflow-action-descriptor-naming.ts"], resolve(root, "src/frontend")),
-  run("pnpm", ["exec", "tsx", "../../scripts/verify-microflow-executor-coverage.ts"], resolve(root, "src/frontend"))
+  run("node", ["../../scripts/verify-microflow-node-capability-matrix.ts"], resolve(root, "src/frontend")),
+  run("node", ["../../scripts/verify-microflow-action-descriptor-naming.ts"], resolve(root, "src/frontend")),
+  run("node", ["../../scripts/verify-microflow-executor-coverage.ts"], resolve(root, "src/frontend"))
 ];
 const results = [...staticChecks(), ...commandResults];
 const conclusion = summarizeResults(results);
