@@ -44,6 +44,16 @@ public static class MicroflowRuntimeConnectorCapability
     public const string JavaAction = "java.action";
     public const string MlModel = "ml.model";
     public const string MetricsEmit = "metrics.emit";
+    public const string EmailSend = "email.send";
+    public const string NotificationSend = "notification.send";
+    public const string MessagePublish = "message.publish";
+    public const string MessageReceive = "message.receive";
+    public const string ODataAction = "odata.action";
+    public const string ODataRetrieve = "odata.retrieve";
+    public const string ODataCommit = "odata.commit";
+    public const string ODataDelete = "odata.delete";
+    public const string FileDocumentRead = "fileDocument.read";
+    public const string FileDocumentWrite = "fileDocument.write";
     public const string ClientCommand = "client.command";
 }
 

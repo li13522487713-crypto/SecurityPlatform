@@ -21,7 +21,11 @@ public sealed class MicroflowActionExecutorRegistryTests
         "applyJumpToOption", "callWorkflow", "changeWorkflowState", "completeUserTask", "generateJumpToOptions",
         "retrieveWorkflowActivityRecords", "retrieveWorkflowContext", "retrieveWorkflows", "showUserTaskPage",
         "showWorkflowAdminPage", "lockWorkflow", "unlockWorkflow", "notifyWorkflow",
-        "deleteExternalObject", "sendExternalObject"
+        "deleteExternalObject", "sendExternalObject",
+        "sendEmail", "sendNotification", "publishMessage", "consumeMessage",
+        "callODataAction", "retrieveODataObject", "commitODataObject", "deleteODataObject",
+        "retrieveFileDocument", "storeFileDocument", "exportFileDocument", "importFileDocument",
+        "createExternalObject", "changeExternalObject"
     ];
 
     [Fact]
@@ -60,6 +64,42 @@ public sealed class MicroflowActionExecutorRegistryTests
         Assert.Equal(MicroflowActionExecutionStatus.ConnectorRequired, result.Status);
         Assert.Equal(RuntimeErrorCode.RuntimeConnectorRequired, result.Error?.Code);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.ConnectorCapability == MicroflowRuntimeConnectorCapability.SoapWebService);
+    }
+
+    [Fact]
+    public async Task ConnectorBackedDescriptors_AllRequireCapabilityWhenMissing()
+    {
+        var registry = new MicroflowActionExecutorRegistry();
+        var connectorBacked = MicroflowActionExecutorRegistry.BuiltInDescriptors()
+            .Where(descriptor => descriptor.RuntimeCategory == MicroflowActionRuntimeCategory.ConnectorBacked)
+            .ToArray();
+
+        Assert.NotEmpty(connectorBacked);
+        foreach (var descriptor in connectorBacked)
+        {
+            var executor = registry.GetOrFallback(descriptor.ActionKind);
+            var result = await executor.ExecuteAsync(Context(descriptor.ActionKind), CancellationToken.None);
+
+            Assert.Equal(MicroflowActionExecutionStatus.ConnectorRequired, result.Status);
+            Assert.Equal(RuntimeErrorCode.RuntimeConnectorRequired, result.Error?.Code);
+            Assert.Contains(result.Diagnostics, diagnostic => diagnostic.ConnectorCapability == descriptor.ConnectorCapability);
+        }
+    }
+
+    [Fact]
+    public void R1ModeledOnlyBlockers_RemainExplicitlyMarked()
+    {
+        var byKind = MicroflowActionExecutorRegistry.BuiltInDescriptors()
+            .ToDictionary(descriptor => descriptor.ActionKind, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var actionKind in new[] { "rollback", "cast", "listOperation" })
+        {
+            Assert.True(byKind.TryGetValue(actionKind, out var descriptor), $"Missing descriptor for {actionKind}");
+            Assert.Equal(MicroflowActionRuntimeCategory.ServerExecutable, descriptor.RuntimeCategory);
+            Assert.Equal(MicroflowActionSupportLevel.ModeledOnlyConverted, descriptor.SupportLevel);
+            Assert.Equal("ConfiguredMicroflowActionExecutor", descriptor.Executor);
+            Assert.False(string.IsNullOrWhiteSpace(descriptor.Reason));
+        }
     }
 
     [Fact]
