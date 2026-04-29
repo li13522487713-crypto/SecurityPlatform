@@ -2,6 +2,7 @@ using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.AppHost.Microflows.Controllers;
@@ -44,6 +45,7 @@ public sealed class MicroflowMetadataController : MicroflowApiControllerBase
         return MicroflowOk(result);
     }
 
+    [AllowAnonymous]
     [HttpGet("health")]
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowMetadataHealthDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MicroflowMetadataHealthDto>>> GetHealth(

@@ -1,5 +1,6 @@
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
@@ -23,13 +24,12 @@ public sealed class MicroflowProductionGuardFilter : IAsyncAuthorizationFilter
 
     public Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
-        if (!IsProductionGuardEnabled())
+        if (IsAllowAnonymousEndpoint(context))
         {
             return Task.CompletedTask;
         }
 
-        var requestPath = context.HttpContext.Request.Path.Value ?? string.Empty;
-        if (requestPath.EndsWith("/health", StringComparison.OrdinalIgnoreCase))
+        if (!IsProductionGuardEnabled())
         {
             return Task.CompletedTask;
         }
@@ -53,6 +53,9 @@ public sealed class MicroflowProductionGuardFilter : IAsyncAuthorizationFilter
     private bool IsProductionGuardEnabled()
         => !_environment.IsDevelopment()
            && _configuration.GetValue("Microflow:Security:EnableProductionGuard", true);
+
+    private static bool IsAllowAnonymousEndpoint(AuthorizationFilterContext context)
+        => context.ActionDescriptor.EndpointMetadata.OfType<IAllowAnonymous>().Any();
 
     private static bool IsAuthenticated(HttpContext httpContext)
         => httpContext.User.Identity?.IsAuthenticated == true;

@@ -4,6 +4,7 @@ using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime.Actions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.AppHost.Microflows.Controllers;
@@ -331,6 +332,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         return MicroflowOk(result);
     }
 
+    [AllowAnonymous]
     [HttpGet("health")]
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowHealthDto>), StatusCodes.Status200OK)]
     public ActionResult<MicroflowApiResponse<MicroflowHealthDto>> GetHealth()
@@ -354,6 +356,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         });
     }
 
+    [AllowAnonymous]
     [HttpGet("runtime/health")]
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowHealthDto>), StatusCodes.Status200OK)]
     public ActionResult<MicroflowApiResponse<MicroflowHealthDto>> GetRuntimeHealth()
@@ -390,6 +393,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         });
     }
 
+    [AllowAnonymous]
     [HttpGet("storage/health")]
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowStorageHealthDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MicroflowStorageHealthDto>>> GetStorageHealth(
