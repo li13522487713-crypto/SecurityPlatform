@@ -1,6 +1,6 @@
 # Microflow Production Gate Summary (R1)
 
-- GeneratedAt: 2026-04-29T04:34:50.801Z
+- GeneratedAt: 2026-04-29T04:37:59.234Z
 - Conclusion: **conditional-go**
 
 | Check | Status | Summary |
