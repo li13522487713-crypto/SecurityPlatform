@@ -177,6 +177,46 @@ describe("Workbench microflow document lifecycle", () => {
     expect(state.dirtyByWorkbenchTabId["microflow:mf-a"]).toBeUndefined();
   });
 
+  it("keeps undo and redo history isolated per tab and clears it on close", () => {
+    const first = createMicroflow({ id: "mf-a", name: "MF_A" });
+    const second = createMicroflow({ id: "mf-b", name: "MF_B" });
+    useMendixStudioStore.getState().setModuleMicroflows("mod_procurement", [first, second]);
+    useMendixStudioStore.getState().openMicroflowWorkbenchTab("mf-a");
+    useMendixStudioStore.getState().openMicroflowWorkbenchTab("mf-b");
+
+    useMendixStudioStore.setState({
+      canUndoByWorkbenchTabId: { "microflow:mf-a": true },
+      canRedoByWorkbenchTabId: { "microflow:mf-b": true },
+    });
+
+    expect(useMendixStudioStore.getState().canUndoByWorkbenchTabId["microflow:mf-a"]).toBe(true);
+    expect(useMendixStudioStore.getState().canUndoByWorkbenchTabId["microflow:mf-b"]).toBeUndefined();
+    expect(useMendixStudioStore.getState().canRedoByWorkbenchTabId["microflow:mf-a"]).toBeUndefined();
+    expect(useMendixStudioStore.getState().canRedoByWorkbenchTabId["microflow:mf-b"]).toBe(true);
+
+    useMendixStudioStore.getState().closeWorkbenchTab("microflow:mf-a");
+
+    expect(useMendixStudioStore.getState().canUndoByWorkbenchTabId["microflow:mf-a"]).toBeUndefined();
+    expect(useMendixStudioStore.getState().canRedoByWorkbenchTabId["microflow:mf-b"]).toBe(true);
+  });
+
+  it("activates the requested tab without discarding another dirty tab", () => {
+    const first = createMicroflow({ id: "mf-a", name: "MF_A" });
+    const second = createMicroflow({ id: "mf-b", name: "MF_B" });
+    useMendixStudioStore.getState().setModuleMicroflows("mod_procurement", [first, second]);
+    useMendixStudioStore.getState().openMicroflowWorkbenchTab("mf-a");
+    useMendixStudioStore.getState().openMicroflowWorkbenchTab("mf-b");
+    useMendixStudioStore.getState().markMicroflowDirty("mf-a", true);
+
+    useMendixStudioStore.getState().setActiveWorkbenchTab("microflow:mf-b");
+
+    const state = useMendixStudioStore.getState();
+    expect(state.activeWorkbenchTabId).toBe("microflow:mf-b");
+    expect(state.activeMicroflowId).toBe("mf-b");
+    expect(state.dirtyByWorkbenchTabId["microflow:mf-a"]).toBe(true);
+    expect(state.saveStateByMicroflowId["mf-a"].dirty).toBe(true);
+  });
+
   it("clears save state on delete but keeps it on rename", () => {
     const source = createMicroflow({ id: "mf-source", name: "MF_Source", displayName: "Source" });
     useMendixStudioStore.getState().setModuleMicroflows("mod_procurement", [source]);
