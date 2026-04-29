@@ -45,6 +45,11 @@ public sealed class MicroflowReferenceIndexer : IMicroflowReferenceIndexer
             references = ExtractReferencesFromSchema(resource, schema.Value);
         }
 
+        // P0-8: 引用必须保持 source 与 target 同 workspace/tenant；
+        // 跨 workspace 的 callMicroflow 在写入 reference 索引前被剔除，
+        // 防止跨工作区的 reference 列表泄漏（同时 callees/callers 自然干净）。
+        references = await FilterReferencesBySourceScopeAsync(resource, references, cancellationToken);
+
         var previousTargetIds = (await _referenceRepository.ListBySourceAsync("microflow", resource.Id, cancellationToken))
             .Select(static reference => reference.TargetMicroflowId)
             .ToArray();
@@ -55,6 +60,60 @@ public sealed class MicroflowReferenceIndexer : IMicroflowReferenceIndexer
             previousTargetIds.Concat(references.Select(static reference => reference.TargetMicroflowId)).ToArray(),
             cancellationToken);
         return references;
+    }
+
+    private async Task<IReadOnlyList<MicroflowReferenceEntity>> FilterReferencesBySourceScopeAsync(
+        MicroflowResourceEntity sourceResource,
+        IReadOnlyList<MicroflowReferenceEntity> references,
+        CancellationToken cancellationToken)
+    {
+        if (references.Count == 0)
+        {
+            return references;
+        }
+
+        var sourceWorkspace = sourceResource.WorkspaceId;
+        var sourceTenant = sourceResource.TenantId;
+        var targetIds = references
+            .Where(r => string.Equals(r.SourceType, "microflow", StringComparison.OrdinalIgnoreCase) && r.TargetMicroflowId != sourceResource.Id)
+            .Select(r => r.TargetMicroflowId)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (targetIds.Length == 0)
+        {
+            return references;
+        }
+
+        var allowed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var targetId in targetIds)
+        {
+            var target = await _resourceRepository.GetByIdAsync(targetId, cancellationToken);
+            if (target is null)
+            {
+                continue;
+            }
+            if (!string.IsNullOrWhiteSpace(sourceWorkspace)
+                && !string.IsNullOrWhiteSpace(target.WorkspaceId)
+                && !string.Equals(sourceWorkspace, target.WorkspaceId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            if (!string.IsNullOrWhiteSpace(sourceTenant)
+                && !string.IsNullOrWhiteSpace(target.TenantId)
+                && !string.Equals(sourceTenant, target.TenantId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            allowed.Add(targetId);
+        }
+
+        return references
+            .Where(r =>
+                !string.Equals(r.SourceType, "microflow", StringComparison.OrdinalIgnoreCase)
+                || r.TargetMicroflowId == sourceResource.Id
+                || allowed.Contains(r.TargetMicroflowId))
+            .ToArray();
     }
 
     public IReadOnlyList<MicroflowReferenceEntity> ExtractReferencesFromSchema(MicroflowResourceEntity sourceResource, JsonElement schema)
