@@ -124,10 +124,10 @@ async function main(): Promise<void> {
   run("backend release build", ["dotnet", "build", "Atlas.SecurityPlatform.slnx", "-c", "Release"]);
   run("no mock production", ["npx", "tsx", "scripts/verify-microflow-production-no-mock.ts"]);
 
-  await liveHealth("api health", "/api/microflows/health", ["ok", "healthy"]);
-  await liveHealth("storage health", "/api/microflows/storage/health", ["ok", "healthy", "degraded"]);
-  await liveHealth("metadata health", "/api/microflow-metadata/health", ["ok", "healthy", "degraded"]);
-  await liveHealth("runtime health", "/api/microflows/runtime/health", ["healthy", "degraded"]);
+  await liveHealth("api health", "/api/v1/microflows/health", ["ok", "healthy"]);
+  await liveHealth("storage health", "/api/v1/microflows/storage/health", ["ok", "healthy", "degraded"]);
+  await liveHealth("metadata health", "/api/v1/microflow-metadata/health", ["ok", "healthy", "degraded"]);
+  await liveHealth("runtime health", "/api/v1/microflows/runtime/health", ["healthy", "degraded"]);
 
   const productionConfigPath = "src/backend/Atlas.AppHost/appsettings.Production.json";
   add("production appsettings exists", exists(productionConfigPath));
