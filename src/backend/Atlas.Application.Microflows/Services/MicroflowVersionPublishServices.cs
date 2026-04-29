@@ -526,6 +526,49 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         };
     }
 
+    public async Task<MicroflowResourceDto> UnpublishAsync(string resourceId, UnpublishMicroflowRequestDto request, CancellationToken cancellationToken)
+    {
+        var resource = await LoadResourceAsync(resourceId, cancellationToken);
+        EnsureNotArchived(resource);
+
+        if (string.IsNullOrWhiteSpace(resource.LatestPublishedVersion))
+        {
+            throw new MicroflowApiException(
+                MicroflowApiErrorCode.MicroflowPublishBlocked,
+                "微流尚未发布，无法取消发布。",
+                409);
+        }
+
+        if (!request.Force)
+        {
+            var activeReferences = await _referenceRepository.ListByTargetMicroflowIdAsync(resource.Id, includeInactive: false, cancellationToken);
+            if (activeReferences.Count > 0)
+            {
+                throw new MicroflowApiException(
+                    MicroflowApiErrorCode.MicroflowReferenceBlocked,
+                    "微流仍存在 active 引用，无法取消发布；请先解除引用或使用 force=true。",
+                    409,
+                    details: $"activeReferenceCount={activeReferences.Count}");
+            }
+        }
+
+        var context = _requestContextAccessor.Current;
+        var now = _clock.UtcNow;
+
+        // 历史 publish snapshot/version 行不修改（保持不可变审计），仅更新 resource 状态。
+        await _transaction.ExecuteAsync(async () =>
+        {
+            resource.PublishStatus = "unpublished";
+            resource.LatestPublishedVersion = null;
+            resource.Status = "draft";
+            Touch(resource, context, now);
+            await _resourceRepository.UpdateAsync(resource, cancellationToken);
+        }, cancellationToken);
+
+        var currentSnapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId, cancellationToken);
+        return MicroflowResourceMapper.ToDto(resource, currentSnapshot);
+    }
+
     internal static MicroflowVersionSummaryDto ToVersionSummary(MicroflowVersionEntity entity)
         => new()
         {
