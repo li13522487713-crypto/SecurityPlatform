@@ -46,6 +46,10 @@ public static class MicroflowApplicationServiceCollectionExtensions
             sp.GetService<IMicroflowRuntimeConnectorRegistry>()));
         services.TryAddScoped<IMicroflowVariableStore, MicroflowVariableStore>();
         services.TryAddScoped<IMicroflowExpressionEvaluator, MicroflowExpressionEvaluator>();
+        services.TryAddScoped<MicroflowExpressionFormatter>();
+        services.TryAddScoped<MicroflowExpressionCompletionProvider>();
+        services.TryAddScoped<MicroflowExpressionDiagnosticsProvider>();
+        services.TryAddScoped<MicroflowExpressionPreviewService>();
         services.TryAddScoped<IMicroflowMetadataResolver, MicroflowMetadataResolver>();
         services.TryAddScoped<IMicroflowEntityAccessService, MicroflowEntityAccessService>();
         services.TryAddScoped<IMicroflowRuntimeObjectMetadataService, MicroflowRuntimeObjectMetadataService>();
