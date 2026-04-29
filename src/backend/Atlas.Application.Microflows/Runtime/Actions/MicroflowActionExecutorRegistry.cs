@@ -288,12 +288,25 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Server("changeMembers", "ChangeMembersAction", "object", "ChangeMembersActionExecutor", producesVariables: true, producesTransaction: true),
             Server("commit", "CommitAction", "object", "CommitActionExecutor", producesVariables: false, producesTransaction: true),
             Server("delete", "DeleteAction", "object", "DeleteActionExecutor", producesVariables: false, producesTransaction: true),
-            Server("rollback", "RollbackAction", "object", "RollbackActionExecutor", producesVariables: false, producesTransaction: true),
-            Server("cast", "CastObjectAction", "object", "CastObjectActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted, reason: "Server can type-check object specialization without business DB writes."),
+            // P1-2: Rollback / Cast / ListOperation 当前由 ConfiguredMicroflowActionExecutor
+            // 返回 Success + reason，没有真实事务回滚 / 类型转换 / 列表 mutation；
+            // SupportLevel 标 ModeledOnlyConverted，Reason 显式说明，以便前端
+            // toolbox tooltip 与 verify-microflow-runtime-coverage 矩阵识别。
+            Server("rollback", "RollbackAction", "object", "ConfiguredMicroflowActionExecutor",
+                producesVariables: false, producesTransaction: true,
+                supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted,
+                reason: "Rollback 当前由 ConfiguredMicroflowActionExecutor 返回 success（无真实事务回滚）；真实 RollbackObjectActionExecutor 待 P1 后续轮次补齐。"),
+            Server("cast", "CastObjectAction", "object", "ConfiguredMicroflowActionExecutor",
+                producesVariables: true, producesTransaction: false,
+                supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted,
+                reason: "Cast 当前由 ConfiguredMicroflowActionExecutor 返回 success；真实 CastObjectActionExecutor（按 metadata 校验继承/实现关系，失败返回 RUNTIME_TYPE_MISMATCH）待 P1 后续轮次补齐。"),
 
             Server("createList", "CreateListAction", "list", "CreateListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("changeList", "ChangeListAction", "list", "ChangeListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
-            Server("listOperation", "ListOperationAction", "list", "ListOperationActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
+            Server("listOperation", "ListOperationAction", "list", "ConfiguredMicroflowActionExecutor",
+                producesVariables: true, producesTransaction: false,
+                supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted,
+                reason: "ListOperation 当前由 ConfiguredMicroflowActionExecutor 返回 success；真实 add/remove/clear/contains/insert/distinct executor 待 P1 后续轮次补齐。"),
             Server("aggregateList", "AggregateListAction", "list", "AggregateListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("filterList", "FilterListAction", "list", "FilterListActionExecutor", producesVariables: true, producesTransaction: false, reason: "Filter List evaluates a per-item expression and produces a new list variable."),
             Server("sortList", "SortListAction", "list", "SortListActionExecutor", producesVariables: true, producesTransaction: false, reason: "Sort List orders items by a primitive member and produces a new list variable."),
@@ -309,11 +322,14 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Unsupported("callNanoflow", "CallNanoflowAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Nanoflow calls cannot execute inside server Microflow runtime."),
 
             Server("restCall", "RestCallAction", "integration", "RestCallActionExecutor", producesVariables: true, producesTransaction: false, reason: "Runtime can build REST requests, enforce HTTP policy, block external calls by default, and use real HTTP when allowRealHttp is enabled."),
-            Connector("webServiceCall", "WebServiceCallAction", "integration", "WebServiceCallActionExecutor", MicroflowRuntimeConnectorCapability.SoapWebService, "SOAP/WSDL execution requires web service connector."),
-            Connector("importXml", "ImportXmlAction", "integration", "ImportXmlActionExecutor", MicroflowRuntimeConnectorCapability.XmlImportMapping, "XML import mapping requires mapping connector."),
-            Connector("exportXml", "ExportXmlAction", "integration", "ExportXmlActionExecutor", MicroflowRuntimeConnectorCapability.XmlExportMapping, "XML export mapping requires mapping connector."),
-            Connector("callExternalAction", "CallExternalAction", "integration", "ExternalActionExecutor", "external.action", "External action requires connector capability."),
-            Connector("restOperationCall", "RestOperationCallAction", "integration", "RestOperationCallExecutor", MicroflowRuntimeConnectorCapability.RestRealHttp, "REST operation calls require real HTTP connector capability."),
+            // P1-2: 这些 Connector 描述符的 Executor 字段保留 connector 实现规划名，
+            // 但实际运行由 ConfiguredMicroflowActionExecutor 在 connector 缺失时返回
+            // RUNTIME_CONNECTOR_REQUIRED；等真实 *ActionExecutor 落地后会替换 DI。
+            Connector("webServiceCall", "WebServiceCallAction", "integration", "ConnectorBackedActionExecutor:webServiceCall", MicroflowRuntimeConnectorCapability.SoapWebService, "SOAP/WSDL execution requires web service connector."),
+            Connector("importXml", "ImportXmlAction", "integration", "ConnectorBackedActionExecutor:importXml", MicroflowRuntimeConnectorCapability.XmlImportMapping, "XML import mapping requires mapping connector."),
+            Connector("exportXml", "ExportXmlAction", "integration", "ConnectorBackedActionExecutor:exportXml", MicroflowRuntimeConnectorCapability.XmlExportMapping, "XML export mapping requires mapping connector."),
+            Connector("callExternalAction", "CallExternalAction", "integration", "ConnectorBackedActionExecutor:callExternalAction", "external.action", "External action requires connector capability."),
+            Connector("restOperationCall", "RestOperationCallAction", "integration", "ConnectorBackedActionExecutor:restOperationCall", MicroflowRuntimeConnectorCapability.RestRealHttp, "REST operation calls require real HTTP connector capability."),
 
             Command("showPage", "ShowPageAction", "client", "ShowPageActionExecutor", "showPage"),
             Command("showHomePage", "ShowHomePageAction", "client", "ShowHomePageActionExecutor", "showHomePage"),
