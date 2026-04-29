@@ -31,10 +31,21 @@ public sealed class MicroflowSchemaMigrationService : IMicroflowSchemaMigrationS
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly MicroflowActionDescriptorNormalizer _normalizer;
 
+    public MicroflowSchemaMigrationService()
+        : this(new MicroflowActionDescriptorNormalizer())
+    {
+    }
+
     public MicroflowSchemaMigrationService(MicroflowActionDescriptorNormalizer normalizer)
     {
         _normalizer = normalizer;
     }
+
+    public static JsonElement NormalizeElement(JsonElement schema)
+        => new MicroflowSchemaMigrationService().NormalizeForSave(schema).Schema;
+
+    public static string NormalizeJson(string schemaJson)
+        => new MicroflowSchemaMigrationService().NormalizeForLoad(schemaJson).SchemaJson;
 
     public MicroflowSchemaMigrationResult NormalizeForLoad(string schemaJson)
     {

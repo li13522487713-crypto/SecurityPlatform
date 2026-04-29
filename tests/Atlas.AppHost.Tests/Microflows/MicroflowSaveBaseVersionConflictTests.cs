@@ -118,6 +118,36 @@ public sealed class MicroflowSaveBaseVersionConflictTests
             Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData("nodes")]
+    [InlineData("edges")]
+    [InlineData("workflowJson")]
+    [InlineData("flowgram")]
+    public async Task SaveSchemaAsync_WhenSchemaContainsFlowGramShape_RejectsAndDoesNotPersist(string forbiddenProperty)
+    {
+        var fixture = Build();
+        var resource = Resource();
+        var snapshot = Snapshot(resource.CurrentSchemaSnapshotId!);
+        fixture.ResourceRepo.GetByIdAsync(resource.Id, Arg.Any<CancellationToken>()).Returns(resource);
+        fixture.SnapshotRepo.GetByIdAsync(resource.CurrentSchemaSnapshotId!, Arg.Any<CancellationToken>()).Returns(snapshot);
+
+        using var doc = JsonDocument.Parse(MinimalSchemaWithForbiddenProperty(resource.Id, forbiddenProperty));
+        var ex = await Assert.ThrowsAsync<MicroflowApiException>(() => fixture.Service.SaveSchemaAsync(
+            resource.Id,
+            new SaveMicroflowSchemaRequestDto
+            {
+                Schema = doc.RootElement.Clone(),
+                BaseVersion = snapshot.Id,
+                ClientRequestId = $"req-{forbiddenProperty}",
+                SaveReason = "manual-save"
+            },
+            CancellationToken.None));
+
+        Assert.Equal(MicroflowApiErrorCode.MicroflowSchemaInvalid, ex.Code);
+        await fixture.SnapshotRepo.DidNotReceive().InsertAsync(Arg.Any<MicroflowSchemaSnapshotEntity>(), Arg.Any<CancellationToken>());
+        await fixture.ResourceRepo.DidNotReceive().UpdateAsync(Arg.Any<MicroflowResourceEntity>(), Arg.Any<CancellationToken>());
+    }
+
     private static (MicroflowResourceService Service, IMicroflowResourceRepository ResourceRepo, IMicroflowSchemaSnapshotRepository SnapshotRepo) Build()
     {
         var resourceRepo = Substitute.For<IMicroflowResourceRepository>();
@@ -188,4 +218,22 @@ public sealed class MicroflowSaveBaseVersionConflictTests
             parameters = Array.Empty<object>(),
             returnType = new { kind = "void" }
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+    private static string MinimalSchemaWithForbiddenProperty(string id, string forbiddenProperty)
+    {
+        var node = JsonSerializer.SerializeToNode(new
+        {
+            schemaVersion = "1.0.0",
+            id,
+            name = "OrderSubmit",
+            objectCollection = new { objects = Array.Empty<object>() },
+            flows = Array.Empty<object>(),
+            parameters = Array.Empty<object>(),
+            returnType = new { kind = "void" }
+        }, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
+        node[forbiddenProperty] = forbiddenProperty == "workflowJson"
+            ? "{}"
+            : JsonSerializer.SerializeToNode(Array.Empty<object>());
+        return node.ToJsonString(new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    }
 }

@@ -239,9 +239,10 @@ public sealed class ParallelGatewayJoinExecutor
     public bool CanContinue(string splitInstanceId, IReadOnlySet<string> expectedBranchIds, out GatewayRuntimeState state)
     {
         state = GatewayRuntimeState.FromJoinState(_joinStateStore.Get(splitInstanceId));
-        return expectedBranchIds.All(branchId => state.CompletedTokens.Contains(branchId))
-               && !state.FailedTokens.Any()
-               && !state.CancelledTokens.Any();
+        var completedTokens = state.CompletedTokens;
+        return expectedBranchIds.All(completedTokens.Contains)
+               && state.FailedTokens.Count == 0
+               && state.CancelledTokens.Count == 0;
     }
 }
 
@@ -270,7 +271,11 @@ public sealed class InclusiveGatewaySplitExecutor
             throw new InvalidOperationException("INCLUSIVE_NO_BRANCH_SELECTED");
         }
 
-        return new ActivationSet(splitInstanceId, active);
+        return new ActivationSet
+        {
+            SplitInstanceId = splitInstanceId,
+            ActiveBranchIds = active.ToHashSet(StringComparer.Ordinal)
+        };
     }
 }
 
@@ -287,7 +292,8 @@ public sealed class InclusiveGatewayJoinExecutor
     {
         state = GatewayRuntimeState.FromJoinState(_joinStateStore.Get(activationSet.SplitInstanceId));
         var activeBranchIds = activationSet.ActiveBranchIds;
-        return activeBranchIds.All(branchId => state.CompletedTokens.Contains(branchId));
+        var completedTokens = state.CompletedTokens;
+        return activeBranchIds.All(completedTokens.Contains);
     }
 }
 
@@ -319,6 +325,17 @@ public sealed class BranchUnitOfWork : IBranchUnitOfWork
     public void Rollback(string? reason = null) => UnitOfWork.MarkRolledBack(reason);
 }
 
+public interface IBranchUnitOfWorkFactory
+{
+    IBranchUnitOfWork Create(string branchId);
+}
+
+public sealed class DefaultBranchUnitOfWorkFactory : IBranchUnitOfWorkFactory
+{
+    public IBranchUnitOfWork Create(string branchId)
+        => new BranchUnitOfWork(branchId);
+}
+
 public sealed record GatewayJoinState
 {
     public string SplitInstanceId { get; init; } = string.Empty;
@@ -326,6 +343,89 @@ public sealed record GatewayJoinState
     public IReadOnlySet<string> CompletedBranchIds { get; init; } = new HashSet<string>(StringComparer.Ordinal);
     public IReadOnlySet<string> FailedBranchIds { get; init; } = new HashSet<string>(StringComparer.Ordinal);
     public IReadOnlySet<string> CancelledBranchIds { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+}
+
+public sealed record GatewayRuntimeState
+{
+    public string RunId { get; init; } = string.Empty;
+
+    public string MicroflowId { get; init; } = string.Empty;
+
+    public string GatewayId { get; init; } = string.Empty;
+
+    public string SplitInstanceId { get; init; } = string.Empty;
+
+    public string? JoinGatewayId { get; init; }
+
+    public string? ParentSplitInstanceId { get; init; }
+
+    public string? LoopIterationId { get; init; }
+
+    public string? CallStackFrameId { get; init; }
+
+    public IReadOnlySet<string> ActivationSet { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    public IReadOnlySet<string> ArrivedTokens { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    public IReadOnlySet<string> CompletedTokens { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    public IReadOnlySet<string> FailedTokens { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    public IReadOnlySet<string> CancelledTokens { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    public IReadOnlyDictionary<string, string> BranchStates { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+
+    public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
+
+    public DateTimeOffset? CompletedAt { get; init; }
+
+    public string Status { get; init; } = "running";
+
+    public static GatewayRuntimeState FromJoinState(GatewayJoinState state)
+    {
+        var branchStates = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var branchId in state.ArrivedBranchIds)
+        {
+            branchStates[branchId] = "arrived";
+        }
+
+        foreach (var branchId in state.CompletedBranchIds)
+        {
+            branchStates[branchId] = "completed";
+        }
+
+        foreach (var branchId in state.FailedBranchIds)
+        {
+            branchStates[branchId] = "failed";
+        }
+
+        foreach (var branchId in state.CancelledBranchIds)
+        {
+            branchStates[branchId] = "cancelled";
+        }
+
+        var status = state.FailedBranchIds.Count > 0
+            ? "failed"
+            : state.CancelledBranchIds.Count > 0
+                ? "cancelled"
+                : state.ArrivedBranchIds.Count > 0 && state.ArrivedBranchIds.All(state.CompletedBranchIds.Contains)
+                    ? "completed"
+                    : "running";
+        return new GatewayRuntimeState
+        {
+            SplitInstanceId = state.SplitInstanceId,
+            ActivationSet = state.ArrivedBranchIds,
+            ArrivedTokens = state.ArrivedBranchIds,
+            CompletedTokens = state.CompletedBranchIds,
+            FailedTokens = state.FailedBranchIds,
+            CancelledTokens = state.CancelledBranchIds,
+            BranchStates = branchStates,
+            Status = status,
+            CompletedAt = status is "completed" or "failed" or "cancelled" ? DateTimeOffset.UtcNow : null
+        };
+    }
 }
 
 public interface IGatewayJoinStateStore

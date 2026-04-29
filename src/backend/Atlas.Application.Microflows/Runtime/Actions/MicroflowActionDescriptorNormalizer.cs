@@ -10,6 +10,26 @@ public interface IMicroflowActionDescriptorNormalizer
     JsonElement NormalizeSchema(JsonElement schema);
 }
 
+public sealed record MicroflowActionDescriptorNormalizationChange
+{
+    public string Path { get; init; } = string.Empty;
+
+    public string Original { get; init; } = string.Empty;
+
+    public string Canonical { get; init; } = string.Empty;
+}
+
+public sealed record MicroflowActionDescriptorNormalizationResult
+{
+    public string Original { get; init; } = string.Empty;
+
+    public string Canonical { get; init; } = string.Empty;
+
+    public bool Changed { get; init; }
+
+    public IReadOnlyList<MicroflowActionDescriptorNormalizationChange> Changes { get; init; } = Array.Empty<MicroflowActionDescriptorNormalizationChange>();
+}
+
 public sealed class MicroflowActionDescriptorNormalizer : IMicroflowActionDescriptorNormalizer
 {
     public static readonly IReadOnlyDictionary<string, string> LegacyToCanonical = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -43,6 +63,22 @@ public sealed class MicroflowActionDescriptorNormalizer : IMicroflowActionDescri
         return LegacyToCanonical.TryGetValue(trimmed, out var canonical)
             ? canonical
             : trimmed;
+    }
+
+    public MicroflowActionDescriptorNormalizationResult Normalize(string? actionKind, string path)
+    {
+        var original = actionKind?.Trim() ?? string.Empty;
+        var canonical = NormalizeActionKind(actionKind);
+        var changed = !string.Equals(original, canonical, StringComparison.Ordinal);
+        return new MicroflowActionDescriptorNormalizationResult
+        {
+            Original = original,
+            Canonical = canonical,
+            Changed = changed,
+            Changes = changed
+                ? [new MicroflowActionDescriptorNormalizationChange { Path = path, Original = original, Canonical = canonical }]
+                : Array.Empty<MicroflowActionDescriptorNormalizationChange>()
+        };
     }
 
     public JsonElement NormalizeSchema(JsonElement schema)

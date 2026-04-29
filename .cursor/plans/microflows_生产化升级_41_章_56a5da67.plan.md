@@ -2,73 +2,66 @@
 name: Microflows 生产化升级 41 章
 overview: 把 Microflows 模块从演示级升级为生产级（41 章 + L5 全量 + trueParallel + Step Debug + Expression Editor），按 R1→R5 五轮顺序闭环交付。每一轮必须带"源码 + 后端测试 + 前端 spec + verify 脚本 + docs"，禁止只改文档或返回假成功。本计划假设你后续会把模式切到 agent 推进 R1，再用单独的 plan 推进 R2/R3/R4/R5。
 todos:
-  # ============================================================
-  # R1 — 审计 + 节点矩阵 + 生产门禁骨架（11 项）
-  # ============================================================
   - id: R1-01-audit-frontend
     content: "R1: 前端源码审计（adapter/explorer/workbench/microflow-editor/property-panel/save-flow/run-debug），输出审计报告前端章节（含证据路径+行号）。"
-    status: pending
+    status: completed
   - id: R1-02-audit-backend
     content: "R1: 后端源码审计（controllers/services/runtime-engine/transactions/security/object-store/connector），输出审计报告后端章节。"
-    status: pending
+    status: completed
   - id: R1-03-audit-doc
     content: "R1: 综合 Blocker/Critical/Major/Minor 分类 + 阶段计划，输出 docs/microflow/production-upgrade-audit.md 终稿（30+ 证据点）。"
-    status: pending
+    status: completed
   - id: R1-04-matrix-collect-fe
     content: "R1: 编写 collector 采集前端 node-registry/action-registry/property-form-registry 全部 actionKind/category/支持级别。"
-    status: pending
+    status: completed
   - id: R1-05-matrix-collect-be
     content: "R1: 编写 collector 采集后端 MicroflowActionExecutorRegistry.BuiltInDescriptors 全部条目（≥80 actionKind）。"
-    status: pending
+    status: completed
   - id: R1-06-matrix-doc
     content: "R1: 输出 docs/microflow/production-node-capability-matrix.md（前后端三合一，全 18 字段）。"
-    status: pending
+    status: completed
   - id: R1-07-naming-doc
     content: "R1: 输出 action-kind-naming.md + action-descriptor-naming.md + executor-implementation-plan.md + 错误码对照表。"
-    status: pending
+    status: completed
   - id: R1-08-verify-matrix
     content: "R1: scripts/verify-microflow-node-capability-matrix.ts（前后端三方不一致即失败）+ 单测 + package.json microflow:verify:matrix。"
-    status: pending
+    status: completed
   - id: R1-09-verify-naming
     content: "R1: scripts/verify-microflow-action-descriptor-naming.ts（旧别名进 schema 即失败）+ 单测 + package.json microflow:verify:naming。"
-    status: pending
+    status: completed
   - id: R1-10-verify-coverage
     content: "R1: scripts/verify-microflow-executor-coverage.ts（actionKind 没 executor / supported 假成功 / connectorBacked 没 capability gate 即失败）+ 单测。"
-    status: pending
+    status: completed
   - id: R1-11-verify-gate-skeleton
     content: "R1: scripts/verify-microflow-production-gate.ts 骨架 + artifacts/microflow-production-gate/{json,md} 首版 + package.json microflow:verify:gate + R1 闭环验证。"
-    status: pending
-
-  # ============================================================
-  # R2 — P0 阻断项（14 项）
-  # ============================================================
+    status: completed
   - id: R2-01-authorize-controllers
     content: "R2: MicroflowApiControllerBase 全 [Authorize]；health 加 [AllowAnonymous]；MicroflowAuthorizationTests 测试。"
-    status: pending
+    status: completed
   - id: R2-02-workspace-ownership-query
     content: "R2: WorkspaceOwnershipFilter 覆盖 query workspaceId + X-Workspace-Id header + 测试。"
-    status: pending
+    status: completed
   - id: R2-03-workspace-ownership-route
     content: "R2: WorkspaceOwnershipFilter 覆盖 route id 反查 resource workspace + appId 资产查询 workspace 校验 + 测试。"
-    status: pending
+    status: completed
   - id: R2-04-production-guard
     content: "R2: ProductionGuardFilter 在 production 拒 mock/seed/internal-debug + RequireWorkspaceId + Rest.AllowRealHttp/AllowPrivateNetwork=false 默认 + appsettings.Production.json 硬化 + MicroflowProductionGuardFilterTests。"
-    status: pending
+    status: completed
   - id: R2-05-resource-baseversion
     content: "R2: MicroflowResourceService 强制 baseVersion 409 + 返回 remoteVersion/remoteUpdatedAt/remoteUpdatedBy/traceId + MicroflowSaveBaseVersionConflictTests。"
-    status: pending
+    status: completed
   - id: R2-06-resource-clientreqid
     content: "R2: MicroflowResourceService clientRequestId 幂等 + saveReason 落库 + 测试。"
-    status: pending
+    status: completed
   - id: R2-07-flowgram-purge
     content: "R2: 删除 FlowGram JSON 持久化（如有）+ AuthoringSchema 唯一持久化源 + publish snapshot immutable + 测试。"
-    status: pending
+    status: completed
   - id: R2-08-frontend-no-mock-build
     content: "R2: app-web microflow-adapter-config production 拒 mock/local/MSW + Rsbuild plugin 检测。"
-    status: pending
+    status: completed
   - id: R2-09-frontend-error-envelope
     content: "R2: API 错误 envelope 区分 401/403/404/409/422/500 + MicroflowApiError 统一类型 + 401 触发 atlas:microflow-unauthorized + spec。"
-    status: pending
+    status: in_progress
   - id: R2-10-frontend-conflict-modal
     content: "R2: 保存冲突弹窗 4 选项（Reload Remote / Keep Local / Force Save / Cancel）+ Force Save 二次确认 + spec。"
     status: pending
@@ -84,10 +77,6 @@ todos:
   - id: R2-14-verify-p0
     content: "R2: scripts/verify-microflow-production-no-mock.ts 收紧 production build artifact 扫描 + scripts/verify-microflow-p0-readiness.ts 全 P0 项检验 + R2 闭环验证。"
     status: pending
-
-  # ============================================================
-  # R3 — 真实 Executor + 命名整治 + Migration + Property Panel（22 项）
-  # ============================================================
   - id: R3-01-executor-rollback
     content: "R3: RollbackObjectActionExecutor 真实实现（reverted/noop/invalidated 三态 + UnitOfWork 要求 + trace）+ MicroflowRollbackExecutorTests。"
     status: pending
@@ -154,10 +143,6 @@ todos:
   - id: R3-22-verify-strict
     content: "R3: verify-microflow-action-descriptor-naming.ts + verify-microflow-executor-coverage.ts 收紧失败条件 + R3 闭环验证。"
     status: pending
-
-  # ============================================================
-  # R4 Gateway — Parallel/Inclusive 真实 trueParallel（10 项）
-  # ============================================================
   - id: R4-GW-01-token-model
     content: "R4: GatewayToken + GatewayTokenSet + SplitInstanceId + ActivationSet 数据模型 + 测试。"
     status: pending
@@ -188,10 +173,6 @@ todos:
   - id: R4-GW-10-validation-trace-verify
     content: "R4: validation（split outgoing≥2 / inclusive Boolean / otherwise 唯一 / loop 内 token / parallel 内不支持节点 publish 阻断）+ GatewayTraceWriter + scripts/verify-microflow-parallel-gateway.ts + verify-microflow-inclusive-gateway.ts。"
     status: pending
-
-  # ============================================================
-  # R4 Expression — 表达式编辑器前后端共享 AST（10 项）
-  # ============================================================
   - id: R4-EX-01-lexer
     content: "R4: MicroflowExpressionLexer（字面量/变量/属性/函数/算术/比较/逻辑/条件/字符串/日期/list/error/http）+ 测试。"
     status: pending
@@ -222,10 +203,6 @@ todos:
   - id: R4-EX-10-frontend
     content: "R4: ExpressionEditor 前端组件（CodeMirror 6 lazy load）+ 前端 TypeScript port TypeChecker（与后端共享语义）+ 接入所有 expression 字段 + spec + verify-microflow-expression-language.ts + verify-microflow-expression-editor.ts。"
     status: pending
-
-  # ============================================================
-  # R4 Step Debug — 单步调试（13 项）
-  # ============================================================
   - id: R4-DB-01-session-store
     content: "R4: DebugSessionStore + DebugSessionSweeper + 状态机（13 个状态：created/starting/running/pausing/paused/stepping/waitingAtJoin/completed/failed/cancelled/timedOut/expired）+ 测试。"
     status: pending
@@ -265,10 +242,6 @@ todos:
   - id: R4-DB-13-verify
     content: "R4: scripts/verify-microflow-step-debug.ts + verify-microflow-debug-api.ts + R4 闭环验证。"
     status: pending
-
-  # ============================================================
-  # R5 — 测试体系 + E2E + 性能基线 + Production Gate 收尾（13 项）
-  # ============================================================
   - id: R5-01-be-tests-1
     content: "R5: 后端补 entityAccessDenied + parallelWriteConflict + commitDryRunVsProductionMode 场景测试。"
     status: pending

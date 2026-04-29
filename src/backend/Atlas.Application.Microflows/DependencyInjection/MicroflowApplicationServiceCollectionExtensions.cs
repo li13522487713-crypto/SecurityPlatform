@@ -51,6 +51,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<MicroflowExpressionCompletionProvider>();
         services.TryAddScoped<MicroflowExpressionDiagnosticsProvider>();
         services.TryAddScoped<MicroflowExpressionPreviewService>();
+        services.TryAddScoped<MicroflowExpressionEditorService>();
         services.TryAddScoped<IMicroflowMetadataResolver, MicroflowMetadataResolver>();
         services.TryAddScoped<IMicroflowEntityAccessService, MicroflowEntityAccessService>();
         services.TryAddScoped<IMicroflowRuntimeObjectMetadataService, MicroflowRuntimeObjectMetadataService>();
@@ -103,14 +104,14 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddSingleton<IDebugSessionStore, InMemoryDebugSessionStore>();
         services.TryAddSingleton<DebugSessionSweeper>();
         services.TryAddScoped<IMicroflowRuntimeConnectorRegistry, MicroflowRuntimeConnectorRegistry>();
-        services.TryAddSingleton<IServerActionRuntime, DisabledServerActionRuntime>();
-        services.TryAddSingleton<ISoapWebServiceConnector, DisabledSoapWebServiceConnector>();
-        services.TryAddSingleton<IXmlMappingConnector, DisabledXmlMappingConnector>();
-        services.TryAddSingleton<IDocumentGenerationRuntime, DisabledDocumentGenerationRuntime>();
-        services.TryAddSingleton<IWorkflowRuntimeClient, DisabledWorkflowRuntimeClient>();
-        services.TryAddSingleton<IMlRuntime, DisabledMlRuntime>();
-        services.TryAddSingleton<IExternalActionConnector, DisabledExternalActionConnector>();
-        services.TryAddSingleton<IExternalObjectConnector, DisabledExternalObjectConnector>();
+        services.TryAddSingleton<IServerActionRuntime, MissingServerActionRuntime>();
+        services.TryAddSingleton<ISoapWebServiceConnector, MissingSoapWebServiceConnector>();
+        services.TryAddSingleton<IXmlMappingConnector, MissingXmlMappingConnector>();
+        services.TryAddSingleton<IDocumentGenerationRuntime, MissingDocumentGenerationRuntime>();
+        services.TryAddSingleton<IWorkflowRuntimeClient, MissingWorkflowRuntimeClient>();
+        services.TryAddSingleton<IMlRuntime, MissingMlRuntime>();
+        services.TryAddSingleton<IExternalActionConnector, MissingExternalActionConnector>();
+        services.TryAddSingleton<IExternalObjectConnector, MissingExternalObjectConnector>();
         services.TryAddSingleton<IMicroflowRunCancellationRegistry, MicroflowRunCancellationRegistry>();
         services.TryAddScoped<IMicroflowRunOwnershipGuard, MicroflowRunOwnershipGuard>();
         // P0-9: AppHost 层会用真实 audit adapter 覆盖；Application 默认 NoOp 防止 nullref。

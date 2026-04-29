@@ -38,7 +38,7 @@ public sealed class MicroflowDebugController : MicroflowApiControllerBase
 
     [HttpGet("debug-sessions/{sessionId}/trace")]
     public ActionResult<MicroflowApiResponse<IReadOnlyList<string>>> Trace(string sessionId)
-        => MicroflowOk(Array.Empty<string>());
+        => MicroflowOk((IReadOnlyList<string>)Array.Empty<string>());
 
     [HttpDelete("debug-sessions/{sessionId}")]
     public ActionResult<MicroflowApiResponse<bool>> Delete(string sessionId)

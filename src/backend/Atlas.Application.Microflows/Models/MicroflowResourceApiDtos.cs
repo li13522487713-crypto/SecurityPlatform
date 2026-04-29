@@ -193,6 +193,9 @@ public sealed record SaveMicroflowSchemaResponseDto
 
     [JsonPropertyName("changedAfterPublish")]
     public bool ChangedAfterPublish { get; init; }
+
+    [JsonPropertyName("idempotentReplay")]
+    public bool IdempotentReplay { get; init; }
 }
 
 public sealed record MicroflowSaveConflictDetailsDto
@@ -208,6 +211,12 @@ public sealed record MicroflowSaveConflictDetailsDto
 
     [JsonPropertyName("remoteUpdatedBy")]
     public string? RemoteUpdatedBy { get; init; }
+
+    [JsonPropertyName("remoteConcurrencyStamp")]
+    public string? RemoteConcurrencyStamp { get; init; }
+
+    [JsonPropertyName("baseVersion")]
+    public string? BaseVersion { get; init; }
 
     [JsonPropertyName("traceId")]
     public string? TraceId { get; init; }

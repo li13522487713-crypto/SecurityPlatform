@@ -38,6 +38,26 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         IMicroflowReferenceRepository referenceRepository,
         IMicroflowReferenceIndexer referenceIndexer,
         IMicroflowRequestContextAccessor requestContextAccessor,
+        IMicroflowClock clock)
+        : this(
+            resourceRepository,
+            folderRepository,
+            schemaSnapshotRepository,
+            referenceRepository,
+            referenceIndexer,
+            requestContextAccessor,
+            new NullMicroflowAuditWriter(),
+            clock)
+    {
+    }
+
+    public MicroflowResourceService(
+        IMicroflowResourceRepository resourceRepository,
+        IMicroflowFolderRepository folderRepository,
+        IMicroflowSchemaSnapshotRepository schemaSnapshotRepository,
+        IMicroflowReferenceRepository referenceRepository,
+        IMicroflowReferenceIndexer referenceIndexer,
+        IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowAuditWriter auditWriter,
         IMicroflowClock clock,
         MicroflowSchemaMigrationService? schemaMigrationService = null)
@@ -756,6 +776,9 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         return JsonSerializer.Serialize(schema, JsonOptions);
     }
 
+    private static string NormalizeAndValidateAuthoringSchema(JsonElement schema, MicroflowSchemaMigrationService migrationService)
+        => NormalizeAndValidateAuthoringSchema(migrationService.NormalizeForSave(schema).Schema);
+
     private static void RequireProperty(JsonElement schema, string propertyName)
     {
         if (!schema.TryGetProperty(propertyName, out var value)
@@ -1008,6 +1031,23 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         node["moduleName"] = moduleName;
         return NormalizeAndValidateAuthoringSchema(JsonSerializer.SerializeToElement(node, JsonOptions));
     }
+
+    private static string MutateSchemaFields(
+        string schemaJson,
+        string id,
+        string name,
+        string displayName,
+        string moduleId,
+        string? moduleName,
+        MicroflowSchemaMigrationService migrationService)
+        => NormalizeAndValidateAuthoringSchema(
+            MicroflowSchemaJsonHelper.ParseRequired(MicroflowSchemaJsonHelper.MutateFields(
+                migrationService.NormalizeForLoad(schemaJson).SchemaJson,
+                id,
+                name,
+                displayName,
+                moduleId,
+                moduleName)));
 
     private static string ComputeSha256(string value)
     {
