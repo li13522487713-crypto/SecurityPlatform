@@ -9,4 +9,5 @@ export * from "./MicroflowTestRunModal";
 export * from "./MicroflowTracePanel";
 export * from "./MicroflowRunHistoryPanel";
 export * from "./run-input-model";
+export * from "./step-debug-api";
 export * from "./step-debug-ui";

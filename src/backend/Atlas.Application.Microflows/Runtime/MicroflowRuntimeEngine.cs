@@ -243,8 +243,61 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         if (_debugCoordinator is null || string.IsNullOrWhiteSpace(context.DebugSessionId))
             return Task.CompletedTask;
 
-        var point = new MicroflowDebugSafePoint(phase, node.Id, node.Kind, incomingFlowId);
-        return _debugCoordinator.WaitAtSafePointAsync(context.DebugSessionId, context.RunId, point, cancellationToken);
+        var semantic = ResolveDebugSemanticKind(node, incomingFlowId);
+        var effectivePhase = ResolveDebugPausePhase(phase, semantic);
+        var point = new MicroflowDebugSafePoint(effectivePhase, node.Id, node.Kind, incomingFlowId)
+        {
+            CallDepth = context.CallDepth,
+            CallStackFrameId = context.CallerObjectId is null ? context.RunId : $"{context.RunId}:{context.CallerObjectId}",
+            SemanticKind = semantic
+        };
+        return _debugCoordinator.WaitAtSafePointAsync(
+            context.DebugSessionId,
+            context.RunId,
+            point,
+            context.CreateDebugSnapshot(point),
+            cancellationToken);
+    }
+
+    private static string ResolveDebugSemanticKind(MicroflowObjectModel node, string? incomingFlowId)
+    {
+        if (node.Kind is "startEvent" or "endEvent" or "exclusiveSplit" or "inclusiveGateway" or "parallelGateway")
+        {
+            return node.Kind;
+        }
+
+        if (!string.IsNullOrWhiteSpace(incomingFlowId) && node.Kind == "actionActivity" && node.Action is not null)
+        {
+            return node.Action.Kind switch
+            {
+                "callMicroflow" => "callMicroflow",
+                "restCall" or "restOperationCall" => "rest",
+                "webServiceCall" => "webservice",
+                "callExternalAction" or "deleteExternalObject" or "sendExternalObject" => "external",
+                _ => "activity"
+            };
+        }
+
+        return node.Kind == "actionActivity" ? "activity" : node.Kind;
+    }
+
+    private static MicroflowDebugPausePhase ResolveDebugPausePhase(MicroflowDebugPausePhase phase, string semanticKind)
+    {
+        if (semanticKind == "callMicroflow")
+        {
+            return phase == MicroflowDebugPausePhase.BeforeNode
+                ? MicroflowDebugPausePhase.BeforeCallMicroflow
+                : MicroflowDebugPausePhase.AfterCallMicroflow;
+        }
+
+        if (semanticKind is "rest" or "webservice" or "external")
+        {
+            return phase == MicroflowDebugPausePhase.BeforeNode
+                ? MicroflowDebugPausePhase.BeforeNode
+                : MicroflowDebugPausePhase.AfterNode;
+        }
+
+        return phase;
     }
 
     private async Task<NodeExecution> ExecuteNodeAsync(
@@ -270,9 +323,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             "errorEvent" => ExecuteErrorEvent(context, node, incomingFlowId),
             "annotation" => ExecuteAnnotationPassThrough(context, graph, node, incomingFlowId),
             "parallelGateway" or "parallelSplit" or "parallelMerge"
-                => UnsupportedNode(context, node, incomingFlowId, "Parallel Gateway 暂未在 runtime 主路径执行（P2 计划）。"),
+                => ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "parallel"),
             "inclusiveGateway" or "inclusiveSplit" or "inclusiveMerge"
-                => UnsupportedNode(context, node, incomingFlowId, "Inclusive Gateway 暂未在 runtime 主路径执行（P2 计划）。"),
+                => ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "inclusive"),
             _ => UnsupportedNode(context, node, incomingFlowId, $"节点类型 {node.Kind} 不在 runtime 主路径支持的列表中。")
         };
     }
@@ -312,6 +365,102 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         var flow = outgoing[0];
         context.AddFrame(node, incomingFlowId, flow.Id, "success", JsonObj(new { node.Kind }), JsonObj(new { nextNodeId = flow.DestinationObjectId }), null, "Annotation node skipped.");
         return NodeExecution.Next(flow.DestinationObjectId!, flow.Id);
+    }
+
+    private static NodeExecution ExecuteGatewayPassThrough(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId, string gatewayKind)
+    {
+        var outgoing = graph.NormalOutgoing(node.Id);
+        if (outgoing.Count == 0)
+        {
+            var error = Error(RuntimeErrorCode.RuntimeFlowNotFound, $"{gatewayKind} Gateway 至少需要一条 normal outgoing flow：{node.Id}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        var selected = SelectGatewayOutgoing(context, node, outgoing, gatewayKind, out var selectedCase, out var selectionError);
+        if (selectionError is not null)
+        {
+            context.AddNodeFailure(node, incomingFlowId, selectionError);
+            return NodeExecution.Failed(selectionError);
+        }
+
+        context.AddFrame(
+            node,
+            incomingFlowId,
+            selected.Id,
+            "success",
+            JsonObj(new
+            {
+                node.Kind,
+                gatewayKind,
+                outgoingCount = outgoing.Count,
+                selectedFlowId = selected.Id
+            }),
+            JsonObj(new
+            {
+                nextNodeId = selected.DestinationObjectId,
+                selectedFlowId = selected.Id,
+                selectedCase
+            }),
+            null,
+            selectedCase);
+        return NodeExecution.Next(selected.DestinationObjectId!, selected.Id);
+    }
+
+    private static MicroflowFlowModel SelectGatewayOutgoing(
+        RuntimeContext context,
+        MicroflowObjectModel node,
+        IReadOnlyList<MicroflowFlowModel> outgoing,
+        string gatewayKind,
+        out JsonElement? selectedCase,
+        out MicroflowRuntimeErrorDto? error)
+    {
+        selectedCase = null;
+        error = null;
+        if (outgoing.Count == 1)
+        {
+            return outgoing[0];
+        }
+
+        foreach (var flow in outgoing)
+        {
+            if (flow.CaseValues.Count == 0)
+            {
+                continue;
+            }
+
+            var caseValue = flow.CaseValues[0];
+            var expression = ReadExpressionText(caseValue)
+                ?? ReadString(caseValue, "condition")
+                ?? ReadString(caseValue, "expression");
+            if (string.IsNullOrWhiteSpace(expression))
+            {
+                if (MicroflowRuntimeGraph.CaseMatches(caseValue, "otherwise"))
+                {
+                    selectedCase = caseValue.Clone();
+                    return flow;
+                }
+
+                continue;
+            }
+
+            var evaluated = context.EvaluateExpression(expression!, currentObjectId: node.Id);
+            if (evaluated.ValueKind == JsonValueKind.True)
+            {
+                selectedCase = caseValue.Clone();
+                return flow;
+            }
+        }
+
+        var fallback = outgoing.FirstOrDefault(flow => flow.CaseValues.Any(caseValue =>
+            MicroflowRuntimeGraph.CaseMatches(caseValue, "otherwise")
+            || MicroflowRuntimeGraph.CaseMatches(caseValue, "else")
+            || MicroflowRuntimeGraph.CaseMatches(caseValue, "default")))
+            ?? outgoing[0];
+        selectedCase = fallback.CaseValues.FirstOrDefault().ValueKind == JsonValueKind.Undefined
+            ? null
+            : fallback.CaseValues.First().Clone();
+        return fallback;
     }
 
     private static NodeExecution ExecuteSingleOutgoing(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId, string label)
@@ -1835,6 +1984,38 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     ScopeKind = pair.Value.Source == "parameter" ? "parameter" : "local"
                 },
                 StringComparer.Ordinal);
+
+        public MicroflowDebugRuntimeSnapshot CreateDebugSnapshot(MicroflowDebugSafePoint point)
+        {
+            var variables = SnapshotVariables()
+                .Values
+                .Select(variable => new DebugVariableSnapshot
+                {
+                    Name = variable.Name,
+                    Type = variable.Type is { } variableType
+                        && variableType.ValueKind == JsonValueKind.Object
+                        && variableType.TryGetProperty("kind", out var kind)
+                        ? kind.GetString() ?? "unknown"
+                        : "unknown",
+                    ValuePreview = variable.ValuePreview,
+                    RawValueJson = variable.RawValueJson,
+                    ScopeKind = variable.ScopeKind ?? "local",
+                    ObjectId = point.NodeObjectId,
+                    FlowId = point.IncomingFlowId,
+                    BranchId = point.BranchId
+                })
+                .ToArray();
+
+            return new MicroflowDebugRuntimeSnapshot
+            {
+                ResourceId = ResourceId,
+                ParentRunId = ParentRunId,
+                RootRunId = RootRunId,
+                CallDepth = CallDepth,
+                CallStack = CallStackPath,
+                Variables = variables
+            };
+        }
     }
 
     private sealed record RuntimeVariable(string Name, JsonElement Type, JsonElement Value, string Source);
@@ -1926,7 +2107,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return CaseFlowResult.Ok(matches[0].Flow, matches[0].Case.Clone());
         }
 
-        private static bool CaseMatches(JsonElement caseValue, string expected)
+        public static bool CaseMatches(JsonElement caseValue, string expected)
         {
             if (caseValue.ValueKind is JsonValueKind.True or JsonValueKind.False)
             {

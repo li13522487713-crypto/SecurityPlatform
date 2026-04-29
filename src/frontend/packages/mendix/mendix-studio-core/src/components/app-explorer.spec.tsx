@@ -37,7 +37,12 @@ vi.mock("@douyinfe/semi-ui", async () => {
     Button: ({ children, onClick, title }: any) => (
       <button type="button" title={title} onClick={onClick}>{children}</button>
     ),
-    Dropdown: Object.assign(({ children }: any) => <>{children}</>, {
+    Dropdown: Object.assign(({ children, render: renderMenu }: any) => (
+      <>
+        {children}
+        {typeof renderMenu === "function" ? renderMenu() : renderMenu}
+      </>
+    ), {
       Menu: ({ children }: any) => <div>{children}</div>,
       Item: ({ children, onClick, disabled, title }: any) => (
         <button type="button" title={title} disabled={disabled} onClick={onClick}>{children}</button>
@@ -88,6 +93,8 @@ function createBundle(
     resourceAdapter: {
       listMicroflows,
       getMicroflowApp: vi.fn(async () => ({ appId: "app_procurement", name: "Procurement", modules })),
+      getMicroflowReferences: vi.fn(async () => []),
+      deleteMicroflow: vi.fn(async () => undefined),
     },
     metadataAdapter: {},
     runtimeAdapter: {},
@@ -267,5 +274,62 @@ describe("AppExplorer Microflows assets", () => {
     expect(listMicroflows).toHaveBeenCalledTimes(2);
     expect(useMendixStudioStore.getState().microflowIdsByModuleId.mod_procurement).toEqual(["mf-2"]);
     expect(useMendixStudioStore.getState().microflowResourcesById["mf-1"]).toBeUndefined();
+  });
+
+  it("opens the references panel from the microflow context menu", async () => {
+    const resource = createResource({ id: "mf-ref", name: "MF_Referenced", displayName: "Referenced" });
+    const bundle = createBundle(vi.fn(async () => ({ items: [resource], total: 1, pageIndex: 1, pageSize: 100 })));
+    const onViewMicroflowReferences = vi.fn();
+
+    render(
+      <AppExplorer
+        adapterBundle={bundle}
+        workspaceId="workspace-1"
+        appId="app-1"
+        onViewMicroflowReferences={onViewMicroflowReferences}
+      />,
+    );
+
+    expect(await screen.findByText("Referenced")).toBeTruthy();
+    fireEvent.click(screen.getByText("View References"));
+
+    expect(onViewMicroflowReferences).toHaveBeenCalledWith("mf-ref");
+  });
+
+  it("blocks delete when references precheck returns an active caller", async () => {
+    const resource = createResource({ id: "mf-blocked", name: "MF_Blocked", displayName: "Blocked", referenceCount: 1 });
+    const bundle = createBundle(vi.fn(async () => ({ items: [resource], total: 1, pageIndex: 1, pageSize: 100 })));
+    bundle.resourceAdapter.getMicroflowReferences = vi.fn(async () => [
+      {
+        id: "ref-1",
+        targetMicroflowId: "mf-blocked",
+        sourceType: "microflow",
+        sourceId: "caller-1",
+        sourceName: "Caller",
+        referenceKind: "callMicroflow",
+        impactLevel: "high",
+        active: true,
+      },
+    ]);
+    bundle.resourceAdapter.deleteMicroflow = vi.fn(async () => undefined);
+    const onViewMicroflowReferences = vi.fn();
+
+    render(
+      <AppExplorer
+        adapterBundle={bundle}
+        workspaceId="workspace-1"
+        appId="app-1"
+        onViewMicroflowReferences={onViewMicroflowReferences}
+      />,
+    );
+
+    expect(await screen.findByText("Blocked")).toBeTruthy();
+    fireEvent.click(screen.getByText("Delete"));
+
+    await waitFor(() => expect(bundle.resourceAdapter.getMicroflowReferences).toHaveBeenCalledWith("mf-blocked", {
+      includeInactive: true,
+    }));
+    expect(bundle.resourceAdapter.deleteMicroflow).not.toHaveBeenCalled();
+    expect(onViewMicroflowReferences).toHaveBeenCalledWith("mf-blocked");
   });
 });

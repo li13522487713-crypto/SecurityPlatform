@@ -87,18 +87,25 @@ public sealed class MicroflowActionExecutorRegistryTests
     }
 
     [Fact]
-    public void R1ModeledOnlyBlockers_RemainExplicitlyMarked()
+    public void R3ProductionExecutors_AreSupportedAndNoLongerModeledOnly()
     {
         var byKind = MicroflowActionExecutorRegistry.BuiltInDescriptors()
             .ToDictionary(descriptor => descriptor.ActionKind, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var actionKind in new[] { "rollback", "cast", "listOperation" })
+        var expectedExecutors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["rollback"] = "RollbackObjectActionExecutor",
+            ["cast"] = "CastObjectActionExecutor",
+            ["listOperation"] = "ListOperationActionExecutor"
+        };
+
+        foreach (var actionKind in expectedExecutors.Keys)
         {
             Assert.True(byKind.TryGetValue(actionKind, out var descriptor), $"Missing descriptor for {actionKind}");
             Assert.Equal(MicroflowActionRuntimeCategory.ServerExecutable, descriptor.RuntimeCategory);
-            Assert.Equal(MicroflowActionSupportLevel.ModeledOnlyConverted, descriptor.SupportLevel);
-            Assert.Equal("ConfiguredMicroflowActionExecutor", descriptor.Executor);
-            Assert.False(string.IsNullOrWhiteSpace(descriptor.Reason));
+            Assert.Equal(MicroflowActionSupportLevel.Supported, descriptor.SupportLevel);
+            Assert.Equal(expectedExecutors[actionKind], descriptor.Executor);
+            Assert.True(descriptor.RealExecution);
         }
     }
 

@@ -46,12 +46,13 @@ public static class HmacChannelSigner
             return false;
         }
         var expected = Compute(secret, unixTimestampSeconds, nonce, body);
+        var normalizedPresented = presentedSignature.Trim().ToLowerInvariant();
         return CryptographicOperations.FixedTimeEquals(
             Encoding.ASCII.GetBytes(expected),
-            Encoding.ASCII.GetBytes(presentedSignature));
+            Encoding.ASCII.GetBytes(normalizedPresented));
     }
 
-    /// <summary>生成长度为 32 的 base64url 安全 token，可作为 HMAC 主密钥或 embed token。</summary>
+    /// <summary>生成 base64url 安全 token（默认 32 字节，最小 16 字节），可作为 HMAC 主密钥或 embed token。</summary>
     public static string GenerateSecret(int byteLength = 32)
     {
         if (byteLength < 16)

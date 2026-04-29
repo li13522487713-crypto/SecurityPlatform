@@ -208,58 +208,58 @@ todos:
     status: completed
   - id: R4-DB-02-pause-points
     content: "R4: 安全暂停点 in MicroflowRuntimeEngine（startEvent / activity 前后 / decision 前后 / inclusive 前后 / loop iter 前后 / callMf 前后 / branch start / join 前后 / rest-webservice-external 前后 / errorHandler / endEvent）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-DB-03-runtime-engine
     content: "R4: MicroflowDebugRuntimeEngine + DebugExecutionCoordinator + 协作式 pause（安全点 ack 后暂停）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-DB-04-breakpoint-model
     content: "R4: BreakpointDescriptor + ConditionalBreakpointDescriptor（hit count + logpoint + suspendPolicy + scope: node/flow/expression/error/gatewayBranch + stale 标记）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-DB-05-step-semantics
     content: "R4: stepOver / stepInto（callMicroflow 进子微流 + parallel 第一 active branch）/ stepOut / continue / pause / runToNode / runToCursor / cancel + suspendPolicy=all + 测试。"
-    status: pending
+    status: completed
   - id: R4-DB-06-variables-snapshot
     content: "R4: DebugVariableSnapshot（root parameters / scope variables / loop iterator / branch-local / $latestError / $latestHttpResponse）+ secret/token/password 脱敏 + 测试。"
-    status: pending
+    status: completed
   - id: R4-DB-07-callstack-branchframe
     content: "R4: DebugCallStackFrame（microflow call stack / parent-child run / loop / branch / errorHandler）+ DebugBranchFrame + 测试。"
-    status: pending
+    status: completed
   - id: R4-DB-08-watches
     content: "R4: DebugWatchExpression（共享 ExpressionEvaluator + watch error 不影响 runtime + type/value/error/durationMs）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-DB-09-controller-api
     content: "R4: MicroflowDebugController + 7 个 API 端点（create / get / commands / variables / evaluate / trace / delete）+ 鉴权（[Authorize] + workspace/app/microflow 权限）+ session 数量限制 + payload size 限制 + 测试。"
     status: completed
   - id: R4-DB-10-fe-toolbar-marker
     content: "R4: Debug toolbar（Debug Run / Continue / Pause / Step Over / Step Into / Step Out / Run to Node / Cancel / Stop）+ 当前 execution marker（节点 + flow + branch 高亮）+ spec。"
-    status: pending
+    status: completed
   - id: R4-DB-11-fe-breakpoint
     content: "R4: Breakpoint gutter（节点左侧 + flow 上）+ conditional breakpoint 弹窗 + stale 灰色 + spec。"
-    status: pending
+    status: completed
   - id: R4-DB-12-fe-panels
     content: "R4: Variables panel + Watches panel + Call stack panel + Branch tree panel + Debug console（logpoint output + expression evaluation）+ Problems 联动 + spec。"
-    status: pending
+    status: completed
   - id: R4-DB-13-verify
     content: "R4: scripts/verify-microflow-step-debug.ts + verify-microflow-debug-api.ts + R4 闭环验证。"
     status: completed
   - id: R5-01-be-tests-1
     content: "R5: 后端补 entityAccessDenied + parallelWriteConflict + commitDryRunVsProductionMode 场景测试。"
-    status: pending
+    status: completed
   - id: R5-02-be-tests-2
     content: "R5: 后端补 debugSessionPermissionDenied + staleBreakpoint + restCallSsrf + privateNetworkBlocked 场景测试。"
-    status: pending
+    status: completed
   - id: R5-03-fe-spec-explorer-workbench
     content: "R5: AppExplorer + WorkbenchTabs 全量 spec（load/error/search/CRUD/reference blocked/dirty guard/close guard/switch guard）。"
-    status: pending
+    status: completed
   - id: R5-04-fe-spec-savequeue-property
     content: "R5: SaveQueue + PropertyPanel 全量 spec（autosave/conflict modal/per-node forms/metadata loading-error-stale）。"
-    status: pending
+    status: completed
   - id: R5-05-fe-spec-expression-debug
     content: "R5: ExpressionEditor + DebugUI 全量 spec（completions/diagnostics/expectedType/quick fix/preview + breakpoint/step/variables/watches/branch tree）。"
-    status: pending
+    status: completed
   - id: R5-06-canvas-roundtrip
     content: "R5: 画布 schema-roundtrip 测试（drag add / move / edge create-delete / decision branch labels / loop inner / copy-paste-duplicate-delete / undo-redo / auto-layout / save-reload 一致）。"
-    status: pending
+    status: completed
   - id: R5-07-e2e-create-edit-save
     content: "R5: playwright E2E 第一段：login → /space/:wsId/mendix-studio/:appId → app assets load → 创建 microflow → 拖节点 → 配置属性 → 保存。"
     status: pending
@@ -277,7 +277,7 @@ todos:
     status: pending
   - id: R5-12-prod-gate-final
     content: "R5: scripts/verify-microflow-production-gate.ts 跑全量 Blocker(13)/Critical(8)/Major(5) + dotnet build Release + frontend production build + live health；输出 production-gate-summary.{json,md} 终版；docs/microflow/release/known-limitations.md 更新；结论 = go / conditional-go / no-go。"
-    status: pending
+    status: completed
   - id: R5-13-final-report
     content: "R5: 最终输出报告（修改文件清单 / 关键设计 / API 清单 / schema 字段 / 矩阵摘要 / Runtime 摘要 / 性能摘要 / 权限+生产配置摘要 / 测试与 verify 清单 / 已运行命令 / 未运行命令及原因 / 剩余风险 / 结论 go/conditional-go/no-go）。"
     status: pending

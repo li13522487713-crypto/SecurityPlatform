@@ -29,4 +29,7 @@ public static class MicroflowApiErrorCode
     public const string MicroflowUnknownError = "MICROFLOW_UNKNOWN_ERROR";
     public const string MicroflowMetadataVersionMismatch = "MICROFLOW_METADATA_VERSION_MISMATCH";
     public const string MicroflowDebugSessionLimitExceeded = "MICROFLOW_DEBUG_SESSION_LIMIT_EXCEEDED";
+    public const string MicroflowDebugSessionNotFound = "MICROFLOW_DEBUG_SESSION_NOT_FOUND";
+    public const string MicroflowDebugSessionForbidden = "MICROFLOW_DEBUG_SESSION_FORBIDDEN";
+    public const string MicroflowDebugPayloadTooLarge = "MICROFLOW_DEBUG_PAYLOAD_TOO_LARGE";
 }

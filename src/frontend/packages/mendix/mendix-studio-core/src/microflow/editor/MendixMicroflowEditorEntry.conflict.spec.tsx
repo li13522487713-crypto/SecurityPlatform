@@ -175,4 +175,40 @@ describe("MendixMicroflowEditorEntry save conflict", () => {
     await waitFor(() => expect(saveMicroflowSchema).toHaveBeenCalledTimes(2));
     expect(saveMicroflowSchema.mock.calls[1]?.[2]).toMatchObject({ force: true, saveReason: "force" });
   });
+
+  it("queues autosave with version metadata and clears dirty state after save", async () => {
+    vi.useFakeTimers();
+    const initial = resource();
+    const saved = resource({ schemaId: "schema-2", version: "2" });
+    const saveMicroflowSchema = vi.fn(async () => saved);
+    const adapter = {
+      saveMicroflowSchema,
+      getMicroflow: vi.fn(async () => saved),
+      getMicroflowSchema: vi.fn(async () => saved.schema),
+    } as unknown as MicroflowResourceAdapter;
+
+    render(<MendixMicroflowEditorEntry resource={initial} adapter={adapter} />);
+
+    fireEvent.click(screen.getByLabelText("autosave"));
+    fireEvent.click(screen.getByText("make-dirty"));
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(4_100);
+    await Promise.resolve();
+
+    expect(saveMicroflowSchema).toHaveBeenCalledTimes(1);
+    expect(saveMicroflowSchema.mock.calls[0]?.[2]).toMatchObject({
+      baseVersion: "schema-1",
+      schemaId: "schema-1",
+      version: "1",
+      saveReason: "autosave",
+      force: false,
+    });
+    expect(useMendixStudioStore.getState().saveStateByMicroflowId["mf-1"]).toMatchObject({
+      status: "saved",
+      dirty: false,
+      saving: false,
+    });
+
+    vi.useRealTimers();
+  });
 });

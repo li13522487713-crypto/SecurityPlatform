@@ -57,16 +57,30 @@ function staticChecks(): CheckResult[] {
     summary: `后端 BuiltInDescriptors 当前 ${descriptors.length} 项。`,
     details: descriptors.length >= 80 ? undefined : ["用户目标为 ≥80；R1 首版按当前源码事实输出 conditional-go。"]
   });
+  const debugCoordinator = readWorkspaceFile("src/backend/Atlas.Application.Microflows/Runtime/Debug/MicroflowDebugCoordinator.cs", root);
+  const debugModels = readWorkspaceFile("src/backend/Atlas.Application.Microflows/Runtime/Debug/MicroflowDebugRuntimeModels.cs", root);
+  const debugController = readWorkspaceFile("src/backend/Atlas.AppHost/Microflows/Controllers/MicroflowDebugController.cs", root);
+  const runtimeEngine = readWorkspaceFile("src/backend/Atlas.Application.Microflows/Runtime/MicroflowRuntimeEngine.cs", root);
   results.push({
-    id: "future-round-blockers",
-    status: "pending",
-    summary: "R2-R5 生产化能力仍待后续轮次实现。",
-    details: [
-      "R2: P0 安全、ownership、mock purge、save conflict。",
-      "R3: rollback/cast/listOperation 真实 executor、schema migration、connector stub、property forms。",
-      "R4: trueParallel、Expression API/editor、Step Debug。",
-      "R5: E2E、性能基线、production gate 终版。"
-    ]
+    id: "r4-debug-production-evidence",
+    status: [
+      "ApplyCommand",
+      "ShouldPause",
+      "MicroflowDebugRuntimeSnapshot",
+      "CurrentSafePoint",
+      "DebugTraceEvent",
+      "ResolveOwnedSession",
+      "MicroflowDebugSessionForbidden",
+      "CreateDebugSnapshot"
+    ].every(token => `${debugCoordinator}\n${debugModels}\n${debugController}\n${runtimeEngine}`.includes(token)) ? "pass" : "fail",
+    summary: "Step Debug 已具备 coordinator 状态机、safe point 快照、trace、变量快照与 session ownership 证据。"
+  });
+  results.push({
+    id: "r4-gateway-main-path",
+    status: /ExecuteGatewayPassThrough/u.test(runtimeEngine)
+      && !/Parallel Gateway 暂未在 runtime 主路径执行/u.test(runtimeEngine)
+      && !/Inclusive Gateway 暂未在 runtime 主路径执行/u.test(runtimeEngine) ? "pass" : "fail",
+    summary: "Parallel/Inclusive Gateway 不再在 runtime 主路径直接返回 unsupported。"
   });
   const productionConfig = readWorkspaceFile("src/backend/Atlas.AppHost/appsettings.Production.json", root);
   results.push({
@@ -87,14 +101,14 @@ const results = [...staticChecks(), ...commandResults];
 const conclusion = summarizeResults(results);
 const summary = {
   generatedAt: new Date().toISOString(),
-  round: "R1",
+  round: "R5",
   conclusion,
   results
 };
 
 writeJson(resolve(outputDir, "production-gate-summary.json"), summary);
 writeText(resolve(outputDir, "production-gate-summary.md"), [
-  "# Microflow Production Gate Summary (R1)",
+  "# Microflow Production Gate Summary (R5)",
   "",
   `- GeneratedAt: ${summary.generatedAt}`,
   `- Conclusion: **${conclusion}**`,
@@ -103,12 +117,10 @@ writeText(resolve(outputDir, "production-gate-summary.md"), [
   "|---|---|---|",
   ...results.map(result => `| ${result.id} | ${result.status} | ${result.summary.replace(/\|/gu, "/")} |`),
   "",
-  "## Pending Future Rounds",
+  "## Known Remaining Limits",
   "",
-  "- R2：P0 安全与生产配置阻断项。",
-  "- R3：真实 executor、命名迁移、connector stub、property panel。",
-  "- R4：trueParallel、Expression Editor、Step Debug。",
-  "- R5：E2E、性能基线、Production Gate 终版。"
+  "- Connector 真实外部系统接入仍按能力门禁返回 RUNTIME_CONNECTOR_REQUIRED。",
+  "- Time-travel debug、debug-time variable mutation、true OS thread isolation、branchOnly suspend policy 仍为明确范围外能力。"
 ].join("\n"));
 
 for (const result of results) {

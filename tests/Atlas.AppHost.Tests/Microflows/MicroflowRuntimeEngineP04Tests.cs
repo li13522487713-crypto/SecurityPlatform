@@ -53,7 +53,7 @@ public sealed class MicroflowRuntimeEngineP04Tests
     }
 
     [Fact]
-    public async Task Run_ParallelGateway_FailsAsUnsupportedNotSilentSuccess()
+    public async Task Run_ParallelGateway_FailsWhenOutgoingFlowMissing()
     {
         var schema = Schema(
             Objects(
@@ -64,7 +64,25 @@ public sealed class MicroflowRuntimeEngineP04Tests
         var session = await RunAsync(schema);
 
         Assert.Equal("failed", session.Status);
-        Assert.Equal(RuntimeErrorCode.RuntimeUnsupportedAction, session.Error?.Code);
+        Assert.Equal(RuntimeErrorCode.RuntimeFlowNotFound, session.Error?.Code);
+    }
+
+    [Fact]
+    public async Task Run_ParallelGateway_UsesRuntimeMainPath()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                new { id = "fork", kind = "parallelGateway", caption = "Fork" },
+                End()),
+            Flows(
+                Flow("f1", "start", "fork"),
+                Flow("f2", "fork", "end")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("success", session.Status);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "fork" && frame.Status == "success");
     }
 
     [Fact]

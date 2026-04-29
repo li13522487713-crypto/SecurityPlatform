@@ -38,6 +38,15 @@ public sealed class HmacChannelSignerTests
         Assert.True(HmacChannelSigner.Verify(Secret, ts, "n1", "body", sig, nowUnixSeconds: ts + 30));
     }
 
+
+    [Fact]
+    public void Verify_ShouldAccept_WhenSignatureIsUppercaseHex()
+    {
+        var ts = 1700000000L;
+        var sig = HmacChannelSigner.Compute(Secret, ts, "n1", "body").ToUpperInvariant();
+        Assert.True(HmacChannelSigner.Verify(Secret, ts, "n1", "body", sig, nowUnixSeconds: ts));
+    }
+
     [Fact]
     public void Verify_ShouldReject_WhenSignatureMismatches()
     {

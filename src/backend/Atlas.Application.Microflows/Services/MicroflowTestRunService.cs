@@ -7,6 +7,7 @@ using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime;
+using Atlas.Application.Microflows.Runtime.Debug;
 using Atlas.Application.Microflows.Runtime.Transactions;
 using Atlas.Domain.Microflows.Entities;
 
@@ -30,6 +31,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private readonly IMicroflowClock _clock;
     private readonly IMicroflowRunCancellationRegistry _cancellationRegistry;
     private readonly IMicroflowRunOwnershipGuard _ownershipGuard;
+    private readonly IDebugSessionStore _debugSessions;
 
     public MicroflowTestRunService(
         IMicroflowResourceRepository resourceRepository,
@@ -44,7 +46,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         IMicroflowAuditWriter auditWriter,
         IMicroflowClock clock,
         IMicroflowRunCancellationRegistry cancellationRegistry,
-        IMicroflowRunOwnershipGuard ownershipGuard)
+        IMicroflowRunOwnershipGuard ownershipGuard,
+        IDebugSessionStore debugSessions)
     {
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
@@ -59,6 +62,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         _clock = clock;
         _cancellationRegistry = cancellationRegistry;
         _ownershipGuard = ownershipGuard;
+        _debugSessions = debugSessions;
     }
 
     public async Task<TestRunMicroflowApiResponse> TestRunAsync(
@@ -71,6 +75,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         var (schema, schemaId) = await ResolveSchemaAsync(resource, request.Schema, request.SchemaId, cancellationToken);
         var input = request.Inputs ?? request.Input ?? new Dictionary<string, JsonElement>();
         var options = request.Options ?? new MicroflowTestRunOptionsDto();
+        EnsureDebugSessionOwnership(resource, request.DebugSessionId);
 
         var validation = await _validationService.ValidateAsync(
             resourceId,
@@ -201,6 +206,28 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         catch
         {
             // best-effort
+        }
+    }
+
+    private void EnsureDebugSessionOwnership(MicroflowResourceEntity resource, string? debugSessionId)
+    {
+        if (string.IsNullOrWhiteSpace(debugSessionId))
+        {
+            return;
+        }
+
+        var session = _debugSessions.Get(debugSessionId)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowDebugSessionNotFound, "调试会话不存在。", 404);
+        var current = _requestContextAccessor.Current;
+        if (!string.Equals(session.MicroflowId, resource.Id, StringComparison.Ordinal)
+            || (!string.IsNullOrWhiteSpace(session.WorkspaceId)
+                && !string.Equals(session.WorkspaceId, resource.WorkspaceId ?? current.WorkspaceId, StringComparison.Ordinal))
+            || (!string.IsNullOrWhiteSpace(session.TenantId)
+                && !string.Equals(session.TenantId, resource.TenantId ?? current.TenantId, StringComparison.Ordinal))
+            || (!string.IsNullOrWhiteSpace(session.CreatedBy)
+                && !string.Equals(session.CreatedBy, current.UserId, StringComparison.Ordinal)))
+        {
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowDebugSessionForbidden, "调试会话不属于当前微流或当前用户。", 403);
         }
     }
 
