@@ -8,6 +8,7 @@ using Atlas.Application.Microflows.Runtime.Actions.Http;
 using Atlas.Application.Microflows.Runtime.Branches;
 using Atlas.Application.Microflows.Runtime.Calls;
 using Atlas.Application.Microflows.Runtime.Connectors;
+using Atlas.Application.Microflows.Runtime.Debug;
 using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Loops;
@@ -99,6 +100,8 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<ParallelBranchScheduler>();
         services.TryAddScoped<IBranchUnitOfWorkFactory, DefaultBranchUnitOfWorkFactory>();
         services.TryAddSingleton<IGatewayJoinStateStore, InMemoryGatewayJoinStateStore>();
+        services.TryAddSingleton<IDebugSessionStore, InMemoryDebugSessionStore>();
+        services.TryAddSingleton<DebugSessionSweeper>();
         services.TryAddScoped<IMicroflowRuntimeConnectorRegistry, MicroflowRuntimeConnectorRegistry>();
         services.TryAddSingleton<IServerActionRuntime, DisabledServerActionRuntime>();
         services.TryAddSingleton<ISoapWebServiceConnector, DisabledSoapWebServiceConnector>();
