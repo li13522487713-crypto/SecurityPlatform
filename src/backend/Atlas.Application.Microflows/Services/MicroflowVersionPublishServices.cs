@@ -338,6 +338,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
     private readonly IMicroflowValidationService _validationService;
     private readonly IMicroflowStorageTransaction _transaction;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
+    private readonly Audit.IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
 
     public MicroflowPublishService(
@@ -350,6 +351,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         IMicroflowValidationService validationService,
         IMicroflowStorageTransaction transaction,
         IMicroflowRequestContextAccessor requestContextAccessor,
+        Audit.IMicroflowAuditWriter auditWriter,
         IMicroflowClock clock)
     {
         _resourceRepository = resourceRepository;
@@ -361,6 +363,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         _validationService = validationService;
         _transaction = transaction;
         _requestContextAccessor = requestContextAccessor;
+        _auditWriter = auditWriter;
         _clock = clock;
     }
 
@@ -462,6 +465,25 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             await _resourceRepository.UpdateAsync(resource, cancellationToken);
         }, cancellationToken);
 
+        await SafeAuditAsync(new Audit.MicroflowAuditEvent
+        {
+            Action = "microflow.publish",
+            Result = "success",
+            ResourceId = resource.Id,
+            ResourceName = resource.Name,
+            WorkspaceId = resource.WorkspaceId,
+            Target = $"{resource.ModuleId}/{resource.Name}@{version.Version}",
+            Details = new Dictionary<string, object?>
+            {
+                ["versionId"] = version.Id,
+                ["version"] = version.Version,
+                ["impactHigh"] = impact.Summary.HighImpactCount,
+                ["impactMedium"] = impact.Summary.MediumImpactCount,
+                ["impactLow"] = impact.Summary.LowImpactCount,
+                ["referenceCount"] = references.Count
+            }
+        }, cancellationToken);
+
         return new MicroflowPublishResultDto
         {
             Resource = MicroflowResourceMapper.ToDto(resource, publishSchemaSnapshot),
@@ -470,6 +492,22 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             ValidationSummary = validationSummary,
             ImpactAnalysis = impact
         };
+    }
+
+    private async Task SafeAuditAsync(Audit.MicroflowAuditEvent auditEvent, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _auditWriter.WriteAsync(auditEvent, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // best-effort
+        }
     }
 
     public async Task<MicroflowPublishImpactAnalysisDto> AnalyzeImpactAsync(string resourceId, AnalyzeMicroflowImpactRequestDto request, CancellationToken cancellationToken)

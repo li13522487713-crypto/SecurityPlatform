@@ -1,4 +1,5 @@
 using Atlas.Application.Microflows.Abstractions;
+using Atlas.Application.Microflows.Audit;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
@@ -48,6 +49,7 @@ public sealed class MicroflowCreateHotfixTests
             referenceRepository,
             referenceIndexer,
             contextAccessor,
+            new NullMicroflowAuditWriter(),
             clock);
 
         var result = await service.CreateAsync(new CreateMicroflowRequestDto
@@ -127,6 +129,7 @@ public sealed class MicroflowCreateHotfixTests
             referenceRepository,
             referenceIndexer,
             contextAccessor,
+            new NullMicroflowAuditWriter(),
             clock);
 
         var ex = await Assert.ThrowsAsync<MicroflowApiException>(() => service.CreateAsync(new CreateMicroflowRequestDto
@@ -191,6 +194,7 @@ public sealed class MicroflowCreateHotfixTests
             referenceRepository,
             referenceIndexer,
             contextAccessor,
+            new NullMicroflowAuditWriter(),
             clock);
     }
 }
