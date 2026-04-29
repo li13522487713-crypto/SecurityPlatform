@@ -292,7 +292,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
 
             if (IsKind(node, "actionActivity"))
             {
-                var actionSignal = NavigateAction(context, query, node, incoming, loopIteration);
+                var actionSignal = NavigateAction(context, query, node, incoming, loopIteration).GetAwaiter().GetResult();
                 if (actionSignal.Kind is NavigationSignalKind.Failed or NavigationSignalKind.MaxStepsExceeded or NavigationSignalKind.Cancelled)
                 {
                     return actionSignal;
@@ -462,7 +462,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             Cause = error.Cause
         };
 
-    private NavigationSignal NavigateAction(
+    private async Task<NavigationSignal> NavigateAction(
         MicroflowNavigationContext context,
         MicroflowExecutionPlanQuery query,
         MicroflowExecutionNode node,
@@ -485,10 +485,20 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
 
         if (string.Equals(node.SupportLevel, MicroflowRuntimeSupportLevel.Supported, StringComparison.OrdinalIgnoreCase))
         {
+            MicroflowActionExecutionResult actionResult = new();
             if (executor.Category == MicroflowActionRuntimeCategory.ServerExecutable)
             {
-                WritePlaceholderActionOutput(context, node);
+                actionResult = await ExecuteActionAsync(context, node, executor);
+                if (actionResult.Error is not null || string.Equals(actionResult.Status, MicroflowActionExecutionStatus.Failed, StringComparison.OrdinalIgnoreCase))
+                {
+                    var actionError = actionResult.Error is null
+                        ? Error(RuntimeErrorCode.RuntimeUnknownError, actionResult.Message ?? "Action execution failed.", node.ObjectId, node.ActionId, incomingFlowId)
+                        : ToNavigationError(actionResult.Error, incomingFlowId);
+                    return HandleActionFailure(context, query, node, incomingFlowId, loopIteration, actionError);
+                }
             }
+
+            var outputDiagnostic = TryGetActionOutputDiagnostic(context.RuntimeContext, node, TryResolveOutputVariableName(node.ConfigJson), actionResult);
 
             AddStep(
                 context,
@@ -500,7 +510,14 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
                 message: executor.Category == MicroflowActionRuntimeCategory.RuntimeCommand
                     ? "Action produced a RuntimeCommand for client handling."
                     : "Action resolved through ActionExecutorRegistry.",
-                output: BuildNavigatorExecutorOutput(node, executor));
+                output: actionResult.OutputJson ?? BuildNavigatorExecutorOutput(node, executor));
+
+            if (!string.IsNullOrWhiteSpace(outputDiagnostic) && (string.Equals(node.ActionKind, "retrieve", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.ActionKind, "createObject", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.ActionKind, "restCall", StringComparison.OrdinalIgnoreCase)))
+            {
+                AddDiagnostic(context, "RUNTIME_ACTION_OUTPUT_MISSING", "warning", outputDiagnostic!, node.ObjectId, actionId: node.ActionId, collectionId: node.CollectionId);
+            }
             return NavigationSignal.ContinueWith(next);
         }
 
@@ -614,90 +631,70 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         return NavigationSignal.ContinueWith(handler);
     }
 
-    private static void WritePlaceholderActionOutput(MicroflowNavigationContext context, MicroflowExecutionNode node)
+    private async Task<MicroflowActionExecutionResult> ExecuteActionAsync(MicroflowNavigationContext context, MicroflowExecutionNode node, IMicroflowActionExecutor executor)
     {
-        if (node.ConfigJson is null || node.ConfigJson.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
-        {
-            return;
-        }
+        var actionConfig = node.ConfigJson is { ValueKind: not JsonValueKind.Null and not JsonValueKind.Undefined }
+            ? node.ConfigJson.Value
+            : JsonSerializer.SerializeToElement(new Dictionary<string, object?>(), JsonOptions);
 
-        var config = node.ConfigJson.Value;
-        var outputName = ReadString(config, "outputVariableName")
-            ?? ReadString(config, "resultVariableName")
-            ?? ReadStringByPath(config, "returnValue", "outputVariableName")
-            ?? ReadStringByPath(config, "response", "handling", "outputVariableName")
-            ?? ReadStringByPath(config, "action", "outputVariableName")
-            ?? ReadStringByPath(config, "action", "resultVariableName")
-            ?? ReadStringByPath(config, "action", "returnValue", "outputVariableName")
-            ?? ReadStringByPath(config, "action", "response", "handling", "outputVariableName");
-        if (string.IsNullOrWhiteSpace(outputName))
+        return await executor.ExecuteAsync(new MicroflowActionExecutionContext
         {
-            return;
-        }
-
-        var type = node.ActionKind switch
-        {
-            "retrieve" => JsonSerializer.Serialize(new { kind = "list" }, JsonOptions),
-            "createObject" => JsonSerializer.Serialize(new { kind = "object" }, JsonOptions),
-            "restCall" => JsonSerializer.Serialize(new { kind = "httpResponse" }, JsonOptions),
-            _ => JsonSerializer.Serialize(new { kind = "unknown" }, JsonOptions)
-        };
-        var raw = node.ActionKind switch
-        {
-            "retrieve" => JsonSerializer.Serialize(new { items = Array.Empty<object>(), source = "flow-navigator-placeholder" }, JsonOptions),
-            "createObject" => JsonSerializer.Serialize(new { id = $"{node.ObjectId}-placeholder", source = "flow-navigator-placeholder" }, JsonOptions),
-            "restCall" => JsonSerializer.Serialize(new { statusCode = 200, body = "flow-navigator-placeholder" }, JsonOptions),
-            _ => JsonSerializer.Serialize(new { source = "flow-navigator-placeholder" }, JsonOptions)
-        };
-        var sourceKind = node.ActionKind switch
-        {
-            "createVariable" => MicroflowVariableSourceKind.LocalVariable,
-            "callMicroflow" => MicroflowVariableSourceKind.MicroflowReturn,
-            "restCall" => MicroflowVariableSourceKind.RestResponse,
-            _ => MicroflowVariableSourceKind.ActionOutput
-        };
-
-        var value = new MicroflowRuntimeVariableValue
-        {
-            Name = outputName!,
-            DataTypeJson = type,
-            Kind = MicroflowVariableStore.InferKind(type, raw),
-            RawValueJson = raw,
-            ValuePreview = MicroflowVariableStore.Preview(raw),
-            SourceKind = sourceKind,
-            SourceObjectId = node.ObjectId,
-            SourceActionId = node.ActionId,
+            RuntimeExecutionContext = context.RuntimeContext,
+            ExecutionPlan = context.Plan,
+            ExecutionNode = node,
+            ActionConfig = actionConfig,
+            ActionKind = node.ActionKind ?? string.Empty,
+            ObjectId = node.ObjectId,
+            ActionId = node.ActionId,
             CollectionId = node.CollectionId,
-            ScopeKind = node.ParentLoopObjectId is null ? MicroflowVariableScopeKind.Action : MicroflowVariableScopeKind.Loop,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+            VariableStore = context.RuntimeContext.VariableStore,
+            ExpressionEvaluator = _expressionEvaluator,
+            ConnectorRegistry = _connectorRegistry,
+            Options = new MicroflowActionExecutionOptions
+            {
+                Mode = context.Options.Mode,
+                SimulateRestError = context.Options.SimulateRestError,
+                StopOnUnsupported = context.Options.EffectiveStopOnUnsupported
+            }
+        }, context.CancellationToken);
+    }
 
-        try
+    private static string? TryResolveOutputVariableName(JsonElement? config)
+    {
+        if (config is null || config.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
-            if (context.RuntimeContext.VariableStore.Exists(outputName!))
-            {
-                context.RuntimeContext.VariableStore.Set(outputName!, value);
-            }
-            else
-            {
-                context.RuntimeContext.VariableStore.Define(new MicroflowVariableDefinition
-                {
-                    Name = outputName!,
-                    DataTypeJson = type,
-                    Value = value,
-                    SourceKind = sourceKind,
-                    SourceObjectId = node.ObjectId,
-                    SourceActionId = node.ActionId,
-                    CollectionId = node.CollectionId,
-                    ScopeKind = value.ScopeKind
-                });
-            }
+            return null;
         }
-        catch (MicroflowVariableStoreException ex)
+
+        return ReadString(config.Value, "outputVariableName")
+            ?? ReadString(config.Value, "resultVariableName")
+            ?? ReadStringByPath(config.Value, "returnValue", "outputVariableName")
+            ?? ReadStringByPath(config.Value, "response", "handling", "outputVariableName")
+            ?? ReadStringByPath(config.Value, "action", "outputVariableName")
+            ?? ReadStringByPath(config.Value, "action", "resultVariableName")
+            ?? ReadStringByPath(config.Value, "action", "returnValue", "outputVariableName")
+            ?? ReadStringByPath(config.Value, "action", "response", "handling", "outputVariableName");
+    }
+
+    private static string? TryGetActionOutputDiagnostic(RuntimeExecutionContext runtimeContext, MicroflowExecutionNode node, string? outputVariableName, MicroflowActionExecutionResult result)
+    {
+        if (!string.Equals(result.Status, MicroflowActionExecutionStatus.Success, StringComparison.OrdinalIgnoreCase) || result.Error is not null)
         {
-            AddDiagnostic(context, ex.Diagnostic.Code, ex.Diagnostic.Severity, ex.Diagnostic.Message, node.ObjectId, actionId: node.ActionId, collectionId: node.CollectionId);
+            return "动作未产出结果";
         }
+
+        if (!string.IsNullOrWhiteSpace(outputVariableName))
+        {
+            if (runtimeContext.VariableStore.TryGet(outputVariableName!, out var variable) && variable is not null)
+            {
+                return null;
+            }
+
+            return "无输出变量";
+        }
+
+        var hasProduced = result.ProducedVariables.Any(item => string.Equals(item.SourceObjectId, node.ObjectId, StringComparison.Ordinal));
+        return hasProduced ? null : "无输出变量";
     }
 
     private MicroflowFlowSelectionResult SelectNormalFlow(

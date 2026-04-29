@@ -262,19 +262,19 @@ todos:
     status: completed
   - id: R5-07-e2e-create-edit-save
     content: "R5: playwright E2E 第一段：login → /space/:wsId/mendix-studio/:appId → app assets load → 创建 microflow → 拖节点 → 配置属性 → 保存。"
-    status: pending
+    status: completed
   - id: R5-08-e2e-publish-testrun
     content: "R5: playwright E2E 第二段：publish 阻断（validation error）→ 修复 → publish → testRun → trace 定位画布节点。"
-    status: pending
+    status: completed
   - id: R5-09-e2e-reference-debug
     content: "R5: playwright E2E 第三段：删除 microflow reference 阻断 + debug session stepOver 流程。"
-    status: pending
+    status: completed
   - id: R5-10-perf-baseline
     content: "R5: 100/300/500 节点性能基线（load/render/save/validate/run plan 采样）+ artifacts/microflow-performance/*.json + md 报告 + 超阈值 CI warning。"
-    status: pending
+    status: completed
   - id: R5-11-prod-build
     content: "R5: dotnet build Release（0 warning）+ frontend production build（rsbuild + i18n:check + lint）+ no mock/local/MSW 验证。"
-    status: pending
+    status: completed
   - id: R5-12-prod-gate-final
     content: "R5: scripts/verify-microflow-production-gate.ts 跑全量 Blocker(13)/Critical(8)/Major(5) + dotnet build Release + frontend production build + live health；输出 production-gate-summary.{json,md} 终版；docs/microflow/release/known-limitations.md 更新；结论 = go / conditional-go / no-go。"
     status: completed

@@ -224,6 +224,9 @@ public sealed class MicroflowRestResponseHandler
             RawValue = MicroflowVariableStore.ToJsonElement(value.RawValueJson),
             RawValueJson = value.RawValueJson,
             Source = value.SourceKind,
+            SourceObjectId = value.SourceObjectId,
+            SourceActionId = value.SourceActionId,
+            CollectionId = value.CollectionId,
             Readonly = value.Readonly,
             ScopeKind = value.ScopeKind
         };

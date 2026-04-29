@@ -8,6 +8,7 @@ using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Actions.Http;
+using Atlas.Application.Microflows.Runtime.Debug;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Services;
@@ -79,6 +80,31 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
         Assert.NotNull(session.Error);
         // Default security policy blocks real HTTP unless allowRealHttp is set.
         Assert.False(session.Error!.Code is null || session.Error!.Code == RuntimeErrorCode.RuntimeUnknownError);
+    }
+
+    [Fact]
+    public async Task Run_RestCallAction_WithDebugSession_EmitsInternalSafePointsWhenSecurityBlocked()
+    {
+        var recorder = new RecordingDebugCoordinator();
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("rest", "restCall", new
+                {
+                    method = "GET",
+                    url = "https://example.com/api/test",
+                    request = new { method = "GET", urlExpression = new { raw = "'https://example.com/api/test'" } }
+                }),
+                End()),
+            Flows(
+                Flow("f1", "start", "rest"),
+                Flow("f2", "rest", "end")));
+
+        var session = await RunWithRegistryAsync(schema, debugSessionId: "debug-session-1", debugCoordinator: recorder);
+
+        Assert.Equal("failed", session.Status);
+        Assert.Contains(recorder.SafePoints, item => item.Phase == MicroflowDebugPausePhase.BeforeRestRequest && item.SemanticKind == "rest");
+        Assert.Contains(recorder.SafePoints, item => item.Phase == MicroflowDebugPausePhase.AfterRestHandled && item.SemanticKind == "rest");
     }
 
     [Fact]
@@ -262,10 +288,16 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
 
     private static async Task<MicroflowRunSessionDto> RunWithRegistryAsync(
         JsonElement schema,
-        IReadOnlyDictionary<string, object?>? input = null)
+        IReadOnlyDictionary<string, object?>? input = null,
+        string? debugSessionId = null,
+        IMicroflowDebugCoordinator? debugCoordinator = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        if (debugCoordinator is not null)
+        {
+            services.AddSingleton(debugCoordinator);
+        }
         services.AddAtlasApplicationMicroflows();
         services.AddSingleton<IMicroflowClock>(new FixedClock());
         services.AddSingleton<IMicroflowRequestContextAccessor>(new InMemoryRequestContextAccessor());
@@ -298,6 +330,7 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
                 Input = jsonInput,
                 Options = new MicroflowTestRunOptionsDto(),
                 RequestContext = new MicroflowRequestContext { TraceId = Guid.NewGuid().ToString("N") },
+                DebugSessionId = debugSessionId,
                 MaxCallDepth = 10
             },
             CancellationToken.None);
@@ -396,5 +429,42 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
             WorkspaceId = "ws-test",
             TenantId = "tenant-test"
         };
+    }
+
+    private sealed class RecordingDebugCoordinator : IMicroflowDebugCoordinator
+    {
+        public List<MicroflowDebugSafePoint> SafePoints { get; } = [];
+
+        public Task WaitAtSafePointAsync(
+            string? debugSessionId,
+            string engineRunId,
+            MicroflowDebugSafePoint point,
+            CancellationToken cancellationToken)
+        {
+            SafePoints.Add(point);
+            return Task.CompletedTask;
+        }
+
+        public Task WaitAtSafePointAsync(
+            string? debugSessionId,
+            string engineRunId,
+            MicroflowDebugSafePoint point,
+            MicroflowDebugRuntimeSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            SafePoints.Add(point);
+            return Task.CompletedTask;
+        }
+
+        public void ReleaseOnePause(string debugSessionId)
+        {
+        }
+
+        public MicroflowDebugSession? ApplyCommand(string debugSessionId, DebugCommand command)
+            => null;
+
+        public void RemoveSession(string debugSessionId)
+        {
+        }
     }
 }

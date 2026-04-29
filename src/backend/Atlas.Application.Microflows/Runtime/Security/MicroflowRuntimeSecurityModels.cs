@@ -131,10 +131,14 @@ public sealed record MicroflowEntityAccessDecision
 
 public sealed class MicroflowEntityAccessOptions
 {
+    public int RunTimeoutSeconds { get; set; } = 300;
     public string? EntityAccessMode { get; set; }
     public bool DenyUnknownEntity { get; set; } = true;
     public Dictionary<string, string[]> EntityRequiredRoles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string[]> MicroflowRequiredRoles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> AllowedSystemBypassRoles { get; set; } = new(StringComparer.OrdinalIgnoreCase) { "SystemTaskExecutor" };
+    public HashSet<string> AllowedTenantIds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> AllowedWorkspaceIds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public string ResolveMode()
     {

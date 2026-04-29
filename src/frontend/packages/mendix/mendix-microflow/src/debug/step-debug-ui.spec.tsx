@@ -26,6 +26,7 @@ const labels: MicroflowStepDebugPanelLabels = {
   nodePrefix: "Node",
   flowPrefix: "Flow",
   branchPrefix: "Branch",
+  phasePrefix: "Phase",
   breakpointsTitle: "Breakpoints",
   staleBreakpoint: "Stale",
   logpoint: "Logpoint",
@@ -57,6 +58,7 @@ describe("MicroflowStepDebugPanel", () => {
         currentNodeId="node-a"
         currentFlowId="flow-a"
         currentBranchId="branch-1"
+        currentPhase="beforeRestRequest"
         labels={labels}
         variables={[{ name: "amount", valuePreview: "42" }]}
         watches={[{ expression: "$amount", value: "42" }]}
@@ -70,6 +72,7 @@ describe("MicroflowStepDebugPanel", () => {
     expect(screen.getByText("Node: node-a")).toBeTruthy();
     expect(screen.getByText("Flow: flow-a")).toBeTruthy();
     expect(screen.getByText("Branch: branch-1")).toBeTruthy();
+    expect(screen.getByText("Phase: beforeRestRequest")).toBeTruthy();
     expect(screen.getByText("Variables")).toBeTruthy();
     expect(screen.getByText("Breakpoints")).toBeTruthy();
     expect(screen.getByText("node: node-a ($amount > 10) #2 Logpoint Stale")).toBeTruthy();

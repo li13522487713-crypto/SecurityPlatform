@@ -35,6 +35,7 @@ export interface MicroflowStepDebugPanelProps {
   currentNodeId?: string;
   currentFlowId?: string;
   currentBranchId?: string;
+  currentPhase?: string;
   variables?: DebugVariableSnapshot[];
   watches?: Array<{ expression: string; value?: string; error?: string }>;
   callStack?: DebugCallStackFrame[];
@@ -50,6 +51,7 @@ export interface MicroflowStepDebugPanelLabels {
   nodePrefix: string;
   flowPrefix: string;
   branchPrefix: string;
+  phasePrefix: string;
   breakpointsTitle: string;
   staleBreakpoint: string;
   logpoint: string;
@@ -67,6 +69,7 @@ export function MicroflowStepDebugPanel({
   currentNodeId,
   currentFlowId,
   currentBranchId,
+  currentPhase,
   variables = [],
   watches = [],
   callStack = [],
@@ -94,6 +97,7 @@ export function MicroflowStepDebugPanel({
         {currentNodeId ? <Tag color="green">{labels.nodePrefix}: {currentNodeId}</Tag> : null}
         {currentFlowId ? <Tag color="cyan">{labels.flowPrefix}: {currentFlowId}</Tag> : null}
         {currentBranchId ? <Tag color="orange">{labels.branchPrefix}: {currentBranchId}</Tag> : null}
+        {currentPhase ? <Tag color="purple">{labels.phasePrefix}: {currentPhase}</Tag> : null}
       </Space>
       <Space wrap>
         {commands.map(command => (

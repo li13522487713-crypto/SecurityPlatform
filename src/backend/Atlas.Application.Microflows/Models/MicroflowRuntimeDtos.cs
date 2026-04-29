@@ -377,6 +377,15 @@ public sealed record MicroflowRuntimeVariableValueDto
     [JsonPropertyName("source")]
     public string? Source { get; init; }
 
+    [JsonPropertyName("sourceObjectId")]
+    public string? SourceObjectId { get; init; }
+
+    [JsonPropertyName("sourceActionId")]
+    public string? SourceActionId { get; init; }
+
+    [JsonPropertyName("collectionId")]
+    public string? CollectionId { get; init; }
+
     [JsonPropertyName("readonly")]
     public bool? Readonly { get; init; }
 

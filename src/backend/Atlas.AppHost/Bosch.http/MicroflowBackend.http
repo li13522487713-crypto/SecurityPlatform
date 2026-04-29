@@ -3345,7 +3345,7 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
-### Debug — resume one pause gate (after engine blocks at BeforeNode/AfterNode safe point)
+### Debug — continue until next breakpoint / runTo target
 # Replace {{debugSessionId}} with microflowDebugSessionCreate response $.data.id
 POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/commands
 Content-Type: application/json
@@ -3358,8 +3358,41 @@ X-Trace-Id: {{traceId}}
   "command": "continue"
 }
 
-### Debug — test-run with debugSessionId (engine pauses at each node Before/After until commands release)
+### Debug — step over current activity / call
+POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/commands
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "command": "stepOver"
+}
+
+### Debug — step into current call / RestCall internals
+POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/commands
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "command": "stepInto"
+}
+
+### Debug — get session safe point
+# RestCall internal phases: beforeRestRequest, afterRestResponse, afterRestHandled.
+GET {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Debug — test-run with debugSessionId
 # Uses cooperative pause + MicroflowDebugCoordinator; omit debugSessionId for normal non-blocking test-run.
+# stepInto enters child microflows and RestCall internal phases; stepOver skips child/internal phases and pauses at the same-depth next visible safe point.
 POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}

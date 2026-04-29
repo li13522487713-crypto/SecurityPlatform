@@ -1,5 +1,71 @@
 import { expect, test } from "../fixtures/single-session";
-import { appBaseUrl, ensureAppSetup, navigateBySidebar, uniqueName } from "./helpers";
+import { appApiBase, appBaseUrl, defaultTenantId, ensureAppSetup, navigateBySidebar, uniqueName } from "./helpers";
+
+function withLogNode(schema: any, message: string) {
+  const next = JSON.parse(JSON.stringify(schema));
+  const collection = next.objectCollection;
+  const logNode = {
+    id: "e2e-log-node",
+    stableId: "e2e-log-node",
+    kind: "actionActivity",
+    officialType: "Microflows$ActionActivity",
+    caption: "E2E Log",
+    documentation: "",
+    relativeMiddlePoint: { x: 440, y: 200 },
+    size: { width: 152, height: 72 },
+    editor: { iconKey: "logMessage" },
+    autoGenerateCaption: false,
+    backgroundColor: "default",
+    disabled: false,
+    action: {
+      id: "action-e2e-log-node",
+      kind: "logMessage",
+      officialType: "Microflows$LogMessageAction",
+      errorHandlingType: "rollback",
+      documentation: "E2E save verification",
+      editor: { category: "logging", iconKey: "logMessage", availability: "supported" },
+      level: "info",
+      logNodeName: "MicroflowE2E",
+      template: { text: message, arguments: [] },
+      includeContextVariables: false,
+      includeTraceId: true
+    }
+  };
+  collection.objects = collection.objects.filter((item: { id?: string }) => item.id !== logNode.id);
+  collection.objects.push(logNode);
+  next.flows = [
+    {
+      id: "flow-start-e2e-log",
+      stableId: "flow-start-e2e-log",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: "start",
+      destinationObjectId: logNode.id,
+      originConnectionIndex: 0,
+      destinationConnectionIndex: 0,
+      caseValues: [],
+      isErrorHandler: false,
+      line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } },
+      editor: { edgeKind: "sequence" }
+    },
+    {
+      id: "flow-e2e-log-end",
+      stableId: "flow-e2e-log-end",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: logNode.id,
+      destinationObjectId: "end",
+      originConnectionIndex: 0,
+      destinationConnectionIndex: 0,
+      caseValues: [],
+      isErrorHandler: false,
+      line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } },
+      editor: { edgeKind: "sequence" }
+    }
+  ];
+  next.audit = { ...(next.audit ?? {}), updatedAt: new Date().toISOString(), status: "draft" };
+  return next;
+}
 
 test.describe.serial("@microflow Mendix studio create/save", () => {
   let appKey = "";
@@ -25,8 +91,8 @@ test.describe.serial("@microflow Mendix studio create/save", () => {
     await expect(page.locator(".mendix-studio-root")).toBeVisible({ timeout: 30_000 });
 
     const name = uniqueName("E2E_MF_CREATE").replace(/-/g, "_");
-    await page.request.post("http://127.0.0.1:5002/api/v1/microflows", {
-      headers: { "Content-Type": "application/json", "X-Tenant-Id": "00000000-0000-0000-0000-000000000001" },
+    await page.request.post(`${appApiBase}/api/v1/microflows`, {
+      headers: { "Content-Type": "application/json", "X-Tenant-Id": defaultTenantId },
       data: {
         workspaceId,
         input: {
@@ -42,8 +108,8 @@ test.describe.serial("@microflow Mendix studio create/save", () => {
       }
     });
 
-    const listResp = await page.request.get(`http://127.0.0.1:5002/api/v1/microflows?workspaceId=${encodeURIComponent(String(workspaceId))}`, {
-      headers: { "X-Tenant-Id": "00000000-0000-0000-0000-000000000001" }
+    const listResp = await page.request.get(`${appApiBase}/api/v1/microflows?workspaceId=${encodeURIComponent(String(workspaceId))}`, {
+      headers: { "X-Tenant-Id": defaultTenantId }
     });
     expect(listResp.ok()).toBeTruthy();
     const listJson = await listResp.json();
@@ -53,5 +119,32 @@ test.describe.serial("@microflow Mendix studio create/save", () => {
     await page.goto(`${appBaseUrl}/space/${encodeURIComponent(String(workspaceId))}/mendix-studio/${encodeURIComponent(appKey)}?microflowId=${encodeURIComponent(String(created.id))}`);
     await page.waitForURL(/microflowId=/);
     await expect(page.locator(".mendix-studio-root")).toBeVisible();
+
+    const schemaResp = await page.request.get(`${appApiBase}/api/v1/microflows/${encodeURIComponent(String(created.id))}/schema`, {
+      headers: { "X-Tenant-Id": defaultTenantId, "X-Workspace-Id": String(workspaceId) }
+    });
+    expect(schemaResp.ok()).toBeTruthy();
+    const schemaPayload = await schemaResp.json();
+    const editedSchema = withLogNode(schemaPayload?.data?.schema, `Saved from E2E ${name}`);
+
+    const saveResp = await page.request.put(`${appApiBase}/api/v1/microflows/${encodeURIComponent(String(created.id))}/schema`, {
+      headers: { "Content-Type": "application/json", "X-Tenant-Id": defaultTenantId, "X-Workspace-Id": String(workspaceId) },
+      data: {
+        schema: editedSchema,
+        baseVersion: schemaPayload?.data?.schemaVersion,
+        saveReason: "e2e-create-edit-save",
+        clientRequestId: `e2e-save-${name}`
+      }
+    });
+    expect(saveResp.ok()).toBeTruthy();
+
+    const reloadResp = await page.request.get(`${appApiBase}/api/v1/microflows/${encodeURIComponent(String(created.id))}/schema`, {
+      headers: { "X-Tenant-Id": defaultTenantId, "X-Workspace-Id": String(workspaceId) }
+    });
+    expect(reloadResp.ok()).toBeTruthy();
+    const reloadedSchema = (await reloadResp.json())?.data?.schema;
+    const savedLogNode = reloadedSchema?.objectCollection?.objects?.find((item: { id?: string }) => item.id === "e2e-log-node");
+    expect(savedLogNode?.action?.template?.text).toBe(`Saved from E2E ${name}`);
+    expect(reloadedSchema?.flows?.some((flow: { id?: string }) => flow.id === "flow-start-e2e-log")).toBeTruthy();
   });
 });

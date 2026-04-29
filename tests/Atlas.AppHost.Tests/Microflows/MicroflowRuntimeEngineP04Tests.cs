@@ -38,7 +38,7 @@ public sealed class MicroflowRuntimeEngineP04Tests
     }
 
     [Fact]
-    public async Task Run_LoopedActivity_FailsExplicitlyAsUnsupported()
+    public async Task Run_LoopedActivityWithoutBody_FailsWithLoopBodyNotFound()
     {
         var schema = Schema(
             Objects(
@@ -49,7 +49,7 @@ public sealed class MicroflowRuntimeEngineP04Tests
         var session = await RunAsync(schema);
 
         Assert.Equal("failed", session.Status);
-        Assert.Equal(RuntimeErrorCode.RuntimeUnsupportedAction, session.Error?.Code);
+        Assert.Equal(RuntimeErrorCode.RuntimeLoopBodyNotFound, session.Error?.Code);
     }
 
     [Fact]

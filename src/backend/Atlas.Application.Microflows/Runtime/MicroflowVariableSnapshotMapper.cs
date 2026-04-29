@@ -19,6 +19,9 @@ public static class MicroflowVariableSnapshotMapper
             ValuePreview = MicroflowVariableStore.TrimPreview(value.ValuePreview, 200),
             RawValue = MicroflowVariableStore.ToJsonElement(value.RawValueJson),
             Source = value.SourceKind,
+            SourceObjectId = value.SourceObjectId,
+            SourceActionId = value.SourceActionId,
+            CollectionId = value.CollectionId,
             Readonly = value.Readonly,
             ScopeKind = value.ScopeKind,
             RawValueJson = value.RawValueJson

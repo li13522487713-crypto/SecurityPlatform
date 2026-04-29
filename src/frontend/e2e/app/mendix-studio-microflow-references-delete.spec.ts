@@ -1,5 +1,5 @@
 import { expect, test } from "../fixtures/single-session";
-import { appBaseUrl, ensureAppSetup } from "./helpers";
+import { appApiBase, appBaseUrl, defaultTenantId, ensureAppSetup } from "./helpers";
 
 test.describe.serial("Mendix Studio Microflow references delete", () => {
   let appKey = "";
@@ -12,10 +12,10 @@ test.describe.serial("Mendix Studio Microflow references delete", () => {
   test("delete referenced microflow should be blocked", async ({ page, request, ensureLoggedInSession }) => {
     await ensureLoggedInSession(appKey);
 
-    const createValidateResp = await request.post("http://127.0.0.1:5002/api/v1/microflows", {
+    const createValidateResp = await request.post(`${appApiBase}/api/v1/microflows`, {
       headers: {
         "Content-Type": "application/json",
-        "X-Tenant-Id": "00000000-0000-0000-0000-000000000001",
+        "X-Tenant-Id": defaultTenantId,
       },
       data: {
         workspaceId: "atlas-space",
@@ -37,10 +37,10 @@ test.describe.serial("Mendix Studio Microflow references delete", () => {
     const validateId = String(validatePayload?.data?.id ?? "");
     expect(validateId).not.toBe("");
 
-    const createSubmitResp = await request.post("http://127.0.0.1:5002/api/v1/microflows", {
+    const createSubmitResp = await request.post(`${appApiBase}/api/v1/microflows`, {
       headers: {
         "Content-Type": "application/json",
-        "X-Tenant-Id": "00000000-0000-0000-0000-000000000001",
+        "X-Tenant-Id": defaultTenantId,
       },
       data: {
         workspaceId: "atlas-space",
@@ -63,10 +63,10 @@ test.describe.serial("Mendix Studio Microflow references delete", () => {
     expect(submitId).not.toBe("");
 
     // 通过发布动作附带引用信息，构造 Validate 被 Submit 引用的关系
-    await request.post(`http://127.0.0.1:5002/api/v1/microflows/${encodeURIComponent(submitId)}/publish`, {
+    await request.post(`${appApiBase}/api/v1/microflows/${encodeURIComponent(submitId)}/publish`, {
       headers: {
         "Content-Type": "application/json",
-        "X-Tenant-Id": "00000000-0000-0000-0000-000000000001",
+        "X-Tenant-Id": defaultTenantId,
       },
       data: {
         version: "1.0.0",
@@ -83,5 +83,35 @@ test.describe.serial("Mendix Studio Microflow references delete", () => {
     await page.getByRole("button", { name: "删除" }).first().click();
 
     await expect(page.getByText(/删除被阻止|引用/)).toBeVisible({ timeout: 15_000 });
+
+    const authToken = await page.evaluate(() => window.localStorage.getItem("atlas_app_access_token") ?? "");
+    expect(authToken).not.toBe("");
+    const debugHeaders = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+      "X-Tenant-Id": defaultTenantId,
+      "X-Workspace-Id": "atlas-space",
+      "X-User-Id": "admin"
+    };
+    const createDebugResp = await request.post(`${appApiBase}/api/v1/microflows/${encodeURIComponent(validateId)}/debug-sessions`, {
+      headers: debugHeaders
+    });
+    expect(createDebugResp.ok()).toBeTruthy();
+    const debugSessionId = String((await createDebugResp.json())?.data?.id ?? "");
+    expect(debugSessionId).not.toBe("");
+
+    const stepResp = await request.post(`${appApiBase}/api/v1/microflows/debug-sessions/${encodeURIComponent(debugSessionId)}/commands`, {
+      headers: debugHeaders,
+      data: { command: "stepOver", targetNodeObjectId: "start" }
+    });
+    expect(stepResp.ok()).toBeTruthy();
+    const stepSession = (await stepResp.json())?.data;
+    expect(stepSession?.lastCommand).toBe("stepOver");
+    expect(["stepping", "running", "paused", "created"]).toContain(String(stepSession?.status));
+
+    const cleanupResp = await request.delete(`${appApiBase}/api/v1/microflows/debug-sessions/${encodeURIComponent(debugSessionId)}`, {
+      headers: debugHeaders
+    });
+    expect(cleanupResp.ok()).toBeTruthy();
   });
 });

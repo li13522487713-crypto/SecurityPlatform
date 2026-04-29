@@ -365,18 +365,18 @@ async function waitForLoginFormReady(page: Page, appKey: string): Promise<void> 
   const loginPaths = [signPath()];
   const maxAttempts = loginPaths.length * 3;
   let lastUrl = page.url();
+  const usernameInput = page.locator('[data-testid="app-login-username"] input, input[data-testid="app-login-username"]').first();
+  const passwordInput = page.locator('[data-testid="app-login-password"] input, input[data-testid="app-login-password"]').first();
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const currentPath = loginPaths[attempt % loginPaths.length];
     await page.goto(`${appBaseUrl}${currentPath}`, { waitUntil: "domcontentloaded" });
     lastUrl = page.url();
 
-    const usernameVisible = await page
-      .getByTestId("app-login-username")
+    const usernameVisible = await usernameInput
       .isVisible({ timeout: 5_000 })
       .catch(() => false);
-    const passwordVisible = await page
-      .getByTestId("app-login-password")
+    const passwordVisible = await passwordInput
       .isVisible({ timeout: 5_000 })
       .catch(() => false);
     if (usernameVisible && passwordVisible) {
@@ -388,11 +388,13 @@ async function waitForLoginFormReady(page: Page, appKey: string): Promise<void> 
       .isVisible({ timeout: 2_000 })
       .catch(() => false);
     if (loginPageVisible) {
-      const usernameVisibleOnLoginPage = await page
-        .getByTestId("app-login-username")
+      const usernameVisibleOnLoginPage = await usernameInput
         .isVisible({ timeout: 5_000 })
         .catch(() => false);
-      if (usernameVisibleOnLoginPage) {
+      const passwordVisibleOnLoginPage = await passwordInput
+        .isVisible({ timeout: 5_000 })
+        .catch(() => false);
+      if (usernameVisibleOnLoginPage && passwordVisibleOnLoginPage) {
         return;
       }
     }
@@ -427,9 +429,9 @@ export async function loginApp(
 ) {
   const expectSuccess = options?.expectSuccess ?? true;
   await waitForLoginFormReady(page, appKey);
-  await page.getByTestId("app-login-username").fill(defaultUsername);
+  await page.locator('[data-testid="app-login-username"] input, input[data-testid="app-login-username"]').first().fill(defaultUsername);
   await page.waitForTimeout(gazeShiftDelay());
-  await page.getByTestId("app-login-password").fill(password);
+  await page.locator('[data-testid="app-login-password"] input, input[data-testid="app-login-password"]').first().fill(password);
   const agreementCheckbox = page.locator('[data-testid="app-login-page"] input[type="checkbox"]').first();
   const agreementVisible = await agreementCheckbox.isVisible().catch(() => false);
   if (agreementVisible) {

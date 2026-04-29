@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime.Actions.Http;
+using Atlas.Application.Microflows.Runtime.Debug;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.Application.Microflows.Runtime.Actions;
@@ -51,10 +52,13 @@ public sealed class RestCallActionExecutor : IMicroflowActionExecutor
         }
 
         var request = build.Request;
+        await DebugCheckpointAsync(context, MicroflowDebugPausePhase.BeforeRestRequest, ct).ConfigureAwait(false);
+
         var securityDecision = await _securityPolicy.EvaluateAsync(request, options, resolveHostAddresses: options.AllowRealHttp, ct);
         if (!securityDecision.Allowed)
         {
             var latest = LatestHttpResponse(request, null, MicroflowRuntimeHttpErrorKind.SecurityBlocked, securityDecision.Message);
+            await DebugCheckpointAsync(context, MicroflowDebugPausePhase.AfterRestHandled, ct).ConfigureAwait(false);
             return Failed(
                 context,
                 Error(context, securityDecision.ReasonCode, securityDecision.Message, details: JsonSerializer.Serialize(new { restCall = new { securityDecision } }, JsonOptions)),
@@ -84,20 +88,25 @@ public sealed class RestCallActionExecutor : IMicroflowActionExecutor
                 }
             };
             var latest = LatestHttpResponse(request, simulated, MicroflowRuntimeHttpErrorKind.Network, simulated.Error.Message);
+            await DebugCheckpointAsync(context, MicroflowDebugPausePhase.AfterRestResponse, ct).ConfigureAwait(false);
+            await DebugCheckpointAsync(context, MicroflowDebugPausePhase.AfterRestHandled, ct).ConfigureAwait(false);
             return Failed(context, Error(context, RuntimeErrorCode.RuntimeRestCallFailed, simulated.Error.Message), stopwatch, build.RequestPreview, simulated, latest, build.Diagnostics, securityDecision);
         }
 
         var response = await _httpClient.SendAsync(request, options, ct);
+        await DebugCheckpointAsync(context, MicroflowDebugPausePhase.AfterRestResponse, ct).ConfigureAwait(false);
         if (response.Error is not null && response.Error.Kind is MicroflowRuntimeHttpErrorKind.Network or MicroflowRuntimeHttpErrorKind.Timeout or MicroflowRuntimeHttpErrorKind.Cancelled)
         {
             var latest = LatestHttpResponse(request, response, response.Error.Kind, response.Error.Message);
             var code = response.Error.Kind == MicroflowRuntimeHttpErrorKind.Timeout ? RuntimeErrorCode.RuntimeRestTimeout : response.Error.Code;
+            await DebugCheckpointAsync(context, MicroflowDebugPausePhase.AfterRestHandled, ct).ConfigureAwait(false);
             return Failed(context, Error(context, code, response.Error.Message, response.Error.Details), stopwatch, build.RequestPreview, response, latest, build.Diagnostics, securityDecision);
         }
 
         if (!response.Success && options.TreatNonSuccessStatusAsError)
         {
             var latest = LatestHttpResponse(request, response, "httpStatus", $"REST call returned HTTP {response.StatusCode}.");
+            await DebugCheckpointAsync(context, MicroflowDebugPausePhase.AfterRestHandled, ct).ConfigureAwait(false);
             return Failed(
                 context,
                 Error(context, RuntimeErrorCode.RuntimeRestCallFailed, $"REST call returned HTTP {response.StatusCode} {response.ReasonPhrase}.", response.BodyPreview),
@@ -111,6 +120,7 @@ public sealed class RestCallActionExecutor : IMicroflowActionExecutor
 
         var handled = await _responseHandler.HandleAsync(context, request, response, options, ct);
         stopwatch.Stop();
+        await DebugCheckpointAsync(context, MicroflowDebugPausePhase.AfterRestHandled, ct).ConfigureAwait(false);
         if (!handled.Success)
         {
             var latest = LatestHttpResponse(request, response, "responseHandling", handled.Error?.Message);
@@ -131,6 +141,67 @@ public sealed class RestCallActionExecutor : IMicroflowActionExecutor
             DurationMs = (int)stopwatch.ElapsedMilliseconds,
             ShouldContinueNormalFlow = true,
             Message = $"REST {request.Method} {response.StatusCode}"
+        };
+    }
+
+    private static Task DebugCheckpointAsync(
+        MicroflowActionExecutionContext context,
+        MicroflowDebugPausePhase phase,
+        CancellationToken cancellationToken)
+    {
+        if (context.DebugCoordinator is null || string.IsNullOrWhiteSpace(context.RuntimeExecutionContext.DebugSessionId))
+            return Task.CompletedTask;
+
+        var runtime = context.RuntimeExecutionContext;
+        var point = new MicroflowDebugSafePoint(phase, context.ObjectId, "actionActivity", runtime.CurrentFlowId)
+        {
+            CallDepth = runtime.CurrentCallFrame?.Depth ?? 0,
+            CallStackFrameId = runtime.CurrentCallFrame?.FrameId ?? runtime.RunId,
+            SemanticKind = "rest"
+        };
+
+        return context.DebugCoordinator.WaitAtSafePointAsync(
+            runtime.DebugSessionId,
+            runtime.RunId,
+            point,
+            CreateDebugSnapshot(context, point),
+            cancellationToken);
+    }
+
+    private static MicroflowDebugRuntimeSnapshot CreateDebugSnapshot(
+        MicroflowActionExecutionContext context,
+        MicroflowDebugSafePoint point)
+    {
+        var runtime = context.RuntimeExecutionContext;
+        var snapshot = runtime.CreateSnapshot(
+            context.ObjectId,
+            context.ActionId,
+            context.CollectionId,
+            runtime.StepIndex);
+        var variables = snapshot.Variables.Values.Select(variable => new DebugVariableSnapshot
+        {
+            Name = variable.Name,
+            Type = variable.TypePreview,
+            ValuePreview = variable.ValuePreview,
+            RawValueJson = variable.RawValueJson,
+            ScopeKind = variable.ScopeKind,
+            ObjectId = variable.SourceObjectId ?? point.NodeObjectId,
+            FlowId = point.IncomingFlowId
+        }).ToArray();
+        var callStack = runtime.CallStackFrames.Count == 0
+            ? new[] { runtime.ResourceId ?? context.ExecutionPlan.ResourceId ?? string.Empty }
+            : runtime.CallStackFrames
+                .Select(frame => frame.TargetResourceId ?? frame.CallerResourceId ?? string.Empty)
+                .ToArray();
+
+        return new MicroflowDebugRuntimeSnapshot
+        {
+            ResourceId = runtime.ResourceId ?? context.ExecutionPlan.ResourceId,
+            ParentRunId = runtime.ParentRunId,
+            RootRunId = runtime.RootRunId,
+            CallDepth = point.CallDepth,
+            CallStack = callStack,
+            Variables = variables
         };
     }
 

@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Loops;
+using Atlas.Application.Microflows.Runtime.Debug;
 using Atlas.Application.Microflows.Runtime.Metadata;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Runtime.Transactions;
@@ -184,6 +185,7 @@ public sealed record MicroflowActionExecutionContext
     public IMicroflowRuntimeConnectorRegistry ConnectorRegistry { get; init; } = null!;
     public MicroflowRuntimeSecurityContext RuntimeSecurityContext { get; init; } = MicroflowRuntimeSecurityContext.System();
     public MicroflowActionExecutionOptions Options { get; init; } = new();
+    public IMicroflowDebugCoordinator? DebugCoordinator { get; init; }
     public MicroflowLoopExecutionOptions? LoopExecutionOptions { get; init; }
     public Func<MicroflowLoopIterationContext, CancellationToken, Task<MicroflowLoopBodyExecutionResult>>? LoopBodyExecutor { get; init; }
     public ILogger? Logger { get; init; }

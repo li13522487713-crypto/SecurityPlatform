@@ -16,17 +16,6 @@ public sealed class MicroflowDebugController : MicroflowApiControllerBase
     private readonly IMicroflowDebugCoordinator _debugCoordinator;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
 
-    private static readonly HashSet<string> ResumeCommands = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "continue",
-        "stepOver",
-        "stepInto",
-        "stepOut",
-        "runToNode",
-        "cancel",
-        "stop"
-    };
-
     public MicroflowDebugController(
         IDebugSessionStore sessions,
         IMicroflowDebugCoordinator debugCoordinator,
@@ -78,10 +67,6 @@ public sealed class MicroflowDebugController : MicroflowApiControllerBase
         }
 
         var updated = _debugCoordinator.ApplyCommand(sessionId, command);
-        if (ResumeCommands.Contains(DebugCommandKind.Normalize(command.Command)))
-        {
-            _debugCoordinator.ReleaseOnePause(sessionId);
-        }
         return MicroflowOk(updated);
     }
 

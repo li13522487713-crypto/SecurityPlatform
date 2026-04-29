@@ -16,8 +16,25 @@ export interface MicroflowDebugSessionDto {
   boundEngineRunId?: string;
   currentNodeObjectId?: string;
   pausePhase?: string;
+  currentSafePoint?: MicroflowDebugSafePointDto;
   status: string;
   trace?: MicroflowDebugTraceEventDto[];
+}
+
+export interface MicroflowDebugSafePointDto {
+  nodeObjectId: string;
+  nodeKind: string;
+  phase: string;
+  incomingFlowId?: string;
+  outgoingFlowId?: string;
+  branchId?: string;
+  splitInstanceId?: string;
+  loopIterationId?: string;
+  loopIterationIndex?: number;
+  callStackFrameId?: string;
+  callDepth: number;
+  semanticKind: string;
+  arrivedAt: string;
 }
 
 export interface MicroflowDebugTraceEventDto {

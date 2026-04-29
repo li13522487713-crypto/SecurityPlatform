@@ -1,5 +1,81 @@
 import { expect, test } from "../fixtures/single-session";
-import { appBaseUrl, ensureAppSetup } from "./helpers";
+import { appApiBase, appBaseUrl, defaultTenantId, ensureAppSetup } from "./helpers";
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function createBrokenPublishSchema(schema: any) {
+  const next = clone(schema);
+  next.flows = [];
+  next.audit = { ...(next.audit ?? {}), updatedAt: new Date().toISOString(), status: "draft" };
+  return next;
+}
+
+function createRunnableLogSchema(schema: any, message: string) {
+  const next = clone(schema);
+  const logNode = {
+    id: "e2e-runtime-log",
+    stableId: "e2e-runtime-log",
+    kind: "actionActivity",
+    officialType: "Microflows$ActionActivity",
+    caption: "E2E Runtime Log",
+    documentation: "",
+    relativeMiddlePoint: { x: 440, y: 200 },
+    size: { width: 168, height: 72 },
+    editor: { iconKey: "logMessage" },
+    autoGenerateCaption: false,
+    backgroundColor: "default",
+    disabled: false,
+    action: {
+      id: "action-e2e-runtime-log",
+      kind: "logMessage",
+      officialType: "Microflows$LogMessageAction",
+      errorHandlingType: "rollback",
+      documentation: "E2E publish and runtime verification",
+      editor: { category: "logging", iconKey: "logMessage", availability: "supported" },
+      level: "info",
+      logNodeName: "MicroflowE2E",
+      template: { text: message, arguments: [] },
+      includeContextVariables: true,
+      includeTraceId: true
+    }
+  };
+  next.objectCollection.objects = next.objectCollection.objects.filter((item: { id?: string }) => item.id !== logNode.id);
+  next.objectCollection.objects.push(logNode);
+  next.flows = [
+    {
+      id: "flow-start-runtime-log",
+      stableId: "flow-start-runtime-log",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: "start",
+      destinationObjectId: logNode.id,
+      originConnectionIndex: 0,
+      destinationConnectionIndex: 0,
+      caseValues: [],
+      isErrorHandler: false,
+      line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } },
+      editor: { edgeKind: "sequence" }
+    },
+    {
+      id: "flow-runtime-log-end",
+      stableId: "flow-runtime-log-end",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: logNode.id,
+      destinationObjectId: "end",
+      originConnectionIndex: 0,
+      destinationConnectionIndex: 0,
+      caseValues: [],
+      isErrorHandler: false,
+      line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } },
+      editor: { edgeKind: "sequence" }
+    }
+  ];
+  next.audit = { ...(next.audit ?? {}), updatedAt: new Date().toISOString(), status: "draft" };
+  return next;
+}
 
 async function openMendixStudio(page: import("@playwright/test").Page) {
   const workspaceMatch = new URL(page.url()).pathname.match(/^\/workspace\/([^/]+)\//);
@@ -32,7 +108,7 @@ test.describe.serial("Mendix Studio Microflow Runtime", () => {
     const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${authToken}`,
-      "X-Tenant-Id": "00000000-0000-0000-0000-000000000001",
+      "X-Tenant-Id": defaultTenantId,
       "X-Workspace-Id": workspaceId,
       "X-User-Id": "admin"
     };
@@ -42,7 +118,7 @@ test.describe.serial("Mendix Studio Microflow Runtime", () => {
     const submitName = `E2E_MF_SUBMIT_${now}`;
     const moduleId = "sales";
 
-    const createValidate = await request.post("http://127.0.0.1:5002/api/v1/microflows", {
+    const createValidate = await request.post(`${appApiBase}/api/v1/microflows`, {
       headers,
       data: {
         workspaceId,
@@ -65,7 +141,7 @@ test.describe.serial("Mendix Studio Microflow Runtime", () => {
     const validateId = String(validatePayload?.data?.id ?? "");
     expect(validateId).not.toBe("");
 
-    const createSubmit = await request.post("http://127.0.0.1:5002/api/v1/microflows", {
+    const createSubmit = await request.post(`${appApiBase}/api/v1/microflows`, {
       headers,
       data: {
         workspaceId,
@@ -88,7 +164,59 @@ test.describe.serial("Mendix Studio Microflow Runtime", () => {
     const submitId = String(submitPayload?.data?.id ?? "");
     expect(submitId).not.toBe("");
 
-    const runResp = await request.post(`http://127.0.0.1:5002/api/v1/microflows/${encodeURIComponent(submitId)}/test-run`, {
+    const schemaResp = await request.get(`${appApiBase}/api/v1/microflows/${encodeURIComponent(submitId)}/schema`, { headers });
+    expect(schemaResp.ok()).toBeTruthy();
+    const schemaPayload = await schemaResp.json();
+    const baseSchema = schemaPayload?.data?.schema;
+    const baseVersion = schemaPayload?.data?.schemaVersion;
+
+    const brokenSave = await request.put(`${appApiBase}/api/v1/microflows/${encodeURIComponent(submitId)}/schema`, {
+      headers,
+      data: {
+        schema: createBrokenPublishSchema(baseSchema),
+        baseVersion,
+        saveReason: "e2e-publish-blocked",
+        clientRequestId: `e2e-publish-blocked-${now}`
+      }
+    });
+    expect(brokenSave.ok()).toBeTruthy();
+
+    const blockedPublish = await request.post(`${appApiBase}/api/v1/microflows/${encodeURIComponent(submitId)}/publish`, {
+      headers,
+      data: {
+        version: `1.0.${now}`,
+        description: "blocked publish should fail"
+      }
+    });
+    expect(blockedPublish.status()).toBe(422);
+    const blockedPayload = await blockedPublish.json();
+    expect(blockedPayload?.error?.code ?? blockedPayload?.code).toBeTruthy();
+
+    const brokenSchemaResp = await request.get(`${appApiBase}/api/v1/microflows/${encodeURIComponent(submitId)}/schema`, { headers });
+    expect(brokenSchemaResp.ok()).toBeTruthy();
+    const fixedSave = await request.put(`${appApiBase}/api/v1/microflows/${encodeURIComponent(submitId)}/schema`, {
+      headers,
+      data: {
+        schema: createRunnableLogSchema(baseSchema, `Runtime trace ${submitName}`),
+        baseVersion: (await brokenSchemaResp.json())?.data?.schemaVersion,
+        saveReason: "e2e-publish-fix",
+        clientRequestId: `e2e-publish-fix-${now}`,
+        force: true
+      }
+    });
+    expect(fixedSave.ok()).toBeTruthy();
+
+    const publishResp = await request.post(`${appApiBase}/api/v1/microflows/${encodeURIComponent(submitId)}/publish`, {
+      headers,
+      data: {
+        version: `1.1.${now}`,
+        description: "e2e publish after validation fix",
+        confirmBreakingChanges: true
+      }
+    });
+    expect(publishResp.ok()).toBeTruthy();
+
+    const runResp = await request.post(`${appApiBase}/api/v1/microflows/${encodeURIComponent(submitId)}/test-run`, {
       headers,
       data: {
         input: {
@@ -109,5 +237,8 @@ test.describe.serial("Mendix Studio Microflow Runtime", () => {
 
     const traceHasFrames = Array.isArray(session.trace) && session.trace.length > 0;
     expect(traceHasFrames).toBeTruthy();
+    expect(session.trace.some((frame: { nodeId?: string; nodeObjectId?: string }) =>
+      frame.nodeObjectId === "e2e-runtime-log" || frame.nodeId === "e2e-runtime-log"
+    )).toBeTruthy();
   });
 });

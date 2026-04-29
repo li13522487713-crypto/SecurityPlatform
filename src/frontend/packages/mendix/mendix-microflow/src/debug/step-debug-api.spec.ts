@@ -8,7 +8,19 @@ describe("MicroflowStepDebugApiClient", () => {
       ok: true,
       json: async () => ({
         success: true,
-        data: { id: "session-1", microflowId: "mf-1", status: "created" },
+        data: {
+          id: "session-1",
+          microflowId: "mf-1",
+          status: "created",
+          currentSafePoint: {
+            nodeObjectId: "rest",
+            nodeKind: "actionActivity",
+            phase: "beforeRestRequest",
+            callDepth: 0,
+            semanticKind: "rest",
+            arrivedAt: "2026-04-29T00:00:00Z",
+          },
+        },
       }),
     });
     const client = new MicroflowStepDebugApiClient({ fetcher: fetcher as unknown as typeof fetch });
@@ -16,6 +28,9 @@ describe("MicroflowStepDebugApiClient", () => {
     const session = await client.createSession("mf-1");
 
     expect(session.id).toBe("session-1");
+    expect(session.currentSafePoint?.phase).toBe("beforeRestRequest");
+    expect(session.currentSafePoint?.callDepth).toBe(0);
+    expect(session.currentSafePoint?.semanticKind).toBe("rest");
     expect(fetcher).toHaveBeenCalledWith("/api/v1/microflows/mf-1/debug-sessions", expect.objectContaining({ method: "POST" }));
   });
 

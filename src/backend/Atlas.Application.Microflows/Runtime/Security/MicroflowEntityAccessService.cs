@@ -5,6 +5,7 @@ namespace Atlas.Application.Microflows.Runtime.Security;
 
 public sealed class MicroflowEntityAccessService : IMicroflowEntityAccessService
 {
+    private const string DeniedCode = "RUNTIME_MICROFLOW_ACCESS_DENIED";
     private readonly MicroflowEntityAccessOptions _options;
 
     public MicroflowEntityAccessService(MicroflowEntityAccessOptions options)
@@ -46,9 +47,9 @@ public sealed class MicroflowEntityAccessService : IMicroflowEntityAccessService
             return Task.FromResult(Allow(security, MicroflowEntityAccessOperation.ExecuteMicroflow, null, microflow.Id, "Entity access is disabled for this runtime context.", MicroflowEntityAccessDecisionSource.Disabled));
         }
 
-        if (security.IsSystemContext)
+        if (TryBypassForWhitelistedSystemTask(security, MicroflowEntityAccessOperation.ExecuteMicroflow, null, microflow.Id, out var bypassDecision))
         {
-            return Task.FromResult(Allow(security, MicroflowEntityAccessOperation.ExecuteMicroflow, null, microflow.Id, "System context bypassed EntityAccess stub.", MicroflowEntityAccessDecisionSource.SystemContext));
+            return Task.FromResult(bypassDecision);
         }
 
         if (!microflow.Found)
@@ -56,26 +57,7 @@ public sealed class MicroflowEntityAccessService : IMicroflowEntityAccessService
             return Task.FromResult(Deny(security, MicroflowEntityAccessOperation.ExecuteMicroflow, null, microflow.Id, "Microflow reference is unknown.", MicroflowEntityAccessDecisionSource.DenyUnknownEntity));
         }
 
-        var options = _options;
-        var mode = options.ResolveMode();
-        if (string.Equals(mode, MicroflowEntityAccessMode.RoleBasedStub, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, MicroflowEntityAccessMode.Strict, StringComparison.OrdinalIgnoreCase))
-        {
-            var required = ResolveRequiredRoles(options.MicroflowRequiredRoles, microflow.QualifiedName ?? microflow.Id);
-            if (required.Length == 0 && string.Equals(mode, MicroflowEntityAccessMode.Strict, StringComparison.OrdinalIgnoreCase))
-            {
-                return Task.FromResult(Deny(security, MicroflowEntityAccessOperation.ExecuteMicroflow, null, microflow.Id, "Strict EntityAccess stub denies unconfigured microflow permissions.", MicroflowEntityAccessDecisionSource.RoleBasedStub));
-            }
-
-            if (required.Length > 0 && !HasAnyRole(security.Roles, required))
-            {
-                return Task.FromResult(Deny(security, MicroflowEntityAccessOperation.ExecuteMicroflow, null, microflow.Id, "Required role is missing.", MicroflowEntityAccessDecisionSource.RoleBasedStub, required));
-            }
-
-            return Task.FromResult(Allow(security, MicroflowEntityAccessOperation.ExecuteMicroflow, null, microflow.Id, "RoleBasedStub allowed the microflow execution.", MicroflowEntityAccessDecisionSource.RoleBasedStub, required));
-        }
-
-        return Task.FromResult(Allow(security, MicroflowEntityAccessOperation.ExecuteMicroflow, null, microflow.Id, "AllowAll EntityAccess stub allowed the microflow execution.", MicroflowEntityAccessDecisionSource.AllowAll));
+        return Task.FromResult(EvaluateRoleAccess(security, MicroflowEntityAccessOperation.ExecuteMicroflow, null, microflow.Id, ResolveRequiredRoles(_options.MicroflowRequiredRoles, microflow.QualifiedName ?? microflow.Id)));
     }
 
     private MicroflowEntityAccessDecision Decide(
@@ -88,41 +70,73 @@ public sealed class MicroflowEntityAccessService : IMicroflowEntityAccessService
             return Allow(security, operation, entity.QualifiedName, null, "Entity access is disabled for this runtime context.", MicroflowEntityAccessDecisionSource.Disabled);
         }
 
-        if (security.IsSystemContext)
+        if (TryBypassForWhitelistedSystemTask(security, operation, entity.QualifiedName, null, out var bypassDecision))
         {
-            return Allow(security, operation, entity.QualifiedName, null, "System context bypassed EntityAccess stub.", MicroflowEntityAccessDecisionSource.SystemContext);
+            return bypassDecision;
         }
 
-        var options = _options;
-        var mode = options.ResolveMode();
         if (!entity.Found)
         {
             return Deny(security, operation, entity.QualifiedName, null, "Entity metadata is unknown.", MicroflowEntityAccessDecisionSource.DenyUnknownEntity);
         }
 
-        if (string.Equals(mode, MicroflowEntityAccessMode.DenyUnknownEntity, StringComparison.OrdinalIgnoreCase))
+        var required = ResolveRequiredRoles(_options.EntityRequiredRoles, $"{entity.QualifiedName}:{operation}");
+        if (required.Length == 0)
         {
-            return Allow(security, operation, entity.QualifiedName, null, "DenyUnknownEntity allowed a resolved entity.", MicroflowEntityAccessDecisionSource.DenyUnknownEntity);
+            required = ResolveRequiredRoles(_options.EntityRequiredRoles, entity.QualifiedName);
         }
 
-        if (string.Equals(mode, MicroflowEntityAccessMode.RoleBasedStub, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, MicroflowEntityAccessMode.Strict, StringComparison.OrdinalIgnoreCase))
+        return EvaluateRoleAccess(security, operation, entity.QualifiedName, null, required);
+    }
+
+    private MicroflowEntityAccessDecision EvaluateRoleAccess(MicroflowRuntimeSecurityContext security, string operation, string? entityQualifiedName, string? microflowId, string[] requiredRoles)
+    {
+        if (!IsTenantWorkspaceAllowed(security, out var scopeReason))
         {
-            var required = ResolveRequiredRoles(options.EntityRequiredRoles, entity.QualifiedName);
-            if (required.Length == 0 && string.Equals(mode, MicroflowEntityAccessMode.Strict, StringComparison.OrdinalIgnoreCase))
-            {
-                return Deny(security, operation, entity.QualifiedName, null, "Strict EntityAccess stub denies unconfigured entity permissions.", MicroflowEntityAccessDecisionSource.RoleBasedStub);
-            }
-
-            if (required.Length > 0 && !HasAnyRole(security.Roles, required))
-            {
-                return Deny(security, operation, entity.QualifiedName, null, "Required role is missing.", MicroflowEntityAccessDecisionSource.RoleBasedStub, required);
-            }
-
-            return Allow(security, operation, entity.QualifiedName, null, "RoleBasedStub allowed the entity operation.", MicroflowEntityAccessDecisionSource.RoleBasedStub, required);
+            return Deny(security, operation, entityQualifiedName, microflowId, scopeReason, MicroflowEntityAccessDecisionSource.ExternalProvider, requiredRoles);
         }
 
-        return Allow(security, operation, entity.QualifiedName, null, "AllowAll EntityAccess stub allowed the entity operation.", MicroflowEntityAccessDecisionSource.AllowAll);
+        if (requiredRoles.Length == 0)
+        {
+            return Deny(security, operation, entityQualifiedName, microflowId, "Permission mapping is missing for operation.", MicroflowEntityAccessDecisionSource.ExternalProvider);
+        }
+
+        if (!HasAnyRole(security.Roles, requiredRoles))
+        {
+            return Deny(security, operation, entityQualifiedName, microflowId, "Required role is missing.", MicroflowEntityAccessDecisionSource.ExternalProvider, requiredRoles);
+        }
+
+        return Allow(security, operation, entityQualifiedName, microflowId, "Role-based policy allowed.", MicroflowEntityAccessDecisionSource.ExternalProvider, requiredRoles);
+    }
+
+    private bool TryBypassForWhitelistedSystemTask(MicroflowRuntimeSecurityContext security, string operation, string? entityQualifiedName, string? microflowId, out MicroflowEntityAccessDecision decision)
+    {
+        if (security.IsSystemContext && HasAnyRole(security.Roles, _options.AllowedSystemBypassRoles.ToArray()))
+        {
+            decision = Allow(security, operation, entityQualifiedName, microflowId, "Whitelisted system task bypassed access checks.", MicroflowEntityAccessDecisionSource.SystemContext);
+            return true;
+        }
+
+        decision = default!;
+        return false;
+    }
+
+    private bool IsTenantWorkspaceAllowed(MicroflowRuntimeSecurityContext security, out string reason)
+    {
+        if (_options.AllowedTenantIds.Count > 0 && (string.IsNullOrWhiteSpace(security.TenantId) || !_options.AllowedTenantIds.Contains(security.TenantId)))
+        {
+            reason = "Tenant scope is not allowed.";
+            return false;
+        }
+
+        if (_options.AllowedWorkspaceIds.Count > 0 && (string.IsNullOrWhiteSpace(security.WorkspaceId) || !_options.AllowedWorkspaceIds.Contains(security.WorkspaceId)))
+        {
+            reason = "Workspace scope is not allowed.";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
     }
 
     private static MicroflowEntityAccessDecision Allow(
@@ -164,7 +178,7 @@ public sealed class MicroflowEntityAccessService : IMicroflowEntityAccessService
             Reason = reason,
             RequiredRoles = requiredRoles ?? Array.Empty<string>(),
             ActualRoles = security.Roles,
-            DiagnosticCode = RuntimeErrorCode.RuntimeEntityAccessDenied,
+            DiagnosticCode = DeniedCode,
             Severity = "error",
             Source = source
         };
