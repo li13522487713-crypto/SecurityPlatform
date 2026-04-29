@@ -22,6 +22,15 @@ const AUTOSAVE_DEBOUNCE_MS = 4000;
 
 type SaveReason = "manual" | "autosave" | "force";
 
+interface SaveConflictDetails {
+  remoteVersion?: string;
+  remoteSchemaId?: string;
+  remoteUpdatedAt?: string;
+  remoteUpdatedBy?: string;
+  remoteConcurrencyStamp?: string;
+  baseVersion?: string;
+}
+
 export interface MendixMicroflowEditorEntryProps {
   resource: MicroflowResource;
   adapter: MicroflowResourceAdapter;
@@ -49,6 +58,21 @@ export interface MendixMicroflowEditorEntryProps {
    */
   editorRef?: Ref<MicroflowEditorHandle>;
   toolbarMode?: "internal" | "external";
+}
+
+function parseSaveConflictDetails(details?: string): SaveConflictDetails {
+  if (!details) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(details) as SaveConflictDetails;
+    if (parsed && typeof parsed === "object") {
+      return parsed;
+    }
+  } catch {
+    // 老后端可能只返回 schemaId/version 字符串，保留兼容展示。
+  }
+  return { remoteVersion: details, remoteSchemaId: details };
 }
 
 export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode }: MendixMicroflowEditorEntryProps) {
@@ -220,6 +244,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
         } catch (caught) {
           const apiError = getMicroflowApiError(caught);
           if (isVersionConflictError(apiError)) {
+            const conflictDetails = parseSaveConflictDetails(apiError.details);
             updateMicroflowSaveState(activeResource.id, {
               tabId: `microflow:${activeResource.id}`,
               status: "conflict",
@@ -230,10 +255,10 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
               conflict: {
                 microflowId: activeResource.id,
                 localVersion: activeResource.version,
-                baseVersion: activeResource.schemaId || activeResource.version,
-                remoteVersion: apiError.details,
-                remoteUpdatedAt: undefined,
-                remoteUpdatedBy: undefined,
+                baseVersion: conflictDetails.baseVersion ?? activeResource.schemaId ?? activeResource.version,
+                remoteVersion: conflictDetails.remoteVersion ?? conflictDetails.remoteSchemaId ?? apiError.details,
+                remoteUpdatedAt: conflictDetails.remoteUpdatedAt,
+                remoteUpdatedBy: conflictDetails.remoteUpdatedBy,
                 traceId: apiError.traceId,
                 message: apiError.message || "微流 Schema 已被其他保存更新。"
               }
