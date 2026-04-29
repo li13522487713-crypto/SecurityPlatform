@@ -378,7 +378,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         }
 
         var currentSnapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId, cancellationToken);
-        var currentSchema = MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson);
+        var currentSchema = MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson));
         var validation = await _validationService.ValidateAsync(
             resource.Id,
             new ValidateMicroflowRequestDto
@@ -397,7 +397,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         }
 
         var latestPublished = await _publishSnapshotRepository.GetLatestByResourceIdAsync(resource.Id, cancellationToken);
-        var latestPublishedSchema = latestPublished is null ? (JsonElement?)null : MicroflowSchemaJsonHelper.ParseRequired(latestPublished.SchemaJson);
+        var latestPublishedSchema = latestPublished is null ? (JsonElement?)null : MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(latestPublished.SchemaJson));
         var references = await _referenceRepository.ListByTargetMicroflowIdAsync(resource.Id, includeInactive: false, cancellationToken);
         var impact = _impactService.Analyze(resource, currentSchema, latestPublishedSchema, references, request.Version.Trim());
         if (impact.Summary.HighImpactCount > 0 && !request.ConfirmBreakingChanges)
@@ -412,7 +412,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
 
         var context = _requestContextAccessor.Current;
         var now = _clock.UtcNow;
-        var publishSchemaJson = MicroflowSchemaJsonHelper.NormalizeAndValidate(currentSchema);
+        var publishSchemaJson = MicroflowSchemaJsonHelper.NormalizeAndValidate(MicroflowSchemaMigrationService.NormalizeElement(currentSchema));
         var schemaHash = MicroflowSchemaJsonHelper.ComputeSha256(publishSchemaJson);
         var publishSchemaSnapshot = CreateSchemaSnapshot(resource, context, publishSchemaJson, schemaHash, request.Version.Trim(), $"publish:{request.Version}", currentSnapshot.Id, now);
         var publishSnapshot = new MicroflowPublishSnapshotEntity
@@ -514,9 +514,9 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
     {
         var resource = await LoadResourceAsync(resourceId, cancellationToken);
         var currentSnapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId, cancellationToken);
-        var currentSchema = MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson);
+        var currentSchema = MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson));
         var latestPublished = await _publishSnapshotRepository.GetLatestByResourceIdAsync(resource.Id, cancellationToken);
-        var latestPublishedSchema = latestPublished is null ? (JsonElement?)null : MicroflowSchemaJsonHelper.ParseRequired(latestPublished.SchemaJson);
+        var latestPublishedSchema = latestPublished is null ? (JsonElement?)null : MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(latestPublished.SchemaJson));
         var references = await _referenceRepository.ListByTargetMicroflowIdAsync(resource.Id, includeInactive: false, cancellationToken);
         var impact = _impactService.Analyze(resource, currentSchema, latestPublishedSchema, references, request.Version ?? resource.Version);
         return impact with
@@ -591,7 +591,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             Id = entity.Id,
             ResourceId = entity.ResourceId,
             Version = entity.Version,
-            Schema = MicroflowSchemaJsonHelper.ParseRequired(entity.SchemaJson),
+            Schema = MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(entity.SchemaJson)),
             PublishedAt = entity.PublishedAt,
             PublishedBy = entity.PublishedBy,
             Description = entity.Description,
@@ -777,7 +777,7 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
         var snapshot = await LoadSchemaSnapshotAsync(version.SchemaSnapshotId, cancellationToken);
         var context = _requestContextAccessor.Current;
         var now = _clock.UtcNow;
-        var schemaJson = MicroflowSchemaJsonHelper.NormalizeAndValidate(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson));
+        var schemaJson = MicroflowSchemaJsonHelper.NormalizeAndValidate(MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson)));
         var newSnapshot = MicroflowPublishService.CreateSchemaSnapshot(resource, context, schemaJson, MicroflowSchemaJsonHelper.ComputeSha256(schemaJson), snapshot.SchemaVersion, $"rollback:{version.Version}", snapshot.Id, now);
 
         await _transaction.ExecuteAsync(async () =>
@@ -813,7 +813,7 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
         var moduleId = string.IsNullOrWhiteSpace(request.ModuleId) ? resource.ModuleId : request.ModuleId.Trim();
         var moduleName = request.ModuleName ?? resource.ModuleName;
         var tags = request.Tags ?? MicroflowResourceMapper.ReadTags(resource.TagsJson);
-        var schemaJson = MicroflowSchemaJsonHelper.MutateFields(snapshot.SchemaJson, newResourceId, name, displayName, moduleId, moduleName);
+        var schemaJson = MicroflowSchemaJsonHelper.MutateFields(MicroflowSchemaMigrationService.NormalizeJson(snapshot.SchemaJson), newResourceId, name, displayName, moduleId, moduleName);
         var schemaSnapshot = new MicroflowSchemaSnapshotEntity
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -876,8 +876,8 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
         var versionSnapshot = await LoadSchemaSnapshotAsync(version.SchemaSnapshotId, cancellationToken);
         var currentSnapshot = await LoadSchemaSnapshotAsync(resource.CurrentSchemaSnapshotId, cancellationToken);
         return _diffService.Compare(
-            MicroflowSchemaJsonHelper.ParseRequired(versionSnapshot.SchemaJson),
-            MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson));
+            MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(versionSnapshot.SchemaJson)),
+            MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson)));
     }
 
     private async Task<MicroflowResourceEntity> LoadResourceAsync(string id, CancellationToken cancellationToken)

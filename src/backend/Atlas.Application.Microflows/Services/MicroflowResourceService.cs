@@ -28,6 +28,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
+    private readonly MicroflowSchemaMigrationService _schemaMigrationService;
     private readonly Dictionary<string, SaveMicroflowSchemaResponseDto> _saveResponsesByClientRequestId = new(StringComparer.Ordinal);
 
     public MicroflowResourceService(
@@ -38,7 +39,8 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         IMicroflowReferenceIndexer referenceIndexer,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowAuditWriter auditWriter,
-        IMicroflowClock clock)
+        IMicroflowClock clock,
+        MicroflowSchemaMigrationService? schemaMigrationService = null)
     {
         _resourceRepository = resourceRepository;
         _folderRepository = folderRepository;
@@ -48,6 +50,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         _requestContextAccessor = requestContextAccessor;
         _auditWriter = auditWriter;
         _clock = clock;
+        _schemaMigrationService = schemaMigrationService ?? new MicroflowSchemaMigrationService();
     }
 
     public async Task<MicroflowApiPageResult<MicroflowResourceDto>> ListAsync(
@@ -126,7 +129,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var schema = request.Input.Schema.HasValue
             ? request.Input.Schema.Value
             : CreateBlankSchemaElement(request.Input, resourceId, context.UserName ?? context.UserId ?? "Current User", now);
-        var schemaJson = NormalizeAndValidateAuthoringSchema(schema);
+        var schemaJson = NormalizeAndValidateAuthoringSchema(schema, _schemaMigrationService);
         var snapshot = CreateSnapshot(resourceId, workspaceId, context, schemaJson, "1.0.0", "initial create", null, now);
         var entity = new MicroflowResourceEntity
         {
@@ -322,7 +325,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             throw SchemaInvalid("schema 不能为空。");
         }
 
-        var schemaJson = NormalizeAndValidateAuthoringSchema(request.Schema.Value);
+        var schemaJson = NormalizeAndValidateAuthoringSchema(request.Schema.Value, _schemaMigrationService);
         var context = _requestContextAccessor.Current;
         var now = _clock.UtcNow;
         var snapshot = CreateSnapshot(resource.Id, resource.WorkspaceId, context, schemaJson, "1.0.0", request.SaveReason, baseVersion, now);
@@ -373,7 +376,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var folder = request.FolderId is null
             ? source.FolderId is null ? null : await ResolveFolderAsync(source.FolderId, workspaceId, source.TenantId, targetModuleId, cancellationToken)
             : await ResolveFolderAsync(request.FolderId, workspaceId, source.TenantId, targetModuleId, cancellationToken);
-        var schemaJson = MutateSchemaFields(sourceSnapshot!.SchemaJson, newId, name, displayName, targetModuleId, targetModuleName);
+        var schemaJson = MutateSchemaFields(sourceSnapshot!.SchemaJson, newId, name, displayName, targetModuleId, targetModuleName, _schemaMigrationService);
         var snapshot = CreateSnapshot(newId, workspaceId, context, schemaJson, "1.0.0", "duplicate", null, now);
         var resource = new MicroflowResourceEntity
         {
@@ -427,7 +430,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var now = _clock.UtcNow;
         var currentSnapshot = await LoadCurrentSnapshotAsync(resource, true, cancellationToken);
         var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? name : request.DisplayName.Trim();
-        var schemaJson = MutateSchemaFields(currentSnapshot!.SchemaJson, resource.Id, name, displayName, resource.ModuleId, resource.ModuleName);
+        var schemaJson = MutateSchemaFields(currentSnapshot!.SchemaJson, resource.Id, name, displayName, resource.ModuleId, resource.ModuleName, _schemaMigrationService);
         var snapshot = CreateSnapshot(resource.Id, resource.WorkspaceId, context, schemaJson, currentSnapshot.SchemaVersion, "rename", currentSnapshot.Id, now);
         await _schemaSnapshotRepository.InsertAsync(snapshot, cancellationToken);
 
