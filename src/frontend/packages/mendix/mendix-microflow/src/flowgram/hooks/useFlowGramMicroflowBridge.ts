@@ -53,7 +53,7 @@ export function useFlowGramMicroflowBridge(params: {
 
   const workflowJson = useMemo(
     () => authoringToFlowGram(params.schema, params.issues, params.traceFrames),
-    [params.schema.objectCollection, params.issues, params.traceFrames],
+    [params.schema.flows, params.schema.objectCollection, params.issues, params.traceFrames],
   );
 
   useEffect(() => {

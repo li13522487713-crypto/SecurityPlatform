@@ -1,13 +1,11 @@
 import { useState, type Ref, type RefObject } from "react";
-import { Button, Dropdown, Space, Tag, Tooltip } from "@douyinfe/semi-ui";
+import { Button, Space, Tag, Tooltip } from "@douyinfe/semi-ui";
 import {
   IconBranch,
   IconCheckCircleStroked,
   IconClock,
   IconFullScreenStroked,
-  IconMinus,
   IconPlay,
-  IconPlus,
   IconRedo,
   IconRefresh,
   IconSave,
@@ -53,7 +51,6 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
   const warningCount = status?.warningCount ?? 0;
   const canUndo = status?.canUndo ?? false;
   const canRedo = status?.canRedo ?? false;
-  const zoomPercent = status?.zoomPercent ?? 100;
   const fullscreen = status?.fullscreen ?? false;
 
   const refreshStatus = () => forceTick(value => value + 1);
@@ -72,10 +69,6 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
     } else {
       refreshStatus();
     }
-  };
-
-  const handleSetZoom = (value: number) => {
-    callHandle("setZoom", value);
   };
 
   const disabled = !microflowId;
@@ -172,37 +165,8 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
         </Tooltip>
       </Space>
 
-      <div style={{ width: 1, height: 20, background: "var(--semi-color-border)" }} />
-
       <Space spacing={4}>
-        <Tooltip content="缩小">
-          <Button data-testid="microflow-workbench-zoom-out" size="small" theme="borderless" icon={<IconMinus />} disabled={disabled} onClick={() => callHandle("zoomOut")} />
-        </Tooltip>
-        <Dropdown
-          trigger="click"
-          render={(
-            <Dropdown.Menu>
-              {[50, 75, 100, 125, 150, 200].map(value => (
-                <Dropdown.Item key={value} onClick={() => handleSetZoom(value / 100)}>{value}%</Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          )}
-        >
-          <Button data-testid="microflow-workbench-zoom-menu" size="small" theme="borderless" disabled={disabled}>{zoomPercent}%</Button>
-        </Dropdown>
-        <Tooltip content="放大">
-          <Button data-testid="microflow-workbench-zoom-in" size="small" theme="borderless" icon={<IconPlus />} disabled={disabled} onClick={() => callHandle("zoomIn")} />
-        </Tooltip>
-        <Tooltip content="适应画布">
-          <Button data-testid="microflow-workbench-fit-view" size="small" theme="borderless" disabled={disabled} onClick={() => callHandle("fitView")}>适应</Button>
-        </Tooltip>
-        <Tooltip content="自动布局">
-          <Button data-testid="microflow-workbench-auto-layout" size="small" theme="borderless" disabled={disabled} onClick={() => callHandle("autoLayout")}>布局</Button>
-        </Tooltip>
-        <Tooltip content="小地图开关">
-          <Button data-testid="microflow-workbench-minimap" size="small" theme="borderless" disabled={disabled} onClick={() => callHandle("toggleMinimap")}>小地图</Button>
-        </Tooltip>
-        <Tooltip content={fullscreen ? "退出全屏" : "全屏"}>
+        <Tooltip content={fullscreen ? "退出专注模式" : "专注模式"}>
           <Button data-testid="microflow-workbench-fullscreen" size="small" theme="borderless" icon={<IconFullScreenStroked />} disabled={disabled} onClick={() => callHandle("toggleFullscreen")} />
         </Tooltip>
       </Space>

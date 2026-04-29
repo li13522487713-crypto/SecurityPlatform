@@ -100,13 +100,30 @@ const leftPanelStorageKey = "atlas_microflow_panel_left_open";
 const rightPanelStorageKey = "atlas_microflow_panel_right_open";
 const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
 const bottomTabStorageKey = "atlas_microflow_panel_bottom_tab";
+const mendixLayoutStorageKey = "lowcode-studio:mendix-layout:v1";
 const RAIL_WIDTH_PX = 44;
 const LEFT_PANEL_EXPANDED_PX = 300;
 const RIGHT_PANEL_EXPANDED_PX = 380;
-const BOTTOM_STRIP_HEIGHT_PX = 40;
+const BOTTOM_STRIP_HEIGHT_PX = 32;
 const BOTTOM_PANEL_EXPANDED_PX = 260;
 const MOVE_HISTORY_DEBOUNCE_MS = 250;
 const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest", "activity:logMessage"];
+const INTERNAL_TOOLBAR_ROW_PX = 60;
+
+type MendixLayoutInspectorMode = "floating" | "docked";
+
+interface MendixLayoutStorage {
+  nodesDrawerOpen?: boolean;
+  inspectorOpen?: boolean;
+  inspectorMode?: MendixLayoutInspectorMode;
+  inspectorWidth?: number;
+  bottomOpen?: boolean;
+  bottomHeight?: number;
+  activeBottomTab?: "problems" | "debug" | "validation" | "references" | "info" | "console";
+  focusMode?: boolean;
+  minimapVisible?: boolean;
+  gridVisible?: boolean;
+}
 
 type MicroflowSchemaChangeSource = "propertyPanel" | "flowgram" | "nodePanel" | "autolayout" | "history" | "runtime";
 
@@ -469,6 +486,34 @@ function writeStoredBottomTab(value: "problems" | "debug"): void {
   } catch {
     /* ignore */
   }
+}
+
+function readMendixLayoutStorage(): MendixLayoutStorage {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  try {
+    return JSON.parse(window.localStorage.getItem(mendixLayoutStorageKey) || "{}") as MendixLayoutStorage;
+  } catch {
+    return {};
+  }
+}
+
+function writeMendixLayoutStorage(patch: MendixLayoutStorage): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    const current = readMendixLayoutStorage();
+    window.localStorage.setItem(mendixLayoutStorageKey, JSON.stringify({ ...current, ...patch }));
+  } catch {
+    window.localStorage.setItem(mendixLayoutStorageKey, JSON.stringify(patch));
+  }
+}
+
+function readStoredExternalBottomTab(): "problems" | "debug" | undefined {
+  const raw = readMendixLayoutStorage().activeBottomTab;
+  return raw === "debug" || raw === "problems" ? raw : undefined;
 }
 
 function parseDragPayload(value: string): MicroflowNodeDragPayload | undefined {
@@ -1360,7 +1405,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [running, setRunning] = useState(false);
   const [dirty, setDirty] = useState(false);
   const schemaRevisionRef = useRef(0);
+  const toolbarMode = props.toolbarMode ?? "internal";
+  const externalLayout = toolbarMode === "external";
   const [leftOpen, setLeftOpen] = useState(() => {
+    if (props.toolbarMode === "external") {
+      return Boolean(readMendixLayoutStorage().nodesDrawerOpen);
+    }
     if (!persistAuxPanelState) {
       return true;
     }
@@ -1368,6 +1418,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     return stored !== undefined ? stored : true;
   });
   const [rightOpen, setRightOpen] = useState(() => {
+    if (props.toolbarMode === "external") {
+      return Boolean(readMendixLayoutStorage().inspectorOpen);
+    }
     if (!persistAuxPanelState) {
       return rightPanelFallback;
     }
@@ -1375,13 +1428,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     return stored !== undefined ? stored : rightPanelFallback;
   });
   const [bottomOpen, setBottomOpen] = useState(() => {
+    if (props.toolbarMode === "external") {
+      return Boolean(readMendixLayoutStorage().bottomOpen);
+    }
     if (!persistAuxPanelState) {
       return bottomPanelFallback;
     }
     const stored = readStoredBoolean(bottomPanelStorageKey);
     return stored !== undefined ? stored : bottomPanelFallback;
   });
-  const [bottomTab, setBottomTab] = useState<"problems" | "debug">(() => readStoredBottomTab() ?? "problems");
+  const [bottomTab, setBottomTab] = useState<"problems" | "debug">(() => (
+    props.toolbarMode === "external" ? readStoredExternalBottomTab() : readStoredBottomTab()
+  ) ?? "problems");
+  const [focusMode, setFocusMode] = useState(() => Boolean(readMendixLayoutStorage().focusMode));
   const onValidationStateChangeRef = useRef(props.onValidationStateChange);
   const onSchemaChangeRef = useRef(props.onSchemaChange);
 
@@ -1442,25 +1501,32 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const shellStyle = useMemo((): CSSProperties => ({
     display: "grid",
-    gridTemplateRows: bottomOpen
-      ? `60px minmax(0, 1fr) ${BOTTOM_PANEL_EXPANDED_PX}px`
-      : `60px minmax(0, 1fr) ${BOTTOM_STRIP_HEIGHT_PX}px`,
+    gridTemplateRows: focusMode
+      ? "minmax(0, 1fr)"
+      : externalLayout
+      ? bottomOpen
+        ? `minmax(0, 1fr) ${BOTTOM_PANEL_EXPANDED_PX}px`
+        : `minmax(0, 1fr) ${BOTTOM_STRIP_HEIGHT_PX}px`
+      : bottomOpen
+        ? `${INTERNAL_TOOLBAR_ROW_PX}px minmax(0, 1fr) ${BOTTOM_PANEL_EXPANDED_PX}px`
+        : `${INTERNAL_TOOLBAR_ROW_PX}px minmax(0, 1fr) ${BOTTOM_STRIP_HEIGHT_PX}px`,
     height: "100%",
     minHeight: 0,
     background: "var(--semi-color-bg-0, #f7f8fa)"
-  }), [bottomOpen]);
+  }), [bottomOpen, externalLayout, focusMode]);
 
   const bodyStyle = useMemo((): CSSProperties => {
-    const leftCol = leftOpen ? LEFT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
-    const rightCol = rightOpen ? RIGHT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
+    const leftCol = focusMode ? 0 : leftOpen ? LEFT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
+    const rightCol = focusMode ? 0 : externalLayout ? RAIL_WIDTH_PX : rightOpen ? RIGHT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
     return {
       display: "grid",
-      gridTemplateColumns: `${leftCol}px minmax(320px, 1fr) ${rightCol}px`,
+      gridTemplateColumns: `${leftCol}px minmax(0, 1fr) ${rightCol}px`,
       minHeight: 0,
       minWidth: 0,
-      overflow: "hidden"
+      overflow: "hidden",
+      position: "relative"
     };
-  }, [leftOpen, rightOpen]);
+  }, [externalLayout, focusMode, leftOpen, rightOpen]);
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
@@ -1480,6 +1546,25 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     () => filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId),
     [selectedRunSession, activeMicroflowId]
   );
+
+  useEffect(() => {
+    if (!externalLayout || focusMode) {
+      return;
+    }
+    if (selectedObject || selectedFlow) {
+      setRightOpen(true);
+    }
+  }, [externalLayout, focusMode, selectedFlow, selectedObject]);
+
+  useEffect(() => {
+    if (!externalLayout || focusMode) {
+      return;
+    }
+    if (issues.some(issue => issue.severity === "error")) {
+      setBottomTab("problems");
+      setBottomOpen(true);
+    }
+  }, [externalLayout, focusMode, issues]);
 
   useEffect(() => {
     onValidationStateChangeRef.current?.({
@@ -2108,14 +2193,32 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, []);
 
   useEffect(() => {
+    if (externalLayout) {
+      const timer = window.setTimeout(() => {
+        writeMendixLayoutStorage({
+          nodesDrawerOpen: leftOpen,
+          inspectorOpen: rightOpen,
+          inspectorMode: "floating",
+          inspectorWidth: RIGHT_PANEL_EXPANDED_PX,
+          bottomOpen,
+          bottomHeight: BOTTOM_PANEL_EXPANDED_PX,
+          activeBottomTab: bottomTab,
+          focusMode,
+          minimapVisible: schema.editor.showMiniMap !== false,
+          gridVisible: schema.editor.gridEnabled !== false
+        });
+      }, 160);
+      return () => window.clearTimeout(timer);
+    }
     if (!persistAuxPanelState) {
-      return;
+      return undefined;
     }
     writeStoredBoolean(leftPanelStorageKey, leftOpen);
     writeStoredBoolean(rightPanelStorageKey, rightOpen);
     writeStoredBoolean(bottomPanelStorageKey, bottomOpen);
     writeStoredBottomTab(bottomTab);
-  }, [leftOpen, rightOpen, bottomOpen, bottomTab, persistAuxPanelState]);
+    return undefined;
+  }, [bottomOpen, bottomTab, externalLayout, focusMode, leftOpen, persistAuxPanelState, rightOpen, schema.editor.gridEnabled, schema.editor.showMiniMap]);
 
   useEffect(() => {
     if (!schema.id) {
@@ -2149,11 +2252,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, []);
 
   const clearSelection = useCallback(() => {
+    if (externalLayout && leftOpen) {
+      setLeftOpen(false);
+      return;
+    }
+    if (externalLayout && rightOpen) {
+      setRightOpen(false);
+      return;
+    }
     applyPatch(
       { selectedObjectId: undefined, selectedFlowId: undefined, selectedCollectionId: undefined },
       { pushHistory: false, skipDirty: true, skipValidate: true },
     );
-  }, [schema]);
+  }, [externalLayout, leftOpen, rightOpen, schema]);
 
   useMicroflowShortcuts({
     containerRef: shellRef,
@@ -2166,9 +2277,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     onPasteSelection: handlePasteSelection,
     onDeleteSelection: handleDeleteSelection,
     onEscape: clearSelection,
+    onFocusMode: () => setFocusMode(value => !value),
   });
 
-  const toolbarMode = props.toolbarMode ?? "internal";
   const [fullscreenActive, setFullscreenActive] = useState(false);
 
   // External hosts ride imperative handle; internal mode also receives the handle so
@@ -2233,6 +2344,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-zoom", { detail: { zoom } }));
     },
     toggleFullscreen: () => {
+      setFocusMode(value => !value);
       setFullscreenActive(value => !value);
       const target = shellRef.current;
       if (!target) {
@@ -2265,7 +2377,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       canRedo: historyState.canRedo,
       zoomPercent: Math.round((schema.editor.viewport?.zoom ?? schema.editor.zoom ?? 1) * 100),
       hasRunSession: Boolean(runSession),
-      fullscreen: fullscreenActive
+      fullscreen: fullscreenActive || focusMode
     })
   // The handle reads many derived values; React will re-create the impl each
   // render so callers always observe fresh values.
@@ -2329,7 +2441,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       </div>
       ) : null}
       <div style={bodyStyle}>
-        {leftOpen ? (
+        {!focusMode && leftOpen ? (
           <div data-testid="microflow-editor-left-panel" style={panelStyle}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
               <Text strong>{labels.nodePanel}</Text>
@@ -2349,7 +2461,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               createContext={{ microflowId: schema.id, moduleId: schema.moduleId, metadataAvailable: Boolean(loadedMetadata), schemaLoaded: true, readonly: props.readonly }}
             />
           </div>
-        ) : (
+        ) : !focusMode ? (
           <button
             type="button"
             aria-label="展开节点面板"
@@ -2372,7 +2484,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             <IconChevronRight />
             <Text size="small" strong style={{ writingMode: "vertical-rl", textOrientation: "mixed", letterSpacing: 1 }}>{labels.nodePanel}</Text>
           </button>
-        )}
+        ) : null}
         <div data-testid="microflow-canvas" style={{ minWidth: 0, minHeight: 0, display: "contents" }}>
         <FlowGramMicroflowCanvas
           schema={schema}
@@ -2420,7 +2532,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }}
         />
         </div>
-        <div
+        {!focusMode ? <div
           data-testid="microflow-editor-right-shell"
           style={{
             display: "flex",
@@ -2428,7 +2540,18 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             height: "100%",
             minHeight: 0,
             overflow: "hidden",
-            background: "var(--semi-color-bg-1, #fff)"
+            background: "var(--semi-color-bg-1, #fff)",
+            ...(externalLayout
+              ? {
+                position: "absolute",
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: rightOpen ? RIGHT_PANEL_EXPANDED_PX + RAIL_WIDTH_PX : RAIL_WIDTH_PX,
+                zIndex: 22,
+                boxShadow: rightOpen ? "0 12px 32px rgba(31, 35, 41, 0.14)" : undefined
+              } satisfies CSSProperties
+              : {})
           }}
         >
           {rightOpen ? (
@@ -2513,9 +2636,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               {labels.properties}
             </Text>
           </div>
-        </div>
+        </div> : null}
       </div>
-      {bottomOpen ? (
+      {!focusMode && bottomOpen ? (
         <div
           data-testid="microflow-bottom-panel"
           style={{
@@ -2613,7 +2736,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </Tabs.TabPane>
           </Tabs>
         </div>
-      ) : (
+      ) : !focusMode ? (
         <div
           style={{
             display: "flex",
@@ -2673,7 +2796,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             <Text size="small" strong>{labels.debug}</Text>
           </button>
         </div>
-      )}
+      ) : null}
       <MicroflowTestRunModal
         visible={testRunModalOpen}
         schema={schema}

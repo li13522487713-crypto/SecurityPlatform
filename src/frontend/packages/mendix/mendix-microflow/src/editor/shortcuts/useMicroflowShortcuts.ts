@@ -14,6 +14,7 @@ export interface UseMicroflowShortcutsOptions {
   onPasteSelection?: () => void;
   onDeleteSelection: () => void;
   onEscape: () => void;
+  onFocusMode?: () => void;
 }
 
 export function useMicroflowShortcuts({
@@ -28,6 +29,7 @@ export function useMicroflowShortcuts({
   onPasteSelection,
   onDeleteSelection,
   onEscape,
+  onFocusMode,
 }: UseMicroflowShortcutsOptions) {
   useEffect(() => {
     if (!active) {
@@ -41,6 +43,12 @@ export function useMicroflowShortcuts({
       }
       const key = event.key.toLowerCase();
       const commandKey = event.ctrlKey || event.metaKey;
+
+      if (key === "f11" && onFocusMode) {
+        event.preventDefault();
+        onFocusMode();
+        return;
+      }
 
       if (commandKey && key === "s") {
         event.preventDefault();
@@ -100,5 +108,5 @@ export function useMicroflowShortcuts({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [active, containerRef, onCopySelection, onDeleteSelection, onEscape, onPasteSelection, onRedo, onSave, onSearch, onUndo, readonly]);
+  }, [active, containerRef, onCopySelection, onDeleteSelection, onEscape, onFocusMode, onPasteSelection, onRedo, onSave, onSearch, onUndo, readonly]);
 }

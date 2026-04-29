@@ -160,6 +160,46 @@
   flex-shrink: 0;
   min-width: 0;
   overflow: hidden;
+  position: relative;
+  background: var(--studio-surface);
+}
+
+.studio-explorer-split__content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.studio-explorer-split__collapse {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 5;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--studio-border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--studio-text-secondary);
+  cursor: pointer;
+}
+
+.studio-explorer-split__collapse:hover {
+  color: var(--studio-blue);
+  border-color: rgba(22, 119, 255, 0.45);
+}
+
+.studio-explorer-split__pane--collapsed {
+  border-right: 1px solid var(--studio-border);
+}
+
+.studio-explorer-split__pane--collapsed .studio-explorer-split__collapse {
+  position: static;
+  margin: 8px auto;
+}
+
+.studio-explorer-split__pane--collapsed .studio-explorer-split__content {
+  display: none;
 }
 
 .studio-explorer-split__gutter {
