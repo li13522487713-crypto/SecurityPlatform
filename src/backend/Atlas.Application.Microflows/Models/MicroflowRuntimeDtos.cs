@@ -504,6 +504,11 @@ public static class RuntimeErrorCode
     public const string RuntimeMaxStepsExceeded = "RUNTIME_MAX_STEPS_EXCEEDED";
     public const string RuntimeCancelled = "RUNTIME_CANCELLED";
     public const string RuntimeErrorEventReached = "RUNTIME_ERROR_EVENT_REACHED";
+    /// <summary>
+    /// 节点返回需要客户端继续执行的指令（如 showPage / closePage / openSubPage 等），
+    /// 服务端 test-run 没有客户端环境，因此显式失败而非静默成功。
+    /// </summary>
+    public const string RuntimePendingClientCommand = "RUNTIME_PENDING_CLIENT_COMMAND";
     public const string RuntimeUnknownError = "RUNTIME_UNKNOWN_ERROR";
     public const string RuntimeExpressionParseError = "RUNTIME_EXPR_PARSE_ERROR";
     public const string RuntimeExpressionMemberNotFound = "RUNTIME_EXPR_MEMBER_NOT_FOUND";
