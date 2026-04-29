@@ -9,7 +9,7 @@
 |---|---|---|---|
 | R1-01-audit-frontend | 完成 | §2 | 证据点 F-01 ~ F-16 均来自当前前端源码路径与行号 |
 | R1-02-audit-backend | 完成 | §3 | 证据点 B-01 ~ B-20 均来自当前后端源码路径与行号 |
-| R1-03-audit-doc | 待执行 | 待补 | 后续汇总 30+ 证据点、分级与阶段计划 |
+| R1-03-audit-doc | 完成 | §4 | 38 个证据点综合分级，给出 R1→R5 阶段计划 |
 
 ## 2. 前端源码审计（R1-01）
 
@@ -109,3 +109,63 @@
 | connector stub 与 capability registry | R3 | connector stub registry tests |
 | trueParallel / inclusive gateway | R4 | gateway tests + verify scripts |
 | expression API / editor / step debug API | R4 | API tests + frontend specs |
+
+## 4. 综合分级与阶段计划（R1-03）
+
+### 4.1 分级统计
+
+本报告当前共收集 **38 个源码证据点**：
+
+| 分级 | 数量 | 证据 ID |
+|---|---:|---|
+| Blocker | 7 | F-01, F-04, F-05, B-02, B-09, B-16 |
+| Critical | 14 | F-02, F-09, F-10, F-12, F-13, B-05, B-06, B-07, B-10, B-12, B-13, B-14, B-20 |
+| Major | 17 | F-03, F-06, F-07, F-08, F-11, F-14, F-15, F-16, B-01, B-03, B-04, B-08, B-11, B-15, B-17, B-18, B-19, B-21, B-22 |
+| Minor | 0 | 当前证据均影响生产能力、门禁、契约或后续闭环，未单列纯 cosmetic 缺陷。 |
+
+> 注：分级以生产发布影响为准。部分 Major/Critical 在已有基础实现上仍需补测试或门禁，因此不等同于“完全缺失”。
+
+### 4.2 Blocker 清单
+
+| Blocker | 证据 | 阻断原因 | 关闭轮次 |
+|---|---|---|---|
+| 生产构建未硬拒 MSW/mock | F-01 | mock 环境变量可进入生产入口，违反 no mock/local/MSW 要求。 | R2 |
+| 生产 store 保留 sample fallback | F-04, F-05 | 空 app/403/404 可能被 demo app 掩盖。 | R2 |
+| health 端点未显式匿名 | B-02 | 生产探活与用户要求不一致。 | R2 |
+| rollback/cast/listOperation fake success | B-09, B-12, F-12 | supported/ServerExecutable 与真实 executor 不一致。 | R1 标记，R3 关闭 |
+| parallel/inclusive gateway unsupported | B-16 | 不满足 trueParallel / inclusive gateway 目标。 | R4 |
+
+### 4.3 Critical 清单
+
+| Critical | 证据 | 风险 | 关闭轮次 |
+|---|---|---|---|
+| 前后端 actionKind 支持等级可能漂移 | F-12, F-13, F-14 | 工具箱、发布校验、runtime 实际能力不一致。 | R1/R3 |
+| 保存冲突 envelope 不完整 | F-09, F-10, B-13, B-14 | 409 不能提供远端版本/保存者/时间，clientRequestId 未幂等。 | R2 |
+| workspace ownership 未覆盖 appId | B-05, B-06 | app assets 入口存在归属校验缺口。 | R2 |
+| production guard 缺配置硬拒 | B-07 | mock/seed/internal-debug 配置可能漏进生产。 | R2 |
+| connector capability gate 需机器校验 | B-10, B-20 | connector 缺失必须阻断，SSRF 策略必须有场景测试。 | R1/R3/R5 |
+
+### 4.4 Major 清单
+
+| Major | 证据 | 风险 | 关闭轮次 |
+|---|---|---|---|
+| 错误事件、错误 envelope 基础已具备但 spec 不全 | F-03, F-16 | 401/403/409 等路径需前端 spec 固化。 | R2 |
+| tab dirty/save 隔离已有基础但缺全量 guard | F-07, F-08 | beforeunload / switch / history / save queue 需补齐。 | R2 |
+| property panel forms 缺口 | F-15 | R3 节点配置不能生产化。 | R3 |
+| runtime health/storage health 已有但 production gate 未全量接入 | B-03, B-04 | R1 只能 conditional，R5 需 live gate。 | R5 |
+| RuntimeCommand/Connector/Unsupported 分类需矩阵说明 | B-11, B-15, B-21, B-22 | 生产决策必须区分服务端执行、客户端命令、connector-backed、unsupported。 | R1/R3 |
+| Expression/Variable 基础不等于 R4 完整能力 | B-17, B-18, B-19 | 缺 API、editor、typechecker/preview 共享语义、强类型变量收敛。 | R3/R4 |
+
+### 4.5 阶段计划
+
+| 阶段 | 目标 | 关闭证据 | 必需验证 |
+|---|---|---|---|
+| R1 | 审计、矩阵、命名、coverage、production gate 骨架 | F-12, F-13, F-14, B-09, B-10, B-11, B-12 的“可见化/门禁化” | matrix/naming/coverage/gate verify，脚本单测 |
+| R2 | P0 安全与保存链路：Authorize/AllowAnonymous、ownership、production guard、no mock、baseVersion/clientRequestId、FlowGram purge、tab isolation | F-01~F-11, B-01~B-08, B-13~B-15, B-21 | 后端 filter/resource tests、前端 app-explorer/workbench/save specs、P0 readiness verify |
+| R3 | 真实 executor、normalizer/migration、connector stub、property panel forms、runtime 抽象 | F-15, B-09, B-10, B-12, B-19, B-22 | executor tests、migration tests、connector stub tests、property forms specs、strict naming/coverage |
+| R4 | trueParallel gateway、Expression Editor/API、Step Debug API/UI | B-16~B-18 与对应前端缺口 | gateway/expression/debug 后端测试、前端 specs、verify scripts |
+| R5 | 全量测试/E2E/性能/production gate 终版 | B-03, B-04, B-20 及所有 residual Major | Playwright E2E、性能基线、Release build、frontend build/lint/i18n、production gate final |
+
+### 4.6 R1-03 闭环结论
+
+`R1-03-audit-doc` 已将前端 16 个证据点与后端 22 个证据点综合为 Blocker/Critical/Major 分级，并给出 R1→R5 阶段关闭计划。当前结论为：**R1 只能建立门禁与事实基线，不能声明生产 go；生产结论应保持 conditional-go，直到 R2-R5 逐项关闭上述 Blocker/Critical。**
