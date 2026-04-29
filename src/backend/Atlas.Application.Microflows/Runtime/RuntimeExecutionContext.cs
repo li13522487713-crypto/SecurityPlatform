@@ -78,6 +78,10 @@ public sealed class RuntimeExecutionContext
     public MicroflowRuntimeSecurityContext RuntimeSecurityContext { get; init; } = MicroflowRuntimeSecurityContext.System();
     public MicroflowMetadataCatalogDto? MetadataCatalog { get; init; }
     public string? MetadataVersion { get; init; }
+
+    /// <summary>可选：绑定调试会话 ID，供 CallMicroflow 子执行传播。</summary>
+    public string? DebugSessionId { get; init; }
+
     public DateTimeOffset StartedAt { get; }
     public IReadOnlyList<MicroflowVariableStoreDiagnostic> Diagnostics => VariableStore.Diagnostics;
     private int _handledErrorCount;
@@ -104,7 +108,8 @@ public sealed class RuntimeExecutionContext
         MicroflowMetadataCatalogDto? metadataCatalog = null,
         MicroflowCallStackFrame? currentCallFrame = null,
         IReadOnlyList<MicroflowCallStackFrame>? callStackFrames = null,
-        IMicroflowVariableStore? variableStore = null)
+        IMicroflowVariableStore? variableStore = null,
+        string? debugSessionId = null)
     {
         var store = variableStore ?? new MicroflowVariableStore(() => DateTimeOffset.UtcNow);
         var context = new RuntimeExecutionContext(runId, executionPlan, store, startedAt)
@@ -119,7 +124,8 @@ public sealed class RuntimeExecutionContext
             CallCorrelationId = string.IsNullOrWhiteSpace(callCorrelationId) ? Guid.NewGuid().ToString("N") : callCorrelationId!,
             MaxCallDepth = maxCallDepth,
             MetadataCatalog = metadataCatalog,
-            CurrentCallFrame = currentCallFrame
+            CurrentCallFrame = currentCallFrame,
+            DebugSessionId = debugSessionId
         };
         if (callStackFrames is not null)
         {

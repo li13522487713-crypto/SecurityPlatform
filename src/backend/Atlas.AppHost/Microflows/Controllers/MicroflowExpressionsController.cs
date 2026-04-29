@@ -21,30 +21,51 @@ public sealed class MicroflowExpressionsController : MicroflowApiControllerBase
     [HttpPost("parse")]
     public ActionResult<MicroflowApiResponse<MicroflowExpressionEditorResponse>> Parse(
         [FromBody] MicroflowExpressionEditorRequest request)
-        => MicroflowOk(_service.Parse(request));
+        => TryMetadata(request, () => MicroflowOk(_service.Parse(request)));
 
     [HttpPost("validate")]
     public ActionResult<MicroflowApiResponse<MicroflowExpressionEditorResponse>> Validate(
         [FromBody] MicroflowExpressionEditorRequest request)
-        => MicroflowOk(_service.Validate(request));
+        => TryMetadata(request, () => MicroflowOk(_service.Validate(request)));
 
     [HttpPost("infer-type")]
     public ActionResult<MicroflowApiResponse<MicroflowExpressionEditorResponse>> InferType(
         [FromBody] MicroflowExpressionEditorRequest request)
-        => MicroflowOk(_service.InferType(request));
+        => TryMetadata(request, () => MicroflowOk(_service.InferType(request)));
 
     [HttpPost("completions")]
     public ActionResult<MicroflowApiResponse<MicroflowExpressionEditorResponse>> Completions(
         [FromBody] MicroflowExpressionEditorRequest request)
-        => MicroflowOk(_service.Completions(request));
+        => TryMetadata(request, () => MicroflowOk(_service.Completions(request)));
 
     [HttpPost("format")]
     public ActionResult<MicroflowApiResponse<MicroflowExpressionEditorResponse>> Format(
         [FromBody] MicroflowExpressionEditorRequest request)
-        => MicroflowOk(_service.Format(request));
+        => TryMetadata(request, () => MicroflowOk(_service.Format(request)));
 
     [HttpPost("preview")]
     public ActionResult<MicroflowApiResponse<MicroflowExpressionEditorResponse>> Preview(
         [FromBody] MicroflowExpressionEditorRequest request)
-        => MicroflowOk(_service.Preview(request));
+        => TryMetadata(request, () => MicroflowOk(_service.Preview(request)));
+
+    private ActionResult<MicroflowApiResponse<MicroflowExpressionEditorResponse>> TryMetadata(
+        MicroflowExpressionEditorRequest request,
+        Func<ActionResult<MicroflowApiResponse<MicroflowExpressionEditorResponse>>> ok)
+    {
+        if (!MicroflowExpressionApiMetadata.IsMetadataVersionSupported(request.MetadataVersion))
+        {
+            return MicroflowError<MicroflowExpressionEditorResponse>(
+                new MicroflowApiError
+                {
+                    Code = MicroflowApiErrorCode.MicroflowMetadataVersionMismatch,
+                    Message = "metadataVersion 与服务器支持的表达式元数据版本不一致。",
+                    Details =
+                        $"支持的版本：{MicroflowExpressionApiMetadata.SupportedMetadataVersion}；请求：{request.MetadataVersion}",
+                    HttpStatus = 422
+                },
+                422);
+        }
+
+        return ok();
+    }
 }

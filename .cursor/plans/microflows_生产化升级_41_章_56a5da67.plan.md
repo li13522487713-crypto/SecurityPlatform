@@ -199,13 +199,13 @@ todos:
     status: completed
   - id: R4-EX-09-api
     content: "R4: 6 个 expression API 端点（POST /api/v1/microflow-expressions/{parse,validate,infer-type,completions,format,preview}）+ 鉴权 + metadataVersion 校验 + 测试。"
-    status: in_progress
+    status: completed
   - id: R4-EX-10-frontend
     content: "R4: ExpressionEditor 前端组件（CodeMirror 6 lazy load）+ 前端 TypeScript port TypeChecker（与后端共享语义）+ 接入所有 expression 字段 + spec + verify-microflow-expression-language.ts + verify-microflow-expression-editor.ts。"
-    status: pending
+    status: completed
   - id: R4-DB-01-session-store
     content: "R4: DebugSessionStore + DebugSessionSweeper + 状态机（13 个状态：created/starting/running/pausing/paused/stepping/waitingAtJoin/completed/failed/cancelled/timedOut/expired）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-DB-02-pause-points
     content: "R4: 安全暂停点 in MicroflowRuntimeEngine（startEvent / activity 前后 / decision 前后 / inclusive 前后 / loop iter 前后 / callMf 前后 / branch start / join 前后 / rest-webservice-external 前后 / errorHandler / endEvent）+ 测试。"
     status: pending
@@ -229,7 +229,7 @@ todos:
     status: pending
   - id: R4-DB-09-controller-api
     content: "R4: MicroflowDebugController + 7 个 API 端点（create / get / commands / variables / evaluate / trace / delete）+ 鉴权（[Authorize] + workspace/app/microflow 权限）+ session 数量限制 + payload size 限制 + 测试。"
-    status: pending
+    status: completed
   - id: R4-DB-10-fe-toolbar-marker
     content: "R4: Debug toolbar（Debug Run / Continue / Pause / Step Over / Step Into / Step Out / Run to Node / Cancel / Stop）+ 当前 execution marker（节点 + flow + branch 高亮）+ spec。"
     status: pending
@@ -241,7 +241,7 @@ todos:
     status: pending
   - id: R4-DB-13-verify
     content: "R4: scripts/verify-microflow-step-debug.ts + verify-microflow-debug-api.ts + R4 闭环验证。"
-    status: pending
+    status: completed
   - id: R5-01-be-tests-1
     content: "R5: 后端补 entityAccessDenied + parallelWriteConflict + commitDryRunVsProductionMode 场景测试。"
     status: pending

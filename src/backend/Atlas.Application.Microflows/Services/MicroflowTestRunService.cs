@@ -132,6 +132,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                     Metadata = metadata,
                     RequestContext = _requestContextAccessor.Current with { TraceId = runId },
                     CorrelationId = request.CorrelationId,
+                    DebugSessionId = request.DebugSessionId,
                     MaxCallDepth = 10
                 },
                 registryCts.Token);

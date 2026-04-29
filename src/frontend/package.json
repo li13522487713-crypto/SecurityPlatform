@@ -20,6 +20,7 @@
     "microflow:verify:matrix": "node ../../scripts/verify-microflow-node-capability-matrix.ts",
     "microflow:verify:naming": "node ../../scripts/verify-microflow-action-descriptor-naming.ts",
     "microflow:verify:coverage": "node ../../scripts/verify-microflow-executor-coverage.ts",
+    "microflow:verify:debug-runtime": "node ../../scripts/verify-microflow-debug-runtime.ts",
     "microflow:verify:gate": "node ../../scripts/verify-microflow-production-gate.ts",
     "test:unit": "pnpm exec vitest run --passWithNoTests \"packages/**/src/**/*.spec.ts\" \"packages/**/src/**/*.spec.tsx\" \"packages/**/src/**/*.test.ts\" \"packages/**/src/**/*.test.tsx\" \"apps/**/src/**/*.spec.ts\" \"apps/**/src/**/*.spec.tsx\" \"apps/**/src/**/*.test.ts\" \"apps/**/src/**/*.test.tsx\"",
     "format": "pnpm -r run format",

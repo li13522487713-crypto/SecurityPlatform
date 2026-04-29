@@ -98,9 +98,29 @@ public sealed class MicroflowExpressionPreviewService
         => _evaluator.Evaluate(raw, context);
 }
 
+/// <summary>
+/// 与微流 AuthoringSchema <c>schemaVersion</c>（默认 <see cref="MicroflowExpressionApiMetadata.SupportedMetadataVersion"/>）对齐；
+/// 省略 <see cref="MicroflowExpressionEditorRequest.MetadataVersion"/> 视为兼容当前服务器；若显式传入则必须与服务器支持版本一致。
+/// </summary>
+public static class MicroflowExpressionApiMetadata
+{
+    /// <summary>与默认 Authoring schema 主版本一致。</summary>
+    public const string SupportedMetadataVersion = "1.0.0";
+
+    public static bool IsMetadataVersionSupported(string? metadataVersion)
+    {
+        if (string.IsNullOrWhiteSpace(metadataVersion))
+            return true;
+        return string.Equals(metadataVersion.Trim(), SupportedMetadataVersion, StringComparison.Ordinal);
+    }
+}
+
 public sealed record MicroflowExpressionEditorRequest
 {
     public string Expression { get; init; } = string.Empty;
+
+    /// <summary>可选；若提供则须等于 <see cref="MicroflowExpressionApiMetadata.SupportedMetadataVersion"/>。</summary>
+    public string? MetadataVersion { get; init; }
 }
 
 public sealed record MicroflowExpressionEditorResponse

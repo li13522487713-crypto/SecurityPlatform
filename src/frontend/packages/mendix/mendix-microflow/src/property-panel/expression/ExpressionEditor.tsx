@@ -1,5 +1,5 @@
 import { Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { getEntityAttributes, getEnumerationValues, type MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../../schema";
 import { createMicroflowExpression, expressionRaw, expressionTypeLabel, validateExpression } from "../../expressions";
@@ -25,6 +25,8 @@ function appendToken(raw: string, token: string): string {
   }
   return `${raw}${raw.endsWith(" ") ? "" : " "}${token}`;
 }
+
+const LazyCodemirrorExpression = lazy(async () => import("../../expression-editor/codemirror-microflow-expression"));
 
 export function ExpressionEditor({
   value,
@@ -118,16 +120,28 @@ export function ExpressionEditor({
     return [...variableOptions, ...enumOptions, ...functionOptions];
   }, [expectedType, metadata, variables]);
   const nextExpression = (nextRaw: string) => onChange(createMicroflowExpression(nextRaw, validation.inferredType));
+  const cmMinRows = mode === "multiline" ? minRows : 1;
   return (
     <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
-      <TextArea
-        ref={inputRef}
-        value={raw}
-        disabled={readonly}
-        autosize={mode === "multiline" ? { minRows } : { minRows: 1, maxRows: 3 }}
-        placeholder={placeholder}
-        onChange={nextExpression}
-      />
+      <Suspense
+        fallback={(
+          <TextArea
+            ref={inputRef}
+            value={raw}
+            disabled={readonly}
+            autosize={mode === "multiline" ? { minRows } : { minRows: 1, maxRows: 3 }}
+            placeholder={placeholder}
+            onChange={nextExpression}
+          />
+        )}
+      >
+        <LazyCodemirrorExpression
+          value={raw}
+          onChange={nextExpression}
+          readonly={readonly}
+          minRows={cmMinRows}
+        />
+      </Suspense>
       <Select
         filter
         showClear
@@ -152,7 +166,17 @@ export function ExpressionEditor({
       <Text size="small" type="tertiary">
         Expected: {expressionTypeLabel(expectedType)} · Inferred: {expressionTypeLabel(validation.inferredType)}
       </Text>
-      <ExpressionDiagnostics diagnostics={validation.diagnostics} onDiagnosticClick={() => inputRef.current?.focus()} />
+      <ExpressionDiagnostics
+        diagnostics={validation.diagnostics}
+        onDiagnosticClick={() => {
+          const cm = document.querySelector(".microflow-expression-codemirror-host .cm-content") as HTMLElement | null;
+          if (cm) {
+            cm.focus();
+          } else {
+            inputRef.current?.focus();
+          }
+        }}
+      />
     </Space>
   );
 }

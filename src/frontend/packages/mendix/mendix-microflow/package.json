@@ -51,6 +51,9 @@
     "react-dom": "^18.2.0"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.3.3",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.34.1",
     "@coze-workflow/render": "workspace:*",
     "@douyinfe/semi-icons": "^2.82.0",
     "@douyinfe/semi-ui": "^2.82.0",

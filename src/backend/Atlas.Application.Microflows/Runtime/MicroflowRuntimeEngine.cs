@@ -6,6 +6,7 @@ using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime.Actions;
+using Atlas.Application.Microflows.Runtime.Debug;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Services;
@@ -31,9 +32,10 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     // keeps the previous fast-path-only behaviour and reports unsupported actions.
     private readonly IMicroflowActionExecutorRegistry? _actionExecutorRegistry;
     private readonly IMicroflowRuntimeConnectorRegistry? _connectorRegistry;
+    private readonly IMicroflowDebugCoordinator? _debugCoordinator;
 
     public MicroflowRuntimeEngine(IMicroflowSchemaReader schemaReader, IMicroflowClock clock)
-        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null, null)
     {
     }
 
@@ -42,7 +44,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowClock clock,
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
-        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), resourceRepository, schemaSnapshotRepository, null, null)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), resourceRepository, schemaSnapshotRepository, null, null, null)
     {
     }
 
@@ -52,7 +54,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowExpressionEvaluator expressionEvaluator,
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
-        : this(schemaReader, clock, expressionEvaluator, resourceRepository, schemaSnapshotRepository, null, null)
+        : this(schemaReader, clock, expressionEvaluator, resourceRepository, schemaSnapshotRepository, null, null, null)
     {
     }
 
@@ -63,7 +65,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository,
         IMicroflowActionExecutorRegistry? actionExecutorRegistry,
-        IMicroflowRuntimeConnectorRegistry? connectorRegistry)
+        IMicroflowRuntimeConnectorRegistry? connectorRegistry,
+        IMicroflowDebugCoordinator? debugCoordinator = null)
     {
         _schemaReader = schemaReader;
         _clock = clock;
@@ -72,6 +75,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         _schemaSnapshotRepository = schemaSnapshotRepository;
         _actionExecutorRegistry = actionExecutorRegistry;
         _connectorRegistry = connectorRegistry;
+        _debugCoordinator = debugCoordinator;
     }
 
     public Task<MicroflowRunSessionDto> RunAsync(MicroflowExecutionRequest request, CancellationToken cancellationToken)
@@ -139,7 +143,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     return context.BuildSession("failed", Error(RuntimeErrorCode.RuntimeObjectNotFound, $"运行对象不存在：{currentNodeId}", currentNodeId, flowId: incomingFlowId));
                 }
 
-                var execution = await ExecuteNodeAsync(context, graph, node, incomingFlowId, state, cancellationToken);
+                await DebugCheckpointAsync(context, node, incomingFlowId, MicroflowDebugPausePhase.BeforeNode, cancellationToken).ConfigureAwait(false);
+
+                var execution = await ExecuteNodeAsync(context, graph, node, incomingFlowId, state, cancellationToken).ConfigureAwait(false);
                 if (!execution.Success)
                 {
                     return context.BuildSession("failed", execution.Error);
@@ -147,8 +153,11 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
                 if (execution.Completed)
                 {
+                    await DebugCheckpointAsync(context, node, incomingFlowId, MicroflowDebugPausePhase.AfterNode, cancellationToken).ConfigureAwait(false);
                     return context.BuildSession("success", null, execution.Output);
                 }
+
+                await DebugCheckpointAsync(context, node, incomingFlowId, MicroflowDebugPausePhase.AfterNode, cancellationToken).ConfigureAwait(false);
 
                 currentNodeId = execution.NextNodeId;
                 incomingFlowId = execution.OutgoingFlowId;
@@ -222,6 +231,20 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         }
 
         return null;
+    }
+
+    private Task DebugCheckpointAsync(
+        RuntimeContext context,
+        MicroflowObjectModel node,
+        string? incomingFlowId,
+        MicroflowDebugPausePhase phase,
+        CancellationToken cancellationToken)
+    {
+        if (_debugCoordinator is null || string.IsNullOrWhiteSpace(context.DebugSessionId))
+            return Task.CompletedTask;
+
+        var point = new MicroflowDebugSafePoint(phase, node.Id, node.Kind, incomingFlowId);
+        return _debugCoordinator.WaitAtSafePointAsync(context.DebugSessionId, context.RunId, point, cancellationToken);
     }
 
     private async Task<NodeExecution> ExecuteNodeAsync(
@@ -727,7 +750,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 Options = context.Options,
                 RequestContext = context.RequestContext,
                 CorrelationId = context.CorrelationId,
-                MaxCallDepth = context.MaxCallDepth
+                MaxCallDepth = context.MaxCallDepth,
+                DebugSessionId = context.DebugSessionId
             },
             state,
             new ParentCallContext(
@@ -1433,6 +1457,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
         public string ResourceId => _request.ResourceId;
 
+        public string? DebugSessionId => _request.DebugSessionId;
+
         public int MaxCallDepth => Math.Clamp(_request.MaxCallDepth, 1, 64);
 
         public MicroflowTestRunOptionsDto Options => _request.Options;
@@ -1508,7 +1534,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 rootRunId: RootRunId,
                 callCorrelationId: CorrelationId,
                 maxCallDepth: MaxCallDepth,
-                variableStore: _expressionVariableStore);
+                variableStore: _expressionVariableStore,
+                debugSessionId: _request.DebugSessionId);
             return _executionContext;
         }
 

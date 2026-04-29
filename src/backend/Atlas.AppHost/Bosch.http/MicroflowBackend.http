@@ -3297,3 +3297,78 @@ X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
+
+### Expression editor API — parse (optional metadataVersion must match 1.0.0 when provided)
+POST {{host}}/api/v1/microflow-expressions/parse
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "expression": "$sample",
+  "metadataVersion": "1.0.0"
+}
+
+### Expression editor API — validate (omit metadataVersion = implicit compatible)
+POST {{host}}/api/v1/microflow-expressions/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "expression": "if $flag then 1 else 0"
+}
+
+### Expression editor API — metadata mismatch -> 422 MICROFLOW_METADATA_VERSION_MISMATCH
+POST {{host}}/api/v1/microflow-expressions/format
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "expression": "'a'",
+  "metadataVersion": "9.9.9-invalid"
+}
+
+### Debug — create session (returns $.data.id as debugSessionId)
+# @name microflowDebugSessionCreate
+POST {{host}}/api/v1/microflows/{{microflowId}}/debug-sessions
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Debug — resume one pause gate (after engine blocks at BeforeNode/AfterNode safe point)
+# Replace {{debugSessionId}} with microflowDebugSessionCreate response $.data.id
+POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/commands
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "command": "continue"
+}
+
+### Debug — test-run with debugSessionId (engine pauses at each node Before/After until commands release)
+# Uses cooperative pause + MicroflowDebugCoordinator; omit debugSessionId for normal non-blocking test-run.
+POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "schemaId": "{{microflowId}}",
+  "inputs": {},
+  "debugSessionId": "{{debugSessionId}}"
+}

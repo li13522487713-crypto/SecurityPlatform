@@ -80,7 +80,8 @@ function staticChecks(): CheckResult[] {
 const commandResults = [
   run("node", ["../../scripts/verify-microflow-node-capability-matrix.ts"], resolve(root, "src/frontend")),
   run("node", ["../../scripts/verify-microflow-action-descriptor-naming.ts"], resolve(root, "src/frontend")),
-  run("node", ["../../scripts/verify-microflow-executor-coverage.ts"], resolve(root, "src/frontend"))
+  run("node", ["../../scripts/verify-microflow-executor-coverage.ts"], resolve(root, "src/frontend")),
+  run("node", ["../../scripts/verify-microflow-debug-runtime.ts"], resolve(root, "src/frontend"))
 ];
 const results = [...staticChecks(), ...commandResults];
 const conclusion = summarizeResults(results);

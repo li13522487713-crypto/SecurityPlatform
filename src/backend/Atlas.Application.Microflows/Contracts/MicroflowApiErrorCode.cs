@@ -27,4 +27,6 @@ public static class MicroflowApiErrorCode
     public const string MicroflowTimeout = "MICROFLOW_TIMEOUT";
     public const string MicroflowServiceUnavailable = "MICROFLOW_SERVICE_UNAVAILABLE";
     public const string MicroflowUnknownError = "MICROFLOW_UNKNOWN_ERROR";
+    public const string MicroflowMetadataVersionMismatch = "MICROFLOW_METADATA_VERSION_MISMATCH";
+    public const string MicroflowDebugSessionLimitExceeded = "MICROFLOW_DEBUG_SESSION_LIMIT_EXCEEDED";
 }

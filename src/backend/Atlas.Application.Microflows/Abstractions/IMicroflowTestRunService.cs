@@ -62,6 +62,12 @@ public sealed record MicroflowExecutionRequest
 
     public MicroflowCallStackFrame? CallFrame { get; init; }
 
+    /// <summary>
+    /// 可选调试会话 ID；非空时引擎在主路径 BeforeNode/AfterNode 安全点协作暂停，
+    /// 客户端通过 POST …/debug-sessions/{id}/commands 放行。
+    /// </summary>
+    public string? DebugSessionId { get; init; }
+
     public string TransactionBoundary { get; init; } = MicroflowCallTransactionBoundary.Inherit;
 
     public int MaxCallDepth { get; init; } = 10;

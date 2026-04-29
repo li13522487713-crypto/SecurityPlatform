@@ -5,7 +5,8 @@
  * 仅串联：
  *   1. verify-microflow-production-no-mock.ts
  *   2. verify-microflow-runtime-coverage.ts
- *   3. verify-microflow-production-readiness.ts（live health 默认跳过；
+ *   3. verify-microflow-debug-runtime.ts（Coordinator + 引擎安全点 + SessionId 透传）
+ *   4. verify-microflow-production-readiness.ts（live health 默认跳过；
  *      由 MICROFLOW_READINESS_SKIP_LIVE_HEALTH=0 显式开启）
  *
  * 任一脚本 fail 整个流程返非零。
@@ -27,6 +28,10 @@ const steps: Step[] = [
   {
     name: "verify-microflow-runtime-coverage",
     command: ["node", "scripts/verify-microflow-runtime-coverage.ts"],
+  },
+  {
+    name: "verify-microflow-debug-runtime",
+    command: ["node", "scripts/verify-microflow-debug-runtime.ts"],
   },
   {
     name: "verify-microflow-production-readiness",

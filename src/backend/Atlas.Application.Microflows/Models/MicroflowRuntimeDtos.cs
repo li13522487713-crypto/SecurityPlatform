@@ -28,6 +28,10 @@ public record TestRunMicroflowApiRequest
     [JsonPropertyName("correlationId")]
     public string? CorrelationId { get; init; }
 
+    /// <summary>绑定服务端调试会话，试运行在主路径安全点暂停。</summary>
+    [JsonPropertyName("debugSessionId")]
+    public string? DebugSessionId { get; init; }
+
     [JsonPropertyName("timeout")]
     public int? Timeout { get; init; }
 

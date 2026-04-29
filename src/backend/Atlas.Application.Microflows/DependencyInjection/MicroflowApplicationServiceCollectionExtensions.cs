@@ -37,6 +37,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddSingleton<MicroflowEntityAccessOptions>();
         services.TryAddScoped<IMicroflowReferenceIndexer, MicroflowReferenceIndexer>();
         services.TryAddScoped<IMicroflowReferenceService, MicroflowReferenceService>();
+        services.TryAddSingleton<IMicroflowDebugCoordinator, MicroflowDebugCoordinator>();
         services.TryAddScoped<IMicroflowRuntimeEngine>(sp => new MicroflowRuntimeEngine(
             sp.GetRequiredService<IMicroflowSchemaReader>(),
             sp.GetRequiredService<IMicroflowClock>(),
@@ -44,7 +45,8 @@ public static class MicroflowApplicationServiceCollectionExtensions
             sp.GetService<IMicroflowResourceRepository>(),
             sp.GetService<IMicroflowSchemaSnapshotRepository>(),
             sp.GetService<IMicroflowActionExecutorRegistry>(),
-            sp.GetService<IMicroflowRuntimeConnectorRegistry>()));
+            sp.GetService<IMicroflowRuntimeConnectorRegistry>(),
+            sp.GetService<IMicroflowDebugCoordinator>()));
         services.TryAddScoped<IMicroflowVariableStore, MicroflowVariableStore>();
         services.TryAddScoped<IMicroflowExpressionEvaluator, MicroflowExpressionEvaluator>();
         services.TryAddScoped<MicroflowExpressionFormatter>();

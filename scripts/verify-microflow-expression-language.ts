@@ -24,6 +24,7 @@ const checks = [
   ["api completions", controllerSource.includes("[HttpPost(\"completions\")]")],
   ["api format", controllerSource.includes("[HttpPost(\"format\")]")],
   ["api preview", controllerSource.includes("[HttpPost(\"preview\")]")],
+  ["metadataVersion gate", controllerSource.includes("MicroflowExpressionApiMetadata")],
   ["frontend tokenizer parity", frontendSource.includes("tokenize") || frontendSource.includes("ExpressionToken")],
 ] as const;
 

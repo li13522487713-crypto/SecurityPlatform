@@ -194,7 +194,8 @@ public sealed class CallMicroflowActionExecutor : IMicroflowActionExecutor
                     ParentRuntimeContext = context.RuntimeExecutionContext,
                     CallFrame = frame,
                     TransactionBoundary = transactionBoundary,
-                    MaxCallDepth = context.Options.MaxCallDepth
+                    MaxCallDepth = context.Options.MaxCallDepth,
+                    DebugSessionId = context.RuntimeExecutionContext.DebugSessionId
                 },
                 ct);
         }
