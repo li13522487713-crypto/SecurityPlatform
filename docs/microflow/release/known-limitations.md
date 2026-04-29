@@ -15,3 +15,9 @@
 | 生产监控第一版 | 以 health、结构化日志、readiness report 为主 | Major | 配置日志采集和告警规则 | 接入 OTel metrics / tracing |
 | 自动 retention job 未实现 | run/trace/log 可能持续增长 | Major | 手工按 runbook dry-run 清理测试前缀和历史运行数据 | 实现 `IMicroflowRetentionService` |
 | 协作式取消未贯穿所有执行段 | cancel API 可更新会话状态，但长同步段可能不能即时停 | Major | 配置 timeout、max steps、max logs | 将 cancellation token 贯穿 runner |
+| Async run job queue 完整版未实现 | 当前以同步 test-run/debug shell 为主，不能替代完整后台队列 | Major | 控制单次运行时长与并发，使用 timeout/maxSteps | 后续接入 job queue、distributed lock 与恢复 |
+| Time-travel debug 未实现 | Step Debug 只能查看当前 session/trace/variables，不能回放任意历史状态 | Major | 使用 trace 与变量快照定位问题 | 后续设计不可变状态快照与回放索引 |
+| Debug-time variable mutation 未实现 | 调试期间不能直接修改变量继续运行 | Minor | 通过输入参数或临时 schema 复现 | 后续增加受控 mutation API |
+| true OS thread isolation 不承诺 | trueParallel 使用任务级调度，不提供操作系统线程隔离保证 | Major | 避免依赖线程本地状态；用并发写冲突检测兜底 | 后续评估隔离执行器 |
+| branchOnly suspend policy 未实现 | 第一版 suspendPolicy 固定 all；branchOnly UI 禁用 | Minor | 使用 all policy 调试并发分支 | 后续扩展分支局部暂停 |
+| 真实 connector 接入不在本轮 | SOAP/XML/Document/Workflow/ML/external/server action 均为 capability=false stub | Major | 依赖 `RUNTIME_CONNECTOR_REQUIRED` 与 publish blocker | 按连接器专题逐个接入 |
