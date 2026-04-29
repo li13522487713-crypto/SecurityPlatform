@@ -1,14 +1,14 @@
 # Microflows 生产化升级审计报告
 
 > 轮次：R1 — 审计 + 节点矩阵 + 生产门禁骨架  
-> 范围：本文件按 todo 逐步补齐。当前已闭环 `R1-01-audit-frontend` 前端源码审计章节；后端审计、综合分级和阶段计划将在 `R1-02` / `R1-03` 继续补齐。
+> 范围：本文件按 todo 逐步补齐。当前已闭环 `R1-01-audit-frontend` 与 `R1-02-audit-backend`；综合分级和阶段计划将在 `R1-03` 继续补齐。
 
 ## 1. R1 todo 闭环状态
 
 | Todo | 状态 | 本文件章节 | 验证方式 |
 |---|---|---|---|
 | R1-01-audit-frontend | 完成 | §2 | 证据点 F-01 ~ F-16 均来自当前前端源码路径与行号 |
-| R1-02-audit-backend | 待执行 | 待补 | 后续补充 AppHost / Application / Runtime 证据 |
+| R1-02-audit-backend | 完成 | §3 | 证据点 B-01 ~ B-20 均来自当前后端源码路径与行号 |
 | R1-03-audit-doc | 待执行 | 待补 | 后续汇总 30+ 证据点、分级与阶段计划 |
 
 ## 2. 前端源码审计（R1-01）
@@ -55,3 +55,57 @@
 | 三方节点矩阵校验前端 supported/partial 与后端 descriptor | R1 | `verify-microflow-node-capability-matrix.ts` |
 | 补齐 property panel forms | R3 | 每个 R3 表单有 spec，reload 不丢字段 |
 | Gateway trueParallel、Expression Editor、Step Debug UI | R4 | 对应 verify + spec + 后端 API 测试 |
+
+## 3. 后端源码审计（R1-02）
+
+### 3.1 审计结论
+
+后端 Microflows 已经不是纯演示实现：AppHost 端点统一收敛到 `api/v1`，基类默认 `[Authorize]`，请求经过 API exception / production guard / workspace ownership filters；runtime action registry 已将 Server / Connector / Command / Unsupported 四类分开；FlowGram JSON 已被 schema helper 拒绝；RestCall 已有 SSRF 安全策略和 production safe defaults。
+
+但距离 41 章生产化仍有明确缺口：
+
+- **Blocker**：`rollback` / `cast` / `listOperation` 仍是 `ConfiguredMicroflowActionExecutor`，Server fallback 会成功返回，需 R1 矩阵标红并在 R3 真实实现。
+- **Blocker**：health 端点继承基类 `[Authorize]`，当前无显式 `[AllowAnonymous]`，与 R2 生产探活要求不一致。
+- **Critical**：workspace ownership filter 已覆盖 query/header/route id，但未覆盖 `appId` 资产反查。
+- **Critical**：save DTO 已有 `ClientRequestId`，但 `SaveSchemaAsync` 未使用它做幂等；409 details 也未结构化返回 remoteVersion/remoteUpdatedAt/remoteUpdatedBy。
+- **Major**：parallel/inclusive gateway 在 runtime 主路径仍显式 unsupported；Expression Parser/Evaluator 已有基础但无 API/editor 共享 AST 闭环；Step Debug session API 尚未落地。
+
+### 3.2 后端证据点
+
+| ID | 分级 | 证据路径 | 现象 | 生产风险 | 修复轮次 |
+|---|---|---|---|---|---|
+| B-01 | Major | `src/backend/Atlas.AppHost/Microflows/Controllers/MicroflowApiControllerBase.cs:8-13` | Microflow 控制器基类统一 `[ApiController]`、`[Authorize]`、Exception/Production/Ownership filters。 | 基础安全链路已具备，但 health 匿名例外需显式处理并测试。 | R2 |
+| B-02 | Blocker | `src/backend/Atlas.AppHost/Microflows/Controllers/MicroflowResourceController.cs:334-356` | `GET api/v1/microflows/health` 未标 `[AllowAnonymous]`。 | 生产 health probe 可能被认证阻断，且与用户要求不一致。 | R2 |
+| B-03 | Major | `src/backend/Atlas.AppHost/Microflows/Controllers/MicroflowResourceController.cs:357-391` | runtime health 检查 descriptor count、runtime limits、Rest 安全默认。 | 可作为 production gate live health 基础，但 R1 仅骨架，R5 才全量联通。 | R1/R5 |
+| B-04 | Major | `src/backend/Atlas.AppHost/Microflows/Controllers/MicroflowResourceController.cs:393-400` | storage health 已挂载到 `api/v1/microflows/storage/health`。 | 需要 R5 production gate 统一纳入 live health。 | R5 |
+| B-05 | Critical | `src/backend/Atlas.AppHost/Microflows/Infrastructure/MicroflowWorkspaceOwnershipFilter.cs:34-69` | filter 要求登录、workspaceId、workspace 格式和 workspace membership。 | 已有 ownership 基础；仍需覆盖 appId 资产入口与测试。 | R2 |
+| B-06 | Critical | `src/backend/Atlas.AppHost/Microflows/Infrastructure/MicroflowWorkspaceOwnershipFilter.cs:71-94` | workspaceId 解析覆盖 query、request context/header、route `{id}` 反查 resource。 | `api/v1/microflow-apps/{appId}` 未通过 appId 反查 workspace，可能绕过资产归属校验。 | R2 |
+| B-07 | Critical | `src/backend/Atlas.AppHost/Microflows/Infrastructure/MicroflowProductionGuardFilter.cs:25-49` | production guard 在非开发环境要求认证与 `X-Workspace-Id`，health path 放行。 | 还未扫描 mock/seed/internal-debug 配置；需 R2 硬化。 | R2 |
+| B-08 | Major | `src/backend/Atlas.AppHost/Microflows/Infrastructure/MicroflowProductionGuardFilter.cs:53-55` | production guard 由 `!IsDevelopment && EnableProductionGuard` 控制。 | 默认策略可用；需测试 production config 缺陷时 fail closed。 | R2 |
+| B-09 | Blocker | `src/backend/Atlas.Application.Microflows/Runtime/Actions/MicroflowActionExecutorRegistry.cs:291-309` | `rollback` / `cast` / `listOperation` 明确由 `ConfiguredMicroflowActionExecutor` 占位。 | Server fallback 成功返回，无法满足生产级事务回滚/类型转换/列表操作语义。 | R1/R3 |
+| B-10 | Critical | `src/backend/Atlas.Application.Microflows/Runtime/Actions/MicroflowActionExecutorRegistry.cs:325-332` | connector-backed 集成动作保留 capability gate，缺 connector 返回 `RUNTIME_CONNECTOR_REQUIRED`。 | R3 需补 connector stub 接口与 DI，R1/R3 verify 必须防止 silent success。 | R1/R3 |
+| B-11 | Major | `src/backend/Atlas.Application.Microflows/Runtime/Actions/MicroflowActionExecutorRegistry.cs:334-340` | showPage/showMessage/downloadFile 等 client action 注册为 RuntimeCommand。 | server 只产 command preview；前端/发布矩阵需明确不可当服务端真实执行。 | R1/R5 |
+| B-12 | Critical | `src/backend/Atlas.Application.Microflows/Runtime/Actions/MicroflowActionExecutorRegistry.cs:441-566` | `ConfiguredMicroflowActionExecutor` 对 ConnectorBacked/Unsupported 有错误路径，但 Server fallback 返回 Success。 | R1 coverage verify 需禁止 supported 节点落到 Configured fake success。 | R1/R3 |
+| B-13 | Critical | `src/backend/Atlas.Application.Microflows/Services/MicroflowResourceService.cs:277-334` | `SaveSchemaAsync` 做 baseVersion 比对并返回 409，但 details 仅 `resource.SchemaId ?? resource.Version`。 | 冲突 UI 缺 remoteVersion/remoteUpdatedAt/remoteUpdatedBy 结构化证据。 | R2 |
+| B-14 | Critical | `src/backend/Atlas.Application.Microflows/Models/MicroflowResourceApiDtos.cs:151-165` | save DTO 已定义 `BaseVersion` / `SchemaId` / `Version` / `SaveReason` / `ClientRequestId`。 | DTO 有字段但服务未用 `ClientRequestId` 做幂等。 | R2 |
+| B-15 | Major | `src/backend/Atlas.Application.Microflows/Services/MicroflowSchemaJsonHelper.cs:27-40` | schema helper 拒绝 `nodes` / `edges` / `workflowJson` / `flowgram`。 | AuthoringSchema-only 方向正确，R2 需补持久化路径测试证明无 FlowGram JSON。 | R2 |
+| B-16 | Blocker | `src/backend/Atlas.Application.Microflows/Runtime/MicroflowRuntimeEngine.cs:249-252` | parallel/inclusive gateway 在 runtime 主路径显式 unsupported。 | 不满足 trueParallel 与 inclusive activation set 要求。 | R4 |
+| B-17 | Major | `src/backend/Atlas.Application.Microflows/Runtime/Expressions/MicroflowExpressionParser.cs:5-42` | 后端已有 parser，可解析 if/then/else 等表达式并产 diagnostics。 | R4 仍需 lexer/parser/typechecker/evaluator/formatter/completion/preview API 与前端 editor 共享语义。 | R4 |
+| B-18 | Major | `src/backend/Atlas.Application.Microflows/Runtime/Expressions/MicroflowExpressionModels.cs:438-448` | `IMicroflowExpressionEvaluator` 暴露 Parse/Infer/Evaluate。 | 运行时基础有了，但尚无 `api/v1/microflow-expressions/*` 端点。 | R4 |
+| B-19 | Major | `src/backend/Atlas.Application.Microflows/Runtime/MicroflowVariableStoreModels.cs:57-107` | 已有 `MicroflowRuntimeVariableValue` 与 `MicroflowVariableDefinition`。 | R3 变量类型系统需进一步收敛为 RuntimeObjectRef/ListValue/PrimitiveValue 等强类型。 | R3 |
+| B-20 | Critical | `src/backend/Atlas.Application.Microflows/Runtime/Actions/Http/MicroflowRestSecurityPolicy.cs:43-109` | Rest security policy 拒绝空 URL、非法 scheme、denylist、私网/localhost。 | SSRF 基础存在；R5 需补 restCallSsrf/privateNetworkBlocked 场景测试。 | R5 |
+| B-21 | Major | `src/backend/Atlas.AppHost/appsettings.Production.json:16-48` | Production 配置禁用 real HTTP/private network，限制 runtime steps/trace/logs。 | R2/R5 gate 需检查生产配置未被 mock/seed/internal-debug 破坏。 | R2/R5 |
+| B-22 | Major | `src/backend/Atlas.Application.Microflows/Runtime/Actions/MicroflowActionRuntimeModels.cs:72-129` | action executor / connector registry / connector 接口已抽象。 | R3 connector stub 可复用接口，但 server-action/workflow/document/ml/external 专用接口尚未落地。 | R3 |
+
+### 3.3 后端后续修复计划
+
+| 修复项 | 目标轮次 | 验收 |
+|---|---|---|
+| health 明确 `[AllowAnonymous]`，其余 microflow API 保持 `[Authorize]` | R2 | `MicroflowAuthorizationTests` |
+| workspace ownership 覆盖 appId 资产反查 | R2 | `MicroflowAppAssetsControllerWorkspaceOwnershipTests` |
+| production guard 拒 mock/seed/internal-debug 配置 | R2 | `MicroflowProductionGuardFilterTests` + P0 readiness verify |
+| save baseVersion 409 envelope 与 clientRequestId 幂等 | R2 | `MicroflowSaveBaseVersionConflictTests` |
+| rollback/cast/listOperation 真实 executor | R3 | executor 单测 + strict coverage verify |
+| connector stub 与 capability registry | R3 | connector stub registry tests |
+| trueParallel / inclusive gateway | R4 | gateway tests + verify scripts |
+| expression API / editor / step debug API | R4 | API tests + frontend specs |
