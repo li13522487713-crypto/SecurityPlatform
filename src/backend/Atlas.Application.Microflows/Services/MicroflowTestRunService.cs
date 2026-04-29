@@ -15,6 +15,7 @@ namespace Atlas.Application.Microflows.Services;
 public sealed class MicroflowTestRunService : IMicroflowTestRunService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const int DefaultRunTimeoutSeconds = 300;
 
     private readonly IMicroflowResourceRepository _resourceRepository;
     private readonly IMicroflowSchemaSnapshotRepository _schemaSnapshotRepository;
@@ -27,6 +28,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
+    private readonly IMicroflowRunCancellationRegistry _cancellationRegistry;
+    private readonly IMicroflowRunOwnershipGuard _ownershipGuard;
 
     public MicroflowTestRunService(
         IMicroflowResourceRepository resourceRepository,
@@ -39,7 +42,9 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         IMicroflowExecutionPlanLoader executionPlanLoader,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowAuditWriter auditWriter,
-        IMicroflowClock clock)
+        IMicroflowClock clock,
+        IMicroflowRunCancellationRegistry cancellationRegistry,
+        IMicroflowRunOwnershipGuard ownershipGuard)
     {
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
@@ -52,6 +57,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         _requestContextAccessor = requestContextAccessor;
         _auditWriter = auditWriter;
         _clock = clock;
+        _cancellationRegistry = cancellationRegistry;
+        _ownershipGuard = ownershipGuard;
     }
 
     public async Task<TestRunMicroflowApiResponse> TestRunAsync(
@@ -367,6 +374,18 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         }
 
         return (MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), snapshot.Id);
+    }
+
+    private static int ResolveRunTimeoutSeconds()
+    {
+        var configured = Environment.GetEnvironmentVariable("Microflow__Runtime__RunTimeoutSeconds")
+            ?? Environment.GetEnvironmentVariable("MICROFLOW_RUNTIME_RUN_TIMEOUT_SECONDS");
+        if (int.TryParse(configured, out var seconds))
+        {
+            return Math.Max(0, seconds);
+        }
+
+        return DefaultRunTimeoutSeconds;
     }
 
     private static TestRunMicroflowApiResponse ToApiResponse(MicroflowRunSessionDto session, string traceId)

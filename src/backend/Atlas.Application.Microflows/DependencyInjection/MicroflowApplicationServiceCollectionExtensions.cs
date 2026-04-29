@@ -87,6 +87,8 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowCallStackService, MicroflowCallStackService>();
         services.TryAddScoped<IMicroflowLoopExecutor, MicroflowLoopExecutor>();
         services.TryAddScoped<IMicroflowRuntimeConnectorRegistry, MicroflowRuntimeConnectorRegistry>();
+        services.TryAddSingleton<IMicroflowRunCancellationRegistry, MicroflowRunCancellationRegistry>();
+        services.TryAddScoped<IMicroflowRunOwnershipGuard, MicroflowRunOwnershipGuard>();
         // P0-9: AppHost 层会用真实 audit adapter 覆盖；Application 默认 NoOp 防止 nullref。
         services.TryAddSingleton<IMicroflowAuditWriter, NullMicroflowAuditWriter>();
         services.TryAddScoped<IMicroflowTestRunService, MicroflowTestRunService>();
