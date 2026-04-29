@@ -321,10 +321,8 @@ export function parseFrontendActionKinds(root = findWorkspaceRoot()): Set<string
     ...parseStringSet(registry, "PARTIAL_ACTION_KINDS"),
     ...parseStringSet(actionRegistry, "P0_ACTION_KINDS")
   ]);
-  const regex = /(?:actionKind|kind|key)\s*:\s*"([A-Za-z][A-Za-z0-9_]*)"/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(actionRegistry)) !== null) {
-    kinds.add(match[1]);
+  for (const action of collectFrontendActionRegistry(root)) {
+    kinds.add(action.actionKind);
   }
   return kinds;
 }

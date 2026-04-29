@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  collectFrontendMicroflowRegistry,
   parseBackendDescriptors,
   parseFrontendActionKinds,
   parseMarkdownMatrixActionKinds,
@@ -30,6 +31,7 @@ const descriptors = parseBackendDescriptors(root);
 const descriptorKinds = new Set(descriptors.map(descriptor => descriptor.actionKind));
 const frontendKinds = parseFrontendActionKinds(root);
 const propertyFormKeys = parseRegisteredPropertyFormKeys(root);
+const frontendSnapshot = collectFrontendMicroflowRegistry(root);
 
 add(
   "backend-descriptors-present",
@@ -97,6 +99,18 @@ add(
   "pass",
   `property form registry 可解析；当前显式注册 key 数量 ${propertyFormKeys.size}。`,
   propertyFormKeys.size === 0 ? ["R1 仅建立矩阵，专用 forms 将在 R3 补齐。"] : undefined
+);
+
+add(
+  "frontend-action-collector",
+  frontendSnapshot.actions.length > 0 ? "pass" : "fail",
+  `前端 action registry collector 采集到 ${frontendSnapshot.actions.length} 个 action。`
+);
+
+add(
+  "frontend-node-collector",
+  frontendSnapshot.nodes.length > 0 ? "pass" : "fail",
+  `前端 node registry collector 采集到 ${frontendSnapshot.nodes.length} 个节点。`
 );
 
 for (const result of results) {
