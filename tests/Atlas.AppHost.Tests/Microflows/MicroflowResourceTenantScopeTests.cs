@@ -1,4 +1,5 @@
 using Atlas.Application.Microflows.Abstractions;
+using Atlas.Application.Microflows.Audit;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
@@ -83,6 +84,7 @@ public sealed class MicroflowResourceTenantScopeTests
         var snapshotRepo = Substitute.For<IMicroflowSchemaSnapshotRepository>();
         var refRepo = Substitute.For<IMicroflowReferenceRepository>();
         var indexer = Substitute.For<IMicroflowReferenceIndexer>();
+        var auditWriter = Substitute.For<IMicroflowAuditWriter>();
         var accessor = new StubAccessor(workspace, tenant);
         var clock = new FixedClock();
         var service = new MicroflowResourceService(
@@ -92,6 +94,7 @@ public sealed class MicroflowResourceTenantScopeTests
             refRepo,
             indexer,
             accessor,
+            auditWriter,
             clock);
         return (service, resourceRepo, accessor);
     }
