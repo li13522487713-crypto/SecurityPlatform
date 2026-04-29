@@ -87,6 +87,7 @@ const backendMockFallback = matching(backendFiles, /fallback\s+mock|mock catalog
   || path.includes("/obj/")
   || path.includes("appsettings.Development.json")
   || path.includes("appsettings.Production.json")
+  || path.includes("MicroflowProductionGuardFilter.cs")
   || path.includes("MicroflowMockRuntimeRunner.cs")
   || path.includes("MicroflowRuntimeHttpModels.cs")
 );

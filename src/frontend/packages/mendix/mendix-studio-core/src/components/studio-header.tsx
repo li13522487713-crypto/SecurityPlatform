@@ -13,16 +13,11 @@ import {
 } from "@douyinfe/semi-icons";
 import { useMendixStudioStore } from "../store";
 import { validateLowCodeAppSchema } from "@atlas/mendix-validator";
-import { MOCK_VALIDATION_ERRORS } from "../data/mock-debug-trace";
-import { SAMPLE_PROCUREMENT_APP, SAMPLE_RUNTIME_OBJECT } from "../sample-app";
 
 export function StudioHeader() {
   const app = useMendixStudioStore(state => state.appSchema);
-  const setAppSchema = useMendixStudioStore(state => state.setAppSchema);
-  const setRuntimeObject = useMendixStudioStore(state => state.setRuntimeObject);
   const setValidationErrors = useMendixStudioStore(state => state.setValidationErrors);
   const setPreviewMode = useMendixStudioStore(state => state.setPreviewMode);
-  const setLatestTrace = useMendixStudioStore(state => state.setLatestTrace);
 
   const handleSave = () => {
     try {
@@ -35,28 +30,12 @@ export function StudioHeader() {
 
   const handleValidate = () => {
     const errors = validateLowCodeAppSchema(app);
-    const displayErrors = errors.length > 0 ? errors : MOCK_VALIDATION_ERRORS;
-    setValidationErrors(displayErrors);
-    Toast.info({ content: `校验完成，共 ${displayErrors.length} 条结果`, duration: 2 });
+    setValidationErrors(errors);
+    Toast.info({ content: `校验完成，共 ${errors.length} 条结果`, duration: 2 });
   };
 
   const handlePreview = () => {
     setPreviewMode(true);
-  };
-
-  const handleLoadSample = () => {
-    if (import.meta.env.PROD === true) {
-      Toast.warning({ content: "生产环境不允许加载示例数据", duration: 2 });
-      return;
-    }
-
-    setAppSchema(JSON.parse(JSON.stringify(SAMPLE_PROCUREMENT_APP)) as typeof SAMPLE_PROCUREMENT_APP);
-    setRuntimeObject({ ...SAMPLE_RUNTIME_OBJECT });
-    setValidationErrors(MOCK_VALIDATION_ERRORS);
-    import("../data/mock-debug-trace").then(({ MOCK_DEBUG_TRACE }) => {
-      setLatestTrace(MOCK_DEBUG_TRACE);
-    });
-    Toast.success({ content: "示例数据已加载", duration: 2 });
   };
 
   return (
@@ -104,14 +83,6 @@ export function StudioHeader() {
           <IconExport size="small" />
           <span>导出</span>
         </button>
-
-        <div className="studio-header__divider" style={{ margin: "0 4px" }} />
-
-        <button className="studio-header__action" onClick={handleLoadSample} title="加载示例数据">
-          <span>示例数据</span>
-        </button>
-
-        <div className="studio-header__divider" style={{ margin: "0 4px" }} />
 
         <button className="studio-header__action" title="撤销">
           <IconUndo size="small" />

@@ -49,8 +49,25 @@ export function createDefaultActionConfig(
     case "commit":
     case "delete":
     case "rollback":
+      return {
+        objectVariableName: "",
+        objectOrListVariableName: "",
+        rollbackMode: "objectOnly",
+        failIfNotChanged: false,
+        clearValidationErrors: true
+      };
     case "cast":
-      return { objectVariableName: "" };
+      return {
+        objectVariableName: "",
+        sourceVariable: "",
+        sourceObjectVariableName: "",
+        targetEntity: "",
+        targetEntityQualifiedName: "",
+        outputVariable: "",
+        outputVariableName: "",
+        castMode: "strict",
+        failOnInvalidType: true
+      };
     case "aggregateList":
       return { listVariableName: "", sourceListVariableName: "", operation: "count", aggregateFunction: "count", resultVariableName: "", outputVariableName: "" };
     case "createList":

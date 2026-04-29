@@ -19,9 +19,11 @@ type GenericActionField =
 
 const genericActionFieldDefinitions: Partial<Record<MicroflowAction["kind"], GenericActionField[]>> = {
   cast: [
-    { key: "sourceObjectVariableName", label: "Source Object Variable", control: "text", required: true },
-    { key: "targetEntityQualifiedName", label: "Target Entity", control: "text", required: true },
-    { key: "outputVariableName", label: "Output Variable", control: "text", required: true }
+    { key: "sourceVariable", label: "Source Variable", control: "text", required: true },
+    { key: "targetEntity", label: "Target Entity", control: "text", required: true },
+    { key: "outputVariable", label: "Output Variable", control: "text", required: true },
+    { key: "castMode", label: "Cast Mode", control: "select", options: ["strict", "allowNull"], required: true },
+    { key: "failOnInvalidType", label: "Fail On Invalid Type", control: "switch" }
   ],
   aggregateList: [
     { key: "listVariableName", label: "List Variable", control: "text", required: true },
@@ -265,6 +267,12 @@ export function GenericActionFields({
     <>
       <Title heading={6} style={{ margin: "10px 0 0" }}>{action.kind}</Title>
       {action.editor.availability !== "supported" ? <Tag color={action.editor.availability === "deprecated" ? "orange" : action.editor.availability === "beta" ? "blue" : "grey"}>{action.editor.availabilityReason ?? action.editor.availability}</Tag> : null}
+      {action.editor.availability === "requiresConnector" ? (
+        <>
+          <Tag color="red">Capability Missing</Tag>
+          <Text type="warning" size="small">Connector capability is required. Save can keep this draft, but publish must block until the capability is available.</Text>
+        </>
+      ) : null}
       {fields.map(field => {
         const value = record[field.key];
         const fieldIssues = getIssuesForField(issues, `action.${field.key}`);

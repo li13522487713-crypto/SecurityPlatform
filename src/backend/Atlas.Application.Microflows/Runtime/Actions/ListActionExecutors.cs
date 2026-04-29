@@ -193,7 +193,9 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
         ct.ThrowIfCancellationRequested();
         var started = Stopwatch.StartNew();
         var operation = (ReadString(context.ActionConfig, "operation") ?? "size").Trim();
-        var sourceName = ReadString(context.ActionConfig, "listVariableName")
+        var sourceName = ReadString(context.ActionConfig, "inputListVariable")
+            ?? ReadString(context.ActionConfig, "inputListVariableName")
+            ?? ReadString(context.ActionConfig, "listVariableName")
             ?? ReadString(context.ActionConfig, "sourceVariableName")
             ?? ReadString(context.ActionConfig, "leftVariableName");
         var outputName = ReadString(context.ActionConfig, "outputVariableName")
@@ -208,11 +210,11 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
             "subtract" => JsonSerializer.SerializeToElement(source.Where(item => !ContainsJson(other, item)).Select(item => item.Clone()).ToArray(), JsonOptions),
             "equals" => JsonSerializer.SerializeToElement(JsonArraysEqual(source, other), JsonOptions),
             "distinct" => JsonSerializer.SerializeToElement(DistinctByJson(source), JsonOptions),
-            "contains" => JsonSerializer.SerializeToElement(ContainsJson(source, ReadItem(context.ActionConfig)), JsonOptions),
+            "contains" => JsonSerializer.SerializeToElement(ContainsJson(source, ReadItem(context, context.ActionConfig)), JsonOptions),
             "isEmpty" => JsonSerializer.SerializeToElement(source.Count == 0, JsonOptions),
             "head" or "first" => source.Count > 0 ? source[0].Clone() : JsonNull(),
             "tail" => JsonSerializer.SerializeToElement(source.Skip(1).Select(item => item.Clone()).ToArray(), JsonOptions),
-            "find" => FindByValue(source, ReadItem(context.ActionConfig)),
+            "find" => FindByValue(source, ReadItem(context, context.ActionConfig)),
             "last" => source.Count > 0 ? source[^1].Clone() : JsonNull(),
             "reverse" => JsonSerializer.SerializeToElement(source.AsEnumerable().Reverse().Select(item => item.Clone()).ToArray(), JsonOptions),
             "size" => JsonSerializer.SerializeToElement(source.Count, JsonOptions),
@@ -241,6 +243,8 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
     private static List<JsonElement> ReadOtherItems(MicroflowActionExecutionContext context)
     {
         var otherName = ReadString(context.ActionConfig, "otherListVariableName")
+            ?? ReadString(context.ActionConfig, "secondListVariable")
+            ?? ReadString(context.ActionConfig, "secondListVariableName")
             ?? ReadString(context.ActionConfig, "rightVariableName");
         var other = ReadListItems(context, otherName);
         if (other.Count > 0)
@@ -258,10 +262,19 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
         return [];
     }
 
-    private static JsonElement ReadItem(JsonElement config)
+    private static JsonElement ReadItem(MicroflowActionExecutionContext context, JsonElement config)
     {
         if (config.ValueKind == JsonValueKind.Object)
         {
+            var itemVariableName = ReadString(config, "itemVariable") ?? ReadString(config, "itemVariableName");
+            if (!string.IsNullOrWhiteSpace(itemVariableName)
+                && context.VariableStore.TryGet(itemVariableName!, out var variable)
+                && variable?.RawValueJson is not null
+                && MicroflowVariableStore.ToJsonElement(variable.RawValueJson) is { } variableValue)
+            {
+                return variableValue;
+            }
+
             if (config.TryGetProperty("item", out var item))
             {
                 return item.Clone();

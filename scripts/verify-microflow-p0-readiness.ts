@@ -22,15 +22,15 @@ interface Step {
 const steps: Step[] = [
   {
     name: "verify-microflow-production-no-mock",
-    command: ["npx", "--yes", "tsx", "scripts/verify-microflow-production-no-mock.ts"],
+    command: ["node", "scripts/verify-microflow-production-no-mock.ts"],
   },
   {
     name: "verify-microflow-runtime-coverage",
-    command: ["npx", "--yes", "tsx", "scripts/verify-microflow-runtime-coverage.ts"],
+    command: ["node", "scripts/verify-microflow-runtime-coverage.ts"],
   },
   {
     name: "verify-microflow-production-readiness",
-    command: ["npx", "--yes", "tsx", "scripts/verify-microflow-production-readiness.ts"],
+    command: ["node", "scripts/verify-microflow-production-readiness.ts"],
     env: {
       MICROFLOW_READINESS_SKIP_BUILDS: process.env.MICROFLOW_READINESS_SKIP_BUILDS ?? "1",
       MICROFLOW_READINESS_SKIP_LIVE_HEALTH: process.env.MICROFLOW_READINESS_SKIP_LIVE_HEALTH ?? "1",

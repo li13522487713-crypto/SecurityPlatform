@@ -61,145 +61,145 @@ todos:
     status: completed
   - id: R2-09-frontend-error-envelope
     content: "R2: API 错误 envelope 区分 401/403/404/409/422/500 + MicroflowApiError 统一类型 + 401 触发 atlas:microflow-unauthorized + spec。"
-    status: in_progress
+    status: completed
   - id: R2-10-frontend-conflict-modal
     content: "R2: 保存冲突弹窗 4 选项（Reload Remote / Keep Local / Force Save / Cancel）+ Force Save 二次确认 + spec。"
-    status: pending
+    status: completed
   - id: R2-11-frontend-procurement-purge
     content: "R2: 移除 SAMPLE_PROCUREMENT_APP fallback + 空 app/无权限 403/404 UI + spec。"
-    status: pending
+    status: completed
   - id: R2-12-frontend-tab-isolation
     content: "R2: Workbench 多 tab 独立 dirty/save/history + close/switch tab dirty guard + beforeunload + spec。"
-    status: pending
+    status: completed
   - id: R2-13-frontend-save-payload
     content: "R2: save 请求带 schemaId/baseVersion/version/clientRequestId/saveReason + spec。"
-    status: pending
+    status: completed
   - id: R2-14-verify-p0
     content: "R2: scripts/verify-microflow-production-no-mock.ts 收紧 production build artifact 扫描 + scripts/verify-microflow-p0-readiness.ts 全 P0 项检验 + R2 闭环验证。"
-    status: pending
+    status: completed
   - id: R3-01-executor-rollback
     content: "R3: RollbackObjectActionExecutor 真实实现（reverted/noop/invalidated 三态 + UnitOfWork 要求 + trace）+ MicroflowRollbackExecutorTests。"
-    status: pending
+    status: completed
   - id: R3-02-executor-cast
     content: "R3: CastObjectActionExecutor 真实实现（metadata inheritance + strict/allowNull + entity access）+ MicroflowCastExecutorTests。"
-    status: pending
+    status: completed
   - id: R3-03-executor-listop-sets
     content: "R3: ListOperationActionExecutor 集合类（union/intersect/subtract/equals/distinct）+ MicroflowListOperationSetExecutorTests。"
-    status: pending
+    status: completed
   - id: R3-04-executor-listop-scalars
     content: "R3: ListOperationActionExecutor 标量/位置类（contains/isEmpty/head/tail/find/first/last/reverse/size）+ MicroflowListOperationScalarExecutorTests。"
-    status: pending
+    status: completed
   - id: R3-05-descriptor-normalizer
     content: "R3: MicroflowActionDescriptorNormalizer（10+ 旧→canonical 映射：webserviceCall→webServiceCall / callExternal→callExternalAction / deleteExternal→deleteExternalObject / sendExternal→sendExternalObject / rollbackObject→rollback / castObject→cast / listUnion|listIntersect|listSubtract→listOperation / aggregate→aggregateList / filter→filterList / sort→sortList）+ 测试。"
-    status: pending
+    status: completed
   - id: R3-06-schema-migration
     content: "R3: MicroflowSchemaMigrationService（load 时 normalize / save canonical / publish snapshot canonical / 幂等 / 不丢字段 / MIGRATION_FAILED 阻断 publish）+ MicroflowSchemaMigrationServiceTests。"
-    status: pending
+    status: completed
   - id: R3-07-connector-stub-soap
     content: "R3: ISoapWebServiceConnector + IXmlMappingConnector 接口 + 默认空实现（capability=false）+ DI + 测试。"
-    status: pending
+    status: completed
   - id: R3-08-connector-stub-document
     content: "R3: IDocumentGenerationRuntime 接口 + 默认空实现 + DI + 测试。"
-    status: pending
+    status: completed
   - id: R3-09-connector-stub-workflow
     content: "R3: IWorkflowRuntimeClient 接口 + 默认空实现 + DI + 测试。"
-    status: pending
+    status: completed
   - id: R3-10-connector-stub-ml
     content: "R3: IMlRuntime 接口 + 默认空实现 + DI + 测试。"
-    status: pending
+    status: completed
   - id: R3-11-connector-stub-external
     content: "R3: IExternalActionConnector + IExternalObjectConnector 接口 + 默认空实现 + DI + 测试。"
-    status: pending
+    status: completed
   - id: R3-12-connector-stub-server-action
     content: "R3: IServerActionRuntime（callJavaAction）接口 + 默认空实现 + DI + capability registry 占位 + 测试。"
-    status: pending
+    status: completed
   - id: R3-13-runtime-abstr-scheduler
     content: "R3: IBranchScheduler / SequentialBranchScheduler（行为不变，为 R4 铺路）+ 测试。"
-    status: pending
+    status: completed
   - id: R3-14-runtime-abstr-uow-joinstore
     content: "R3: IBranchUnitOfWork + IGatewayJoinStateStore + 默认实现（行为不变）+ 测试。"
-    status: pending
+    status: completed
   - id: R3-15-variable-types
     content: "R3: RuntimeVariableValue / RuntimeObjectRef / RuntimeListValue / RuntimePrimitiveValue / RuntimeExternalObjectRef / RuntimeFileRef / RuntimeCommandValue + VariableScopeFrame + EntityTypeDescriptor + ListTypeDescriptor + executor 私有处理收敛 + 测试。"
-    status: pending
+    status: completed
   - id: R3-16-pp-rollback-cast
     content: "R3: 前端 property panel Rollback + Cast 表单（rollbackMode/failIfNotChanged/clearValidationErrors/sourceVariable/targetEntity/castMode/failOnInvalidType）+ spec。"
-    status: pending
+    status: completed
   - id: R3-17-pp-listop
     content: "R3: 前端 ListOperation 表单（动态字段切换 14 operation + outputType 自动推断）+ spec。"
-    status: pending
+    status: completed
   - id: R3-18-pp-aggregate-filter-sort
     content: "R3: 前端 Aggregate + Filter + Sort 表单（emptyListBehavior / itemVariable / expression / sortKeys）+ spec。"
-    status: pending
+    status: completed
   - id: R3-19-pp-list-create-change
     content: "R3: 前端 CreateList + ChangeList 表单（add/addAll/remove/removeAll/clear/set + allowDuplicates + mutateInPlace）+ spec。"
-    status: pending
+    status: completed
   - id: R3-20-pp-callmf-restcall
     content: "R3: 前端 CallMicroflow（target metadata + parameter mapping + return）+ RestCall 表单 + spec。"
-    status: pending
+    status: completed
   - id: R3-21-pp-webservice-external
     content: "R3: 前端 WebService + ExternalAction + ExternalObject 表单 + capability 状态显示（Required/Available/Missing）+ publish blocker 字段定位 + spec。"
-    status: pending
+    status: completed
   - id: R3-22-verify-strict
     content: "R3: verify-microflow-action-descriptor-naming.ts + verify-microflow-executor-coverage.ts 收紧失败条件 + R3 闭环验证。"
-    status: pending
+    status: completed
   - id: R4-GW-01-token-model
     content: "R4: GatewayToken + GatewayTokenSet + SplitInstanceId + ActivationSet 数据模型 + 测试。"
-    status: pending
+    status: completed
   - id: R4-GW-02-state-store
     content: "R4: GatewayRuntimeState 持久化（async run/debug/cancel 状态不丢，含 arrivedTokens/completedTokens/failedTokens/cancelledTokens/branchStates）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-GW-03-parallel-split
     content: "R4: ParallelGatewaySplitExecutor + Task.WhenAll trueParallel branch scheduler（schedulerMode=trueParallel）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-GW-04-parallel-join
     content: "R4: ParallelGatewayJoinExecutor 等待全分支 + sibling cancel 策略 + 测试。"
-    status: pending
+    status: completed
   - id: R4-GW-05-inclusive-split
     content: "R4: InclusiveGatewaySplitExecutor + activation set 计算 + otherwise 唯一 + INCLUSIVE_NO_BRANCH_SELECTED + 测试。"
-    status: pending
+    status: completed
   - id: R4-GW-06-inclusive-join
     content: "R4: InclusiveGatewayJoinExecutor 仅等 active branch + 测试。"
-    status: pending
+    status: completed
   - id: R4-GW-07-per-branch-uow
     content: "R4: per-branch UnitOfWork + commit/rollback semantics + 测试。"
-    status: pending
+    status: completed
   - id: R4-GW-08-write-conflict
     content: "R4: PARALLEL_VARIABLE_WRITE_CONFLICT + PARALLEL_WRITE_CONFLICT 检测（同 split 并发写同 variable/object/member）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-GW-09-loop-cancel
     content: "R4: split / loop iter / callMicroflow 三层 token 隔离 + cancellationToken 全链路 + branch 失败默认取消 sibling + errorHandling continue 允许产生 handled token + 测试。"
-    status: pending
+    status: completed
   - id: R4-GW-10-validation-trace-verify
     content: "R4: validation（split outgoing≥2 / inclusive Boolean / otherwise 唯一 / loop 内 token / parallel 内不支持节点 publish 阻断）+ GatewayTraceWriter + scripts/verify-microflow-parallel-gateway.ts + verify-microflow-inclusive-gateway.ts。"
-    status: pending
+    status: completed
   - id: R4-EX-01-lexer
     content: "R4: MicroflowExpressionLexer（字面量/变量/属性/函数/算术/比较/逻辑/条件/字符串/日期/list/error/http）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-EX-02-parser-ast
     content: "R4: MicroflowExpressionParser + Ast 模型 + 测试。"
-    status: pending
+    status: completed
   - id: R4-EX-03-typechecker
     content: "R4: MicroflowExpressionTypeChecker（变量/属性类型/函数签名/null-safe access/expectedType 验证）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-EX-04-evaluator
     content: "R4: MicroflowExpressionEvaluator（白名单函数 + 禁 eval/Function/反射/动态 SQL）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-EX-05-formatter
     content: "R4: MicroflowExpressionFormatter（保字符串 + 不改语义）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-EX-06-completion
     content: "R4: MicroflowExpressionCompletionProvider（变量/属性/函数/enum/$latestError/$latestHttpResponse）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-EX-07-diagnostics
     content: "R4: MicroflowExpressionDiagnosticsProvider + range/severity/code（含 blockPublish 级别）+ quick fix + 测试。"
-    status: pending
+    status: completed
   - id: R4-EX-08-preview
     content: "R4: MicroflowExpressionPreviewService（基于 sample context 预览，不写 runtime）+ 测试。"
-    status: pending
+    status: completed
   - id: R4-EX-09-api
     content: "R4: 6 个 expression API 端点（POST /api/v1/microflow-expressions/{parse,validate,infer-type,completions,format,preview}）+ 鉴权 + metadataVersion 校验 + 测试。"
-    status: pending
+    status: in_progress
   - id: R4-EX-10-frontend
     content: "R4: ExpressionEditor 前端组件（CodeMirror 6 lazy load）+ 前端 TypeScript port TypeChecker（与后端共享语义）+ 接入所有 expression 字段 + spec + verify-microflow-expression-language.ts + verify-microflow-expression-editor.ts。"
     status: pending

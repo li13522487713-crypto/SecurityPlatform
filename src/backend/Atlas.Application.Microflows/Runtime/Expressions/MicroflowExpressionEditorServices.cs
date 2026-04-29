@@ -80,7 +80,9 @@ public sealed class MicroflowExpressionFormatter
         => string.Join(" ", new MicroflowExpressionTokenizer()
             .Tokenize(raw)
             .Where(token => token.Kind != MicroflowExpressionTokenKind.Eof)
-            .Select(token => token.Text));
+            .Select(static token => token.Kind == MicroflowExpressionTokenKind.StringLiteral
+                ? $"'{token.Text}'"
+                : token.Text));
 }
 
 public sealed class MicroflowExpressionPreviewService

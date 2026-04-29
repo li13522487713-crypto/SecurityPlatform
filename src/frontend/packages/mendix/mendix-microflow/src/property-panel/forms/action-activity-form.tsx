@@ -18,9 +18,31 @@ import {
 } from "../utils/call-microflow-config";
 
 const { Text, Title } = Typography;
-const changeListOperations = ["add", "addRange", "remove", "removeWhere", "clear", "set"];
+const changeListOperations = ["add", "addAll", "addRange", "remove", "removeAll", "removeWhere", "clear", "set"];
 const aggregateListFunctions = ["count", "sum", "average", "min", "max"];
-const listOperationKinds = ["filter", "sort", "map", "distinct", "take", "skip", "union", "intersect"];
+const listOperationKinds = [
+  "union",
+  "intersect",
+  "subtract",
+  "contains",
+  "equals",
+  "isEmpty",
+  "head",
+  "tail",
+  "find",
+  "first",
+  "last",
+  "distinct",
+  "reverse",
+  "size",
+  "filter",
+  "sort",
+  "map",
+  "take",
+  "skip"
+];
+const listOperationSecondListKinds = new Set(["union", "intersect", "subtract", "equals"]);
+const listOperationItemKinds = new Set(["contains", "find"]);
 
 function RequiredConfigWarning({ visible, children }: { visible: boolean; children: string }) {
   return visible ? <Text type="warning" size="small">{children}</Text> : null;
@@ -418,7 +440,27 @@ export function ActionActivityForm({
             </FieldRow>
           ) : null}
           {action.kind === "rollback" ? (
-            <Tag color="orange">Rollback Object only reverts the selected object/list, not the whole error-handling transaction.</Tag>
+            <>
+              <FieldRow label="Rollback Mode" fieldPath="action.rollbackMode">
+                <Select
+                  value={action.rollbackMode ?? "objectOnly"}
+                  disabled={readonly}
+                  style={{ width: "100%" }}
+                  optionList={[
+                    { label: "objectOnly", value: "objectOnly" },
+                    { label: "objectAndAssociations (reserved)", value: "objectAndAssociations" }
+                  ]}
+                  onChange={rollbackMode => patchObject(updateAction(object, { rollbackMode: String(rollbackMode) as typeof action.rollbackMode }))}
+                />
+              </FieldRow>
+              <Field label="Fail If Not Changed">
+                <Switch checked={Boolean(action.failIfNotChanged)} disabled={readonly} onChange={failIfNotChanged => patchObject(updateAction(object, { failIfNotChanged }))} />
+              </Field>
+              <Field label="Clear Validation Errors">
+                <Switch checked={action.clearValidationErrors ?? true} disabled={readonly} onChange={clearValidationErrors => patchObject(updateAction(object, { clearValidationErrors }))} />
+              </Field>
+              <Tag color="orange">Rollback Object only reverts the selected object/list, not the whole error-handling transaction.</Tag>
+            </>
           ) : null}
         </>
       ) : null}
@@ -1208,6 +1250,29 @@ export function ActionActivityForm({
               onChange={operation => patchObject(updateAction(object, { operation: String(operation) as typeof action.operation }))}
             />
           </Field>
+          {action.operation === "addAll" || action.operation === "removeAll" || action.operation === "set" ? (
+            <Field label="Source List">
+              <VariableSelector
+                schema={schema}
+                objectId={object.id}
+                fieldPath="action.sourceListVariableName"
+                allowedTypeKinds={["list"]}
+                value={action.sourceListVariableName ?? action.sourceListVariable}
+                disabled={readonly}
+                includeSystem={false}
+                includeReadonly
+                scopeMode="index"
+                emptyMessage={listVariableEmptyMessage}
+                onChange={sourceListVariableName => patchObject(updateAction(object, { sourceListVariableName: sourceListVariableName ?? "", sourceListVariable: sourceListVariableName ?? "" }))}
+              />
+            </Field>
+          ) : null}
+          <Field label="Allow Duplicates">
+            <Switch checked={Boolean(action.allowDuplicates)} disabled={readonly} onChange={allowDuplicates => patchObject(updateAction(object, { allowDuplicates }))} />
+          </Field>
+          <Field label="Mutate In Place">
+            <Switch checked={action.mutateInPlace ?? true} disabled={readonly} onChange={mutateInPlace => patchObject(updateAction(object, { mutateInPlace }))} />
+          </Field>
           <Field label={action.operation === "addRange" ? "Items Expression" : "Item Expression"}>
             <ExpressionEditor
               value={action.operation === "addRange" ? action.itemsExpression ?? expression("") : action.itemExpression ?? expression("")}
@@ -1315,6 +1380,15 @@ export function ActionActivityForm({
             />
             <RequiredConfigWarning visible={!String(action.outputVariableName || action.resultVariableName || "").trim()}>Result variable 未配置；聚合结果不会进入 variable index。</RequiredConfigWarning>
           </FieldRow>
+          <FieldRow label="Empty List Behavior" fieldPath="action.emptyListBehavior">
+            <Select
+              value={action.emptyListBehavior ?? "zero"}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              optionList={["zero", "null", "error"].map(value => ({ label: value, value }))}
+              onChange={emptyListBehavior => patchObject(updateAction(object, { emptyListBehavior: String(emptyListBehavior) as typeof action.emptyListBehavior }))}
+            />
+          </FieldRow>
           <Tag color="grey">resultType: {dataTypeLabel(action.resultType ?? (action.aggregateFunction === "count" ? { kind: "integer" } : { kind: "decimal" }))}</Tag>
         </>
       ) : null}
@@ -1379,21 +1453,57 @@ export function ActionActivityForm({
               onChange={sortExpression => patchObject(updateAction(object, { sortExpression }))}
             />
           </Field>
-          {action.operation === "union" || action.operation === "intersect" ? (
+          {action.operation === "sort" ? (
+            <Field label="Sort Direction">
+              <Select
+                value={action.sortKeys?.[0]?.direction ?? "asc"}
+                disabled={readonly}
+                style={{ width: "100%" }}
+                optionList={[{ label: "asc", value: "asc" }, { label: "desc", value: "desc" }]}
+                onChange={direction => patchObject(updateAction(object, {
+                  sortKeys: [
+                    {
+                      ...(action.sortKeys?.[0] ?? {}),
+                      direction: String(direction) as "asc" | "desc",
+                      expression: action.sortExpression
+                    }
+                  ]
+                }))}
+              />
+            </Field>
+          ) : null}
+          {listOperationSecondListKinds.has(action.operation) ? (
             <Field label="Right List">
               <VariableSelector
                 schema={schema}
                 objectId={object.id}
                 fieldPath="action.rightListVariableName"
                 allowedTypeKinds={["list"]}
-                value={action.rightListVariableName}
+                value={action.rightListVariableName ?? action.secondListVariable ?? action.secondListVariableName}
                 disabled={readonly}
                 includeSystem={false}
                 scopeMode="index"
                 emptyMessage={listVariableEmptyMessage}
-                onChange={rightListVariableName => patchObject(updateAction(object, { rightListVariableName: rightListVariableName ?? "" }))}
+                onChange={rightListVariableName => patchObject(updateAction(object, { rightListVariableName: rightListVariableName ?? "", secondListVariable: rightListVariableName ?? "", secondListVariableName: rightListVariableName ?? "" }))}
               />
-              <RequiredConfigWarning visible={!String(action.rightListVariableName ?? "").trim()}>Right list is required for this operation.</RequiredConfigWarning>
+              <RequiredConfigWarning visible={!String(action.rightListVariableName ?? action.secondListVariable ?? action.secondListVariableName ?? "").trim()}>Right list is required for this operation.</RequiredConfigWarning>
+            </Field>
+          ) : null}
+          {listOperationItemKinds.has(action.operation) ? (
+            <Field label="Item Variable">
+              <VariableSelector
+                schema={schema}
+                objectId={object.id}
+                fieldPath="action.itemVariable"
+                allowedTypeKinds={["object"]}
+                value={action.itemVariable ?? action.itemVariableName ?? action.objectVariableName}
+                disabled={readonly}
+                includeSystem={false}
+                scopeMode="index"
+                emptyMessage="No object variables available."
+                onChange={itemVariable => patchObject(updateAction(object, { itemVariable: itemVariable ?? "", itemVariableName: itemVariable ?? "", objectVariableName: itemVariable ?? "" }))}
+              />
+              <RequiredConfigWarning visible={!String(action.itemVariable ?? action.itemVariableName ?? action.objectVariableName ?? "").trim()}>Item variable is required for this operation.</RequiredConfigWarning>
             </Field>
           ) : null}
           {action.operation === "take" || action.operation === "skip" ? (

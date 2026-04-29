@@ -233,7 +233,9 @@ public sealed class RollbackObjectActionExecutor : IMicroflowActionExecutor
         }, ct);
 
         var state = result.Success
-            ? "reverted"
+            ? result.Message.Contains("invalidated", StringComparison.OrdinalIgnoreCase)
+                ? "invalidated"
+                : "reverted"
             : string.Equals(result.Code, RuntimeErrorCode.RuntimeObjectNotFound, StringComparison.OrdinalIgnoreCase)
                 ? "noop"
                 : "invalidated";

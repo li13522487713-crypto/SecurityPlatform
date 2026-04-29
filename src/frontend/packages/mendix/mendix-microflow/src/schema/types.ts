@@ -883,6 +883,9 @@ export interface MicroflowRollbackAction extends MicroflowActionBase {
   officialType: "Microflows$RollbackAction";
   objectOrListVariableName: string;
   refreshInClient: boolean;
+  rollbackMode?: "objectOnly" | "objectAndAssociations";
+  failIfNotChanged?: boolean;
+  clearValidationErrors?: boolean;
 }
 
 export interface MicroflowCallMicroflowAction extends MicroflowActionBase {
@@ -922,9 +925,28 @@ export interface MicroflowChangeVariableAction extends MicroflowActionBase {
   newValueExpression: MicroflowExpression;
 }
 
-export type MicroflowChangeListOperation = "add" | "addRange" | "remove" | "removeWhere" | "clear" | "set";
+export type MicroflowChangeListOperation = "add" | "addAll" | "addRange" | "remove" | "removeAll" | "removeWhere" | "clear" | "set";
 export type MicroflowAggregateListFunction = "count" | "sum" | "average" | "min" | "max";
-export type MicroflowListOperationKind = "filter" | "sort" | "map" | "distinct" | "take" | "skip" | "union" | "intersect";
+export type MicroflowListOperationKind =
+  | "union"
+  | "intersect"
+  | "subtract"
+  | "contains"
+  | "equals"
+  | "isEmpty"
+  | "head"
+  | "tail"
+  | "find"
+  | "first"
+  | "last"
+  | "distinct"
+  | "reverse"
+  | "size"
+  | "filter"
+  | "sort"
+  | "map"
+  | "take"
+  | "skip";
 
 export interface MicroflowCreateListAction extends MicroflowActionBase {
   kind: "createList";
@@ -948,6 +970,10 @@ export interface MicroflowChangeListAction extends MicroflowActionBase {
   operation: MicroflowChangeListOperation;
   itemExpression?: MicroflowExpression;
   itemsExpression?: MicroflowExpression;
+  sourceListVariable?: string;
+  sourceListVariableName?: string;
+  allowDuplicates?: boolean;
+  mutateInPlace?: boolean;
   conditionExpression?: MicroflowExpression;
   indexExpression?: MicroflowExpression;
 }
@@ -966,6 +992,7 @@ export interface MicroflowAggregateListAction extends MicroflowActionBase {
   resultVariableId?: string;
   resultVariableName?: string;
   resultType?: MicroflowDataType;
+  emptyListBehavior?: "zero" | "null" | "error";
 }
 
 export interface MicroflowListOperationAction extends MicroflowActionBase {
@@ -976,12 +1003,22 @@ export interface MicroflowListOperationAction extends MicroflowActionBase {
   sourceListVariableId?: string;
   operation: MicroflowListOperationKind;
   rightListVariableName?: string;
+  secondListVariable?: string;
+  secondListVariableName?: string;
   targetListVariableName?: string;
   targetListVariableId?: string;
   objectVariableName?: string;
+  itemVariable?: string;
+  itemVariableName?: string;
   expression?: MicroflowExpression;
   filterExpression?: MicroflowExpression;
   sortExpression?: MicroflowExpression;
+  sortKeys?: Array<{
+    memberName?: string;
+    expression?: MicroflowExpression;
+    direction: "asc" | "desc";
+    nulls?: "first" | "last";
+  }>;
   limit?: number;
   offset?: number;
   distinct?: boolean;

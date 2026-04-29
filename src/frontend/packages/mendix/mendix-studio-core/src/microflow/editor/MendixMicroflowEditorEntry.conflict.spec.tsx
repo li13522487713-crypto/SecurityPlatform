@@ -160,6 +160,14 @@ describe("MendixMicroflowEditorEntry save conflict", () => {
     expect(screen.getByText((_, node) => node?.textContent === "remote version: 2")).toBeTruthy();
     expect(screen.getByText((_, node) => node?.textContent === "remote updatedBy: remote-user")).toBeTruthy();
     expect(screen.getByText((_, node) => node?.textContent === "traceId: trace-409")).toBeTruthy();
+    expect(saveMicroflowSchema.mock.calls[0]?.[2]).toMatchObject({
+      baseVersion: "schema-1",
+      schemaId: "schema-1",
+      version: "1",
+      saveReason: "manual",
+      force: false,
+    });
+    expect(saveMicroflowSchema.mock.calls[0]?.[2]?.clientRequestId).toEqual(expect.stringContaining("mf-1:"));
 
     fireEvent.click(screen.getByText("Force Save"));
 

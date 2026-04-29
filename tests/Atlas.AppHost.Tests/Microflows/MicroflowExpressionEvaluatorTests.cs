@@ -11,6 +11,24 @@ public sealed class MicroflowExpressionEvaluatorTests
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void Lexer_TokenizesVariablesMembersFunctionsOperatorsAndConditionals()
+    {
+        var lexer = new MicroflowExpressionLexer();
+
+        var tokens = lexer.Tokenize("if $Order/TotalAmount > 100 and contains($Name, 'A') then now() else empty");
+        var tokenKinds = tokens.Select(token => token.Kind).ToArray();
+
+        Assert.Contains(MicroflowExpressionTokenKind.Keyword, tokenKinds);
+        Assert.Contains(MicroflowExpressionTokenKind.DollarVariable, tokenKinds);
+        Assert.Contains(MicroflowExpressionTokenKind.Slash, tokenKinds);
+        Assert.Contains(MicroflowExpressionTokenKind.Identifier, tokenKinds);
+        Assert.Contains(MicroflowExpressionTokenKind.NumberLiteral, tokenKinds);
+        Assert.Contains(MicroflowExpressionTokenKind.StringLiteral, tokenKinds);
+        Assert.Contains(MicroflowExpressionTokenKind.Operator, tokenKinds);
+        Assert.Equal(MicroflowExpressionTokenKind.Eof, tokens[^1].Kind);
+    }
+
+    [Fact]
     public void Parser_ReturnsDiagnostics_ForInvalidExpressions()
     {
         var evaluator = new MicroflowExpressionEvaluator();
@@ -79,6 +97,25 @@ public sealed class MicroflowExpressionEvaluatorTests
         Assert.False(evaluator.Evaluate("unsupported($Amount)", context).Success);
     }
 
+    [Theory]
+    [InlineData("eval('$Amount')")]
+    [InlineData("Function('$Amount')")]
+    [InlineData("System.Reflection.Assembly.Load('x')")]
+    [InlineData("select * from Orders")]
+    public void Evaluator_RejectsNonWhitelistedFunctionsAndDynamicCode(string raw)
+    {
+        var evaluator = new MicroflowExpressionEvaluator();
+
+        var result = evaluator.Evaluate(raw, CreateContext());
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code is MicroflowExpressionDiagnosticCode.UnsupportedFunction
+                or MicroflowExpressionDiagnosticCode.ParseError
+                or MicroflowExpressionDiagnosticCode.TrailingToken
+                or MicroflowExpressionDiagnosticCode.TypeMismatch);
+    }
+
     [Fact]
     public void Evaluator_EnforcesExpectedType()
     {
@@ -89,6 +126,59 @@ public sealed class MicroflowExpressionEvaluatorTests
 
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, item => item.Code == MicroflowExpressionDiagnosticCode.ExpectedTypeMismatch);
+    }
+
+    [Fact]
+    public void Formatter_NormalizesWhitespaceWithoutChangingStringLiteralContent()
+    {
+        var formatter = new MicroflowExpressionFormatter();
+
+        var formatted = formatter.Format(" if   $Flag  then  'a  b'   else   'c' ");
+
+        Assert.Equal("if $Flag then 'a  b' else 'c'", formatted);
+    }
+
+    [Fact]
+    public void CompletionProvider_ReturnsVariablesFunctionsAndSystemVariables()
+    {
+        var provider = new MicroflowExpressionCompletionProvider();
+
+        var completions = provider.Complete(CreateContext());
+        var labels = completions.Select(item => item.Label).ToArray();
+
+        Assert.Contains("$Amount", labels);
+        Assert.Contains("$Order", labels);
+        Assert.Contains("$latestError", labels);
+        Assert.Contains("$latestHttpResponse", labels);
+        Assert.Contains("contains", labels);
+        Assert.Contains("length", labels);
+    }
+
+    [Fact]
+    public void DiagnosticsProvider_ReturnsCodeSeverityAndRange()
+    {
+        var provider = new MicroflowExpressionDiagnosticsProvider();
+
+        var diagnostics = provider.Diagnose("$Order/Missing", CreateContext());
+        var diagnostic = Assert.Single(diagnostics, item => item.Code == MicroflowExpressionDiagnosticCode.MemberNotFound);
+
+        Assert.Equal(MicroflowExpressionDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.True(diagnostic.Start >= 0);
+        Assert.True(diagnostic.End >= diagnostic.Start);
+    }
+
+    [Fact]
+    public void PreviewService_EvaluatesWithSampleContextWithoutMutatingVariables()
+    {
+        var context = CreateContext();
+        var before = context.VariableStore.CurrentVariables.Count;
+        var preview = new MicroflowExpressionPreviewService(new MicroflowExpressionEvaluator());
+
+        var result = preview.Preview("$Amount + 10", context);
+
+        Assert.True(result.Success);
+        Assert.Equal("130.5", result.ValuePreview);
+        Assert.Equal(before, context.VariableStore.CurrentVariables.Count);
     }
 
     private static MicroflowExpressionEvaluationContext CreateContext(MicroflowExpressionType? expectedType = null)
