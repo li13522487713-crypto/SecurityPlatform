@@ -59,6 +59,20 @@ const clientEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => key.startsWith("VITE_") || key.startsWith("MICROFLOW_")),
 ) as Record<string, string | undefined>;
 
+const forbiddenProductionMicroflowValues = new Set(["msw", "mock", "local"]);
+const microflowModeEnv = [
+  process.env.VITE_MICROFLOW_API_MOCK,
+  process.env.MICROFLOW_API_MOCK,
+  process.env.VITE_MICROFLOW_ADAPTER_MODE,
+  process.env.MICROFLOW_ADAPTER_MODE,
+]
+  .filter((value): value is string => typeof value === "string")
+  .map(value => value.trim().toLowerCase());
+
+if (!isDevelopment && microflowModeEnv.some(value => forbiddenProductionMicroflowValues.has(value))) {
+  throw new Error("Production app-web build forbids Microflow mock/local/MSW adapter modes.");
+}
+
 const importMetaEnv = {
   ...clientEnv,
   DEV: isDevelopment,
