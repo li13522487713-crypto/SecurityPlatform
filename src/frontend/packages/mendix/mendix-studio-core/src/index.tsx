@@ -2,7 +2,6 @@ import "./studio.css";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Space, Toast, Typography } from "@douyinfe/semi-ui";
-import { IconArrowRight } from "@douyinfe/semi-icons";
 import type { MicroflowEditorHandle } from "@atlas/microflow";
 
 import type { MicroflowAdapterFactoryConfig } from "./microflow/config/microflow-adapter-config";
@@ -347,121 +346,10 @@ export function MendixStudioApp({
   );
 }
 
-export function MendixStudioIndexPage({
-  workspaceId,
-  onOpen
-}: {
-  workspaceId: string;
-  onOpen: (appId: string) => void;
-}) {
-  const copy = getMendixStudioCopy();
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #f0f4ff 0%, #e8f3ff 100%)"
-      }}
-    >
-      <Card
-        style={{
-          width: 480,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.12)",
-          borderRadius: 12,
-          border: "none"
-        }}
-        bodyStyle={{ padding: "40px 40px 32px" }}
-      >
-        {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              background: "#1677ff",
-              borderRadius: 8,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: 16
-            }}
-          >
-            mx
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 18, color: "#1c2a3a" }}>Lowcode Studio</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>Mendix-compatible low-code IDE</div>
-          </div>
-        </div>
-
-        <Text type="tertiary" style={{ display: "block", marginBottom: 20, fontSize: 13 }}>
-          {copy.index.workspaceLabel}: <strong style={{ color: "#374151" }}>{workspaceId}</strong>
-        </Text>
-
-        <Space vertical style={{ width: "100%" }} spacing={12}>
-          {/* 示例应用 */}
-          <div
-            style={{
-              border: "1px solid #e5e7eb",
-              borderRadius: 8,
-              padding: "16px 20px",
-              cursor: "pointer",
-              transition: "all 0.2s",
-              background: "#fff"
-            }}
-            onClick={() => onOpen("app_procurement")}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = "#1677ff";
-              (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 0 3px rgba(22,119,255,0.12)";
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = "#e5e7eb";
-              (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14, color: "#1c2a3a", marginBottom: 4 }}>
-                  {copy.index.sampleAppTitle}
-                </div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  {copy.index.sampleAppDescription}
-                </div>
-              </div>
-              <IconArrowRight style={{ color: "#1677ff", fontSize: 18, flexShrink: 0 }} />
-            </div>
-          </div>
-
-          {/* 新建按钮 */}
-          <Button
-            theme="light"
-            type="primary"
-            block
-            style={{ height: 40, fontSize: 14 }}
-            onClick={() => {
-              Toast.info({ content: copy.index.createAppInProgress, duration: 2 });
-            }}
-          >
-            {copy.index.createAppButton}
-          </Button>
-        </Space>
-
-        <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f0f2f5" }}>
-          <Text type="tertiary" size="small">
-            {copy.index.footer}
-          </Text>
-        </div>
-      </Card>
-    </div>
-  );
-}
+export { MendixStudioIndexPage } from "./mendix-studio-index-page";
+export type { MendixStudioIndexPageProps } from "./mendix-studio-index-page";
 
 export { useMendixStudioStore };
-export { SAMPLE_PROCUREMENT_APP } from "./sample-app";
 export * from "./microflow";
 export { startMicroflowContractMockWorker, startMicroflowMockWorker, stopMicroflowMockWorker } from "./microflow/contracts/mock-api/browser";
 export { createMicroflowContractMockHandlers, microflowContractMockOpenApiPaths } from "./microflow/contracts/mock-api";

@@ -76,12 +76,18 @@ function createResource(input: Partial<MicroflowResource> & Pick<MicroflowResour
   };
 }
 
-function createBundle(listMicroflows: MicroflowAdapterBundle["resourceAdapter"]["listMicroflows"]): MicroflowAdapterBundle {
+function createBundle(
+  listMicroflows: MicroflowAdapterBundle["resourceAdapter"]["listMicroflows"],
+  modules: Array<{ moduleId: string; name?: string; qualifiedName?: string }> = [
+    { moduleId: "mod_procurement", name: "Procurement", qualifiedName: "Procurement" },
+  ],
+): MicroflowAdapterBundle {
   return {
     mode: "http",
     runtimePolicy: "production",
     resourceAdapter: {
       listMicroflows,
+      getMicroflowApp: vi.fn(async () => ({ appId: "app_procurement", name: "Procurement", modules })),
     },
     metadataAdapter: {},
     runtimeAdapter: {},
@@ -122,18 +128,30 @@ afterEach(() => {
 });
 
 describe("AppExplorer Microflows assets", () => {
-  it("renders loading state while listMicroflows is pending", () => {
+  it("renders loading state while listMicroflows is pending", async () => {
     const bundle = createBundle(vi.fn(() => new Promise(() => undefined)));
 
-    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-loading" />);
+    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-loading" appId="app-loading" />);
 
-    expect(screen.getByText("Loading microflows...")).toBeTruthy();
+    expect(await screen.findByText("Loading microflows...")).toBeTruthy();
+  });
+
+  it("does not fall back to a fake Procurement module when getMicroflowApp returns no modules", async () => {
+    const bundle = createBundle(
+      vi.fn(async () => ({ items: [], total: 0, pageIndex: 1, pageSize: 100 })),
+      [],
+    );
+
+    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" appId="app-1" />);
+
+    expect(await screen.findByText("(empty)")).toBeTruthy();
+    expect(screen.queryByText("Procurement")).toBeNull();
   });
 
   it("renders empty state without hardcoded sample microflow", async () => {
     const bundle = createBundle(vi.fn(async () => ({ items: [], total: 0, pageIndex: 1, pageSize: 100 })));
 
-    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" />);
+    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" appId="app-1" />);
 
     expect(await screen.findByText("No microflows")).toBeTruthy();
     expect(screen.queryByText("MF_SubmitPurchaseRequest")).toBeNull();
@@ -146,7 +164,7 @@ describe("AppExplorer Microflows assets", () => {
       .mockResolvedValueOnce({ items: [], total: 0, pageIndex: 1, pageSize: 100 });
     const bundle = createBundle(listMicroflows);
 
-    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" />);
+    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" appId="app-1" />);
 
     expect(await screen.findByText("Load failed")).toBeTruthy();
     expect(screen.getByText(/MICROFLOW_NETWORK_ERROR/u)).toBeTruthy();
@@ -162,7 +180,7 @@ describe("AppExplorer Microflows assets", () => {
     const listMicroflows = vi.fn(async () => ({ items: [resource], total: 1, pageIndex: 1, pageSize: 100 }));
     const bundle = createBundle(listMicroflows);
 
-    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" />);
+    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" appId="app-1" />);
 
     expect(await screen.findByText("Approve Purchase")).toBeTruthy();
     expect(listMicroflows).toHaveBeenCalledWith(expect.objectContaining({
@@ -186,7 +204,7 @@ describe("AppExplorer Microflows assets", () => {
       pageSize: 100,
     })));
 
-    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" />);
+    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" appId="app-1" />);
 
     expect(await screen.findByText("Approve Purchase")).toBeTruthy();
     expect(screen.getByText("Reject Purchase")).toBeTruthy();
@@ -208,7 +226,7 @@ describe("AppExplorer Microflows assets", () => {
       pageSize: 100,
     })));
 
-    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" />);
+    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" appId="app-1" />);
 
     fireEvent.click(await screen.findByText("Approve Purchase"));
 
@@ -239,7 +257,7 @@ describe("AppExplorer Microflows assets", () => {
       });
     const bundle = createBundle(listMicroflows);
 
-    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" />);
+    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" appId="app-1" />);
 
     expect(await screen.findByText("First")).toBeTruthy();
     fireEvent.click(screen.getByTitle("Refresh Microflows"));
