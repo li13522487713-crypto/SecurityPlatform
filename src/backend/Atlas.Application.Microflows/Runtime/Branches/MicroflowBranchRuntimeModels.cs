@@ -103,6 +103,47 @@ public sealed class SequentialBranchScheduler : IBranchScheduler
     }
 }
 
+public sealed class ParallelBranchScheduler : IBranchScheduler
+{
+    public string Mode => "trueParallel";
+
+    public async Task<IReadOnlyList<MicroflowBranchExecutionResult>> RunAsync(
+        IReadOnlyList<MicroflowBranchExecutionRequest> branches,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var tasks = branches.Select(async branch =>
+        {
+            try
+            {
+                var result = await branch.ExecuteAsync(cancellationToken);
+                return result with { BranchId = string.IsNullOrWhiteSpace(result.BranchId) ? branch.BranchId : result.BranchId };
+            }
+            catch (OperationCanceledException)
+            {
+                return new MicroflowBranchExecutionResult
+                {
+                    BranchId = branch.BranchId,
+                    Success = false,
+                    ErrorCode = "BRANCH_CANCELLED",
+                    ErrorMessage = "Branch execution was cancelled."
+                };
+            }
+            catch (Exception ex)
+            {
+                return new MicroflowBranchExecutionResult
+                {
+                    BranchId = branch.BranchId,
+                    Success = false,
+                    ErrorCode = "BRANCH_FAILED",
+                    ErrorMessage = ex.Message
+                };
+            }
+        }).ToArray();
+        return await Task.WhenAll(tasks);
+    }
+}
+
 public interface IBranchUnitOfWork
 {
     string BranchId { get; }
