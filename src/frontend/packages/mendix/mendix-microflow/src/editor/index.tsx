@@ -267,6 +267,12 @@ export interface MicroflowEditorHandle {
   save: () => Promise<void>;
   validate: () => Promise<void>;
   runTest: () => Promise<void>;
+  /**
+   * P1-3: 与 runTest 走同一 testRun 路径，但调试模式打开底部 trace 抽屉并切换到
+   * "Debug" tab，便于观察单步 trace。当前 server 端无 step-debug 能力，run 之后
+   * 仍是一次性 trace 列表；此入口仅做 UX 区分。
+   */
+  runDebug: () => Promise<void>;
   publish: () => Promise<void>;
   undo: () => void;
   redo: () => void;
@@ -2175,6 +2181,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     },
     runTest: async () => {
       try {
+        await handleTestRun();
+      } catch (error) {
+        Toast.error(getEditorApiErrorMessage(error));
+      }
+    },
+    runDebug: async () => {
+      try {
+        // 提前打开底部 trace 抽屉的 debug tab；handleTestRun 内部会再次根据
+        // 校验 / 保存结果切到 problems tab，这一行只确保运行结束后默认停留在 debug。
+        setBottomOpen(true);
+        setBottomTab("debug");
         await handleTestRun();
       } catch (error) {
         Toast.error(getEditorApiErrorMessage(error));

@@ -123,13 +123,13 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
             运行
           </Button>
         </Tooltip>
-        <Tooltip content="调试运行：保存后在 input 弹窗中输入参数运行">
+        <Tooltip content="调试运行：与运行使用相同 testRun，但运行后默认打开底部 Debug 抽屉以查看 trace 与变量快照。">
           <Button
             size="small"
             icon={<IconBranch />}
             loading={running}
             disabled={disabled || errorCount > 0}
-            onClick={() => callHandle("runTest")}
+            onClick={() => callHandle("runDebug")}
           >
             调试运行
           </Button>
