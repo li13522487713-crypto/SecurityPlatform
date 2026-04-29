@@ -70,6 +70,43 @@ public sealed record MicroflowBranchExecutionResult
     public string? ErrorMessage { get; init; }
 }
 
+public sealed record BranchWriteIntent
+{
+    public string BranchId { get; init; } = string.Empty;
+    public string? VariableName { get; init; }
+    public string? ObjectId { get; init; }
+    public string? MemberName { get; init; }
+}
+
+public static class GatewayWriteConflictDetector
+{
+    public const string ParallelVariableWriteConflict = "PARALLEL_VARIABLE_WRITE_CONFLICT";
+    public const string ParallelWriteConflict = "PARALLEL_WRITE_CONFLICT";
+
+    public static IReadOnlyList<string> Detect(IReadOnlyList<BranchWriteIntent> intents)
+    {
+        var conflicts = new List<string>();
+        conflicts.AddRange(FindDuplicateKeys(
+            intents.Where(static intent => !string.IsNullOrWhiteSpace(intent.VariableName)),
+            static intent => intent.VariableName!,
+            ParallelVariableWriteConflict));
+        conflicts.AddRange(FindDuplicateKeys(
+            intents.Where(static intent => !string.IsNullOrWhiteSpace(intent.ObjectId)),
+            static intent => $"{intent.ObjectId}:{intent.MemberName ?? "*"}",
+            ParallelWriteConflict));
+        return conflicts;
+    }
+
+    private static IEnumerable<string> FindDuplicateKeys(
+        IEnumerable<BranchWriteIntent> intents,
+        Func<BranchWriteIntent, string> keySelector,
+        string code)
+        => intents
+            .GroupBy(keySelector, StringComparer.Ordinal)
+            .Where(group => group.Select(static item => item.BranchId).Distinct(StringComparer.Ordinal).Skip(1).Any())
+            .Select(group => $"{code}:{group.Key}");
+}
+
 public interface IBranchScheduler
 {
     string Mode { get; }
@@ -214,10 +251,17 @@ public sealed class InclusiveGatewaySplitExecutor
         string splitInstanceId,
         IEnumerable<(string BranchId, bool Active, bool Otherwise)> branches)
     {
-        var active = branches.Where(branch => branch.Active).Select(branch => branch.BranchId).ToArray();
+        var candidates = branches.ToArray();
+        var otherwiseCount = candidates.Count(branch => branch.Otherwise);
+        if (otherwiseCount > 1)
+        {
+            throw new InvalidOperationException("INCLUSIVE_OTHERWISE_NOT_UNIQUE");
+        }
+
+        var active = candidates.Where(branch => branch.Active).Select(branch => branch.BranchId).ToArray();
         if (active.Length == 0)
         {
-            var otherwise = branches.Where(branch => branch.Otherwise).Select(branch => branch.BranchId).ToArray();
+            var otherwise = candidates.Where(branch => branch.Otherwise).Select(branch => branch.BranchId).ToArray();
             active = otherwise.Length == 1 ? otherwise : active;
         }
 
@@ -242,7 +286,8 @@ public sealed class InclusiveGatewayJoinExecutor
     public bool CanContinue(ActivationSet activationSet, out GatewayRuntimeState state)
     {
         state = GatewayRuntimeState.FromJoinState(_joinStateStore.Get(activationSet.SplitInstanceId));
-        return activationSet.ActiveBranchIds.All(branchId => state.CompletedTokens.Contains(branchId));
+        var activeBranchIds = activationSet.ActiveBranchIds;
+        return activeBranchIds.All(branchId => state.CompletedTokens.Contains(branchId));
     }
 }
 
