@@ -179,3 +179,145 @@ public sealed class DeleteObjectActionExecutor : ObjectActionExecutorBase
     protected override Task<MicroflowRuntimeObjectStoreResult> ExecuteCoreAsync(IMicroflowRuntimeObjectStore objectStore, MicroflowActionExecutionContext context, CancellationToken ct)
         => objectStore.DeleteAsync(Mutation(context), ct);
 }
+
+public sealed class RollbackObjectActionExecutor : IMicroflowActionExecutor
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private readonly IMicroflowRuntimeObjectStore _objectStore;
+
+    public RollbackObjectActionExecutor(IMicroflowRuntimeObjectStore objectStore)
+    {
+        _objectStore = objectStore;
+    }
+
+    public string ActionKind => "rollback";
+
+    public string Category => MicroflowActionRuntimeCategory.ServerExecutable;
+
+    public string SupportLevel => MicroflowActionSupportLevel.Supported;
+
+    public async Task<MicroflowActionExecutionResult> ExecuteAsync(MicroflowActionExecutionContext context, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var started = Stopwatch.StartNew();
+        if (IsProductionRun(context) && context.RuntimeExecutionContext.UnitOfWork is null)
+        {
+            return Failed(started, "TRANSACTION_REQUIRED", "Rollback requires an active UnitOfWork in production run.", context);
+        }
+
+        var objectId = ReadString(context.ActionConfig, "objectId")
+            ?? ReadString(context.ActionConfig, "sourceObjectId")
+            ?? ReadString(context.ActionConfig, "targetObjectId")
+            ?? ReadString(context.ActionConfig, "id");
+        if (string.IsNullOrWhiteSpace(objectId))
+        {
+            return Failed(started, RuntimeErrorCode.RuntimeObjectNotFound, "Rollback requires objectId/sourceObjectId.", context);
+        }
+
+        var entityType = ReadString(context.ActionConfig, "entityType")
+            ?? ReadString(context.ActionConfig, "entityQualifiedName")
+            ?? "Unknown.Entity";
+        var mode = ReadString(context.ActionConfig, "rollbackMode") ?? "revert";
+        var clearValidationErrors = ReadBool(context.ActionConfig, "clearValidationErrors");
+        var failIfNotChanged = ReadBool(context.ActionConfig, "failIfNotChanged");
+        var result = await _objectStore.RollbackAsync(new MicroflowRuntimeObjectMutation
+        {
+            EntityType = entityType,
+            ObjectId = objectId,
+            WorkspaceId = context.RuntimeExecutionContext.SecurityContext.WorkspaceId,
+            TenantId = context.RuntimeExecutionContext.SecurityContext.TenantId,
+            DryRun = string.Equals(context.Options.Mode, MicroflowRuntimeExecutionMode.TestRun, StringComparison.OrdinalIgnoreCase)
+        }, ct);
+
+        var state = result.Success
+            ? "reverted"
+            : string.Equals(result.Code, RuntimeErrorCode.RuntimeObjectNotFound, StringComparison.OrdinalIgnoreCase)
+                ? "noop"
+                : "invalidated";
+        if (state == "noop" && failIfNotChanged)
+        {
+            return Failed(started, RuntimeErrorCode.RuntimeRollbackFailed, $"Object '{objectId}' has no staged changes to rollback.", context);
+        }
+
+        context.TransactionManager?.TrackRollbackObject(context.RuntimeExecutionContext, new MicroflowRuntimeObjectChangeInput
+        {
+            EntityQualifiedName = entityType,
+            ObjectId = objectId,
+            VariableName = ReadString(context.ActionConfig, "objectVariableName"),
+            SourceObjectId = context.ObjectId,
+            SourceActionId = context.ActionId,
+            CollectionId = context.CollectionId,
+            Preview = $"rollback {objectId}: {state}"
+        });
+
+        var output = JsonSerializer.SerializeToElement(new
+        {
+            objectId,
+            entityType,
+            rollbackState = state,
+            mode,
+            clearValidationErrors,
+            message = result.Message
+        }, JsonOptions);
+        started.Stop();
+        return new MicroflowActionExecutionResult
+        {
+            Status = MicroflowActionExecutionStatus.Success,
+            OutputJson = output,
+            OutputPreview = $"{objectId}: {state}",
+            TransactionSnapshot = context.RuntimeExecutionContext.CreateTransactionSnapshot("rollback"),
+            Diagnostics =
+            [
+                new MicroflowActionExecutionDiagnostic
+                {
+                    Code = "ROLLBACK_OBJECT_STATE",
+                    Severity = state == "reverted" ? "info" : "warning",
+                    Message = $"Rollback result for '{objectId}' is {state}.",
+                    ObjectId = context.ObjectId,
+                    ActionId = context.ActionId
+                }
+            ],
+            DurationMs = (int)started.ElapsedMilliseconds
+        };
+    }
+
+    private static bool IsProductionRun(MicroflowActionExecutionContext context)
+        => string.Equals(context.Options.Mode, MicroflowRuntimeExecutionMode.PublishedRun, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(context.RuntimeExecutionContext.Mode, MicroflowRuntimeExecutionMode.PublishedRun, StringComparison.OrdinalIgnoreCase);
+
+    private static bool ReadBool(JsonElement element, string propertyName)
+        => element.ValueKind == JsonValueKind.Object
+           && element.TryGetProperty(propertyName, out var value)
+           && value.ValueKind == JsonValueKind.True;
+
+    private static string? ReadString(JsonElement element, string propertyName)
+        => element.ValueKind == JsonValueKind.Object
+           && element.TryGetProperty(propertyName, out var value)
+           && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static MicroflowActionExecutionResult Failed(
+        Stopwatch started,
+        string code,
+        string message,
+        MicroflowActionExecutionContext context)
+    {
+        started.Stop();
+        return new MicroflowActionExecutionResult
+        {
+            Status = MicroflowActionExecutionStatus.Failed,
+            Error = new MicroflowRuntimeErrorDto
+            {
+                Code = code,
+                Message = message,
+                ObjectId = context.ObjectId,
+                ActionId = context.ActionId
+            },
+            Message = message,
+            ShouldContinueNormalFlow = false,
+            ShouldStopRun = true,
+            DurationMs = (int)started.ElapsedMilliseconds
+        };
+    }
+}

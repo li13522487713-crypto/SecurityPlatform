@@ -65,6 +65,30 @@ public sealed class InMemoryRuntimeObjectStore : IMicroflowRuntimeObjectStore
         });
     }
 
+    public Task<MicroflowRuntimeObjectStoreResult> RollbackAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(mutation.ObjectId))
+        {
+            return Task.FromResult(Failed(RuntimeErrorCode.RuntimeObjectNotFound, "Object id is required."));
+        }
+
+        var key = Key(mutation, mutation.ObjectId!);
+        if (!_objects.TryGetValue(key, out var current))
+        {
+            return Task.FromResult(Failed(RuntimeErrorCode.RuntimeObjectNotFound, $"Object '{mutation.ObjectId}' was not found."));
+        }
+
+        if (mutation.Value.HasValue)
+        {
+            _objects[key] = mutation.Value.Value.Clone();
+            return Task.FromResult(Success(mutation.Value.Value, $"Object '{mutation.ObjectId}' reverted."));
+        }
+
+        _objects.TryRemove(key, out _);
+        return Task.FromResult(Success(current, $"Object '{mutation.ObjectId}' invalidated."));
+    }
+
     public Task<MicroflowRuntimeObjectStoreResult> DeleteAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

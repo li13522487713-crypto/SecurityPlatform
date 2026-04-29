@@ -54,6 +54,9 @@ public sealed class DomainModelRuntimeObjectStore : IMicroflowRuntimeObjectStore
             : Denied(access.Reason);
     }
 
+    public Task<MicroflowRuntimeObjectStoreResult> RollbackAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
+        => _fallbackStore.RollbackAsync(mutation, ct);
+
     private static MicroflowRuntimeSecurityContext Security(MicroflowRuntimeObjectQuery query)
         => new()
         {

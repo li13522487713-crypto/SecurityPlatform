@@ -13,6 +13,8 @@ public interface IMicroflowRuntimeObjectStore
     Task<MicroflowRuntimeObjectStoreResult> CommitAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct);
 
     Task<MicroflowRuntimeObjectStoreResult> DeleteAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct);
+
+    Task<MicroflowRuntimeObjectStoreResult> RollbackAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct);
 }
 
 public sealed record MicroflowRuntimeObjectQuery
