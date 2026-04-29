@@ -144,6 +144,108 @@ public sealed class ParallelBranchScheduler : IBranchScheduler
     }
 }
 
+public sealed class ParallelGatewaySplitExecutor
+{
+    private readonly IBranchScheduler _scheduler;
+    private readonly IGatewayJoinStateStore _joinStateStore;
+
+    public ParallelGatewaySplitExecutor(IBranchScheduler scheduler, IGatewayJoinStateStore joinStateStore)
+    {
+        _scheduler = scheduler;
+        _joinStateStore = joinStateStore;
+    }
+
+    public async Task<GatewayRuntimeState> ExecuteAsync(
+        GatewayToken sourceToken,
+        IReadOnlyList<MicroflowBranchExecutionRequest> branches,
+        CancellationToken cancellationToken)
+    {
+        var splitInstanceId = string.IsNullOrWhiteSpace(sourceToken.SplitInstanceId)
+            ? Guid.NewGuid().ToString("N")
+            : sourceToken.SplitInstanceId;
+        var requests = branches.Select(branch => branch with { SplitInstanceId = splitInstanceId }).ToArray();
+        foreach (var branch in requests)
+        {
+            _joinStateStore.MarkArrived(splitInstanceId, branch.BranchId);
+        }
+
+        var results = await _scheduler.RunAsync(requests, cancellationToken);
+        foreach (var result in results)
+        {
+            if (result.Success)
+            {
+                _joinStateStore.MarkCompleted(splitInstanceId, result.BranchId);
+            }
+            else if (string.Equals(result.ErrorCode, "CANCELLED", StringComparison.OrdinalIgnoreCase))
+            {
+                _joinStateStore.MarkCancelled(splitInstanceId, result.BranchId);
+            }
+            else
+            {
+                _joinStateStore.MarkFailed(splitInstanceId, result.BranchId);
+            }
+        }
+
+        return GatewayRuntimeState.FromJoinState(_joinStateStore.Get(splitInstanceId));
+    }
+}
+
+public sealed class ParallelGatewayJoinExecutor
+{
+    private readonly IGatewayJoinStateStore _joinStateStore;
+
+    public ParallelGatewayJoinExecutor(IGatewayJoinStateStore joinStateStore)
+    {
+        _joinStateStore = joinStateStore;
+    }
+
+    public bool CanContinue(string splitInstanceId, IReadOnlySet<string> expectedBranchIds, out GatewayRuntimeState state)
+    {
+        state = GatewayRuntimeState.FromJoinState(_joinStateStore.Get(splitInstanceId));
+        return expectedBranchIds.All(branchId => state.CompletedTokens.Contains(branchId))
+               && !state.FailedTokens.Any()
+               && !state.CancelledTokens.Any();
+    }
+}
+
+public sealed class InclusiveGatewaySplitExecutor
+{
+    public ActivationSet BuildActivationSet(
+        string splitInstanceId,
+        IEnumerable<(string BranchId, bool Active, bool Otherwise)> branches)
+    {
+        var active = branches.Where(branch => branch.Active).Select(branch => branch.BranchId).ToArray();
+        if (active.Length == 0)
+        {
+            var otherwise = branches.Where(branch => branch.Otherwise).Select(branch => branch.BranchId).ToArray();
+            active = otherwise.Length == 1 ? otherwise : active;
+        }
+
+        if (active.Length == 0)
+        {
+            throw new InvalidOperationException("INCLUSIVE_NO_BRANCH_SELECTED");
+        }
+
+        return new ActivationSet(splitInstanceId, active);
+    }
+}
+
+public sealed class InclusiveGatewayJoinExecutor
+{
+    private readonly IGatewayJoinStateStore _joinStateStore;
+
+    public InclusiveGatewayJoinExecutor(IGatewayJoinStateStore joinStateStore)
+    {
+        _joinStateStore = joinStateStore;
+    }
+
+    public bool CanContinue(ActivationSet activationSet, out GatewayRuntimeState state)
+    {
+        state = GatewayRuntimeState.FromJoinState(_joinStateStore.Get(activationSet.SplitInstanceId));
+        return activationSet.ActiveBranchIds.All(branchId => state.CompletedTokens.Contains(branchId));
+    }
+}
+
 public interface IBranchUnitOfWork
 {
     string BranchId { get; }
