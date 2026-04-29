@@ -173,14 +173,44 @@ public sealed record SaveMicroflowSchemaResponseDto
     [JsonPropertyName("resource")]
     public MicroflowResourceDto Resource { get; init; } = new();
 
+    [JsonPropertyName("schemaId")]
+    public string SchemaId { get; init; } = string.Empty;
+
     [JsonPropertyName("schemaVersion")]
     public string SchemaVersion { get; init; } = string.Empty;
+
+    [JsonPropertyName("version")]
+    public string Version { get; init; } = string.Empty;
+
+    [JsonPropertyName("clientRequestId")]
+    public string? ClientRequestId { get; init; }
+
+    [JsonPropertyName("saveReason")]
+    public string? SaveReason { get; init; }
 
     [JsonPropertyName("updatedAt")]
     public DateTimeOffset UpdatedAt { get; init; }
 
     [JsonPropertyName("changedAfterPublish")]
     public bool ChangedAfterPublish { get; init; }
+}
+
+public sealed record MicroflowSaveConflictDetailsDto
+{
+    [JsonPropertyName("remoteVersion")]
+    public string? RemoteVersion { get; init; }
+
+    [JsonPropertyName("remoteSchemaId")]
+    public string? RemoteSchemaId { get; init; }
+
+    [JsonPropertyName("remoteUpdatedAt")]
+    public DateTimeOffset RemoteUpdatedAt { get; init; }
+
+    [JsonPropertyName("remoteUpdatedBy")]
+    public string? RemoteUpdatedBy { get; init; }
+
+    [JsonPropertyName("traceId")]
+    public string? TraceId { get; init; }
 }
 
 public sealed record GetMicroflowSchemaResponseDto

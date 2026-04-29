@@ -6,7 +6,6 @@ import type {
   ValidationErrorSchema
 } from "@atlas/mendix-schema";
 import type { MicroflowSchema, MicroflowValidationIssue } from "@atlas/microflow";
-import { SAMPLE_PROCUREMENT_APP, SAMPLE_RUNTIME_OBJECT } from "./sample-app";
 import { EMPTY_APP_SCHEMA } from "./empty-app";
 import type { StudioMicroflowDefinitionView } from "./microflow/studio/studio-microflow-types";
 import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
@@ -179,13 +178,6 @@ type StudioState = {
   setLatestTrace: (trace?: FlowExecutionTraceSchema) => void;
   setMicroflowSchema: (schema: MicroflowSchema) => void;
   setMicroflowImmersive: (immersive: boolean) => void;
-  /**
-   * 仅供本地 dev tools / unit test 调用：把 store 重置为内置 procurement 示例数据。
-   * 生产路径（app-web build:app-web）不应触发该 action；
-   * 见 scripts/verify-microflow-production-no-mock.ts 的 sample 字面量扫描。
-   */
-  loadSampleApp: () => void;
-
   /** Studio 上下文 action */
   setStudioContext: (input: { workspaceId?: string; appId?: string }) => void;
   setActiveModuleId: (moduleId?: string) => void;
@@ -408,7 +400,7 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   previewMode: false,
   inspectorTab: "property",
   bottomTab: "errors",
-  runtimeObject: SAMPLE_RUNTIME_OBJECT,
+  runtimeObject: {},
   validationErrors: [],
   microflowSchema: INITIAL_MICROFLOW_SCHEMA,
   microflowImmersive: false,
@@ -447,12 +439,6 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   setLatestTrace: latestTrace => set({ latestTrace }),
   setMicroflowSchema: microflowSchema => set({ microflowSchema }),
   setMicroflowImmersive: microflowImmersive => set({ microflowImmersive }),
-  loadSampleApp: () =>
-    set({
-      appSchema: JSON.parse(JSON.stringify(SAMPLE_PROCUREMENT_APP)) as LowCodeAppSchema,
-      runtimeObject: { ...SAMPLE_RUNTIME_OBJECT }
-    }),
-
   setStudioContext: ({ workspaceId, appId }) => set({ workspaceId, appId }),
   setActiveModuleId: activeModuleId => set({ activeModuleId }),
   setActiveMicroflowId: activeMicroflowId => set({ activeMicroflowId }),

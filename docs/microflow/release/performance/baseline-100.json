@@ -1,0 +1,10 @@
+{
+  "nodeCount": 100,
+  "loadMs": 120,
+  "renderMs": 180,
+  "saveMs": 95,
+  "validateMs": 70,
+  "runPlanMs": 55,
+  "sampledAt": "2026-04-29T00:00:00Z",
+  "mode": "static-baseline"
+}

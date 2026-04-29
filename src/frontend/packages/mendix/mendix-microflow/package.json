@@ -31,6 +31,7 @@
     "./metadata": "./src/metadata/index.ts",
     "./variables": "./src/variables/index.ts",
     "./expressions": "./src/expressions/index.ts",
+    "./expression-editor": "./src/expression-editor/index.tsx",
     "./validators": "./src/validators/index.ts",
     "./debug": "./src/debug/index.ts",
     "./debug/trace-utils": "./src/debug/trace-utils.ts",

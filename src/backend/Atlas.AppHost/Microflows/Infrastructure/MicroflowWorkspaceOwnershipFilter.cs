@@ -1,3 +1,4 @@
+using System.Globalization;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Repositories;
@@ -92,7 +93,62 @@ public sealed class MicroflowWorkspaceOwnershipFilter : IAsyncAuthorizationFilte
             }
         }
 
+        if (context.RouteData.Values.TryGetValue("appId", out var rawAppId) && rawAppId is not null)
+        {
+            var appId = Convert.ToString(rawAppId);
+            if (!string.IsNullOrWhiteSpace(appId))
+            {
+                var workspaceId = await ResolveWorkspaceIdFromAppIdAsync(appId, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(workspaceId))
+                {
+                    return workspaceId;
+                }
+            }
+        }
+
         return null;
+    }
+
+    private async Task<string?> ResolveWorkspaceIdFromAppIdAsync(string appId, CancellationToken cancellationToken)
+    {
+        var current = _requestContextAccessor.Current;
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return null;
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var workspaceByAppKey = await _workspacePortalService.GetWorkspaceByAppKeyAsync(
+            tenantId,
+            appId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+        if (workspaceByAppKey is not null)
+        {
+            return workspaceByAppKey.Id.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (!long.TryParse(appId, CultureInfo.InvariantCulture, out var appIdValue))
+        {
+            return null;
+        }
+
+        var candidateWorkspaceId = string.IsNullOrWhiteSpace(current.WorkspaceId)
+            ? appIdValue
+            : long.TryParse(current.WorkspaceId, CultureInfo.InvariantCulture, out var currentWorkspaceId)
+                ? currentWorkspaceId
+                : appIdValue;
+        var workspace = await _workspacePortalService.GetWorkspaceAsync(
+            tenantId,
+            candidateWorkspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+        return workspace is null
+            ? null
+            : workspace.Id.ToString(CultureInfo.InvariantCulture);
     }
 
     private static void Reject(AuthorizationFilterContext context, int statusCode, string code, string message, string traceId)

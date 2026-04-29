@@ -130,6 +130,26 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             }
         }
 
+        if (string.Equals(actionKind, "rollback", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<RollbackObjectActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "cast", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<CastObjectActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (string.Equals(actionKind, "createList", StringComparison.OrdinalIgnoreCase))
         {
             var specialized = _serviceProvider?.GetService<CreateListActionExecutor>();
@@ -143,6 +163,16 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
         if (string.Equals(actionKind, "changeList", StringComparison.OrdinalIgnoreCase))
         {
             var specialized = _serviceProvider?.GetService<ChangeListActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "listOperation", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<ListOperationActionExecutor>();
             if (specialized is not null)
             {
                 executor = specialized;
@@ -288,25 +318,18 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Server("changeMembers", "ChangeMembersAction", "object", "ChangeMembersActionExecutor", producesVariables: true, producesTransaction: true),
             Server("commit", "CommitAction", "object", "CommitActionExecutor", producesVariables: false, producesTransaction: true),
             Server("delete", "DeleteAction", "object", "DeleteActionExecutor", producesVariables: false, producesTransaction: true),
-            // P1-2: Rollback / Cast / ListOperation 当前由 ConfiguredMicroflowActionExecutor
-            // 返回 Success + reason，没有真实事务回滚 / 类型转换 / 列表 mutation；
-            // SupportLevel 标 ModeledOnlyConverted，Reason 显式说明，以便前端
-            // toolbox tooltip 与 verify-microflow-runtime-coverage 矩阵识别。
-            Server("rollback", "RollbackAction", "object", "ConfiguredMicroflowActionExecutor",
+            Server("rollback", "RollbackAction", "object", "RollbackObjectActionExecutor",
                 producesVariables: false, producesTransaction: true,
-                supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted,
-                reason: "Rollback 当前由 ConfiguredMicroflowActionExecutor 返回 success（无真实事务回滚）；真实 RollbackObjectActionExecutor 待 P1 后续轮次补齐。"),
-            Server("cast", "CastObjectAction", "object", "ConfiguredMicroflowActionExecutor",
+                reason: "Rollback reverts staged runtime object changes through UnitOfWork/transaction tracking and reports reverted/noop/invalidated status."),
+            Server("cast", "CastObjectAction", "object", "CastObjectActionExecutor",
                 producesVariables: true, producesTransaction: false,
-                supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted,
-                reason: "Cast 当前由 ConfiguredMicroflowActionExecutor 返回 success；真实 CastObjectActionExecutor（按 metadata 校验继承/实现关系，失败返回 RUNTIME_TYPE_MISMATCH）待 P1 后续轮次补齐。"),
+                reason: "Cast validates runtime object metadata inheritance, entity access, strict/allowNull modes, and binds a typed object variable."),
 
             Server("createList", "CreateListAction", "list", "CreateListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("changeList", "ChangeListAction", "list", "ChangeListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
-            Server("listOperation", "ListOperationAction", "list", "ConfiguredMicroflowActionExecutor",
+            Server("listOperation", "ListOperationAction", "list", "ListOperationActionExecutor",
                 producesVariables: true, producesTransaction: false,
-                supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted,
-                reason: "ListOperation 当前由 ConfiguredMicroflowActionExecutor 返回 success；真实 add/remove/clear/contains/insert/distinct executor 待 P1 后续轮次补齐。"),
+                reason: "ListOperation implements union/intersect/subtract/equals/distinct and scalar positional operations without mutating input lists."),
             Server("aggregateList", "AggregateListAction", "list", "AggregateListActionExecutor", producesVariables: true, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted),
             Server("filterList", "FilterListAction", "list", "FilterListActionExecutor", producesVariables: true, producesTransaction: false, reason: "Filter List evaluates a per-item expression and produces a new list variable."),
             Server("sortList", "SortListAction", "list", "SortListActionExecutor", producesVariables: true, producesTransaction: false, reason: "Sort List orders items by a primitive member and produces a new list variable."),

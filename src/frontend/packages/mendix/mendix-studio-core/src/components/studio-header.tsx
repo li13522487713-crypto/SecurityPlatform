@@ -14,10 +14,12 @@ import {
 import { useMendixStudioStore } from "../store";
 import { validateLowCodeAppSchema } from "@atlas/mendix-validator";
 import { MOCK_VALIDATION_ERRORS } from "../data/mock-debug-trace";
+import { SAMPLE_PROCUREMENT_APP, SAMPLE_RUNTIME_OBJECT } from "../sample-app";
 
 export function StudioHeader() {
   const app = useMendixStudioStore(state => state.appSchema);
-  const loadSampleApp = useMendixStudioStore(state => state.loadSampleApp);
+  const setAppSchema = useMendixStudioStore(state => state.setAppSchema);
+  const setRuntimeObject = useMendixStudioStore(state => state.setRuntimeObject);
   const setValidationErrors = useMendixStudioStore(state => state.setValidationErrors);
   const setPreviewMode = useMendixStudioStore(state => state.setPreviewMode);
   const setLatestTrace = useMendixStudioStore(state => state.setLatestTrace);
@@ -43,7 +45,13 @@ export function StudioHeader() {
   };
 
   const handleLoadSample = () => {
-    loadSampleApp();
+    if (import.meta.env.PROD === true) {
+      Toast.warning({ content: "生产环境不允许加载示例数据", duration: 2 });
+      return;
+    }
+
+    setAppSchema(JSON.parse(JSON.stringify(SAMPLE_PROCUREMENT_APP)) as typeof SAMPLE_PROCUREMENT_APP);
+    setRuntimeObject({ ...SAMPLE_RUNTIME_OBJECT });
     setValidationErrors(MOCK_VALIDATION_ERRORS);
     import("../data/mock-debug-trace").then(({ MOCK_DEBUG_TRACE }) => {
       setLatestTrace(MOCK_DEBUG_TRACE);

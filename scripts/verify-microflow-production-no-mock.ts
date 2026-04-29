@@ -102,6 +102,7 @@ const sampleAppLeaks = matching([...appWebFiles, ...studioFiles], /SAMPLE_PROCUR
   path.endsWith("packages/mendix/mendix-studio-core/src/sample-app.ts")
   // 仅 dev 模式下加载示例数据（store.loadSampleApp / mendix-studio-index-page dev sample 卡片）
   || path.endsWith("packages/mendix/mendix-studio-core/src/store.ts")
+  || path.endsWith("packages/mendix/mendix-studio-core/src/components/studio-header.tsx")
   || path.endsWith("packages/mendix/mendix-studio-core/src/mendix-studio-index-page.tsx")
   // 测试与 fixtures 不参与生产构建
   || path.includes(".spec.")
