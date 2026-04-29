@@ -7,6 +7,7 @@ import type {
 } from "@atlas/mendix-schema";
 import type { MicroflowSchema, MicroflowValidationIssue } from "@atlas/microflow";
 import { SAMPLE_PROCUREMENT_APP, SAMPLE_RUNTIME_OBJECT } from "./sample-app";
+import { EMPTY_APP_SCHEMA } from "./empty-app";
 import type { StudioMicroflowDefinitionView } from "./microflow/studio/studio-microflow-types";
 import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
 import type { MicroflowResource } from "./microflow/resource/resource-types";
@@ -178,6 +179,11 @@ type StudioState = {
   setLatestTrace: (trace?: FlowExecutionTraceSchema) => void;
   setMicroflowSchema: (schema: MicroflowSchema) => void;
   setMicroflowImmersive: (immersive: boolean) => void;
+  /**
+   * 仅供本地 dev tools / unit test 调用：把 store 重置为内置 procurement 示例数据。
+   * 生产路径（app-web build:app-web）不应触发该 action；
+   * 见 scripts/verify-microflow-production-no-mock.ts 的 sample 字面量扫描。
+   */
   loadSampleApp: () => void;
 
   /** Studio 上下文 action */
@@ -385,7 +391,7 @@ function summarizeMicroflowValidationIssues(
 }
 
 export const useMendixStudioStore = create<StudioState>((set, get) => ({
-  appSchema: SAMPLE_PROCUREMENT_APP,
+  appSchema: EMPTY_APP_SCHEMA,
   activeTab: "pageBuilder",
   activeTabId: "page",
   workbenchTabs: INITIAL_WORKBENCH_TABS,

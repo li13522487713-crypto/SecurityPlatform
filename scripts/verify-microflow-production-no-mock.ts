@@ -97,6 +97,18 @@ add("production disables metadata seed", productionConfig.includes('"SeedEnabled
 add("production disables real HTTP and private network by default", productionConfig.includes('"AllowRealHttp": false') && productionConfig.includes('"AllowPrivateNetwork": false'));
 add("production disables internal debug defaults", productionConfig.includes('"EnableInternalDebugApi": false') && productionConfig.includes('"EnableVerboseTrace": false'));
 
+const sampleAppLeaks = matching([...appWebFiles, ...studioFiles], /SAMPLE_PROCUREMENT_APP|"app_procurement"|'app_procurement'|"mod_procurement"|'mod_procurement'|MENDIX_STUDIO_DEV_SAMPLE_APP_ID/u, path =>
+  // sample 数据本体允许保留，由 store / dev sample 卡片显式守卫
+  path.endsWith("packages/mendix/mendix-studio-core/src/sample-app.ts")
+  // 仅 dev 模式下加载示例数据（store.loadSampleApp / mendix-studio-index-page dev sample 卡片）
+  || path.endsWith("packages/mendix/mendix-studio-core/src/store.ts")
+  || path.endsWith("packages/mendix/mendix-studio-core/src/mendix-studio-index-page.tsx")
+  // 测试与 fixtures 不参与生产构建
+  || path.includes(".spec.")
+  || path.includes("__tests__")
+);
+add("app-web/studio-core production path does not embed Procurement sample identifiers", sampleAppLeaks.length === 0, sampleAppLeaks.join(", "));
+
 for (const check of checks) {
   console.log(`${check.ok ? "ok" : "fail"} - ${check.name}${check.ok || !check.details ? "" : `: ${check.details}`}`);
 }

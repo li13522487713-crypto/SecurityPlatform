@@ -82,17 +82,24 @@ export function getCurrentExplorerModuleId(node?: Pick<ExplorerTreeNode, "module
 function createAppAssetTree(modules: MicroflowModuleAsset[]): ExplorerTreeNode[] {
   if (modules.length === 0) {
     return [{
-      key: "module:unloaded",
-      label: "Module",
+      key: "module:empty",
+      label: "(empty)",
       kind: "module",
       defaultOpen: true,
-      children: [{
-        key: MicroflowsSectionKey,
-        label: "Microflows",
-        kind: "folder",
-        defaultOpen: true,
-        children: []
-      }]
+      children: [
+        {
+          key: "modules-empty",
+          label: "当前应用未加载到任何模块。请检查 appId/workspaceId 或刷新。",
+          kind: "empty"
+        },
+        {
+          key: MicroflowsSectionKey,
+          label: "Microflows",
+          kind: "folder",
+          defaultOpen: true,
+          children: []
+        }
+      ]
     }];
   }
 
@@ -229,8 +236,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
   const folderErrorByModuleId = useMendixStudioStore(state => state.folderErrorByModuleId);
 
   const primaryModule = modules[0];
-  const fallbackModuleId = primaryModule?.moduleId ?? "mod_procurement";
-  const moduleId = activeModuleId ?? fallbackModuleId;
+  const moduleId = activeModuleId ?? primaryModule?.moduleId ?? "";
 
   const loadAppAssetTree = useCallback(async (force = false) => {
     if (!workspaceId || !appId || !adapterBundle?.resourceAdapter?.getMicroflowApp) {
@@ -577,9 +583,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
   }, [adapterBundle, loadMicroflows, onViewMicroflowReferences, removeStudioMicroflow]);
 
   const treeData = useMemo(() => {
-    const explorerModules = modules.length > 0
-      ? modules
-      : [{ moduleId: fallbackModuleId, name: "Procurement", qualifiedName: "Procurement" }];
+    const explorerModules = modules;
     const childrenByModuleId = Object.fromEntries(explorerModules.map(module => {
       const ids = microflowIdsByModuleId[module.moduleId] ?? [];
       const resources = ids
@@ -601,11 +605,12 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
     }));
     return withMicroflowChildren(createAppAssetTree(explorerModules), childrenByModuleId);
   }, [
-    fallbackModuleId,
     folderErrorByModuleId,
     foldersByModuleId,
+    microflowError,
     microflowIdsByModuleId,
     microflowResourcesById,
+    microflowStatus,
     moduleId,
     moduleLoadStateByModuleId,
     modules,
