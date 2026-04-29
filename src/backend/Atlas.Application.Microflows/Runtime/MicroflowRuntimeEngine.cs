@@ -292,22 +292,24 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return NodeExecution.Failed(error);
         }
 
-        // Fast-path: the variable mutators and call-microflow already have
-        // hand-tuned execution semantics inside the engine (variable scope,
-        // call-stack guards, parameter mapping). Keep them in-engine to avoid
-        // double-bookkeeping and to preserve back-compat with legacy unit tests.
+        // Fast-path: the variable mutators have hand-tuned execution semantics
+        // inside the engine (variable scope, fast variable typing). Keep them
+        // in-engine to avoid double-bookkeeping. callMicroflow is no longer
+        // short-circuited here (P0-5): when a CallMicroflowActionExecutor is
+        // registered we route the call through the registry path so call stack,
+        // execution plan, transaction boundary and return-value binding are
+        // handled by a single implementation. Legacy in-engine path is used as
+        // a fallback only when the executor is not registered.
         switch (action.Kind)
         {
             case "createVariable":
                 return ExecuteCreateVariable(context, graph, node, action, incomingFlowId);
             case "changeVariable":
                 return ExecuteChangeVariable(context, graph, node, action, incomingFlowId);
-            case "callMicroflow":
-                return await ExecuteCallMicroflowAsync(context, graph, node, action, incomingFlowId, state, cancellationToken);
         }
 
         // Registry path (DI-only): retrieve / createObject / restCall / logMessage /
-        // createList / changeList / aggregateList / break / continue / etc.
+        // createList / changeList / aggregateList / break / continue / callMicroflow / etc.
         if (_actionExecutorRegistry is not null && _actionExecutorRegistry.TryGet(action.Kind, out var executor))
         {
             return await ExecuteActionViaRegistryAsync(
@@ -318,6 +320,14 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 incomingFlowId,
                 executor,
                 cancellationToken);
+        }
+
+        // Fallback when no specialized executor is wired (e.g. legacy unit tests
+        // that omit DI). Only callMicroflow has a non-trivial in-engine fallback
+        // that preserves behavior of older tests.
+        if (string.Equals(action.Kind, "callMicroflow", StringComparison.OrdinalIgnoreCase))
+        {
+            return await ExecuteCallMicroflowAsync(context, graph, node, action, incomingFlowId, state, cancellationToken);
         }
 
         return Unsupported(context, node, incomingFlowId, action.Kind);
