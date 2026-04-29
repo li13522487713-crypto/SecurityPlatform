@@ -375,7 +375,7 @@ const PARTIAL_ACTION_KINDS = new Set<string>([
   "generateDocument",
   "deleteExternalObject",
   "sendExternalObject",
-  "callMlModel",
+  "mlModelCall",
   "applyJumpToOption",
   "callWorkflow",
   "changeWorkflowState",
