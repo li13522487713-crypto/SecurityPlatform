@@ -18,6 +18,19 @@ public sealed record PublishMicroflowApiRequestDto
     public bool Force { get; init; }
 }
 
+public sealed record UnpublishMicroflowRequestDto
+{
+    [JsonPropertyName("reason")]
+    public string? Reason { get; init; }
+
+    /// <summary>
+    /// 是否在仍存在 active reference 时仍然取消发布。默认 false，存在 active 引用时返回
+    /// MICROFLOW_REFERENCE_BLOCKED 让前端先解除引用或显式覆盖。
+    /// </summary>
+    [JsonPropertyName("force")]
+    public bool Force { get; init; }
+}
+
 public sealed record MicroflowPublishResultDto
 {
     [JsonPropertyName("resource")]

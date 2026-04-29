@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Input, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
-import type { MicroflowAction, MicroflowObject, MicroflowParameter, MicroflowVariableIndex, MicroflowVariableSymbol } from "../../schema";
+import type { MicroflowAction, MicroflowFlow, MicroflowObject, MicroflowParameter, MicroflowVariableIndex, MicroflowVariableSymbol } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
 import { buildVariableIndex, getOutputVariablesForObject, variableSourceLabel } from "../../variables";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { ValidationIssueList } from "../common";
+import { getMicroflowNodeFormForObject } from "../node-form-registry";
 import type { MicroflowPropertyPanelProps } from "../types";
 import {
   dataTypeLabel,
@@ -123,7 +124,12 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   const parameter = object.kind === "parameterObject"
     ? props.schema.parameters.find(item => item.id === object.parameterId)
     : undefined;
-  if (!supportedObjectKinds.has(object.kind)) {
+  // P1-1: 优先查 registry，让外部包可在不修改本包的情况下扩展 / 覆盖某 kind 的属性面板。
+  const registered = getMicroflowNodeFormForObject(object);
+  const flowsForObject = useMemo<MicroflowFlow[]>(() => collectFlowsRecursive(props.schema), [props.schema]);
+  const variablesForObject = useMemo<MicroflowVariableSymbol[]>(() => variableIndex.all ?? [], [variableIndex.all]);
+
+  if (!supportedObjectKinds.has(object.kind) && !registered) {
     return (
       <>
         <Header
@@ -158,23 +164,39 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
       <div style={{ padding: 14, display: "grid", gap: 12 }}>
         <ValidationIssueList issues={issues} />
         {activeTab === "properties" ? (
-          <>
-            <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
-            <EventNodesForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
-            <ExclusiveSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
-            <InheritanceSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} patch={patch} />
-            <MergeNodeForm props={props} object={object} patch={patch} />
-            <LoopNodeForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
-            {object.kind === "actionActivity" ? (
-              <ActionActivityForm schema={props.schema} object={object} issues={issues} readonly={props.readonly} onPatch={payload => props.onObjectChange(object.id, payload)} />
-            ) : null}
-            <ParameterObjectForm props={props} object={object} issues={issues} parameter={parameter as MicroflowParameter | undefined} />
-            <AnnotationObjectForm object={object} readonly={props.readonly} patch={patch} />
-            <ParallelGatewayForm object={object} readonly={props.readonly} patch={patch} />
-            <InclusiveGatewayForm object={object} readonly={props.readonly} patch={patch} />
-            <TryCatchForm object={object} readonly={props.readonly} patch={patch} />
-            <ErrorHandlerForm object={object} readonly={props.readonly} patch={patch} />
-          </>
+          registered ? (
+            <>
+              <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
+              {registered.renderProperties({
+                object,
+                node: object,
+                schema: props.schema,
+                variables: variablesForObject,
+                flows: flowsForObject,
+                issues,
+                readonly: Boolean(props.readonly),
+                onPatch: payload => props.onObjectChange(object.id, payload),
+              })}
+            </>
+          ) : (
+            <>
+              <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
+              <EventNodesForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
+              <ExclusiveSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
+              <InheritanceSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} patch={patch} />
+              <MergeNodeForm props={props} object={object} patch={patch} />
+              <LoopNodeForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
+              {object.kind === "actionActivity" ? (
+                <ActionActivityForm schema={props.schema} object={object} issues={issues} readonly={props.readonly} onPatch={payload => props.onObjectChange(object.id, payload)} />
+              ) : null}
+              <ParameterObjectForm props={props} object={object} issues={issues} parameter={parameter as MicroflowParameter | undefined} />
+              <AnnotationObjectForm object={object} readonly={props.readonly} patch={patch} />
+              <ParallelGatewayForm object={object} readonly={props.readonly} patch={patch} />
+              <InclusiveGatewayForm object={object} readonly={props.readonly} patch={patch} />
+              <TryCatchForm object={object} readonly={props.readonly} patch={patch} />
+              <ErrorHandlerForm object={object} readonly={props.readonly} patch={patch} />
+            </>
+          )
         ) : null}
         {activeTab === "documentation" ? (
           <Field label="Documentation">

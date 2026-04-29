@@ -1,4 +1,5 @@
 using Atlas.Application.Microflows.Abstractions;
+using Atlas.Application.Microflows.Audit;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime;
@@ -86,7 +87,8 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowCallStackService, MicroflowCallStackService>();
         services.TryAddScoped<IMicroflowLoopExecutor, MicroflowLoopExecutor>();
         services.TryAddScoped<IMicroflowRuntimeConnectorRegistry, MicroflowRuntimeConnectorRegistry>();
-        services.TryAddScoped<IMicroflowRunOwnershipGuard, MicroflowRunOwnershipGuard>();
+        // P0-9: AppHost 层会用真实 audit adapter 覆盖；Application 默认 NoOp 防止 nullref。
+        services.TryAddSingleton<IMicroflowAuditWriter, NullMicroflowAuditWriter>();
         services.TryAddScoped<IMicroflowTestRunService, MicroflowTestRunService>();
         services.TryAddScoped<IMicroflowVersionDiffService, MicroflowVersionDiffService>();
         services.TryAddScoped<IMicroflowPublishImpactService, MicroflowPublishImpactService>();
