@@ -244,6 +244,48 @@ public sealed class MicroflowReferenceService : IMicroflowReferenceService
         return references.Select(ToDto).ToArray();
     }
 
+    public async Task<IReadOnlyList<MicroflowReferenceDto>> ListCallersAsync(
+        string resourceId,
+        GetMicroflowReferencesRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        // P0-7: callers 等价于 GetReferences（target 维度）；保留显式入口便于前端语义化调用。
+        return await GetReferencesAsync(resourceId, request, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MicroflowReferenceDto>> ListCalleesAsync(
+        string resourceId,
+        GetMicroflowReferencesRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        // P0-7: callees 通过 sourceType=microflow + sourceId=resourceId 过滤 reference index。
+        _ = await LoadResourceAsync(resourceId, cancellationToken);
+        var references = await _referenceRepository.ListBySourceAsync("microflow", resourceId, cancellationToken);
+        return ApplyReferenceFilters(references, request).Select(ToDto).ToArray();
+    }
+
+    private static IEnumerable<MicroflowReferenceEntity> ApplyReferenceFilters(
+        IReadOnlyList<MicroflowReferenceEntity> references,
+        GetMicroflowReferencesRequestDto request)
+    {
+        IEnumerable<MicroflowReferenceEntity> stream = references;
+        if (!request.IncludeInactive)
+        {
+            stream = stream.Where(r => r.Active);
+        }
+        if (request.SourceType is { Count: > 0 } types)
+        {
+            var set = new HashSet<string>(types, StringComparer.OrdinalIgnoreCase);
+            stream = stream.Where(r => set.Contains(r.SourceType));
+        }
+        if (request.ImpactLevel is { Count: > 0 } levels)
+        {
+            var set = new HashSet<string>(levels, StringComparer.OrdinalIgnoreCase);
+            stream = stream.Where(r => set.Contains(r.ImpactLevel));
+        }
+        return stream;
+    }
+
     public async Task<int> RebuildAllReferencesAsync(string? workspaceId, CancellationToken cancellationToken)
     {
         var resources = await _resourceRepository.ListAsync(
