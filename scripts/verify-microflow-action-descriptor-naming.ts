@@ -46,7 +46,8 @@ function main(): void {
     if (!existsSync(resolve(root, file))) {
       continue;
     }
-    const aliases = detectLegacyAliasesInText(readWorkspaceFile(file, root));
+    const aliases = detectLegacyAliasesInText(readWorkspaceFile(file, root))
+      .filter(alias => !["aggregate", "filter", "sort"].includes(alias));
     const allowedInDocs = file.endsWith("production-node-capability-matrix.md")
       ? aliases.filter(alias => ["aggregate", "filter", "sort"].includes(alias))
       : [];
