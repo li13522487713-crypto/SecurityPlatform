@@ -96,22 +96,43 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             },
             cancellationToken);
 
-        var session = await _runner.RunAsync(
-            new MicroflowExecutionRequest
-            {
-                ResourceId = resource.Id,
-                SchemaId = schemaId,
-                Version = request.Version ?? resource.Version,
-                Schema = schema,
-                ExecutionPlan = executionPlan,
-                Input = input,
-                Options = options,
-                Metadata = metadata,
-                RequestContext = _requestContextAccessor.Current,
-                CorrelationId = request.CorrelationId,
-                MaxCallDepth = 10
-            },
-            cancellationToken);
+        // P0-6: 注册 cancellation handle 与全局 RunTimeoutSeconds 联动；
+        // 同一 traceId/runId 既写入 trace context 也作为 registry key，
+        // 这样 CancelAsync(runId) 可以真正中断正在跑的引擎主循环。
+        var runId = !string.IsNullOrWhiteSpace(_requestContextAccessor.Current.TraceId)
+            ? _requestContextAccessor.Current.TraceId
+            : Guid.NewGuid().ToString("N");
+        var runTimeoutSeconds = ResolveRunTimeoutSeconds();
+        using var registryCts = _cancellationRegistry.Register(runId, cancellationToken);
+        if (runTimeoutSeconds > 0)
+        {
+            registryCts.CancelAfter(TimeSpan.FromSeconds(runTimeoutSeconds));
+        }
+
+        MicroflowRunSessionDto session;
+        try
+        {
+            session = await _runner.RunAsync(
+                new MicroflowExecutionRequest
+                {
+                    ResourceId = resource.Id,
+                    SchemaId = schemaId,
+                    Version = request.Version ?? resource.Version,
+                    Schema = schema,
+                    ExecutionPlan = executionPlan,
+                    Input = input,
+                    Options = options,
+                    Metadata = metadata,
+                    RequestContext = _requestContextAccessor.Current with { TraceId = runId },
+                    CorrelationId = request.CorrelationId,
+                    MaxCallDepth = 10
+                },
+                registryCts.Token);
+        }
+        finally
+        {
+            _cancellationRegistry.Unregister(runId);
+        }
 
         try
         {
@@ -193,6 +214,10 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     {
         var session = await _runRepository.GetSessionAsync(runId, cancellationToken)
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
+
+        // P0-6: 真正中断正在执行的引擎主循环。即使 cancellation registry 没记录
+        // (例如 run 已经返回还没写库时的极少数竞态)，也仍然落 DB 状态以保证最终一致。
+        _cancellationRegistry.Cancel(runId);
 
         if (!string.Equals(session.Status, "cancelled", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(session.Status, "success", StringComparison.OrdinalIgnoreCase)
