@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Atlas.Application.Microflows.Abstractions;
+using Atlas.Application.Microflows.Audit;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
@@ -24,6 +25,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private readonly IMicroflowRuntimeEngine _runner;
     private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
+    private readonly IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
 
     public MicroflowTestRunService(
@@ -36,6 +38,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         IMicroflowRuntimeEngine runner,
         IMicroflowExecutionPlanLoader executionPlanLoader,
         IMicroflowRequestContextAccessor requestContextAccessor,
+        IMicroflowAuditWriter auditWriter,
         IMicroflowClock clock)
     {
         _resourceRepository = resourceRepository;
@@ -47,6 +50,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         _runner = runner;
         _executionPlanLoader = executionPlanLoader;
         _requestContextAccessor = requestContextAccessor;
+        _auditWriter = auditWriter;
         _clock = clock;
     }
 
@@ -133,7 +137,42 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 innerException: ex);
         }
 
+        await SafeAuditAsync(new MicroflowAuditEvent
+        {
+            Action = "microflow.test_run",
+            Result = string.Equals(session.Status, "success", StringComparison.OrdinalIgnoreCase) ? "success" : "failure",
+            ResourceId = resource.Id,
+            ResourceName = resource.Name,
+            WorkspaceId = resource.WorkspaceId,
+            Target = $"{resource.ModuleId}/{resource.Name}#{session.Id}",
+            ErrorCode = session.Error?.Code,
+            Details = new Dictionary<string, object?>
+            {
+                ["runId"] = session.Id,
+                ["status"] = session.Status,
+                ["durationMs"] = (session.EndedAt is { } endedAt
+                    ? (long)(endedAt - session.StartedAt).TotalMilliseconds
+                    : 0)
+            }
+        }, cancellationToken);
+
         return ToApiResponse(session, _requestContextAccessor.Current.TraceId);
+    }
+
+    private async Task SafeAuditAsync(MicroflowAuditEvent auditEvent, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _auditWriter.WriteAsync(auditEvent, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // best-effort
+        }
     }
 
     private async Task PersistSessionGraphAsync(MicroflowRunSessionDto session, MicroflowResourceEntity fallbackResource, CancellationToken cancellationToken)

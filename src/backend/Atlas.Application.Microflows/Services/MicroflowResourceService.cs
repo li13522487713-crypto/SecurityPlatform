@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Atlas.Application.Microflows.Abstractions;
+using Atlas.Application.Microflows.Audit;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
@@ -24,6 +25,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     private readonly IMicroflowReferenceRepository _referenceRepository;
     private readonly IMicroflowReferenceIndexer _referenceIndexer;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
+    private readonly IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
 
     public MicroflowResourceService(
@@ -33,6 +35,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         IMicroflowReferenceRepository referenceRepository,
         IMicroflowReferenceIndexer referenceIndexer,
         IMicroflowRequestContextAccessor requestContextAccessor,
+        IMicroflowAuditWriter auditWriter,
         IMicroflowClock clock)
     {
         _resourceRepository = resourceRepository;
@@ -41,6 +44,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         _referenceRepository = referenceRepository;
         _referenceIndexer = referenceIndexer;
         _requestContextAccessor = requestContextAccessor;
+        _auditWriter = auditWriter;
         _clock = clock;
     }
 
@@ -152,6 +156,23 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
                 details: ex.Message,
                 innerException: ex);
         }
+
+        await SafeAuditAsync(new MicroflowAuditEvent
+        {
+            Action = "microflow.create",
+            Result = "success",
+            ResourceId = entity.Id,
+            ResourceName = entity.Name,
+            WorkspaceId = entity.WorkspaceId,
+            Target = $"{entity.ModuleId}/{entity.Name}",
+            Details = new Dictionary<string, object?>
+            {
+                ["moduleId"] = entity.ModuleId,
+                ["folderId"] = entity.FolderId,
+                ["schemaId"] = snapshot.Id,
+            }
+        }, cancellationToken);
+
         return MicroflowResourceMapper.ToDto(entity, snapshot);
     }
 
@@ -447,7 +468,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
 
     public async Task DeleteAsync(string id, CancellationToken cancellationToken)
     {
-        _ = await LoadResourceAsync(id, cancellationToken);
+        var resource = await LoadResourceAsync(id, cancellationToken);
         await EnsureNoActiveTargetReferencesAsync(id, cancellationToken);
         var outgoingTargetIds = (await _referenceRepository.ListBySourceAsync("microflow", id, cancellationToken))
             .Select(static reference => reference.TargetMicroflowId)
@@ -455,6 +476,40 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         await _resourceRepository.DeleteAsync(id, cancellationToken);
         await _referenceRepository.DeleteBySourceAsync("microflow", id, cancellationToken);
         await RefreshTargetReferenceCountsAsync(outgoingTargetIds, cancellationToken);
+
+        await SafeAuditAsync(new MicroflowAuditEvent
+        {
+            Action = "microflow.delete",
+            Result = "success",
+            ResourceId = id,
+            ResourceName = resource.Name,
+            WorkspaceId = resource.WorkspaceId,
+            Target = $"{resource.ModuleId}/{resource.Name}",
+            Details = new Dictionary<string, object?>
+            {
+                ["outgoingReferenceTargets"] = outgoingTargetIds,
+            }
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// P0-9: 写 audit 不允许影响主业务流程；写失败时只 swallow，不冒泡。
+    /// 真实 IAuditWriter（infrastructure 注册）已经做 NoOp + structured log。
+    /// </summary>
+    private async Task SafeAuditAsync(MicroflowAuditEvent auditEvent, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _auditWriter.WriteAsync(auditEvent, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // ignore
+        }
     }
 
     private async Task EnsureNoActiveTargetReferencesAsync(string resourceId, CancellationToken cancellationToken)
