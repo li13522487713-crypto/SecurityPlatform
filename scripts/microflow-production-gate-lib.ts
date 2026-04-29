@@ -27,6 +27,67 @@ export interface CheckResult {
   details?: string[];
 }
 
+export interface FrontendActionRegistryEntry {
+  actionKind: string;
+  legacyActivityType: string;
+  officialType: string;
+  title: string;
+  titleZh: string;
+  description: string;
+  category: string;
+  availability: string;
+  runtimeSupportLevel: string;
+  propertyTabs: string[];
+}
+
+export interface FrontendNodeRegistryEntry {
+  registryKey: string;
+  type: string;
+  kind: string;
+  activityType?: string;
+  actionKind?: string;
+  category: string;
+  availability: string;
+  engineSupportLevel: string;
+  propertyFormKey: string;
+  toolboxVisible: boolean;
+}
+
+export interface FrontendActionRegistryEntry {
+  actionKind: string;
+  legacyActivityType: string;
+  officialType: string;
+  category: string;
+  availability: string;
+  runtimeSupportLevel: string;
+  propertyTabs: string[];
+  toolboxVisible: boolean;
+}
+
+export interface FrontendNodeRegistryEntry {
+  registryKey: string;
+  type: string;
+  kind: string;
+  activityType?: string;
+  actionKind?: string;
+  category: string;
+  availability: string;
+  engineSupportLevel: string;
+  propertyFormKey: string;
+  validationSupport: boolean;
+}
+
+export interface FrontendPropertyFormRegistryEntry {
+  key: string;
+  sourcePath: string;
+}
+
+export interface FrontendMicroflowRegistrySnapshot {
+  actions: FrontendActionRegistryEntry[];
+  nodes: FrontendNodeRegistryEntry[];
+  propertyForms: FrontendPropertyFormRegistryEntry[];
+}
+
 export const LEGACY_ACTION_ALIASES = [
   "webserviceCall",
   "webService",
@@ -290,6 +351,168 @@ export function parseFrontendActionKinds(root = findWorkspaceRoot()): Set<string
   return kinds;
 }
 
+function parseObjectLiteralCalls(source: string, functionName: string): string[] {
+  const calls: string[] = [];
+  const regex = new RegExp(`\\b${functionName}\\s*\\(\\s*\\{`, "g");
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(source)) !== null) {
+    let depth = 0;
+    let end = match.index;
+    let inString = false;
+    let escaped = false;
+    for (let index = source.indexOf("{", match.index); index < source.length; index += 1) {
+      const char = source[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === "\\") {
+          escaped = true;
+        } else if (char === "\"") {
+          inString = false;
+        }
+        continue;
+      }
+      if (char === "\"") {
+        inString = true;
+        continue;
+      }
+      if (char === "{") {
+        depth += 1;
+      } else if (char === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          end = index + 1;
+          break;
+        }
+      }
+    }
+    calls.push(source.slice(source.indexOf("{", match.index), end));
+  }
+  return calls;
+}
+
+function propertyString(source: string, name: string): string | undefined {
+  return new RegExp(`${name}\\s*:\\s*"([^"]*)"`).exec(source)?.[1];
+}
+
+function propertyBoolean(source: string, name: string, fallback: boolean): boolean {
+  const match = new RegExp(`${name}\\s*:\\s*(true|false)`).exec(source);
+  return match ? match[1] === "true" : fallback;
+}
+
+export function runtimeSupportFromFrontendAction(input: {
+  actionKind: string;
+  availability: string;
+  category: string;
+}, p0ActionKinds?: Set<string>): string {
+  const p0 = p0ActionKinds ?? new Set<string>();
+  if (p0.has(input.actionKind)) {
+    return "supported";
+  }
+  if (input.availability === "hidden") {
+    return "modeledOnly";
+  }
+  if (input.availability === "nanoflowOnlyDisabled") {
+    return "nanoflowOnly";
+  }
+  if (input.availability === "requiresConnector") {
+    return "requiresConnector";
+  }
+  if (input.availability === "deprecated") {
+    return "deprecated";
+  }
+  if (input.availability === "beta") {
+    return "modeledOnly";
+  }
+  return "modeledOnly";
+}
+
+export function parseFrontendActionRegistry(root = findWorkspaceRoot()): FrontendActionRegistryEntry[] {
+  const source = readWorkspaceFile("src/frontend/packages/mendix/mendix-microflow/src/node-registry/action-registry.ts", root);
+  const p0ActionKinds = parseStringSet(source, "P0_ACTION_KINDS");
+  return parseObjectLiteralCalls(source, "action").map(call => {
+    const actionKind = propertyString(call, "key") ?? "";
+    const availability = propertyString(call, "availability") ?? "supported";
+    const category = propertyString(call, "category") ?? "unknown";
+    const supportsErrorHandling = !["client", "logging", "metrics", "variable"].includes(category);
+    return {
+      actionKind,
+      legacyActivityType: propertyString(call, "legacyActivityType") ?? "",
+      officialType: propertyString(call, "officialType") ?? "",
+      title: propertyString(call, "title") ?? "",
+      titleZh: propertyString(call, "titleZh") ?? "",
+      description: propertyString(call, "description") ?? "",
+      category,
+      availability,
+      runtimeSupportLevel: runtimeSupportFromFrontendAction({ actionKind, availability, category }, p0ActionKinds),
+      propertyTabs: supportsErrorHandling
+        ? ["properties", "documentation", "errorHandling", "output", "advanced"]
+        : ["properties", "documentation", "output"]
+    };
+  }).filter(entry => entry.actionKind);
+}
+
+export function parseFrontendNodeRegistry(root = findWorkspaceRoot()): FrontendNodeRegistryEntry[] {
+  const source = readWorkspaceFile("src/frontend/packages/mendix/mendix-microflow/src/node-registry/registry.ts", root);
+  const supported = parseStringSet(source, "SUPPORTED_ACTION_KINDS");
+  const partial = parseStringSet(source, "PARTIAL_ACTION_KINDS");
+  const actionEntries = parseObjectLiteralCalls(source, "activityEntry").map(call => {
+    const activityType = propertyString(call, "activityType") ?? "";
+    const actionKind = propertyString(call, "actionKind") ?? undefined;
+    const availability = propertyString(call, "availability") ?? "supported";
+    const resolvedActionKind = actionKind;
+    const engineSupportLevel = resolvedActionKind && supported.has(resolvedActionKind)
+      ? "supported"
+      : resolvedActionKind && partial.has(resolvedActionKind)
+        ? "partial"
+        : availability === "nanoflowOnlyDisabled"
+          ? "unsupported"
+          : availability === "requiresConnector"
+            ? "partial"
+            : "supported";
+    return {
+      registryKey: `activity:${activityType}`,
+      type: "activity",
+      kind: "activity",
+      activityType,
+      actionKind: resolvedActionKind,
+      category: propertyString(call, "activityCategory") ?? "activities",
+      availability,
+      engineSupportLevel,
+      propertyFormKey: `activity:${activityType}`,
+      toolboxVisible: availability !== "hidden"
+    };
+  });
+  const staticNodeTypes = [
+    "startEvent",
+    "endEvent",
+    "errorEvent",
+    "breakEvent",
+    "continueEvent",
+    "decision",
+    "objectTypeDecision",
+    "merge",
+    "loop",
+    "parameter",
+    "annotation",
+    "parallelGateway",
+    "inclusiveGateway",
+    "tryCatch",
+    "errorHandler"
+  ];
+  const staticEntries = staticNodeTypes.map(type => ({
+    registryKey: type,
+    type,
+    kind: type,
+    category: ["startEvent", "endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(type) ? "events" : "nodes",
+    availability: "supported",
+    engineSupportLevel: ["parallelGateway", "inclusiveGateway", "tryCatch"].includes(type) ? "unsupported" : type === "errorHandler" ? "partial" : "supported",
+    propertyFormKey: type,
+    toolboxVisible: true
+  }));
+  return [...staticEntries, ...actionEntries].filter(entry => entry.registryKey !== "activity:");
+}
+
 export function parseRegisteredPropertyFormKeys(root = findWorkspaceRoot()): Set<string> {
   const formRegistry = readWorkspaceFile("src/frontend/packages/mendix/mendix-microflow/src/property-panel/node-form-registry.ts", root);
   const keys = new Set<string>();
@@ -299,6 +522,230 @@ export function parseRegisteredPropertyFormKeys(root = findWorkspaceRoot()): Set
     keys.add(match[1]);
   }
   return keys;
+}
+
+function extractArrayBody(source: string, marker: string): string {
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex < 0) {
+    return "";
+  }
+  const start = source.indexOf("[", markerIndex);
+  if (start < 0) {
+    return "";
+  }
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+    if (char === "[") {
+      depth += 1;
+    } else if (char === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(start + 1, index);
+      }
+    }
+  }
+  return "";
+}
+
+function extractFunctionCalls(body: string, functionName: string): string[] {
+  const calls: string[] = [];
+  const regex = new RegExp(`${functionName}\\s*\\(`, "g");
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(body)) !== null) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = match.index;
+    for (let index = match.index; index < body.length; index += 1) {
+      const char = body[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === "\\") {
+          escaped = true;
+        } else if (char === "\"") {
+          inString = false;
+        }
+        continue;
+      }
+      if (char === "\"") {
+        inString = true;
+        continue;
+      }
+      if (char === "(") {
+        depth += 1;
+      } else if (char === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          end = index + 1;
+          break;
+        }
+      }
+    }
+    calls.push(body.slice(match.index, end));
+  }
+  return calls;
+}
+
+function fieldString(call: string, name: string): string | undefined {
+  return new RegExp(`${name}\\s*:\\s*"([^"]*)"`).exec(call)?.[1];
+}
+
+function fieldBoolean(call: string, name: string): boolean | undefined {
+  const matched = new RegExp(`${name}\\s*:\\s*(true|false)`).exec(call);
+  return matched ? matched[1] === "true" : undefined;
+}
+
+function deriveFrontendRuntimeSupport(actionKind: string, availability: string, p0Kinds: Set<string>): string {
+  if (p0Kinds.has(actionKind)) {
+    return "supported";
+  }
+  if (availability === "hidden") {
+    return "modeledOnly";
+  }
+  if (availability === "nanoflowOnlyDisabled") {
+    return "nanoflowOnly";
+  }
+  if (availability === "requiresConnector") {
+    return "requiresConnector";
+  }
+  if (availability === "deprecated") {
+    return "deprecated";
+  }
+  return "modeledOnly";
+}
+
+export function collectFrontendActionRegistry(root = findWorkspaceRoot()): FrontendActionRegistryEntry[] {
+  const source = readWorkspaceFile("src/frontend/packages/mendix/mendix-microflow/src/node-registry/action-registry.ts", root);
+  const p0Kinds = parseStringSet(source, "P0_ACTION_KINDS");
+  const body = extractArrayBody(source, "export const defaultMicroflowActionRegistry");
+  return extractFunctionCalls(body, "action").map(call => {
+    const actionKind = fieldString(call, "key") ?? "";
+    const legacyActivityType = fieldString(call, "legacyActivityType") ?? "";
+    const category = fieldString(call, "category") ?? "unknown";
+    const availability = fieldString(call, "availability") ?? "supported";
+    const supportsErrorHandling = fieldBoolean(call, "supportsErrorHandling") ?? !["client", "logging", "metrics", "variable"].includes(category);
+    return {
+      actionKind,
+      legacyActivityType,
+      officialType: fieldString(call, "officialType") ?? "",
+      category,
+      availability,
+      runtimeSupportLevel: deriveFrontendRuntimeSupport(actionKind, availability, p0Kinds),
+      propertyTabs: supportsErrorHandling
+        ? ["properties", "documentation", "errorHandling", "output", "advanced"]
+        : ["properties", "documentation", "output"],
+      toolboxVisible: availability !== "hidden"
+    };
+  }).filter(entry => entry.actionKind);
+}
+
+export function collectFrontendNodeRegistry(root = findWorkspaceRoot()): FrontendNodeRegistryEntry[] {
+  const source = readWorkspaceFile("src/frontend/packages/mendix/mendix-microflow/src/node-registry/registry.ts", root);
+  const supportedKinds = parseStringSet(source, "SUPPORTED_ACTION_KINDS");
+  const partialKinds = parseStringSet(source, "PARTIAL_ACTION_KINDS");
+  const activityBody = extractArrayBody(source, "const activityDefinitions");
+  const activities = extractFunctionCalls(activityBody, "").length > 0 ? [] : [];
+  const activityRows = [...activityBody.matchAll(/\{\s*activityType:\s*"([^"]+)"[\s\S]*?activityCategory:\s*"([^"]+)"[\s\S]*?(?:availability:\s*"([^"]+)")?[\s\S]*?\}/g)]
+    .map(match => {
+      const activityType = match[1];
+      const actionKind = activityTypeToActionKind(activityType);
+      const availability = match[3] ?? "supported";
+      return {
+        registryKey: `activity:${activityType}`,
+        type: "activity",
+        kind: "activity",
+        activityType,
+        actionKind,
+        category: match[2] ?? "activities",
+        availability,
+        engineSupportLevel: actionKind && supportedKinds.has(actionKind) ? "supported" : actionKind && partialKinds.has(actionKind) ? "partial" : availability === "nanoflowOnlyDisabled" ? "unsupported" : "unsupported",
+        propertyFormKey: `activity:${activityType}`,
+        validationSupport: true
+      } satisfies FrontendNodeRegistryEntry;
+    });
+  void activities;
+  const objectRows: FrontendNodeRegistryEntry[] = [
+    "startEvent", "endEvent", "errorEvent", "breakEvent", "continueEvent",
+    "decision", "objectTypeDecision", "merge", "loop", "parameter", "annotation",
+    "parallelGateway", "inclusiveGateway", "tryCatch", "errorHandler"
+  ].map(type => ({
+    registryKey: type,
+    type,
+    kind: type,
+    category: ["startEvent", "endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(type)
+      ? "events"
+      : ["decision", "objectTypeDecision", "merge", "parallelGateway", "inclusiveGateway", "tryCatch", "errorHandler"].includes(type)
+        ? "decisions"
+        : type === "loop"
+          ? "loop"
+          : type === "parameter"
+            ? "parameters"
+            : "annotations",
+    availability: "supported",
+    engineSupportLevel: ["parallelGateway", "inclusiveGateway", "tryCatch"].includes(type) ? "unsupported" : type === "errorHandler" || type === "loop" || type === "objectTypeDecision" ? "partial" : "supported",
+    propertyFormKey: type,
+    validationSupport: true
+  }));
+  return [...objectRows, ...activityRows].filter(entry => entry.registryKey);
+}
+
+function activityTypeToActionKind(activityType: string): string | undefined {
+  const map: Record<string, string> = {
+    objectRetrieve: "retrieve",
+    objectCreate: "createObject",
+    objectChange: "changeMembers",
+    objectCommit: "commit",
+    objectDelete: "delete",
+    objectRollback: "rollback",
+    objectCast: "cast",
+    listAggregate: "aggregateList",
+    listCreate: "createList",
+    listChange: "changeList",
+    listOperation: "listOperation",
+    listFilter: "filterList",
+    listSort: "sortList",
+    variableCreate: "createVariable",
+    variableChange: "changeVariable",
+    callRest: "restCall",
+    callWebService: "webServiceCall",
+    importWithMapping: "importXml",
+    exportWithMapping: "exportXml",
+    callMlModel: "mlModelCall",
+    synchronizeToDevice: "synchronize"
+  };
+  return map[activityType] ?? activityType;
+}
+
+export function collectFrontendPropertyFormRegistry(root = findWorkspaceRoot()): FrontendPropertyFormRegistryEntry[] {
+  return [...parseRegisteredPropertyFormKeys(root)]
+    .sort((a, b) => a.localeCompare(b))
+    .map(key => ({ key, sourcePath: "src/frontend/packages/mendix/mendix-microflow/src/property-panel/node-form-registry.ts" }));
+}
+
+export function collectFrontendMicroflowRegistry(root = findWorkspaceRoot()): FrontendMicroflowRegistrySnapshot {
+  return {
+    actions: collectFrontendActionRegistry(root),
+    nodes: collectFrontendNodeRegistry(root),
+    propertyForms: collectFrontendPropertyFormRegistry(root)
+  };
 }
 
 export function parseMarkdownMatrixActionKinds(markdown: string): Set<string> {
