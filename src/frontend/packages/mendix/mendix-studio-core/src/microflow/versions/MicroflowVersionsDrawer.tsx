@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Drawer, Empty, Modal, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, Modal, SideSheet, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 
 import { getMicroflowErrorUserMessage } from "../adapter/http/microflow-api-error";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
@@ -137,7 +137,7 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
 
   return (
     <>
-      <Drawer visible={visible} title="版本历史" width={620} onCancel={onClose} footer={null}>
+      <SideSheet visible={visible} title="版本历史" width={620} onCancel={onClose} footer={null}>
         {!resource ? (
           <Empty title="未选择微流" />
         ) : loading ? (
@@ -174,7 +174,7 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
             ))}
           </Space>
         )}
-      </Drawer>
+      </SideSheet>
       <MicroflowVersionDetailDrawer
         visible={detailOpen}
         detail={detail}

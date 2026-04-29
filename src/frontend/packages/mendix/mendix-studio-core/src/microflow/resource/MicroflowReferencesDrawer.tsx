@@ -1,4 +1,4 @@
-import { Drawer, Empty, List, Tag, Typography } from "@douyinfe/semi-ui";
+import { Empty, List, SideSheet, Tag, Typography } from "@douyinfe/semi-ui";
 
 import type { MicroflowReference } from "./resource-types";
 
@@ -12,7 +12,7 @@ interface MicroflowReferencesDrawerProps {
 
 export function MicroflowReferencesDrawer({ visible, references, onClose }: MicroflowReferencesDrawerProps) {
   return (
-    <Drawer visible={visible} title={`引用关系（${references.length}）`} onCancel={onClose} width={560}>
+    <SideSheet visible={visible} title={`引用关系（${references.length}）`} onCancel={onClose} width={560}>
       {references.length === 0 ? (
         <Empty title="暂无引用" description="当前微流还没有被其它资源引用。" />
       ) : (
@@ -37,6 +37,6 @@ export function MicroflowReferencesDrawer({ visible, references, onClose }: Micr
           )}
         />
       )}
-    </Drawer>
+    </SideSheet>
   );
 }

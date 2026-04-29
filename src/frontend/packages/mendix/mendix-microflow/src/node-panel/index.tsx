@@ -382,7 +382,16 @@ export function MicroflowNodeSearch({
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 36px", gap: 8 }}>
-      <Input className="microflow-node-search-input" prefix={<IconSearch />} value={value} onChange={onChange} placeholder={labels.searchPlaceholder} showClear />
+      <div data-testid="microflow-node-panel-search">
+        <Input
+          className="microflow-node-search-input"
+          prefix={<IconSearch />}
+          value={value}
+          onChange={onChange}
+          placeholder={labels.searchPlaceholder}
+          showClear
+        />
+      </div>
       <Popover
         trigger="click"
         position="bottomRight"
@@ -449,7 +458,10 @@ export function MicroflowNodeCard({
         role="button"
         tabIndex={disabled ? -1 : 0}
         draggable={!disabled}
+        data-testid={`microflow-node-panel-item-${key.replace(/[^A-Za-z0-9_-]+/gu, "-")}`}
         data-registry-key={key}
+        data-node-type={item.type}
+        data-action-kind={item.actionKind}
         style={cardStyle}
         onClick={() => {
           if (!disabled) {
@@ -595,9 +607,10 @@ export function MicroflowNodeCategorySection({
   const favoriteSet = new Set(favoriteNodeKeys);
 
   return (
-    <section style={categoryStyle}>
+    <section data-testid={`microflow-node-panel-category-${category.category.key}`} style={categoryStyle}>
       <button
         type="button"
+        data-testid={`microflow-node-panel-category-toggle-${category.category.key}`}
         style={{
           width: "100%",
           display: "flex",
@@ -623,9 +636,10 @@ export function MicroflowNodeCategorySection({
             const groupPanelKey = `${category.category.key}:${group.key}`;
             const groupOpen = expandedGroups.includes(groupPanelKey);
             return (
-              <div key={group.key} style={{ display: "grid", gap: 6 }}>
+              <div key={group.key} data-testid={`microflow-node-panel-group-${group.key}`} style={{ display: "grid", gap: 6 }}>
                 <button
                   type="button"
+                  data-testid={`microflow-node-panel-group-toggle-${group.key}`}
                   style={{
                     border: 0,
                     background: "transparent",
@@ -915,7 +929,7 @@ export function MicroflowNodePanel({
   }
 
   return (
-    <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto", gap: 10 }}>
+    <div data-testid="microflow-node-panel" style={{ height: "100%", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto", gap: 10 }}>
       <MicroflowNodePanelTabs activeKey={activeTab} onChange={setActiveTab} labels={labels} />
       {activeTab === "nodes" ? (
         <MicroflowNodeSearch

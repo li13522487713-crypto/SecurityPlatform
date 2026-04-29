@@ -1,4 +1,4 @@
-import { Button, Drawer, Empty, List, Space, Tag, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, List, SideSheet, Space, Tag, Typography } from "@douyinfe/semi-ui";
 
 import type { MicroflowVersionSummary } from "./resource-types";
 import { formatMicroflowDate, microflowStatusColor, microflowStatusLabel } from "./resource-utils";
@@ -13,7 +13,7 @@ interface MicroflowVersionsDrawerProps {
 
 export function MicroflowVersionsDrawer({ visible, versions, onClose }: MicroflowVersionsDrawerProps) {
   return (
-    <Drawer visible={visible} title={`版本记录（${versions.length}）`} onCancel={onClose} width={560}>
+    <SideSheet visible={visible} title={`版本记录（${versions.length}）`} onCancel={onClose} width={560}>
       {versions.length === 0 ? (
         <Empty title="暂无版本" description="发布后会在这里生成版本记录。" />
       ) : (
@@ -38,6 +38,6 @@ export function MicroflowVersionsDrawer({ visible, versions, onClose }: Microflo
           )}
         />
       )}
-    </Drawer>
+    </SideSheet>
   );
 }

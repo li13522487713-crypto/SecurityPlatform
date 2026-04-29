@@ -4,6 +4,7 @@ using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.LowCode.Entities;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.Microflows;
@@ -26,22 +27,22 @@ public sealed class MicroflowAppAssetService : IMicroflowAppAssetService
 
     public async Task<MicroflowAppAssetDto> GetAppAsync(string appId, string workspaceId, CancellationToken cancellationToken)
     {
-        var app = await LoadAppAsync(appId, workspaceId, cancellationToken);
+        var app = await LoadAppAssetAsync(appId, workspaceId, cancellationToken);
         var modules = await ListModulesAsync(appId, workspaceId, cancellationToken);
         return new MicroflowAppAssetDto
         {
-            AppId = app.Id.ToString(),
+            AppId = app.AppId,
             WorkspaceId = workspaceId,
             Name = app.Name,
             Description = app.Description,
-            Status = app.Status == AiAppStatus.Published ? "published" : "draft",
+            Status = app.Status,
             Modules = modules
         };
     }
 
     public async Task<IReadOnlyList<MicroflowModuleAssetDto>> ListModulesAsync(string appId, string workspaceId, CancellationToken cancellationToken)
     {
-        _ = await LoadAppAsync(appId, workspaceId, cancellationToken);
+        _ = await LoadAppAssetAsync(appId, workspaceId, cancellationToken);
         var catalog = await _metadataService.GetCatalogAsync(
             new GetMicroflowMetadataRequestDto
             {
@@ -78,7 +79,7 @@ public sealed class MicroflowAppAssetService : IMicroflowAppAssetService
             };
     }
 
-    private async Task<AiApp> LoadAppAsync(string appId, string workspaceId, CancellationToken cancellationToken)
+    private async Task<MicroflowAppAssetDescriptor> LoadAppAssetAsync(string appId, string workspaceId, CancellationToken cancellationToken)
     {
         if (!long.TryParse(appId, out var id))
         {
@@ -86,23 +87,54 @@ public sealed class MicroflowAppAssetService : IMicroflowAppAssetService
         }
 
         var tenantId = _requestContextAccessor.Current.TenantId;
-        var query = _db.Queryable<AiApp>().Where(app => app.Id == id);
+        var aiAppQuery = _db.Queryable<AiApp>().Where(app => app.Id == id);
         if (!string.IsNullOrWhiteSpace(tenantId) && Guid.TryParse(tenantId, out var parsedTenantId))
         {
-            query = query.Where(app => app.TenantIdValue == parsedTenantId);
+            aiAppQuery = aiAppQuery.Where(app => app.TenantIdValue == parsedTenantId);
         }
 
-        var app = await query.FirstAsync(cancellationToken);
-        if (app is null)
+        var aiApp = await aiAppQuery.FirstAsync(cancellationToken);
+        if (aiApp is not null)
+        {
+            if (!long.TryParse(workspaceId, out var workspaceIdValue) || aiApp.WorkspaceId != workspaceIdValue)
+            {
+                throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowWorkspaceForbidden, "该应用不属于当前工作区。", 403);
+            }
+
+            return new MicroflowAppAssetDescriptor(
+                aiApp.Id.ToString(),
+                aiApp.Name,
+                aiApp.Description,
+                aiApp.Status == AiAppStatus.Published ? "published" : "draft");
+        }
+
+        var lowCodeAppQuery = _db.Queryable<AppDefinition>().Where(app => app.Id == id);
+        if (!string.IsNullOrWhiteSpace(tenantId) && Guid.TryParse(tenantId, out var parsedLowCodeTenantId))
+        {
+            lowCodeAppQuery = lowCodeAppQuery.Where(app => app.TenantIdValue == parsedLowCodeTenantId);
+        }
+
+        var lowCodeApp = await lowCodeAppQuery.FirstAsync(cancellationToken);
+        if (lowCodeApp is null)
         {
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流应用不存在。", 404);
         }
 
-        if (!long.TryParse(workspaceId, out var workspaceIdValue) || app.WorkspaceId != workspaceIdValue)
+        if (!string.Equals(lowCodeApp.WorkspaceId, workspaceId, StringComparison.OrdinalIgnoreCase))
         {
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowWorkspaceForbidden, "该应用不属于当前工作区。", 403);
         }
 
-        return app;
+        return new MicroflowAppAssetDescriptor(
+            lowCodeApp.Id.ToString(),
+            lowCodeApp.DisplayName,
+            lowCodeApp.Description,
+            lowCodeApp.Status);
     }
+
+    private sealed record MicroflowAppAssetDescriptor(
+        string AppId,
+        string Name,
+        string? Description,
+        string Status);
 }

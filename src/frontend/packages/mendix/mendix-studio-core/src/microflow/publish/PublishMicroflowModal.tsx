@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Checkbox, Input, Modal, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Checkbox, Input, Modal, Space, Spin, Tag, TextArea, Toast, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowValidationIssue } from "@atlas/microflow";
 
 import { getMicroflowApiError, getMicroflowErrorUserMessage, isPublishBlockedError, isValidationFailedError, isVersionConflictError } from "../adapter/http/microflow-api-error";
@@ -267,7 +267,7 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
           </Space>
           <Input value={version} onChange={setVersion} placeholder="1.0.0" prefix="版本号" />
           {versionMessage ? <Text type={versionMessage.includes("不推荐") ? "warning" : "danger"}>{versionMessage}</Text> : null}
-          <Input.TextArea value={description} onChange={setDescription} placeholder="Version notes / release notes" rows={3} />
+          <TextArea value={description} onChange={setDescription} placeholder="Version notes / release notes" rows={3} />
           {dirty ? <Text type="warning">当前微流有未保存更改。本轮默认使用 Save & Publish：先保存当前 schema，保存成功后重新校验并调用真实 publish API。</Text> : null}
           {sampleBlocked ? <Text type="danger">sampleOrderProcessingMicroflow 禁止发布，请从 App Explorer 打开真实微流资源。</Text> : null}
           {!schemaValidated ? <Text type="warning">当前 schema 尚未完成本轮发布前校验，Publish 将保持禁用。</Text> : null}

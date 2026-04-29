@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Banner, Button, Drawer, Empty, Input, Select, Space, Spin, Tag, Typography } from "@douyinfe/semi-ui";
+import { Banner, Button, Empty, Input, Select, SideSheet, Space, Spin, Tag, Typography } from "@douyinfe/semi-ui";
 import { IconRefresh, IconSearch } from "@douyinfe/semi-icons";
 import type { MicroflowAuthoringSchema } from "@atlas/microflow";
 
@@ -131,7 +131,7 @@ export function MicroflowReferencesDrawer({
   const missingTargetCount = callees.filter(callee => callee.staleReason === "targetNotFound" || callee.staleReason === "missingTargetId").length;
 
   return (
-    <Drawer visible={visible} title="引用关系" width={680} onCancel={onClose} footer={null}>
+    <SideSheet visible={visible} title="引用关系" width={680} onCancel={onClose} footer={null}>
       {!resource ? (
         <Empty title="未选择微流" />
       ) : (
@@ -289,6 +289,6 @@ export function MicroflowReferencesDrawer({
           )}
         </Space>
       )}
-    </Drawer>
+    </SideSheet>
   );
 }

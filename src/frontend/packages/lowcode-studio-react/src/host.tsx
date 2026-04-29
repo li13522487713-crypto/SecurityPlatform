@@ -14,6 +14,7 @@ import {
   type RuntimeDispatchResponse,
   type RuntimeTrace
 } from './services/api-core';
+import { getLowcodeAccessToken, getLowcodeTenantId, getLowcodeUserId } from './services/auth-storage';
 
 export interface LowcodeStudioAuth {
   accessTokenFactory: () => string;
@@ -114,19 +115,12 @@ export interface LowcodeStudioHostConfig {
   deleteWorkflow?: (request: LowcodeWorkflowDeleteRequest) => Promise<void>;
 }
 
-function readStorageValue(key: string): string {
-  if (typeof localStorage === 'undefined') {
-    return '';
-  }
-  return localStorage.getItem(key) ?? '';
-}
-
 const defaultHostConfig: LowcodeStudioHostConfig = {
   api: lowcodeApi,
   auth: {
-    accessTokenFactory: () => readStorageValue('atlas_access_token'),
-    tenantIdFactory: () => readStorageValue('atlas_tenant_id') || '00000000-0000-0000-0000-000000000001',
-    userIdFactory: () => readStorageValue('atlas_user_id') || 'me'
+    accessTokenFactory: getLowcodeAccessToken,
+    tenantIdFactory: getLowcodeTenantId,
+    userIdFactory: getLowcodeUserId
   },
   runtimeSessions: runtimeSessionApi
 };

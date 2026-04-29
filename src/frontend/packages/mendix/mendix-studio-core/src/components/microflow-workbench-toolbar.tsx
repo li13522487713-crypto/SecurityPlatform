@@ -4,10 +4,7 @@ import {
   IconBranch,
   IconCheckCircleStroked,
   IconClock,
-  IconExpandStroked,
   IconFullScreenStroked,
-  IconLayout,
-  IconMagnifier,
   IconMinus,
   IconPlay,
   IconPlus,
@@ -86,6 +83,8 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
   return (
     <div
       className="studio-workbench-toolbar"
+      data-testid="microflow-workbench-toolbar"
+      data-microflow-id={microflowId}
       role="toolbar"
       aria-label="Microflow Workbench Toolbar"
       style={{
@@ -101,6 +100,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
       <Space spacing={6}>
         <Tooltip content={dirty ? "保存（Ctrl+S）" : "无未保存改动"}>
           <Button
+            data-testid="microflow-workbench-save"
             theme="solid"
             type="primary"
             size="small"
@@ -114,6 +114,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
         </Tooltip>
         <Tooltip content={errorCount > 0 ? "存在校验错误，请先修复后再运行" : "运行"}>
           <Button
+            data-testid="microflow-workbench-run"
             size="small"
             icon={<IconPlay />}
             loading={running}
@@ -125,6 +126,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
         </Tooltip>
         <Tooltip content="调试运行：与运行使用相同 testRun，但运行后默认打开底部 Debug 抽屉以查看 trace 与变量快照。">
           <Button
+            data-testid="microflow-workbench-debug-run"
             size="small"
             icon={<IconBranch />}
             loading={running}
@@ -136,6 +138,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
         </Tooltip>
         <Tooltip content="校验">
           <Button
+            data-testid="microflow-workbench-validate"
             size="small"
             icon={<IconCheckCircleStroked />}
             loading={validating}
@@ -147,6 +150,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
         </Tooltip>
         <Tooltip content={errorCount > 0 ? "存在错误，无法发布" : "发布"}>
           <Button
+            data-testid="microflow-workbench-publish"
             size="small"
             icon={<IconSend />}
             disabled={disabled || errorCount > 0 || dirty}
@@ -161,10 +165,10 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
 
       <Space spacing={4}>
         <Tooltip content="撤销 (Ctrl+Z)">
-          <Button size="small" theme="borderless" icon={<IconUndo />} disabled={disabled || !canUndo} onClick={() => callHandle("undo")} />
+          <Button data-testid="microflow-workbench-undo" size="small" theme="borderless" icon={<IconUndo />} disabled={disabled || !canUndo} onClick={() => callHandle("undo")} />
         </Tooltip>
         <Tooltip content="重做 (Ctrl+Y)">
-          <Button size="small" theme="borderless" icon={<IconRedo />} disabled={disabled || !canRedo} onClick={() => callHandle("redo")} />
+          <Button data-testid="microflow-workbench-redo" size="small" theme="borderless" icon={<IconRedo />} disabled={disabled || !canRedo} onClick={() => callHandle("redo")} />
         </Tooltip>
       </Space>
 
@@ -172,7 +176,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
 
       <Space spacing={4}>
         <Tooltip content="缩小">
-          <Button size="small" theme="borderless" icon={<IconMinus />} disabled={disabled} onClick={() => callHandle("zoomOut")} />
+          <Button data-testid="microflow-workbench-zoom-out" size="small" theme="borderless" icon={<IconMinus />} disabled={disabled} onClick={() => callHandle("zoomOut")} />
         </Tooltip>
         <Dropdown
           trigger="click"
@@ -184,22 +188,22 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
             </Dropdown.Menu>
           )}
         >
-          <Button size="small" theme="borderless" disabled={disabled}>{zoomPercent}%</Button>
+          <Button data-testid="microflow-workbench-zoom-menu" size="small" theme="borderless" disabled={disabled}>{zoomPercent}%</Button>
         </Dropdown>
         <Tooltip content="放大">
-          <Button size="small" theme="borderless" icon={<IconPlus />} disabled={disabled} onClick={() => callHandle("zoomIn")} />
+          <Button data-testid="microflow-workbench-zoom-in" size="small" theme="borderless" icon={<IconPlus />} disabled={disabled} onClick={() => callHandle("zoomIn")} />
         </Tooltip>
         <Tooltip content="适应画布">
-          <Button size="small" theme="borderless" icon={<IconMagnifier />} disabled={disabled} onClick={() => callHandle("fitView")} />
+          <Button data-testid="microflow-workbench-fit-view" size="small" theme="borderless" disabled={disabled} onClick={() => callHandle("fitView")}>适应</Button>
         </Tooltip>
         <Tooltip content="自动布局">
-          <Button size="small" theme="borderless" icon={<IconLayout />} disabled={disabled} onClick={() => callHandle("autoLayout")} />
+          <Button data-testid="microflow-workbench-auto-layout" size="small" theme="borderless" disabled={disabled} onClick={() => callHandle("autoLayout")}>布局</Button>
         </Tooltip>
         <Tooltip content="小地图开关">
-          <Button size="small" theme="borderless" icon={<IconExpandStroked />} disabled={disabled} onClick={() => callHandle("toggleMinimap")} />
+          <Button data-testid="microflow-workbench-minimap" size="small" theme="borderless" disabled={disabled} onClick={() => callHandle("toggleMinimap")}>小地图</Button>
         </Tooltip>
         <Tooltip content={fullscreen ? "退出全屏" : "全屏"}>
-          <Button size="small" theme="borderless" icon={<IconFullScreenStroked />} disabled={disabled} onClick={() => callHandle("toggleFullscreen")} />
+          <Button data-testid="microflow-workbench-fullscreen" size="small" theme="borderless" icon={<IconFullScreenStroked />} disabled={disabled} onClick={() => callHandle("toggleFullscreen")} />
         </Tooltip>
       </Space>
 
@@ -214,7 +218,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
         {validating ? <Tag color="blue" size="small" icon={<IconRefresh />}>校验中</Tag> : null}
         {onViewReferences && microflowId ? (
           <Tooltip content="查看引用 / 影响面">
-            <Button size="small" theme="borderless" onClick={() => onViewReferences(microflowId)}>
+            <Button data-testid="microflow-workbench-references" size="small" theme="borderless" onClick={() => onViewReferences(microflowId)}>
               引用
             </Button>
           </Tooltip>

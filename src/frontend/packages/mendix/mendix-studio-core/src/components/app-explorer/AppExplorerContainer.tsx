@@ -12,6 +12,7 @@ import type { StudioMicroflowDefinitionView } from "../../microflow/studio/studi
 import { mapMicroflowResourceToStudioDefinitionView } from "../../microflow/studio/studio-microflow-mappers";
 import { AppExplorerTree } from "./AppExplorerTree";
 import { createMicroflowStateChildren, MicroflowsSectionKey } from "./MicroflowsTreeSection";
+import { resolveExplorerCreateContext, type ExplorerCreateContext } from "./app-explorer-create-context";
 import { CreateMicroflowModal, DuplicateMicroflowModal, RenameMicroflowModal } from "../../microflow/resource";
 import { CreateMicroflowFolderDialog, RenameMicroflowFolderDialog } from "../../microflow/tree-crud";
 import type { MicroflowCreateInput, MicroflowDuplicateInput, MicroflowModuleAsset, MicroflowResource } from "../../microflow/resource";
@@ -75,8 +76,15 @@ const explorerMicroflowRequests = new Map<string, Promise<StudioMicroflowDefinit
 const explorerFolderRequests = new Map<string, Promise<MicroflowFolder[]>>();
 const explorerAppAssetRequests = new Map<string, Promise<MicroflowModuleAsset[]>>();
 
-export function getCurrentExplorerModuleId(node?: Pick<ExplorerTreeNode, "moduleId">, fallbackModuleId?: string): string | undefined {
-  return node?.moduleId ?? fallbackModuleId;
+export function getCurrentExplorerModuleId(node?: Pick<ExplorerTreeNode, "key" | "moduleId">, fallbackModuleId?: string): string | undefined {
+  if (node?.moduleId) {
+    return node.moduleId;
+  }
+  if (node?.key.startsWith(`${MicroflowsSectionKey}:`)) {
+    const [, moduleIdFromKey] = node.key.split(":");
+    return moduleIdFromKey || fallbackModuleId;
+  }
+  return fallbackModuleId;
 }
 
 function createAppAssetTree(modules: MicroflowModuleAsset[]): ExplorerTreeNode[] {
@@ -204,7 +212,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
   const [microflows, setMicroflows] = useState<StudioMicroflowDefinitionView[]>([]);
   const [modules, setModules] = useState<MicroflowModuleAsset[]>([]);
   const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [createContext, setCreateContext] = useState<{ moduleId?: string; folderId?: string; folderPath?: string }>();
+  const [createContext, setCreateContext] = useState<ExplorerCreateContext>();
   const [renameMicroflowId, setRenameMicroflowId] = useState<string>();
   const [duplicateMicroflowId, setDuplicateMicroflowId] = useState<string>();
   const [createFolderContext, setCreateFolderContext] = useState<{ moduleId?: string; parentFolderId?: string; parentPath?: string }>();
@@ -472,15 +480,27 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
   }, [adapterBundle?.resourceAdapter, loadModuleMicroflows, renameFolderId, upsertFolder]);
 
   const openCreateMicroflow = useCallback((node: ExplorerTreeNode) => {
-    if (!node.key.startsWith(`${MicroflowsSectionKey}:`) && node.kind !== "folder") {
+    const supportedSource = node.key === MicroflowsSectionKey
+      || node.key.startsWith(`${MicroflowsSectionKey}:`)
+      || node.kind === "microflowFolder"
+      || node.kind === "folder"
+      || node.kind === "module";
+    if (!supportedSource) {
       return;
     }
-    if (node.moduleId) {
-      setActiveModuleId(node.moduleId);
+    const nextContext = resolveExplorerCreateContext({
+      node,
+      modules,
+      appId,
+      workspaceId,
+      fallbackModuleId: activeModuleId
+    });
+    if (nextContext.moduleId) {
+      setActiveModuleId(nextContext.moduleId);
     }
-    setCreateContext({ moduleId: node.moduleId, folderId: node.folderId, folderPath: node.folderPath });
+    setCreateContext(nextContext);
     setCreateModalVisible(true);
-  }, [setActiveModuleId]);
+  }, [activeModuleId, appId, modules, setActiveModuleId, workspaceId]);
 
   const openCreateFolder = useCallback((node: ExplorerTreeNode) => {
     if (!node.moduleId || (node.kind !== "module" && node.kind !== "folder")) {
@@ -678,13 +698,13 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
         <CreateMicroflowModal
           visible={createModalVisible}
           existingResources={microflows}
-          defaultModuleId={createContext?.moduleId ?? moduleId}
-          initialModuleId={createContext?.moduleId ?? moduleId}
-          initialModuleName={modules.find(item => item.moduleId === (createContext?.moduleId ?? moduleId))?.name}
+          defaultModuleId={createContext?.moduleId}
+          initialModuleId={createContext?.moduleId}
+          initialModuleName={createContext?.moduleName}
           initialFolderId={createContext?.folderId}
           initialFolderPath={createContext?.folderPath}
           moduleOptions={modules.map(module => ({ value: module.moduleId, label: module.name || module.qualifiedName || module.moduleId }))}
-          moduleLocked
+          moduleLocked={Boolean(createContext?.moduleId)}
           onClose={() => {
             setCreateModalVisible(false);
             setCreateContext(undefined);

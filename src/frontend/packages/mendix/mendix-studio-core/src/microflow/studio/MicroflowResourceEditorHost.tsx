@@ -71,9 +71,19 @@ export function MicroflowResourceEditorHost({
 }: MicroflowResourceEditorHostProps) {
   const requestSeqRef = useRef(0);
   const mountedRef = useRef(false);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  const onResourceUpdatedRef = useRef(onResourceUpdated);
   const [resource, setResource] = useState<MicroflowResource>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown>();
+
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  }, [onDirtyChange]);
+
+  useEffect(() => {
+    onResourceUpdatedRef.current = onResourceUpdated;
+  }, [onResourceUpdated]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -134,8 +144,8 @@ export function MicroflowResourceEditorHost({
         throw new Error("后端未返回可用的 MicroflowAuthoringSchema；不会回退到 sample schema。");
       }
       setResource(nextResource);
-      onDirtyChange?.(false);
-      onResourceUpdated?.(nextResource);
+      onDirtyChangeRef.current?.(false);
+      onResourceUpdatedRef.current?.(nextResource);
     } catch (caught) {
       if (!mountedRef.current || requestSeqRef.current !== requestSeq) {
         return;
@@ -146,7 +156,7 @@ export function MicroflowResourceEditorHost({
         setLoading(false);
       }
     }
-  }, [adapterBundle, microflowId, onDirtyChange, onResourceUpdated, workspaceId]);
+  }, [adapterBundle, microflowId, workspaceId]);
 
   useEffect(() => {
     void load();
@@ -154,7 +164,7 @@ export function MicroflowResourceEditorHost({
 
   if (loading) {
     return (
-      <div className="studio-embedded-microflow-state">
+      <div className="studio-embedded-microflow-state" data-testid="microflow-resource-editor-loading" data-microflow-id={microflowId}>
         <Spin size="large" />
         <Text type="tertiary">Loading microflow resource and schema...</Text>
       </div>
@@ -196,7 +206,7 @@ export function MicroflowResourceEditorHost({
   }
 
   return (
-    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <div data-testid="microflow-resource-editor-host" data-microflow-id={microflowId} style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {!adapterBundle.validationAdapter ? (
         <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--semi-color-border)", background: "var(--semi-color-warning-light-default)" }}>
           <Space>
@@ -205,7 +215,7 @@ export function MicroflowResourceEditorHost({
           </Space>
         </div>
       ) : null}
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div data-testid="microflow-resource-editor-body" style={{ flex: 1, minHeight: 0 }}>
         <MendixMicroflowEditorEntry
           key={`${microflowId}:${resource.schemaId}:${resource.version}`}
           resource={resource}

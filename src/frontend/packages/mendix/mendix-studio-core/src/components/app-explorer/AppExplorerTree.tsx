@@ -82,6 +82,10 @@ function matchesNode(node: ExplorerTreeNode, normalizedSearch: string): boolean 
   return searchable.includes(normalizedSearch) || Boolean(node.children?.some(child => matchesNode(child, normalizedSearch)));
 }
 
+function testIdToken(value: string): string {
+  return value.replace(/[^A-Za-z0-9_-]+/gu, "-");
+}
+
 function renderContextMenu(input: {
   node: ExplorerTreeNode;
   onSelect: (node: ExplorerTreeNode) => void;
@@ -99,16 +103,16 @@ function renderContextMenu(input: {
   if (node.key === MicroflowsSectionKey || node.key.startsWith(`${MicroflowsSectionKey}:`)) {
     return (
       <Dropdown.Menu>
-        <Dropdown.Item onClick={() => void onRefreshMicroflows()}>
+        <Dropdown.Item data-testid="microflow-explorer-menu-refresh" onClick={() => void onRefreshMicroflows()}>
           Refresh
         </Dropdown.Item>
-        <Dropdown.Item onClick={() => onCreateMicroflow?.(node)}>
+        <Dropdown.Item data-testid="microflow-explorer-menu-new-microflow" onClick={() => onCreateMicroflow?.(node)}>
           New Microflow
         </Dropdown.Item>
-        <Dropdown.Item onClick={() => onCreateFolder?.(node)}>
+        <Dropdown.Item data-testid="microflow-explorer-menu-new-folder" onClick={() => onCreateFolder?.(node)}>
           New Folder
         </Dropdown.Item>
-        <Dropdown.Item disabled title="完整属性面板将在后续轮次接入">
+        <Dropdown.Item data-testid="microflow-explorer-menu-properties" disabled title="完整属性面板将在后续轮次接入">
           Properties
         </Dropdown.Item>
       </Dropdown.Menu>
@@ -118,21 +122,21 @@ function renderContextMenu(input: {
   if (node.kind === "module" || (node.kind === "folder" && node.dynamic && node.folderId)) {
     return (
       <Dropdown.Menu>
-        <Dropdown.Item onClick={() => onCreateMicroflow?.(node)}>
+        <Dropdown.Item data-testid="microflow-explorer-menu-new-microflow" onClick={() => onCreateMicroflow?.(node)}>
           New Microflow
         </Dropdown.Item>
-        <Dropdown.Item onClick={() => onCreateFolder?.(node)}>
+        <Dropdown.Item data-testid="microflow-explorer-menu-new-folder" onClick={() => onCreateFolder?.(node)}>
           New Folder
         </Dropdown.Item>
         {node.folderId ? (
-          <Dropdown.Item onClick={() => onRenameFolder?.(node)}>
+          <Dropdown.Item data-testid="microflow-explorer-menu-rename-folder" onClick={() => onRenameFolder?.(node)}>
             Rename Folder
           </Dropdown.Item>
         ) : null}
-        <Dropdown.Item onClick={() => void onRefreshMicroflows()}>
+        <Dropdown.Item data-testid="microflow-explorer-menu-refresh" onClick={() => void onRefreshMicroflows()}>
           Refresh
         </Dropdown.Item>
-        <Dropdown.Item disabled title="文件夹属性面板将在后续轮次接入">
+        <Dropdown.Item data-testid="microflow-explorer-menu-properties" disabled title="文件夹属性面板将在后续轮次接入">
           Properties
         </Dropdown.Item>
       </Dropdown.Menu>
@@ -145,25 +149,25 @@ function renderContextMenu(input: {
 
   return (
     <Dropdown.Menu>
-      <Dropdown.Item onClick={() => onSelect(node)}>
+      <Dropdown.Item data-testid="microflow-explorer-menu-open" onClick={() => onSelect(node)}>
         Open / Select
       </Dropdown.Item>
-      <Dropdown.Item disabled title="完整属性面板将在后续轮次接入">
+      <Dropdown.Item data-testid="microflow-explorer-menu-view-properties" disabled title="完整属性面板将在后续轮次接入">
         View Properties
       </Dropdown.Item>
-      <Dropdown.Item onClick={() => onViewMicroflowReferences?.(node)}>
+      <Dropdown.Item data-testid="microflow-explorer-menu-references" onClick={() => onViewMicroflowReferences?.(node)}>
         View References
       </Dropdown.Item>
-      <Dropdown.Item onClick={() => onRenameMicroflow?.(node)}>
+      <Dropdown.Item data-testid="microflow-explorer-menu-rename" onClick={() => onRenameMicroflow?.(node)}>
         Rename
       </Dropdown.Item>
-      <Dropdown.Item onClick={() => onDuplicateMicroflow?.(node)}>
+      <Dropdown.Item data-testid="microflow-explorer-menu-duplicate" onClick={() => onDuplicateMicroflow?.(node)}>
         Duplicate
       </Dropdown.Item>
-      <Dropdown.Item type="danger" onClick={() => onDeleteMicroflow?.(node)}>
+      <Dropdown.Item data-testid="microflow-explorer-menu-delete" type="danger" onClick={() => onDeleteMicroflow?.(node)}>
         Delete
       </Dropdown.Item>
-      <Dropdown.Item onClick={() => void onRefreshMicroflows()}>
+      <Dropdown.Item data-testid="microflow-explorer-menu-refresh" onClick={() => void onRefreshMicroflows()}>
         Refresh
       </Dropdown.Item>
     </Dropdown.Menu>
@@ -207,6 +211,12 @@ function ExplorerTreeNodeView({
   const nodeContent = (
     <div
       className={"studio-structure-node" + (isSelected ? " studio-structure-node--selected" : "")}
+      data-testid={`microflow-explorer-node-${testIdToken(node.key)}`}
+      data-node-key={node.key}
+      data-node-kind={node.kind}
+      data-module-id={node.moduleId}
+      data-folder-id={node.folderId}
+      data-microflow-id={node.microflowId}
       style={{ paddingLeft: 8 + depth * 14 }}
       title={nodeTitle}
       onClick={() => {

@@ -50,9 +50,19 @@ export function StudioEmbeddedMicroflowEditor({
   microflowResourceIndex
 }: StudioEmbeddedMicroflowEditorProps) {
   const requestSeqRef = useRef(0);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  const onResourceUpdatedRef = useRef(onResourceUpdated);
   const [resource, setResource] = useState<MicroflowResource>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error>();
+
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  }, [onDirtyChange]);
+
+  useEffect(() => {
+    onResourceUpdatedRef.current = onResourceUpdated;
+  }, [onResourceUpdated]);
 
   const load = useCallback(async () => {
     const requestSeq = requestSeqRef.current + 1;
@@ -105,8 +115,8 @@ export function StudioEmbeddedMicroflowEditor({
         throw new Error("Microflow schema not found or invalid.");
       }
       setResource(nextResource);
-      onDirtyChange?.(false);
-      onResourceUpdated?.(nextResource);
+      onDirtyChangeRef.current?.(false);
+      onResourceUpdatedRef.current?.(nextResource);
     } catch (caught) {
       if (requestSeqRef.current !== requestSeq) {
         return;
@@ -117,7 +127,7 @@ export function StudioEmbeddedMicroflowEditor({
         setLoading(false);
       }
     }
-  }, [adapterBundle, microflowId, onDirtyChange, onResourceUpdated, workspaceId]);
+  }, [adapterBundle, microflowId, workspaceId]);
 
   useEffect(() => {
     void load();

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Empty, List, Space, Spin, Table, Tag, Tabs, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, List, Space, Spin, Table, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowReference } from "@atlas/microflow";
 
 import type { MicroflowAdapterBundle } from "../microflow/adapter/microflow-adapter-factory";
@@ -28,6 +28,13 @@ const formatDate = (input?: string | Date | null): string => {
     return String(input);
   }
 };
+
+const bottomPanelTabs: Array<{ key: BottomPanelTabKey; label: string }> = [
+  { key: "validation", label: "验证结果" },
+  { key: "configuration", label: "配置检查" },
+  { key: "references", label: "引用检查" },
+  { key: "info", label: "微流信息" }
+];
 
 /**
  * Mendix Studio Workbench 底部面板，对齐用户清单 §2.1：
@@ -114,6 +121,7 @@ export function MicroflowStudioBottomPanel({
 
   return (
     <div
+      data-testid="microflow-studio-bottom-panel"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -123,51 +131,39 @@ export function MicroflowStudioBottomPanel({
         borderTop: "1px solid var(--semi-color-border, #e5e6eb)"
       }}
     >
-      <Tabs
-        type="line"
-        size="small"
-        activeKey={activeKey}
-        onChange={key => setActiveKey(key as BottomPanelTabKey)}
-        tabList={[
-          {
-            tab: (
-              <Space>
-                <span>验证结果</span>
-                {validationSummary && (validationSummary.errorCount > 0 || validationSummary.warningCount > 0) ? (
-                  <Tag size="small" color={validationSummary.errorCount > 0 ? "red" : "amber"}>
-                    {validationSummary.errorCount > 0
-                      ? `E${validationSummary.errorCount}`
-                      : `W${validationSummary.warningCount}`}
-                  </Tag>
-                ) : null}
-              </Space>
-            ),
-            itemKey: "validation"
-          },
-          {
-            tab: (
-              <Space>
-                <span>配置检查</span>
+      <Space
+        data-testid="microflow-bottom-tabs"
+        spacing={4}
+        style={{
+          padding: "8px 12px 0",
+          borderBottom: "1px solid var(--semi-color-border, #e5e6eb)",
+          flexWrap: "wrap"
+        }}
+      >
+        {bottomPanelTabs.map(tab => (
+          <Button
+            key={tab.key}
+            data-testid={`microflow-bottom-tab-${tab.key}`}
+            size="small"
+            theme={activeKey === tab.key ? "solid" : "borderless"}
+            type={activeKey === tab.key ? "primary" : "tertiary"}
+            onClick={() => setActiveKey(tab.key)}
+          >
+            <Space spacing={4}>
+              <span>{tab.label}</span>
+              {tab.key === "validation" && validationSummary && (validationSummary.errorCount > 0 || validationSummary.warningCount > 0) ? (
+                <Tag size="small" color={validationSummary.errorCount > 0 ? "red" : "amber"}>
+                  {validationSummary.errorCount > 0 ? `E${validationSummary.errorCount}` : `W${validationSummary.warningCount}`}
+                </Tag>
+              ) : null}
+              {tab.key === "configuration" ? (
                 <Tag size="small" color={errorIssues.length > 0 ? "red" : "green"}>{errorIssues.length} 错误</Tag>
-              </Space>
-            ),
-            itemKey: "configuration"
-          },
-          {
-            tab: (
-              <Space>
-                <span>引用检查</span>
-                {references ? <Tag size="small">{references.length}</Tag> : null}
-              </Space>
-            ),
-            itemKey: "references"
-          },
-          {
-            tab: <span>微流信息</span>,
-            itemKey: "info"
-          }
-        ]}
-      />
+              ) : null}
+              {tab.key === "references" && references ? <Tag size="small">{references.length}</Tag> : null}
+            </Space>
+          </Button>
+        ))}
+      </Space>
       <div style={{ flex: 1, overflow: "auto", padding: 12 }}>
         {activeKey === "validation" ? (
           <ValidationTabContent

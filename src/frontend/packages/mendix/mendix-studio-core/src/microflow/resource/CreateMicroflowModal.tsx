@@ -15,6 +15,7 @@ export interface CreateMicroflowModalProps {
   existingResources?: ExistingMicroflowName[];
   defaultModuleId?: string;
   initialFolderId?: string;
+  initialFolderPath?: string;
   moduleOptions?: Array<{ value: string; label: string }>;
   initialModuleId?: string;
   initialModuleName?: string;
@@ -110,6 +111,7 @@ export function CreateMicroflowModal({
   existingResources = [],
   defaultModuleId,
   initialFolderId,
+  initialFolderPath: _initialFolderPath,
   moduleOptions = [],
   initialModuleId,
   initialModuleName,
@@ -142,7 +144,14 @@ export function CreateMicroflowModal({
   const submittingRef = useRef(false);
   const [submitError, setSubmitError] = useState<SubmitErrorState>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const resolvedDefaultModuleId = defaultModuleId ?? initialModuleId ?? "";
+  const moduleOptionValues = useMemo(() => new Set(moduleOptions.map(item => item.value)), [moduleOptions]);
+  const requestedDefaultModuleId = initialModuleId ?? defaultModuleId ?? "";
+  const lockedModuleMissing = moduleLocked && !requestedDefaultModuleId;
+  const resolvedDefaultModuleId = requestedDefaultModuleId && (moduleOptionValues.size === 0 || moduleOptionValues.has(requestedDefaultModuleId))
+    ? requestedDefaultModuleId
+    : "";
+  const selectedModuleOption = moduleOptions.find(item => item.value === moduleId);
+  const resolvedModuleName = selectedModuleOption?.label ?? (moduleId === requestedDefaultModuleId ? initialModuleName : undefined) ?? moduleId;
 
   const existingNames = useMemo(
     () => new Set(existingResources.map(item => item.name.toLowerCase())),
@@ -183,9 +192,9 @@ export function CreateMicroflowModal({
     }
     const trimmedModuleId = moduleId.trim();
     if (!trimmedModuleId) {
-      nextFieldErrors.moduleId = resolvedDefaultModuleId
-        ? copy.createModal.missingModuleId
-        : copy.createModal.missingModuleContext;
+      nextFieldErrors.moduleId = moduleLocked || lockedModuleMissing || moduleOptions.length === 0
+        ? copy.createModal.missingModuleContext
+        : copy.createModal.missingModuleId;
     }
     const parameterNames = parameters.map(parameter => parameter.name.trim()).filter(Boolean);
     if (parameterNames.length !== parameters.length || parameterNames.some(value => !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(value))) {
@@ -223,7 +232,7 @@ export function CreateMicroflowModal({
         displayName: displayName.trim() || name.trim(),
         description: description.trim(),
         moduleId: moduleId.trim(),
-        moduleName: initialModuleName?.trim() || moduleId.trim(),
+        moduleName: resolvedModuleName.trim() || moduleId.trim(),
         folderId: initialFolderId,
         tags: tags.split(",").map(tag => tag.trim()).filter(Boolean),
         parameters,
@@ -287,37 +296,36 @@ export function CreateMicroflowModal({
       confirmLoading={submitting}
       width={760}
       okText={copy.createModal.createButton}
+      okButtonProps={{ "data-testid": "microflow-create-submit" } as Record<string, string>}
+      cancelButtonProps={{ "data-testid": "microflow-create-cancel" } as Record<string, string>}
     >
-      <Form labelPosition="top" style={{ maxHeight: "70vh", overflow: "auto", paddingRight: 8 }}>
+      <Form labelPosition="top" style={{ maxHeight: "70vh", overflow: "auto", paddingRight: 8 }} data-testid="microflow-create-modal">
         <Form.Section text="基本信息">
-          <Form.Input field="name" label="Name" value={name} onChange={value => setName(String(value))} placeholder="OrderProcessing" />
+          <Form.Input field="name" label="Name" value={name} onChange={value => setName(String(value))} placeholder="OrderProcessing" data-testid="microflow-create-name" />
           {fieldErrors.name ? <Text type="danger" size="small">{fieldErrors.name}</Text> : null}
-          <Form.Input field="displayName" label="显示名称" value={displayName} onChange={value => setDisplayName(String(value))} placeholder="订单处理微流" />
-          <Form.TextArea field="description" label="描述" value={description} onChange={value => setDescription(String(value))} autosize />
-          {moduleLocked ? (
-            <Form.Input
-              field="moduleIdDisplay"
-              label="模块"
-              value={moduleOptions.find(item => item.value === moduleId)?.label ?? initialModuleName ?? moduleId}
-              disabled
-              placeholder="缺少模块上下文"
-            />
+          <Form.Input field="displayName" label="显示名称" value={displayName} onChange={value => setDisplayName(String(value))} placeholder="订单处理微流" data-testid="microflow-create-display-name" />
+          <Form.TextArea field="description" label="描述" value={description} onChange={value => setDescription(String(value))} autosize data-testid="microflow-create-description" />
+          {moduleLocked && !lockedModuleMissing ? (
+            <div data-testid="microflow-create-module-locked" style={{ display: "grid", gap: 6 }}>
+              <Text strong>模块</Text>
+              <Input aria-label="模块" value={resolvedModuleName} disabled placeholder="模块已锁定" />
+            </div>
           ) : moduleOptions.length > 0 ? (
             <Form.Select
               field="moduleId"
               label="模块"
               value={moduleId}
               onChange={value => setModuleId(String(value ?? ""))}
-              disabled={moduleLocked}
               optionList={moduleOptions}
               placeholder="请选择模块"
+              data-testid="microflow-create-module-select"
             />
           ) : (
-            <Form.Input field="moduleId" label="模块" value={moduleId} onChange={value => setModuleId(String(value))} disabled={moduleLocked} placeholder="请输入模块 ID" />
+            <Form.Input field="moduleId" label="模块" value={moduleId} onChange={value => setModuleId(String(value))} placeholder="请输入模块 ID" data-testid="microflow-create-module-input" />
           )}
           {fieldErrors.moduleId ? <Text type="danger" size="small">{fieldErrors.moduleId}</Text> : null}
           <Form.Input field="tags" label="标签（逗号分隔）" value={tags} onChange={value => setTags(String(value))} />
-          <Form.Select field="template" label="模板" value={template} onChange={value => setTemplate(value as MicroflowCreateInput["template"])} optionList={templateOptions} />
+          <Form.Select field="template" label="模板" value={template} onChange={value => setTemplate(value as MicroflowCreateInput["template"])} optionList={templateOptions} data-testid="microflow-create-template" />
         </Form.Section>
         <Form.Section text="输入参数">
           <Space vertical align="start" style={{ width: "100%" }}>

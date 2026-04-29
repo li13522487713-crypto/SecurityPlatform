@@ -1382,6 +1382,16 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     return stored !== undefined ? stored : bottomPanelFallback;
   });
   const [bottomTab, setBottomTab] = useState<"problems" | "debug">(() => readStoredBottomTab() ?? "problems");
+  const onValidationStateChangeRef = useRef(props.onValidationStateChange);
+  const onSchemaChangeRef = useRef(props.onSchemaChange);
+
+  useEffect(() => {
+    onValidationStateChangeRef.current = props.onValidationStateChange;
+  }, [props.onValidationStateChange]);
+
+  useEffect(() => {
+    onSchemaChangeRef.current = props.onSchemaChange;
+  }, [props.onSchemaChange]);
 
   const validateForMode = useCallback(async (targetSchema: MicroflowSchema, mode: MicroflowValidationMode) => {
     try {
@@ -1458,7 +1468,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const activeMicroflowId = schema.id;
   const saveBlockers = issues.filter(issue => issue.blockSave && issue.severity === "error");
   const publishBlockers = issues.filter(issue => issue.blockPublish && issue.severity === "error");
-  const onValidationStateChange = props.onValidationStateChange;
   const runSession = runSessionByMicroflowId[activeMicroflowId];
   const runtimeServiceError = runtimeServiceErrorByMicroflowId[activeMicroflowId];
   const selectedRunId = selectedRunIdByMicroflowId[activeMicroflowId];
@@ -1473,13 +1482,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   );
 
   useEffect(() => {
-    onValidationStateChange?.({
+    onValidationStateChangeRef.current?.({
       microflowId: activeMicroflowId,
       issues,
       status: validationStatus,
       lastValidatedAt,
     });
-  }, [activeMicroflowId, issues, lastValidatedAt, onValidationStateChange, validationStatus]);
+  }, [activeMicroflowId, issues, lastValidatedAt, validationStatus]);
 
   const refreshHistoryState = () => setHistoryState(historyManager.getState());
 
@@ -1564,7 +1573,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       clearRuntimeState();
     }
     if (!options.skipDirty) {
-      props.onSchemaChange?.(refreshed);
+      onSchemaChangeRef.current?.(refreshed);
     }
   };
 
@@ -2263,9 +2272,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }));
 
   return (
-    <div ref={shellRef} style={shellStyle} tabIndex={0}>
+    <div ref={shellRef} data-testid="microflow-editor-shell" data-microflow-id={schema.id} style={shellStyle} tabIndex={0}>
       {toolbarMode === "internal" ? (
-      <div style={toolbarStyle}>
+      <div data-testid="microflow-editor-toolbar" style={toolbarStyle}>
         <Space style={{ minWidth: 0, overflow: "hidden" }}>
           {props.toolbarPrefix}
           <Title heading={5} style={{ margin: 0 }}>{schema.displayName || schema.name}</Title>
@@ -2280,21 +2289,21 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         </Space>
         <Space wrap style={{ justifyContent: "flex-end", rowGap: 4 }}>
           <Tooltip content={historyState.canUndo ? labels.undo : "No history to undo"}>
-            <Button aria-label={labels.undo} icon={<IconUndo />} disabled={!historyState.canUndo} onClick={handleUndo} />
+            <Button data-testid="microflow-editor-undo" aria-label={labels.undo} icon={<IconUndo />} disabled={!historyState.canUndo} onClick={handleUndo} />
           </Tooltip>
           <Tooltip content={historyState.canRedo ? labels.redo : "No history to redo"}>
-            <Button aria-label={labels.redo} icon={<IconRedo />} disabled={!historyState.canRedo} onClick={handleRedo} />
+            <Button data-testid="microflow-editor-redo" aria-label={labels.redo} icon={<IconRedo />} disabled={!historyState.canRedo} onClick={handleRedo} />
           </Tooltip>
           <Tooltip content={labels.validate}>
-            <Button aria-label={labels.validate} icon={<IconRefresh />} loading={validationStatus === "validating"} onClick={handleValidate}>{labels.validate}</Button>
+            <Button data-testid="microflow-editor-validate" aria-label={labels.validate} icon={<IconRefresh />} loading={validationStatus === "validating"} onClick={handleValidate}>{labels.validate}</Button>
           </Tooltip>
           <Tooltip content={dirty ? "Save & Run opens the input panel" : labels.testRun}>
-            <Button aria-label={labels.testRun} icon={<IconPlay />} loading={running} disabled={saving || props.readonly || !schema.id} onClick={handleTestRun}>
+            <Button data-testid="microflow-editor-run" aria-label={labels.testRun} icon={<IconPlay />} loading={running} disabled={saving || props.readonly || !schema.id} onClick={handleTestRun}>
               {dirty ? "Save & Run" : labels.testRun}
             </Button>
           </Tooltip>
           <Tooltip content={dirty ? labels.save : "No unsaved changes"}>
-            <Button aria-label={labels.save} icon={<IconSave />} loading={saving} disabled={saving || props.readonly || !dirty || !schema.id} type="primary" onClick={handleSave}>{labels.save}</Button>
+            <Button data-testid="microflow-editor-save" aria-label={labels.save} icon={<IconSave />} loading={saving} disabled={saving || props.readonly || !dirty || !schema.id} type="primary" onClick={handleSave}>{labels.save}</Button>
           </Tooltip>
           <Dropdown
             trigger="click"
@@ -2313,7 +2322,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               </Dropdown.Menu>
             )}
           >
-            <Button aria-label={labels.more} icon={<IconMore />} theme="borderless">{labels.more}</Button>
+            <Button data-testid="microflow-editor-more" aria-label={labels.more} icon={<IconMore />} theme="borderless">{labels.more}</Button>
           </Dropdown>
           {props.toolbarSuffix}
         </Space>
@@ -2321,7 +2330,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       ) : null}
       <div style={bodyStyle}>
         {leftOpen ? (
-          <div style={panelStyle}>
+          <div data-testid="microflow-editor-left-panel" style={panelStyle}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
               <Text strong>{labels.nodePanel}</Text>
               <Tooltip content="折叠节点面板">
@@ -2364,6 +2373,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             <Text size="small" strong style={{ writingMode: "vertical-rl", textOrientation: "mixed", letterSpacing: 1 }}>{labels.nodePanel}</Text>
           </button>
         )}
+        <div data-testid="microflow-canvas" style={{ minWidth: 0, minHeight: 0, display: "contents" }}>
         <FlowGramMicroflowCanvas
           schema={schema}
           validationIssues={issues}
@@ -2409,7 +2419,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             );
           }}
         />
+        </div>
         <div
+          data-testid="microflow-editor-right-shell"
           style={{
             display: "flex",
             flexDirection: "row",
@@ -2420,7 +2432,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }}
         >
           {rightOpen ? (
-            <div style={propertyPaneStyle}>
+            <div data-testid="microflow-property-panel" style={propertyPaneStyle}>
               <MicroflowPropertyPanel
                   selectedObject={selectedObject}
                   selectedFlow={selectedFlow}
@@ -2505,6 +2517,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       </div>
       {bottomOpen ? (
         <div
+          data-testid="microflow-bottom-panel"
           style={{
             minHeight: 0,
             borderTop: "1px solid var(--semi-color-border, #e5e6eb)",
@@ -2557,7 +2570,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             <Tabs.TabPane tab={labels.debug} itemKey="debug">
               <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
                 <Tabs type="card" defaultActiveKey="trace">
-                  <Tabs.TabPane tab="Trace" itemKey="trace">
+                  <Tabs.TabPane tab={<span data-testid="microflow-trace-tab-label">Trace</span>} itemKey="trace">
+                    <div data-testid="microflow-trace-panel" data-run-id={selectedRunSession?.id} data-run-status={selectedRunSession?.status} data-trace-count={selectedRunSession?.trace.length ?? 0}>
                     <DebugPanel
                       microflowId={schema.id}
                       microflowName={schema.displayName || schema.name}
@@ -2571,8 +2585,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       onRerun={handleTestRun}
                       onCancelRun={cancelTestRun}
                     />
+                    </div>
                   </Tabs.TabPane>
-                  <Tabs.TabPane tab="Run History" itemKey="history">
+                  <Tabs.TabPane tab={<span data-testid="microflow-run-history-tab-label">Run History</span>} itemKey="history">
+                    <div data-testid="microflow-run-history-panel">
                     <MicroflowRunHistoryPanel
                       items={runHistoryItems}
                       selectedRunId={selectedRunId}
@@ -2590,6 +2606,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                         void selectRunHistoryItem(schema.id, runId);
                       }}
                     />
+                    </div>
                   </Tabs.TabPane>
                 </Tabs>
               </div>

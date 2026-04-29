@@ -120,7 +120,7 @@ export class MicroflowApiClient {
       throw new Error("Microflow http adapter requires apiBaseUrl.");
     }
     this.baseUrl = normalizeBaseUrl(options.apiBaseUrl.trim());
-    this.fetchFn = options.fetchImpl ?? fetch;
+    this.fetchFn = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
   get<T>(path: string, query?: MicroflowQuery, signal?: AbortSignal): Promise<T> {
@@ -146,13 +146,14 @@ export class MicroflowApiClient {
   private async request<T>(method: string, path: string, body?: unknown, query?: MicroflowQuery, signal?: AbortSignal): Promise<T> {
     const url = new URL(joinBaseAndPath(this.baseUrl, path), getUrlBase());
     appendQuery(url, query);
+    const headers = this.createHeaders(body !== undefined);
 
     let response: Response;
     try {
       response = await this.fetchFn(url.toString(), {
         method,
         signal,
-        headers: this.createHeaders(body !== undefined),
+        headers,
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch (caught) {

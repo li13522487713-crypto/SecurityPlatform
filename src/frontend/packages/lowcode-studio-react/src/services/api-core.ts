@@ -8,6 +8,7 @@
  */
 
 import type { JsonValue } from '@atlas/lowcode-schema';
+import { getLowcodeAccessToken, getLowcodeTenantId } from './auth-storage';
 
 const BASE = '/api/v1/lowcode';
 
@@ -45,8 +46,8 @@ export class LowcodeApiError extends Error {
 }
 
 async function request<T>(method: string, path: string, body?: JsonValue): Promise<T> {
-  const tenantId = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_tenant_id') : null) ?? '00000000-0000-0000-0000-000000000001';
-  const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_access_token') : null) ?? '';
+  const tenantId = getLowcodeTenantId();
+  const token = getLowcodeAccessToken();
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
@@ -412,8 +413,8 @@ export interface RuntimeSessionArchiveRequest {
 export type RuntimeRequest = <T>(method: string, path: string, body?: JsonValue) => Promise<T>;
 
 async function requestRuntime<T>(method: string, path: string, body?: JsonValue): Promise<T> {
-  const tenantId = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_tenant_id') : null) ?? '00000000-0000-0000-0000-000000000001';
-  const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_access_token') : null) ?? '';
+  const tenantId = getLowcodeTenantId();
+  const token = getLowcodeAccessToken();
   const res = await fetch(path, {
     method,
     headers: {

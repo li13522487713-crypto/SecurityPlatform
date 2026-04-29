@@ -94,6 +94,10 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
   const queuedSaveRef = useRef<{ reason: SaveReason; force?: boolean } | undefined>();
   const autosaveTimerRef = useRef<number>();
   const saveRequestSeqRef = useRef(0);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  const onSaveRef = useRef(onSave);
+  const onPublishRef = useRef(onPublish);
+  const onRefreshResourceListRef = useRef(onRefreshResourceList);
   const effectiveReadonly = readonly || currentResource.archived || !(currentResource.permissions?.canEdit ?? true);
   const publishDisabled = currentResource.archived || !canRunMicroflowAction(currentResource, "canPublish");
 
@@ -114,11 +118,27 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
   }, [clearAutosaveTimer]);
 
   useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  }, [onDirtyChange]);
+
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
+  useEffect(() => {
+    onPublishRef.current = onPublish;
+  }, [onPublish]);
+
+  useEffect(() => {
+    onRefreshResourceListRef.current = onRefreshResourceList;
+  }, [onRefreshResourceList]);
+
+  useEffect(() => {
     setCurrentResource(resource);
     currentResourceRef.current = resource;
     setSchema(resource.schema);
     latestSchemaRef.current = resource.schema;
-    onDirtyChange?.(false);
+    onDirtyChangeRef.current?.(false);
     updateMicroflowSaveState(resource.id, {
       tabId: `microflow:${resource.id}`,
       dirty: false,
@@ -132,7 +152,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
       lastError: undefined,
       conflict: undefined
     });
-  }, [onDirtyChange, resource, updateMicroflowSaveState]);
+  }, [resource, updateMicroflowSaveState]);
 
   const applySavedResource = useCallback((saved: MicroflowResource, durationMs?: number) => {
     if (!mountedRef.current || saved.id !== currentResourceRef.current.id) {
@@ -146,9 +166,9 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
     setCurrentResource(saved);
     setSchema(saved.schema);
     latestSchemaRef.current = saved.schema;
-    onDirtyChange?.(false);
-    onSave?.(saved);
-    void onRefreshResourceList?.();
+    onDirtyChangeRef.current?.(false);
+    onSaveRef.current?.(saved);
+    void onRefreshResourceListRef.current?.();
     updateMicroflowSaveState(saved.id, {
       tabId: `microflow:${saved.id}`,
       status: "saved",
@@ -165,7 +185,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
       localVersion: saved.version,
       remoteVersion: saved.version
     });
-  }, [onDirtyChange, onRefreshResourceList, onSave, updateMicroflowSaveState]);
+  }, [updateMicroflowSaveState]);
 
   const saveLatestSchema = useCallback(async (reason: SaveReason, force = false): Promise<MicroflowResource> => {
     if (effectiveReadonly) {
@@ -274,7 +294,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
               conflict: undefined
             });
           }
-          onDirtyChange?.(true);
+          onDirtyChangeRef.current?.(true);
           throw caught;
         }
       } while (queuedSaveRef.current);
@@ -289,7 +309,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
         inFlightSaveRef.current = undefined;
       }
     }
-  }, [adapter, applySavedResource, effectiveReadonly, onDirtyChange, updateMicroflowSaveState]);
+  }, [adapter, applySavedResource, effectiveReadonly, updateMicroflowSaveState]);
 
   const apiClient = useMemo(() => createMicroflowEditorApiClient(adapter, currentResource, runtimeAdapter, {
     saveMicroflow: async (request: SaveMicroflowRequest) => {
@@ -343,8 +363,8 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
       queued: false,
       conflict: undefined
     });
-    onDirtyChange?.(true);
-  }, [onDirtyChange, updateMicroflowSaveState]);
+    onDirtyChangeRef.current?.(true);
+  }, [updateMicroflowSaveState]);
 
   const handleForceSave = useCallback(() => {
     Modal.confirm({
@@ -399,7 +419,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
           if (inFlightSaveRef.current) {
             queuedSaveRef.current = { reason: autosaveEnabled ? "autosave" : "manual" };
           }
-          onDirtyChange?.(true);
+          onDirtyChangeRef.current?.(true);
           markMicroflowDirty(currentResource.id, true);
           updateMicroflowSaveState(currentResource.id, {
             tabId: `microflow:${currentResource.id}`,
@@ -501,8 +521,8 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
             lastError: undefined,
             conflict: undefined
           });
-          onDirtyChange?.(false);
-          onPublish?.(published);
+          onDirtyChangeRef.current?.(false);
+          onPublishRef.current?.(published);
           Toast.success("微流发布成功");
         }}
         onViewProblems={issues => Toast.warning(`当前有 ${issues.length} 个校验问题，请查看编辑器问题面板。`)}
@@ -561,8 +581,8 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
             lastError: undefined,
             conflict: undefined
           });
-          onDirtyChange?.(false);
-          onSave?.(next);
+          onDirtyChangeRef.current?.(false);
+          onSaveRef.current?.(next);
         }}
         onCreated={() => undefined}
       />

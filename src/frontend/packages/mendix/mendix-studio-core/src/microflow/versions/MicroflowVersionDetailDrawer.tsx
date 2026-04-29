@@ -1,4 +1,4 @@
-import { Drawer, Empty, Space, Tag, Typography } from "@douyinfe/semi-ui";
+import { Empty, SideSheet, Space, Tag, Typography } from "@douyinfe/semi-ui";
 import { Button } from "@douyinfe/semi-ui";
 
 import type { MicroflowVersionDetail } from "./microflow-version-types";
@@ -23,7 +23,7 @@ export function MicroflowVersionDetailDrawer({
   const diff = detail?.diffFromCurrent;
 
   return (
-    <Drawer visible={visible} title="版本详情" width={560} onCancel={onClose} footer={null}>
+    <SideSheet visible={visible} title="版本详情" width={560} onCancel={onClose} footer={null}>
       {!detail || !schema ? (
         <Empty title="未选择版本" />
       ) : (
@@ -65,6 +65,6 @@ export function MicroflowVersionDetailDrawer({
           </Space>
         </Space>
       )}
-    </Drawer>
+    </SideSheet>
   );
 }
