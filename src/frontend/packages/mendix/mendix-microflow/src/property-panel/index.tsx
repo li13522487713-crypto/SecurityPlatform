@@ -1,9 +1,9 @@
 import { memo } from "react";
-import type { MicroflowObject, MicroflowVariableSymbol } from "../schema";
+import type { MicroflowVariableSymbol } from "../schema";
 import { FlowEdgeForm } from "./forms/flow-edge-form";
 import { MicroflowDocumentPropertiesForm } from "./forms/microflow-document-properties-form";
 import { ObjectPanel } from "./forms/object-panel";
-import type { MicroflowNodeFormRegistry, MicroflowPropertyPanelProps } from "./types";
+import type { MicroflowPropertyPanelProps } from "./types";
 
 export * from "./types";
 export * from "./utils";
@@ -11,12 +11,14 @@ export { createExpression, primitiveType, FieldLabel, FieldRow, KeyValueEditor }
 export * from "./common";
 export * from "./selectors";
 export * from "./expression";
-
-export function getMicroflowNodeFormKey(object: MicroflowObject): string {
-  return object.kind === "actionActivity" ? `activity:${object.action.kind}` : object.kind;
-}
-
-export const microflowNodeFormRegistry: MicroflowNodeFormRegistry = {};
+export {
+  getMicroflowNodeFormKey,
+  microflowNodeFormRegistry,
+  registerMicroflowNodeForm,
+  unregisterMicroflowNodeForm,
+  getMicroflowNodeFormForObject,
+  type RegisterMicroflowNodeFormOptions,
+} from "./node-form-registry";
 
 export function buildVariablesForPropertyPanel(schema: { variables?: Record<string, Record<string, MicroflowVariableSymbol>> }): MicroflowVariableSymbol[] {
   return Object.values(schema.variables ?? {}).flatMap(group => Object.values(group));
