@@ -140,6 +140,8 @@ public sealed class MicroflowRunSessionEntity
 [SugarIndex("IX_MicroflowRunTraceFrame_ObjectId", nameof(ObjectId), OrderByType.Asc)]
 [SugarIndex("IX_MicroflowRunTraceFrame_ActionId", nameof(ActionId), OrderByType.Asc)]
 [SugarIndex("IX_MicroflowRunTraceFrame_Status", nameof(Status), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowRunTraceFrame_WorkspaceId", nameof(WorkspaceId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowRunTraceFrame_TenantId", nameof(TenantId), OrderByType.Asc)]
 public sealed class MicroflowRunTraceFrameEntity
 {
     public MicroflowRunTraceFrameEntity()
@@ -156,6 +158,16 @@ public sealed class MicroflowRunTraceFrameEntity
 
     [SugarColumn(Length = 64)]
     public string RunId { get; set; }
+
+    /// <summary>
+    /// Workspace 与 trace frame 直接绑定，用于按 runId 读取时的越权校验。
+    /// 旧数据可能为 NULL（迁移期），此时由 service 层根据 session 反查 resource 的 workspace。
+    /// </summary>
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? WorkspaceId { get; set; }
+
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? TenantId { get; set; }
 
     public int Sequence { get; set; }
 
@@ -212,6 +224,8 @@ public sealed class MicroflowRunTraceFrameEntity
 [SugarIndex("IX_MicroflowRunLog_RunId", nameof(RunId), OrderByType.Asc)]
 [SugarIndex("IX_MicroflowRunLog_Timestamp", nameof(Timestamp), OrderByType.Desc)]
 [SugarIndex("IX_MicroflowRunLog_Level", nameof(Level), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowRunLog_WorkspaceId", nameof(WorkspaceId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowRunLog_TenantId", nameof(TenantId), OrderByType.Asc)]
 public sealed class MicroflowRunLogEntity
 {
     public MicroflowRunLogEntity()
@@ -228,6 +242,15 @@ public sealed class MicroflowRunLogEntity
 
     [SugarColumn(Length = 64)]
     public string RunId { get; set; }
+
+    /// <summary>
+    /// Workspace 与 log 直接绑定，用于按 runId 读取日志时的越权校验。
+    /// </summary>
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? WorkspaceId { get; set; }
+
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? TenantId { get; set; }
 
     public DateTimeOffset Timestamp { get; set; }
 

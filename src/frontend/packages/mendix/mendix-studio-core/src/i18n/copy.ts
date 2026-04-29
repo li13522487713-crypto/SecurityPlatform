@@ -21,6 +21,12 @@ export interface MendixStudioCopy {
     readonly createAppInProgress: string;
     readonly createAppButton: string;
     readonly footer: string;
+    readonly noAppTitle: string;
+    readonly noAppDescription: string;
+    readonly openAppPlaceholder: string;
+    readonly openAppButton: string;
+    readonly openAppEmptyError: string;
+    readonly devSampleHint: string;
   };
   readonly editorPage: {
     readonly notFoundTitle: string;
@@ -84,6 +90,12 @@ const zhCN: MendixStudioCopy = {
     createAppInProgress: "新建应用功能开发中",
     createAppButton: "+ 新建应用",
     footer: "Mendix Studio Core · Atlas Security Platform · v0.0.0",
+    noAppTitle: "选择要打开的应用",
+    noAppDescription: "请输入工作区下已有的 appId 打开 Mendix Studio。新建应用功能开发中。",
+    openAppPlaceholder: "请输入 appId",
+    openAppButton: "打开应用",
+    openAppEmptyError: "请输入 appId。",
+    devSampleHint: "开发示例应用（仅在本地 dev 构建可见）",
   },
   editorPage: {
     notFoundTitle: "微流不存在",
@@ -147,6 +159,12 @@ const enUS: MendixStudioCopy = {
     createAppInProgress: "Create app is under development",
     createAppButton: "+ Create App",
     footer: "Mendix Studio Core · Atlas Security Platform · v0.0.0",
+    noAppTitle: "Select an app to open",
+    noAppDescription: "Enter an existing appId in this workspace to open Mendix Studio. Create-app is under development.",
+    openAppPlaceholder: "Enter appId",
+    openAppButton: "Open app",
+    openAppEmptyError: "Please enter an appId.",
+    devSampleHint: "Developer sample app (visible in local dev builds only)",
   },
   editorPage: {
     notFoundTitle: "Microflow not found",

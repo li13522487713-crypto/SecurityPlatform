@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Atlas.Application.Microflows.Abstractions;
+using Atlas.Application.Microflows.Audit;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
@@ -24,6 +25,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private readonly IMicroflowRuntimeEngine _runner;
     private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
+    private readonly IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
 
     public MicroflowTestRunService(
@@ -36,6 +38,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         IMicroflowRuntimeEngine runner,
         IMicroflowExecutionPlanLoader executionPlanLoader,
         IMicroflowRequestContextAccessor requestContextAccessor,
+        IMicroflowAuditWriter auditWriter,
         IMicroflowClock clock)
     {
         _resourceRepository = resourceRepository;
@@ -47,6 +50,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         _runner = runner;
         _executionPlanLoader = executionPlanLoader;
         _requestContextAccessor = requestContextAccessor;
+        _auditWriter = auditWriter;
         _clock = clock;
     }
 
@@ -92,22 +96,43 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             },
             cancellationToken);
 
-        var session = await _runner.RunAsync(
-            new MicroflowExecutionRequest
-            {
-                ResourceId = resource.Id,
-                SchemaId = schemaId,
-                Version = request.Version ?? resource.Version,
-                Schema = schema,
-                ExecutionPlan = executionPlan,
-                Input = input,
-                Options = options,
-                Metadata = metadata,
-                RequestContext = _requestContextAccessor.Current,
-                CorrelationId = request.CorrelationId,
-                MaxCallDepth = 10
-            },
-            cancellationToken);
+        // P0-6: 注册 cancellation handle 与全局 RunTimeoutSeconds 联动；
+        // 同一 traceId/runId 既写入 trace context 也作为 registry key，
+        // 这样 CancelAsync(runId) 可以真正中断正在跑的引擎主循环。
+        var runId = !string.IsNullOrWhiteSpace(_requestContextAccessor.Current.TraceId)
+            ? _requestContextAccessor.Current.TraceId
+            : Guid.NewGuid().ToString("N");
+        var runTimeoutSeconds = ResolveRunTimeoutSeconds();
+        using var registryCts = _cancellationRegistry.Register(runId, cancellationToken);
+        if (runTimeoutSeconds > 0)
+        {
+            registryCts.CancelAfter(TimeSpan.FromSeconds(runTimeoutSeconds));
+        }
+
+        MicroflowRunSessionDto session;
+        try
+        {
+            session = await _runner.RunAsync(
+                new MicroflowExecutionRequest
+                {
+                    ResourceId = resource.Id,
+                    SchemaId = schemaId,
+                    Version = request.Version ?? resource.Version,
+                    Schema = schema,
+                    ExecutionPlan = executionPlan,
+                    Input = input,
+                    Options = options,
+                    Metadata = metadata,
+                    RequestContext = _requestContextAccessor.Current with { TraceId = runId },
+                    CorrelationId = request.CorrelationId,
+                    MaxCallDepth = 10
+                },
+                registryCts.Token);
+        }
+        finally
+        {
+            _cancellationRegistry.Unregister(runId);
+        }
 
         try
         {
@@ -133,7 +158,42 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 innerException: ex);
         }
 
+        await SafeAuditAsync(new MicroflowAuditEvent
+        {
+            Action = "microflow.test_run",
+            Result = string.Equals(session.Status, "success", StringComparison.OrdinalIgnoreCase) ? "success" : "failure",
+            ResourceId = resource.Id,
+            ResourceName = resource.Name,
+            WorkspaceId = resource.WorkspaceId,
+            Target = $"{resource.ModuleId}/{resource.Name}#{session.Id}",
+            ErrorCode = session.Error?.Code,
+            Details = new Dictionary<string, object?>
+            {
+                ["runId"] = session.Id,
+                ["status"] = session.Status,
+                ["durationMs"] = (session.EndedAt is { } endedAt
+                    ? (long)(endedAt - session.StartedAt).TotalMilliseconds
+                    : 0)
+            }
+        }, cancellationToken);
+
         return ToApiResponse(session, _requestContextAccessor.Current.TraceId);
+    }
+
+    private async Task SafeAuditAsync(MicroflowAuditEvent auditEvent, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _auditWriter.WriteAsync(auditEvent, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // best-effort
+        }
     }
 
     private async Task PersistSessionGraphAsync(MicroflowRunSessionDto session, MicroflowResourceEntity fallbackResource, CancellationToken cancellationToken)
@@ -152,8 +212,11 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     public async Task<CancelMicroflowRunResponse> CancelAsync(string runId, CancellationToken cancellationToken)
     {
-        var session = await _runRepository.GetSessionAsync(runId, cancellationToken)
-            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
+        var session = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
+
+        // P0-6: 真正中断正在执行的引擎主循环。即使 cancellation registry 没记录
+        // (例如 run 已经返回还没写库时的极少数竞态)，也仍然落 DB 状态以保证最终一致。
+        _cancellationRegistry.Cancel(runId);
 
         if (!string.Equals(session.Status, "cancelled", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(session.Status, "success", StringComparison.OrdinalIgnoreCase)
@@ -173,6 +236,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     public async Task<MicroflowRunSessionDto> GetRunSessionAsync(string runId, CancellationToken cancellationToken)
     {
+        _ = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
         return await BuildRunSessionGraphAsync(runId, cancellationToken);
     }
 
@@ -181,6 +245,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         string runId,
         CancellationToken cancellationToken)
     {
+        _ = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
         var session = await BuildRunSessionGraphAsync(runId, cancellationToken);
         if (!string.Equals(session.ResourceId, resourceId, StringComparison.Ordinal))
         {
@@ -233,8 +298,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     public async Task<GetMicroflowRunTraceResponse> GetRunTraceAsync(string runId, CancellationToken cancellationToken)
     {
-        _ = await _runRepository.GetSessionAsync(runId, cancellationToken)
-            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
+        _ = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
         var frames = await _runRepository.ListTraceFramesAsync(runId, cancellationToken);
         var logs = await _runRepository.ListLogsAsync(runId, cancellationToken);
         return new GetMicroflowRunTraceResponse
@@ -376,6 +440,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         {
             Id = frame.Id,
             RunId = session.Id,
+            WorkspaceId = resource.WorkspaceId,
+            TenantId = resource.TenantId,
             Sequence = index + 1,
             ObjectId = frame.ObjectId,
             ActionId = frame.ActionId,
@@ -410,6 +476,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         {
             Id = Guid.NewGuid().ToString("N"),
             RunId = session.Id,
+            WorkspaceId = resource.WorkspaceId,
+            TenantId = resource.TenantId,
             Timestamp = log.Timestamp,
             Level = log.Level,
             ObjectId = log.ObjectId,

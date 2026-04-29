@@ -240,8 +240,55 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             "endEvent" => ExecuteEnd(context, node, incomingFlowId),
             "exclusiveSplit" => ExecuteDecision(context, graph, node, incomingFlowId),
             "actionActivity" => await ExecuteActionAsync(context, graph, node, incomingFlowId, state, cancellationToken),
-            _ => Unsupported(context, node, incomingFlowId)
+            // P0-4: 显式 unsupported 节点（控制面接受 modeling，但 runtime 主路径未实现）。
+            "loopedActivity" => UnsupportedNode(
+                context, node, incomingFlowId,
+                "Loop activity 节点暂未在主 runtime 路径执行；请在 Loop 体内使用 break/continue 子节点（或将循环改造为 list filter/aggregate）。"),
+            "errorEvent" => ExecuteErrorEvent(context, node, incomingFlowId),
+            "annotation" => ExecuteAnnotationPassThrough(context, graph, node, incomingFlowId),
+            "parallelGateway" or "parallelSplit" or "parallelMerge"
+                => UnsupportedNode(context, node, incomingFlowId, "Parallel Gateway 暂未在 runtime 主路径执行（P2 计划）。"),
+            "inclusiveGateway" or "inclusiveSplit" or "inclusiveMerge"
+                => UnsupportedNode(context, node, incomingFlowId, "Inclusive Gateway 暂未在 runtime 主路径执行（P2 计划）。"),
+            _ => UnsupportedNode(context, node, incomingFlowId, $"节点类型 {node.Kind} 不在 runtime 主路径支持的列表中。")
         };
+    }
+
+    private static NodeExecution UnsupportedNode(RuntimeContext context, MicroflowObjectModel node, string? incomingFlowId, string message)
+    {
+        var error = Error(RuntimeErrorCode.RuntimeUnsupportedAction, message, node.Id, flowId: incomingFlowId);
+        context.AddNodeFailure(node, incomingFlowId, error);
+        return NodeExecution.Failed(error);
+    }
+
+    private static NodeExecution ExecuteErrorEvent(RuntimeContext context, MicroflowObjectModel node, string? incomingFlowId)
+    {
+        var message = ReadString(node.Raw, "message")
+            ?? ReadString(node.Raw, "errorMessage")
+            ?? "Microflow error event reached.";
+        var errorCode = ReadString(node.Raw, "errorCode") ?? RuntimeErrorCode.RuntimeErrorEventReached;
+        var error = Error(errorCode, message, node.Id, flowId: incomingFlowId);
+        context.AddNodeFailure(node, incomingFlowId, error);
+        return NodeExecution.Failed(error);
+    }
+
+    /// <summary>
+    /// Annotation 节点不参与 runtime 业务语义，只做 pass-through：
+    /// - 无 outgoing：作为画布注释终止运行的不可达路径，等同 Done(null)。
+    /// - 有 normal outgoing：沿单条 normal outgoing 继续。
+    /// </summary>
+    private static NodeExecution ExecuteAnnotationPassThrough(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId)
+    {
+        var outgoing = graph.NormalOutgoing(node.Id);
+        if (outgoing.Count == 0)
+        {
+            context.AddFrame(node, incomingFlowId, null, "success", JsonObj(new { node.Kind, message = "Annotation node skipped." }), JsonNull(), null, "Annotation node skipped.");
+            return NodeExecution.Done(JsonNull());
+        }
+
+        var flow = outgoing[0];
+        context.AddFrame(node, incomingFlowId, flow.Id, "success", JsonObj(new { node.Kind }), JsonObj(new { nextNodeId = flow.DestinationObjectId }), null, "Annotation node skipped.");
+        return NodeExecution.Next(flow.DestinationObjectId!, flow.Id);
     }
 
     private static NodeExecution ExecuteSingleOutgoing(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId, string label)
@@ -292,22 +339,24 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return NodeExecution.Failed(error);
         }
 
-        // Fast-path: the variable mutators and call-microflow already have
-        // hand-tuned execution semantics inside the engine (variable scope,
-        // call-stack guards, parameter mapping). Keep them in-engine to avoid
-        // double-bookkeeping and to preserve back-compat with legacy unit tests.
+        // Fast-path: the variable mutators have hand-tuned execution semantics
+        // inside the engine (variable scope, fast variable typing). Keep them
+        // in-engine to avoid double-bookkeeping. callMicroflow is no longer
+        // short-circuited here (P0-5): when a CallMicroflowActionExecutor is
+        // registered we route the call through the registry path so call stack,
+        // execution plan, transaction boundary and return-value binding are
+        // handled by a single implementation. Legacy in-engine path is used as
+        // a fallback only when the executor is not registered.
         switch (action.Kind)
         {
             case "createVariable":
                 return ExecuteCreateVariable(context, graph, node, action, incomingFlowId);
             case "changeVariable":
                 return ExecuteChangeVariable(context, graph, node, action, incomingFlowId);
-            case "callMicroflow":
-                return await ExecuteCallMicroflowAsync(context, graph, node, action, incomingFlowId, state, cancellationToken);
         }
 
         // Registry path (DI-only): retrieve / createObject / restCall / logMessage /
-        // createList / changeList / aggregateList / break / continue / etc.
+        // createList / changeList / aggregateList / break / continue / callMicroflow / etc.
         if (_actionExecutorRegistry is not null && _actionExecutorRegistry.TryGet(action.Kind, out var executor))
         {
             return await ExecuteActionViaRegistryAsync(
@@ -318,6 +367,14 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 incomingFlowId,
                 executor,
                 cancellationToken);
+        }
+
+        // Fallback when no specialized executor is wired (e.g. legacy unit tests
+        // that omit DI). Only callMicroflow has a non-trivial in-engine fallback
+        // that preserves behavior of older tests.
+        if (string.Equals(action.Kind, "callMicroflow", StringComparison.OrdinalIgnoreCase))
+        {
+            return await ExecuteCallMicroflowAsync(context, graph, node, action, incomingFlowId, state, cancellationToken);
         }
 
         return Unsupported(context, node, incomingFlowId, action.Kind);
@@ -388,6 +445,28 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             context.Logs.Add(log);
         }
 
+        // P0-4: PendingClientCommand 不再静默成功。
+        // 服务端 test-run 没有客户端，showPage / closePage 等 RuntimeCommand 类
+        // action 应该把节点显式标记 failed + RUNTIME_PENDING_CLIENT_COMMAND，
+        // 由前端负责区分 server-only run 与可恢复的 client-driven 流程。
+        if (string.Equals(result.Status, MicroflowActionExecutionStatus.PendingClientCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            var pendingError = result.Error ?? Error(
+                RuntimeErrorCode.RuntimePendingClientCommand,
+                result.Message ?? $"Action {action.Kind} 需要客户端继续执行；服务端 test-run 不会代为完成。",
+                node.Id,
+                action.Id,
+                incomingFlowId);
+            pendingError = pendingError with
+            {
+                ObjectId = pendingError.ObjectId ?? node.Id,
+                ActionId = pendingError.ActionId ?? action.Id,
+                FlowId = pendingError.FlowId ?? incomingFlowId
+            };
+            context.AddNodeFailure(node, incomingFlowId, pendingError);
+            return NodeExecution.Failed(pendingError);
+        }
+
         // Failure / unsupported / connector-required paths halt the run with a
         // structured error frame; we never silently succeed.
         if (string.Equals(result.Status, MicroflowActionExecutionStatus.Failed, StringComparison.OrdinalIgnoreCase)
@@ -406,12 +485,31 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 ActionId = error.ActionId ?? action.Id,
                 FlowId = error.FlowId ?? incomingFlowId
             };
+
+            // P0-4: 当 executor 设置 ShouldEnterErrorHandler 且节点定义了 error handler outgoing flow，
+            // 引擎跳转到该错误分支继续执行而不是直接终止；同时把 latestError 写入变量便于错误分支读取。
+            if (result.ShouldEnterErrorHandler)
+            {
+                var errorOutgoing = graph.ErrorHandlerOutgoing(node.Id);
+                if (errorOutgoing.Count == 1)
+                {
+                    var errorFlow = errorOutgoing[0];
+                    context.AddNodeFailure(node, incomingFlowId, error, errorFlow.Id);
+                    context.SetVariable(
+                        "$latestError",
+                        Type("Object"),
+                        JsonSerializer.SerializeToElement(error, JsonOptions),
+                        $"action:{action.Kind}:errorHandler");
+                    return NodeExecution.Next(errorFlow.DestinationObjectId!, errorFlow.Id);
+                }
+            }
+
             context.AddNodeFailure(node, incomingFlowId, error);
             return NodeExecution.Failed(error);
         }
 
-        // Success / pendingClientCommand: bring produced variables back into the
-        // engine's variable map so subsequent expressions can read them.
+        // Success: bring produced variables back into the engine's variable map
+        // so subsequent expressions can read them.
         foreach (var variable in result.ProducedVariables)
         {
             if (string.IsNullOrWhiteSpace(variable.Name))
@@ -1574,6 +1672,21 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         public void AddNodeFailure(MicroflowObjectModel node, string? incomingFlowId, MicroflowRuntimeErrorDto error)
             => AddFrame(node, incomingFlowId, null, "failed", JsonObj(new { node.Kind, actionKind = node.Action?.Kind }), null, error);
 
+        public void AddNodeFailure(
+            MicroflowObjectModel node,
+            string? incomingFlowId,
+            MicroflowRuntimeErrorDto error,
+            string? outgoingFlowId)
+            => AddFrame(
+                node,
+                incomingFlowId,
+                outgoingFlowId,
+                "failed",
+                JsonObj(new { node.Kind, actionKind = node.Action?.Kind }),
+                null,
+                error,
+                message: outgoingFlowId is null ? null : "Routed to error handler flow.");
+
         public void AddFrame(
             MicroflowObjectModel node,
             string? incomingFlowId,
@@ -1755,6 +1868,18 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             => Flows.Values
                 .Where(flow => string.Equals(flow.OriginObjectId, objectId, StringComparison.Ordinal)
                     && !flow.IsErrorHandler
+                    && !string.Equals(flow.Kind, "annotation", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(flow.EdgeKind, "annotation", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+        /// <summary>
+        /// Returns the <see cref="MicroflowFlowModel"/>(s) emanating from <paramref name="objectId"/>
+        /// that are explicitly marked as error-handler edges (used by P0-4 error routing).
+        /// </summary>
+        public IReadOnlyList<MicroflowFlowModel> ErrorHandlerOutgoing(string objectId)
+            => Flows.Values
+                .Where(flow => string.Equals(flow.OriginObjectId, objectId, StringComparison.Ordinal)
+                    && flow.IsErrorHandler
                     && !string.Equals(flow.Kind, "annotation", StringComparison.OrdinalIgnoreCase)
                     && !string.Equals(flow.EdgeKind, "annotation", StringComparison.OrdinalIgnoreCase))
                 .ToArray();

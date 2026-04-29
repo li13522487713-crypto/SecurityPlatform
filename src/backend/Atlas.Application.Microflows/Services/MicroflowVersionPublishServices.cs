@@ -338,6 +338,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
     private readonly IMicroflowValidationService _validationService;
     private readonly IMicroflowStorageTransaction _transaction;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
+    private readonly Audit.IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
 
     public MicroflowPublishService(
@@ -350,6 +351,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         IMicroflowValidationService validationService,
         IMicroflowStorageTransaction transaction,
         IMicroflowRequestContextAccessor requestContextAccessor,
+        Audit.IMicroflowAuditWriter auditWriter,
         IMicroflowClock clock)
     {
         _resourceRepository = resourceRepository;
@@ -361,6 +363,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         _validationService = validationService;
         _transaction = transaction;
         _requestContextAccessor = requestContextAccessor;
+        _auditWriter = auditWriter;
         _clock = clock;
     }
 
@@ -462,6 +465,25 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             await _resourceRepository.UpdateAsync(resource, cancellationToken);
         }, cancellationToken);
 
+        await SafeAuditAsync(new Audit.MicroflowAuditEvent
+        {
+            Action = "microflow.publish",
+            Result = "success",
+            ResourceId = resource.Id,
+            ResourceName = resource.Name,
+            WorkspaceId = resource.WorkspaceId,
+            Target = $"{resource.ModuleId}/{resource.Name}@{version.Version}",
+            Details = new Dictionary<string, object?>
+            {
+                ["versionId"] = version.Id,
+                ["version"] = version.Version,
+                ["impactHigh"] = impact.Summary.HighImpactCount,
+                ["impactMedium"] = impact.Summary.MediumImpactCount,
+                ["impactLow"] = impact.Summary.LowImpactCount,
+                ["referenceCount"] = references.Count
+            }
+        }, cancellationToken);
+
         return new MicroflowPublishResultDto
         {
             Resource = MicroflowResourceMapper.ToDto(resource, publishSchemaSnapshot),
@@ -470,6 +492,22 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             ValidationSummary = validationSummary,
             ImpactAnalysis = impact
         };
+    }
+
+    private async Task SafeAuditAsync(Audit.MicroflowAuditEvent auditEvent, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _auditWriter.WriteAsync(auditEvent, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // best-effort
+        }
     }
 
     public async Task<MicroflowPublishImpactAnalysisDto> AnalyzeImpactAsync(string resourceId, AnalyzeMicroflowImpactRequestDto request, CancellationToken cancellationToken)
@@ -486,6 +524,49 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             References = request.IncludeReferences ? impact.References : Array.Empty<MicroflowReferenceDto>(),
             BreakingChanges = request.IncludeBreakingChanges ? impact.BreakingChanges : Array.Empty<MicroflowBreakingChangeDto>()
         };
+    }
+
+    public async Task<MicroflowResourceDto> UnpublishAsync(string resourceId, UnpublishMicroflowRequestDto request, CancellationToken cancellationToken)
+    {
+        var resource = await LoadResourceAsync(resourceId, cancellationToken);
+        EnsureNotArchived(resource);
+
+        if (string.IsNullOrWhiteSpace(resource.LatestPublishedVersion))
+        {
+            throw new MicroflowApiException(
+                MicroflowApiErrorCode.MicroflowPublishBlocked,
+                "微流尚未发布，无法取消发布。",
+                409);
+        }
+
+        if (!request.Force)
+        {
+            var activeReferences = await _referenceRepository.ListByTargetMicroflowIdAsync(resource.Id, includeInactive: false, cancellationToken);
+            if (activeReferences.Count > 0)
+            {
+                throw new MicroflowApiException(
+                    MicroflowApiErrorCode.MicroflowReferenceBlocked,
+                    "微流仍存在 active 引用，无法取消发布；请先解除引用或使用 force=true。",
+                    409,
+                    details: $"activeReferenceCount={activeReferences.Count}");
+            }
+        }
+
+        var context = _requestContextAccessor.Current;
+        var now = _clock.UtcNow;
+
+        // 历史 publish snapshot/version 行不修改（保持不可变审计），仅更新 resource 状态。
+        await _transaction.ExecuteAsync(async () =>
+        {
+            resource.PublishStatus = "unpublished";
+            resource.LatestPublishedVersion = null;
+            resource.Status = "draft";
+            Touch(resource, context, now);
+            await _resourceRepository.UpdateAsync(resource, cancellationToken);
+        }, cancellationToken);
+
+        var currentSnapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId, cancellationToken);
+        return MicroflowResourceMapper.ToDto(resource, currentSnapshot);
     }
 
     internal static MicroflowVersionSummaryDto ToVersionSummary(MicroflowVersionEntity entity)
