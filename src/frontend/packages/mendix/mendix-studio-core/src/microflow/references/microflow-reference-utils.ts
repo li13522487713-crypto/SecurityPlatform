@@ -1,4 +1,4 @@
-import type { MicroflowAuthoringSchema, MicroflowObject, MicroflowObjectCollection } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 import type { StudioMicroflowDefinitionView } from "../studio/studio-microflow-types";
 import type {
@@ -118,47 +118,65 @@ export function resolveReferenceDisplayName(
   return reference.sourceName || reference.sourceId || reference.id;
 }
 
-function flattenObjects(collection: MicroflowObjectCollection | undefined): MicroflowObject[] {
-  if (!collection) {
+type DesignSchemaCallNode = {
+  id: string;
+  caption?: string;
+  action?: {
+    kind?: string;
+    actionKind?: string;
+    targetMicroflowId?: string;
+    targetMicroflowQualifiedName?: string;
+  };
+};
+
+function flattenDesignSchemaCallNodes(schema: MicroflowDesignSchema | undefined): DesignSchemaCallNode[] {
+  if (!schema?.workflow?.nodes) {
     return [];
   }
 
-  return collection.objects.flatMap(object => {
-    const nestedOwner = object as MicroflowObject & {
-      objectCollection?: MicroflowObjectCollection;
-      containedObjectCollection?: MicroflowObjectCollection;
-      loopObjectCollection?: MicroflowObjectCollection;
-      loopedActivity?: { objectCollection?: MicroflowObjectCollection };
-    };
-    return [
-      object,
-      ...flattenObjects(nestedOwner.objectCollection),
-      ...flattenObjects(nestedOwner.containedObjectCollection),
-      ...flattenObjects(nestedOwner.loopObjectCollection),
-      ...flattenObjects(nestedOwner.loopedActivity?.objectCollection)
-    ];
-  });
+  return schema.workflow.nodes
+    .map(node => {
+      const data = node.data as {
+        title?: string;
+        propertyObject?: {
+          id?: string;
+          caption?: string;
+          kind?: string;
+          action?: DesignSchemaCallNode["action"];
+        };
+      } | undefined;
+      const propertyObject = data?.propertyObject;
+      const action = propertyObject?.action;
+      return {
+        id: node.id,
+        caption: propertyObject?.caption ?? data?.title,
+        action: action ? {
+          kind: action.kind,
+          actionKind: action.actionKind,
+          targetMicroflowId: action.targetMicroflowId,
+          targetMicroflowQualifiedName: action.targetMicroflowQualifiedName,
+        } : undefined,
+      } satisfies DesignSchemaCallNode;
+    })
+    .filter(node => Boolean(node.action));
 }
 
-export function isCallMicroflowAction(object: MicroflowObject): boolean {
-  if (object.kind !== "actionActivity") {
+export function isCallMicroflowAction(object: DesignSchemaCallNode): boolean {
+  const action = object.action;
+  if (!action) {
     return false;
   }
-  const action = object.action as { kind?: string; actionKind?: string };
   return action.kind === "callMicroflow" || action.actionKind === "callMicroflow";
 }
 
-export function getCallMicroflowTargetDescriptor(object: MicroflowObject): {
+export function getCallMicroflowTargetDescriptor(object: DesignSchemaCallNode): {
   targetMicroflowId?: string;
   targetMicroflowQualifiedName?: string;
 } {
   if (!isCallMicroflowAction(object)) {
     return {};
   }
-  const action = object.action as {
-    targetMicroflowId?: string;
-    targetMicroflowQualifiedName?: string;
-  };
+  const action = object.action!;
   return {
     targetMicroflowId: action.targetMicroflowId?.trim() || undefined,
     targetMicroflowQualifiedName: action.targetMicroflowQualifiedName?.trim() || undefined
@@ -166,7 +184,7 @@ export function getCallMicroflowTargetDescriptor(object: MicroflowObject): {
 }
 
 export function parseMicroflowCallees(
-  schema: MicroflowAuthoringSchema | undefined,
+  schema: MicroflowDesignSchema | undefined,
   sourceMicroflowId: string,
   resourceIndex?: Record<string, StudioMicroflowDefinitionView>
 ): StudioMicroflowCalleeView[] {
@@ -174,7 +192,7 @@ export function parseMicroflowCallees(
     return [];
   }
 
-  return flattenObjects(schema.objectCollection)
+  return flattenDesignSchemaCallNodes(schema)
     .filter(isCallMicroflowAction)
     .map(object => {
       const { targetMicroflowId, targetMicroflowQualifiedName: storedTargetMicroflowQualifiedName } = getCallMicroflowTargetDescriptor(object);
@@ -193,7 +211,7 @@ export function parseMicroflowCallees(
       return {
         sourceMicroflowId,
         sourceNodeId: object.id,
-        sourceNodeName: object.caption || object.action.caption,
+        sourceNodeName: object.caption,
         targetMicroflowId,
         targetMicroflowName: targetResource?.displayName || targetResource?.name,
         targetMicroflowQualifiedName: latestQualifiedName || storedTargetMicroflowQualifiedName,
@@ -232,13 +250,13 @@ export function resolveCalleeDisplayName(
   return target?.displayName || target?.name || callee.targetMicroflowName || callee.targetMicroflowQualifiedName || callee.targetMicroflowId || "Incomplete Call Microflow";
 }
 
-export function getTargetMicroflowIdsFromSchema(schema: MicroflowAuthoringSchema | undefined): string[] {
+export function getTargetMicroflowIdsFromSchema(schema: MicroflowDesignSchema | undefined): string[] {
   if (!schema) {
     return [];
   }
   return [
     ...new Set(
-      flattenObjects(schema.objectCollection)
+      flattenDesignSchemaCallNodes(schema)
         .filter(isCallMicroflowAction)
         .map(object => getCallMicroflowTargetDescriptor(object).targetMicroflowId)
         .filter((id): id is string => Boolean(id))

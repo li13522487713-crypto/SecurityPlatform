@@ -36,7 +36,7 @@ export interface MicroflowSchemaSnapshotRow {
   resourceId: string;
   schemaVersion: string;
   migrationVersion: string | null;
-  /** 仅 `MicroflowAuthoringSchema` JSON，无 FlowGram。 */
+  /** 仅新版 `MicroflowDesignSchema` JSON。 */
   schemaJson: string;
   schemaHash: string | null;
   createdBy: string | null;
@@ -63,6 +63,7 @@ export interface MicroflowPublishSnapshotRow {
   resourceId: string;
   version: string;
   schemaSnapshotId: string;
+  /** 发布历史使用的新版 `MicroflowDesignSchema` JSON。 */
   schemaJson: string;
   validationSummaryJson: string | null;
   impactAnalysisJson: string | null;

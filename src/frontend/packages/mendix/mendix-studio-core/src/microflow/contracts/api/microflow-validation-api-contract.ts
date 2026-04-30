@@ -1,4 +1,4 @@
-import type { MicroflowAuthoringSchema, MicroflowValidationIssue } from "@atlas/microflow";
+import type { MicroflowDesignSchema, MicroflowValidationIssue } from "@atlas/microflow";
 
 import type { MicroflowApiResponse } from "./api-envelope";
 
@@ -7,7 +7,7 @@ import type { MicroflowApiResponse } from "./api-envelope";
  * 与 `ValidateMicroflowRequest`（@atlas/microflow 客户端）不同：此处显式包含 `mode` 以匹配后端规则组。
  */
 export interface ValidateMicroflowRequest {
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowDesignSchema;
   mode: "edit" | "save" | "publish" | "testRun";
   includeInfo?: boolean;
   includeWarnings?: boolean;

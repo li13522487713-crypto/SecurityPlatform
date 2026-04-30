@@ -3,7 +3,7 @@ import { Button, Empty, Space, Spin, Tag, Typography } from "@douyinfe/semi-ui";
 
 import type { MicroflowEditorHandle, MicroflowWorkbenchLayoutState, MicroflowWorkbenchStatus } from "@atlas/microflow";
 import type { MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
-import { createMicroflowApiError, getMicroflowApiError, getMicroflowErrorUserMessage, isNotFoundError } from "../adapter/http/microflow-api-error";
+import { createMicroflowApiError, getMicroflowApiError, getMicroflowErrorUserMessage, isLegacyDesignSchemaError, isNotFoundError } from "../adapter/http/microflow-api-error";
 import { MicroflowErrorState } from "../components/error";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MendixMicroflowEditorEntry } from "../editor/MendixMicroflowEditorEntry";
@@ -55,6 +55,9 @@ function getLoadErrorTitle(error: unknown): string {
   }
   if (apiError.code === "MICROFLOW_PERMISSION_DENIED") {
     return "无权限访问该微流";
+  }
+  if (isLegacyDesignSchemaError(apiError)) {
+    return "当前微流不是新版设计态";
   }
   return "Microflow schema load failed";
 }

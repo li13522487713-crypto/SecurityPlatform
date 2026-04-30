@@ -1,5 +1,5 @@
 import { compileMicroflowDesignToRuntime, validateMicroflowSchema } from "@atlas/microflow";
-import type { MicroflowAuthoringSchema, MicroflowDesignSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 import type { MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowReference } from "../references/microflow-reference-types";
@@ -26,9 +26,9 @@ export function validatePublishVersion(version: string, existingVersions: Microf
   return { valid: true };
 }
 
-export function summarizeValidation(schema: MicroflowAuthoringSchema | MicroflowDesignSchema, metadata?: MicroflowMetadataCatalog): MicroflowValidationSummary {
+export function summarizeValidation(schema: MicroflowDesignSchema, metadata?: MicroflowMetadataCatalog): MicroflowValidationSummary {
   const result = validateMicroflowSchema({
-    schema: toRuntimeSchema(schema),
+    schema: compileMicroflowDesignToRuntime(schema),
     metadata,
     options: { mode: "publish", includeWarnings: true, includeInfo: true },
   });
@@ -39,12 +39,12 @@ export function analyzeMicroflowPublishImpact(input: {
   resourceId: string;
   currentVersion?: string;
   nextVersion: string;
-  currentSchema: MicroflowAuthoringSchema | MicroflowDesignSchema;
+  currentSchema: MicroflowDesignSchema;
   latestSnapshot?: MicroflowPublishedSnapshot;
   references: MicroflowReference[];
 }): MicroflowPublishImpactAnalysis {
   const snapshotSchema = input.latestSnapshot?.schema;
-  const diff = snapshotSchema && isDesignSchema(snapshotSchema) && isDesignSchema(input.currentSchema)
+  const diff = snapshotSchema
     ? diffMicroflowSchemas(snapshotSchema, input.currentSchema)
     : undefined;
   const breakingChanges: MicroflowBreakingChange[] = diff?.breakingChanges ?? [];
@@ -70,7 +70,7 @@ export function analyzeMicroflowPublishImpact(input: {
   };
 }
 
-export function hashSchemaSnapshot(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): string {
+export function hashSchemaSnapshot(schema: MicroflowDesignSchema): string {
   let hash = 0;
   const value = JSON.stringify(schema);
   for (let index = 0; index < value.length; index += 1) {
@@ -78,12 +78,4 @@ export function hashSchemaSnapshot(schema: MicroflowAuthoringSchema | MicroflowD
     hash |= 0;
   }
   return Math.abs(hash).toString(16);
-}
-
-function isDesignSchema(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): schema is MicroflowDesignSchema {
-  return "workflow" in schema;
-}
-
-function toRuntimeSchema(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): MicroflowAuthoringSchema {
-  return isDesignSchema(schema) ? compileMicroflowDesignToRuntime(schema) : schema;
 }

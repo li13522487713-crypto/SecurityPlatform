@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Atlas.Domain.Microflows.Entities;
+using Atlas.Application.Microflows.Services;
 
 namespace Atlas.Application.Microflows.Models;
 
@@ -75,20 +76,5 @@ public static class MicroflowResourceMapper
     }
 
     private static JsonElement? ParseSchema(string? schemaJson)
-    {
-        if (string.IsNullOrWhiteSpace(schemaJson))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(schemaJson);
-            return document.RootElement.Clone();
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
+        => MicroflowDesignSchemaHelper.TryParseStoredDesignSchema(schemaJson);
 }

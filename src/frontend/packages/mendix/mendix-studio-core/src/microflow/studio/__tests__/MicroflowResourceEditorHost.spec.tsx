@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 import type { MicroflowAdapterBundle } from "../../adapter/microflow-adapter-factory";
 import { createMicroflowApiError } from "../../adapter/http/microflow-api-error";
@@ -35,9 +35,9 @@ vi.mock("../../editor/MendixMicroflowEditorEntry", () => ({
   ),
 }));
 
-function createSchema(id: string): MicroflowAuthoringSchema {
+function createSchema(id: string): MicroflowDesignSchema {
   return {
-    schemaVersion: "1.0.0",
+    schemaVersion: "flowgram.microflow.v1",
     id,
     stableId: id,
     moduleId: "mod_procurement",
@@ -48,8 +48,17 @@ function createSchema(id: string): MicroflowAuthoringSchema {
     parameters: [],
     returnType: { kind: "void" },
     variables: [],
-    objectCollection: { objects: [] },
-    flows: [],
+    workflow: {
+      nodes: [
+        {
+          id: "start",
+          type: "startEvent",
+          data: { objectId: "start", objectKind: "startEvent", collectionId: "root-collection", title: "Start", officialType: "Microflows$StartEvent" },
+          meta: { position: { x: 320, y: 220 } },
+        },
+      ],
+      edges: [],
+    },
     validation: { issues: [] },
     editor: { viewport: { x: 0, y: 0, zoom: 1 }, selection: {} },
     audit: {
@@ -60,7 +69,7 @@ function createSchema(id: string): MicroflowAuthoringSchema {
       updatedAt: "2026-04-28T00:00:00.000Z",
       updatedBy: "tester",
     },
-  } as MicroflowAuthoringSchema;
+  } as MicroflowDesignSchema;
 }
 
 function createResource(id: string): MicroflowResource {
@@ -172,5 +181,27 @@ describe("MicroflowResourceEditorHost", () => {
 
     await waitFor(() => expect(screen.getByText("Microflow no longer exists")).toBeTruthy());
     expect(screen.queryByText("sampleOrderProcessingMicroflow")).toBeNull();
+  });
+
+  it("shows legacy-design error when backend rejects old schema snapshots", async () => {
+    render(
+      <MicroflowResourceEditorHost
+        microflowId="legacy"
+        workspaceId="workspace-1"
+        adapterBundle={createBundle({
+          getMicroflow: vi.fn(async () => createResource("legacy")),
+          getMicroflowSchema: vi.fn(async () => {
+            throw {
+              code: "MICROFLOW_SCHEMA_INVALID",
+              message: "当前微流仍是旧设计态快照，无法在新版 Studio 中打开。",
+              httpStatus: 422,
+            };
+          }),
+        })}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText("当前微流不是新版设计态")).toBeTruthy());
+    expect(screen.getByText("当前微流仍是旧设计态快照，无法回显到新版画布。")).toBeTruthy();
   });
 });

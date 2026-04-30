@@ -387,7 +387,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "试运行 schema 必须是对象。", 400);
             }
 
-            return (draftSchema.Value.Clone(), resource.CurrentSchemaSnapshotId ?? resource.SchemaId ?? string.Empty);
+            return (MicroflowDesignSchemaHelper.EnsureDesignSchema(draftSchema.Value, "试运行仅允许新版设计态 schema。"), resource.CurrentSchemaSnapshotId ?? resource.SchemaId ?? string.Empty);
         }
 
         var snapshot = !string.IsNullOrWhiteSpace(requestedSchemaId)
@@ -401,7 +401,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "微流当前 Schema 不存在。", 400);
         }
 
-        return (MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), snapshot.Id);
+        return (MicroflowDesignSchemaHelper.ParseStoredDesignSchema(snapshot.SchemaJson, "微流当前设计态 Schema 不存在。"), snapshot.Id);
     }
 
     private static int ResolveRunTimeoutSeconds()

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Banner, Button, Empty, Input, Select, SideSheet, Space, Spin, Tag, Typography } from "@douyinfe/semi-ui";
 import { IconRefresh, IconSearch } from "@douyinfe/semi-icons";
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import { MicroflowErrorState } from "../components/error";
@@ -31,7 +31,7 @@ export interface MicroflowReferencesResource {
   moduleId?: string;
   moduleName?: string;
   referenceCount?: number;
-  schema?: MicroflowAuthoringSchema;
+  schema?: MicroflowDesignSchema;
 }
 
 export interface MicroflowReferencesDrawerProps {
@@ -39,7 +39,7 @@ export interface MicroflowReferencesDrawerProps {
   resource?: MicroflowReferencesResource;
   adapter: MicroflowResourceAdapter;
   resourceIndex?: Record<string, StudioMicroflowDefinitionView>;
-  getCurrentSchema?: () => MicroflowAuthoringSchema | undefined;
+  getCurrentSchema?: () => MicroflowDesignSchema | undefined;
   onOpenMicroflow?: (microflowId: string) => void;
   onRefreshResourceList?: () => void | Promise<void>;
   onClose: () => void;

@@ -25,7 +25,11 @@ public sealed class MicroflowSchemaReader : IMicroflowSchemaReader
         };
 
         model.Parameters.AddRange(ReadParameters(schema));
-        if (schema.TryGetProperty("objectCollection", out var collection))
+        if (MicroflowDesignSchemaHelper.IsDesignSchema(schema))
+        {
+            ReadDesignWorkflow(schema.GetProperty("workflow"), model);
+        }
+        else if (schema.TryGetProperty("objectCollection", out var collection))
         {
             ReadCollection(collection, model, parentLoopObjectId: null, insideLoop: false, path: "objectCollection");
             if (schema.TryGetProperty("flows", out var topLevelFlows))
@@ -39,6 +43,42 @@ public sealed class MicroflowSchemaReader : IMicroflowSchemaReader
         }
 
         return model;
+    }
+
+    private static void ReadDesignWorkflow(JsonElement workflow, MicroflowSchemaModel model)
+    {
+        if (workflow.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        var nodes = workflow.TryGetProperty("nodes", out var nodeArray) && nodeArray.ValueKind == JsonValueKind.Array
+            ? nodeArray.EnumerateArray().ToArray()
+            : Array.Empty<JsonElement>();
+        var nodeById = new Dictionary<string, MicroflowObjectModel>(StringComparer.Ordinal);
+
+        for (var index = 0; index < nodes.Length; index++)
+        {
+            var node = nodes[index];
+            var objectModel = ReadDesignNode(node, $"{nameof(workflow)}.nodes.{index}");
+            if (string.IsNullOrWhiteSpace(objectModel.Id))
+            {
+                continue;
+            }
+
+            nodeById[objectModel.Id] = objectModel;
+            model.Objects.Add(objectModel);
+        }
+
+        if (workflow.TryGetProperty("edges", out var edgeArray) && edgeArray.ValueKind == JsonValueKind.Array)
+        {
+            var edgeIndex = 0;
+            foreach (var edge in edgeArray.EnumerateArray())
+            {
+                model.Flows.Add(ReadDesignEdge(edge, nodeById, $"{nameof(workflow)}.edges.{edgeIndex}"));
+                edgeIndex++;
+            }
+        }
     }
 
     private static IEnumerable<MicroflowParameterModel> ReadParameters(JsonElement schema)
@@ -61,6 +101,122 @@ public sealed class MicroflowSchemaReader : IMicroflowSchemaReader
             };
             index++;
         }
+    }
+
+    private static MicroflowObjectModel ReadDesignNode(JsonElement node, string path)
+    {
+        var data = node.TryGetProperty("data", out var nodeData) && nodeData.ValueKind == JsonValueKind.Object
+            ? nodeData
+            : default;
+        var propertyObject = TryReadPropertyObject(node, data);
+        var objectKind = ReadString(node, "type")
+            ?? ReadString(data, "objectKind")
+            ?? ReadString(propertyObject, "kind")
+            ?? string.Empty;
+        var action = ResolveAction(node, data, propertyObject, path);
+        return new MicroflowObjectModel
+        {
+            Id = ReadString(node, "id") ?? ReadString(data, "objectId") ?? ReadString(propertyObject, "id") ?? string.Empty,
+            StableId = ReadString(propertyObject, "stableId") ?? ReadString(node, "id"),
+            Kind = objectKind,
+            OfficialType = ReadString(data, "officialType") ?? ReadString(propertyObject, "officialType"),
+            Caption = ReadString(data, "title") ?? ReadString(propertyObject, "caption") ?? ReadString(propertyObject, "text"),
+            ParameterId = ReadString(propertyObject, "parameterId"),
+            CollectionId = ReadString(data, "collectionId")
+                ?? ReadStringByPath(node, "meta", "collectionId")
+                ?? ReadString(propertyObject, "collectionId")
+                ?? "root-collection",
+            ParentLoopObjectId = ResolveParentLoopObjectId(propertyObject, data),
+            InsideLoop = ResolveInsideLoop(propertyObject, data),
+            Action = action,
+            Raw = propertyObject.ValueKind == JsonValueKind.Object ? propertyObject.Clone() : node.Clone(),
+            FieldPath = path
+        };
+    }
+
+    private static MicroflowActionModel? ResolveAction(JsonElement node, JsonElement data, JsonElement propertyObject, string path)
+    {
+        if (propertyObject.ValueKind == JsonValueKind.Object && propertyObject.TryGetProperty("action", out var propertyAction))
+        {
+            return ReadAction(propertyAction, path);
+        }
+
+        if (node.TryGetProperty("action", out var action))
+        {
+            return ReadAction(action, path);
+        }
+
+        if (data.ValueKind == JsonValueKind.Object && data.TryGetProperty("action", out var dataAction))
+        {
+            return ReadAction(dataAction, path);
+        }
+
+        return null;
+    }
+
+    private static JsonElement TryReadPropertyObject(JsonElement node, JsonElement data)
+    {
+        if (data.ValueKind == JsonValueKind.Object && data.TryGetProperty("propertyObject", out var propertyObject))
+        {
+            return propertyObject;
+        }
+
+        return node;
+    }
+
+    private static string? ResolveParentLoopObjectId(JsonElement propertyObject, JsonElement data)
+        => ReadString(propertyObject, "parentLoopObjectId")
+            ?? ReadString(data, "parentLoopObjectId");
+
+    private static bool ResolveInsideLoop(JsonElement propertyObject, JsonElement data)
+        => ReadBool(propertyObject, "insideLoop")
+            || ReadBool(data, "insideLoop");
+
+    private static MicroflowFlowModel ReadDesignEdge(
+        JsonElement edge,
+        IReadOnlyDictionary<string, MicroflowObjectModel> nodeById,
+        string path)
+    {
+        var data = edge.TryGetProperty("data", out var edgeData) && edgeData.ValueKind == JsonValueKind.Object
+            ? edgeData
+            : default;
+        var propertyFlow = data.ValueKind == JsonValueKind.Object && data.TryGetProperty("propertyFlow", out var flow)
+            ? flow
+            : edge;
+        var sourceId = ReadString(edge, "sourceNodeID") ?? ReadString(propertyFlow, "originObjectId");
+        var targetId = ReadString(edge, "targetNodeID") ?? ReadString(propertyFlow, "destinationObjectId");
+        var collectionId = ReadString(data, "collectionId");
+        if (string.IsNullOrWhiteSpace(collectionId)
+            && !string.IsNullOrWhiteSpace(sourceId)
+            && nodeById.TryGetValue(sourceId!, out var sourceNode))
+        {
+            collectionId = sourceNode.CollectionId;
+        }
+
+        var edgeKind = ReadString(data, "edgeKind")
+            ?? ReadStringByPath(propertyFlow, "editor", "edgeKind")
+            ?? ReadString(propertyFlow, "edgeKind");
+        var caseValues = data.ValueKind == JsonValueKind.Object && data.TryGetProperty("caseValues", out var values) && values.ValueKind == JsonValueKind.Array
+            ? values.EnumerateArray().Select(value => value.Clone()).ToArray()
+            : propertyFlow.TryGetProperty("caseValues", out var propertyCaseValues) && propertyCaseValues.ValueKind == JsonValueKind.Array
+                ? propertyCaseValues.EnumerateArray().Select(value => value.Clone()).ToArray()
+                : Array.Empty<JsonElement>();
+        return new MicroflowFlowModel
+        {
+            Id = ReadString(edge, "id") ?? ReadString(data, "flowId") ?? ReadString(propertyFlow, "id") ?? string.Empty,
+            Kind = ReadString(propertyFlow, "kind") ?? "sequence",
+            OriginObjectId = sourceId,
+            DestinationObjectId = targetId,
+            EdgeKind = edgeKind,
+            IsErrorHandler = ReadBool(data, "isErrorHandler")
+                || ReadBool(propertyFlow, "isErrorHandler")
+                || string.Equals(edgeKind, "errorHandler", StringComparison.OrdinalIgnoreCase),
+            CaseValues = caseValues,
+            CollectionId = collectionId ?? "root-collection",
+            InsideLoop = !string.IsNullOrWhiteSpace(collectionId) && !string.Equals(collectionId, "root-collection", StringComparison.Ordinal),
+            Raw = propertyFlow.ValueKind == JsonValueKind.Object ? propertyFlow.Clone() : edge.Clone(),
+            FieldPath = path
+        };
     }
 
     private static void ReadCollection(JsonElement collection, MicroflowSchemaModel model, string? parentLoopObjectId, bool insideLoop, string path)
@@ -114,7 +270,7 @@ public sealed class MicroflowSchemaReader : IMicroflowSchemaReader
         => new()
         {
             Id = ReadString(action, "id") ?? string.Empty,
-            Kind = ReadString(action, "kind") ?? string.Empty,
+            Kind = ReadString(action, "kind") ?? ReadString(action, "actionKind") ?? string.Empty,
             OfficialType = ReadString(action, "officialType"),
             Raw = action.Clone(),
             FieldPath = $"{objectPath}.action"
@@ -172,14 +328,23 @@ public sealed class MicroflowSchemaReader : IMicroflowSchemaReader
     }
 
     public static string? ReadString(JsonElement element, string propertyName)
-        => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        => element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty(propertyName, out var value)
+            && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
 
     public static string? ReadStringByPath(JsonElement element, params string[] path)
     {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
         var current = element;
         foreach (var part in path)
         {
-            if (!current.TryGetProperty(part, out current))
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out current))
             {
                 return null;
             }
@@ -189,7 +354,9 @@ public sealed class MicroflowSchemaReader : IMicroflowSchemaReader
     }
 
     public static bool ReadBool(JsonElement element, string propertyName)
-        => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.True;
+        => element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty(propertyName, out var value)
+            && value.ValueKind == JsonValueKind.True;
 }
 
 public sealed class MicroflowValidationContext

@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 import { MicroflowApiException } from "../adapter/http/microflow-api-error";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
@@ -33,10 +33,10 @@ interface MockSwitchProps {
 }
 
 interface MockMicroflowEditorProps {
-  schema: MicroflowAuthoringSchema;
-  onSchemaChange?: (schema: MicroflowAuthoringSchema) => void;
+  schema: MicroflowDesignSchema;
+  onSchemaChange?: (schema: MicroflowDesignSchema) => void;
   apiClient: {
-    saveMicroflow: (request: { schema: MicroflowAuthoringSchema }) => Promise<unknown>;
+    saveMicroflow: (request: { schema: MicroflowDesignSchema }) => Promise<unknown>;
   };
   toolbarPrefix?: ReactNode;
   toolbarSuffix?: ReactNode;
@@ -63,7 +63,7 @@ vi.mock("@douyinfe/semi-ui", () => ({
 }));
 
 vi.mock("@atlas/microflow", () => ({
-  MicroflowEditor: ({ schema, onSchemaChange, apiClient, toolbarPrefix, toolbarSuffix }: MockMicroflowEditorProps) => (
+  NativeMicroflowEditor: ({ schema, onSchemaChange, apiClient, toolbarPrefix, toolbarSuffix }: MockMicroflowEditorProps) => (
     <div>
       <div>{toolbarPrefix}</div>
       <div>{toolbarSuffix}</div>
@@ -72,11 +72,17 @@ vi.mock("@atlas/microflow", () => ({
         onClick={() => onSchemaChange?.({
           ...schema,
           displayName: "Changed",
-          objectCollection: {
-            ...schema.objectCollection,
-            objects: schema.objectCollection.objects.map((object, index) => index === 0
-              ? { ...object, relativeMiddlePoint: { x: 320, y: 180 } }
-              : object),
+          workflow: {
+            ...schema.workflow,
+            nodes: schema.workflow.nodes.map((node, index) => index === 0
+              ? {
+                  ...node,
+                  meta: {
+                    ...node.meta,
+                    position: { x: 320, y: 180 },
+                  },
+                }
+              : node),
           },
         })}
       >
@@ -99,9 +105,9 @@ vi.mock("../references/MicroflowReferencesDrawer", () => ({
   MicroflowReferencesDrawer: () => null,
 }));
 
-function schema(id: string): MicroflowAuthoringSchema {
+function schema(id: string): MicroflowDesignSchema {
   return {
-    schemaVersion: "1.0.0",
+    schemaVersion: "flowgram.microflow.v1",
     id,
     stableId: id,
     moduleId: "sales",
@@ -112,33 +118,36 @@ function schema(id: string): MicroflowAuthoringSchema {
     parameters: [],
     returnType: { kind: "void" },
     variables: [],
-    objectCollection: { objects: [] },
-    flows: [],
+    workflow: { nodes: [], edges: [] },
     validation: { issues: [] },
     editor: { viewport: { x: 0, y: 0, zoom: 1 }, selection: {} },
     audit: { version: "1", status: "draft" },
-  } as MicroflowAuthoringSchema;
+  } as MicroflowDesignSchema;
 }
 
-function schemaWithStart(id: string, position: { x: number; y: number }): MicroflowAuthoringSchema {
+function schemaWithStart(id: string, position: { x: number; y: number }): MicroflowDesignSchema {
   return {
     ...schema(id),
-    objectCollection: {
-      id: "root-collection",
-      officialType: "Microflows$MicroflowObjectCollection",
-      objects: [{
+    workflow: {
+      nodes: [{
         id: "start-1",
-        stableId: "start-1",
-        kind: "startEvent",
-        officialType: "Microflows$StartEvent",
-        caption: "Start",
-        relativeMiddlePoint: position,
-        size: { width: 160, height: 72 },
-        editor: {},
-        trigger: { type: "manual" },
+        type: "startEvent",
+        data: {
+          objectId: "start-1",
+          objectKind: "startEvent",
+          collectionId: "root-collection",
+          title: "Start",
+          officialType: "Microflows$StartEvent",
+        },
+        meta: {
+          position,
+          size: { width: 160, height: 72 },
+          collectionId: "root-collection",
+        },
       }],
+      edges: [],
     },
-  } as MicroflowAuthoringSchema;
+  } as MicroflowDesignSchema;
 }
 
 function resource(overrides: Partial<MicroflowResource> = {}): MicroflowResource {
@@ -296,9 +305,9 @@ describe("MendixMicroflowEditorEntry save conflict", () => {
     fireEvent.click(screen.getByText("save-now"));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(saveMicroflowSchema.mock.calls[0]?.[1].objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 320, y: 180 });
+    expect(saveMicroflowSchema.mock.calls[0]?.[1].workflow.nodes[0]?.meta?.position).toEqual({ x: 320, y: 180 });
     expect(onSave.mock.calls[0]?.[0]).toMatchObject({ schemaId: "schema-2", version: "2" });
-    expect(onSave.mock.calls[0]?.[0].schema.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 320, y: 180 });
+    expect(onSave.mock.calls[0]?.[0].schema.workflow.nodes[0]?.meta?.position).toEqual({ x: 320, y: 180 });
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining("Microflow save response schema layout differs"),
       expect.objectContaining({ microflowId: "mf-1" }),

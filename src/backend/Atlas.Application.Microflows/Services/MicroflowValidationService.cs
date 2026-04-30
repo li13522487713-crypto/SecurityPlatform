@@ -135,7 +135,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "微流当前 Schema 不存在。", 400);
         }
 
-        return MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson);
+        return MicroflowDesignSchemaHelper.ParseStoredDesignSchema(snapshot.SchemaJson, "微流当前设计态 Schema 不存在。");
     }
 
     private static void ValidateRoot(MicroflowValidationContext context)
@@ -147,7 +147,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             return;
         }
 
-        foreach (var rootField in new[] { "schemaVersion", "id", "name", "objectCollection", "flows", "parameters" })
+        foreach (var rootField in new[] { "schemaVersion", "id", "name", "workflow", "parameters" })
         {
             if (!schema.TryGetProperty(rootField, out var value) || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
             {
@@ -160,9 +160,25 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             Add(context, MicroflowValidationCodes.RootReturnTypeMissing, "returnType 不能为空。", "root", "returnType");
         }
 
-        if (schema.TryGetProperty("nodes", out _) || schema.TryGetProperty("edges", out _) || schema.TryGetProperty("workflowJson", out _) || schema.TryGetProperty("flowgram", out _))
+        if (schema.TryGetProperty("objectCollection", out _) || schema.TryGetProperty("flows", out _) || schema.TryGetProperty("workflowJson", out _) || schema.TryGetProperty("flowgram", out _))
         {
-            Add(context, MicroflowValidationCodes.RootSchemaInvalid, "不允许校验 FlowGram JSON。", "root", "schema");
+            Add(context, MicroflowValidationCodes.RootSchemaInvalid, "不允许校验旧 runtime schema。", "root", "schema");
+        }
+
+        if (!schema.TryGetProperty("workflow", out var workflow) || workflow.ValueKind != JsonValueKind.Object)
+        {
+            Add(context, MicroflowValidationCodes.RootSchemaInvalid, "workflow 必须是对象。", "root", "workflow");
+        }
+        else
+        {
+            if (!workflow.TryGetProperty("nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array)
+            {
+                Add(context, MicroflowValidationCodes.RootSchemaInvalid, "workflow.nodes 必须是数组。", "root", "workflow.nodes");
+            }
+            if (!workflow.TryGetProperty("edges", out var edges) || edges.ValueKind != JsonValueKind.Array)
+            {
+                Add(context, MicroflowValidationCodes.RootSchemaInvalid, "workflow.edges 必须是数组。", "root", "workflow.edges");
+            }
         }
 
         foreach (var group in context.SchemaModel.Parameters.Where(p => !string.IsNullOrWhiteSpace(p.Name)).GroupBy(p => p.Name, StringComparer.Ordinal))
@@ -321,7 +337,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         var rootStarts = rootObjects.Where(static o => IsKind(o, "startEvent")).ToArray();
         if (rootStarts.Length == 0)
         {
-            Add(context, MicroflowValidationCodes.StartMissing, "root collection 必须包含一个 StartEvent。", "event", "objectCollection.objects");
+            Add(context, MicroflowValidationCodes.StartMissing, "workflow.nodes 必须包含一个 StartEvent。", "event", "workflow.nodes");
         }
         else if (rootStarts.Length > 1)
         {
@@ -333,7 +349,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
         if (!rootObjects.Any(static o => IsKind(o, "endEvent")))
         {
-            Add(context, MicroflowValidationCodes.EndMissing, "root collection 至少需要一个 EndEvent。", "event", "objectCollection.objects", severity: ModeSeverity(context, warningInEdit: true));
+            Add(context, MicroflowValidationCodes.EndMissing, "workflow.nodes 至少需要一个 EndEvent。", "event", "workflow.nodes", severity: ModeSeverity(context, warningInEdit: true));
         }
 
         foreach (var obj in context.SchemaModel.Objects)

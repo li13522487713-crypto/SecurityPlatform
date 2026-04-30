@@ -210,26 +210,104 @@ public sealed class MicroflowSaveBaseVersionConflictTests
     private static JsonElement MinimalSchema(string id)
         => JsonSerializer.SerializeToElement(new
         {
-            schemaVersion = "1.0.0",
+            schemaVersion = "flowgram.microflow.v1",
             id,
+            stableId = id,
             name = "OrderSubmit",
-            objectCollection = new { objects = Array.Empty<object>() },
-            flows = Array.Empty<object>(),
+            displayName = "Order Submit",
+            moduleId = "sales",
+            moduleName = "Sales",
+            workflow = new
+            {
+                nodes = new object[]
+                {
+                    new
+                    {
+                        id = "start",
+                        type = "startEvent",
+                        data = new
+                        {
+                            objectId = "start",
+                            objectKind = "startEvent",
+                            collectionId = "root-collection",
+                            title = "Start",
+                            officialType = "Microflows$StartEvent"
+                        },
+                        meta = new
+                        {
+                            position = new { x = 320, y = 220 },
+                            size = new { width = 132, height = 70 }
+                        }
+                    }
+                },
+                edges = Array.Empty<object>()
+            },
             parameters = Array.Empty<object>(),
-            returnType = new { kind = "void" }
+            returnType = new { kind = "void" },
+            variables = Array.Empty<object>(),
+            validation = new { issues = Array.Empty<object>() },
+            editor = new { viewport = new { x = 0, y = 0, zoom = 1 }, selection = new { } },
+            audit = new
+            {
+                version = "0.1.0",
+                status = "draft",
+                createdBy = "tester",
+                createdAt = "2026-04-29T00:00:00.000Z",
+                updatedBy = "tester",
+                updatedAt = "2026-04-29T00:00:00.000Z"
+            }
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
     private static string MinimalSchemaWithForbiddenProperty(string id, string forbiddenProperty)
     {
         var node = JsonSerializer.SerializeToNode(new
         {
-            schemaVersion = "1.0.0",
+            schemaVersion = "flowgram.microflow.v1",
             id,
+            stableId = id,
             name = "OrderSubmit",
-            objectCollection = new { objects = Array.Empty<object>() },
-            flows = Array.Empty<object>(),
+            displayName = "Order Submit",
+            moduleId = "sales",
+            moduleName = "Sales",
+            workflow = new
+            {
+                nodes = new object[]
+                {
+                    new
+                    {
+                        id = "start",
+                        type = "startEvent",
+                        data = new
+                        {
+                            objectId = "start",
+                            objectKind = "startEvent",
+                            collectionId = "root-collection",
+                            title = "Start",
+                            officialType = "Microflows$StartEvent"
+                        },
+                        meta = new
+                        {
+                            position = new { x = 320, y = 220 },
+                            size = new { width = 132, height = 70 }
+                        }
+                    }
+                },
+                edges = Array.Empty<object>()
+            },
             parameters = Array.Empty<object>(),
-            returnType = new { kind = "void" }
+            returnType = new { kind = "void" },
+            variables = Array.Empty<object>(),
+            validation = new { issues = Array.Empty<object>() },
+            editor = new { viewport = new { x = 0, y = 0, zoom = 1 }, selection = new { } },
+            audit = new
+            {
+                version = "0.1.0",
+                status = "draft",
+                createdBy = "tester",
+                createdAt = "2026-04-29T00:00:00.000Z",
+                updatedBy = "tester",
+                updatedAt = "2026-04-29T00:00:00.000Z"
+            }
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
         node[forbiddenProperty] = forbiddenProperty == "workflowJson"
             ? "{}"

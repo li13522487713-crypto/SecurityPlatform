@@ -1,4 +1,4 @@
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 import type { MicroflowRunSession, MicroflowRuntimeLog, MicroflowTestRunOptions, MicroflowTraceFrame } from "@atlas/microflow";
 
 import type { MicroflowApiResponse } from "./api-envelope";
@@ -8,7 +8,7 @@ import type { MicroflowApiResponse } from "./api-envelope";
  * 若提供 `schema`：以**草稿**执行；未提供时后端使用已保存的 schema/版本（P0 可仅实现草稿运行）。
  */
 export interface TestRunMicroflowApiRequest {
-  schema?: MicroflowAuthoringSchema;
+  schema?: MicroflowDesignSchema;
   input: Record<string, unknown>;
   options?: MicroflowTestRunOptions;
   debugSessionId?: string;

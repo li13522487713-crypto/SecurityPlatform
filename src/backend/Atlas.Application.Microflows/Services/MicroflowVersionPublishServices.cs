@@ -68,8 +68,8 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
         AddExposureDisabledChange(breakingChanges, beforeSchema, afterSchema, "asMicroflowAction", "MICROFLOW_ACTION_EXPOSURE_DISABLED", "微流 Action 暴露已关闭。", "high");
         AddExposureDisabledChange(breakingChanges, beforeSchema, afterSchema, "asWorkflowAction", "WORKFLOW_ACTION_EXPOSURE_DISABLED", "工作流 Action 暴露已关闭。", "medium");
         breakingChanges.AddRange(requiredChangedParameters.Select(name => Breaking("medium", "PARAMETER_REQUIRED_CHANGED", $"参数 {name} 必填属性已变更。", $"parameters.{name}.required", beforeRequired[name].ToString(), afterRequired[name].ToString())));
-        breakingChanges.AddRange(removedObjects.Select(id => Breaking("low", "PUBLISHED_NODE_REMOVED", $"对象 {id} 已删除。", $"objectCollection.objects.{id}", id, null)));
-        breakingChanges.AddRange(removedFlows.Select(id => Breaking("low", "FLOW_REMOVED", $"连线 {id} 已删除。", $"flows.{id}", id, null)));
+        breakingChanges.AddRange(removedObjects.Select(id => Breaking("low", "PUBLISHED_NODE_REMOVED", $"对象 {id} 已删除。", $"workflow.nodes.{id}", id, null)));
+        breakingChanges.AddRange(removedFlows.Select(id => Breaking("low", "FLOW_REMOVED", $"连线 {id} 已删除。", $"workflow.edges.{id}", id, null)));
 
         return new MicroflowVersionDiffDto
         {
@@ -116,15 +116,26 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
 
     private static Dictionary<string, string> ReadObjects(JsonElement schema)
     {
-        if (!schema.TryGetProperty("objectCollection", out var collection)
-            || !collection.TryGetProperty("objects", out var objects)
+        if (!schema.TryGetProperty("workflow", out var workflow)
+            || !workflow.TryGetProperty("nodes", out var objects)
             || objects.ValueKind != JsonValueKind.Array)
         {
             return new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
         return objects.EnumerateArray()
-            .Select(o => new { Id = ReadString(o, "id"), Shape = $"{ReadString(o, "kind")}|{ReadString(o, "caption")}|{ReadStringByPath(o, "action", "kind")}" })
+            .Select(o => new
+            {
+                Id = ReadString(o, "id"),
+                Shape = string.Join("|", new[]
+                {
+                    ReadString(o, "type"),
+                    ReadStringByPath(o, "data", "title"),
+                    ReadStringByPath(o, "data", "officialType"),
+                    ReadStringByPath(o, "meta", "position", "x"),
+                    ReadStringByPath(o, "meta", "position", "y"),
+                })
+            })
             .Where(o => !string.IsNullOrWhiteSpace(o.Id))
             .GroupBy(o => o.Id!, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First().Shape, StringComparer.Ordinal);
@@ -133,40 +144,15 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
     private static Dictionary<string, string> ReadFlows(JsonElement schema)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        AddFlows(result, schema.TryGetProperty("flows", out var rootFlows) ? rootFlows : default);
-        if (schema.TryGetProperty("objectCollection", out var collection))
+        if (schema.TryGetProperty("workflow", out var workflow))
         {
-            AddFlowsFromCollection(result, collection);
+            AddDesignFlows(result, workflow.TryGetProperty("edges", out var edges) ? edges : default);
         }
 
         return result;
     }
 
-    private static void AddFlowsFromCollection(Dictionary<string, string> result, JsonElement collection)
-    {
-        if (collection.ValueKind != JsonValueKind.Object)
-        {
-            return;
-        }
-
-        AddFlows(result, collection.TryGetProperty("flows", out var flows) ? flows : default);
-        if (!collection.TryGetProperty("objects", out var objects) || objects.ValueKind != JsonValueKind.Array)
-        {
-            return;
-        }
-
-        foreach (var obj in objects.EnumerateArray())
-        {
-            if (obj.TryGetProperty("objectCollection", out var nested)
-                || obj.TryGetProperty("containedObjectCollection", out nested)
-                || obj.TryGetProperty("loopObjectCollection", out nested))
-            {
-                AddFlowsFromCollection(result, nested);
-            }
-        }
-    }
-
-    private static void AddFlows(Dictionary<string, string> result, JsonElement flows)
+    private static void AddDesignFlows(Dictionary<string, string> result, JsonElement flows)
     {
         if (flows.ValueKind != JsonValueKind.Array)
         {
@@ -177,7 +163,7 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
             .Select(f => new
             {
                 Id = ReadString(f, "id"),
-                Shape = $"{ReadString(f, "originObjectId")}|{ReadString(f, "destinationObjectId")}|{ReadString(f, "edgeKind")}|{ReadCompactJson(f, "caseValues")}|{ReadBool(f, "isErrorHandler")}"
+                Shape = $"{ReadString(f, "sourceNodeID")}|{ReadString(f, "targetNodeID")}|{ReadStringByPath(f, "data", "edgeKind")}|{ReadCompactJsonByPath(f, "data", "caseValues")}|{ReadBoolByPath(f, "data", "isErrorHandler")}"
             })
             .Where(f => !string.IsNullOrWhiteSpace(f.Id)))
         {
@@ -192,6 +178,20 @@ public sealed class MicroflowVersionDiffService : IMicroflowVersionDiffService
 
     private static string ReadCompactJson(JsonElement element, string propertyName)
         => element.TryGetProperty(propertyName, out var value) ? value.GetRawText() : string.Empty;
+
+    private static string ReadCompactJsonByPath(JsonElement element, params string[] path)
+    {
+        var current = element;
+        foreach (var part in path)
+        {
+            if (!current.TryGetProperty(part, out current))
+            {
+                return string.Empty;
+            }
+        }
+
+        return current.GetRawText();
+    }
 
     private static string? ReadString(JsonElement element, string propertyName)
         => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
@@ -378,12 +378,14 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         }
 
         var currentSnapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId, cancellationToken);
-        var currentSchema = MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson));
+        var currentDesignSchema = MicroflowDesignSchemaHelper.ParseStoredDesignSchema(
+            currentSnapshot.SchemaJson,
+            "当前微流仍是旧设计态快照，无法在新版 Studio 中发布。");
         var validation = await _validationService.ValidateAsync(
             resource.Id,
             new ValidateMicroflowRequestDto
             {
-                Schema = currentSchema,
+                Schema = currentDesignSchema,
                 Mode = "publish",
                 IncludeWarnings = true,
                 IncludeInfo = true
@@ -397,9 +399,11 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
         }
 
         var latestPublished = await _publishSnapshotRepository.GetLatestByResourceIdAsync(resource.Id, cancellationToken);
-        var latestPublishedSchema = latestPublished is null ? (JsonElement?)null : MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(latestPublished.SchemaJson));
+        var latestPublishedSchema = latestPublished is null
+            ? (JsonElement?)null
+            : MicroflowDesignSchemaHelper.ParseStoredDesignSchema(latestPublished.SchemaJson, "发布快照不是新版设计态。");
         var references = await _referenceRepository.ListByTargetMicroflowIdAsync(resource.Id, includeInactive: false, cancellationToken);
-        var impact = _impactService.Analyze(resource, currentSchema, latestPublishedSchema, references, request.Version.Trim());
+        var impact = _impactService.Analyze(resource, currentDesignSchema, latestPublishedSchema, references, request.Version.Trim());
         if (impact.Summary.HighImpactCount > 0 && !request.ConfirmBreakingChanges)
         {
             throw new MicroflowApiException(
@@ -412,9 +416,8 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
 
         var context = _requestContextAccessor.Current;
         var now = _clock.UtcNow;
-        var publishSchemaJson = MicroflowSchemaJsonHelper.NormalizeAndValidate(MicroflowSchemaMigrationService.NormalizeElement(currentSchema));
+        var publishSchemaJson = MicroflowDesignSchemaHelper.NormalizeAndValidateDesignSchema(currentDesignSchema);
         var schemaHash = MicroflowSchemaJsonHelper.ComputeSha256(publishSchemaJson);
-        var publishSchemaSnapshot = CreateSchemaSnapshot(resource, context, publishSchemaJson, schemaHash, request.Version.Trim(), $"publish:{request.Version}", currentSnapshot.Id, now);
         var publishSnapshot = new MicroflowPublishSnapshotEntity
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -422,7 +425,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             WorkspaceId = resource.WorkspaceId,
             TenantId = resource.TenantId,
             Version = request.Version.Trim(),
-            SchemaSnapshotId = publishSchemaSnapshot.Id,
+            SchemaSnapshotId = currentSnapshot.Id,
             SchemaJson = publishSchemaJson,
             ValidationSummaryJson = JsonSerializer.Serialize(validationSummary, JsonOptions),
             ImpactAnalysisJson = JsonSerializer.Serialize(impact, JsonOptions),
@@ -439,7 +442,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             TenantId = resource.TenantId,
             Version = request.Version.Trim(),
             Status = "published",
-            SchemaSnapshotId = publishSchemaSnapshot.Id,
+            SchemaSnapshotId = currentSnapshot.Id,
             Description = request.Description,
             ValidationSummaryJson = JsonSerializer.Serialize(validationSummary, JsonOptions),
             ReferenceCount = references.Count,
@@ -450,7 +453,6 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
 
         await _transaction.ExecuteAsync(async () =>
         {
-            await _schemaSnapshotRepository.InsertAsync(publishSchemaSnapshot, cancellationToken);
             await _publishSnapshotRepository.InsertAsync(publishSnapshot, cancellationToken);
             await _versionRepository.InsertAsync(version, cancellationToken);
             await _versionRepository.MarkLatestPublishedAsync(resource.Id, version.Id, cancellationToken);
@@ -458,8 +460,6 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             resource.PublishStatus = "published";
             resource.Version = request.Version.Trim();
             resource.LatestPublishedVersion = request.Version.Trim();
-            resource.CurrentSchemaSnapshotId = publishSchemaSnapshot.Id;
-            resource.SchemaId = publishSchemaSnapshot.Id;
             resource.ReferenceCount = references.Count;
             Touch(resource, context, now);
             await _resourceRepository.UpdateAsync(resource, cancellationToken);
@@ -486,7 +486,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
 
         return new MicroflowPublishResultDto
         {
-            Resource = MicroflowResourceMapper.ToDto(resource, publishSchemaSnapshot),
+            Resource = MicroflowResourceMapper.ToDto(resource, currentSnapshot),
             Version = ToVersionSummary(version),
             Snapshot = ToPublishedSnapshot(publishSnapshot),
             ValidationSummary = validationSummary,
@@ -514,9 +514,13 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
     {
         var resource = await LoadResourceAsync(resourceId, cancellationToken);
         var currentSnapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId, cancellationToken);
-        var currentSchema = MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson));
+        var currentSchema = MicroflowDesignSchemaHelper.ParseStoredDesignSchema(
+            currentSnapshot.SchemaJson,
+            "当前微流仍是旧设计态快照，无法在新版 Studio 中发布。");
         var latestPublished = await _publishSnapshotRepository.GetLatestByResourceIdAsync(resource.Id, cancellationToken);
-        var latestPublishedSchema = latestPublished is null ? (JsonElement?)null : MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(latestPublished.SchemaJson));
+        var latestPublishedSchema = latestPublished is null
+            ? (JsonElement?)null
+            : MicroflowDesignSchemaHelper.ParseStoredDesignSchema(latestPublished.SchemaJson, "发布快照不是新版设计态。");
         var references = await _referenceRepository.ListByTargetMicroflowIdAsync(resource.Id, includeInactive: false, cancellationToken);
         var impact = _impactService.Analyze(resource, currentSchema, latestPublishedSchema, references, request.Version ?? resource.Version);
         return impact with
@@ -591,7 +595,7 @@ public sealed class MicroflowPublishService : IMicroflowPublishService
             Id = entity.Id,
             ResourceId = entity.ResourceId,
             Version = entity.Version,
-            Schema = MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(entity.SchemaJson)),
+            Schema = MicroflowDesignSchemaHelper.ParseStoredDesignSchema(entity.SchemaJson, "发布快照不是新版设计态。"),
             PublishedAt = entity.PublishedAt,
             PublishedBy = entity.PublishedBy,
             Description = entity.Description,
@@ -777,8 +781,19 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
         var snapshot = await LoadSchemaSnapshotAsync(version.SchemaSnapshotId, cancellationToken);
         var context = _requestContextAccessor.Current;
         var now = _clock.UtcNow;
-        var schemaJson = MicroflowSchemaJsonHelper.NormalizeAndValidate(MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson)));
-        var newSnapshot = MicroflowPublishService.CreateSchemaSnapshot(resource, context, schemaJson, MicroflowSchemaJsonHelper.ComputeSha256(schemaJson), snapshot.SchemaVersion, $"rollback:{version.Version}", snapshot.Id, now);
+        var designSchema = MicroflowDesignSchemaHelper.ParseStoredDesignSchema(
+            snapshot.SchemaJson,
+            "当前版本仍是旧设计态快照，无法回滚到新版 Studio。");
+        var schemaJson = MicroflowDesignSchemaHelper.NormalizeAndValidateDesignSchema(designSchema);
+        var newSnapshot = MicroflowPublishService.CreateSchemaSnapshot(
+            resource,
+            context,
+            schemaJson,
+            MicroflowSchemaJsonHelper.ComputeSha256(schemaJson),
+            MicroflowDesignSchemaHelper.DesignSchemaVersion,
+            $"rollback:{version.Version}",
+            snapshot.Id,
+            now);
 
         await _transaction.ExecuteAsync(async () =>
         {
@@ -813,14 +828,14 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
         var moduleId = string.IsNullOrWhiteSpace(request.ModuleId) ? resource.ModuleId : request.ModuleId.Trim();
         var moduleName = request.ModuleName ?? resource.ModuleName;
         var tags = request.Tags ?? MicroflowResourceMapper.ReadTags(resource.TagsJson);
-        var schemaJson = MicroflowSchemaJsonHelper.MutateFields(MicroflowSchemaMigrationService.NormalizeJson(snapshot.SchemaJson), newResourceId, name, displayName, moduleId, moduleName);
+        var schemaJson = MicroflowDesignSchemaHelper.MutateDesignSchemaFields(snapshot.SchemaJson, newResourceId, name, displayName, moduleId, moduleName);
         var schemaSnapshot = new MicroflowSchemaSnapshotEntity
         {
             Id = Guid.NewGuid().ToString("N"),
             ResourceId = newResourceId,
             WorkspaceId = resource.WorkspaceId,
             TenantId = resource.TenantId,
-            SchemaVersion = snapshot.SchemaVersion,
+            SchemaVersion = MicroflowDesignSchemaHelper.DesignSchemaVersion,
             MigrationVersion = snapshot.MigrationVersion,
             SchemaJson = schemaJson,
             SchemaHash = MicroflowSchemaJsonHelper.ComputeSha256(schemaJson),
@@ -876,8 +891,8 @@ public sealed class MicroflowVersionService : IMicroflowVersionService
         var versionSnapshot = await LoadSchemaSnapshotAsync(version.SchemaSnapshotId, cancellationToken);
         var currentSnapshot = await LoadSchemaSnapshotAsync(resource.CurrentSchemaSnapshotId, cancellationToken);
         return _diffService.Compare(
-            MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(versionSnapshot.SchemaJson)),
-            MicroflowSchemaMigrationService.NormalizeElement(MicroflowSchemaJsonHelper.ParseRequired(currentSnapshot.SchemaJson)));
+            MicroflowDesignSchemaHelper.ParseStoredDesignSchema(versionSnapshot.SchemaJson, "版本快照不是新版设计态。"),
+            MicroflowDesignSchemaHelper.ParseStoredDesignSchema(currentSnapshot.SchemaJson, "当前快照不是新版设计态。"));
     }
 
     private async Task<MicroflowResourceEntity> LoadResourceAsync(string id, CancellationToken cancellationToken)

@@ -123,9 +123,12 @@ public sealed class MicroflowReferenceIndexer : IMicroflowReferenceIndexer
             return Array.Empty<MicroflowReferenceEntity>();
         }
 
+        var model = new MicroflowSchemaReader().Read(MicroflowDesignSchemaHelper.EnsureDesignSchema(schema));
         var now = _clock.UtcNow;
         var references = new List<MicroflowReferenceEntity>();
-        foreach (var action in EnumerateActions(schema).Where(action => string.Equals(ReadString(action, "kind"), "callMicroflow", StringComparison.OrdinalIgnoreCase)))
+        foreach (var action in model.Objects
+                     .Where(obj => obj.Action is not null && string.Equals(obj.Action.Kind, "callMicroflow", StringComparison.OrdinalIgnoreCase))
+                     .Select(obj => obj.Action!.Raw))
         {
             var targetId = ReadString(action, "targetMicroflowId");
             if (string.IsNullOrWhiteSpace(targetId))
@@ -173,45 +176,6 @@ public sealed class MicroflowReferenceIndexer : IMicroflowReferenceIndexer
             CreatedAt = now,
             UpdatedAt = now
         };
-
-    private static IEnumerable<JsonElement> EnumerateActions(JsonElement schema)
-    {
-        if (!schema.TryGetProperty("objectCollection", out var collection))
-        {
-            yield break;
-        }
-
-        foreach (var action in EnumerateActionsFromCollection(collection))
-        {
-            yield return action;
-        }
-    }
-
-    private static IEnumerable<JsonElement> EnumerateActionsFromCollection(JsonElement collection)
-    {
-        if (!collection.TryGetProperty("objects", out var objects) || objects.ValueKind != JsonValueKind.Array)
-        {
-            yield break;
-        }
-
-        foreach (var obj in objects.EnumerateArray())
-        {
-            if (obj.TryGetProperty("action", out var action) && action.ValueKind == JsonValueKind.Object)
-            {
-                yield return action;
-            }
-
-            if (obj.TryGetProperty("objectCollection", out var nested)
-                || obj.TryGetProperty("containedObjectCollection", out nested)
-                || obj.TryGetProperty("loopObjectCollection", out nested))
-            {
-                foreach (var nestedAction in EnumerateActionsFromCollection(nested))
-                {
-                    yield return nestedAction;
-                }
-            }
-        }
-    }
 
     private static string BuildSourcePath(MicroflowResourceEntity source)
         => $"{(string.IsNullOrWhiteSpace(source.ModuleName) ? source.ModuleId : source.ModuleName)}.{source.Name}";

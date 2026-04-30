@@ -144,6 +144,16 @@ export function isValidationFailedError(error: unknown): boolean {
   return apiError.code === "MICROFLOW_VALIDATION_FAILED" || apiError.code === "MICROFLOW_SCHEMA_INVALID";
 }
 
+export function isLegacyDesignSchemaError(error: unknown): boolean {
+  const apiError = getMicroflowApiError(error);
+  return apiError.code === "MICROFLOW_SCHEMA_INVALID"
+    && (
+      apiError.message?.includes("旧设计态快照")
+      || apiError.message?.includes("新版 Studio")
+      || apiError.message?.includes("新版画布")
+    );
+}
+
 export function isPublishBlockedError(error: unknown): boolean {
   return getMicroflowApiError(error).code === "MICROFLOW_PUBLISH_BLOCKED";
 }
@@ -178,6 +188,9 @@ export function getMicroflowErrorUserMessage(error: unknown): string {
       return "微流版本已变化，请刷新后再处理。";
     case "MICROFLOW_VALIDATION_FAILED":
     case "MICROFLOW_SCHEMA_INVALID":
+      if (isLegacyDesignSchemaError(apiError)) {
+        return "当前微流仍是旧设计态快照，无法回显到新版画布。";
+      }
       return "微流校验未通过，请查看问题面板。";
     case "MICROFLOW_PUBLISH_BLOCKED":
       return "微流发布被阻止，请处理校验或影响分析问题。";

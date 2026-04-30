@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Empty, Spin, Toast, Typography } from "@douyinfe/semi-ui";
 
 import type { MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
-import { getMicroflowErrorUserMessage, isNotFoundError } from "../adapter/http/microflow-api-error";
+import { getMicroflowErrorUserMessage, isLegacyDesignSchemaError, isNotFoundError } from "../adapter/http/microflow-api-error";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MendixMicroflowEditorEntry } from "../editor/MendixMicroflowEditorEntry";
 import type { StudioMicroflowDefinitionView } from "./studio-microflow-types";
@@ -34,6 +34,9 @@ function hasUsableSchema(resource: MicroflowResource): boolean {
 function getErrorTitle(error: Error): string {
   if (isNotFoundError(error)) {
     return "Microflow no longer exists";
+  }
+  if (isLegacyDesignSchemaError(error)) {
+    return "当前微流不是新版设计态";
   }
   return "Microflow schema load failed";
 }

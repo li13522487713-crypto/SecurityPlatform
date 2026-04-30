@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 import {
   canDeleteMicroflowFromReferences,
@@ -9,44 +9,68 @@ import {
 import type { MicroflowReference } from "../../references/microflow-reference-types";
 import type { StudioMicroflowDefinitionView } from "../studio-microflow-types";
 
-function schemaWithAction(action: Record<string, unknown>): MicroflowAuthoringSchema {
+function schemaWithAction(action: Record<string, unknown>): MicroflowDesignSchema {
   return {
+    schemaVersion: "flowgram.microflow.v1",
     id: "source-mf",
+    stableId: "source-mf",
     name: "MF_Source",
     displayName: "MF Source",
     moduleId: "procurement",
-    objectCollection: {
-      id: "root",
-      officialType: "Microflows$MicroflowObjectCollection",
-      objects: [
+    workflow: {
+      nodes: [
         {
           id: "node-call",
-          stableId: "stable-node-call",
-          kind: "actionActivity",
-          officialType: "Microflows$ActionActivity",
-          caption: "Call target",
-          autoGenerateCaption: false,
-          backgroundColor: "blue",
-          disabled: false,
-          relativeMiddlePoint: { x: 100, y: 100 },
-          size: { width: 120, height: 80 },
-          editor: {},
-          action: {
-            id: "action-call",
-            officialType: "Microflows$MicroflowCallAction",
-            kind: "callMicroflow",
-            caption: "Call target action",
-            errorHandlingType: "rollback",
-            editor: { category: "call", iconKey: "callMicroflow", availability: "available" },
-            parameterMappings: [],
-            returnValue: { storeResult: false },
-            callMode: "sync",
-            ...action
+          type: "actionActivity",
+          data: {
+            objectId: "node-call",
+            objectKind: "actionActivity",
+            collectionId: "root-collection",
+            title: "Call target",
+            subtitle: "Microflows$ActionActivity",
+            officialType: "Microflows$ActionActivity",
+            propertyObject: {
+              id: "node-call",
+              stableId: "stable-node-call",
+              kind: "actionActivity",
+              officialType: "Microflows$ActionActivity",
+              caption: "Call target",
+              autoGenerateCaption: false,
+              backgroundColor: "blue",
+              disabled: false,
+              relativeMiddlePoint: { x: 100, y: 100 },
+              size: { width: 120, height: 80 },
+              editor: {},
+              action: {
+                id: "action-call",
+                officialType: "Microflows$MicroflowCallAction",
+                kind: "callMicroflow",
+                caption: "Call target action",
+                errorHandlingType: "rollback",
+                editor: { category: "call", iconKey: "callMicroflow", availability: "available" },
+                parameterMappings: [],
+                returnValue: { storeResult: false },
+                callMode: "sync",
+                ...action
+              }
+            }
+          },
+          meta: {
+            position: { x: 100, y: 100 },
+            size: { width: 120, height: 80 },
+            collectionId: "root-collection",
           }
         }
-      ]
-    }
-  } as unknown as MicroflowAuthoringSchema;
+      ],
+      edges: []
+    },
+    parameters: [],
+    returnType: { kind: "void" },
+    variables: [],
+    validation: { issues: [] },
+    editor: { viewport: { x: 0, y: 0, zoom: 1 }, selection: {} },
+    audit: { version: "1", status: "draft" },
+  } as unknown as MicroflowDesignSchema;
 }
 
 const resourceIndex: Record<string, StudioMicroflowDefinitionView> = {
@@ -71,7 +95,7 @@ const resourceIndex: Record<string, StudioMicroflowDefinitionView> = {
 describe("microflow reference helpers", () => {
   it("parses callMicroflow callees from the current schema", () => {
     const callees = parseMicroflowCallees(
-      schemaWithAction({ targetMicroflowId: "target-mf", targetMicroflowQualifiedName: "Procurement.MF_Target" }),
+      schemaWithAction({ targetMicroflowId: "target-mf", targetMicroflowQualifiedName: "Procurement.MF_Target_V2" }),
       "source-mf",
       resourceIndex
     );

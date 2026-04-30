@@ -58,8 +58,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         IMicroflowReferenceIndexer referenceIndexer,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowAuditWriter auditWriter,
-        IMicroflowClock clock,
-        MicroflowSchemaMigrationService? schemaMigrationService = null)
+        IMicroflowClock clock)
     {
         _resourceRepository = resourceRepository;
         _folderRepository = folderRepository;
@@ -69,7 +68,6 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         _requestContextAccessor = requestContextAccessor;
         _auditWriter = auditWriter;
         _clock = clock;
-        _ = schemaMigrationService;
     }
 
     public async Task<MicroflowApiPageResult<MicroflowResourceDto>> ListAsync(
@@ -148,7 +146,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var schema = request.Input.Schema.HasValue
             ? request.Input.Schema.Value
             : CreateBlankSchemaElement(request.Input, resourceId, context.UserName ?? context.UserId ?? "Current User", now);
-        var schemaJson = NormalizeAndValidateDesignSchema(schema);
+        var schemaJson = MicroflowDesignSchemaHelper.NormalizeAndValidateDesignSchema(schema);
         var snapshot = CreateSnapshot(resourceId, workspaceId, context, schemaJson, "flowgram.microflow.v1", "initial create", null, now);
         var entity = new MicroflowResourceEntity
         {
@@ -284,8 +282,9 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     public async Task<GetMicroflowSchemaResponseDto> GetSchemaAsync(string id, CancellationToken cancellationToken)
     {
         var (resource, snapshot) = await LoadResourceAndSnapshotAsync(id, requireSnapshot: true, cancellationToken);
-        var schema = MicroflowResourceMapper.ParseSchemaJson(snapshot!.SchemaJson)
-            ?? throw SchemaInvalid("微流 Schema JSON 无法解析。");
+        var schema = MicroflowDesignSchemaHelper.ParseStoredDesignSchema(
+            snapshot!.SchemaJson,
+            "当前微流仍是旧设计态快照，无法在新版 Studio 中打开。");
 
         return new GetMicroflowSchemaResponseDto
         {
@@ -344,7 +343,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             throw SchemaInvalid("schema 不能为空。");
         }
 
-        var schemaJson = NormalizeAndValidateDesignSchema(request.Schema.Value);
+        var schemaJson = MicroflowDesignSchemaHelper.NormalizeAndValidateDesignSchema(request.Schema.Value);
         var context = _requestContextAccessor.Current;
         var now = _clock.UtcNow;
         var snapshot = CreateSnapshot(resource.Id, resource.WorkspaceId, context, schemaJson, "flowgram.microflow.v1", request.SaveReason, baseVersion, now);
@@ -398,7 +397,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             ? source.FolderId is null ? null : await ResolveFolderAsync(source.FolderId, workspaceId, source.TenantId, targetModuleId, cancellationToken)
             : await ResolveFolderAsync(request.FolderId, workspaceId, source.TenantId, targetModuleId, cancellationToken);
         var schemaJson = MutateSchemaFields(sourceSnapshot!.SchemaJson, newId, name, displayName, targetModuleId, targetModuleName);
-        var snapshot = CreateSnapshot(newId, workspaceId, context, schemaJson, "1.0.0", "duplicate", null, now);
+        var snapshot = CreateSnapshot(newId, workspaceId, context, schemaJson, MicroflowDesignSchemaHelper.DesignSchemaVersion, "duplicate", null, now);
         var resource = new MicroflowResourceEntity
         {
             Id = newId,
@@ -752,83 +751,6 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         }
     }
 
-    private static string NormalizeAndValidateDesignSchema(JsonElement schema)
-    {
-        if (schema.ValueKind != JsonValueKind.Object)
-        {
-            throw SchemaInvalid("schema 必须是对象。");
-        }
-
-        if (schema.TryGetProperty("objectCollection", out _)
-            || schema.TryGetProperty("flows", out _)
-            || schema.TryGetProperty("nodes", out _)
-            || schema.TryGetProperty("edges", out _))
-        {
-            throw SchemaInvalid("微流设计态必须使用 workflow.nodes/workflow.edges，禁止保存旧 objectCollection/flows 或裸 FlowGram JSON。");
-        }
-
-        RequireProperty(schema, "schemaVersion");
-        RequireProperty(schema, "id");
-        RequireProperty(schema, "name");
-        RequireProperty(schema, "moduleId");
-        RequireProperty(schema, "workflow");
-        RequireProperty(schema, "parameters");
-        RequireProperty(schema, "returnType");
-        var workflow = schema.GetProperty("workflow");
-        if (workflow.ValueKind != JsonValueKind.Object)
-        {
-            throw SchemaInvalid("workflow 必须是对象。");
-        }
-
-        RequireProperty(workflow, "nodes");
-        RequireProperty(workflow, "edges");
-        if (workflow.GetProperty("nodes").ValueKind != JsonValueKind.Array)
-        {
-            throw SchemaInvalid("workflow.nodes 必须是数组。");
-        }
-
-        if (workflow.GetProperty("edges").ValueKind != JsonValueKind.Array)
-        {
-            throw SchemaInvalid("workflow.edges 必须是数组。");
-        }
-
-        foreach (var node in workflow.GetProperty("nodes").EnumerateArray())
-        {
-            if (node.ValueKind != JsonValueKind.Object)
-            {
-                throw SchemaInvalid("workflow.nodes 项必须是对象。");
-            }
-            RequireProperty(node, "id");
-            RequireProperty(node, "type");
-            RequireProperty(node, "meta");
-            var meta = node.GetProperty("meta");
-            if (meta.ValueKind != JsonValueKind.Object || !meta.TryGetProperty("position", out var position) || position.ValueKind != JsonValueKind.Object)
-            {
-                throw SchemaInvalid("workflow.nodes[].meta.position 不能为空。");
-            }
-        }
-
-        foreach (var edge in workflow.GetProperty("edges").EnumerateArray())
-        {
-            if (edge.ValueKind != JsonValueKind.Object)
-            {
-                throw SchemaInvalid("workflow.edges 项必须是对象。");
-            }
-            RequireProperty(edge, "sourceNodeID");
-            RequireProperty(edge, "targetNodeID");
-        }
-        return JsonSerializer.Serialize(schema, JsonOptions);
-    }
-
-    private static void RequireProperty(JsonElement schema, string propertyName)
-    {
-        if (!schema.TryGetProperty(propertyName, out var value)
-            || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
-        {
-            throw SchemaInvalid($"schema.{propertyName} 不能为空。");
-        }
-    }
-
     private static MicroflowApiException SchemaInvalid(string message)
         => new(MicroflowApiErrorCode.MicroflowSchemaInvalid, message, 422);
 
@@ -1068,17 +990,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         string displayName,
         string moduleId,
         string? moduleName)
-    {
-        var node = JsonNode.Parse(schemaJson) as JsonObject
-            ?? throw SchemaInvalid("微流 Schema JSON 无法解析。");
-        node["id"] = id;
-        node["stableId"] = id;
-        node["name"] = name;
-        node["displayName"] = displayName;
-        node["moduleId"] = moduleId;
-        node["moduleName"] = moduleName;
-        return NormalizeAndValidateDesignSchema(JsonSerializer.SerializeToElement(node, JsonOptions));
-    }
+        => MicroflowDesignSchemaHelper.MutateDesignSchemaFields(schemaJson, id, name, displayName, moduleId, moduleName);
 
     private static string ComputeSha256(string value)
     {
