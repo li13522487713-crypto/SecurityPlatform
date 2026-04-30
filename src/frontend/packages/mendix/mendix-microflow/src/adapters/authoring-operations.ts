@@ -269,6 +269,10 @@ export function deleteObject(schema: MicroflowSchema, objectId: string): Microfl
   const selectedFlowStillExists = schema.editor.selection.flowId
     ? [...flows, ...collectFlowsRecursive({ ...schema, flows, objectCollection })].some(flow => flow.id === schema.editor.selection.flowId)
     : false;
+  const remainingFlows = [...flows, ...collectFlowsRecursive({ ...schema, flows, objectCollection })];
+  const selectedObjectIds = (schema.editor.selection.objectIds ?? []).filter(id => !removedObjectIds.has(id));
+  const selectedFlowIds = (schema.editor.selection.flowIds ?? []).filter(id => remainingFlows.some(flow => flow.id === id));
+  const selectionCount = selectedObjectIds.length + selectedFlowIds.length;
   return refreshDerivedState({
     ...schema,
     objectCollection,
@@ -283,7 +287,10 @@ export function deleteObject(schema: MicroflowSchema, objectId: string): Microfl
         flowId: selectedFlowStillExists ? schema.editor.selection.flowId : undefined,
         collectionId: schema.editor.selection.objectId && removedObjectIds.has(schema.editor.selection.objectId)
           ? undefined
-          : schema.editor.selection.collectionId
+          : schema.editor.selection.collectionId,
+        objectIds: selectedObjectIds,
+        flowIds: selectedFlowIds,
+        mode: selectionCount === 0 ? "none" : selectionCount === 1 ? "single" : "multi"
       },
       selectedObjectId: schema.editor.selectedObjectId && removedObjectIds.has(schema.editor.selectedObjectId)
         ? undefined
@@ -384,13 +391,121 @@ export function duplicateObject(schema: MicroflowSchema, objectId: string): Micr
       selection: {
         objectId: copy.id,
         flowId: undefined,
-        collectionId: located.collectionId
+        collectionId: located.collectionId,
+        objectIds: [copy.id],
+        flowIds: [],
+        mode: "single"
       },
       selectedObjectId: copy.id,
       selectedFlowId: undefined,
       selectedCollectionId: located.collectionId
     }
   };
+}
+
+export interface DuplicateObjectSelectionOptions {
+  objectIds: string[];
+  flowIds?: string[];
+  offset?: MicroflowPoint;
+}
+
+function remapObjectIdsForDuplicate(
+  schema: MicroflowSchema,
+  object: MicroflowObject,
+  idMap: Map<string, string>,
+  offset: MicroflowPoint,
+): MicroflowObject {
+  const copy = clone(object) as MicroflowObject;
+  const nextId = uniqueSchemaId(schema, `${object.kind}-copy`);
+  idMap.set(object.id, nextId);
+  copy.id = nextId;
+  copy.stableId = nextId;
+  copy.caption = nextDuplicateCaption(object.caption, object.kind);
+  copy.relativeMiddlePoint = {
+    x: object.relativeMiddlePoint.x + offset.x,
+    y: object.relativeMiddlePoint.y + offset.y,
+  };
+  if (copy.kind === "actionActivity") {
+    copy.action = { ...copy.action, id: uniqueSchemaId(schema, `action-${copy.action.kind}-copy`) } as MicroflowAction;
+  }
+  if (copy.kind === "loopedActivity") {
+    copy.objectCollection = {
+      ...copy.objectCollection,
+      id: uniqueSchemaId(schema, "loop-collection-copy"),
+      objects: copy.objectCollection.objects.map(child => remapObjectIdsForDuplicate(schema, child, idMap, { x: 0, y: 0 })),
+      flows: (copy.objectCollection.flows ?? []).map(flow => ({
+        ...flow,
+        id: uniqueSchemaId(schema, `${flow.kind}-copy`),
+        stableId: uniqueSchemaId(schema, `${flow.kind}-stable-copy`),
+        originObjectId: idMap.get(flow.originObjectId) ?? flow.originObjectId,
+        destinationObjectId: idMap.get(flow.destinationObjectId) ?? flow.destinationObjectId,
+      } as MicroflowFlow)),
+    };
+  }
+  return copy;
+}
+
+export function duplicateObjectSelection(schema: MicroflowSchema, options: DuplicateObjectSelectionOptions): MicroflowSchema {
+  const selectedObjectIds = [...new Set(options.objectIds)].filter(id => Boolean(findObjectWithCollection(schema, id)));
+  if (selectedObjectIds.length === 0) {
+    return schema;
+  }
+
+  const offset = options.offset ?? { x: 80, y: 60 };
+  const idMap = new Map<string, string>();
+  const copiedObjects = selectedObjectIds
+    .map(id => findObjectWithCollection(schema, id))
+    .filter((item): item is NonNullable<ReturnType<typeof findObjectWithCollection>> => Boolean(item))
+    .map(item => ({
+      located: item,
+      copy: remapObjectIdsForDuplicate(schema, item.object, idMap, offset),
+    }));
+
+  let next = schema;
+  for (const item of copiedObjects) {
+    next = addObject(next, item.copy, item.located.parentLoopObjectId);
+  }
+
+  const selectedObjectIdSet = new Set(selectedObjectIds);
+  const explicitFlowIds = new Set(options.flowIds ?? []);
+  const candidateFlows = collectFlowsRecursive(schema).filter(flow =>
+    (selectedObjectIdSet.has(flow.originObjectId) && selectedObjectIdSet.has(flow.destinationObjectId))
+    || explicitFlowIds.has(flow.id),
+  );
+  for (const flow of candidateFlows) {
+    const originObjectId = idMap.get(flow.originObjectId);
+    const destinationObjectId = idMap.get(flow.destinationObjectId);
+    if (!originObjectId || !destinationObjectId) {
+      continue;
+    }
+    next = addFlow(next, {
+      ...clone(flow),
+      id: uniqueSchemaId(next, `${flow.kind}-copy`),
+      stableId: uniqueSchemaId(next, `${flow.kind}-stable-copy`),
+      originObjectId,
+      destinationObjectId,
+    } as MicroflowFlow);
+  }
+
+  const copiedObjectIds = copiedObjects.map(item => item.copy.id);
+  const first = copiedObjects[0];
+  return refreshDerivedState({
+    ...next,
+    editor: {
+      ...next.editor,
+      selection: {
+        objectId: copiedObjectIds[0],
+        flowId: undefined,
+        collectionId: first?.located.collectionId,
+        objectIds: copiedObjectIds,
+        flowIds: [],
+        mode: copiedObjectIds.length > 1 ? "multi" : "single",
+      },
+      selectedObjectId: copiedObjectIds[0],
+      selectedFlowId: undefined,
+      selectedCollectionId: first?.located.collectionId,
+    },
+  });
 }
 
 export function moveObject(schema: MicroflowSchema, objectId: string, position: MicroflowPoint): MicroflowSchema {
@@ -446,7 +561,13 @@ export function deleteFlow(schema: MicroflowSchema, flowId: string): MicroflowSc
       selection: {
         ...target.editor.selection,
         flowId: target.editor.selection.flowId === flowId ? undefined : target.editor.selection.flowId,
-        collectionId: target.editor.selection.flowId === flowId ? undefined : target.editor.selection.collectionId
+        collectionId: target.editor.selection.flowId === flowId ? undefined : target.editor.selection.collectionId,
+        flowIds: (target.editor.selection.flowIds ?? []).filter(id => id !== flowId),
+        mode: ((target.editor.selection.objectIds ?? []).length + (target.editor.selection.flowIds ?? []).filter(id => id !== flowId).length) > 1
+          ? "multi"
+          : ((target.editor.selection.objectIds ?? []).length + (target.editor.selection.flowIds ?? []).filter(id => id !== flowId).length) === 1
+            ? "single"
+            : "none"
       },
       selectedFlowId: target.editor.selectedFlowId === flowId ? undefined : target.editor.selectedFlowId,
       selectedCollectionId: target.editor.selectedFlowId === flowId ? undefined : target.editor.selectedCollectionId
@@ -869,7 +990,27 @@ export function applyEditorGraphPatchToAuthoring(schema: MicroflowSchema, patch:
   const hasSelectedObject = Object.prototype.hasOwnProperty.call(patch, "selectedObjectId");
   const hasSelectedFlow = Object.prototype.hasOwnProperty.call(patch, "selectedFlowId");
   const hasSelectedCollection = Object.prototype.hasOwnProperty.call(patch, "selectedCollectionId");
-  if (patch.viewport || hasSelectedObject || hasSelectedFlow || hasSelectedCollection) {
+  const hasSelectedObjects = Object.prototype.hasOwnProperty.call(patch, "selectedObjectIds");
+  const hasSelectedFlows = Object.prototype.hasOwnProperty.call(patch, "selectedFlowIds");
+  const hasSelectionMode = Object.prototype.hasOwnProperty.call(patch, "selectionMode");
+  if (patch.viewport || hasSelectedObject || hasSelectedFlow || hasSelectedCollection || hasSelectedObjects || hasSelectedFlows || hasSelectionMode) {
+    const objectIds = hasSelectedObjects
+      ? [...(patch.selectedObjectIds ?? [])]
+      : hasSelectedObject
+        ? (patch.selectedObjectId ? [patch.selectedObjectId] : [])
+        : [...(next.editor.selection.objectIds ?? [])];
+    const flowIds = hasSelectedFlows
+      ? [...(patch.selectedFlowIds ?? [])]
+      : hasSelectedFlow
+        ? (patch.selectedFlowId ? [patch.selectedFlowId] : [])
+        : [...(next.editor.selection.flowIds ?? [])];
+    const mode = hasSelectionMode
+      ? patch.selectionMode
+      : objectIds.length + flowIds.length > 1
+        ? "multi"
+        : objectIds.length + flowIds.length === 1
+          ? "single"
+          : "none";
     next = {
       ...next,
       editor: {
@@ -881,7 +1022,10 @@ export function applyEditorGraphPatchToAuthoring(schema: MicroflowSchema, patch:
         selection: {
           objectId: hasSelectedObject ? patch.selectedObjectId : next.editor.selection.objectId,
           flowId: hasSelectedFlow ? patch.selectedFlowId : next.editor.selection.flowId,
-          collectionId: hasSelectedCollection ? patch.selectedCollectionId : next.editor.selection.collectionId
+          collectionId: hasSelectedCollection ? patch.selectedCollectionId : next.editor.selection.collectionId,
+          objectIds,
+          flowIds,
+          mode
         }
       }
     };

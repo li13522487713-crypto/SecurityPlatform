@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  detectLegacyAliasesInText,
-  parseBackendDescriptorsFromSource,
-  parseMarkdownMatrixActionKinds,
-} from "../../../../../../../scripts/microflow-production-gate-lib";
-
 describe("microflow production gate collectors", () => {
-  it("parses backend descriptor factories and connector gates", () => {
+  async function loadGateLib() {
+    const moduleUrl = new URL("../../../../../../../scripts/microflow-production-gate-lib.ts", import.meta.url).href;
+    return await import(moduleUrl) as {
+      detectLegacyAliasesInText: (text: string) => string[];
+      parseBackendDescriptorsFromSource: (source: string) => Array<{
+        actionKind: string;
+        producesVariables: boolean;
+        runtimeCategory: string;
+        connectorCapability?: string;
+        errorCode?: string;
+      }>;
+      parseMarkdownMatrixActionKinds: (markdown: string) => Set<string>;
+    };
+  }
+
+  it("parses backend descriptor factories and connector gates", async () => {
+    const { parseBackendDescriptorsFromSource } = await loadGateLib();
     const source = `
 public static IReadOnlyList<MicroflowActionExecutorDescriptor> BuiltInDescriptors()
     =>
@@ -26,12 +36,14 @@ public static IReadOnlyList<MicroflowActionExecutorDescriptor> BuiltInDescriptor
     expect(descriptors[2].errorCode).toBe("RUNTIME_UNSUPPORTED_ACTION");
   });
 
-  it("detects legacy aliases in schema-like text", () => {
+  it("detects legacy aliases in schema-like text", async () => {
+    const { detectLegacyAliasesInText } = await loadGateLib();
     expect(detectLegacyAliasesInText('{ "kind": "rollbackObject" }')).toContain("rollbackObject");
     expect(detectLegacyAliasesInText('{ "kind": "rollback" }')).toEqual([]);
   });
 
-  it("parses matrix actionKind rows", () => {
+  it("parses matrix actionKind rows", async () => {
+    const { parseMarkdownMatrixActionKinds } = await loadGateLib();
     const markdown = `
 | actionKind | category |
 |---|---|

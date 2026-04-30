@@ -18,7 +18,7 @@ import type {
   TestRunMicroflowResponse,
   ValidateMicroflowResponse,
 } from "@atlas/microflow";
-import type { MicroflowRunSession, MicroflowTraceFrame } from "@atlas/microflow";
+import type { MicroflowDebugAdapter, MicroflowRunSession, MicroflowTraceFrame } from "@atlas/microflow";
 
 import type { MicroflowResource } from "../../resource/resource-types";
 import type { GetMicroflowSchemaResponse, SaveMicroflowSchemaResponse } from "../../contracts/api/microflow-schema-api-contract";
@@ -83,8 +83,36 @@ function toRuntimeReference(reference: import("../../references/microflow-refere
 
 export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeAdapterOptions): RuntimeMicroflowApiClient {
   const client = options.apiClient ?? new MicroflowApiClient(options);
+  const debugAdapter: MicroflowDebugAdapter = {
+    createSession(microflowId) {
+      return client.post(`/microflows/${encodeURIComponent(microflowId)}/debug-sessions`, {});
+    },
+    getSession(sessionId) {
+      return client.get(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}`);
+    },
+    sendCommand(sessionId, command, target) {
+      return client.post(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/commands`, {
+        command,
+        targetNodeObjectId: target?.nodeObjectId,
+        targetFlowId: target?.flowId,
+      });
+    },
+    listVariables(sessionId) {
+      return client.get(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/variables`);
+    },
+    evaluate(sessionId, expression) {
+      return client.post(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/evaluate`, { expression });
+    },
+    trace(sessionId) {
+      return client.get(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/trace`);
+    },
+    deleteSession(sessionId) {
+      return client.delete(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}`);
+    },
+  };
 
   return {
+    debugAdapter,
     async listMicroflows(query) {
       const result = await client.get<{ items: MicroflowResource[] }>("/microflows", query);
       return result.items.map(toRuntimeResource);
@@ -162,6 +190,7 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
         schemaId: request.schemaId,
         version: request.version,
         debug: request.debug ?? true,
+        debugSessionId: request.debugSessionId,
         correlationId: request.correlationId,
         options: request.options,
       });

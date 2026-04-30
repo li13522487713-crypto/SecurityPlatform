@@ -121,6 +121,9 @@ async function main() {
     evidence.editorVisible = true;
     evidence.screenshots.push(await screenshot(page, "01-created-editor"));
 
+    if (!await page.getByTestId("microflow-node-panel").isVisible().catch(() => false)) {
+      await page.getByTestId("microflow-node-panel-rail").click();
+    }
     await assertVisible(page.getByTestId("microflow-node-panel"), "节点面板可见");
     evidence.nodePanelVisible = true;
     await assertVisible(page.getByTestId("microflow-workbench-save"), "保存按钮可见");

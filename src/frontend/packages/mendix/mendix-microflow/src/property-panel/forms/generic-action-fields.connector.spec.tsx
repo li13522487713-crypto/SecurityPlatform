@@ -90,7 +90,7 @@ function schema(): MicroflowAuthoringSchema {
     objectCollection: { objects: [] },
     flows: [],
     editor: { selection: {}, viewport: { x: 0, y: 0, zoom: 1 } },
-  } as MicroflowAuthoringSchema;
+  } as unknown as MicroflowAuthoringSchema;
 }
 
 function connectorObject(kind: string): MicroflowActionActivity {
@@ -115,5 +115,5 @@ function connectorObject(kind: string): MicroflowActionActivity {
       documentation: "",
       editor: { category: "integration", iconKey: kind, availability: "requiresConnector", availabilityReason: "需要连接器" },
     } as never,
-  } as MicroflowActionActivity;
+  } as unknown as MicroflowActionActivity;
 }

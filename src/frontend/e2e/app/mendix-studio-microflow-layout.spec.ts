@@ -214,6 +214,58 @@ test.describe.serial("@microflow Mendix Studio layout", () => {
     expect(Math.round(after!.x) % 24).toBeLessThan(24);
   });
 
+  test("画布节点选中后通过右键菜单打开属性面板", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    const startNode = page.locator(".microflow-flowgram-node--start").first();
+    await expect(startNode).toBeVisible();
+    await startNode.click();
+    await expect(page.getByTestId("microflow-property-panel")).toHaveCount(0);
+
+    await startNode.click({ button: "right" });
+    await expect(page.getByTestId("microflow-canvas-node-context-menu")).toBeVisible();
+    await page.getByTestId("microflow-canvas-node-context-menu").getByRole("button", { name: /属性|Properties/ }).click();
+    await expect(page.getByTestId("microflow-property-panel")).toBeVisible();
+
+    await page.locator(".microflow-flowgram-canvas").click({ position: { x: 24, y: 520 } });
+    await expect(page.getByTestId("microflow-property-panel")).toHaveCount(0);
+  });
+
+  test("Problems 和 Debug 使用紧凑状态条与底部 Dock", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    await expect(page.getByTestId("microflow-bottom-status-strip")).toBeVisible();
+    await expect(page.getByTestId("microflow-bottom-panel")).toHaveCount(0);
+
+    const body = await page.getByTestId("microflow-resource-editor-body").boundingBox();
+    const canvasBefore = await page.getByTestId("microflow-canvas").boundingBox();
+    expect(body).toBeTruthy();
+    expect(canvasBefore).toBeTruthy();
+
+    await page.getByTestId("microflow-bottom-status-strip").getByRole("button", { name: /Debug|调试/ }).click();
+    await expect(page.getByTestId("microflow-bottom-panel")).toBeVisible();
+
+    const canvasAfterPeek = await page.getByTestId("microflow-canvas").boundingBox();
+    const dockPeek = await page.getByTestId("microflow-bottom-panel").boundingBox();
+    expect(canvasAfterPeek).toBeTruthy();
+    expect(dockPeek).toBeTruthy();
+    expect(Math.abs(canvasAfterPeek!.height - canvasBefore!.height)).toBeLessThan(8);
+    expect(dockPeek!.height).toBeLessThanOrEqual(280);
+
+    await page.getByRole("button", { name: "展开底部 Dock" }).click();
+    const dockFull = await page.getByTestId("microflow-bottom-panel").boundingBox();
+    expect(dockFull).toBeTruthy();
+    expect(dockFull!.height).toBeGreaterThan(dockPeek!.height + 40);
+
+    await page.keyboard.press("Escape");
+    const dockRestored = await page.getByTestId("microflow-bottom-panel").boundingBox();
+    expect(dockRestored).toBeTruthy();
+    expect(dockRestored!.height).toBeLessThan(dockFull!.height);
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("microflow-bottom-panel")).toHaveCount(0);
+  });
+
   test("左侧节点 hover 不出现大 Tooltip", async ({ page }) => {
     await openLayoutPage(page, appKey);
 

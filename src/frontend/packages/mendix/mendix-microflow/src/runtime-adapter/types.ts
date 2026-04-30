@@ -14,6 +14,13 @@ import type {
   MicroflowTestRunOptions,
   MicroflowTraceFrame,
 } from "../debug/trace-types";
+import type {
+  MicroflowDebugCommand,
+  MicroflowDebugSessionDto,
+  MicroflowDebugTraceEventDto,
+  MicroflowDebugVariableSnapshotDto,
+  MicroflowDebugWatchExpressionDto,
+} from "../debug/step-debug-api";
 
 export interface SaveMicroflowRequest {
   schema: MicroflowAuthoringSchema;
@@ -44,6 +51,7 @@ export interface TestRunMicroflowRequest {
   schemaId?: string;
   version?: string;
   debug?: boolean;
+  debugSessionId?: string;
   correlationId?: string;
   options?: MicroflowTestRunOptions;
 }
@@ -91,7 +99,18 @@ export interface PublishMicroflowResponse {
 
 export type { MicroflowRuntimeDto };
 
+export interface MicroflowDebugAdapter {
+  createSession(microflowId: string): Promise<MicroflowDebugSessionDto>;
+  getSession(sessionId: string): Promise<MicroflowDebugSessionDto>;
+  sendCommand(sessionId: string, command: MicroflowDebugCommand, target?: { nodeObjectId?: string; flowId?: string }): Promise<MicroflowDebugSessionDto>;
+  listVariables(sessionId: string): Promise<MicroflowDebugVariableSnapshotDto[]>;
+  evaluate(sessionId: string, expression: string): Promise<MicroflowDebugWatchExpressionDto>;
+  trace(sessionId: string): Promise<MicroflowDebugTraceEventDto[]>;
+  deleteSession(sessionId: string): Promise<boolean>;
+}
+
 export interface MicroflowApiClient {
+  debugAdapter?: MicroflowDebugAdapter;
   listMicroflows(query?: MicroflowListQuery): Promise<MicroflowResource[]>;
   createMicroflow(input: CreateMicroflowInput): Promise<MicroflowResource>;
   getMicroflow(id: string): Promise<MicroflowResource>;

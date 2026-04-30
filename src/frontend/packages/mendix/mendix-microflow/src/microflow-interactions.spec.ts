@@ -9,6 +9,8 @@ import {
   defaultMicroflowNodeRegistry,
   getMicroflowNodeDisabledReason,
   getMicroflowNodeRegistryKey,
+  microflowNodeRegistryByKey,
+  objectKindFromRegistryItem,
   searchMicroflowNodes,
 } from "./node-registry";
 import { sampleMicroflowSchema, validateMicroflowSchema } from "./schema";
@@ -71,6 +73,11 @@ describe("microflow editor interactions", () => {
       if (entry.type === "activity") {
         expect(entry.actionKind).toBeTruthy();
       }
+      const payload = createDragPayloadFromRegistryItem(entry);
+      expect(objectKindFromRegistryItem(entry)).toBeTruthy();
+      expect(payload.objectKind).toBeTruthy();
+      expect(payload.registryKey).toBe(getMicroflowNodeRegistryKey(entry));
+      expect(microflowNodeRegistryByKey.get(payload.registryKey)).toBe(entry);
     }
   });
 
@@ -559,6 +566,20 @@ describe("microflow editor interactions", () => {
     const next = applyEditorGraphPatchToAuthoring(schema, patch);
     expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 96, y: 72 });
     expect(next.objectCollection.objects[1]?.relativeMiddlePoint).toEqual({ x: 360, y: 144 });
+  });
+
+  it("keeps raw FlowGram moved node positions when grid snap is disabled", () => {
+    const action = createObjectFromRegistry(registry("activity:logMessage"), { x: 0, y: 0 }, "flowgram-raw-action");
+    const schema = schemaWith([action]);
+    const json = authoringToFlowGram(schema, [], []);
+    const node = json.nodes.find(item => item.id === action.id);
+    if (!node) {
+      throw new Error("Expected FlowGram action node.");
+    }
+    node.meta = { ...node.meta, position: { x: 95, y: 61 } };
+    expect(flowGramPositionPatch(schema, json, { gridEnabled: false }).movedNodes).toEqual([
+      { objectId: action.id, position: { x: 95, y: 61 } },
+    ]);
   });
 
   it("adds dragged action activities, parameters, annotations, and loops through AuthoringSchema", () => {

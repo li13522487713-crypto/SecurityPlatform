@@ -102,7 +102,7 @@ function schema(): MicroflowAuthoringSchema {
     objectCollection: { objects: [] },
     flows: [],
     editor: { selection: {}, viewport: { x: 0, y: 0, zoom: 1 } },
-  } as MicroflowAuthoringSchema;
+  } as unknown as MicroflowAuthoringSchema;
 }
 
 function base(kind: string): MicroflowActionActivity {
@@ -127,7 +127,7 @@ function base(kind: string): MicroflowActionActivity {
       documentation: "",
       editor: { category: "object", iconKey: kind, availability: "supported" },
     } as never,
-  } as MicroflowActionActivity;
+  } as unknown as MicroflowActionActivity;
 }
 
 function rollbackObject(): MicroflowActionActivity {

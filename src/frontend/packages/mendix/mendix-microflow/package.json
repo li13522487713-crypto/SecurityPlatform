@@ -51,7 +51,10 @@
     "react-dom": "^18.2.0"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/commands": "^6.3.3",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/lint": "^6.9.5",
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.34.1",
     "@coze-workflow/render": "workspace:*",

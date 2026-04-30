@@ -50,23 +50,20 @@ export function readMicroflowNodeDragPayload(dataTransfer: DataTransfer): Microf
     if (item) {
       return createDragPayloadFromRegistryItem(item);
     }
-    return text
-      ? {
-          dragType: "microflow-node",
-          source: "node-panel",
-          registryKind: "node",
-          nodeType: "activity",
-          objectKind: "actionActivity",
-          registryKey: text,
-          title: text,
-          availability: "supported",
-          sourcePanel: "nodes",
-        }
-      : undefined;
+    return undefined;
   }
   try {
     const parsed = JSON.parse(raw) as MicroflowNodeDragPayload;
-    return parsed.dragType === "microflow-node" ? parsed : undefined;
+    if (
+      parsed.dragType === "microflow-node" &&
+      parsed.registryKey &&
+      parsed.objectKind &&
+      microflowNodeRegistryByKey.has(parsed.registryKey)
+    ) {
+      return parsed;
+    }
+    const item = parsed.registryKey ? microflowNodeRegistryByKey.get(parsed.registryKey) : undefined;
+    return item ? createDragPayloadFromRegistryItem(item) : undefined;
   } catch {
     return undefined;
   }

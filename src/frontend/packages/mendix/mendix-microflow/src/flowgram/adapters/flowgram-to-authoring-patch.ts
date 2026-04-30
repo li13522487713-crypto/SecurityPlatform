@@ -72,6 +72,9 @@ export function flowGramSelectionPatch(selection: FlowGramMicroflowSelection): M
     selectedObjectId: selection.objectId,
     selectedFlowId: selection.flowId,
     selectedCollectionId: selection.collectionId,
+    selectedObjectIds: selection.objectIds,
+    selectedFlowIds: selection.flowIds,
+    selectionMode: selection.mode,
   };
 }
 

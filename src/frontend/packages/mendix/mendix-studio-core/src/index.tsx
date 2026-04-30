@@ -198,7 +198,12 @@ export function MendixStudioApp({
           overflow: "hidden"
         }}
       >
-        <ExplorerSplitLayout explorer={<AppExplorer adapterBundle={_resolvedBundle} appId={appId} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} onViewMicroflowReferences={openReferencesPanel} />}>
+        <ExplorerSplitLayout
+          mode={isMicroflow ? "microflowDesigner" : "normal"}
+          defaultCollapsed={isMicroflow}
+          activeTool={isMicroflow ? "toolbox" : "explorer"}
+          explorer={<AppExplorer adapterBundle={_resolvedBundle} appId={appId} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} onViewMicroflowReferences={openReferencesPanel} />}
+        >
           <div
             style={{
               display: "flex",

@@ -423,7 +423,8 @@ export function parseFrontendActionRegistry(root = findWorkspaceRoot()): Fronten
       runtimeSupportLevel: runtimeSupportFromFrontendAction({ actionKind, availability, category }, p0ActionKinds),
       propertyTabs: supportsErrorHandling
         ? ["properties", "documentation", "errorHandling", "output", "advanced"]
-        : ["properties", "documentation", "output"]
+        : ["properties", "documentation", "output"],
+      toolboxVisible: availability !== "hidden"
     };
   }).filter(entry => entry.actionKind);
 }
@@ -456,7 +457,8 @@ export function parseFrontendNodeRegistry(root = findWorkspaceRoot()): FrontendN
       availability,
       engineSupportLevel,
       propertyFormKey: `activity:${activityType}`,
-      toolboxVisible: availability !== "hidden"
+      toolboxVisible: availability !== "hidden",
+      validationSupport: true
     };
   });
   const staticNodeTypes = [
@@ -484,7 +486,8 @@ export function parseFrontendNodeRegistry(root = findWorkspaceRoot()): FrontendN
     availability: "supported",
     engineSupportLevel: ["parallelGateway", "inclusiveGateway", "tryCatch"].includes(type) ? "unsupported" : type === "errorHandler" ? "partial" : "supported",
     propertyFormKey: type,
-    toolboxVisible: true
+    toolboxVisible: true,
+    validationSupport: true
   }));
   return [...staticEntries, ...actionEntries].filter(entry => entry.registryKey !== "activity:");
 }
@@ -723,6 +726,45 @@ export function collectFrontendMicroflowRegistry(root = findWorkspaceRoot()): Fr
     actions: collectFrontendActionRegistry(root),
     nodes: collectFrontendNodeRegistry(root),
     propertyForms: collectFrontendPropertyFormRegistry(root)
+  };
+}
+
+export interface FrontendRegistryMetadata extends FrontendMicroflowRegistrySnapshot {
+  actionsByKind: Map<string, FrontendActionRegistryEntry & { key: string; supportsErrorHandling?: boolean }>;
+  nodesByActionKind: Map<string, FrontendNodeRegistryEntry & { key: string }>;
+  nodesByKey: Map<string, FrontendNodeRegistryEntry & { key: string }>;
+  propertyFormKeys: Set<string>;
+}
+
+export function collectFrontendRegistryMetadata(root = findWorkspaceRoot()): FrontendRegistryMetadata {
+  const actions = collectFrontendActionRegistry(root);
+  const nodes = collectFrontendNodeRegistry(root);
+  const propertyForms = collectFrontendPropertyFormRegistry(root);
+  const actionsByKind = new Map<string, FrontendActionRegistryEntry & { key: string; supportsErrorHandling?: boolean }>();
+  const nodesByActionKind = new Map<string, FrontendNodeRegistryEntry & { key: string }>();
+  const nodesByKey = new Map<string, FrontendNodeRegistryEntry & { key: string }>();
+  for (const action of actions) {
+    actionsByKind.set(action.actionKind, {
+      ...action,
+      key: action.actionKind,
+      supportsErrorHandling: action.propertyTabs.includes("errorHandling")
+    });
+  }
+  for (const node of nodes) {
+    const normalized = { ...node, key: node.registryKey };
+    nodesByKey.set(node.registryKey, normalized);
+    if (node.actionKind) {
+      nodesByActionKind.set(node.actionKind, normalized);
+    }
+  }
+  return {
+    actions,
+    nodes,
+    propertyForms,
+    actionsByKind,
+    nodesByActionKind,
+    nodesByKey,
+    propertyFormKeys: new Set(propertyForms.map(item => item.key))
   };
 }
 

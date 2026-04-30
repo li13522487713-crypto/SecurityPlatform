@@ -24,6 +24,9 @@ export interface MicroflowHistorySelection {
   objectId?: string;
   flowId?: string;
   collectionId?: string;
+  objectIds?: string[];
+  flowIds?: string[];
+  mode?: "none" | "single" | "multi";
 }
 
 export interface MicroflowHistorySnapshot {

@@ -1,9 +1,13 @@
 import { Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { getEntityAttributes, getEnumerationValues, type MicroflowMetadataCatalog } from "../../metadata";
+import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../../schema";
 import { createMicroflowExpression, expressionRaw, expressionTypeLabel, validateExpression } from "../../expressions";
 import { getVariablesForExpressionFromIndex, variableSourceLabel, type MicroflowExpressionScopeContext } from "../../variables";
+import {
+  buildMicroflowExpressionCompletionOptions,
+  validateMicroflowExpressionForEditor,
+} from "../../expression-editor/codemirror-microflow-expression";
 import { ExpressionDiagnostics } from "./ExpressionDiagnostics";
 
 const { Text } = Typography;
@@ -73,52 +77,27 @@ export function ExpressionEditor({
     variableIndex,
     context: { objectId, actionId, flowId, fieldPath, expectedType, required },
   }), [actionId, debouncedRaw, expectedType, fieldPath, flowId, metadata, objectId, required, schema, variableIndex]);
-  const insertOptions = useMemo(() => {
-    const variableOptions = variables.flatMap(variable => {
-    const suffix = [
-      expressionTypeLabel(variable.dataType),
-      variableSourceLabel(variable),
-      variable.visibility === "maybe" ? "maybe" : undefined,
-      variable.dataType.kind === "unknown" ? "unknown" : undefined,
-    ].filter(Boolean).join(", ");
-    const variableOption = {
-      label: `$${variable.name} (${suffix})`,
-      value: `$${variable.name}`,
-    };
-    if (variable.dataType.kind === "list" && variable.dataType.itemType.kind === "object") {
-      return [
-        variableOption,
-        {
-          label: `$${variable.name}/... (列表需要循环后访问成员)`,
-          value: `$${variable.name}`,
-          disabled: true,
-        },
-      ];
-    }
-    if (variable.dataType.kind !== "object") {
-      return [variableOption];
-    }
-    return [
-      variableOption,
-      ...getEntityAttributes(metadata, variable.dataType.entityQualifiedName).map(attribute => ({
-        label: `$${variable.name}/${attribute.name} (${expressionTypeLabel(attribute.type)})`,
-        value: `$${variable.name}/${attribute.name}`,
-      })),
-    ];
-    });
-    const enumOptions = expectedType?.kind === "enumeration"
-      ? getEnumerationValues(metadata, expectedType.enumerationQualifiedName).map(value => ({
-          label: `${expectedType.enumerationQualifiedName}.${value.key} (enum)`,
-          value: `${expectedType.enumerationQualifiedName}.${value.key}`,
-        }))
-      : [];
-    const functionOptions = [
-      { label: "empty($variable)", value: "empty()" },
-      { label: "not empty($variable)", value: "not empty()" },
-      { label: "if condition then value else value", value: "if true then  else " },
-    ];
-    return [...variableOptions, ...enumOptions, ...functionOptions];
-  }, [expectedType, metadata, variables]);
+  const insertOptions = useMemo(() => buildMicroflowExpressionCompletionOptions({
+    schema,
+    metadata,
+    variableIndex,
+    objectId,
+    actionId,
+    fieldPath,
+    expectedType,
+  }), [actionId, expectedType, fieldPath, metadata, objectId, schema, variableIndex]);
+  const cmDiagnostics = useMemo(() => validateMicroflowExpressionForEditor({
+    value: debouncedRaw,
+    schema,
+    metadata,
+    variableIndex,
+    objectId,
+    actionId,
+    flowId,
+    fieldPath,
+    expectedType,
+    required,
+  }), [actionId, debouncedRaw, expectedType, fieldPath, flowId, metadata, objectId, required, schema, variableIndex]);
   const nextExpression = (nextRaw: string) => onChange(createMicroflowExpression(nextRaw, validation.inferredType));
   const cmMinRows = mode === "multiline" ? minRows : 1;
   return (
@@ -140,6 +119,9 @@ export function ExpressionEditor({
           onChange={nextExpression}
           readonly={readonly}
           minRows={cmMinRows}
+          placeholder={placeholder}
+          completionOptions={insertOptions}
+          diagnostics={cmDiagnostics}
         />
       </Suspense>
       <Select

@@ -31,6 +31,10 @@ export function flowGramPointToAuthoringPoint(point: MicroflowPoint): MicroflowP
 }
 
 export function snapMicroflowPoint(point: MicroflowPoint, gridSize = MICROFLOW_GRID_SIZE): MicroflowPoint {
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || gridSize <= 1) {
+    return point;
+  }
+
   return {
     x: Math.round(point.x / gridSize) * gridSize,
     y: Math.round(point.y / gridSize) * gridSize,

@@ -146,6 +146,7 @@ export function buildRunRequest(
   values: Record<string, unknown>,
   options?: MicroflowTestRunOptions,
   includeDraftSchema = false,
+  debugSessionId?: string,
 ): TestRunMicroflowRequest {
   return {
     microflowId: schema.id,
@@ -154,6 +155,7 @@ export function buildRunRequest(
     schemaId: undefined,
     version: undefined,
     debug: true,
+    debugSessionId,
     correlationId: `mf-run-${schema.id}-${Date.now()}`,
     options,
   };

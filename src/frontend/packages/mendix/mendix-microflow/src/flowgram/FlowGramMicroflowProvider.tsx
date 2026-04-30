@@ -11,10 +11,13 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import { FlowGramMicroflowContainerModule } from "./FlowGramMicroflowPlugins";
+import { FlowGramMicroflowLineRenderer } from "./FlowGramMicroflowLineRenderer";
 
 function createMicroflowFlowGramPreset(): Plugin[] {
   return [
-    createFreeLinesPlugin({}),
+    createFreeLinesPlugin({
+      renderInsideLine: FlowGramMicroflowLineRenderer,
+    }),
     createFreeHistoryPlugin({
       enable: true,
       limit: 100,

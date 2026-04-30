@@ -9,29 +9,37 @@ const MAX_WIDTH_PX = 420;
 interface StoredMendixLayout {
   leftCollapsed?: boolean;
   leftWidth?: number;
+  explorerMode?: "expanded" | "collapsed" | "iconOnly";
+  activeLeftTool?: "explorer" | "toolbox" | "none";
 }
 
 function clampWidth(n: number): number {
   return Math.min(MAX_WIDTH_PX, Math.max(MIN_WIDTH_PX, Math.round(n)));
 }
 
-function readStoredLayout(): Required<StoredMendixLayout> {
+type ExplorerSplitMode = "normal" | "microflowDesigner";
+
+function readStoredLayout(defaultCollapsed = false): Required<Pick<StoredMendixLayout, "leftCollapsed" | "leftWidth">> & StoredMendixLayout {
   if (typeof window === "undefined") {
-    return { leftCollapsed: false, leftWidth: DEFAULT_WIDTH_PX };
+    return { leftCollapsed: defaultCollapsed, leftWidth: DEFAULT_WIDTH_PX };
   }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as StoredMendixLayout;
+      const storedCollapsed = typeof parsed.leftCollapsed === "boolean"
+        ? parsed.leftCollapsed
+        : parsed.explorerMode === "collapsed" || parsed.explorerMode === "iconOnly";
       return {
-        leftCollapsed: Boolean(parsed.leftCollapsed),
-        leftWidth: Number.isFinite(parsed.leftWidth) ? clampWidth(Number(parsed.leftWidth)) : DEFAULT_WIDTH_PX
+        ...parsed,
+        leftCollapsed: storedCollapsed,
+        leftWidth: Number.isFinite(parsed.leftWidth) ? clampWidth(Number(parsed.leftWidth)) : DEFAULT_WIDTH_PX,
       };
     }
   } catch {
     /* ignore */
   }
-  return { leftCollapsed: false, leftWidth: DEFAULT_WIDTH_PX };
+  return { leftCollapsed: defaultCollapsed, leftWidth: DEFAULT_WIDTH_PX };
 }
 
 function writeStoredLayout(patch: StoredMendixLayout): void {
@@ -49,19 +57,27 @@ function writeStoredLayout(patch: StoredMendixLayout): void {
 export interface ExplorerSplitLayoutProps {
   explorer: ReactNode;
   children: ReactNode;
+  mode?: ExplorerSplitMode;
+  defaultCollapsed?: boolean;
+  activeTool?: "explorer" | "toolbox" | "none";
 }
 
 /**
  * 左侧 App Explorer 与主工作区之间的可拖动分隔条，宽度持久化到 localStorage。
  */
-export function ExplorerSplitLayout({ explorer, children }: ExplorerSplitLayoutProps) {
-  const [layout, setLayout] = useState(readStoredLayout);
+export function ExplorerSplitLayout({ explorer, children, mode = "normal", defaultCollapsed, activeTool = "explorer" }: ExplorerSplitLayoutProps) {
+  const initialCollapsed = defaultCollapsed ?? mode === "microflowDesigner";
+  const [layout, setLayout] = useState(() => readStoredLayout(initialCollapsed));
   const widthPx = layout.leftCollapsed ? COLLAPSED_WIDTH_PX : layout.leftWidth;
 
   useEffect(() => {
-    const timer = window.setTimeout(() => writeStoredLayout(layout), 160);
+    const timer = window.setTimeout(() => writeStoredLayout({
+      ...layout,
+      explorerMode: layout.leftCollapsed ? "iconOnly" : "expanded",
+      activeLeftTool: activeTool,
+    }), 160);
     return () => window.clearTimeout(timer);
-  }, [layout]);
+  }, [activeTool, layout]);
 
   const onGutterMouseDown = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -93,13 +109,15 @@ export function ExplorerSplitLayout({ explorer, children }: ExplorerSplitLayoutP
         style={{ width: widthPx }}
         data-testid="mendix-studio-app-explorer"
         data-collapsed={layout.leftCollapsed ? "true" : "false"}
+        data-mode={mode}
+        data-active-tool={activeTool}
       >
         <button
           type="button"
           className="studio-explorer-split__collapse"
           aria-label={layout.leftCollapsed ? "展开 App Explorer" : "折叠 App Explorer"}
           title={layout.leftCollapsed ? "App Explorer" : "折叠 App Explorer"}
-          onClick={() => setLayout(current => ({ ...current, leftCollapsed: !current.leftCollapsed }))}
+          onClick={() => setLayout(current => ({ ...current, leftCollapsed: !current.leftCollapsed, explorerMode: current.leftCollapsed ? "expanded" : "iconOnly" }))}
         >
           <span aria-hidden="true">☰</span>
         </button>

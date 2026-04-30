@@ -21,10 +21,17 @@ export function microflowSchemasEqual(left: MicroflowAuthoringSchema, right: Mic
 }
 
 export function selectionFromSchema(schema: MicroflowAuthoringSchema): MicroflowHistorySelection {
+  const objectIds = [...(schema.editor.selection.objectIds ?? [])];
+  const flowIds = [...(schema.editor.selection.flowIds ?? [])];
+  const mode = schema.editor.selection.mode
+    ?? (objectIds.length + flowIds.length > 1 ? "multi" : schema.editor.selection.objectId || schema.editor.selection.flowId ? "single" : "none");
   return {
     objectId: schema.editor.selection.objectId ?? schema.editor.selectedObjectId,
     flowId: schema.editor.selection.flowId ?? schema.editor.selectedFlowId,
     collectionId: schema.editor.selection.collectionId ?? schema.editor.selectedCollectionId,
+    objectIds,
+    flowIds,
+    mode,
   };
 }
 

@@ -6,6 +6,7 @@ import {
   getMicroflowNodeFormForObject,
   getMicroflowNodeFormKey,
 } from "./node-form-registry";
+import type { MicroflowNodeFormRegistryItem } from "./types";
 
 describe("microflowNodeFormRegistry (P1-1)", () => {
   beforeEach(() => {
@@ -46,8 +47,8 @@ describe("microflowNodeFormRegistry (P1-1)", () => {
   });
 
   it("registerMicroflowNodeForm forbids overwriting an existing key by default", () => {
-    const item = {
-      tabs: ["properties"] as const,
+    const item: MicroflowNodeFormRegistryItem = {
+      tabs: ["properties"],
       renderProperties: () => null as unknown as JSX.Element,
     };
     registerMicroflowNodeForm("activity:custom", { ...item });
@@ -55,8 +56,8 @@ describe("microflowNodeFormRegistry (P1-1)", () => {
   });
 
   it("allowOverride=true replaces an existing item; unregister removes it", () => {
-    const first = { tabs: ["properties"] as const, renderProperties: () => null as unknown as JSX.Element };
-    const second = { tabs: ["properties"] as const, renderProperties: () => null as unknown as JSX.Element };
+    const first: MicroflowNodeFormRegistryItem = { tabs: ["properties"], renderProperties: () => null as unknown as JSX.Element };
+    const second: MicroflowNodeFormRegistryItem = { tabs: ["properties"], renderProperties: () => null as unknown as JSX.Element };
     registerMicroflowNodeForm("activity:custom", { ...first });
     registerMicroflowNodeForm("activity:custom", { ...second }, { allowOverride: true });
     expect(microflowNodeFormRegistry["activity:custom"]).toBe(microflowNodeFormRegistry["activity:custom"]);
@@ -65,8 +66,8 @@ describe("microflowNodeFormRegistry (P1-1)", () => {
   });
 
   it("getMicroflowNodeFormForObject resolves by kind/actionKind", () => {
-    const item = {
-      tabs: ["properties"] as const,
+    const item: MicroflowNodeFormRegistryItem = {
+      tabs: ["properties"],
       renderProperties: () => null as unknown as JSX.Element,
     };
     registerMicroflowNodeForm("loopedActivity", { ...item });

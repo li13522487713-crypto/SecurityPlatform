@@ -129,7 +129,7 @@ function schema(): MicroflowAuthoringSchema {
       },
     },
     editor: { selection: {}, viewport: { x: 0, y: 0, zoom: 1 } },
-  } as MicroflowAuthoringSchema;
+  } as unknown as MicroflowAuthoringSchema;
 }
 
 function activity(kind: string, patch: Record<string, unknown>): MicroflowActionActivity {
@@ -155,7 +155,7 @@ function activity(kind: string, patch: Record<string, unknown>): MicroflowAction
       editor: { category: kind === "callMicroflow" ? "call" : "integration", iconKey: kind, availability: "supported" },
       ...patch,
     } as never,
-  } as MicroflowActionActivity;
+  } as unknown as MicroflowActionActivity;
 }
 
 function callMicroflowObject(): MicroflowActionActivity {

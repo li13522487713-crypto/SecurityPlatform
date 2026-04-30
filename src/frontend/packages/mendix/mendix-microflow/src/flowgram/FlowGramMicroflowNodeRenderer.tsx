@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, type DragEvent, type MouseEvent, type ReactNode } from "react";
 
 import { Tag, Typography } from "@douyinfe/semi-ui";
 import {
@@ -13,10 +13,40 @@ import type { FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
 import { FlowGramMicroflowPortRenderer } from "./FlowGramMicroflowPortRenderer";
 import "./styles/flowgram-microflow-node.css";
 
-function readNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeData {
-  const formData = props.node.getData(FlowNodeFormData);
-  const formModel = formData?.getFormModel<FormModelV2>();
-  return formModel?.getFormItemValueByPath("/") as FlowGramMicroflowNodeData;
+function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeData | undefined {
+  try {
+    const formData = props.node.getData(FlowNodeFormData);
+    const formModel = formData?.getFormModel<FormModelV2>();
+    const formValue = formModel?.getFormItemValueByPath("/") as FlowGramMicroflowNodeData | undefined;
+    if (formValue?.objectKind) {
+      return formValue;
+    }
+    const jsonData = (props.node as unknown as { toJSON?: () => { data?: FlowGramMicroflowNodeData } })
+      .toJSON?.()
+      ?.data;
+    if (jsonData?.objectKind) {
+      return jsonData;
+    }
+    const nodeMeta = props.node.getNodeMeta?.() as { nodeDTOType?: string; type?: string } | undefined;
+    const fallbackKind = nodeMeta?.nodeDTOType ?? nodeMeta?.type;
+    if (fallbackKind) {
+      return {
+        objectId: String(props.node.id),
+        objectKind: fallbackKind as FlowGramMicroflowNodeData["objectKind"],
+        collectionId: "",
+        title: fallbackKind,
+        subtitle: undefined,
+        officialType: fallbackKind,
+        disabled: false,
+        validationState: "valid",
+        runtimeState: "idle",
+        issueCount: 0,
+      };
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): string {
@@ -38,11 +68,67 @@ function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): string {
   return "action";
 }
 
+function StaticTag(props: { children: ReactNode; color?: "blue" | "orange" | "grey" }) {
+  return (
+    <span draggable={false} data-flow-editor-selectable="false">
+      <Tag size="small" color={props.color}>{props.children}</Tag>
+    </span>
+  );
+}
+
 export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   const { selected, ports, selectNode, nodeRef, startDrag, onFocus, onBlur } = useNodeRender();
   const readonly = usePlaygroundReadonlyState();
   const draggingRef = useRef(false);
-  const data = readNodeData(props);
+  const data = tryReadNodeData(props);
+
+  const handleDragStart = (event: DragEvent<HTMLDivElement>) => {
+    if (readonly) {
+      event.preventDefault();
+      return;
+    }
+    draggingRef.current = true;
+    startDrag(event);
+  };
+
+  const handleDragEnd = () => {
+    window.setTimeout(() => {
+      draggingRef.current = false;
+    }, 0);
+  };
+
+  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (draggingRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    selectNode(event);
+  };
+
+  if (!data?.objectKind) {
+    return (
+      <div
+        ref={nodeRef}
+        className={[
+          "microflow-flowgram-node",
+          "microflow-flowgram-node--fallback",
+          selected ? "is-selected" : "",
+        ].filter(Boolean).join(" ")}
+        draggable={!readonly}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onClick={handleClick}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        data-testid={`microflow-node-${String(props.node.id)}`}
+        tabIndex={0}
+      >
+        Unknown node
+      </div>
+    );
+  }
+
   const tone = nodeTone(data.objectKind);
 
   return (
@@ -57,27 +143,9 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
       ].filter(Boolean).join(" ")}
       draggable={!readonly}
-      onDragStart={event => {
-        if (readonly) {
-          event.preventDefault();
-          return;
-        }
-        draggingRef.current = true;
-        startDrag(event);
-      }}
-      onDragEnd={() => {
-        window.setTimeout(() => {
-          draggingRef.current = false;
-        }, 0);
-      }}
-      onClick={event => {
-        if (draggingRef.current) {
-          event.preventDefault();
-          event.stopPropagation();
-          return;
-        }
-        selectNode(event);
-      }}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onClick={handleClick}
       onFocus={onFocus}
       onBlur={onBlur}
       data-testid={`microflow-node-${data.objectId}`}
@@ -99,11 +167,11 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         </div>
       </div>
       <div className="microflow-flowgram-node__meta">
-        {data.actionKind ? <Tag size="small">{data.actionKind}</Tag> : null}
-        {data.availability === "beta" ? <Tag size="small" color="blue">Beta</Tag> : null}
-        {data.availability === "deprecated" ? <Tag size="small" color="orange">Deprecated</Tag> : null}
-        {data.availability === "requiresConnector" ? <Tag size="small" color="grey">Connector Required</Tag> : null}
-        {data.availability === "nanoflowOnlyDisabled" ? <Tag size="small" color="grey">Nanoflow Only</Tag> : null}
+        {data.actionKind ? <StaticTag>{data.actionKind}</StaticTag> : null}
+        {data.availability === "beta" ? <StaticTag color="blue">Beta</StaticTag> : null}
+        {data.availability === "deprecated" ? <StaticTag color="orange">Deprecated</StaticTag> : null}
+        {data.availability === "requiresConnector" ? <StaticTag color="grey">Connector Required</StaticTag> : null}
+        {data.availability === "nanoflowOnlyDisabled" ? <StaticTag color="grey">Nanoflow Only</StaticTag> : null}
         {data.runtimeState && data.runtimeState !== "idle" ? (
           <span title={data.runtimeErrorMessage ?? data.runtimeErrorCode}>
             <Tag

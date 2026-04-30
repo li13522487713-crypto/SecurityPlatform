@@ -3,6 +3,7 @@ import { Button, Space, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
 import { tokenizeExpression } from "../expressions/expression-tokenizer";
 import { parseExpression } from "../expressions/expression-parser";
 import { inferExpressionType } from "../expressions/expression-type-inference";
+import type { MicroflowExpression } from "../schema";
 
 const { Text } = Typography;
 
@@ -28,8 +29,8 @@ export function ExpressionEditor({
   const [preview, setPreview] = useState<string>();
   const tokens = useMemo(() => tokenizeExpression(value), [value]);
   const ast = useMemo(() => parseExpression(value), [value]);
-  const inferred = useMemo(() => inferExpressionType(ast), [ast]);
-  const diagnostics = [...tokens.flatMap(token => token.diagnostics ?? []), ...(ast.diagnostics ?? [])];
+  const inferred = useMemo(() => inferExpressionType({ raw: value } as MicroflowExpression, []), [value]);
+  const diagnostics = [...tokens.diagnostics, ...(ast.diagnostics ?? [])];
   const expectedMismatch = expectedType && inferred.kind !== "unknown" && inferred.kind !== expectedType;
 
   return (

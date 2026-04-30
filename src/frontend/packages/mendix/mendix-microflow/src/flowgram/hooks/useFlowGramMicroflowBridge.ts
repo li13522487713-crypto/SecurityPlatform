@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef } from "react";
 
 import {
   WorkflowDocument,
+  FlowNodeTransformData,
   WorkflowSelectService,
+  type WorkflowNodeEntity,
   type WorkflowEdgeJSON,
   type WorkflowJSON,
   useService,
@@ -20,11 +22,15 @@ import {
   findNewFlowGramEdge,
   flowGramPositionPatch,
 } from "../adapters/flowgram-to-authoring-patch";
-import { selectionFromFlowGramEntityId } from "../adapters/flowgram-selection-sync";
+import { selectionFromFlowGramEntityIds } from "../adapters/flowgram-selection-sync";
 import { createMicroflowFlowFromPorts } from "../adapters/flowgram-edge-factory";
 import { getCaseEditorKind } from "../adapters/flowgram-case-options";
-import { FlowGramMicroflowBridgeService } from "../FlowGramMicroflowEvents";
+import {
+  FlowGramMicroflowBridgeService,
+  FlowGramMicroflowBridgeServiceToken,
+} from "../FlowGramMicroflowEvents";
 import type { FlowGramMicroflowPendingLine, FlowGramMicroflowSelection } from "../FlowGramMicroflowTypes";
+import { MICROFLOW_GRID_SIZE } from "../adapters/flowgram-coordinate";
 
 export function hasSameNodeAndEdgeIdentity(a: WorkflowJSON | undefined, b: WorkflowJSON | undefined): boolean {
   if (!a || !b) {
@@ -53,6 +59,55 @@ export function hasSameNodeAndEdgeIdentity(a: WorkflowJSON | undefined, b: Workf
   return nodeIdentity(a) === nodeIdentity(b) && edgeIdentity(a) === edgeIdentity(b);
 }
 
+function getWorkflowIdentity(json: WorkflowJSON): string {
+  const nodes = (json.nodes ?? [])
+    .map(node => {
+      const meta = node.meta as { parentObjectId?: string; collectionId?: string } | undefined;
+      return `${String(node.id)}:${String(node.type ?? "")}:${meta?.parentObjectId ?? ""}:${meta?.collectionId ?? ""}`;
+    })
+    .sort();
+  const edges = (json.edges ?? [])
+    .map(edge => {
+      const edgeData = edge as WorkflowEdgeJSON & { id?: string };
+      return `${String(edgeData.id ?? "")}:${String(edge.sourceNodeID ?? "")}:${String(edge.sourcePortID ?? "")}:${String(edge.targetNodeID ?? "")}:${String(edge.targetPortID ?? "")}`;
+    })
+    .sort();
+  return JSON.stringify({ nodes, edges });
+}
+
+function movedNodeSignature(patch: MicroflowEditorGraphPatch): string {
+  return JSON.stringify((patch.movedNodes ?? [])
+    .map(node => `${node.objectId}:${node.position.x}:${node.position.y}`)
+    .sort());
+}
+
+function syncFlowGramPositionsToSchema(doc: WorkflowDocument, schema: MicroflowSchema): boolean {
+  const graph = toEditorGraph(schema);
+  let synced = false;
+  for (const node of graph.nodes) {
+    const entity = doc.getNode?.(node.objectId) as WorkflowNodeEntity | undefined;
+    const transform = entity?.getData?.(FlowNodeTransformData);
+    if (!transform) {
+      continue;
+    }
+    const current = transform.position ?? transform.bounds;
+    if (!current) {
+      continue;
+    }
+    if (Math.abs(current.x - node.position.x) <= 0.5 && Math.abs(current.y - node.position.y) <= 0.5) {
+      continue;
+    }
+    transform.transform.update({
+      position: {
+        x: node.position.x,
+        y: node.position.y,
+      },
+    });
+    synced = true;
+  }
+  return synced;
+}
+
 function portById(schema: MicroflowSchema, portId?: string) {
   if (!portId) {
     return undefined;
@@ -71,14 +126,17 @@ export function useFlowGramMicroflowBridge(params: {
 }) {
   const doc = useService<WorkflowDocument>(WorkflowDocument);
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
-  const bridgeService = useService<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeService);
+  const bridgeService = useService<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeServiceToken);
   const reloadingRef = useRef(false);
-  const pendingInternalPositionSyncRef = useRef(false);
+  const internalPositionChangeRef = useRef(false);
+  const lastLoadedIdentityRef = useRef<string>();
+  const snapReconcileTimerRef = useRef<number>();
   const latestSchemaRef = useRef(params.schema);
   const paramsRef = useRef(params);
   paramsRef.current = params;
   latestSchemaRef.current = params.schema;
   bridgeService.setSchema(params.schema);
+  bridgeService.setGrid(params.schema.editor.gridEnabled !== false, MICROFLOW_GRID_SIZE);
 
   const workflowJson = useMemo(
     () => authoringToFlowGram(params.schema, params.issues, params.traceFrames),
@@ -86,19 +144,22 @@ export function useFlowGramMicroflowBridge(params: {
   );
 
   useEffect(() => {
-    if (
-      pendingInternalPositionSyncRef.current &&
-      hasSameNodeAndEdgeIdentity(doc.toJSON() as WorkflowJSON, workflowJson)
-    ) {
-      pendingInternalPositionSyncRef.current = false;
+    const nextIdentity = getWorkflowIdentity(workflowJson);
+    if (internalPositionChangeRef.current && lastLoadedIdentityRef.current === nextIdentity) {
       return;
     }
     reloadingRef.current = true;
     void Promise.resolve(doc.fromJSON(workflowJson)).finally(() => {
-      pendingInternalPositionSyncRef.current = false;
+      lastLoadedIdentityRef.current = nextIdentity;
       reloadingRef.current = false;
     });
   }, [doc, workflowJson]);
+
+  useEffect(() => () => {
+    if (snapReconcileTimerRef.current !== undefined) {
+      window.clearTimeout(snapReconcileTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     const disposable = doc.onContentChange(() => {
@@ -160,12 +221,40 @@ export function useFlowGramMicroflowBridge(params: {
         }
         return;
       }
+      const grid = bridgeService.getGridConfig();
+      const rawPatch = flowGramPositionPatch(schema, json, { gridEnabled: false });
       const patch = flowGramPositionPatch(schema, json, {
-        gridEnabled: schema.editor.gridEnabled !== false,
+        gridEnabled: grid.enabled,
+        gridSize: grid.size,
       });
       if (patch.movedNodes?.length || patch.resizedNodes?.length) {
-        pendingInternalPositionSyncRef.current = true;
-        paramsRef.current.onSchemaChange(applyEditorGraphPatchToAuthoring(schema, patch), "flowgramNodeMove");
+        const nextSchema = applyEditorGraphPatchToAuthoring(schema, patch);
+        const snapChanged = movedNodeSignature(rawPatch) !== movedNodeSignature(patch);
+        internalPositionChangeRef.current = true;
+        paramsRef.current.onSchemaChange(nextSchema, "flowgramNodeMove");
+        if (snapChanged) {
+          if (snapReconcileTimerRef.current !== undefined) {
+            window.clearTimeout(snapReconcileTimerRef.current);
+          }
+          snapReconcileTimerRef.current = window.setTimeout(() => {
+            snapReconcileTimerRef.current = undefined;
+            reloadingRef.current = true;
+            const directlySynced = syncFlowGramPositionsToSchema(doc, nextSchema);
+            if (directlySynced) {
+              reloadingRef.current = false;
+              return;
+            }
+            void Promise.resolve(
+              doc.fromJSON(authoringToFlowGram(nextSchema, nextSchema.validation.issues, nextSchema.debug?.lastTrace)),
+            ).finally(() => {
+              lastLoadedIdentityRef.current = getWorkflowIdentity(authoringToFlowGram(nextSchema, nextSchema.validation.issues, nextSchema.debug?.lastTrace));
+              reloadingRef.current = false;
+            });
+          }, 80);
+        }
+        queueMicrotask(() => {
+          internalPositionChangeRef.current = false;
+        });
       }
     });
     return () => disposable.dispose();
@@ -173,9 +262,10 @@ export function useFlowGramMicroflowBridge(params: {
 
   useEffect(() => {
     const disposable = selectService.onSelectionChanged(() => {
-      const selection = selectService.selection?.[0];
-      const id = selection?.id as string | undefined;
-      paramsRef.current.onSelectionChange(selectionFromFlowGramEntityId(latestSchemaRef.current, id));
+      const ids = (selectService.selection ?? [])
+        .map(selection => selection?.id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0);
+      paramsRef.current.onSelectionChange(selectionFromFlowGramEntityIds(latestSchemaRef.current, ids));
     });
     return () => disposable.dispose();
   }, [selectService]);

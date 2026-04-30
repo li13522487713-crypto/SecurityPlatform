@@ -148,8 +148,20 @@ describe("MicroflowNodeCard", () => {
 
     const customPayload = JSON.parse(data.get(MICROFLOW_NODE_DND_TYPE) ?? "{}") as { registryKey?: string; dragType?: string };
     const jsonPayload = JSON.parse(data.get("application/json") ?? "{}") as { registryKey?: string; dragType?: string };
-    expect(customPayload).toMatchObject({ dragType: "microflow-node", registryKey: "activity:logMessage" });
-    expect(jsonPayload).toMatchObject({ dragType: "microflow-node", registryKey: "activity:logMessage" });
+    expect(customPayload).toMatchObject({
+      dragType: "microflow-node",
+      registryKey: "activity:logMessage",
+      registryKind: "action",
+      nodeType: "activity",
+      objectKind: "actionActivity",
+      actionKind: "logMessage",
+      sourcePanel: "nodes",
+    });
+    expect(jsonPayload).toMatchObject({
+      dragType: "microflow-node",
+      registryKey: "activity:logMessage",
+      objectKind: "actionActivity",
+    });
     expect(data.get("text/plain")).toBe("activity:logMessage");
     expect(onStartDrag).toHaveBeenCalledWith(expect.objectContaining({ registryKey: "activity:logMessage" }));
     expect(onAdd).not.toHaveBeenCalled();
@@ -201,5 +213,23 @@ describe("microflow node drag payload helpers", () => {
       getData: (type: string) => type === "text/plain" ? "activity:logMessage" : "",
     } as DataTransfer;
     expect(readMicroflowNodeDragPayload(text)?.registryKey).toBe("activity:logMessage");
+  });
+
+  it("normalizes incomplete JSON payloads through the registry and rejects unknown text payloads", () => {
+    const incomplete = {
+      getData: (type: string) => type === MICROFLOW_NODE_DND_TYPE
+        ? JSON.stringify({ dragType: "microflow-node", registryKey: "activity:logMessage" })
+        : "",
+    } as DataTransfer;
+    expect(readMicroflowNodeDragPayload(incomplete)).toMatchObject({
+      registryKey: "activity:logMessage",
+      objectKind: "actionActivity",
+      actionKind: "logMessage",
+    });
+
+    const unknownText = {
+      getData: (type: string) => type === "text/plain" ? "unknown-node" : "",
+    } as DataTransfer;
+    expect(readMicroflowNodeDragPayload(unknownText)).toBeUndefined();
   });
 });

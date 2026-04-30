@@ -437,7 +437,10 @@ export async function loginApp(
   if (agreementVisible) {
     const agreed = await agreementCheckbox.isChecked().catch(() => false);
     if (!agreed) {
-      await agreementCheckbox.check({ force: true });
+      const agreementControl = page.locator('[data-testid="app-login-page"] .semi-checkbox, [data-testid="app-login-page"] label').first();
+      await agreementControl.click({ force: true }).catch(async () => {
+        await agreementCheckbox.check({ force: true });
+      });
     }
   }
   await page.waitForTimeout(thinkingPause());

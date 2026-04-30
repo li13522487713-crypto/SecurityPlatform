@@ -11,6 +11,7 @@ export interface TestRunMicroflowApiRequest {
   schema?: MicroflowAuthoringSchema;
   input: Record<string, unknown>;
   options?: MicroflowTestRunOptions;
+  debugSessionId?: string;
 }
 
 export interface TestRunMicroflowApiResponse {

@@ -131,7 +131,7 @@ function schema(): MicroflowAuthoringSchema {
       },
     },
     editor: { selection: {}, viewport: { x: 0, y: 0, zoom: 1 } },
-  } as MicroflowAuthoringSchema;
+  } as unknown as MicroflowAuthoringSchema;
 }
 
 function listOperationObject(patch: Record<string, unknown> = {}): MicroflowActionActivity {
@@ -162,5 +162,5 @@ function listOperationObject(patch: Record<string, unknown> = {}): MicroflowActi
       outputListVariableName: "out",
       ...patch,
     } as never,
-  } as MicroflowActionActivity;
+  } as unknown as MicroflowActionActivity;
 }

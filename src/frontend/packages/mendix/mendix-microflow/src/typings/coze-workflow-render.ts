@@ -12,7 +12,8 @@ export function WorkflowRenderProvider({
   preset: _preset
 }: PropsWithChildren<{
   containerModules?: readonly unknown[];
-  preset?: () => unknown[];
+  preset?: () => readonly unknown[];
+  parentContainer?: unknown;
 }>): ReactElement {
   return createElement(Fragment, null, children) as ReactElement;
 }

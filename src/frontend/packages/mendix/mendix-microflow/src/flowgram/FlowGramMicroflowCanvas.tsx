@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 
 import { Toast } from "@douyinfe/semi-ui";
 import {
@@ -50,6 +50,8 @@ export interface FlowGramMicroflowCanvasProps {
   readonly?: boolean;
   onSchemaChange: (nextSchema: MicroflowSchema, reason: string) => void;
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
+  onCanvasBlankClick?: () => void;
+  onNodeContextMenu?: (selection: FlowGramMicroflowSelection, point: { x: number; y: number }) => void;
   onDropRegistryItem?: (
     item: MicroflowNodeRegistryItem,
     position: MicroflowPoint,
@@ -69,6 +71,10 @@ export interface FlowGramMicroflowCanvasProps {
 function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSchema; onFocusNode: (objectId: string) => void }) {
   const graph = useMemo(() => toEditorGraph(schema), [schema]);
   const rootNodes = graph.nodes.filter(node => !node.parentObjectId);
+  const lodStep = graph.nodes.length > 500 ? Math.ceil(graph.nodes.length / 500) : 1;
+  const minimapNodes = useMemo(() => rootNodes.filter((_, index) => index % lodStep === 0), [lodStep, rootNodes]);
+  const minimapNestedNodes = useMemo(() => graph.nodes.filter(node => node.parentObjectId).filter((_, index) => index % lodStep === 0), [graph.nodes, lodStep]);
+  const minimapEdges = useMemo(() => graph.edges.filter((_, index) => index % lodStep === 0), [graph.edges, lodStep]);
   const nodeById = useMemo(() => new Map(graph.nodes.map(node => [node.objectId, node])), [graph.nodes]);
   const bounds = useMemo(() => {
     if (graph.nodes.length === 0) {
@@ -93,7 +99,7 @@ function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSc
   return (
     <div className="microflow-flowgram-minimap" aria-label="Microflow minimap">
       <svg viewBox={viewBox} role="img">
-        {graph.edges.map(edge => {
+        {minimapEdges.map(edge => {
           const source = nodeById.get(editorNodeIdToObjectId(edge.sourceNodeId));
           const target = nodeById.get(editorNodeIdToObjectId(edge.targetNodeId));
           if (!source || !target) {
@@ -110,7 +116,7 @@ function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSc
             />
           );
         })}
-        {rootNodes.map(node => (
+        {minimapNodes.map(node => (
           <rect
             key={node.objectId}
             x={node.position.x - node.size.width / 2}
@@ -130,7 +136,7 @@ function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSc
             }}
           />
         ))}
-        {graph.nodes.filter(node => node.parentObjectId).map(node => (
+        {minimapNestedNodes.map(node => (
           <rect
             key={node.objectId}
             x={node.position.x - Math.min(node.size.width, 120) / 2}
@@ -150,6 +156,11 @@ function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSc
             }}
           />
         ))}
+        {lodStep > 1 ? (
+          <text x={bounds.minX} y={bounds.minY - 24} className="microflow-flowgram-minimap-lod">
+            LOD {graph.nodes.length}
+          </text>
+        ) : null}
         <rect
           x={-viewport.x / Math.max(0.2, viewport.zoom)}
           y={-viewport.y / Math.max(0.2, viewport.zoom)}
@@ -279,6 +290,40 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     });
   };
 
+  const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const nodeElement = target?.closest<HTMLElement>(".microflow-flowgram-node[data-microflow-object-id]");
+    if (!nodeElement || !containerRef.current?.contains(nodeElement)) {
+      return;
+    }
+    const objectId = nodeElement.dataset.microflowObjectId;
+    if (!objectId) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const graphNode = toEditorGraph(props.schema).nodes.find(node => node.objectId === objectId);
+    const selection = {
+      objectId,
+      flowId: undefined,
+      collectionId: graphNode?.collectionId,
+    };
+    props.onSelectionChange(selection);
+    props.onNodeContextMenu?.(selection, { x: event.clientX, y: event.clientY });
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    if (
+      target?.closest(
+        ".microflow-flowgram-node, .microflow-flowgram-toolbar, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal",
+      )
+    ) {
+      return;
+    }
+    props.onCanvasBlankClick?.();
+  };
+
   const focusNodeFromMiniMap = (objectId: string) => {
     const node = playground.entityManager.getEntityById<FlowNodeEntity>(objectId);
     if (node) {
@@ -337,6 +382,8 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
         }
       }}
       onDropCapture={handleDrop}
+      onContextMenuCapture={handleContextMenu}
+      onPointerDownCapture={handlePointerDown}
     >
       <PlaygroundReactRenderer />
       <FlowGramMicroflowToolbar

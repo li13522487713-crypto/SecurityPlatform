@@ -1489,6 +1489,9 @@ export interface MicroflowEditorState {
     objectId?: string;
     flowId?: string;
     collectionId?: string;
+    objectIds?: string[];
+    flowIds?: string[];
+    mode?: "none" | "single" | "multi";
   };
   layoutMode?: "freeform" | "auto";
 }
@@ -1645,6 +1648,9 @@ export interface MicroflowEditorGraph {
   selection: {
     objectId?: string;
     flowId?: string;
+    objectIds?: string[];
+    flowIds?: string[];
+    mode?: "none" | "single" | "multi";
   };
 }
 
@@ -1654,6 +1660,9 @@ export interface MicroflowEditorGraphPatch {
   selectedObjectId?: string;
   selectedFlowId?: string;
   selectedCollectionId?: string;
+  selectedObjectIds?: string[];
+  selectedFlowIds?: string[];
+  selectionMode?: "none" | "single" | "multi";
   viewport?: MicroflowEditorGraph["viewport"];
   updatedFlows?: Array<{ flowId: string; label?: string; line?: MicroflowLine }>;
   addObject?: { object: MicroflowObject; parentLoopObjectId?: string };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Button, Empty, Input, Popover, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Card, Empty, Input, Popover, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
   IconChevronRight,
@@ -60,6 +60,7 @@ export interface MicroflowNodePanelLabels {
   footerHint: string;
   componentsPlaceholder: string;
   templatesPlaceholder: string;
+  insertTemplate: string;
   inputs: string;
   outputs: string;
   useCases: string;
@@ -90,16 +91,49 @@ export const defaultMicroflowNodePanelLabels: MicroflowNodePanelLabels = {
   footerHint: "Drag nodes to the canvas, or double-click to add quickly.",
   componentsPlaceholder: "Component assets will be available here.",
   templatesPlaceholder: "Microflow templates will be available here.",
+  insertTemplate: "Insert",
   inputs: "Inputs",
   outputs: "Outputs",
   useCases: "Use cases"
 };
+
+export interface MicroflowNodePanelTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: "component" | "template";
+  nodeKeys: string[];
+  flowPairs?: Array<{ from: number; to: number; label?: string }>;
+  defaultOffset?: { x: number; y: number };
+  requiredCapabilities?: string[];
+}
+
+const defaultMicroflowTemplates: MicroflowNodePanelTemplate[] = [
+  {
+    id: "component-decision-merge",
+    name: "Decision branch",
+    description: "Decision, two actions, and merge.",
+    category: "component",
+    nodeKeys: ["decision", "activity:changeVariable", "activity:logMessage", "merge"],
+    flowPairs: [{ from: 0, to: 1, label: "true" }, { from: 0, to: 2, label: "false" }, { from: 1, to: 3 }, { from: 2, to: 3 }],
+  },
+  {
+    id: "template-rest-validate-log",
+    name: "REST with validation",
+    description: "Retrieve inputs, call REST, then log the outcome.",
+    category: "template",
+    nodeKeys: ["activity:retrieve", "activity:restCall", "activity:logMessage"],
+    flowPairs: [{ from: 0, to: 1 }, { from: 1, to: 2 }],
+    requiredCapabilities: ["restCall"],
+  },
+];
 
 export interface MicroflowNodePanelProps {
   registry?: MicroflowNodeRegistryItem[];
   favoriteNodeKeys: string[];
   onFavoriteChange: (keys: string[]) => void;
   onAddNode: (item: MicroflowNodeRegistryItem, options?: { source: "doubleClick" | "contextMenu" | "drop"; position?: { x: number; y: number } }) => void;
+  onInsertTemplate?: (template: MicroflowNodePanelTemplate) => void;
   onStartDrag?: (payload: MicroflowNodeDragPayload) => void;
   onShowDocumentation?: (item: MicroflowNodeRegistryItem) => void;
   labels?: Partial<MicroflowNodePanelLabels>;
@@ -833,6 +867,7 @@ export function MicroflowNodePanel({
   favoriteNodeKeys,
   onFavoriteChange,
   onAddNode,
+  onInsertTemplate,
   onStartDrag,
   onShowDocumentation,
   labels: labelOverrides,
@@ -948,6 +983,25 @@ export function MicroflowNodePanel({
                 onStartDrag={onStartDrag}
               />
             )}
+          </Space>
+        ) : defaultMicroflowTemplates.filter(template => template.category === (activeTab === "components" ? "component" : "template")).length > 0 ? (
+          <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
+            {defaultMicroflowTemplates
+              .filter(template => template.category === (activeTab === "components" ? "component" : "template"))
+              .map(template => (
+                <Card key={template.id} shadows="hover" bodyStyle={{ padding: 10 }} style={{ width: "100%" }}>
+                  <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+                    <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                      <Text strong>{template.name}</Text>
+                      <Tag>{template.nodeKeys.length}</Tag>
+                    </Space>
+                    <Text size="small" type="tertiary">{template.description}</Text>
+                    <Button size="small" icon={<IconPlus />} disabled={!onInsertTemplate} onClick={() => onInsertTemplate?.(template)}>
+                      {labels.insertTemplate}
+                    </Button>
+                  </Space>
+                </Card>
+              ))}
           </Space>
         ) : (
           <Empty

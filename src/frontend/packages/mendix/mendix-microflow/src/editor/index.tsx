@@ -2,8 +2,10 @@ import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,
 import { Badge, Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
+  IconClose,
   IconCopy,
   IconDelete,
+  IconExpand,
   IconPlay,
   IconRefresh,
   IconSave,
@@ -14,7 +16,7 @@ import {
   IconMore,
   IconChevronRight
 } from "@douyinfe/semi-icons";
-import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel";
+import { MicroflowNodePanel, type MicroflowNodePanelLabels, type MicroflowNodePanelTemplate } from "../node-panel";
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
 import {
   addMicroflowObjectFromDragPayload,
@@ -42,6 +44,7 @@ import {
   deleteFlow,
   deleteObject,
   duplicateObject,
+  duplicateObjectSelection,
   emptyVariableIndex,
   ensureAuthoringSchema,
   findObject,
@@ -56,6 +59,7 @@ import { MicroflowHistoryManager, labelForHistoryReason, microflowSchemasEqual, 
 import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowCanvas } from "../flowgram";
+import { MICROFLOW_GRID_SIZE } from "../flowgram/adapters/flowgram-coordinate";
 import {
   EMPTY_MICROFLOW_METADATA_CATALOG,
   MicroflowMetadataProvider,
@@ -67,6 +71,7 @@ import { validateMicroflowSchema } from "../schema/validator";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
 import {
   MicroflowRunHistoryPanel,
+  MicroflowStepDebugPanel,
   MicroflowTracePanel,
   MicroflowTestRunModal,
   buildExecutionPath,
@@ -74,10 +79,14 @@ import {
   buildRunRequest,
   filterNodeResultsByMicroflowId,
   shouldBlockRun,
+  type MicroflowDebugCommand,
+  type MicroflowDebugSessionDto,
+  type MicroflowDebugVariableSnapshotDto,
+  type MicroflowDebugWatchExpressionDto,
   type MicroflowRunSession,
   type MicroflowTestRunInput
 } from "../debug";
-import { useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
+import { createMicroflowGraphIndex, useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
 import { useMicroflowShortcuts } from "./shortcuts";
 import type {
   MicroflowCaseValue,
@@ -98,6 +107,7 @@ const { Text, Title } = Typography;
 const favoriteStorageKey = "atlas_microflow_node_panel_favorites";
 const leftPanelStorageKey = "atlas_microflow_panel_left_open";
 const rightPanelStorageKey = "atlas_microflow_panel_right_open";
+const rightPanelPinnedStorageKey = "atlas_microflow_panel_right_pinned";
 const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
 const bottomTabStorageKey = "atlas_microflow_panel_bottom_tab";
 const mendixLayoutStorageKey = "lowcode-studio:mendix-layout:v1";
@@ -105,12 +115,15 @@ const RAIL_WIDTH_PX = 44;
 const LEFT_PANEL_EXPANDED_PX = 300;
 const RIGHT_PANEL_EXPANDED_PX = 380;
 const BOTTOM_STRIP_HEIGHT_PX = 32;
-const BOTTOM_PANEL_EXPANDED_PX = 260;
+const BOTTOM_DOCK_PEEK_HEIGHT_PX = 260;
+const BOTTOM_DOCK_FULL_DEFAULT_PX = 420;
+const BOTTOM_DOCK_FULL_MIN_PX = 320;
 const MOVE_HISTORY_DEBOUNCE_MS = 250;
 const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest", "activity:logMessage"];
 const INTERNAL_TOOLBAR_ROW_PX = 60;
 
 type MendixLayoutInspectorMode = "floating" | "docked";
+type BottomDockMode = "collapsed" | "peek" | "full";
 
 interface MendixLayoutStorage {
   nodesDrawerOpen?: boolean;
@@ -118,6 +131,7 @@ interface MendixLayoutStorage {
   inspectorMode?: MendixLayoutInspectorMode;
   inspectorWidth?: number;
   bottomOpen?: boolean;
+  bottomMode?: BottomDockMode;
   bottomHeight?: number;
   activeBottomTab?: "problems" | "debug" | "validation" | "references" | "info" | "console";
   focusMode?: boolean;
@@ -126,6 +140,19 @@ interface MendixLayoutStorage {
 }
 
 type MicroflowSchemaChangeSource = "propertyPanel" | "flowgram" | "nodePanel" | "autolayout" | "history" | "runtime";
+
+interface CanvasNodeContextMenuState {
+  objectId: string;
+  collectionId?: string;
+  x: number;
+  y: number;
+}
+
+interface MicroflowClipboardSelection {
+  microflowId: string;
+  objectIds: string[];
+  flowIds: string[];
+}
 
 interface MicroflowApiErrorLike {
   code?: string;
@@ -217,14 +244,17 @@ function applyApiValidationIssues(error: unknown, setIssues: (issues: MicroflowV
 }
 
 function selectionExists(schema: MicroflowSchema, selection?: MicroflowHistorySelection): MicroflowHistorySelection {
-  const objectId = selection?.objectId && findObjectWithCollection(schema, selection.objectId) ? selection.objectId : undefined;
-  const flowId = !objectId && selection?.flowId && findFlowWithCollection(schema, selection.flowId) ? selection.flowId : undefined;
+  const objectIds = (selection?.objectIds ?? []).filter(id => Boolean(findObjectWithCollection(schema, id)));
+  const flowIds = (selection?.flowIds ?? []).filter(id => Boolean(findFlowWithCollection(schema, id)));
+  const objectId = selection?.objectId && findObjectWithCollection(schema, selection.objectId) ? selection.objectId : objectIds[0];
+  const flowId = !objectId && selection?.flowId && findFlowWithCollection(schema, selection.flowId) ? selection.flowId : objectId ? undefined : flowIds[0];
   const collectionId = objectId
     ? findObjectWithCollection(schema, objectId)?.collectionId
     : flowId
       ? findFlowWithCollection(schema, flowId)?.collectionId
       : selection?.collectionId;
-  return { objectId, flowId, collectionId };
+  const count = objectIds.length + flowIds.length;
+  return { objectId, flowId, collectionId, objectIds, flowIds, mode: count === 0 ? "none" : count === 1 ? "single" : "multi" };
 }
 
 export interface MicroflowEditorProps {
@@ -469,6 +499,41 @@ function writeStoredBoolean(key: string, value: boolean): void {
   }
 }
 
+function normalizeBottomDockMode(value: unknown): BottomDockMode | undefined {
+  if (value === "collapsed" || value === "peek" || value === "full") {
+    return value;
+  }
+  if (value === true || value === "true") {
+    return "peek";
+  }
+  if (value === false || value === "false") {
+    return "collapsed";
+  }
+  return undefined;
+}
+
+function readStoredBottomDockMode(key: string): BottomDockMode | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+  try {
+    return normalizeBottomDockMode(window.localStorage.getItem(key));
+  } catch {
+    return undefined;
+  }
+}
+
+function writeStoredBottomDockMode(key: string, value: BottomDockMode): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
 function readStoredBottomTab(): "problems" | "debug" | undefined {
   if (typeof window === "undefined") {
     return undefined;
@@ -514,6 +579,16 @@ function writeMendixLayoutStorage(patch: MendixLayoutStorage): void {
 function readStoredExternalBottomTab(): "problems" | "debug" | undefined {
   const raw = readMendixLayoutStorage().activeBottomTab;
   return raw === "debug" || raw === "problems" ? raw : undefined;
+}
+
+function readStoredExternalBottomDockMode(): BottomDockMode | undefined {
+  const storage = readMendixLayoutStorage();
+  return normalizeBottomDockMode(storage.bottomMode ?? storage.bottomOpen);
+}
+
+function clampBottomDockHeight(value: number): number {
+  const maxHeight = typeof window === "undefined" ? 640 : Math.max(BOTTOM_DOCK_FULL_MIN_PX, Math.floor(window.innerHeight * 0.7));
+  return Math.min(Math.max(value, BOTTOM_DOCK_FULL_MIN_PX), maxHeight);
 }
 
 function parseDragPayload(value: string): MicroflowNodeDragPayload | undefined {
@@ -573,7 +648,10 @@ function screenToCanvas(container: HTMLDivElement | null, event: { clientX: numb
   };
 }
 
-function snapCanvasPoint(point: { x: number; y: number }, gridSize = 12) {
+function snapCanvasPoint(point: { x: number; y: number }, gridSize = MICROFLOW_GRID_SIZE) {
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || gridSize <= 1) {
+    return point;
+  }
   return {
     x: Math.round(point.x / gridSize) * gridSize,
     y: Math.round(point.y / gridSize) * gridSize
@@ -1292,6 +1370,10 @@ function DebugPanel({
   microflowName,
   session,
   serviceError,
+  debugAvailable,
+  debugSession,
+  debugVariables,
+  debugWatches,
   activeFrameId,
   onSelectFrame,
   onSelectFlow,
@@ -1299,11 +1381,17 @@ function DebugPanel({
   onClear,
   onRerun,
   onCancelRun,
+  onDebugCommand,
+  onDebugEvaluate,
 }: {
   microflowId: string;
   microflowName?: string;
   session?: MicroflowRunSession;
   serviceError?: string;
+  debugAvailable?: boolean;
+  debugSession?: MicroflowDebugSessionDto;
+  debugVariables?: MicroflowDebugVariableSnapshotDto[];
+  debugWatches?: MicroflowDebugWatchExpressionDto[];
   activeFrameId?: string;
   onSelectFrame: (frame: MicroflowTraceFrame) => void;
   onSelectFlow: (flowId: string) => void;
@@ -1311,15 +1399,68 @@ function DebugPanel({
   onClear: () => void;
   onRerun: () => void;
   onCancelRun: () => void;
+  onDebugCommand?: (command: MicroflowDebugCommand) => void;
+  onDebugEvaluate?: (expression: string) => void;
 }) {
   if (serviceError) {
     return <Empty title="运行服务不可用" description={serviceError} />;
   }
-  if (!session || buildExecutionPath(session).length === 0) {
-    return <Empty title="No trace" description="Run a test to see object/flow trace frames." />;
-  }
+  const hasTrace = Boolean(session && buildExecutionPath(session).length > 0);
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
+      {debugAvailable && debugSession ? (
+        <MicroflowStepDebugPanel
+          status={debugSession.status}
+          currentNodeId={debugSession.currentNodeObjectId ?? debugSession.currentSafePoint?.nodeObjectId}
+          currentFlowId={debugSession.currentSafePoint?.incomingFlowId ?? debugSession.currentSafePoint?.outgoingFlowId}
+          currentBranchId={debugSession.currentSafePoint?.branchId}
+          currentPhase={debugSession.pausePhase ?? debugSession.currentSafePoint?.phase}
+          variables={(debugVariables ?? []).map(variable => ({
+            name: variable.name,
+            valuePreview: variable.valuePreview ?? "",
+            scope: variable.scopeKind,
+          }))}
+          watches={(debugWatches ?? []).map(watch => ({
+            expression: watch.expression,
+            value: watch.valuePreview,
+            error: watch.error,
+          }))}
+          labels={{
+            statusPrefix: "Status",
+            nodePrefix: "Node",
+            flowPrefix: "Flow",
+            branchPrefix: "Branch",
+            phasePrefix: "Phase",
+            breakpointsTitle: "Breakpoints",
+            staleBreakpoint: "stale",
+            logpoint: "logpoint",
+            variablesTitle: "Variables",
+            watchesTitle: "Watches",
+            callStackTitle: "Call Stack",
+            branchTreeTitle: "Branches",
+            watchPlaceholder: "Expression",
+            evaluate: "Evaluate",
+            commands: {
+              continue: "Continue",
+              pause: "Pause",
+              stepOver: "Step Over",
+              stepInto: "Step Into",
+              stepOut: "Step Out",
+              runToNode: "Run To Node",
+              cancel: "Cancel",
+              stop: "Stop",
+            },
+          }}
+          onCommand={onDebugCommand}
+          onEvaluate={onDebugEvaluate}
+        />
+      ) : null}
+      {!debugAvailable ? (
+        <Tag color="grey">Trace mode</Tag>
+      ) : null}
+      {!hasTrace ? <Empty title="No trace" description="Run a test to see object/flow trace frames." /> : null}
+      {session && hasTrace ? (
+      <>
       <Space style={{ width: "100%", justifyContent: "space-between" }}>
         <Space>
           <Tag color={session.status === "success" ? "green" : "red"}>{session.status}</Tag>
@@ -1341,7 +1482,79 @@ function DebugPanel({
         onSelectFlow={onSelectFlow}
         onSelectError={onSelectError}
       />
+      </>
+      ) : null}
     </Space>
+  );
+}
+
+interface MicroflowCommandItem {
+  id: string;
+  label: string;
+  disabled?: boolean;
+  run: () => void;
+}
+
+function MicroflowCommandPalette({
+  visible,
+  query,
+  commands,
+  onQueryChange,
+  onClose,
+}: {
+  visible: boolean;
+  query: string;
+  commands: MicroflowCommandItem[];
+  onQueryChange: (value: string) => void;
+  onClose: () => void;
+}) {
+  const normalized = query.trim().toLocaleLowerCase();
+  const filtered = normalized
+    ? commands.filter(command => command.label.toLocaleLowerCase().includes(normalized) || command.id.toLocaleLowerCase().includes(normalized))
+    : commands;
+  return (
+    <Modal
+      visible={visible}
+      title="Command Palette"
+      footer={null}
+      onCancel={onClose}
+      style={{ maxWidth: 520 }}
+      bodyStyle={{ paddingTop: 8 }}
+    >
+      <Space vertical align="start" style={{ width: "100%" }}>
+        <Input
+          autoFocus
+          value={query}
+          placeholder="Search commands"
+          onChange={onQueryChange}
+          onEnterPress={() => {
+            const first = filtered.find(command => !command.disabled);
+            if (first) {
+              first.run();
+              onClose();
+            }
+          }}
+        />
+        <Space vertical align="start" spacing={4} style={{ width: "100%", maxHeight: 360, overflow: "auto" }}>
+          {filtered.map(command => (
+            <Button
+              key={command.id}
+              theme="borderless"
+              type="tertiary"
+              disabled={command.disabled}
+              style={{ justifyContent: "flex-start" }}
+              onClick={() => {
+                command.run();
+                onClose();
+              }}
+            >
+              {command.label}
+            </Button>
+          ))}
+          {filtered.length === 0 ? <Empty title="No commands" description="Try a different search." /> : null}
+        </Space>
+      </Space>
+    </Modal>
   );
 }
 
@@ -1369,7 +1582,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const moveHistoryTimerRef = useRef<number | undefined>();
   const pendingMoveSchemaRef = useRef<MicroflowSchema | undefined>();
   const shellRef = useRef<HTMLDivElement>(null);
-  const [clipboardObject, setClipboardObject] = useState<{ microflowId: string; objectId: string }>();
+  const [clipboardObject, setClipboardObject] = useState<MicroflowClipboardSelection>();
   const [favoriteNodeKeys, setFavoriteNodeKeys] = useState(readFavoriteNodeKeys);
   const [validationTrigger, setValidationTrigger] = useState(0);
   const {
@@ -1397,8 +1610,15 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [runHistoryStatusByMicroflowId, setRunHistoryStatusByMicroflowId] = useState<Record<string, "all" | "success" | "failed" | "unsupported" | "cancelled">>({});
   const [focusObjectId, setFocusObjectId] = useState<string>();
   const [focusRequestSeq, setFocusRequestSeq] = useState(0);
+  const [canvasNodeContextMenu, setCanvasNodeContextMenu] = useState<CanvasNodeContextMenuState>();
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
   const runHistoryRequestSeqRef = useRef<Record<string, number>>({});
   const [activeTraceFrameId, setActiveTraceFrameId] = useState<string>();
+  const [pendingDebugSessionId, setPendingDebugSessionId] = useState<string>();
+  const [debugSessionByMicroflowId, setDebugSessionByMicroflowId] = useState<Record<string, MicroflowDebugSessionDto | undefined>>({});
+  const [debugVariablesBySessionId, setDebugVariablesBySessionId] = useState<Record<string, MicroflowDebugVariableSnapshotDto[]>>({});
+  const [debugWatchesBySessionId, setDebugWatchesBySessionId] = useState<Record<string, MicroflowDebugWatchExpressionDto[]>>({});
   const [testRunModalOpen, setTestRunModalOpen] = useState(false);
   const [runInputsByMicroflowId, setRunInputsByMicroflowId] = useState<Record<string, Record<string, unknown>>>({});
   const [saving, setSaving] = useState(false);
@@ -1427,19 +1647,31 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const stored = readStoredBoolean(rightPanelStorageKey);
     return stored !== undefined ? stored : rightPanelFallback;
   });
-  const [bottomOpen, setBottomOpen] = useState(() => {
+  const [rightPinned, setRightPinned] = useState(() => {
+    if (!persistAuxPanelState) {
+      return false;
+    }
+    return readStoredBoolean(rightPanelPinnedStorageKey) === true;
+  });
+  const bottomPanelFallbackMode: BottomDockMode = bottomPanelFallback ? "peek" : "collapsed";
+  const [bottomDockMode, setBottomDockMode] = useState<BottomDockMode>(() => {
     if (props.toolbarMode === "external") {
-      return Boolean(readMendixLayoutStorage().bottomOpen);
+      return readStoredExternalBottomDockMode() ?? bottomPanelFallbackMode;
     }
     if (!persistAuxPanelState) {
-      return bottomPanelFallback;
+      return bottomPanelFallbackMode;
     }
-    const stored = readStoredBoolean(bottomPanelStorageKey);
-    return stored !== undefined ? stored : bottomPanelFallback;
+    return readStoredBottomDockMode(bottomPanelStorageKey) ?? bottomPanelFallbackMode;
+  });
+  const [bottomDockHeight, setBottomDockHeight] = useState(() => {
+    const storedHeight = readMendixLayoutStorage().bottomHeight;
+    return clampBottomDockHeight(typeof storedHeight === "number" ? storedHeight : BOTTOM_DOCK_FULL_DEFAULT_PX);
   });
   const [bottomTab, setBottomTab] = useState<"problems" | "debug">(() => (
     props.toolbarMode === "external" ? readStoredExternalBottomTab() : readStoredBottomTab()
   ) ?? "problems");
+  const bottomOpen = bottomDockMode !== "collapsed";
+  const activeBottomDockHeight = bottomDockMode === "full" ? bottomDockHeight : BOTTOM_DOCK_PEEK_HEIGHT_PX;
   const [focusMode, setFocusMode] = useState(() => Boolean(readMendixLayoutStorage().focusMode));
   const onValidationStateChangeRef = useRef(props.onValidationStateChange);
   const onSchemaChangeRef = useRef(props.onSchemaChange);
@@ -1504,16 +1736,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     gridTemplateRows: focusMode
       ? "minmax(0, 1fr)"
       : externalLayout
-      ? bottomOpen
-        ? `minmax(0, 1fr) ${BOTTOM_PANEL_EXPANDED_PX}px`
-        : `minmax(0, 1fr) ${BOTTOM_STRIP_HEIGHT_PX}px`
-      : bottomOpen
-        ? `${INTERNAL_TOOLBAR_ROW_PX}px minmax(0, 1fr) ${BOTTOM_PANEL_EXPANDED_PX}px`
+        ? `minmax(0, 1fr) ${BOTTOM_STRIP_HEIGHT_PX}px`
         : `${INTERNAL_TOOLBAR_ROW_PX}px minmax(0, 1fr) ${BOTTOM_STRIP_HEIGHT_PX}px`,
     height: "100%",
     minHeight: 0,
+    position: "relative",
     background: "var(--semi-color-bg-0, #f7f8fa)"
-  }), [bottomOpen, externalLayout, focusMode]);
+  }), [externalLayout, focusMode]);
 
   const bodyStyle = useMemo((): CSSProperties => {
     const leftCol = focusMode ? 0 : leftOpen ? LEFT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
@@ -1529,8 +1758,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, [externalLayout, focusMode, leftOpen, rightOpen]);
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
-  const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
-  const selectedFlow = schema.editor.selection.flowId ? findFlowWithCollection(schema, schema.editor.selection.flowId)?.flow ?? null : null;
+  const graphIndex = useMemo(() => createMicroflowGraphIndex(schema), [schema.objectCollection, schema.flows]);
+  const selectedObject = schema.editor.selection.objectId ? graphIndex.objectsById.get(schema.editor.selection.objectId) ?? null : null;
+  const selectedFlow = schema.editor.selection.flowId ? graphIndex.flowsById.get(schema.editor.selection.flowId) ?? null : null;
   const activeMicroflowId = schema.id;
   const saveBlockers = issues.filter(issue => issue.blockSave && issue.severity === "error");
   const publishBlockers = issues.filter(issue => issue.blockPublish && issue.severity === "error");
@@ -1542,29 +1772,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const runHistoryLoading = Boolean(runHistoryLoadingByMicroflowId[activeMicroflowId]);
   const runHistoryError = runHistoryErrorByMicroflowId[activeMicroflowId];
   const selectedRunSession = selectedRunId ? runDetailsByRunId[selectedRunId] : runSession;
+  const activeDebugSession = debugSessionByMicroflowId[activeMicroflowId];
+  const activeDebugVariables = activeDebugSession ? debugVariablesBySessionId[activeDebugSession.id] ?? [] : [];
+  const activeDebugWatches = activeDebugSession ? debugWatchesBySessionId[activeDebugSession.id] ?? [] : [];
   const traceFrames = useMemo(
     () => filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId),
     [selectedRunSession, activeMicroflowId]
   );
-
-  useEffect(() => {
-    if (!externalLayout || focusMode) {
-      return;
-    }
-    if (selectedObject || selectedFlow) {
-      setRightOpen(true);
-    }
-  }, [externalLayout, focusMode, selectedFlow, selectedObject]);
-
-  useEffect(() => {
-    if (!externalLayout || focusMode) {
-      return;
-    }
-    if (issues.some(issue => issue.severity === "error")) {
-      setBottomTab("problems");
-      setBottomOpen(true);
-    }
-  }, [externalLayout, focusMode, issues]);
 
   useEffect(() => {
     onValidationStateChangeRef.current?.({
@@ -1574,6 +1788,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       lastValidatedAt,
     });
   }, [activeMicroflowId, issues, lastValidatedAt, validationStatus]);
+
+  useEffect(() => {
+    if (!canvasNodeContextMenu) {
+      return undefined;
+    }
+    const close = () => setCanvasNodeContextMenu(undefined);
+    document.addEventListener("click", close);
+    window.addEventListener("blur", close);
+    return () => {
+      document.removeEventListener("click", close);
+      window.removeEventListener("blur", close);
+    };
+  }, [canvasNodeContextMenu]);
 
   const refreshHistoryState = () => setHistoryState(historyManager.getState());
 
@@ -1673,8 +1900,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const viewport = schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
     const indexOffset = graph.nodes.length * 18;
     return {
-      x: Math.round(((360 - viewport.x) / Math.max(0.2, viewport.zoom) + indexOffset) / 16) * 16,
-      y: Math.round(((220 - viewport.y) / Math.max(0.2, viewport.zoom) + indexOffset / 2) / 16) * 16
+      x: Math.round(((360 - viewport.x) / Math.max(0.2, viewport.zoom) + indexOffset) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+      y: Math.round(((220 - viewport.y) / Math.max(0.2, viewport.zoom) + indexOffset / 2) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE
     };
   };
 
@@ -1738,11 +1965,79 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
   };
 
+  const handleInsertTemplate = (template: MicroflowNodePanelTemplate) => {
+    if (props.readonly) {
+      return;
+    }
+    const base = template.defaultOffset ?? quickAddPosition();
+    const objects = template.nodeKeys.map((key, index) => {
+      const entry = microflowNodeRegistryByKey.get(key);
+      if (!entry) {
+        return undefined;
+      }
+      return createObjectFromRegistry(
+        entry,
+        {
+          x: base.x + index * 220,
+          y: base.y + (index % 2) * 80,
+        },
+        createUniqueMicroflowObjectId(schema, key.replace(":", "-")),
+      );
+    }).filter((object): object is MicroflowObject => Boolean(object));
+    if (objects.length === 0) {
+      Toast.warning("Template has no available nodes.");
+      return;
+    }
+    const flows = (template.flowPairs ?? []).flatMap(pair => {
+      const from = objects[pair.from];
+      const to = objects[pair.to];
+      if (!from || !to) {
+        return [];
+      }
+      const booleanCase = pair.label === "true" || pair.label === "false";
+      const booleanValue = pair.label === "true";
+      return [createSequenceFlow({
+        id: createMicroflowFlowId(schema, "template-flow"),
+        originObjectId: from.id,
+        destinationObjectId: to.id,
+        label: pair.label,
+        caseValues: booleanCase
+          ? [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: booleanValue, persistedValue: booleanValue ? "true" : "false" }]
+          : pair.label === "default"
+            ? [{ kind: "fallback", officialType: "Microflows$NoCase" }]
+            : [],
+        edgeKind: booleanCase ? "decisionCondition" : "sequence",
+      })];
+    });
+    const nextSchema = refreshDerivedState({
+      ...schema,
+      objectCollection: {
+        ...schema.objectCollection,
+        objects: [...schema.objectCollection.objects, ...objects],
+      },
+      flows: [...schema.flows, ...flows],
+      editor: {
+        ...schema.editor,
+        selection: {
+          ...schema.editor.selection,
+          objectId: objects[0]?.id,
+          flowId: undefined,
+          objectIds: objects.map(object => object.id),
+          flowIds: [],
+          mode: objects.length > 1 ? "multi" : "single",
+        },
+      },
+    }, metadataForRefresh);
+    commitSchema(nextSchema, "insertTemplate", { source: "nodePanel" });
+    Toast.success(`${template.name} inserted`);
+  };
+
   const saveCurrentSchema = async (reason: "save" | "saveAndRun" = "save"): Promise<boolean> => {
     if (props.readonly) {
       Toast.warning("Readonly microflow cannot be saved.");
       return false;
     }
+    flushPendingMoveHistory();
     if (!dirty) {
       Toast.info("Already saved.");
       return true;
@@ -1752,13 +2047,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const validation = await validateForMode(schemaToSave, "save");
     const blockers = validation.issues.filter(issue => issue.blockSave && issue.severity === "error");
     if (blockers.length > 0) {
-      setBottomOpen(true);
       setBottomTab("problems");
       Toast.error(`${reason === "saveAndRun" ? "Save & Run" : "Save"} blocked by ${blockers.length} schema-breaking validation error(s).`);
       return false;
     }
     if (validation.summary.errorCount > 0 || validation.summary.warningCount > 0) {
-      setBottomOpen(true);
       setBottomTab("problems");
       Toast.warning(`Draft save allowed with ${validation.summary.errorCount} publish blocker(s) and ${validation.summary.warningCount} warning(s).`);
     }
@@ -1777,7 +2070,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return true;
     } catch (error) {
       applyApiValidationIssues(error, setIssues, () => {
-        setBottomOpen(true);
         setBottomTab("problems");
       });
       Toast.error(getEditorApiErrorMessage(error));
@@ -1802,7 +2094,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast[response.valid ? "success" : "warning"](response.valid ? "Validation passed" : `${response.issues.length} issue(s)`);
     } catch (error) {
       applyApiValidationIssues(error, setIssues, () => {
-        setBottomOpen(true);
         setBottomTab("problems");
       });
       Toast.error(getEditorApiErrorMessage(error));
@@ -1815,7 +2106,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     const validation = await validateForMode(schema, "testRun");
     if (validation.summary.errorCount > 0) {
-      setBottomOpen(true);
       setBottomTab("problems");
       Toast.error("Fix validation errors before running.");
       return;
@@ -1863,14 +2153,71 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: detail }));
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setActiveTraceFrameId(detail.trace[0]?.id);
-      setBottomOpen(true);
+      setBottomDockMode("peek");
       setBottomTab("debug");
     } catch (error) {
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
-      setBottomOpen(true);
+      setBottomDockMode("peek");
       setBottomTab("debug");
     }
   }, [apiClient, runDetailsByRunId]);
+
+  const refreshDebugSession = useCallback(async (sessionId: string, microflowId = schema.id) => {
+    if (!apiClient.debugAdapter) {
+      return undefined;
+    }
+    const [session, variables] = await Promise.all([
+      apiClient.debugAdapter.getSession(sessionId),
+      apiClient.debugAdapter.listVariables(sessionId).catch(() => []),
+    ]);
+    setDebugSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
+    setDebugVariablesBySessionId(current => ({ ...current, [sessionId]: variables }));
+    return session;
+  }, [apiClient.debugAdapter, schema.id]);
+
+  const startDebugSession = useCallback(async () => {
+    if (!apiClient.debugAdapter) {
+      setBottomDockMode("peek");
+      setBottomTab("debug");
+      Toast.info("Step debug adapter is not available; showing trace mode.");
+      await handleTestRun();
+      return;
+    }
+    const session = await apiClient.debugAdapter.createSession(schema.id);
+    setPendingDebugSessionId(session.id);
+    setDebugSessionByMicroflowId(current => ({ ...current, [schema.id]: session }));
+    setBottomDockMode("peek");
+    setBottomTab("debug");
+    setTestRunModalOpen(true);
+  }, [apiClient.debugAdapter, schema.id]);
+
+  const handleDebugCommand = useCallback(async (command: MicroflowDebugCommand) => {
+    if (!apiClient.debugAdapter || !activeDebugSession) {
+      return;
+    }
+    try {
+      const next = await apiClient.debugAdapter.sendCommand(activeDebugSession.id, command);
+      setDebugSessionByMicroflowId(current => ({ ...current, [schema.id]: next }));
+      await refreshDebugSession(next.id, schema.id);
+    } catch (error) {
+      Toast.error(getEditorApiErrorMessage(error));
+    }
+  }, [activeDebugSession, apiClient.debugAdapter, refreshDebugSession, schema.id]);
+
+  const handleDebugEvaluate = useCallback(async (expression: string) => {
+    if (!apiClient.debugAdapter || !activeDebugSession || !expression.trim()) {
+      return;
+    }
+    try {
+      const watch = await apiClient.debugAdapter.evaluate(activeDebugSession.id, expression);
+      setDebugWatchesBySessionId(current => ({
+        ...current,
+        [activeDebugSession.id]: [watch, ...(current[activeDebugSession.id] ?? []).filter(item => item.expression !== expression)].slice(0, 20),
+      }));
+    } catch (error) {
+      Toast.error(getEditorApiErrorMessage(error));
+    }
+  }, [activeDebugSession, apiClient.debugAdapter]);
 
   const handleExecuteTestRun = async (input: MicroflowTestRunInput) => {
     const microflowId = schema.id;
@@ -1878,7 +2225,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const gate = shouldBlockRun(validation.issues, {}, dirty, "saveAndRun");
     if (gate.blocked) {
       if (gate.reason === "validation") {
-        setBottomOpen(true);
         setBottomTab("problems");
         Toast.error("Fix validation errors before running.");
       }
@@ -1895,7 +2241,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
     setFocusObjectId(undefined);
     try {
-      const response = await apiClient.testRunMicroflow(buildRunRequest(schema, input.parameters, input.options));
+      const debugSessionId = pendingDebugSessionId;
+      const response = await apiClient.testRunMicroflow(buildRunRequest(schema, input.parameters, input.options, false, debugSessionId));
       const persistedSession = await apiClient.getMicroflowRunDetail(microflowId, response.runId);
       const persistedTrace = await apiClient.getMicroflowRunTrace(response.runId);
       const session = { ...persistedSession, trace: persistedTrace };
@@ -1912,20 +2259,23 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
       setActiveTraceFrameId(persistedTrace[0]?.id);
       setTestRunModalOpen(false);
-      setBottomOpen(true);
+      setBottomDockMode("peek");
       setBottomTab("debug");
+      if (debugSessionId) {
+        setPendingDebugSessionId(undefined);
+        void refreshDebugSession(debugSessionId, microflowId);
+      }
       props.onTestRunComplete?.({ ...response, session, frames: persistedTrace });
       void loadRunHistory(microflowId, runHistoryFilter);
       Toast[response.status === "succeeded" ? "success" : "error"](`Run ${response.status}`);
     } catch (error) {
       applyApiValidationIssues(error, setIssues, () => {
-        setBottomOpen(true);
         setBottomTab("problems");
       });
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setActiveTraceFrameId(undefined);
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
-      setBottomOpen(true);
+      setBottomDockMode("peek");
       setBottomTab("debug");
       Toast.error(getEditorApiErrorMessage(error));
     } finally {
@@ -1934,9 +2284,15 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const clearTestRun = () => {
+    const debugSessionId = debugSessionByMicroflowId[activeMicroflowId]?.id;
+    if (debugSessionId && apiClient.debugAdapter) {
+      void apiClient.debugAdapter.deleteSession(debugSessionId).catch(() => undefined);
+    }
     setRunSessionByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setSelectedRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setPendingDebugSessionId(undefined);
+    setDebugSessionByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setActiveTraceFrameId(undefined);
     setFocusObjectId(undefined);
   };
@@ -1966,7 +2322,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast.info(`Run ${cancelResult?.status ?? session.status}`);
     } catch (error) {
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
-      setBottomOpen(true);
+      setBottomDockMode("peek");
       setBottomTab("debug");
       Toast.error(getEditorApiErrorMessage(error));
     } finally {
@@ -2108,6 +2464,23 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     const selection = schema.editor.selection;
+    const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id)))];
+    const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id)))];
+    if (flowIds.length > 1 || objectIds.length > 1 || (flowIds.length + objectIds.length) > 1) {
+      let next = schema;
+      for (const flowId of flowIds) {
+        if (findFlowWithCollection(next, flowId)) {
+          next = deleteFlow(next, flowId);
+        }
+      }
+      for (const objectId of objectIds) {
+        if (findObjectWithCollection(next, objectId)) {
+          next = deleteObject(next, objectId);
+        }
+      }
+      commitSchema(next, "bulkUpdate", { historyLabel: "Delete selection", source: "flowgram" });
+      return;
+    }
     if (selection.flowId) {
       const located = findFlowWithCollection(schema, selection.flowId);
       commitSchema(deleteFlow(schema, selection.flowId), located?.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow");
@@ -2120,13 +2493,15 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const handleCopySelection = () => {
-    const objectId = schema.editor.selection.objectId;
-    if (!objectId || !findObject(schema, objectId)) {
+    const selection = schema.editor.selection;
+    const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id && findObject(schema, id))))];
+    const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id && findFlowWithCollection(schema, id))))];
+    if (objectIds.length === 0) {
       Toast.info("请选择一个节点后复制。");
       return;
     }
-    setClipboardObject({ microflowId: schema.id, objectId });
-    Toast.success("已复制节点。");
+    setClipboardObject({ microflowId: schema.id, objectIds, flowIds });
+    Toast.success(objectIds.length > 1 ? `已复制 ${objectIds.length} 个节点。` : "已复制节点。");
   };
 
   const handlePasteSelection = () => {
@@ -2141,12 +2516,15 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast.warning("本轮暂不支持跨微流粘贴，请在源微流内粘贴。");
       return;
     }
-    const source = findObjectWithCollection(schema, clipboardObject.objectId);
+    const source = findObjectWithCollection(schema, clipboardObject.objectIds[0]);
     if (!source) {
       Toast.warning("复制的源节点已不存在。");
       return;
     }
-    commitSchema(duplicateObject(schema, clipboardObject.objectId), source.parentLoopObjectId ? "addLoopNode" : "addNode", { source: "flowgram" });
+    const nextSchema = clipboardObject.objectIds.length > 1 || clipboardObject.flowIds.length > 0
+      ? duplicateObjectSelection(schema, clipboardObject)
+      : duplicateObject(schema, clipboardObject.objectIds[0]);
+    commitSchema(nextSchema, source.parentLoopObjectId ? "addLoopNode" : "addNode", { historyLabel: "Paste selection", source: "flowgram" });
   };
 
   const handleEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -2169,6 +2547,22 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       void handleSave();
       return;
     }
+    if ((event.ctrlKey || event.metaKey) && key === "k") {
+      event.preventDefault();
+      setCommandPaletteQuery("");
+      setCommandPaletteOpen(true);
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === "0") {
+      event.preventDefault();
+      window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-fit-view"));
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === "1") {
+      event.preventDefault();
+      applyPatch({ viewport: { ...schema.editor.viewport, zoom: 1 } }, { pushHistory: false, skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" });
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && key === "c" && !props.readonly) {
       event.preventDefault();
       handleCopySelection();
@@ -2185,10 +2579,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     if (key === "escape") {
-      applyPatch(
-        { selectedObjectId: undefined, selectedFlowId: undefined, selectedCollectionId: undefined },
-        { pushHistory: false, skipDirty: true, skipValidate: true },
-      );
+      event.preventDefault();
+      clearSelection();
+      return;
     }
   };
 
@@ -2207,7 +2600,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           inspectorMode: "floating",
           inspectorWidth: RIGHT_PANEL_EXPANDED_PX,
           bottomOpen,
-          bottomHeight: BOTTOM_PANEL_EXPANDED_PX,
+          bottomMode: bottomDockMode,
+          bottomHeight: bottomDockHeight,
           activeBottomTab: bottomTab,
           focusMode,
           minimapVisible: schema.editor.showMiniMap === true,
@@ -2221,10 +2615,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     writeStoredBoolean(leftPanelStorageKey, leftOpen);
     writeStoredBoolean(rightPanelStorageKey, rightOpen);
-    writeStoredBoolean(bottomPanelStorageKey, bottomOpen);
+    writeStoredBoolean(rightPanelPinnedStorageKey, rightPinned);
+    writeStoredBottomDockMode(bottomPanelStorageKey, bottomDockMode);
     writeStoredBottomTab(bottomTab);
     return undefined;
-  }, [bottomOpen, bottomTab, externalLayout, focusMode, leftOpen, persistAuxPanelState, rightOpen, schema.editor.gridEnabled, schema.editor.showMiniMap]);
+  }, [bottomDockHeight, bottomDockMode, bottomOpen, bottomTab, externalLayout, focusMode, leftOpen, persistAuxPanelState, rightOpen, rightPinned, schema.editor.gridEnabled, schema.editor.showMiniMap]);
 
   useEffect(() => {
     if (!schema.id) {
@@ -2248,6 +2643,33 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     color: "var(--semi-color-text-1, rgba(28, 31, 35, 0.8))"
   };
 
+  const openBottomDock = (tab: "problems" | "debug", mode: Exclude<BottomDockMode, "collapsed"> = "peek") => {
+    setBottomTab(tab);
+    setBottomDockMode(current => current === "full" ? "full" : mode);
+  };
+
+  const toggleBottomDock = () => {
+    setBottomDockMode(current => current === "collapsed" ? "peek" : "collapsed");
+  };
+
+  const startBottomDockResize = (event: PointerEvent<HTMLDivElement>) => {
+    if (bottomDockMode !== "full") {
+      return;
+    }
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = bottomDockHeight;
+    const handlePointerMove = (moveEvent: globalThis.PointerEvent) => {
+      setBottomDockHeight(clampBottomDockHeight(startHeight - (moveEvent.clientY - startY)));
+    };
+    const handlePointerUp = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
   const focusNodeSearch = useCallback(() => {
     setLeftOpen(true);
     window.setTimeout(() => {
@@ -2258,19 +2680,34 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, []);
 
   const clearSelection = useCallback(() => {
-    if (externalLayout && leftOpen) {
-      setLeftOpen(false);
+    if (canvasNodeContextMenu) {
+      setCanvasNodeContextMenu(undefined);
       return;
     }
-    if (externalLayout && rightOpen) {
+    if (rightOpen) {
       setRightOpen(false);
       return;
     }
+    if (bottomDockMode === "full") {
+      setBottomDockMode("peek");
+      return;
+    }
+    if (bottomDockMode === "peek") {
+      setBottomDockMode("collapsed");
+      return;
+    }
     applyPatch(
-      { selectedObjectId: undefined, selectedFlowId: undefined, selectedCollectionId: undefined },
+      {
+        selectedObjectId: undefined,
+        selectedFlowId: undefined,
+        selectedCollectionId: undefined,
+        selectedObjectIds: [],
+        selectedFlowIds: [],
+        selectionMode: "none",
+      },
       { pushHistory: false, skipDirty: true, skipValidate: true },
     );
-  }, [externalLayout, leftOpen, rightOpen, schema]);
+  }, [bottomDockMode, canvasNodeContextMenu, rightOpen, schema]);
 
   useMicroflowShortcuts({
     containerRef: shellRef,
@@ -2314,11 +2751,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     },
     runDebug: async () => {
       try {
-        // 提前打开底部 trace 抽屉的 debug tab；handleTestRun 内部会再次根据
-        // 校验 / 保存结果切到 problems tab，这一行只确保运行结束后默认停留在 debug。
-        setBottomOpen(true);
+        setBottomDockMode("peek");
         setBottomTab("debug");
-        await handleTestRun();
+        await startDebugSession();
       } catch (error) {
         Toast.error(getEditorApiErrorMessage(error));
       }
@@ -2389,8 +2824,31 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   // render so callers always observe fresh values.
   }));
 
+  const commandItems = useMemo<MicroflowCommandItem[]>(() => [
+    { id: "save", label: "Save", disabled: props.readonly || saving, run: () => void handleSave() },
+    { id: "validate", label: "Validate", run: () => void handleValidate() },
+    { id: "run", label: "Run Test", disabled: running, run: () => void handleTestRun() },
+    { id: "debug", label: "Run Debug", disabled: running, run: () => void startDebugSession() },
+    { id: "problems", label: "Open Problems", run: () => { setBottomDockMode("peek"); setBottomTab("problems"); } },
+    { id: "properties", label: rightOpen ? "Hide Properties" : "Show Properties", run: () => setRightOpen(open => !open) },
+    { id: "toolbox", label: leftOpen ? "Hide Toolbox" : "Show Toolbox", run: () => setLeftOpen(open => !open) },
+    { id: "undo", label: "Undo", disabled: !historyState.canUndo, run: handleUndo },
+    { id: "redo", label: "Redo", disabled: !historyState.canRedo, run: handleRedo },
+    { id: "fit-view", label: "Fit View", run: () => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-fit-view")) },
+    { id: "zoom-100", label: "Zoom 100%", run: () => applyPatch({ viewport: { ...schema.editor.viewport, zoom: 1 } }, { pushHistory: false, skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" }) },
+    { id: "auto-layout", label: "Auto Layout", disabled: props.readonly, run: handleAutoLayout },
+    { id: "focus-mode", label: focusMode ? "Exit Focus Mode" : "Enter Focus Mode", run: () => setFocusMode(value => !value) },
+  ], [dirty, focusMode, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, props.readonly, rightOpen, running, saving, schema.editor.viewport, startDebugSession]);
+
   return (
     <div ref={shellRef} data-testid="microflow-editor-shell" data-microflow-id={schema.id} style={shellStyle} tabIndex={0}>
+      <MicroflowCommandPalette
+        visible={commandPaletteOpen}
+        query={commandPaletteQuery}
+        commands={commandItems}
+        onQueryChange={setCommandPaletteQuery}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
       {toolbarMode === "internal" ? (
       <div data-testid="microflow-editor-toolbar" style={toolbarStyle}>
         <Space style={{ minWidth: 0, overflow: "hidden" }}>
@@ -2428,14 +2886,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             position="bottomRight"
             render={(
               <Dropdown.Menu>
-                <Dropdown.Item icon={<IconCopy />} disabled={props.readonly || !schema.editor.selection.objectId} onClick={handleCopySelection}>复制节点</Dropdown.Item>
+                <Dropdown.Item icon={<IconCopy />} disabled={props.readonly || !schema.editor.selection.objectId && !(schema.editor.selection.objectIds?.length)} onClick={handleCopySelection}>复制节点</Dropdown.Item>
                 <Dropdown.Item icon={<IconCopy />} disabled={props.readonly || !clipboardObject} onClick={handlePasteSelection}>粘贴节点</Dropdown.Item>
-                <Dropdown.Item icon={<IconDelete />} disabled={props.readonly || !schema.editor.selection.objectId && !schema.editor.selection.flowId} onClick={handleDeleteSelection}>删除选择</Dropdown.Item>
+                <Dropdown.Item icon={<IconDelete />} disabled={props.readonly || !schema.editor.selection.objectId && !schema.editor.selection.flowId && !(schema.editor.selection.objectIds?.length) && !(schema.editor.selection.flowIds?.length)} onClick={handleDeleteSelection}>删除选择</Dropdown.Item>
                 <Dropdown.Item icon={<IconRefresh />} onClick={handleAutoLayout}>{labels.format}</Dropdown.Item>
                 <Dropdown.Item onClick={focusNodeSearch}>搜索节点</Dropdown.Item>
                 <Dropdown.Item onClick={() => setLeftOpen(open => !open)}>{leftOpen ? "折叠节点面板" : "展开节点面板"}</Dropdown.Item>
                 <Dropdown.Item onClick={() => setRightOpen(open => !open)}>{rightOpen ? "折叠属性面板" : "展开属性面板"}</Dropdown.Item>
-                <Dropdown.Item onClick={() => setBottomOpen(open => !open)}>{bottomOpen ? "折叠底部面板" : "展开底部面板"}</Dropdown.Item>
+                <Dropdown.Item onClick={toggleBottomDock}>{bottomOpen ? "折叠底部 Dock" : "展开底部 Dock"}</Dropdown.Item>
                 {runSession ? <Dropdown.Item type="danger" icon={<IconDelete />} onClick={clearTestRun}>清空调试</Dropdown.Item> : null}
               </Dropdown.Menu>
             )}
@@ -2462,6 +2920,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 saveFavoriteNodeKeys(keys);
               }}
               onAddNode={(item, options) => handleAddNode(item, options)}
+              onInsertTemplate={handleInsertTemplate}
               onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
               labels={props.nodePanelLabels}
               createContext={{ microflowId: schema.id, moduleId: schema.moduleId, metadataAvailable: Boolean(loadedMetadata), schemaLoaded: true, readonly: props.readonly }}
@@ -2470,6 +2929,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         ) : !focusMode ? (
           <button
             type="button"
+            data-testid="microflow-node-panel-rail"
             aria-label="展开节点面板"
             title={labels.nodePanel}
             style={{
@@ -2503,11 +2963,34 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             commitSchema(nextSchema, reason, { source: "flowgram" });
           }}
           onSelectionChange={selection => {
+            setCanvasNodeContextMenu(undefined);
             applyPatch({
               selectedObjectId: selection.objectId,
               selectedFlowId: selection.flowId,
-              selectedCollectionId: selection.collectionId
+              selectedCollectionId: selection.collectionId,
+              selectedObjectIds: selection.objectIds,
+              selectedFlowIds: selection.flowIds,
+              selectionMode: selection.mode,
             }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+          }}
+          onCanvasBlankClick={() => {
+            setCanvasNodeContextMenu(undefined);
+            applyPatch({
+              selectedObjectId: undefined,
+              selectedFlowId: undefined,
+              selectedCollectionId: undefined,
+              selectedObjectIds: [],
+              selectedFlowIds: [],
+              selectionMode: "none",
+            }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+          }}
+          onNodeContextMenu={(selection, point) => {
+            setCanvasNodeContextMenu(selection.objectId ? {
+              objectId: selection.objectId,
+              collectionId: selection.collectionId,
+              x: point.x,
+              y: point.y,
+            } : undefined);
           }}
           onDropRegistryItem={(item, position, payload, options) => handleAddNode(item, {
             position,
@@ -2543,6 +3026,46 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }}
         />
         </div>
+        {canvasNodeContextMenu ? (
+          <div
+            data-testid="microflow-canvas-node-context-menu"
+            style={{
+              position: "fixed",
+              left: canvasNodeContextMenu.x,
+              top: canvasNodeContextMenu.y,
+              zIndex: 1200,
+              minWidth: 152,
+              padding: 6,
+              borderRadius: 8,
+              border: "1px solid var(--semi-color-border, #e5e6eb)",
+              background: "var(--semi-color-bg-2, #fff)",
+              boxShadow: "0 8px 24px rgba(31, 35, 41, 0.14)"
+            }}
+            onClick={event => event.stopPropagation()}
+            onContextMenu={event => event.preventDefault()}
+          >
+            <Button
+              block
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              icon={<IconSetting />}
+              style={{ justifyContent: "flex-start" }}
+              onClick={() => {
+                applyPatch({
+                  selectedObjectId: canvasNodeContextMenu.objectId,
+                  selectedFlowId: undefined,
+                  selectedCollectionId: canvasNodeContextMenu.collectionId,
+                }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+                setFocusMode(false);
+                setRightOpen(true);
+                setCanvasNodeContextMenu(undefined);
+              }}
+            >
+              {labels.properties}
+            </Button>
+          </div>
+        ) : null}
         {!focusMode ? <div
           data-testid="microflow-editor-right-shell"
           style={{
@@ -2567,6 +3090,39 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         >
           {rightOpen ? (
             <div data-testid="microflow-property-panel" style={propertyPaneStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  padding: "0 0 8px",
+                  marginBottom: 8,
+                  borderBottom: "1px solid var(--semi-color-border, #e5e6eb)"
+                }}
+              >
+                <Space spacing={6}>
+                  <IconSetting />
+                  <Text strong>{labels.properties}</Text>
+                </Space>
+                <Space spacing={4}>
+                  <Button
+                    size="small"
+                    theme={rightPinned ? "solid" : "borderless"}
+                    type="tertiary"
+                    onClick={() => setRightPinned(value => !value)}
+                  >
+                    {rightPinned ? "已固定" : "固定"}
+                  </Button>
+                  <Button
+                    aria-label="关闭属性面板"
+                    size="small"
+                    theme="borderless"
+                    icon={<IconClose />}
+                    onClick={() => setRightOpen(false)}
+                  />
+                </Space>
+              </div>
               <MicroflowPropertyPanel
                   selectedObject={selectedObject}
                   selectedFlow={selectedFlow}
@@ -2616,7 +3172,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     const located = findFlowWithCollection(schema, flowId);
                     commitSchema(deleteFlow(schema, flowId), located?.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow", { source: "propertyPanel" });
                   }}
-                  onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true })}
+                  onClose={() => {
+                    applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true });
+                    if (!rightPinned) {
+                      setRightOpen(false);
+                    }
+                  }}
                 />
             </div>
           ) : null}
@@ -2653,31 +3214,63 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         <div
           data-testid="microflow-bottom-panel"
           style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: BOTTOM_STRIP_HEIGHT_PX,
+            zIndex: 28,
+            height: activeBottomDockHeight,
             minHeight: 0,
             borderTop: "1px solid var(--semi-color-border, #e5e6eb)",
             background: "var(--semi-color-bg-1, #fff)",
             overflow: "hidden",
-            padding: 12,
+            padding: "8px 12px 12px",
             display: "flex",
-            flexDirection: "column"
+            flexDirection: "column",
+            boxShadow: "0 -8px 24px rgba(31, 35, 41, 0.08)"
           }}
         >
+          {bottomDockMode === "full" ? (
+            <div
+              aria-label="调整底部 Dock 高度"
+              role="separator"
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                height: 6,
+                cursor: "row-resize"
+              }}
+              onPointerDown={startBottomDockResize}
+            />
+          ) : null}
           <Tabs
             type="line"
             activeKey={bottomTab}
             onChange={key => setBottomTab(key as "problems" | "debug")}
             tabBarExtraContent={
-              <Button
-                aria-label="折叠底部面板"
-                theme="borderless"
-                icon={<IconChevronDown />}
-                onClick={() => setBottomOpen(false)}
-              />
+              <Space spacing={4}>
+                <Button
+                  aria-label={bottomDockMode === "full" ? "恢复底部 Dock" : "展开底部 Dock"}
+                  size="small"
+                  theme="borderless"
+                  icon={bottomDockMode === "full" ? <IconChevronDown /> : <IconExpand />}
+                  onClick={() => setBottomDockMode(mode => mode === "full" ? "peek" : "full")}
+                />
+                <Button
+                  aria-label="折叠底部 Dock"
+                  size="small"
+                  theme="borderless"
+                  icon={<IconClose />}
+                  onClick={() => setBottomDockMode("collapsed")}
+                />
+              </Space>
             }
             style={{ flex: 1, minHeight: 0 }}
           >
             <Tabs.TabPane tab={<Space><IconTickCircle />{labels.problems}<Badge count={issues.length} /></Space>} itemKey="problems">
-              <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
+              <div style={{ overflow: "auto", maxHeight: activeBottomDockHeight - 56 }}>
                 <ProblemPanel
                   issues={issues}
                   status={validationStatus}
@@ -2702,7 +3295,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               </div>
             </Tabs.TabPane>
             <Tabs.TabPane tab={labels.debug} itemKey="debug">
-              <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
+              <div style={{ overflow: "auto", maxHeight: activeBottomDockHeight - 56 }}>
                 <Tabs type="card" defaultActiveKey="trace">
                   <Tabs.TabPane tab={<span data-testid="microflow-trace-tab-label">Trace</span>} itemKey="trace">
                     <div data-testid="microflow-trace-panel" data-run-id={selectedRunSession?.id} data-run-status={selectedRunSession?.status} data-trace-count={selectedRunSession?.trace.length ?? 0}>
@@ -2711,6 +3304,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       microflowName={schema.displayName || schema.name}
                       session={selectedRunSession}
                       serviceError={runtimeServiceError}
+                      debugAvailable={Boolean(apiClient.debugAdapter)}
+                      debugSession={activeDebugSession}
+                      debugVariables={activeDebugVariables}
+                      debugWatches={activeDebugWatches}
                       activeFrameId={activeTraceFrameId}
                       onSelectFrame={selectTraceFrame}
                       onSelectFlow={selectTraceFlow}
@@ -2718,6 +3315,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       onClear={clearTestRun}
                       onRerun={handleTestRun}
                       onCancelRun={cancelTestRun}
+                      onDebugCommand={command => void handleDebugCommand(command)}
+                      onDebugEvaluate={expression => void handleDebugEvaluate(expression)}
                     />
                     </div>
                   </Tabs.TabPane>
@@ -2747,65 +3346,49 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </Tabs.TabPane>
           </Tabs>
         </div>
-      ) : !focusMode ? (
+      ) : null}
+      {!focusMode ? (
         <div
+          data-testid="microflow-bottom-status-strip"
           style={{
             display: "flex",
             flexDirection: "row",
-            alignItems: "stretch",
+            alignItems: "center",
+            justifyContent: "space-between",
             height: BOTTOM_STRIP_HEIGHT_PX,
             minHeight: BOTTOM_STRIP_HEIGHT_PX,
             borderTop: "1px solid var(--semi-color-border, #e5e6eb)",
-            background: "var(--semi-color-bg-2, #fff)"
+            background: "var(--semi-color-bg-2, #fff)",
+            padding: "0 10px",
+            gap: 8
           }}
         >
-          <button
-            type="button"
-            aria-label="展开问题面板"
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              border: "none",
-              borderRight: "1px solid var(--semi-color-border, #e5e6eb)",
-              background: bottomTab === "problems" ? "var(--semi-color-fill-0, #f4f7fb)" : "transparent",
-              cursor: "pointer",
-              font: "inherit",
-              color: "inherit"
-            }}
-            onClick={() => {
-              setBottomTab("problems");
-              setBottomOpen(true);
-            }}
-          >
-            <IconTickCircle />
-            <Text size="small" strong>{labels.problems}</Text>
-            <Badge count={issues.length} />
-          </button>
-          <button
-            type="button"
-            aria-label="展开调试面板"
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              border: "none",
-              background: bottomTab === "debug" ? "var(--semi-color-fill-0, #f4f7fb)" : "transparent",
-              cursor: "pointer",
-              font: "inherit",
-              color: "inherit"
-            }}
-            onClick={() => {
-              setBottomTab("debug");
-              setBottomOpen(true);
-            }}
-          >
-            <Text size="small" strong>{labels.debug}</Text>
-          </button>
+          <Space spacing={8}>
+            <Button
+              aria-label="展开问题 Dock"
+              size="small"
+              theme={bottomTab === "problems" && bottomOpen ? "solid" : "borderless"}
+              type="tertiary"
+              icon={<IconTickCircle />}
+              onClick={() => openBottomDock("problems")}
+            >
+              {labels.problems}
+              <Badge count={issues.length} />
+            </Button>
+            <Button
+              aria-label="展开调试 Dock"
+              size="small"
+              theme={bottomTab === "debug" && bottomOpen ? "solid" : "borderless"}
+              type="tertiary"
+              onClick={() => openBottomDock("debug")}
+            >
+              {labels.debug}
+            </Button>
+          </Space>
+          <Space spacing={8}>
+            {runSession ? <Tag color={runSession.status === "success" ? "green" : "red"}>{runSession.status} · {runSession.trace.length} frames</Tag> : null}
+            {bottomOpen ? <Text size="small" type="tertiary">{bottomDockMode === "full" ? "Full dock" : "Peek dock"}</Text> : null}
+          </Space>
         </div>
       ) : null}
       <MicroflowTestRunModal

@@ -1215,7 +1215,7 @@ export function toEditorGraph(schema: MicroflowAuthoringSchema): MicroflowEditor
       parentObjectId: entry.parentObjectId,
       collectionId: entry.collectionId,
       state: {
-        selected: Boolean(entry.object.editor.selected),
+        selected: schema.editor.selection.objectId === entry.object.id || (schema.editor.selection.objectIds ?? []).includes(entry.object.id),
         disabled: Boolean(entry.object.disabled),
         hasError: issues.some(issue => issue.severity === "error" && (issue.objectId === entry.object.id || issue.nodeId === entry.object.id)),
         hasWarning: issues.some(issue => issue.severity === "warning" && (issue.objectId === entry.object.id || issue.nodeId === entry.object.id))
@@ -1254,7 +1254,7 @@ export function toEditorGraph(schema: MicroflowAuthoringSchema): MicroflowEditor
           arrow: flow.line.style.arrow === "target" || flow.line.style.arrow === "both"
         },
         state: {
-          selected: Boolean(flow.editor.selected),
+          selected: schema.editor.selection.flowId === flow.id || (schema.editor.selection.flowIds ?? []).includes(flow.id),
           hasError: issues.some(issue => issue.flowId === flow.id || issue.edgeId === flow.id),
           runtimeVisited: false
         }
@@ -1309,6 +1309,8 @@ export function applyEditorGraphPatch(schema: MicroflowAuthoringSchema, patch: M
     }
     return { ...flow, line: update.line ?? flow.line, editor: { ...flow.editor, label: update.label ?? flow.editor.label } };
   });
+  const hasSelectedObject = Object.prototype.hasOwnProperty.call(patch, "selectedObjectId");
+  const hasSelectedFlow = Object.prototype.hasOwnProperty.call(patch, "selectedFlowId");
   return {
     ...schema,
     objectCollection,
@@ -1318,7 +1320,11 @@ export function applyEditorGraphPatch(schema: MicroflowAuthoringSchema, patch: M
       viewport: patch.viewport ?? schema.editor.viewport,
       selection: {
         objectId: patch.selectedObjectId ?? schema.editor.selection.objectId,
-        flowId: patch.selectedFlowId ?? schema.editor.selection.flowId
+        flowId: patch.selectedFlowId ?? schema.editor.selection.flowId,
+        collectionId: patch.selectedCollectionId ?? schema.editor.selection.collectionId,
+        objectIds: patch.selectedObjectIds ?? (hasSelectedObject ? (patch.selectedObjectId ? [patch.selectedObjectId] : []) : schema.editor.selection.objectIds ?? []),
+        flowIds: patch.selectedFlowIds ?? (hasSelectedFlow ? (patch.selectedFlowId ? [patch.selectedFlowId] : []) : schema.editor.selection.flowIds ?? []),
+        mode: patch.selectionMode ?? schema.editor.selection.mode
       }
     }
   };
