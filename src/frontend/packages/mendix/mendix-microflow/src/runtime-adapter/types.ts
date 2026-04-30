@@ -64,6 +64,32 @@ export interface TestRunMicroflowResponse {
   frames: MicroflowTraceFrame[];
   error?: MicroflowRuntimeError;
   session: MicroflowRunSession;
+  hydration?: {
+    sessionHydrated: boolean;
+    traceHydrated: boolean;
+    debugSessionHydrated: boolean;
+    degraded: boolean;
+    warning?: string;
+  };
+  debugSession?: MicroflowDebugSessionDto;
+  debugVariables?: MicroflowDebugVariableSnapshotDto[];
+  debugTrace?: MicroflowDebugTraceEventDto[];
+}
+
+export interface RunSessionViewModel {
+  runId: string;
+  session: MicroflowRunSession;
+  frames: MicroflowTraceFrame[];
+  debugSession?: MicroflowDebugSessionDto;
+  debugVariables?: MicroflowDebugVariableSnapshotDto[];
+  debugTrace?: MicroflowDebugTraceEventDto[];
+  hydration: {
+    sessionHydrated: boolean;
+    traceHydrated: boolean;
+    debugSessionHydrated: boolean;
+    degraded: boolean;
+    warning?: string;
+  };
 }
 
 export type MicroflowRunHistoryStatus = "success" | "failed" | "unsupported" | "cancelled";

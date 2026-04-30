@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import { Button, Empty, Space, Spin, Tag, Typography } from "@douyinfe/semi-ui";
 
-import type { MicroflowEditorHandle } from "@atlas/microflow";
+import type { MicroflowEditorHandle, MicroflowWorkbenchLayoutState, MicroflowWorkbenchStatus } from "@atlas/microflow";
 import type { MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
 import { createMicroflowApiError, getMicroflowApiError, getMicroflowErrorUserMessage, isNotFoundError } from "../adapter/http/microflow-api-error";
 import { MicroflowErrorState } from "../components/error";
@@ -27,6 +27,10 @@ export interface MicroflowResourceEditorHostProps {
    */
   editorRef?: Ref<MicroflowEditorHandle>;
   toolbarMode?: "internal" | "external";
+  shellMode?: "legacy-host-layout" | "editor-native-layout";
+  onLayoutStateChange?: (state: MicroflowWorkbenchLayoutState) => void;
+  onWorkbenchStatusChange?: (status: MicroflowWorkbenchStatus) => void;
+  readonly?: boolean;
 }
 
 const { Text } = Typography;
@@ -67,7 +71,11 @@ export function MicroflowResourceEditorHost({
   onCloseTab,
   microflowResourceIndex,
   editorRef,
-  toolbarMode
+  toolbarMode,
+  shellMode,
+  onLayoutStateChange,
+  onWorkbenchStatusChange,
+  readonly,
 }: MicroflowResourceEditorHostProps) {
   const requestSeqRef = useRef(0);
   const mountedRef = useRef(false);
@@ -233,6 +241,10 @@ export function MicroflowResourceEditorHost({
           microflowResourceIndex={microflowResourceIndex}
           editorRef={editorRef}
           toolbarMode={toolbarMode}
+          shellMode={shellMode}
+          onLayoutStateChange={onLayoutStateChange}
+          onWorkbenchStatusChange={onWorkbenchStatusChange}
+          readonly={readonly}
           onSave={saved => {
             if (!mountedRef.current || saved.id !== microflowId) {
               return;

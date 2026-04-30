@@ -11,7 +11,26 @@ const e2eBuildRoot = path.resolve(repoRoot, "artifacts", "e2e");
 const appHostBuildDir = path.resolve(e2eBuildRoot, "Atlas.AppHost");
 const appHostDll = path.resolve(appHostBuildDir, "Atlas.AppHost.dll");
 const isWindows = process.platform === "win32";
-const rawPlaywrightArgs = process.argv.slice(2);
+function normalizePlaywrightArgs(args) {
+  const normalized = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    normalized.push(arg);
+    if (arg !== "-g" && arg !== "--grep") {
+      continue;
+    }
+
+    const nextArg = args[index + 1];
+    if (nextArg && !nextArg.startsWith("-")) {
+      continue;
+    }
+
+    normalized.push(process.env.PLAYWRIGHT_GREP?.trim() || "@microflow");
+  }
+  return normalized;
+}
+
+const rawPlaywrightArgs = normalizePlaywrightArgs(process.argv.slice(2));
 const hasExplicitConfigArg = rawPlaywrightArgs.some(
   (arg) => arg === "-c" || arg === "--config" || arg.startsWith("--config=")
 );

@@ -19,6 +19,7 @@ import type {
   ValidateMicroflowResponse,
 } from "@atlas/microflow";
 import type { MicroflowDebugAdapter, MicroflowRunSession, MicroflowTraceFrame } from "@atlas/microflow";
+import type { MicroflowDebugSessionDto, MicroflowDebugTraceEventDto, MicroflowDebugVariableSnapshotDto, RunSessionViewModel } from "@atlas/microflow";
 
 import type { MicroflowResource } from "../../resource/resource-types";
 import type { GetMicroflowSchemaResponse, SaveMicroflowSchemaResponse } from "../../contracts/api/microflow-schema-api-contract";
@@ -49,6 +50,97 @@ function normalizeRunDetail(dto: MicroflowRunSession): MicroflowRunSession {
     childRuns: dto.childRuns?.map(child => normalizeRunDetail(child)) ?? [],
     childRunIds: [...(dto.childRunIds ?? [])],
     callStack: [...(dto.callStack ?? [])],
+  };
+}
+
+function createHydrationSummary(input: {
+  sessionHydrated: boolean;
+  traceHydrated: boolean;
+  debugSessionHydrated: boolean;
+}): RunSessionViewModel["hydration"] {
+  const degraded = !input.sessionHydrated || !input.traceHydrated;
+  const warning = degraded
+    ? "运行会话已启动，但持久化会话或 trace 回读未完全成功。"
+    : undefined;
+  return {
+    ...input,
+    degraded,
+    warning,
+  };
+}
+
+async function runWithSessionHydration(
+  client: MicroflowApiClient,
+  request: Parameters<RuntimeMicroflowApiClient["testRunMicroflow"]>[0],
+  debugAdapter: MicroflowDebugAdapter | undefined,
+): Promise<TestRunMicroflowResponse> {
+  const id = request.microflowId ?? request.schema?.id;
+  if (!id) {
+    throw new Error("Microflow test-run requires microflowId.");
+  }
+
+  const response = await client.post<{ session: MicroflowRunSession }>(`/microflows/${encodeURIComponent(id)}/test-run`, {
+    schema: request.schema,
+    input: request.input,
+    inputs: request.input,
+    schemaId: request.schemaId,
+    version: request.version,
+    debug: request.debug ?? true,
+    debugSessionId: request.debugSessionId,
+    correlationId: request.correlationId,
+    options: request.options,
+  });
+
+  const bootstrapSession = normalizeRunDetail(response.session);
+  const runId = bootstrapSession.id;
+  const [hydratedSessionResult, hydratedTraceResult, hydratedDebugSessionResult, hydratedVariablesResult, hydratedDebugTraceResult] = await Promise.allSettled([
+    client.get<MicroflowRunSession>(`/microflows/runs/${encodeURIComponent(runId)}`),
+    client.get<{ trace: MicroflowTraceFrame[] }>(`/microflows/runs/${encodeURIComponent(runId)}/trace`),
+    request.debugSessionId && debugAdapter ? debugAdapter.getSession(request.debugSessionId) : Promise.resolve(undefined as MicroflowDebugSessionDto | undefined),
+    request.debugSessionId && debugAdapter ? debugAdapter.listVariables(request.debugSessionId) : Promise.resolve(undefined as MicroflowDebugVariableSnapshotDto[] | undefined),
+    request.debugSessionId && debugAdapter ? debugAdapter.trace(request.debugSessionId) : Promise.resolve(undefined as MicroflowDebugTraceEventDto[] | undefined),
+  ]);
+
+  const hydratedSession = hydratedSessionResult.status === "fulfilled" && hydratedSessionResult.value
+    ? normalizeRunDetail(hydratedSessionResult.value)
+    : undefined;
+  const hydratedTrace = hydratedTraceResult.status === "fulfilled"
+    ? hydratedTraceResult.value.trace
+    : undefined;
+  const session = {
+    ...(hydratedSession ?? bootstrapSession),
+    trace: hydratedTrace ?? (hydratedSession?.trace?.length ? hydratedSession.trace : bootstrapSession.trace),
+    persistedAt: hydratedSession?.persistedAt ?? bootstrapSession.persistedAt ?? hydratedSession?.endedAt ?? bootstrapSession.endedAt,
+    finalized: hydratedSession?.finalized ?? Boolean(hydratedSession?.endedAt ?? bootstrapSession.endedAt),
+    traceFrameCount: hydratedTrace?.length ?? hydratedSession?.traceFrameCount ?? hydratedSession?.trace.length ?? bootstrapSession.trace.length,
+    hasHydratedTrace: Boolean(hydratedTrace ?? hydratedSession?.hasHydratedTrace),
+  } satisfies MicroflowRunSession;
+  const errorCode = session.error?.code ?? session.trace?.find(frame => frame.error)?.error?.code;
+  const status = errorCode?.toUpperCase().includes("UNSUPPORTED")
+    ? "unsupported"
+    : session.status === "success"
+      ? "succeeded"
+      : session.status === "failed"
+        ? "failed"
+        : "cancelled";
+  const hydration = createHydrationSummary({
+    sessionHydrated: Boolean(hydratedSession),
+    traceHydrated: Boolean(hydratedTrace),
+    debugSessionHydrated: hydratedDebugSessionResult.status === "fulfilled" && Boolean(hydratedDebugSessionResult.value),
+  });
+
+  return {
+    runId: session.id,
+    status,
+    startedAt: session.startedAt,
+    durationMs: session.endedAt ? Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) : 0,
+    frames: session.trace,
+    error: session.error,
+    session,
+    hydration,
+    debugSession: hydratedDebugSessionResult.status === "fulfilled" ? hydratedDebugSessionResult.value : undefined,
+    debugVariables: hydratedVariablesResult.status === "fulfilled" ? hydratedVariablesResult.value : undefined,
+    debugTrace: hydratedDebugTraceResult.status === "fulfilled" ? hydratedDebugTraceResult.value : undefined,
   };
 }
 
@@ -179,39 +271,7 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       };
     },
     async testRunMicroflow(request): Promise<TestRunMicroflowResponse> {
-      const id = request.microflowId ?? request.schema?.id;
-      if (!id) {
-        throw new Error("Microflow test-run requires microflowId.");
-      }
-      const response = await client.post<{ session: MicroflowRunSession }>(`/microflows/${encodeURIComponent(id)}/test-run`, {
-        schema: request.schema,
-        input: request.input,
-        inputs: request.input,
-        schemaId: request.schemaId,
-        version: request.version,
-        debug: request.debug ?? true,
-        debugSessionId: request.debugSessionId,
-        correlationId: request.correlationId,
-        options: request.options,
-      });
-      const session = response.session;
-      const errorCode = session.error?.code ?? session.trace?.find(frame => frame.error)?.error?.code;
-      const status = errorCode?.toUpperCase().includes("UNSUPPORTED")
-        ? "unsupported"
-        : session.status === "success"
-          ? "succeeded"
-          : session.status === "failed"
-            ? "failed"
-            : "cancelled";
-      return {
-        runId: session.id,
-        status,
-        startedAt: session.startedAt,
-        durationMs: session.endedAt ? Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) : 0,
-        frames: session.trace,
-        error: session.error,
-        session,
-      };
+      return runWithSessionHydration(client, request, debugAdapter);
     },
     async cancelMicroflowRun(runId: string) {
       return client.post<{ runId: string; status: "cancelled" | "success" | "failed" }>(`/microflows/runs/${encodeURIComponent(runId)}/cancel`, {});

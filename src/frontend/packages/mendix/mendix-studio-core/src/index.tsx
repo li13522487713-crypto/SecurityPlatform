@@ -1,8 +1,8 @@
 import "./studio.css";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Card, Space, Toast, Typography } from "@douyinfe/semi-ui";
-import type { MicroflowEditorHandle } from "@atlas/microflow";
+import { Button, Card, Modal, SideSheet, Space, Toast, Typography } from "@douyinfe/semi-ui";
+import type { MicroflowEditorHandle, MicroflowWorkbenchLayoutState, MicroflowWorkbenchStatus } from "@atlas/microflow";
 
 import type { MicroflowAdapterFactoryConfig } from "./microflow/config/microflow-adapter-config";
 import type { MicroflowAdapterBundle } from "./microflow/adapter/microflow-adapter-factory";
@@ -14,6 +14,8 @@ import { WidgetToolbox } from "./components/widget-toolbox";
 import { WorkbenchTabs } from "./components/workbench-tabs";
 import { WorkbenchToolbar } from "./components/workbench-toolbar";
 import { MicroflowWorkbenchToolbar } from "./components/microflow-workbench-toolbar";
+import { MicroflowStudioBottomPanel } from "./components/microflow-studio-bottom-panel";
+import { WorkbenchCommandPalette } from "./components/workbench-command-palette";
 import { PageDesignerCanvas } from "./components/page-designer-canvas";
 import { WidgetStructurePanel } from "./components/widget-structure-panel";
 import { PropertiesPanel } from "./components/properties-panel";
@@ -24,7 +26,15 @@ import { useMendixStudioStore } from "./store";
 import { MicroflowResourceEditorHost } from "./microflow/studio/MicroflowResourceEditorHost";
 import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
 import { MicroflowReferencesDrawer } from "./microflow/references/MicroflowReferencesDrawer";
+import { MicroflowWorkbenchCommandBus } from "./microflow/workbench/microflow-workbench-command-bus";
+import { resolveMicroflowActivation } from "./microflow/workbench/microflow-activation-guard";
+import { MicroflowWorkbenchErrorBus } from "./microflow/workbench/microflow-workbench-error-bus";
 import { getMendixStudioCopy } from "./i18n/copy";
+
+interface PendingMicroflowActivation {
+  microflowId: string;
+  reason: "explorer" | "deeplink" | "references";
+}
 
 export interface MendixStudioAppProps {
   appId?: string;
@@ -33,6 +43,7 @@ export interface MendixStudioAppProps {
   currentUser?: MicroflowAdapterFactoryConfig["currentUser"];
   adapterConfig?: MicroflowAdapterFactoryConfig;
   adapterBundle?: MicroflowAdapterBundle;
+  useNativeMicroflowDocking?: boolean;
 }
 
 const { Text } = Typography;
@@ -44,6 +55,7 @@ export function MendixStudioApp({
   currentUser,
   adapterConfig,
   adapterBundle,
+  useNativeMicroflowDocking = true,
 }: MendixStudioAppProps) {
   const copy = getMendixStudioCopy();
   const activeTab = useMendixStudioStore(state => state.activeTab);
@@ -64,6 +76,27 @@ export function MendixStudioApp({
   const [microflowResourceRefreshToken, setMicroflowResourceRefreshToken] = useState(0);
   const [referencesMicroflowId, setReferencesMicroflowId] = useState<string>();
   const [openedDeepLinkMicroflowId, setOpenedDeepLinkMicroflowId] = useState<string>();
+  const [microflowWorkbenchStatus, setMicroflowWorkbenchStatus] = useState<MicroflowWorkbenchStatus | null>(null);
+  const [microflowWorkbenchLayout, setMicroflowWorkbenchLayout] = useState<MicroflowWorkbenchLayoutState | null>(null);
+  const [commandBus] = useState(() => new MicroflowWorkbenchCommandBus());
+  const [errorBus] = useState(() => new MicroflowWorkbenchErrorBus({
+    onUnauthorizedRedirect: () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      const redirectTarget = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      Toast.error("登录已失效，正在跳转到登录页。");
+      window.setTimeout(() => {
+        window.location.assign(`/sign?redirect=${encodeURIComponent(redirectTarget)}`);
+      }, 0);
+    },
+    onOpenProblems: () => {
+      void commandBus.execute("microflow.openPanel", { panel: "problems" }).catch(() => undefined);
+    },
+  }));
+  const [errorBusSnapshot, setErrorBusSnapshot] = useState(() => errorBus.getSnapshot());
+  const [pendingMicroflowActivation, setPendingMicroflowActivation] = useState<PendingMicroflowActivation>();
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // 创建 adapter bundle；如果构建失败，仅 console.warn，不阻断页面渲染。
   const _resolvedBundle = useMemo<MicroflowAdapterBundle | undefined>(() => {
@@ -100,9 +133,9 @@ export function MendixStudioApp({
       return;
     }
 
-    openMicroflowWorkbenchTab(microflowId);
+    requestOpenMicroflow(microflowId, "deeplink");
     setOpenedDeepLinkMicroflowId(microflowId);
-  }, [microflowResourcesById, openMicroflowWorkbenchTab, openedDeepLinkMicroflowId]);
+  }, [microflowResourcesById, openedDeepLinkMicroflowId]);
 
   const isMicroflow = activeWorkbenchTab?.kind === "microflow";
   const activeMicroflowId = isMicroflow
@@ -123,6 +156,79 @@ export function MendixStudioApp({
   const openReferencesPanel = (microflowId: string) => {
     setReferencesMicroflowId(microflowId);
   };
+
+  const activateMicroflowWorkbenchTab = (microflowId: string) => {
+    openMicroflowWorkbenchTab(microflowId);
+    useMendixStudioStore.getState().setSelected("microflow", microflowId);
+    useMendixStudioStore.getState().setSelectedExplorerNodeId(`microflow:${microflowId}`);
+    const resource = microflowResourcesById[microflowId];
+    if (resource?.moduleId) {
+      useMendixStudioStore.getState().setActiveModuleId(resource.moduleId);
+    }
+  };
+
+  const requestOpenMicroflow = (microflowId: string, reason: PendingMicroflowActivation["reason"]) => {
+    const decision = resolveMicroflowActivation({
+      targetMicroflowId: microflowId,
+      activeWorkbenchTabId: useMendixStudioStore.getState().activeWorkbenchTabId,
+      workbenchTabs: useMendixStudioStore.getState().workbenchTabs,
+      dirtyByWorkbenchTabId: useMendixStudioStore.getState().dirtyByWorkbenchTabId,
+    });
+    if (decision.kind === "confirm-dirty") {
+      setPendingMicroflowActivation({ microflowId, reason });
+      return;
+    }
+    activateMicroflowWorkbenchTab(microflowId);
+  };
+
+  useEffect(() => {
+    commandBus.bindContext({
+      microflowId: activeMicroflowId,
+      tabId: activeMicroflowTabId,
+      getEditorHandle: () => microflowEditorHandleRef.current,
+      openReferencesPanel,
+    });
+  }, [activeMicroflowId, activeMicroflowTabId, commandBus]);
+
+  useEffect(() => {
+    if (activeMicroflowId !== microflowWorkbenchStatus?.microflowId) {
+      setMicroflowWorkbenchStatus(null);
+      setMicroflowWorkbenchLayout(null);
+    }
+  }, [activeMicroflowId, microflowWorkbenchStatus?.microflowId]);
+
+  useEffect(() => {
+    const unsubscribe = errorBus.subscribe(setErrorBusSnapshot);
+    const detach = errorBus.attach();
+    return () => {
+      unsubscribe();
+      detach();
+      errorBus.dispose();
+    };
+  }, [errorBus]);
+
+  useEffect(() => {
+    if (activeMicroflowId) {
+      errorBus.clearReadonlyReason();
+    }
+  }, [activeMicroflowId, errorBus]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const commandKey = event.ctrlKey || event.metaKey;
+      const isEditable = event.target instanceof HTMLElement
+        && Boolean(event.target.closest("input, textarea, select, [contenteditable='true']"));
+      if (isEditable) {
+        return;
+      }
+      if (commandKey && event.key.toLowerCase() === "k" && activeMicroflowId) {
+        event.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [activeMicroflowId]);
 
   useEffect(() => {
     const hasDirtyTab = Object.values(dirtyByWorkbenchTabId).some(Boolean);
@@ -202,7 +308,7 @@ export function MendixStudioApp({
           mode={isMicroflow ? "microflowDesigner" : "normal"}
           defaultCollapsed={isMicroflow}
           activeTool={isMicroflow ? "toolbox" : "explorer"}
-          explorer={<AppExplorer adapterBundle={_resolvedBundle} appId={appId} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} onViewMicroflowReferences={openReferencesPanel} />}
+          explorer={<AppExplorer adapterBundle={_resolvedBundle} appId={appId} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} onViewMicroflowReferences={openReferencesPanel} onOpenMicroflow={microflowId => requestOpenMicroflow(microflowId, "explorer")} />}
         >
           <div
             style={{
@@ -232,6 +338,8 @@ export function MendixStudioApp({
                   <MicroflowWorkbenchToolbar
                     microflowId={activeMicroflowId}
                     editorRef={microflowEditorHandleRef}
+                    status={microflowWorkbenchStatus}
+                    commandBus={commandBus}
                     onViewReferences={openReferencesPanel}
                   />
                 ) : (
@@ -282,10 +390,15 @@ export function MendixStudioApp({
                       microflowResourceIndex={microflowResourcesById}
                       editorRef={microflowEditorHandleRef}
                       toolbarMode="external"
+                      shellMode={useNativeMicroflowDocking ? "editor-native-layout" : "legacy-host-layout"}
+                      onLayoutStateChange={setMicroflowWorkbenchLayout}
+                      onWorkbenchStatusChange={setMicroflowWorkbenchStatus}
+                      readonly={Boolean(errorBusSnapshot.readonlyReason)}
                       onRefreshResourceList={() => setMicroflowResourceRefreshToken(token => token + 1)}
                       onCloseTab={() => closeWorkbenchTab(activeMicroflowTabId, { force: true })}
                       onOpenMicroflow={openMicroflowWorkbenchTab}
                       onDirtyChange={dirty => markMicroflowDirty(activeMicroflowId, dirty)}
+                      readonly={Boolean(errorBusSnapshot.readonlyReason)}
                       onResourceUpdated={resource => {
                         const view = mapMicroflowResourceToStudioDefinitionView(resource);
                         upsertStudioMicroflow(view);
@@ -315,6 +428,13 @@ export function MendixStudioApp({
                       </Card>
                     </div>
                   )}
+                  {!useNativeMicroflowDocking ? (
+                    <MicroflowStudioBottomPanel
+                      microflowId={activeMicroflowId}
+                      resource={activeMicroflowResource}
+                      adapterBundle={_resolvedBundle}
+                    />
+                  ) : null}
                   </div>
                 </div>
               ) : (
@@ -360,11 +480,117 @@ export function MendixStudioApp({
           resource={referencesResource}
           adapter={_resolvedBundle.resourceAdapter}
           resourceIndex={microflowResourcesById}
-          onOpenMicroflow={openMicroflowWorkbenchTab}
+          onOpenMicroflow={microflowId => requestOpenMicroflow(microflowId, "references")}
           onRefreshResourceList={() => setMicroflowResourceRefreshToken(token => token + 1)}
           onClose={() => setReferencesMicroflowId(undefined)}
         />
       ) : null}
+      <WorkbenchCommandPalette
+        visible={commandPaletteOpen}
+        status={microflowWorkbenchStatus}
+        commandBus={commandBus}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
+      <Modal
+        title="切换前处理未保存更改"
+        visible={Boolean(pendingMicroflowActivation)}
+        onCancel={() => setPendingMicroflowActivation(undefined)}
+        footer={
+          <Space>
+            <Button
+              type="primary"
+              disabled={!activeMicroflowId || Boolean(activeMicroflowId && saveStateByMicroflowId[activeMicroflowId]?.saving)}
+              loading={Boolean(activeMicroflowId && saveStateByMicroflowId[activeMicroflowId]?.saving)}
+              onClick={() => {
+                if (!activeMicroflowId || !pendingMicroflowActivation) {
+                  return;
+                }
+                window.dispatchEvent(new CustomEvent("atlas:microflow-save-request", {
+                  detail: {
+                    microflowId: activeMicroflowId,
+                    onSaved: () => {
+                      const nextTarget = pendingMicroflowActivation;
+                      setPendingMicroflowActivation(undefined);
+                      activateMicroflowWorkbenchTab(nextTarget.microflowId);
+                    },
+                  },
+                }));
+              }}
+            >
+              Save
+            </Button>
+            <Button onClick={() => setPendingMicroflowActivation(undefined)}>
+              Cancel
+            </Button>
+            <Button
+              type="danger"
+              onClick={() => {
+                const currentActiveTabId = useMendixStudioStore.getState().activeWorkbenchTabId;
+                const nextTarget = pendingMicroflowActivation;
+                setPendingMicroflowActivation(undefined);
+                if (currentActiveTabId) {
+                  closeWorkbenchTab(currentActiveTabId, { force: true });
+                }
+                if (nextTarget) {
+                  activateMicroflowWorkbenchTab(nextTarget.microflowId);
+                }
+              }}
+            >
+              Discard
+            </Button>
+          </Space>
+        }
+      >
+        <Space vertical align="start" spacing={8}>
+          <Text strong>{activeWorkbenchTab?.title ?? "当前微流"}</Text>
+          <Text type="tertiary">当前微流存在未保存更改。为避免切换后丢失本地草稿，请先保存，或显式放弃更改后再打开目标微流。</Text>
+          {pendingMicroflowActivation ? (
+            <Text type="tertiary">
+              目标微流：{microflowResourcesById[pendingMicroflowActivation.microflowId]?.displayName ?? pendingMicroflowActivation.microflowId}
+            </Text>
+          ) : null}
+        </Space>
+      </Modal>
+      <SideSheet
+        visible={Boolean(errorBusSnapshot.activeError)}
+        title={errorBusSnapshot.activeError?.category === "permission" ? "微流权限受限" : "微流工作台错误"}
+        width="min(640px, calc(100vw - 32px))"
+        onCancel={() => errorBus.clearActiveError()}
+        footer={
+          <Space>
+            <Button onClick={() => errorBus.clearActiveError()}>关闭</Button>
+            {errorBusSnapshot.activeError?.category === "validation" ? (
+              <Button
+                type="primary"
+                onClick={() => {
+                  void commandBus.execute("microflow.openPanel", { panel: "problems" }).catch(() => undefined);
+                  errorBus.clearActiveError();
+                }}
+              >
+                打开问题面板
+              </Button>
+            ) : null}
+          </Space>
+        }
+      >
+        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+          <Text strong>{errorBusSnapshot.activeError?.message ?? "微流工作台发生未知错误。"}</Text>
+          <Text type="tertiary">分类: {errorBusSnapshot.activeError?.category ?? "-"}</Text>
+          <Text type="tertiary">HTTP: {errorBusSnapshot.activeError?.httpStatus ?? "-"}</Text>
+          <Text type="tertiary">TraceId: {errorBusSnapshot.activeError?.traceId ?? "-"}</Text>
+          {errorBusSnapshot.readonlyReason ? <Text type="warning">当前工作台已进入只读模式，直到切换微流或刷新页面。</Text> : null}
+          {microflowWorkbenchLayout ? (
+            <Card style={{ width: "100%" }}>
+              <Space vertical align="start" spacing={6}>
+                <Text strong>当前工作台状态</Text>
+                <Text size="small">Shell 模式: {microflowWorkbenchLayout.shellMode}</Text>
+                <Text size="small">底部标签: {microflowWorkbenchLayout.activeBottomTab}</Text>
+                <Text size="small">底部停靠: {microflowWorkbenchLayout.bottomDockMode}</Text>
+              </Space>
+            </Card>
+          ) : null}
+        </Space>
+      </SideSheet>
     </div>
   );
 }

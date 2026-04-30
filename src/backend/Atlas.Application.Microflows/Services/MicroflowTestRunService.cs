@@ -418,6 +418,13 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     private static TestRunMicroflowApiResponse ToApiResponse(MicroflowRunSessionDto session, string traceId)
     {
+        var normalizedSession = session with
+        {
+            PersistedAt = session.PersistedAt ?? session.EndedAt ?? session.StartedAt,
+            Finalized = session.Finalized ?? session.EndedAt.HasValue,
+            TraceFrameCount = session.TraceFrameCount ?? session.Trace.Count,
+            HasHydratedTrace = session.HasHydratedTrace ?? false
+        };
         var durationMs = session.EndedAt.HasValue
             ? Math.Max(0, (int)(session.EndedAt.Value - session.StartedAt).TotalMilliseconds)
             : 0;
@@ -429,20 +436,20 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 : session.Status;
         return new TestRunMicroflowApiResponse
         {
-            Session = session,
-            RunId = session.Id,
-            MicroflowId = session.ResourceId,
+            Session = normalizedSession,
+            RunId = normalizedSession.Id,
+            MicroflowId = normalizedSession.ResourceId,
             Status = status,
-            Result = session.Output,
+            Result = normalizedSession.Output,
             ErrorCode = errorCode,
-            ErrorMessage = session.Error?.Message ?? session.Trace.FirstOrDefault(frame => frame.Error is not null)?.Error?.Message,
+            ErrorMessage = normalizedSession.Error?.Message ?? normalizedSession.Trace.FirstOrDefault(frame => frame.Error is not null)?.Error?.Message,
             DurationMs = durationMs,
-            StartedAt = session.StartedAt,
-            CompletedAt = session.EndedAt,
+            StartedAt = normalizedSession.StartedAt,
+            CompletedAt = normalizedSession.EndedAt,
             TraceId = traceId,
-            Logs = session.Logs,
-            NodeResults = session.Trace,
-            CallStack = session.CallStack
+            Logs = normalizedSession.Logs,
+            NodeResults = normalizedSession.Trace,
+            CallStack = normalizedSession.CallStack
         };
     }
 
@@ -567,6 +574,13 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             StartedAt = session.StartedAt,
             EndedAt = session.EndedAt,
             Status = session.Status,
+            PersistedAt = session.EndedAt ?? session.StartedAt,
+            Finalized = session.EndedAt.HasValue
+                || string.Equals(session.Status, "success", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(session.Status, "failed", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(session.Status, "cancelled", StringComparison.OrdinalIgnoreCase),
+            TraceFrameCount = session.TraceFrameCount > 0 ? session.TraceFrameCount : frames.Count,
+            HasHydratedTrace = session.TraceFrameCount <= 0 || frames.Count >= session.TraceFrameCount,
             Input = Deserialize<Dictionary<string, JsonElement>>(session.InputJson) ?? new Dictionary<string, JsonElement>(),
             Output = ParseOptional(session.OutputJson),
             Error = error,

@@ -80,6 +80,14 @@ async function main() {
   const browser = await chromium.launch({ headless: process.env.HEADED === "1" ? false : true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 950 } });
   const page = await context.newPage();
+  page.on("pageerror", error => {
+    console.error(`[browser pageerror] ${error.message}`);
+  });
+  page.on("console", message => {
+    if (["error", "warning"].includes(message.type())) {
+      console.error(`[browser ${message.type()}] ${message.text()}`);
+    }
+  });
   const evidence = {
     studioUrl,
     runName,
@@ -121,10 +129,22 @@ async function main() {
     evidence.editorVisible = true;
     evidence.screenshots.push(await screenshot(page, "01-created-editor"));
 
-    if (!await page.getByTestId("microflow-node-panel").isVisible().catch(() => false)) {
-      await page.getByTestId("microflow-node-panel-rail").click();
+    const nodePanel = page.getByTestId("microflow-node-panel");
+    const nodePanelRail = page.getByTestId("microflow-node-panel-rail");
+    await page.waitForTimeout(500);
+    if (!await nodePanel.isVisible().catch(() => false)) {
+      if (await nodePanelRail.isVisible({ timeout: 10_000 }).catch(() => false)) {
+        await nodePanelRail.click();
+      } else {
+        await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K").catch(() => undefined);
+        const commandSearch = page.getByPlaceholder("Search commands");
+        if (await commandSearch.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          await commandSearch.fill("toolbox");
+          await page.keyboard.press("Enter");
+        }
+      }
     }
-    await assertVisible(page.getByTestId("microflow-node-panel"), "节点面板可见");
+    await assertVisible(nodePanel, "节点面板可见");
     evidence.nodePanelVisible = true;
     await assertVisible(page.getByTestId("microflow-workbench-save"), "保存按钮可见");
     evidence.saveVisible = true;

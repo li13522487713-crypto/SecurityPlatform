@@ -68,6 +68,7 @@ export interface AppExplorerProps {
   workspaceId?: string;
   refreshToken?: number;
   onViewMicroflowReferences?: (microflowId: string) => void;
+  onOpenMicroflow?: (microflowId: string) => void;
 }
 
 export type MicroflowLoadStatus = "idle" | "loading" | "success" | "error";
@@ -205,7 +206,7 @@ function formatMicroflowListError(error: MicroflowApiError): string {
   return parts.join(" · ");
 }
 
-export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refreshToken, onViewMicroflowReferences }: AppExplorerProps) {
+export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refreshToken, onViewMicroflowReferences, onOpenMicroflow }: AppExplorerProps) {
   const [searchText, setSearchText] = useState("");
   const [microflowStatus, setMicroflowStatus] = useState<MicroflowLoadStatus>("idle");
   const [microflowError, setMicroflowError] = useState<MicroflowApiError>();
@@ -650,9 +651,13 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
 
     if (node.kind === "microflow" && node.microflowId) {
       setSelected("microflow", node.microflowId);
-      setActiveMicroflowId(node.microflowId);
       setActiveModuleId(node.moduleId);
-      openMicroflowWorkbenchTab(node.microflowId);
+      if (onOpenMicroflow) {
+        onOpenMicroflow(node.microflowId);
+      } else {
+        setActiveMicroflowId(node.microflowId);
+        openMicroflowWorkbenchTab(node.microflowId);
+      }
       return;
     }
 
@@ -671,6 +676,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
     setActiveMicroflowId,
     setActiveModuleId,
     setActiveWorkbenchTab,
+    onOpenMicroflow,
     openMicroflowWorkbenchTab,
     setSelected,
     setSelectedExplorerNodeId

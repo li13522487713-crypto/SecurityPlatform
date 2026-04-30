@@ -2754,7 +2754,11 @@ X-Trace-Id: {{traceId}}
 ### Round 61 - Production Readiness / test-run sample
 # Expected JSON path:
 # - $.success=true
-# - $.data.sessionId exists
+# - $.data.runId exists
+# - $.data.session.id == $.data.runId
+# - $.data.session.persistedAt exists
+# - $.data.session.traceFrameCount >= 0
+# - $.data.session.hasHydratedTrace is boolean
 POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
@@ -2774,6 +2778,10 @@ X-Trace-Id: {{traceId}}
 # Expected JSON path:
 # - $.success=true
 # - $.data.id="{{runId}}"
+# - $.data.persistedAt exists
+# - $.data.finalized is boolean
+# - $.data.traceFrameCount >= 0
+# - $.data.hasHydratedTrace is boolean
 GET {{host}}/api/v1/microflows/runs/{{runId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -2783,7 +2791,8 @@ X-Trace-Id: {{traceId}}
 ### Round 61 - Production Readiness / get trace paged
 # Expected JSON path:
 # - $.success=true
-# - $.data.frames is array
+# - $.data.trace is array
+# - $.data.logs is array
 GET {{host}}/api/v1/microflows/runs/{{runId}}/trace?pageIndex=1&pageSize=50
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -3384,6 +3393,11 @@ X-Trace-Id: {{traceId}}
 
 ### Debug — get session safe point
 # RestCall internal phases: beforeRestRequest, afterRestResponse, afterRestHandled.
+# Expected JSON path:
+# - $.success=true
+# - $.data.state exists
+# - $.data.availableCommands is array
+# - $.data.lastUpdatedAt exists
 GET {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}

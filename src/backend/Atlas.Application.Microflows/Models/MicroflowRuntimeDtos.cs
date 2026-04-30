@@ -168,6 +168,18 @@ public sealed record MicroflowRunSessionDto
     [JsonPropertyName("status")]
     public string Status { get; init; } = "failed";
 
+    [JsonPropertyName("persistedAt")]
+    public DateTimeOffset? PersistedAt { get; init; }
+
+    [JsonPropertyName("finalized")]
+    public bool? Finalized { get; init; }
+
+    [JsonPropertyName("traceFrameCount")]
+    public int? TraceFrameCount { get; init; }
+
+    [JsonPropertyName("hasHydratedTrace")]
+    public bool? HasHydratedTrace { get; init; }
+
     [JsonPropertyName("input")]
     public IReadOnlyDictionary<string, JsonElement> Input { get; init; } = new Dictionary<string, JsonElement>();
 

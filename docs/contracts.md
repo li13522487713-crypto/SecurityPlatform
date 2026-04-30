@@ -2381,6 +2381,12 @@ export function formatStudioTemplate(template: string, params: Record<string, st
 - 后端第 55 轮新增 Runtime LoopExecutor：`iterableList` 从 VariableStore 读取真实 list 并逐项 push loop scope，`whileCondition` 通过 ExpressionEvaluator 求 boolean；Break/Continue 只作用于最近 loop，trace `loopIteration` 包含 iterator、`$currentIndex`、depth、conditionResult 与 controlSignal；仍不做 CallMicroflow 深度、真实 REST 深化或完整 ErrorHandling rollback。
 - 后端第 57 轮新增 RestCall / LogMessage Runtime 深化：RestCall 默认 mock，`allowRealHttp=true` 时经 `IMicroflowRuntimeHttpClient`/`IHttpClientFactory` 真实 HTTP 执行，并强制 URL/SSRF/header policy、timeout、response size limit、response handling、敏感 header 脱敏与 `$latestHttpResponse`；LogMessage 支持 template arguments 表达式、`logNodeName`、context variables preview、traceId 与结构化 RuntimeLog。SOAP/XML/Document/Workflow/ML 仍为 connector required。
 - Microflow Step Debug 新增 RestCall 内部安全点：`beforeRestRequest`、`afterRestResponse`、`afterRestHandled`，并在 `MicroflowDebugSession.currentSafePoint` 暴露 `phase/callDepth/semanticKind`。`stepInto` 会进入子微流与 RestCall 内部相位；`stepOver` 跳过更深 callDepth 与 RestCall 内部相位，停在同层下一可见安全点；`stepOut` 停在返回父级 callDepth 的第一个后续安全点。未传 `debugSessionId` 的普通 test-run 不触发暂停。
+- Microflow Workbench P0/P1 运行/调试闭环约束：
+  - `POST /api/v1/microflows/{id}/test-run` 仍是唯一设计态执行入口，不新增并行 `/run` API。
+  - 前端收到 bootstrap `session` 后，必须基于同一 `runId` 继续回读 `GET /api/v1/microflows/runs/{runId}` 与 `GET /api/v1/microflows/runs/{runId}/trace` 形成 durable run view；若请求里携带 `debugSessionId`，还需继续回读 `GET /api/v1/microflows/debug-sessions/{id}`、`/variables`、`/trace`。
+  - `MicroflowRunSessionDto` 新增 `persistedAt`、`finalized`、`traceFrameCount`、`hasHydratedTrace`，用于工作台判断运行会话是否已完成持久化与 trace hydration。
+  - `MicroflowDebugSession` / 前端 `MicroflowDebugSessionDto` 额外暴露 `state`、`availableCommands`、`lastUpdatedAt`，供 step-debug 面板与外置工作台统一消费。
+  - `GET /api/v1/microflows/runs/{runId}`、`GET /api/v1/microflows/runs/{runId}/trace`、`GET /api/v1/microflows/debug-sessions/{sessionId}` 必须继续执行 workspace / tenant / user ownership 校验，禁止仅按主键直读。
 - P0-7 补齐 Microflow 资源 API：
   - `POST /api/v1/microflows/{id}/unpublish` 取消发布。请求体 `UnpublishMicroflowRequestDto { reason?: string; force?: boolean }`。资源 `publishStatus` 置为 `unpublished`，`Status` 重置为 `draft`，`LatestPublishedVersion` 清空；历史 `MicroflowPublishSnapshot` / `MicroflowVersion` 行保持不可变。当 `force=false` 且仍有 active 引用时返回 409 `MICROFLOW_REFERENCE_BLOCKED`；尚未发布时返回 409 `MICROFLOW_PUBLISH_BLOCKED`。
   - `GET /api/v1/microflows/{id}/callers` 列出"谁调用了我"，与 `GET .../references` 同语义（target 维度）。

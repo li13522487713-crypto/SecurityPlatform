@@ -19,6 +19,9 @@ export interface MicroflowDebugSessionDto {
   currentSafePoint?: MicroflowDebugSafePointDto;
   status: string;
   trace?: MicroflowDebugTraceEventDto[];
+  state?: string;
+  availableCommands?: MicroflowDebugCommand[];
+  lastUpdatedAt?: string;
 }
 
 export interface MicroflowDebugSafePointDto {

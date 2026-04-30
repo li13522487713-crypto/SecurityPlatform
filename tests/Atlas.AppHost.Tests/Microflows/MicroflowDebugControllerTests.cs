@@ -213,6 +213,49 @@ public sealed class MicroflowDebugControllerTests
         Assert.Equal("created", store.Get(session.Id)?.Status);
     }
 
+    [Fact]
+    public void Get_exposes_state_available_commands_and_last_updated_at()
+    {
+        var store = new InMemoryDebugSessionStore();
+        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
+        accessor.Current.Returns(new MicroflowRequestContext
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1",
+            TraceId = "trace-debug"
+        });
+        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1"
+        });
+        store.Upsert(session with
+        {
+            Status = MicroflowDebugSessionLifecycle.Paused,
+            CurrentSafePoint = new MicroflowDebugSafePointSnapshot
+            {
+                NodeObjectId = "node-1",
+                NodeKind = "actionActivity",
+                Phase = "beforeNode",
+                CallDepth = 0,
+                SemanticKind = "node",
+                ArrivedAt = DateTimeOffset.UtcNow
+            }
+        });
+        var controller = CreateController(store, accessor);
+
+        var result = controller.Get(session.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<MicroflowApiResponse<MicroflowDebugSession?>>(ok.Value);
+        Assert.Equal(MicroflowDebugSessionLifecycle.Paused, envelope.Data!.State);
+        Assert.NotEmpty(envelope.Data.AvailableCommands);
+        Assert.Contains(DebugCommandKind.Continue, envelope.Data.AvailableCommands);
+        Assert.True(envelope.Data.LastUpdatedAt > envelope.Data.CreatedAt);
+    }
+
     private static MicroflowDebugController CreateController(InMemoryDebugSessionStore store, IMicroflowRequestContextAccessor accessor)
     {
         var coordinator = new MicroflowDebugCoordinator(store);

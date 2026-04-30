@@ -19,7 +19,17 @@ export interface MicroflowApiClientOptions {
   onUnauthorized?: () => void;
   onForbidden?: () => void;
   onApiError?: (error: MicroflowApiError) => void;
+  timeoutMsByOperation?: Partial<Record<MicroflowApiOperation, number>>;
 }
+
+export type MicroflowApiOperation =
+  | "default"
+  | "schema"
+  | "metadata"
+  | "validate"
+  | "testRun"
+  | "runHydration"
+  | "debug";
 
 export type MicroflowQueryValue = string | number | boolean | null | undefined | readonly (string | number | boolean)[];
 export type MicroflowQuery = Record<string, MicroflowQueryValue>;
@@ -114,6 +124,7 @@ function buildApiError(status: number, statusText: string, payload: unknown, tra
 export class MicroflowApiClient {
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
+  private readonly timeoutMsByOperation: Record<MicroflowApiOperation, number>;
 
   constructor(private readonly options: MicroflowApiClientOptions) {
     if (!options.apiBaseUrl?.trim()) {
@@ -121,6 +132,16 @@ export class MicroflowApiClient {
     }
     this.baseUrl = normalizeBaseUrl(options.apiBaseUrl.trim());
     this.fetchFn = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    this.timeoutMsByOperation = {
+      default: 10000,
+      schema: 10000,
+      metadata: 10000,
+      validate: 15000,
+      testRun: 20000,
+      runHydration: 20000,
+      debug: 20000,
+      ...options.timeoutMsByOperation,
+    };
   }
 
   get<T>(path: string, query?: MicroflowQuery, signal?: AbortSignal): Promise<T> {
@@ -147,12 +168,13 @@ export class MicroflowApiClient {
     const url = new URL(joinBaseAndPath(this.baseUrl, path), getUrlBase());
     appendQuery(url, query);
     const headers = this.createHeaders(body !== undefined);
+    const { signal: requestSignal, dispose } = this.createRequestAbortSignal(signal, this.resolveTimeoutMs(method, path));
 
     let response: Response;
     try {
       response = await this.fetchFn(url.toString(), {
         method,
-        signal,
+        signal: requestSignal,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
       });
@@ -160,6 +182,8 @@ export class MicroflowApiClient {
       const apiError = normalizeMicroflowApiError(caught);
       this.options.onApiError?.(apiError);
       throw new MicroflowApiException(apiError.message, { apiError });
+    } finally {
+      dispose();
     }
     const payload = await this.readPayload(response);
     const traceId = isApiResponse<unknown>(payload) ? payload.traceId : response.headers.get("X-Trace-Id") ?? response.headers.get("traceparent") ?? undefined;
@@ -235,5 +259,69 @@ export class MicroflowApiClient {
     } catch {
       return text;
     }
+  }
+
+  private resolveTimeoutMs(method: string, path: string): number {
+    const normalizedPath = path.toLowerCase();
+    const operation: MicroflowApiOperation = normalizedPath.includes("/debug-sessions/")
+      ? "debug"
+      : normalizedPath.endsWith("/validate")
+        ? "validate"
+        : normalizedPath.endsWith("/test-run")
+          ? "testRun"
+          : normalizedPath.includes("/runs/")
+            ? "runHydration"
+            : normalizedPath.includes("/metadata")
+              ? "metadata"
+              : normalizedPath.includes("/schema")
+                ? "schema"
+                : "default";
+    const timeoutMs = this.timeoutMsByOperation[operation];
+    return method === "GET" || method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE"
+      ? timeoutMs
+      : this.timeoutMsByOperation.default;
+  }
+
+  private createRequestAbortSignal(signal: AbortSignal | undefined, timeoutMs: number): {
+    signal: AbortSignal | undefined;
+    dispose: () => void;
+  } {
+    if (!(timeoutMs > 0) && !signal) {
+      return { signal, dispose: () => undefined };
+    }
+
+    const controller = new AbortController();
+    const disposers: Array<() => void> = [];
+
+    if (signal) {
+      if (signal.aborted) {
+        controller.abort(signal.reason);
+      } else {
+        const abortListener = () => controller.abort(signal.reason);
+        signal.addEventListener("abort", abortListener, { once: true });
+        disposers.push(() => signal.removeEventListener("abort", abortListener));
+      }
+    }
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    if (timeoutMs > 0) {
+      timeoutHandle = setTimeout(() => {
+        controller.abort(new DOMException(`Microflow request timed out after ${timeoutMs}ms.`, "TimeoutError"));
+      }, timeoutMs);
+      disposers.push(() => {
+        if (timeoutHandle !== undefined) {
+          clearTimeout(timeoutHandle);
+        }
+      });
+    }
+
+    return {
+      signal: controller.signal,
+      dispose: () => {
+        for (const disposer of disposers) {
+          disposer();
+        }
+      }
+    };
   }
 }

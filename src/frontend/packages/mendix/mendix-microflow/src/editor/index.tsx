@@ -124,6 +124,7 @@ const INTERNAL_TOOLBAR_ROW_PX = 60;
 
 type MendixLayoutInspectorMode = "floating" | "docked";
 type BottomDockMode = "collapsed" | "peek" | "full";
+export type MicroflowWorkbenchBottomTab = "problems" | "debug" | "references" | "info" | "console";
 
 interface MendixLayoutStorage {
   nodesDrawerOpen?: boolean;
@@ -300,6 +301,9 @@ export interface MicroflowEditorProps {
    * 编辑器仍掌握所有真实业务逻辑，宿主只发起命令、读快照。
    */
   editorRef?: Ref<MicroflowEditorHandle>;
+  shellMode?: "legacy-host-layout" | "editor-native-layout";
+  onLayoutStateChange?: (state: MicroflowWorkbenchLayoutState) => void;
+  onWorkbenchStatusChange?: (status: MicroflowWorkbenchStatus) => void;
 }
 
 /**
@@ -329,8 +333,13 @@ export interface MicroflowEditorHandle {
   zoomOut: () => void;
   setZoom: (zoom: number) => void;
   toggleFullscreen: () => void;
+  toggleFocusMode: () => void;
   toggleMinimap: () => void;
+  resetLayout: () => void;
   getStatus: () => MicroflowEditorStatusSnapshot;
+  openBottomTab: (tab: MicroflowWorkbenchBottomTab) => void;
+  setBottomDockMode: (mode: BottomDockMode) => void;
+  getLayoutState: () => MicroflowWorkbenchLayoutState;
 }
 
 /** 外置 Toolbar 渲染按钮 disabled / loading 等状态的依赖快照。 */
@@ -348,6 +357,25 @@ export interface MicroflowEditorStatusSnapshot {
   zoomPercent: number;
   hasRunSession: boolean;
   fullscreen: boolean;
+  activeBottomTab: MicroflowWorkbenchBottomTab;
+  bottomDockMode: BottomDockMode;
+  sessionHydrated: boolean;
+  traceHydrated: boolean;
+  debugSessionHydrated: boolean;
+  degradedRunSession: boolean;
+}
+
+export interface MicroflowWorkbenchLayoutState {
+  shellMode: "legacy-host-layout" | "editor-native-layout";
+  activeBottomTab: MicroflowWorkbenchBottomTab;
+  bottomDockMode: BottomDockMode;
+  focusMode: boolean;
+  minimapVisible: boolean;
+  gridVisible: boolean;
+}
+
+export interface MicroflowWorkbenchStatus extends MicroflowEditorStatusSnapshot {
+  layout: MicroflowWorkbenchLayoutState;
 }
 
 export interface MicroflowEditorLabels {
@@ -534,15 +562,25 @@ function writeStoredBottomDockMode(key: string, value: BottomDockMode): void {
   }
 }
 
-function readStoredBottomTab(): "problems" | "debug" | undefined {
+function normalizeWorkbenchBottomTab(value: unknown): MicroflowWorkbenchBottomTab | undefined {
+  return value === "problems"
+    || value === "debug"
+    || value === "references"
+    || value === "info"
+    || value === "console"
+    ? value
+    : undefined;
+}
+
+function readStoredBottomTab(): MicroflowWorkbenchBottomTab | undefined {
   if (typeof window === "undefined") {
     return undefined;
   }
   const raw = window.localStorage.getItem(bottomTabStorageKey);
-  return raw === "debug" || raw === "problems" ? raw : undefined;
+  return normalizeWorkbenchBottomTab(raw);
 }
 
-function writeStoredBottomTab(value: "problems" | "debug"): void {
+function writeStoredBottomTab(value: MicroflowWorkbenchBottomTab): void {
   if (typeof window === "undefined") {
     return;
   }
@@ -576,9 +614,8 @@ function writeMendixLayoutStorage(patch: MendixLayoutStorage): void {
   }
 }
 
-function readStoredExternalBottomTab(): "problems" | "debug" | undefined {
-  const raw = readMendixLayoutStorage().activeBottomTab;
-  return raw === "debug" || raw === "problems" ? raw : undefined;
+function readStoredExternalBottomTab(): MicroflowWorkbenchBottomTab | undefined {
+  return normalizeWorkbenchBottomTab(readMendixLayoutStorage().activeBottomTab);
 }
 
 function readStoredExternalBottomDockMode(): BottomDockMode | undefined {
@@ -1626,7 +1663,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [dirty, setDirty] = useState(false);
   const schemaRevisionRef = useRef(0);
   const toolbarMode = props.toolbarMode ?? "internal";
-  const externalLayout = toolbarMode === "external";
+  const shellMode = props.shellMode ?? (toolbarMode === "external" ? "editor-native-layout" : "legacy-host-layout");
+  const externalLayout = shellMode === "editor-native-layout";
   const [leftOpen, setLeftOpen] = useState(() => {
     if (props.toolbarMode === "external") {
       return Boolean(readMendixLayoutStorage().nodesDrawerOpen);
@@ -1667,8 +1705,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const storedHeight = readMendixLayoutStorage().bottomHeight;
     return clampBottomDockHeight(typeof storedHeight === "number" ? storedHeight : BOTTOM_DOCK_FULL_DEFAULT_PX);
   });
-  const [bottomTab, setBottomTab] = useState<"problems" | "debug">(() => (
-    props.toolbarMode === "external" ? readStoredExternalBottomTab() : readStoredBottomTab()
+  const [bottomTab, setBottomTab] = useState<MicroflowWorkbenchBottomTab>(() => (
+    externalLayout ? readStoredExternalBottomTab() : readStoredBottomTab()
   ) ?? "problems");
   const bottomOpen = bottomDockMode !== "collapsed";
   const activeBottomDockHeight = bottomDockMode === "full" ? bottomDockHeight : BOTTOM_DOCK_PEEK_HEIGHT_PX;
@@ -2243,9 +2281,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     try {
       const debugSessionId = pendingDebugSessionId;
       const response = await apiClient.testRunMicroflow(buildRunRequest(schema, input.parameters, input.options, false, debugSessionId));
-      const persistedSession = await apiClient.getMicroflowRunDetail(microflowId, response.runId);
-      const persistedTrace = await apiClient.getMicroflowRunTrace(response.runId);
-      const session = { ...persistedSession, trace: persistedTrace };
+      const session = response.session;
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
       setRunDetailsByRunId(current => ({ ...current, [session.id]: session }));
@@ -2257,17 +2293,35 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         ].slice(0, 20) as MicroflowRunHistoryItem[],
       }));
       setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
-      setActiveTraceFrameId(persistedTrace[0]?.id);
+      setActiveTraceFrameId(response.frames[0]?.id);
       setTestRunModalOpen(false);
       setBottomDockMode("peek");
       setBottomTab("debug");
+      if (response.debugSession) {
+        setDebugSessionByMicroflowId(current => ({ ...current, [microflowId]: response.debugSession }));
+      }
+      if (response.debugVariables && (response.debugSession?.id ?? debugSessionId)) {
+        const responseDebugSessionId = response.debugSession?.id ?? debugSessionId!;
+        setDebugVariablesBySessionId(current => ({ ...current, [responseDebugSessionId]: response.debugVariables ?? [] }));
+      }
+      if (response.debugTrace && (response.debugSession?.id ?? debugSessionId)) {
+        const responseDebugSessionId = response.debugSession?.id ?? debugSessionId!;
+        setDebugTraceBySessionId(current => ({ ...current, [responseDebugSessionId]: response.debugTrace ?? [] }));
+      }
       if (debugSessionId) {
         setPendingDebugSessionId(undefined);
-        void refreshDebugSession(debugSessionId, microflowId);
       }
-      props.onTestRunComplete?.({ ...response, session, frames: persistedTrace });
+      if (response.hydration?.degraded) {
+        setRuntimeServiceErrorByMicroflowId(current => ({
+          ...current,
+          [microflowId]: response.hydration.warning ?? "运行会话回读未完全成功，请刷新 Run History 或重新运行。",
+        }));
+      }
+      props.onTestRunComplete?.(response);
       void loadRunHistory(microflowId, runHistoryFilter);
-      Toast[response.status === "succeeded" ? "success" : "error"](`Run ${response.status}`);
+      Toast[response.status === "succeeded" ? "success" : "error"](
+        response.hydration?.degraded ? `Run ${response.status} (degraded hydration)` : `Run ${response.status}`
+      );
     } catch (error) {
       applyApiValidationIssues(error, setIssues, () => {
         setBottomTab("problems");
@@ -2643,7 +2697,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     color: "var(--semi-color-text-1, rgba(28, 31, 35, 0.8))"
   };
 
-  const openBottomDock = (tab: "problems" | "debug", mode: Exclude<BottomDockMode, "collapsed"> = "peek") => {
+  const openBottomDock = (tab: MicroflowWorkbenchBottomTab, mode: Exclude<BottomDockMode, "collapsed"> = "peek") => {
     setBottomTab(tab);
     setBottomDockMode(current => current === "full" ? "full" : mode);
   };
@@ -2709,6 +2763,29 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     );
   }, [bottomDockMode, canvasNodeContextMenu, rightOpen, schema]);
 
+  const resetWorkbenchLayout = useCallback(() => {
+    setFocusMode(false);
+    setFullscreenActive(false);
+    setLeftOpen(true);
+    setRightOpen(Boolean(props.defaultRightPanelOpen ?? props.immersive));
+    setRightPinned(false);
+    setBottomDockHeight(BOTTOM_DOCK_FULL_DEFAULT_PX);
+    setBottomDockMode(bottomPanelFallbackMode);
+    setBottomTab("problems");
+    commitSchema(
+      {
+        ...schema,
+        editor: {
+          ...schema.editor,
+          showMiniMap: false,
+          gridEnabled: true,
+        },
+      },
+      "bulkUpdate",
+      { historyLabel: "Reset workbench layout", skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" }
+    );
+  }, [bottomPanelFallbackMode, commitSchema, props.defaultRightPanelOpen, props.immersive, schema]);
+
   useMicroflowShortcuts({
     containerRef: shellRef,
     readonly: props.readonly,
@@ -2724,6 +2801,47 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   });
 
   const [fullscreenActive, setFullscreenActive] = useState(false);
+  const layoutState = useMemo<MicroflowWorkbenchLayoutState>(() => ({
+    shellMode,
+    activeBottomTab: bottomTab,
+    bottomDockMode,
+    focusMode,
+    minimapVisible: schema.editor.showMiniMap === true,
+    gridVisible: schema.editor.gridEnabled !== false,
+  }), [bottomDockMode, bottomTab, focusMode, schema.editor.gridEnabled, schema.editor.showMiniMap, shellMode]);
+  const workbenchStatus = useMemo<MicroflowWorkbenchStatus>(() => {
+    const currentRunSession = selectedRunSession ?? runSession;
+    return {
+      microflowId: schema.id,
+      schemaVersion: schema.schemaVersion,
+      dirty,
+      saving,
+      running,
+      validationStatus,
+      errorCount: issues.filter(issue => issue.severity === "error").length,
+      warningCount: issues.filter(issue => issue.severity === "warning").length,
+      canUndo: historyState.canUndo,
+      canRedo: historyState.canRedo,
+      zoomPercent: Math.round((schema.editor.viewport?.zoom ?? schema.editor.zoom ?? 1) * 100),
+      hasRunSession: Boolean(currentRunSession),
+      fullscreen: fullscreenActive || focusMode,
+      activeBottomTab: bottomTab,
+      bottomDockMode,
+      sessionHydrated: Boolean(currentRunSession?.persistedAt),
+      traceHydrated: currentRunSession?.hasHydratedTrace ?? Boolean(currentRunSession?.persistedAt),
+      debugSessionHydrated: Boolean(activeDebugSession?.lastUpdatedAt),
+      degradedRunSession: Boolean(currentRunSession && currentRunSession.hasHydratedTrace === false),
+      layout: layoutState,
+    };
+  }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, runSession, running, saving, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, validationStatus]);
+
+  useEffect(() => {
+    props.onLayoutStateChange?.(layoutState);
+  }, [layoutState, props]);
+
+  useEffect(() => {
+    props.onWorkbenchStatusChange?.(workbenchStatus);
+  }, [props, workbenchStatus]);
 
   // External hosts ride imperative handle; internal mode also receives the handle so
   // higher-level UIs can opt-in without forcing internal toolbar to disappear.
@@ -2797,6 +2915,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         void target.requestFullscreen?.();
       }
     },
+    toggleFocusMode: () => {
+      setFocusMode(value => !value);
+    },
     toggleMinimap: () => {
       const next = !schema.editor.showMiniMap;
       commitSchema(
@@ -2805,24 +2926,18 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         { historyLabel: "Toggle minimap", skipValidate: true, preserveSelection: true, source: "flowgram" }
       );
     },
-    getStatus: () => ({
-      microflowId: schema.id,
-      schemaVersion: schema.schemaVersion,
-      dirty,
-      saving,
-      running,
-      validationStatus,
-      errorCount: issues.filter(issue => issue.severity === "error").length,
-      warningCount: issues.filter(issue => issue.severity === "warning").length,
-      canUndo: historyState.canUndo,
-      canRedo: historyState.canRedo,
-      zoomPercent: Math.round((schema.editor.viewport?.zoom ?? schema.editor.zoom ?? 1) * 100),
-      hasRunSession: Boolean(runSession),
-      fullscreen: fullscreenActive || focusMode
-    })
+    resetLayout: resetWorkbenchLayout,
+    openBottomTab: (tab: MicroflowWorkbenchBottomTab) => {
+      openBottomDock(tab);
+    },
+    setBottomDockMode: (mode: BottomDockMode) => {
+      setBottomDockMode(mode);
+    },
+    getLayoutState: () => layoutState,
+    getStatus: () => workbenchStatus,
   // The handle reads many derived values; React will re-create the impl each
   // render so callers always observe fresh values.
-  }));
+  }), [commitSchema, dirty, focusMode, fullscreenActive, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, validationStatus, workbenchStatus]);
 
   const commandItems = useMemo<MicroflowCommandItem[]>(() => [
     { id: "save", label: "Save", disabled: props.readonly || saving, run: () => void handleSave() },
@@ -3248,7 +3363,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           <Tabs
             type="line"
             activeKey={bottomTab}
-            onChange={key => setBottomTab(key as "problems" | "debug")}
+            onChange={key => setBottomTab(key as MicroflowWorkbenchBottomTab)}
             tabBarExtraContent={
               <Space spacing={4}>
                 <Button
@@ -3342,6 +3457,45 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     </div>
                   </Tabs.TabPane>
                 </Tabs>
+              </div>
+            </Tabs.TabPane>
+            <Tabs.TabPane tab="References" itemKey="references">
+              <div style={{ overflow: "auto", maxHeight: activeBottomDockHeight - 56 }}>
+                <Empty
+                  title="References are managed by the workbench"
+                  description="当前版本仍通过宿主引用抽屉展示 callers / callees / impact。"
+                />
+              </div>
+            </Tabs.TabPane>
+            <Tabs.TabPane tab="Info" itemKey="info">
+              <div style={{ overflow: "auto", maxHeight: activeBottomDockHeight - 56, paddingTop: 8 }}>
+                <Space vertical align="start" spacing={8}>
+                  <Tag color="blue">Schema {schema.schemaVersion}</Tag>
+                  <Text>Microflow: {schema.displayName || schema.name}</Text>
+                  <Text>Module: {schema.moduleName || schema.moduleId}</Text>
+                  <Text>Status: {dirty ? "Dirty" : "Saved"}</Text>
+                  <Text>Bottom Dock: {bottomDockMode}</Text>
+                  <Text>Focus Mode: {focusMode ? "On" : "Off"}</Text>
+                </Space>
+              </div>
+            </Tabs.TabPane>
+            <Tabs.TabPane tab="Console" itemKey="console">
+              <div style={{ overflow: "auto", maxHeight: activeBottomDockHeight - 56 }}>
+                {selectedRunSession?.logs?.length ? (
+                  <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+                    {selectedRunSession.logs.map(log => (
+                      <Card key={log.id} shadows="never" style={{ width: "100%" }}>
+                        <Space vertical align="start" spacing={4}>
+                          <Tag color={log.level === "error" ? "red" : log.level === "warning" ? "orange" : "blue"}>{log.level}</Tag>
+                          <Text>{log.message}</Text>
+                          <Text type="tertiary" size="small">{log.timestamp}{log.traceId ? ` · ${log.traceId}` : ""}</Text>
+                        </Space>
+                      </Card>
+                    ))}
+                  </Space>
+                ) : (
+                  <Empty title="No runtime logs" description="执行产生的日志会在这里汇总展示。" />
+                )}
               </div>
             </Tabs.TabPane>
           </Tabs>

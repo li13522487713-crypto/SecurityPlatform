@@ -3,11 +3,13 @@ import type { LineRenderProps } from "@flowgram-adapter/free-layout-editor";
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
 
 function edgeDataFromLine(line: LineRenderProps["line"]): FlowGramMicroflowEdgeData | undefined {
-  const maybeData = line as unknown as {
+  const maybeLine = line as unknown as {
     data?: FlowGramMicroflowEdgeData;
-    getData?: () => FlowGramMicroflowEdgeData | undefined;
+    info?: { data?: FlowGramMicroflowEdgeData };
+    toJSON?: () => { data?: FlowGramMicroflowEdgeData };
   };
-  return maybeData.getData?.() ?? maybeData.data;
+  const data = maybeLine.data ?? maybeLine.info?.data ?? maybeLine.toJSON?.().data;
+  return typeof data?.flowId === "string" ? data : undefined;
 }
 
 export function lineClassNameFromEdgeData(data: FlowGramMicroflowEdgeData): string {

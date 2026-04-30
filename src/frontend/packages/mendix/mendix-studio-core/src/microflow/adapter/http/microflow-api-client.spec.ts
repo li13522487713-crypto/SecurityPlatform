@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MicroflowApiClient } from "./microflow-api-client";
 import { MicroflowApiException } from "./microflow-api-error";
@@ -48,5 +48,34 @@ describe("MicroflowApiClient error envelope", () => {
     if (status === 403) {
       expect(onForbidden).toHaveBeenCalledTimes(1);
     }
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("aborts long-running requests with timeout classification", async () => {
+    vi.useFakeTimers();
+    const onApiError = vi.fn();
+    const client = new MicroflowApiClient({
+      apiBaseUrl: "/api/v1",
+      onApiError,
+      fetchImpl: vi.fn((_input, init) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("request aborted", "AbortError"));
+        }, { once: true });
+      })) as unknown as typeof fetch,
+    });
+
+    const request = client.get("/microflows/mf-1/schema").catch(error => error);
+    await vi.advanceTimersByTimeAsync(10_100);
+
+    const error = await request;
+    expect(error).toBeInstanceOf(MicroflowApiException);
+    expect(onApiError).toHaveBeenCalledWith(expect.objectContaining({
+      code: "MICROFLOW_TIMEOUT",
+      category: "network",
+      retryable: true,
+    }));
   });
 });

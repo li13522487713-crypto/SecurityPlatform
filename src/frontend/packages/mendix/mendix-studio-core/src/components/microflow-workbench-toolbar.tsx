@@ -12,12 +12,15 @@ import {
   IconSend,
   IconUndo
 } from "@douyinfe/semi-icons";
-import type { MicroflowEditorHandle, MicroflowEditorStatusSnapshot } from "@atlas/microflow";
+import type { MicroflowEditorHandle, MicroflowEditorStatusSnapshot, MicroflowWorkbenchStatus } from "@atlas/microflow";
 import { useMendixStudioStore } from "../store";
+import { MicroflowWorkbenchCommandBus } from "../microflow/workbench/microflow-workbench-command-bus";
 
 export interface MicroflowWorkbenchToolbarProps {
   microflowId: string | undefined;
   editorRef: RefObject<MicroflowEditorHandle | null>;
+  status?: MicroflowWorkbenchStatus | null;
+  commandBus?: MicroflowWorkbenchCommandBus;
   /** Notification for the host to refresh references / impact panels. */
   onViewReferences?: (microflowId: string) => void;
 }
@@ -31,7 +34,7 @@ export interface MicroflowWorkbenchToolbarProps {
  * 状态通过 `editorRef.current.getStatus()` 实时拉取并展示在 Tag 与 disabled
  * 上，避免再造一份独立 store。
  */
-export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewReferences }: MicroflowWorkbenchToolbarProps) {
+export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: controlledStatus, commandBus, onViewReferences }: MicroflowWorkbenchToolbarProps) {
   // store 拿 dirty / saving 是为了在 ref 还没有就绪（首次渲染、过渡中）时，
   // 工具栏仍能展示一致状态；ref 就绪后 status snapshot 是权威来源。
   const dirtyById = useMendixStudioStore(state => state.dirtyByWorkbenchTabId);
@@ -42,7 +45,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
   const fallbackErrorCount = microflowId ? saveStateById[microflowId]?.lastError ? 1 : 0 : 0;
 
   const [, forceTick] = useState(0);
-  const status: MicroflowEditorStatusSnapshot | null = editorRef.current?.getStatus() ?? null;
+  const status: MicroflowEditorStatusSnapshot | MicroflowWorkbenchStatus | null = controlledStatus ?? editorRef.current?.getStatus() ?? null;
   const dirty = status?.dirty ?? fallbackDirty;
   const saving = status?.saving ?? fallbackSaving;
   const running = status?.running ?? false;
@@ -52,8 +55,14 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
   const canUndo = status?.canUndo ?? false;
   const canRedo = status?.canRedo ?? false;
   const fullscreen = status?.fullscreen ?? false;
+  const degradedRunSession = "degradedRunSession" in (status ?? {}) ? Boolean((status as MicroflowWorkbenchStatus).degradedRunSession) : false;
+  const sessionHydrated = "sessionHydrated" in (status ?? {}) ? Boolean((status as MicroflowWorkbenchStatus).sessionHydrated) : false;
 
-  const refreshStatus = () => forceTick(value => value + 1);
+  const refreshStatus = () => {
+    if (!controlledStatus) {
+      forceTick(value => value + 1);
+    }
+  };
   const callHandle = <T extends keyof MicroflowEditorHandle>(method: T, ...args: Parameters<Extract<MicroflowEditorHandle[T], (...args: never[]) => unknown>>) => {
     const handle = editorRef.current;
     if (!handle) {
@@ -72,6 +81,50 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
   };
 
   const disabled = !microflowId;
+  const runCommand = (command: Parameters<MicroflowWorkbenchCommandBus["execute"]>[0], payload?: { panel: "problems" | "debug" | "references" | "info" | "console" }) => {
+    if (commandBus) {
+      void commandBus.execute(command as never, payload as never).finally(refreshStatus);
+      return;
+    }
+    switch (command) {
+      case "microflow.save":
+        callHandle("save");
+        break;
+      case "microflow.validate":
+        callHandle("validate");
+        break;
+      case "microflow.run":
+        callHandle("runTest");
+        break;
+      case "microflow.debugRun":
+        callHandle("runDebug");
+        break;
+      case "microflow.publish":
+        callHandle("publish");
+        break;
+      case "microflow.undo":
+        callHandle("undo");
+        break;
+      case "microflow.redo":
+        callHandle("redo");
+        break;
+      case "microflow.toggleFocusMode":
+        if ("toggleFocusMode" in (editorRef.current ?? {})) {
+          callHandle("toggleFocusMode");
+        } else {
+          callHandle("toggleFullscreen");
+        }
+        break;
+      case "microflow.openPanel":
+        if (payload?.panel === "references" && microflowId) {
+          onViewReferences?.(microflowId);
+        } else if (payload?.panel) {
+          editorRef.current?.openBottomTab(payload.panel);
+          refreshStatus();
+        }
+        break;
+    }
+  };
 
   return (
     <div
@@ -100,7 +153,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
             icon={<IconSave />}
             loading={saving}
             disabled={disabled || !dirty}
-            onClick={() => callHandle("save")}
+            onClick={() => runCommand("microflow.save")}
           >
             保存
           </Button>
@@ -112,7 +165,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
             icon={<IconPlay />}
             loading={running}
             disabled={disabled || errorCount > 0}
-            onClick={() => callHandle("runTest")}
+            onClick={() => runCommand("microflow.run")}
           >
             运行
           </Button>
@@ -124,7 +177,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
             icon={<IconBranch />}
             loading={running}
             disabled={disabled || errorCount > 0}
-            onClick={() => callHandle("runDebug")}
+            onClick={() => runCommand("microflow.debugRun")}
           >
             调试运行
           </Button>
@@ -136,7 +189,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
             icon={<IconCheckCircleStroked />}
             loading={validating}
             disabled={disabled}
-            onClick={() => callHandle("validate")}
+            onClick={() => runCommand("microflow.validate")}
           >
             校验
           </Button>
@@ -147,7 +200,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
             size="small"
             icon={<IconSend />}
             disabled={disabled || errorCount > 0 || dirty}
-            onClick={() => callHandle("publish")}
+            onClick={() => runCommand("microflow.publish")}
           >
             发布
           </Button>
@@ -158,16 +211,16 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
 
       <Space spacing={4}>
         <Tooltip content="撤销 (Ctrl+Z)">
-          <Button data-testid="microflow-workbench-undo" size="small" theme="borderless" icon={<IconUndo />} disabled={disabled || !canUndo} onClick={() => callHandle("undo")} />
+          <Button data-testid="microflow-workbench-undo" size="small" theme="borderless" icon={<IconUndo />} disabled={disabled || !canUndo} onClick={() => runCommand("microflow.undo")} />
         </Tooltip>
         <Tooltip content="重做 (Ctrl+Y)">
-          <Button data-testid="microflow-workbench-redo" size="small" theme="borderless" icon={<IconRedo />} disabled={disabled || !canRedo} onClick={() => callHandle("redo")} />
+          <Button data-testid="microflow-workbench-redo" size="small" theme="borderless" icon={<IconRedo />} disabled={disabled || !canRedo} onClick={() => runCommand("microflow.redo")} />
         </Tooltip>
       </Space>
 
       <Space spacing={4}>
         <Tooltip content={fullscreen ? "退出专注模式" : "专注模式"}>
-          <Button data-testid="microflow-workbench-fullscreen" size="small" theme="borderless" icon={<IconFullScreenStroked />} disabled={disabled} onClick={() => callHandle("toggleFullscreen")} />
+          <Button data-testid="microflow-workbench-fullscreen" size="small" theme="borderless" icon={<IconFullScreenStroked />} disabled={disabled} onClick={() => runCommand("microflow.toggleFocusMode")} />
         </Tooltip>
       </Space>
 
@@ -180,9 +233,11 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, onViewRefere
         {errorCount > 0 ? <Tag color="red" size="small">{errorCount} 错误</Tag> : null}
         {warningCount > 0 ? <Tag color="amber" size="small">{warningCount} 警告</Tag> : null}
         {validating ? <Tag color="blue" size="small" icon={<IconRefresh />}>校验中</Tag> : null}
+        {degradedRunSession ? <Tag color="orange" size="small">会话回读未完成</Tag> : null}
+        {!degradedRunSession && sessionHydrated ? <Tag color="green" size="small">会话已收口</Tag> : null}
         {onViewReferences && microflowId ? (
           <Tooltip content="查看引用 / 影响面">
-            <Button data-testid="microflow-workbench-references" size="small" theme="borderless" onClick={() => onViewReferences(microflowId)}>
+            <Button data-testid="microflow-workbench-references" size="small" theme="borderless" onClick={() => runCommand("microflow.openPanel", { panel: "references" })}>
               引用
             </Button>
           </Tooltip>

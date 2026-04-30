@@ -149,6 +149,10 @@ export interface MicroflowRunSession {
   errorHandlingSummary?: MicroflowErrorHandlingSummary;
   childRuns?: MicroflowRunSession[];
   childRunIds?: string[];
+  persistedAt?: string;
+  finalized?: boolean;
+  traceFrameCount?: number;
+  hasHydratedTrace?: boolean;
 }
 
 export interface MicroflowTestRunOptions {

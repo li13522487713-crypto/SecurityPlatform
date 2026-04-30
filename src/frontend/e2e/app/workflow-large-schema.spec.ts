@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { expect, test } from "../fixtures/single-session";
 import {
@@ -17,10 +16,9 @@ import {
   workflowNodeLocator
 } from "./workflow-e2e-helpers";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const longChainFixturePath = path.resolve(
-  __dirname,
-  "../../packages/workflow/__fixtures__/workflow-large/long-chain-30.json"
+  process.cwd(),
+  "packages/workflow/__fixtures__/workflow-large/long-chain-30.json"
 );
 
 async function getAccessToken(request: Parameters<typeof test>[0]["request"]): Promise<string> {

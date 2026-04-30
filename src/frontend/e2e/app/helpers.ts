@@ -363,14 +363,19 @@ export async function resolveCanonicalAppKey(request: APIRequestContext): Promis
 async function waitForLoginFormReady(page: Page, appKey: string): Promise<void> {
   void appKey;
   const loginPaths = [signPath()];
-  const maxAttempts = loginPaths.length * 3;
+  const maxAttempts = loginPaths.length * 6;
   let lastUrl = page.url();
   const usernameInput = page.locator('[data-testid="app-login-username"] input, input[data-testid="app-login-username"]').first();
   const passwordInput = page.locator('[data-testid="app-login-password"] input, input[data-testid="app-login-password"]').first();
+  const usernameControl = page.getByTestId("app-login-username");
+  const passwordControl = page.getByTestId("app-login-password");
+  const submitButton = page.getByTestId("app-login-submit");
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const currentPath = loginPaths[attempt % loginPaths.length];
     await page.goto(`${appBaseUrl}${currentPath}`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("load", { timeout: 15_000 }).catch(() => undefined);
+    await page.waitForSelector('[data-testid="app-login-page"]', { timeout: 15_000 }).catch(() => undefined);
     lastUrl = page.url();
 
     const usernameVisible = await usernameInput
@@ -379,7 +384,18 @@ async function waitForLoginFormReady(page: Page, appKey: string): Promise<void> 
     const passwordVisible = await passwordInput
       .isVisible({ timeout: 5_000 })
       .catch(() => false);
-    if (usernameVisible && passwordVisible) {
+    const loginControlsMounted = await page.evaluate(() =>
+      Boolean(
+        document.querySelector('[data-testid="app-login-username"]') &&
+          document.querySelector('[data-testid="app-login-password"]') &&
+          document.querySelector('[data-testid="app-login-submit"]')
+      )
+    ).catch(() => false);
+    const controlsVisible =
+      (await usernameControl.isVisible({ timeout: 1_000 }).catch(() => false)) &&
+      (await passwordControl.isVisible({ timeout: 1_000 }).catch(() => false)) &&
+      (await submitButton.isVisible({ timeout: 1_000 }).catch(() => false));
+    if ((usernameVisible && passwordVisible) || controlsVisible || loginControlsMounted) {
       return;
     }
 
@@ -394,7 +410,11 @@ async function waitForLoginFormReady(page: Page, appKey: string): Promise<void> 
       const passwordVisibleOnLoginPage = await passwordInput
         .isVisible({ timeout: 5_000 })
         .catch(() => false);
-      if (usernameVisibleOnLoginPage && passwordVisibleOnLoginPage) {
+      const controlsVisibleOnLoginPage =
+        (await usernameControl.isVisible({ timeout: 1_000 }).catch(() => false)) &&
+        (await passwordControl.isVisible({ timeout: 1_000 }).catch(() => false)) &&
+        (await submitButton.isVisible({ timeout: 1_000 }).catch(() => false));
+      if ((usernameVisibleOnLoginPage && passwordVisibleOnLoginPage) || controlsVisibleOnLoginPage || loginControlsMounted) {
         return;
       }
     }
@@ -433,14 +453,28 @@ export async function loginApp(
   await page.waitForTimeout(gazeShiftDelay());
   await page.locator('[data-testid="app-login-password"] input, input[data-testid="app-login-password"]').first().fill(password);
   const agreementCheckbox = page.locator('[data-testid="app-login-page"] input[type="checkbox"]').first();
-  const agreementVisible = await agreementCheckbox.isVisible().catch(() => false);
-  if (agreementVisible) {
+  const agreementExists = await agreementCheckbox.count().then((count) => count > 0).catch(() => false);
+  if (agreementExists) {
     const agreed = await agreementCheckbox.isChecked().catch(() => false);
     if (!agreed) {
       const agreementControl = page.locator('[data-testid="app-login-page"] .semi-checkbox, [data-testid="app-login-page"] label').first();
-      await agreementControl.click({ force: true }).catch(async () => {
-        await agreementCheckbox.check({ force: true });
+      await agreementCheckbox.click({ force: true }).catch(async () => {
+        await agreementControl.click({ force: true });
       });
+      await page.waitForTimeout(100);
+      const agreedAfterClick = await agreementCheckbox.isChecked().catch(() => false);
+      if (!agreedAfterClick) {
+        await page.evaluate(() => {
+          const input = document.querySelector<HTMLInputElement>('[data-testid="app-login-page"] input[type="checkbox"]');
+          if (!input || input.checked) {
+            return;
+          }
+          const checkedSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked")?.set;
+          checkedSetter?.call(input, true);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      }
     }
   }
   await page.waitForTimeout(thinkingPause());

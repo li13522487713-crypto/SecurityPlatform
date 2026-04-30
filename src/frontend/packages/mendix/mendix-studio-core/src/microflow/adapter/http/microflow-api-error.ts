@@ -67,6 +67,12 @@ export function normalizeMicroflowApiError(input: unknown, status?: number, trac
   if (isMicroflowApiException(input)) {
     return input.apiError;
   }
+  if (input instanceof DOMException && input.name === "AbortError") {
+    return { code: "MICROFLOW_TIMEOUT", category: "network", message: "微流请求已取消或超时。", retryable: true, httpStatus: status, traceId, raw: input };
+  }
+  if (input instanceof DOMException && input.name === "TimeoutError") {
+    return { code: "MICROFLOW_TIMEOUT", category: "network", message: "微流请求超时，请稍后重试。", retryable: true, httpStatus: status, traceId, raw: input };
+  }
   if (typeof input === "object" && input !== null && "code" in input && "message" in input) {
     const error = input as Partial<MicroflowApiError>;
     return {
@@ -81,9 +87,6 @@ export function normalizeMicroflowApiError(input: unknown, status?: number, trac
       traceId: error.traceId ?? traceId,
       raw: error.raw,
     };
-  }
-  if (input instanceof DOMException && input.name === "AbortError") {
-    return { code: "MICROFLOW_TIMEOUT", category: "network", message: "微流请求已取消或超时。", retryable: true, httpStatus: status, traceId, raw: input };
   }
   if (input instanceof TypeError) {
     return { code: "MICROFLOW_NETWORK_ERROR", category: "network", message: "微流服务不可用，请检查网络或后端服务。", retryable: true, httpStatus: status, traceId, raw: input };

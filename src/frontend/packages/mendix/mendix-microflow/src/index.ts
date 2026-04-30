@@ -32,6 +32,7 @@ export {
   type MicroflowTraceService,
   type MicroflowValidateService,
   type PublishMicroflowResponse,
+  type RunSessionViewModel,
   type SaveMicroflowRequest,
   type SaveMicroflowResponse,
   type TestRunMicroflowRequest,
@@ -51,7 +52,16 @@ export * from "./history";
 export * from "./layout";
 export * from "./performance";
 export * from "./runtime";
-export { MicroflowEditor, type MicroflowEditorLabels, type MicroflowEditorProps } from "./editor";
+export {
+  MicroflowEditor,
+  type MicroflowEditorHandle,
+  type MicroflowEditorLabels,
+  type MicroflowEditorProps,
+  type MicroflowEditorStatusSnapshot,
+  type MicroflowWorkbenchBottomTab,
+  type MicroflowWorkbenchLayoutState,
+  type MicroflowWorkbenchStatus,
+} from "./editor";
 export {
   ExpressionEditor,
   MicroflowPropertyForm,
