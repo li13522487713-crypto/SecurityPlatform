@@ -2837,11 +2837,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   useEffect(() => {
     props.onLayoutStateChange?.(layoutState);
-  }, [layoutState, props]);
+  }, [layoutState, props.onLayoutStateChange]);
 
   useEffect(() => {
     props.onWorkbenchStatusChange?.(workbenchStatus);
-  }, [props, workbenchStatus]);
+  }, [props.onWorkbenchStatusChange, workbenchStatus]);
 
   // External hosts ride imperative handle; internal mode also receives the handle so
   // higher-level UIs can opt-in without forcing internal toolbar to disappear.
@@ -3138,6 +3138,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               "bulkUpdate",
               { historyLabel: "Toggle grid", skipValidate: true, preserveSelection: true, source: "flowgram" },
             );
+          }}
+          dirty={dirty}
+          saving={saving}
+          validating={validationStatus === "validating"}
+          onOpenProblemsPanel={() => {
+            openBottomDock("problems");
           }}
         />
         </div>

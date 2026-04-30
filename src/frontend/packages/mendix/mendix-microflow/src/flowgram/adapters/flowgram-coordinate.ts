@@ -1,6 +1,7 @@
 import type { MicroflowPoint } from "../../schema";
 
 export const MICROFLOW_GRID_SIZE = 24;
+export const LOOP_HEADER_OFFSET_PX = 76;
 
 export interface FlowGramViewportLike {
   x: number;
@@ -28,6 +29,18 @@ export function clientPointToFlowGramPoint(
 
 export function flowGramPointToAuthoringPoint(point: MicroflowPoint): MicroflowPoint {
   return point;
+}
+
+export function normalizeFlowGramPoint(point: Partial<MicroflowPoint> | undefined): MicroflowPoint | undefined {
+  if (!point) {
+    return undefined;
+  }
+  const x = Number(point.x);
+  const y = Number(point.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return undefined;
+  }
+  return { x, y };
 }
 
 export function snapMicroflowPoint(point: MicroflowPoint, gridSize = MICROFLOW_GRID_SIZE): MicroflowPoint {

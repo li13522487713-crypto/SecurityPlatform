@@ -347,7 +347,9 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                     Add(context, MicroflowValidationCodes.StartHasIncoming, "StartEvent 不允许 incoming flow。", "event", obj.FieldPath, objectId: obj.Id, relatedFlowIds: incoming.Select(f => f.Id).ToArray());
                 }
 
-                if (!obj.InsideLoop && outgoing.Length == 0)
+                if (!obj.InsideLoop && !outgoing.Any(static f =>
+                        string.Equals(f.Kind, "sequence", StringComparison.OrdinalIgnoreCase)
+                        && !f.IsErrorHandler))
                 {
                     Add(context, MicroflowValidationCodes.StartNoOutgoing, "StartEvent 必须有 outgoing flow。", "event", obj.FieldPath, objectId: obj.Id);
                 }
@@ -848,7 +850,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                 Add(context, MicroflowValidationCodes.ObjectUnreachable, "对象不可从 StartEvent 到达。", "reachability", obj.FieldPath, objectId: obj.Id, severity: ModeSeverity(context, warningInEdit: true));
             }
 
-            if (!IsTerminal(obj) && !Outgoing(context, obj.Id).Any(f => !f.IsErrorHandler) && !obj.InsideLoop)
+            if (!IsTerminal(obj) && !IsKind(obj, "startEvent") && !Outgoing(context, obj.Id).Any(f => !f.IsErrorHandler) && !obj.InsideLoop)
             {
                 Add(context, MicroflowValidationCodes.FlowDeadEnd, "可执行对象没有 normal outgoing flow。", "reachability", obj.FieldPath, objectId: obj.Id, severity: ModeSeverity(context, warningInEdit: true));
             }

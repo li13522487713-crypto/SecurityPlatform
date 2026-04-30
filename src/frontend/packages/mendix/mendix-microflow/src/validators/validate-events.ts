@@ -27,7 +27,7 @@ export function validateEvents(schema: MicroflowSchema, _context: MicroflowValid
         issues.push(issue("MF_START_HAS_INCOMING", "StartEvent cannot have incoming flows.", { objectId: item.object.id }));
       }
       if (!outgoing.some(flow => flow.kind === "sequence" && !flow.isErrorHandler)) {
-        issues.push(issue("MF_START_NO_OUTGOING", "StartEvent should have at least one non-error SequenceFlow outgoing.", { objectId: item.object.id }, "warning"));
+        issues.push(issue("MF_START_NO_OUTGOING", "StartEvent 必须有 outgoing flow。", { objectId: item.object.id }, "warning"));
       }
       if (item.loopObjectId) {
         issues.push(issue("MF_START_IN_LOOP", "StartEvent cannot be placed inside Loop.", { objectId: item.object.id }));

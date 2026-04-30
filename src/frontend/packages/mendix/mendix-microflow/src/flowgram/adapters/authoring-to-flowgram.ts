@@ -16,6 +16,7 @@ import type {
 type MicroflowFlowGramTraceRow = MicroflowTraceFrame | MicroflowAuthoringPersistedTraceFrame;
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { flowCaseLabel } from "./flowgram-case-options";
+import { LOOP_HEADER_OFFSET_PX } from "./flowgram-coordinate";
 import { validationStateFromIssues } from "./flowgram-validation-sync";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowIssueIndex, FlowGramMicroflowNodeData } from "../FlowGramMicroflowTypes";
 
@@ -191,7 +192,7 @@ export function authoringToFlowGram(
     const position = parentNode
       ? {
           x: parentNode.position.x + node.position.x,
-          y: parentNode.position.y + 76 + node.position.y,
+          y: parentNode.position.y + LOOP_HEADER_OFFSET_PX + node.position.y,
         }
       : node.position;
     const runtime = runtimeStateForObject(node.objectId, trace);

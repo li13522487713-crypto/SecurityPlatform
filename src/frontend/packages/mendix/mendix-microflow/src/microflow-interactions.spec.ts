@@ -582,6 +582,21 @@ describe("microflow editor interactions", () => {
     ]);
   });
 
+  it("matches moved nodes when FlowGram ids are numeric but schema ids are strings", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "123");
+    const schema = schemaWith([start]);
+    const json = authoringToFlowGram(schema, [], []);
+    const node = json.nodes.find(item => item.id === start.id);
+    if (!node) {
+      throw new Error("Expected FlowGram start node.");
+    }
+    node.id = Number(start.id);
+    node.meta = { ...node.meta, position: { x: 101, y: 58 } };
+    expect(flowGramPositionPatch(schema, json, { gridEnabled: true }).movedNodes).toEqual([
+      { objectId: start.id, position: { x: 96, y: 48 } },
+    ]);
+  });
+
   it("adds dragged action activities, parameters, annotations, and loops through AuthoringSchema", () => {
     const base = schemaWith([]);
     const retrieve = addMicroflowObjectFromDragPayload({

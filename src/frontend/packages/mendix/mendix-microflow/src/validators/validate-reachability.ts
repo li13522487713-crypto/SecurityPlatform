@@ -53,11 +53,11 @@ export function validateReachability(schema: MicroflowSchema, context: Microflow
     return result;
   };
   for (const object of objects) {
-    if (["annotation", "parameterObject", "endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(object.kind)) {
+    if (["annotation", "parameterObject", "startEvent", "endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(object.kind)) {
       continue;
     }
     if (visited.has(object.id) && (outgoingByOrigin.get(object.id) ?? []).length === 0) {
-      issues.push(issue("MF_OBJECT_DEAD_END", "Executable object has no normal outgoing flow and is not terminal.", { objectId: object.id }, context.mode === "edit" ? "warning" : "error"));
+      issues.push(issue("MF_OBJECT_DEAD_END", "可执行对象没有 normal outgoing flow。", { objectId: object.id }, context.mode === "edit" ? "warning" : "error"));
       continue;
     }
     if (!dfs(object.id)) {

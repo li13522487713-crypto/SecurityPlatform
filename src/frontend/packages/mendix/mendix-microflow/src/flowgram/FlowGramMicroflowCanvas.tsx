@@ -24,6 +24,7 @@ import type { MicroflowPoint, MicroflowSchema, MicroflowValidationIssue } from "
 import { toEditorGraph } from "../adapters";
 import { FlowGramMicroflowCaseEditor } from "./FlowGramMicroflowCaseEditor";
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
+import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
 import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
 import { useMicroflowMetadataCatalog } from "../metadata";
 import { getCaseOptionsForSource } from "./adapters/flowgram-case-options";
@@ -32,6 +33,7 @@ import {
   flowGramPointToAuthoringPoint,
   getFlowGramCanvasContainerRect,
   MICROFLOW_GRID_SIZE,
+  normalizeFlowGramPoint,
   snapMicroflowPoint,
 } from "./adapters/flowgram-coordinate";
 import type { FlowGramMicroflowPendingLine, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
@@ -66,6 +68,10 @@ export interface FlowGramMicroflowCanvasProps {
   onViewportChange?: (viewport: MicroflowSchema["editor"]["viewport"]) => void;
   onToggleMiniMap?: (visible: boolean) => void;
   onToggleGrid?: (enabled: boolean) => void;
+  dirty?: boolean;
+  saving?: boolean;
+  validating?: boolean;
+  onOpenProblemsPanel?: () => void;
 }
 
 function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSchema; onFocusNode: (objectId: string) => void }) {
@@ -246,11 +252,11 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   const dropPointFromEvent = (event: DragEvent<HTMLDivElement>): MicroflowPoint => {
     const rect = getFlowGramCanvasContainerRect(containerRef.current);
     const viewport = props.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
-    const fallback = flowGramPointToAuthoringPoint(
+    const fallback = normalizeFlowGramPoint(flowGramPointToAuthoringPoint(
       clientPointToFlowGramPoint({ x: event.clientX, y: event.clientY }, rect, viewport),
-    );
-    const rawPosition = playground.config.getPosFromMouseEvent?.(event.nativeEvent) ?? fallback;
-    const position = { x: rawPosition.x, y: rawPosition.y };
+    )) ?? { x: 0, y: 0 };
+    const dragPosition = normalizeFlowGramPoint(playground.config.getPosFromMouseEvent?.(event.nativeEvent));
+    const position = dragPosition ?? fallback;
     return gridEnabled ? snapMicroflowPoint(position, MICROFLOW_GRID_SIZE) : position;
   };
 
@@ -316,7 +322,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     const target = event.target instanceof HTMLElement ? event.target : undefined;
     if (
       target?.closest(
-        ".microflow-flowgram-node, .microflow-flowgram-toolbar, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal",
+        ".microflow-flowgram-node, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal",
       )
     ) {
       return;
@@ -386,21 +392,31 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       onPointerDownCapture={handlePointerDown}
     >
       <PlaygroundReactRenderer />
-      <FlowGramMicroflowToolbar
-        canUndo={props.canUndo}
-        canRedo={props.canRedo}
-        onUndo={props.onUndo}
-        onRedo={props.onRedo}
-        onAutoLayout={props.onAutoLayout}
-        readonly={props.readonly}
-        viewport={props.schema.editor.viewport}
-        onViewportChange={viewport => props.onViewportChange?.(viewport)}
-        onFitView={fitViewportToSchema}
-        gridEnabled={gridEnabled}
-        onToggleGrid={() => props.onToggleGrid?.(!gridEnabled)}
-        miniMapVisible={miniMapVisible}
-        onToggleMiniMap={() => props.onToggleMiniMap?.(!miniMapVisible)}
-      />
+      <div className="microflow-flowgram-canvas-controls">
+        <FlowGramMicroflowStatusStrip
+          validationIssues={props.validationIssues}
+          dirty={props.dirty ?? false}
+          saving={props.saving ?? false}
+          validating={props.validating ?? false}
+          readonly={props.readonly}
+          onOpenProblemsPanel={props.onOpenProblemsPanel}
+        />
+        <FlowGramMicroflowToolbar
+          canUndo={props.canUndo}
+          canRedo={props.canRedo}
+          onUndo={props.onUndo}
+          onRedo={props.onRedo}
+          onAutoLayout={props.onAutoLayout}
+          readonly={props.readonly}
+          viewport={props.schema.editor.viewport}
+          onViewportChange={viewport => props.onViewportChange?.(viewport)}
+          onFitView={fitViewportToSchema}
+          gridEnabled={gridEnabled}
+          onToggleGrid={() => props.onToggleGrid?.(!gridEnabled)}
+          miniMapVisible={miniMapVisible}
+          onToggleMiniMap={() => props.onToggleMiniMap?.(!miniMapVisible)}
+        />
+      </div>
       {miniMapVisible ? <FlowGramMicroflowMiniMap schema={props.schema} onFocusNode={focusNodeFromMiniMap} /> : null}
       <FlowGramMicroflowCaseEditor
         visible={Boolean(pendingCaseLine)}

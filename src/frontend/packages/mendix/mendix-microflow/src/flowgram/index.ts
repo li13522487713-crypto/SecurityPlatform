@@ -3,6 +3,7 @@ export * from "./FlowGramMicroflowLineRenderer";
 export * from "./FlowGramMicroflowNodeRenderer";
 export * from "./FlowGramMicroflowPortRenderer";
 export * from "./FlowGramMicroflowProvider";
+export * from "./FlowGramMicroflowStatusStrip";
 export * from "./FlowGramMicroflowToolbar";
 export * from "./FlowGramMicroflowTypes";
 export * from "./adapters";
