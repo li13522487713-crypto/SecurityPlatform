@@ -10,6 +10,8 @@ public static class MicroflowRuntimeTransactionMode
     public const string SingleRunTransaction = "singleRunTransaction";
     public const string ActionScoped = "actionScoped";
     public const string Custom = "custom";
+    public const string SharedInherited = "sharedInherited";
+    public const string ChildTransaction = "childTransaction";
 }
 
 public static class MicroflowRuntimeTransactionStatus

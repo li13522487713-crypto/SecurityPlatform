@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Atlas.Application.Microflows.Runtime;
 
 namespace Atlas.Application.Microflows.Runtime.Objects;
 
@@ -24,6 +25,7 @@ public sealed record MicroflowRuntimeObjectQuery
     public string? WorkspaceId { get; init; }
     public string? TenantId { get; init; }
     public int Limit { get; init; } = 100;
+    public RuntimeExecutionContext? RuntimeContext { get; init; }
 }
 
 public sealed record MicroflowRuntimeObjectMutation
@@ -34,6 +36,7 @@ public sealed record MicroflowRuntimeObjectMutation
     public string? TenantId { get; init; }
     public JsonElement? Value { get; init; }
     public bool DryRun { get; init; } = true;
+    public RuntimeExecutionContext? RuntimeContext { get; init; }
 }
 
 public sealed record MicroflowRuntimeObjectStoreResult

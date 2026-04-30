@@ -211,7 +211,7 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
                 variable => variable.Name,
                 variable => variable with
                 {
-                    RawValueJson = options.IncludeRawValue ? variable.RawValueJson : null,
+                    RawValueJson = ShouldIncludeRawValue(variable.RawValueJson, options) ? variable.RawValueJson : null,
                     ValuePreview = TrimPreview(variable.ValuePreview, options.MaxValuePreviewLength)
                 },
                 StringComparer.Ordinal);
@@ -480,5 +480,16 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
                     $"Variable scope '{_frameId}' cannot be popped because it is not the current scope.");
             }
         }
+    }
+
+    private static bool ShouldIncludeRawValue(string? rawValueJson, MicroflowVariableSnapshotOptions options)
+    {
+        if (!options.IncludeRawValue || string.IsNullOrWhiteSpace(rawValueJson))
+        {
+            return false;
+        }
+
+        var maxLength = options.MaxRawValueLength <= 0 ? 4096 : options.MaxRawValueLength;
+        return rawValueJson.Length <= maxLength;
     }
 }

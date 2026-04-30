@@ -70,7 +70,8 @@ public abstract class ObjectActionExecutorBase : IMicroflowActionExecutor
             WorkspaceId = context.RuntimeExecutionContext.SecurityContext.WorkspaceId,
             TenantId = context.RuntimeExecutionContext.SecurityContext.TenantId,
             Value = ReadValue(context.ActionConfig),
-            DryRun = string.Equals(context.Options.Mode, MicroflowRuntimeExecutionMode.TestRun, StringComparison.OrdinalIgnoreCase)
+            DryRun = string.Equals(context.Options.Mode, MicroflowRuntimeExecutionMode.TestRun, StringComparison.OrdinalIgnoreCase),
+            RuntimeContext = context.RuntimeExecutionContext
         };
 
     protected static MicroflowRuntimeObjectQuery Query(MicroflowActionExecutionContext context)
@@ -80,7 +81,8 @@ public abstract class ObjectActionExecutorBase : IMicroflowActionExecutor
             ObjectId = ReadString(context.ActionConfig, "objectId") ?? ReadString(context.ActionConfig, "id"),
             WorkspaceId = context.RuntimeExecutionContext.SecurityContext.WorkspaceId,
             TenantId = context.RuntimeExecutionContext.SecurityContext.TenantId,
-            Limit = ReadInt(context.ActionConfig, "limit") ?? 100
+            Limit = ReadInt(context.ActionConfig, "limit") ?? 100,
+            RuntimeContext = context.RuntimeExecutionContext
         };
 
     private static string ReadEntityType(MicroflowActionExecutionContext context)

@@ -44,6 +44,26 @@ const APP: LowCodeAppSchema = {
 };
 
 describe("mendix-runtime executor", () => {
+  it("should emit showMessage command directly", () => {
+    const executor = createRuntimeExecutor();
+    const response = executor.executeAction(
+      {
+        actionType: "showMessage",
+        message: "hello",
+      },
+      {
+        app: APP,
+        pageId: "page_purchase_request_edit",
+        objectState: {}
+      }
+    );
+
+    expect(response.success).toBe(true);
+    expect(response.uiCommands).toEqual([
+      expect.objectContaining({ type: "showMessage", message: "hello" })
+    ]);
+  });
+
   it("should execute submit purchase request and set status", () => {
     const executor = createRuntimeExecutor();
     const objectState: Record<string, unknown> = {
@@ -67,5 +87,29 @@ describe("mendix-runtime executor", () => {
     expect(objectState.Status).toBe("NeedFinanceApproval");
     expect(response.traceId).toBeTruthy();
     expect(response.uiCommands.some(command => command.type === "refreshObject")).toBe(true);
+  });
+
+  it("should emit validationFeedback when amount is invalid", () => {
+    const executor = createRuntimeExecutor();
+    const objectState: Record<string, unknown> = {
+      Amount: 0,
+      Status: "Draft",
+      Reason: "采购服务器"
+    };
+    const response = executor.executeAction(
+      {
+        actionType: "callMicroflow",
+        microflowRef: { kind: "microflow", id: "mf_submit_purchase_request" },
+        arguments: [{ name: "Request", value: objectState }]
+      },
+      {
+        app: APP,
+        pageId: "page_purchase_request_edit",
+        objectState
+      }
+    );
+
+    expect(response.success).toBe(false);
+    expect(response.uiCommands.some(command => command.type === "validationFeedback")).toBe(true);
   });
 });

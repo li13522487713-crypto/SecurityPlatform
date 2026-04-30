@@ -42,6 +42,7 @@ public sealed class MicroflowTransactionManager : IMicroflowTransactionManager
         context.UnitOfWork = new MicroflowUnitOfWork();
         context.TransactionOptions = options;
         context.TransactionManager = this;
+        context.DatabaseSession?.Begin(transaction.Id);
 
         AddLog(context, MicroflowRuntimeTransactionLogOperation.Begin, MicroflowRuntimeTransactionLogLevel.Info, "Runtime transaction started.");
         return transaction;
@@ -74,6 +75,7 @@ public sealed class MicroflowTransactionManager : IMicroflowTransactionManager
         transaction.Status = MicroflowRuntimeTransactionStatus.Committed;
         transaction.EndedAt = _clock.UtcNow;
         transaction.CommitReason = reason;
+        context.DatabaseSession?.Commit(transaction.Id, reason);
         AddLog(context, MicroflowRuntimeTransactionLogOperation.Commit, MicroflowRuntimeTransactionLogLevel.Info, reason ?? "Runtime transaction committed.");
     }
 
@@ -110,6 +112,7 @@ public sealed class MicroflowTransactionManager : IMicroflowTransactionManager
         transaction.Status = MicroflowRuntimeTransactionStatus.RolledBack;
         transaction.EndedAt = _clock.UtcNow;
         transaction.RollbackReason = reason ?? error?.Message;
+        context.DatabaseSession?.Rollback(transaction.Id, reason ?? error?.Message);
         AddLog(context, MicroflowRuntimeTransactionLogOperation.Rollback, MicroflowRuntimeTransactionLogLevel.Warning, reason ?? error?.Message ?? "Runtime transaction rolled back.", error?.ObjectId, error?.ActionId);
     }
 

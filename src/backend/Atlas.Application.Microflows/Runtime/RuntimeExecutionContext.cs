@@ -61,6 +61,8 @@ public sealed class RuntimeExecutionContext
     public IMicroflowUnitOfWork? UnitOfWork { get; set; }
     public IMicroflowTransactionManager? TransactionManager { get; set; }
     public MicroflowRuntimeTransactionOptions? TransactionOptions { get; set; }
+    public IMicroflowRuntimeDbSession? DatabaseSession { get; set; }
+    public bool OwnsTransactionLifecycle { get; set; } = true;
     public string? CurrentTransactionId => Transaction?.Id;
     public IReadOnlyList<MicroflowRuntimeTransactionDiagnostic> TransactionDiagnostics => Transaction?.Diagnostics.ToArray() ?? Array.Empty<MicroflowRuntimeTransactionDiagnostic>();
     public object? TransactionContext => Transaction;
@@ -109,7 +111,9 @@ public sealed class RuntimeExecutionContext
         MicroflowCallStackFrame? currentCallFrame = null,
         IReadOnlyList<MicroflowCallStackFrame>? callStackFrames = null,
         IMicroflowVariableStore? variableStore = null,
-        string? debugSessionId = null)
+        string? debugSessionId = null,
+        IMicroflowRuntimeDbSession? databaseSession = null,
+        bool ownsTransactionLifecycle = true)
     {
         var store = variableStore ?? new MicroflowVariableStore(() => DateTimeOffset.UtcNow);
         var context = new RuntimeExecutionContext(runId, executionPlan, store, startedAt)
@@ -125,7 +129,9 @@ public sealed class RuntimeExecutionContext
             MaxCallDepth = maxCallDepth,
             MetadataCatalog = metadataCatalog,
             CurrentCallFrame = currentCallFrame,
-            DebugSessionId = debugSessionId
+            DebugSessionId = debugSessionId,
+            DatabaseSession = databaseSession,
+            OwnsTransactionLifecycle = ownsTransactionLifecycle
         };
         if (callStackFrames is not null)
         {
@@ -334,7 +340,8 @@ public sealed class RuntimeExecutionContext
         string? collectionId,
         int stepIndex,
         bool includeSystem = true,
-        bool includeRawValue = true)
+        bool includeRawValue = true,
+        int maxRawValueLength = 4096)
         => VariableStore.CreateSnapshot(new MicroflowVariableSnapshotOptions
         {
             ObjectId = objectId,
@@ -343,7 +350,8 @@ public sealed class RuntimeExecutionContext
             StepIndex = stepIndex,
             IncludeSystem = includeSystem,
             IncludeRawValue = includeRawValue,
-            MaxValuePreviewLength = 200
+            MaxValuePreviewLength = 200,
+            MaxRawValueLength = maxRawValueLength
         });
 
     public MicroflowRuntimeTransactionSnapshot CreateTransactionSnapshot(

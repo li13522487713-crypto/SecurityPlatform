@@ -136,7 +136,10 @@ public sealed class MicroflowActionExecutorRegistryTests
         {
             ["rollback"] = "RollbackObjectActionExecutor",
             ["cast"] = "CastObjectActionExecutor",
-            ["listOperation"] = "ListOperationActionExecutor"
+            ["listOperation"] = "ListOperationActionExecutor",
+            ["counter"] = "MetricsActionExecutor",
+            ["incrementCounter"] = "MetricsActionExecutor",
+            ["gauge"] = "MetricsActionExecutor"
         };
 
         foreach (var actionKind in expectedExecutors.Keys)

@@ -91,6 +91,26 @@ public sealed class MicroflowTransactionManagerTests
         Assert.Contains(context.Transaction.Logs, log => log.Operation == MicroflowRuntimeTransactionLogOperation.ErrorHandlingContinue);
     }
 
+    [Fact]
+    public void BeginCommitRollback_AlsoDrive_RuntimeDbSession()
+    {
+        var manager = CreateManager();
+        var session = new RecordingDbSession();
+        var context = CreateContext(manager);
+        context.DatabaseSession = session;
+
+        manager.Commit(context, "done");
+        Assert.Equal(1, session.BeginCount);
+        Assert.Equal(1, session.CommitCount);
+
+        var rollbackContext = CreateContext(manager);
+        rollbackContext.DatabaseSession = session;
+        manager.Rollback(rollbackContext, "failed");
+
+        Assert.Equal(2, session.BeginCount);
+        Assert.Equal(1, session.RollbackCount);
+    }
+
     private static RuntimeExecutionContext CreateContext(IMicroflowTransactionManager manager, bool autoBegin = true)
     {
         var options = new MicroflowRuntimeTransactionOptions { AutoBegin = autoBegin };
@@ -141,5 +161,35 @@ public sealed class MicroflowTransactionManagerTests
     private sealed class TestClock : IMicroflowClock
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 4, 27, 12, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class RecordingDbSession : IMicroflowRuntimeDbSession
+    {
+        public string Id { get; } = "db-session";
+        public bool HasActiveTransaction { get; private set; }
+        public bool OwnsLifecycle => true;
+        public int BeginCount { get; private set; }
+        public int CommitCount { get; private set; }
+        public int RollbackCount { get; private set; }
+
+        public void Begin(string? transactionId = null)
+        {
+            BeginCount++;
+            HasActiveTransaction = true;
+        }
+
+        public void Commit(string? transactionId = null, string? reason = null)
+        {
+            CommitCount++;
+            HasActiveTransaction = false;
+        }
+
+        public void Rollback(string? transactionId = null, string? reason = null)
+        {
+            RollbackCount++;
+            HasActiveTransaction = false;
+        }
+
+        public T? GetNativeSession<T>() where T : class => null;
     }
 }

@@ -1,5 +1,7 @@
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Repositories;
+using Atlas.Application.Microflows.Runtime.Objects;
+using Atlas.Application.Microflows.Runtime.Transactions;
 using Atlas.Infrastructure.Repositories.Microflows;
 using Atlas.Infrastructure.Services.Microflows;
 using Microsoft.Extensions.Configuration;
@@ -20,6 +22,8 @@ public static class MicroflowInfrastructureServiceRegistration
         services.AddScoped<IMicroflowRunRepository, MicroflowRunRepository>();
         services.AddScoped<IMicroflowMetadataCacheRepository, MicroflowMetadataCacheRepository>();
         services.AddScoped<IMicroflowStorageTransaction, MicroflowStorageTransaction>();
+        services.AddScoped<IMicroflowRuntimeDbSessionFactory, SqlSugarMicroflowRuntimeDbSessionFactory>();
+        services.AddScoped<IMicroflowRuntimeObjectStore, SqlSugarMicroflowRuntimeObjectStore>();
 
         services.AddScoped<IMicroflowResourceQueryService, MicroflowDbResourceQueryService>();
         services.AddScoped<IMicroflowMetadataQueryService, MicroflowDbMetadataQueryService>();

@@ -205,6 +205,25 @@ public sealed class MicroflowRuntimeEngineTests
     }
 
     [Fact]
+    public async Task Run_VariableSnapshots_TrimLargeRawValuePayloads()
+    {
+        var largeValue = new string('x', 5000);
+        var result = await RunAsync(Schema(
+            Objects(
+                Start(),
+                Action("create", "createVariable", new { variableName = "payload", dataType = Type("string"), initialValue = $"\"{largeValue}\"" }),
+                End(returnValue: "payload")),
+            Flows(Flow("f1", "start", "create"), Flow("f2", "create", "end"))));
+
+        Assert.Equal("success", result.Status);
+        var payloadSnapshot = result.Trace
+            .SelectMany(frame => frame.VariablesSnapshot?.Values ?? Array.Empty<MicroflowRuntimeVariableValueDto>())
+            .First(variable => variable.Name == "payload");
+        Assert.Null(payloadSnapshot.RawValueJson);
+        Assert.NotEmpty(payloadSnapshot.ValuePreview);
+    }
+
+    [Fact]
     public async Task Run_CallMicroflow_ExecutesChildAndBindsReturnValue()
     {
         const string childResourceId = "mf-child";

@@ -350,7 +350,8 @@ public static class AtlasOrmSchemaCatalog
         typeof(MicroflowRunTraceFrameEntity),
         typeof(MicroflowRunLogEntity),
         typeof(MicroflowMetadataCacheEntity),
-        typeof(MicroflowSchemaMigrationEntity)
+        typeof(MicroflowSchemaMigrationEntity),
+        typeof(MicroflowRuntimeObjectStateEntity)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =

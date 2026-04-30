@@ -2329,6 +2329,72 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           [microflowId]: hydration.warning ?? "运行会话回读未完全成功，请刷新 Run History 或重新运行。",
         }));
       }
+      if (response.runtimeCommands?.length) {
+        const parsePayload = (payloadJson?: string) => {
+          if (!payloadJson) {
+            return undefined;
+          }
+          try {
+            return JSON.parse(payloadJson) as Record<string, unknown>;
+          } catch {
+            return undefined;
+          }
+        };
+
+        const runtimeIssues: MicroflowValidationIssue[] = [];
+        const deferredMessages: string[] = [];
+        for (const command of response.runtimeCommands) {
+          const payload = parsePayload(command.payloadJson);
+          if (command.commandKind === "showMessage") {
+            const level = typeof payload?.messageType === "string"
+              ? payload.messageType
+              : typeof payload?.level === "string"
+                ? payload.level
+                : "info";
+            const message =
+              typeof payload?.message === "string" ? payload.message
+                : typeof payload?.messageExpression === "string" ? payload.messageExpression
+                  : typeof payload?.template === "string" ? payload.template
+                    : `Runtime command: ${command.commandKind}`;
+            Toast[(level === "error" || level === "warning" || level === "success") ? level : "info"](message);
+            continue;
+          }
+
+          if (command.commandKind === "validationFeedback") {
+            runtimeIssues.push({
+              id: `runtime-command:${microflowId}:${command.sourceObjectId ?? "unknown"}:${command.commandKind}`,
+              microflowId,
+              code: "RUNTIME_VALIDATION_FEEDBACK",
+              severity: "warning",
+              message: typeof payload?.feedbackMessage === "string"
+                ? payload.feedbackMessage
+                : typeof payload?.message === "string"
+                  ? payload.message
+                  : "Runtime validation feedback received.",
+              source: "runtimeCommand",
+              objectId: command.sourceObjectId,
+              actionId: command.sourceActionId,
+              fieldPath: typeof payload?.targetPath === "string" ? payload.targetPath : undefined,
+              blockPublish: false,
+            } satisfies MicroflowValidationIssue);
+            continue;
+          }
+
+          deferredMessages.push(command.commandKind);
+        }
+
+        if (runtimeIssues.length > 0) {
+          setIssues(current => [...current, ...runtimeIssues]);
+          setBottomTab("problems");
+        }
+
+        if (deferredMessages.length > 0) {
+          setRuntimeServiceErrorByMicroflowId(current => ({
+            ...current,
+            [microflowId]: `这些 runtime commands 已生成但前端尚未完整消费：${deferredMessages.join(", ")}`,
+          }));
+        }
+      }
       props.onTestRunComplete?.(response);
       void loadRunHistory(microflowId, runHistoryFilter);
       Toast[response.status === "succeeded" ? "success" : "error"](
@@ -2839,8 +2905,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       fullscreen: fullscreenActive || focusMode,
       activeBottomTab: bottomTab,
       bottomDockMode,
-      sessionHydrated: Boolean(currentRunSession?.persistedAt),
-      traceHydrated: currentRunSession?.hasHydratedTrace ?? Boolean(currentRunSession?.persistedAt),
+      sessionHydrated: currentRunSession?.hasHydratedTrace ?? Boolean(currentRunSession?.persistedAt),
+      traceHydrated: currentRunSession?.hasHydratedTrace ?? false,
       debugSessionHydrated: Boolean(activeDebugSession?.lastUpdatedAt),
       degradedRunSession: Boolean(currentRunSession && currentRunSession.hasHydratedTrace === false),
       layout: layoutState,

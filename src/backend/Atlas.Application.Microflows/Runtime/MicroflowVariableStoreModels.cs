@@ -157,6 +157,7 @@ public sealed record MicroflowVariableSnapshotOptions
     public bool IncludeRawValue { get; init; } = true;
     public bool IncludeReadonly { get; init; } = true;
     public int MaxValuePreviewLength { get; init; } = 200;
+    public int MaxRawValueLength { get; init; } = 4096;
     public string? ScopeFilter { get; init; }
     public string? VariableNameFilter { get; init; }
     public string? ObjectId { get; init; }

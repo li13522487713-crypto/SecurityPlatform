@@ -6,11 +6,13 @@ using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime.Actions;
+using Atlas.Application.Microflows.Runtime.Calls;
 using Atlas.Application.Microflows.Runtime.Debug;
 using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Loops;
 using Atlas.Application.Microflows.Runtime.Security;
+using Atlas.Application.Microflows.Runtime.Transactions;
 using Atlas.Application.Microflows.Services;
 
 namespace Atlas.Application.Microflows.Runtime;
@@ -39,6 +41,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     private readonly IMicroflowDebugCoordinator? _debugCoordinator;
     private readonly IMicroflowRunCancellationRegistry? _cancellationRegistry;
     private readonly MicroflowEntityAccessOptions _runtimeOptions;
+    private readonly IMicroflowTransactionManager? _transactionManager;
+    private readonly IMicroflowRuntimeDbSessionFactory? _runtimeDbSessionFactory;
 
     public MicroflowRuntimeEngine(IMicroflowSchemaReader schemaReader, IMicroflowClock clock)
         : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null, null, null, null)
@@ -76,7 +80,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowErrorHandlingService? errorHandlingService,
         IMicroflowDebugCoordinator? debugCoordinator = null,
         IMicroflowRunCancellationRegistry? cancellationRegistry = null,
-        MicroflowEntityAccessOptions? runtimeOptions = null)
+        MicroflowEntityAccessOptions? runtimeOptions = null,
+        IMicroflowTransactionManager? transactionManager = null,
+        IMicroflowRuntimeDbSessionFactory? runtimeDbSessionFactory = null)
     {
         _schemaReader = schemaReader;
         _clock = clock;
@@ -90,6 +96,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         _debugCoordinator = debugCoordinator;
         _cancellationRegistry = cancellationRegistry;
         _runtimeOptions = runtimeOptions ?? new MicroflowEntityAccessOptions();
+        _transactionManager = transactionManager;
+        _runtimeDbSessionFactory = runtimeDbSessionFactory;
     }
 
     public Task<MicroflowRunSessionDto> RunAsync(MicroflowExecutionRequest request, CancellationToken cancellationToken)
@@ -118,6 +126,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             startedAt,
             _clock,
             _expressionEvaluator,
+            _transactionManager,
+            _runtimeDbSessionFactory,
             runId!,
             parent?.ParentRunId,
             rootRunId,
@@ -412,7 +422,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             ObjectId = node.Id,
             CollectionId = node.CollectionId,
             VariableStore = context.VariableStore,
-            ExpressionEvaluator = _expressionEvaluator
+            ExpressionEvaluator = _expressionEvaluator,
+            TransactionManager = context.AsRuntimeExecutionContext().TransactionManager
         };
 
         var loopResult = await _loopExecutor.ExecuteLoopAsync(actionContext, actionContext.ExecutionNode, cancellationToken).ConfigureAwait(false);
@@ -687,6 +698,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             VariableStore = context.VariableStore,
             ExpressionEvaluator = _expressionEvaluator,
             MetadataCatalog = context.Metadata,
+            TransactionManager = context.AsRuntimeExecutionContext().TransactionManager,
             ConnectorRegistry = connectorRegistry,
             RuntimeSecurityContext = MicroflowRuntimeSecurityContext.FromRequestContext(context.RequestContext, applyEntityAccess: true),
             DebugCoordinator = _debugCoordinator,
@@ -734,12 +746,13 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         // session 中消费这些命令。
         if (string.Equals(result.Status, MicroflowActionExecutionStatus.PendingClientCommand, StringComparison.OrdinalIgnoreCase))
         {
-            var commandOutput = result.OutputJson ?? JsonObj(new
+            var commandOutput = JsonObj(new
             {
                 actionKind = action.Kind,
                 status = result.Status,
                 runtimeCommands = result.RuntimeCommands,
-                message = result.Message
+                message = result.Message,
+                executorOutput = result.OutputJson
             });
             return ContinueAfterAction(context, graph, node, incomingFlowId, commandOutput);
         }
@@ -1752,10 +1765,13 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     {
         private readonly MicroflowExecutionRequest _request;
         private readonly IMicroflowClock _clock;
+        private readonly IMicroflowTransactionManager? _transactionManager;
+        private readonly IMicroflowRuntimeDbSessionFactory? _runtimeDbSessionFactory;
         private readonly MicroflowVariableStore _expressionVariableStore = new();
         private RuntimeExecutionContext? _executionContext;
         private MicroflowExecutionPlan? _executionPlan;
         private int _steps;
+        private bool _sessionFinalized;
 
         public RuntimeContext(
             MicroflowExecutionRequest request,
@@ -1763,6 +1779,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             DateTimeOffset startedAt,
             IMicroflowClock clock,
             IMicroflowExpressionEvaluator expressionEvaluator,
+            IMicroflowTransactionManager? transactionManager,
+            IMicroflowRuntimeDbSessionFactory? runtimeDbSessionFactory,
             string runId,
             string? parentRunId,
             string rootRunId,
@@ -1777,6 +1795,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             StartedAt = startedAt;
             _clock = clock;
             ExpressionEvaluator = expressionEvaluator;
+            _transactionManager = transactionManager;
+            _runtimeDbSessionFactory = runtimeDbSessionFactory;
             RunId = runId;
             ParentRunId = parentRunId;
             RootRunId = rootRunId;
@@ -1896,6 +1916,32 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             }
 
             var plan = ResolveExecutionPlan();
+            var transactionBoundary = NormalizeTransactionBoundary(_request.TransactionBoundary);
+            var parentRuntimeContext = _request.ParentRuntimeContext;
+            var sharedTransaction = parentRuntimeContext is not null
+                && (string.Equals(transactionBoundary, MicroflowCallTransactionBoundary.Inherit, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(transactionBoundary, MicroflowCallTransactionBoundary.SharedTransaction, StringComparison.OrdinalIgnoreCase));
+            var disableTransaction = string.Equals(transactionBoundary, MicroflowCallTransactionBoundary.NoTransaction, StringComparison.OrdinalIgnoreCase);
+            var transactionManager = disableTransaction
+                ? null
+                : sharedTransaction
+                    ? parentRuntimeContext?.TransactionManager
+                    : _transactionManager;
+            var transactionOptions = disableTransaction
+                ? new MicroflowRuntimeTransactionOptions { Mode = MicroflowRuntimeTransactionMode.None, AutoBegin = false }
+                : sharedTransaction
+                    ? new MicroflowRuntimeTransactionOptions
+                    {
+                        Mode = MicroflowRuntimeTransactionMode.SharedInherited,
+                        AutoBegin = false,
+                        AllowNested = true
+                    }
+                    : BuildTransactionOptions(transactionBoundary);
+            var databaseSession = disableTransaction
+                ? null
+                : sharedTransaction
+                    ? parentRuntimeContext?.DatabaseSession
+                    : _runtimeDbSessionFactory?.Create(_request.RequestContext, parentRuntimeContext?.DatabaseSession, transactionBoundary);
             // Reuse the engine's existing variable store so action executors can
             // read variables created by createVariable / createList earlier in the
             // run and write back into the same scope (otherwise loop-aware actions
@@ -1907,13 +1953,24 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 input: _request.Input,
                 securityContext: _request.RequestContext,
                 startedAt: StartedAt,
+                transactionManager: transactionManager,
+                transactionOptions: transactionOptions,
                 metadataCatalog: _request.Metadata,
                 parentRunId: ParentRunId,
                 rootRunId: RootRunId,
                 callCorrelationId: CorrelationId,
                 maxCallDepth: MaxCallDepth,
                 variableStore: _expressionVariableStore,
-                debugSessionId: _request.DebugSessionId);
+                debugSessionId: _request.DebugSessionId,
+                databaseSession: databaseSession,
+                ownsTransactionLifecycle: !sharedTransaction);
+            if (sharedTransaction && parentRuntimeContext is not null)
+            {
+                _executionContext.Transaction = parentRuntimeContext.Transaction;
+                _executionContext.UnitOfWork = parentRuntimeContext.UnitOfWork;
+                _executionContext.TransactionManager = parentRuntimeContext.TransactionManager;
+                _executionContext.TransactionOptions = parentRuntimeContext.TransactionOptions;
+            }
             return _executionContext;
         }
 
@@ -2185,6 +2242,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
         public MicroflowRunSessionDto BuildSession(string status, MicroflowRuntimeErrorDto? error, JsonElement? output = null)
         {
+            FinalizeTransaction(status, error);
             var endedAt = _clock.UtcNow;
             if (error is not null)
             {
@@ -2220,25 +2278,41 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     ObjectId = frame.ObjectId,
                     Variables = frame.VariablesSnapshot?.Values.ToArray() ?? Array.Empty<MicroflowRuntimeVariableValueDto>()
                 }).ToArray(),
+                TransactionSummary = ToTransactionSummary(_executionContext?.CreateTransactionSnapshot("session")),
+                ErrorHandlingSummary = _executionContext?.ErrorHandlingSummary,
                 ChildRuns = ChildRuns,
                 ChildRunIds = ChildRuns.Select(child => child.Id).ToArray()
             };
         }
 
         private Dictionary<string, MicroflowRuntimeVariableValueDto> SnapshotVariables()
-            => Variables.ToDictionary(
+        {
+            var snapshot = AsRuntimeExecutionContext().CreateSnapshot(
+                objectId: null,
+                actionId: null,
+                collectionId: null,
+                stepIndex: _steps,
+                includeSystem: true,
+                includeRawValue: true,
+                maxRawValueLength: 4096);
+            return snapshot.Variables.ToDictionary(
                 pair => pair.Key,
                 pair => new MicroflowRuntimeVariableValueDto
                 {
                     Name = pair.Value.Name,
-                    Type = pair.Value.Type,
-                    ValuePreview = Preview(pair.Value.Value),
-                    RawValue = pair.Value.Value,
-                    RawValueJson = pair.Value.Value.GetRawText(),
-                    Source = pair.Value.Source,
-                    ScopeKind = pair.Value.Source == "parameter" ? "parameter" : "local"
+                    Type = pair.Value.DataTypeJson is null ? null : MicroflowVariableStore.ToJsonElement(pair.Value.DataTypeJson),
+                    ValuePreview = pair.Value.ValuePreview,
+                    RawValue = pair.Value.RawValueJson is null ? null : MicroflowVariableStore.ToJsonElement(pair.Value.RawValueJson),
+                    RawValueJson = pair.Value.RawValueJson,
+                    Source = pair.Value.SourceKind,
+                    SourceObjectId = pair.Value.SourceObjectId,
+                    SourceActionId = pair.Value.SourceActionId,
+                    CollectionId = pair.Value.CollectionId,
+                    Readonly = pair.Value.Readonly,
+                    ScopeKind = pair.Value.ScopeKind
                 },
                 StringComparer.Ordinal);
+        }
 
         public MicroflowDebugRuntimeSnapshot CreateDebugSnapshot(MicroflowDebugSafePoint point)
         {
@@ -2271,6 +2345,66 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 Variables = variables
             };
         }
+
+        private void FinalizeTransaction(string status, MicroflowRuntimeErrorDto? error)
+        {
+            if (_sessionFinalized || _executionContext is null || !_executionContext.OwnsTransactionLifecycle)
+            {
+                return;
+            }
+
+            _sessionFinalized = true;
+            if (_executionContext.TransactionManager is null || _executionContext.Transaction is null)
+            {
+                return;
+            }
+
+            if (!string.Equals(_executionContext.Transaction.Status, MicroflowRuntimeTransactionStatus.Active, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+            {
+                _executionContext.TransactionManager.Commit(_executionContext, "run completed");
+                return;
+            }
+
+            _executionContext.TransactionManager.Rollback(_executionContext, "run failed", error);
+        }
+
+        private static MicroflowRuntimeTransactionOptions BuildTransactionOptions(string transactionBoundary)
+            => string.Equals(transactionBoundary, MicroflowCallTransactionBoundary.ChildTransaction, StringComparison.OrdinalIgnoreCase)
+                ? new MicroflowRuntimeTransactionOptions
+                {
+                    Mode = MicroflowRuntimeTransactionMode.ChildTransaction,
+                    AutoBegin = true,
+                    AllowNested = true
+                }
+                : new MicroflowRuntimeTransactionOptions();
+
+        private static string NormalizeTransactionBoundary(string? boundary)
+            => boundary switch
+            {
+                MicroflowCallTransactionBoundary.SharedTransaction => MicroflowCallTransactionBoundary.SharedTransaction,
+                MicroflowCallTransactionBoundary.ChildTransaction => MicroflowCallTransactionBoundary.ChildTransaction,
+                MicroflowCallTransactionBoundary.NoTransaction => MicroflowCallTransactionBoundary.NoTransaction,
+                _ => MicroflowCallTransactionBoundary.Inherit
+            };
+
+        private static Runtime.Transactions.MicroflowRuntimeTransactionSummary? ToTransactionSummary(MicroflowRuntimeTransactionSnapshot? snapshot)
+            => snapshot is null
+                ? null
+                : new Runtime.Transactions.MicroflowRuntimeTransactionSummary
+                {
+                    TransactionId = snapshot.TransactionId,
+                    Status = snapshot.Status,
+                    ChangedObjectCount = snapshot.ChangedObjectCount,
+                    CommittedObjectCount = snapshot.CommittedObjectCount,
+                    RolledBackObjectCount = snapshot.RolledBackObjectCount,
+                    LogCount = snapshot.LogCount,
+                    DiagnosticsCount = snapshot.DiagnosticsCount
+                };
     }
 
     private sealed record RuntimeVariable(string Name, JsonElement Type, JsonElement Value, string Source);

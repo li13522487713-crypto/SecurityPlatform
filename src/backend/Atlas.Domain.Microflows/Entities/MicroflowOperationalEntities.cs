@@ -350,3 +350,64 @@ public sealed class MicroflowSchemaMigrationEntity
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtraJson { get; set; }
 }
+
+[SugarTable("MicroflowRuntimeObjectState")]
+[SugarIndex("IX_MicroflowRuntimeObjectState_Entity_Object", nameof(EntityType), OrderByType.Asc, nameof(ObjectId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowRuntimeObjectState_Run", nameof(RunId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowRuntimeObjectState_Transaction", nameof(TransactionId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowRuntimeObjectState_WorkspaceId", nameof(WorkspaceId), OrderByType.Asc)]
+[SugarIndex("IX_MicroflowRuntimeObjectState_TenantId", nameof(TenantId), OrderByType.Asc)]
+public sealed class MicroflowRuntimeObjectStateEntity
+{
+    public MicroflowRuntimeObjectStateEntity()
+    {
+        Id = Guid.NewGuid().ToString("N");
+        RunId = string.Empty;
+        EntityType = string.Empty;
+        ObjectId = string.Empty;
+        State = "staged";
+        CreatedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = CreatedAt;
+        PayloadJson = "{}";
+    }
+
+    [SugarColumn(IsPrimaryKey = true, Length = 64)]
+    public string Id { get; set; }
+
+    [SugarColumn(Length = 64)]
+    public string RunId { get; set; }
+
+    [SugarColumn(Length = 64, IsNullable = true)]
+    public string? RootRunId { get; set; }
+
+    [SugarColumn(Length = 64, IsNullable = true)]
+    public string? ParentRunId { get; set; }
+
+    [SugarColumn(Length = 64, IsNullable = true)]
+    public string? TransactionId { get; set; }
+
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? WorkspaceId { get; set; }
+
+    [SugarColumn(Length = 128, IsNullable = true)]
+    public string? TenantId { get; set; }
+
+    [SugarColumn(Length = 256)]
+    public string EntityType { get; set; }
+
+    [SugarColumn(Length = 128)]
+    public string ObjectId { get; set; }
+
+    [SugarColumn(Length = 32)]
+    public string State { get; set; }
+
+    [SugarColumn(ColumnDataType = "text")]
+    public string PayloadJson { get; set; }
+
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? BeforePayloadJson { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}

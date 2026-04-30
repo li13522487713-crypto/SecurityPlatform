@@ -161,7 +161,7 @@ public sealed class MicroflowRuntimeEngineP04Tests
         Assert.Equal("success", session.Status);
         var showFrame = session.Trace.Single(frame => frame.ObjectId == "show");
         Assert.Equal("success", showFrame.Status);
-        Assert.Contains(showFrame.Output?.GetRawText() ?? string.Empty, "runtimeCommands");
+        Assert.Contains("runtimeCommands", showFrame.Output?.GetRawText() ?? string.Empty);
     }
 
     [Theory]
