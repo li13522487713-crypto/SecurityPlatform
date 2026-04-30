@@ -50,6 +50,11 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IMicroflowRuntimeObjec
     public async Task<MicroflowRuntimeObjectStoreResult> CreateAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        if (mutation.RuntimeContext?.DatabaseSession is null)
+        {
+            return Failed(RuntimeErrorCode.RuntimeTransactionRequired, "CreateObject requires an active runtime transaction.");
+        }
+
         var db = ResolveDb(mutation.RuntimeContext);
         var objectId = string.IsNullOrWhiteSpace(mutation.ObjectId) ? Guid.NewGuid().ToString("N") : mutation.ObjectId!;
         var payload = mutation.Value ?? JsonSerializer.SerializeToElement(new { id = objectId, entityType = mutation.EntityType }, JsonOptions);
@@ -74,6 +79,11 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IMicroflowRuntimeObjec
     public async Task<MicroflowRuntimeObjectStoreResult> ChangeAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        if (mutation.RuntimeContext?.DatabaseSession is null)
+        {
+            return Failed(RuntimeErrorCode.RuntimeTransactionRequired, "ChangeMembers requires an active runtime transaction.");
+        }
+
         if (string.IsNullOrWhiteSpace(mutation.ObjectId))
         {
             return Failed(RuntimeErrorCode.RuntimeObjectNotFound, "Object id is required.");
@@ -96,16 +106,23 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IMicroflowRuntimeObjec
     }
 
     public Task<MicroflowRuntimeObjectStoreResult> CommitAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
-        => Task.FromResult(new MicroflowRuntimeObjectStoreResult
-        {
-            Success = true,
-            Value = mutation.Value,
-            Message = mutation.DryRun ? "Dry-run commit accepted." : "Commit accepted."
-        });
+        => Task.FromResult(mutation.RuntimeContext?.DatabaseSession is null
+            ? Failed(RuntimeErrorCode.RuntimeTransactionRequired, "Commit requires an active runtime transaction.")
+            : new MicroflowRuntimeObjectStoreResult
+            {
+                Success = true,
+                Value = mutation.Value,
+                Message = mutation.DryRun ? "Dry-run commit accepted." : "Commit accepted."
+            });
 
     public async Task<MicroflowRuntimeObjectStoreResult> DeleteAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        if (mutation.RuntimeContext?.DatabaseSession is null)
+        {
+            return Failed(RuntimeErrorCode.RuntimeTransactionRequired, "Delete requires an active runtime transaction.");
+        }
+
         if (string.IsNullOrWhiteSpace(mutation.ObjectId))
         {
             return Failed(RuntimeErrorCode.RuntimeObjectNotFound, "Object id is required.");
@@ -129,6 +146,11 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IMicroflowRuntimeObjec
     public async Task<MicroflowRuntimeObjectStoreResult> RollbackAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        if (mutation.RuntimeContext?.DatabaseSession is null)
+        {
+            return Failed(RuntimeErrorCode.RuntimeTransactionRequired, "Rollback requires an active runtime transaction.");
+        }
+
         if (string.IsNullOrWhiteSpace(mutation.ObjectId))
         {
             return Failed(RuntimeErrorCode.RuntimeObjectNotFound, "Object id is required.");

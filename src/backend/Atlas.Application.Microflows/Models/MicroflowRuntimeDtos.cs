@@ -510,6 +510,7 @@ public static class RuntimeErrorCode
     public const string RuntimeUnsupportedAction = "RUNTIME_UNSUPPORTED_ACTION";
     public const string RuntimeConnectorRequired = "RUNTIME_CONNECTOR_REQUIRED";
     public const string RuntimeLogMessageFailed = "RUNTIME_LOG_MESSAGE_FAILED";
+    public const string RuntimeTransactionRequired = "RUNTIME_TRANSACTION_REQUIRED";
     public const string RuntimeTransactionRolledBack = "RUNTIME_TRANSACTION_ROLLED_BACK";
     public const string RuntimeRollbackFailed = "RUNTIME_ROLLBACK_FAILED";
     public const string RuntimeErrorHandlerNotFound = "RUNTIME_ERROR_HANDLER_NOT_FOUND";

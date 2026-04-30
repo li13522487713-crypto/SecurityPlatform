@@ -96,22 +96,26 @@ public sealed class MicroflowTransactionManagerTests
     {
         var manager = CreateManager();
         var session = new RecordingDbSession();
-        var context = CreateContext(manager);
-        context.DatabaseSession = session;
+        var context = CreateContext(manager, session, autoBegin: false);
+        manager.Begin(context, new MicroflowRuntimeTransactionOptions());
 
         manager.Commit(context, "done");
         Assert.Equal(1, session.BeginCount);
         Assert.Equal(1, session.CommitCount);
 
-        var rollbackContext = CreateContext(manager);
-        rollbackContext.DatabaseSession = session;
+        var rollbackSession = new RecordingDbSession();
+        var rollbackContext = CreateContext(manager, rollbackSession, autoBegin: false);
+        manager.Begin(rollbackContext, new MicroflowRuntimeTransactionOptions());
         manager.Rollback(rollbackContext, "failed");
 
-        Assert.Equal(2, session.BeginCount);
-        Assert.Equal(1, session.RollbackCount);
+        Assert.Equal(1, rollbackSession.BeginCount);
+        Assert.Equal(1, rollbackSession.RollbackCount);
     }
 
-    private static RuntimeExecutionContext CreateContext(IMicroflowTransactionManager manager, bool autoBegin = true)
+    private static RuntimeExecutionContext CreateContext(
+        IMicroflowTransactionManager manager,
+        IMicroflowRuntimeDbSession? databaseSession = null,
+        bool autoBegin = true)
     {
         var options = new MicroflowRuntimeTransactionOptions { AutoBegin = autoBegin };
         return RuntimeExecutionContext.Create(
@@ -127,7 +131,8 @@ public sealed class MicroflowTransactionManagerTests
             securityContext: null,
             startedAt: DateTimeOffset.UtcNow,
             transactionManager: manager,
-            transactionOptions: options);
+            transactionOptions: options,
+            databaseSession: databaseSession);
     }
 
     private static MicroflowTransactionManager CreateManager()
