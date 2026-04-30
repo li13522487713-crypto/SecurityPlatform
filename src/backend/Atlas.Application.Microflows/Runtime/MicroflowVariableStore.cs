@@ -48,12 +48,17 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
         }
 
         var now = _utcNow();
+        var normalizedRawValueJson = NormalizeJson(definition.RawValueJson);
+        var estimatedSizeBytes = EstimateSizeBytes(normalizedRawValueJson);
+        var useReference = definition.PreferReferenceWhenLarge
+            && definition.MemoryBudget is not null
+            && estimatedSizeBytes > definition.MemoryBudget.MaxVariableBytes;
         var value = definition.Value ?? new MicroflowRuntimeVariableValue
         {
             Name = definition.Name,
             DataTypeJson = NormalizeJson(definition.DataTypeJson),
             Kind = InferKind(definition.DataTypeJson, definition.RawValueJson),
-            RawValueJson = NormalizeJson(definition.RawValueJson),
+            RawValueJson = useReference ? null : normalizedRawValueJson,
             ValuePreview = TrimPreview(definition.ValuePreview ?? Preview(definition.RawValueJson), 200),
             TypePreview = definition.TypePreview ?? CreateTypePreview(definition.DataTypeJson),
             SourceKind = definition.SourceKind,
@@ -65,7 +70,18 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
             System = definition.System,
             ScopeKind = definition.ScopeKind,
             CreatedAt = now,
-            UpdatedAt = now
+            UpdatedAt = now,
+            EstimatedSizeBytes = estimatedSizeBytes,
+            IsLargeObject = useReference,
+            ValueRef = useReference
+                ? new RuntimeValueRef
+                {
+                    RefKind = definition.ValueRefKind ?? "blob",
+                    ContentType = definition.ValueRefContentType,
+                    SizeBytes = estimatedSizeBytes,
+                    Preview = TrimPreview(definition.ValuePreview ?? Preview(definition.RawValueJson), 200)
+                }
+                : null
         };
 
         if (string.Equals(value.Kind, MicroflowRuntimeVariableKind.Unknown, StringComparison.OrdinalIgnoreCase))
@@ -164,7 +180,10 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
             System = existing.System,
             ScopeKind = existing.ScopeKind,
             CreatedAt = existing.CreatedAt,
-            UpdatedAt = _utcNow()
+            UpdatedAt = _utcNow(),
+            EstimatedSizeBytes = value.EstimatedSizeBytes > 0 ? value.EstimatedSizeBytes : EstimateSizeBytes(value.RawValueJson),
+            IsLargeObject = value.IsLargeObject,
+            ValueRef = value.ValueRef
         };
     }
 
@@ -420,6 +439,9 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
            && property.ValueKind == JsonValueKind.String
             ? property.GetString()
             : null;
+
+    public static long EstimateSizeBytes(string? rawValueJson)
+        => string.IsNullOrEmpty(rawValueJson) ? 0 : System.Text.Encoding.UTF8.GetByteCount(rawValueJson);
 
     private MicroflowVariableStoreDiagnostic AddDiagnostic(string code, string severity, string message, MicroflowVariableDefinition definition)
         => AddDiagnostic(code, severity, message, definition.Name, definition.SourceObjectId, definition.SourceActionId, definition.CollectionId, definition.ScopeKind);

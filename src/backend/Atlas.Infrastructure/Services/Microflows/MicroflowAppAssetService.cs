@@ -14,15 +14,18 @@ public sealed class MicroflowAppAssetService : IMicroflowAppAssetService
     private readonly ISqlSugarClient _db;
     private readonly IMicroflowMetadataService _metadataService;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
+    private readonly IMendixDomainModelService? _domainModelService;
 
     public MicroflowAppAssetService(
         ISqlSugarClient db,
         IMicroflowMetadataService metadataService,
-        IMicroflowRequestContextAccessor requestContextAccessor)
+        IMicroflowRequestContextAccessor requestContextAccessor,
+        IMendixDomainModelService? domainModelService = null)
     {
         _db = db;
         _metadataService = metadataService;
         _requestContextAccessor = requestContextAccessor;
+        _domainModelService = domainModelService;
     }
 
     public async Task<MicroflowAppAssetDto> GetAppAsync(string appId, string workspaceId, CancellationToken cancellationToken)
@@ -52,11 +55,15 @@ public sealed class MicroflowAppAssetService : IMicroflowAppAssetService
             },
             cancellationToken);
 
+        var domainModelSummaries = _domainModelService is null
+            ? Array.Empty<MendixDomainModelModuleSummaryDto>()
+            : await _domainModelService.ListModuleSummariesAsync(appId, workspaceId, cancellationToken);
+
         var modules = catalog.Modules
             .Select(module => CreateModuleAsset(module, catalog))
             .Where(module => !string.IsNullOrWhiteSpace(module.ModuleId))
             .GroupBy(module => module.ModuleId, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
+            .Select(group => MergeDomainModelEntities(group.First(), domainModelSummaries.FirstOrDefault(item => string.Equals(item.ModuleId, group.Key, StringComparison.OrdinalIgnoreCase))))
             .ToArray();
 
         return modules.Length > 0
@@ -157,6 +164,36 @@ public sealed class MicroflowAppAssetService : IMicroflowAppAssetService
         return moduleAliases.Any(alias =>
             !string.IsNullOrWhiteSpace(alias) &&
             string.Equals(candidate, alias, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static MicroflowModuleAssetDto MergeDomainModelEntities(MicroflowModuleAssetDto module, MendixDomainModelModuleSummaryDto? summary)
+    {
+        if (summary is null || summary.Entities.Count == 0)
+        {
+            return module;
+        }
+
+        var entities = summary.Entities
+            .Select(entity => new MicroflowDomainEntitySummaryDto
+            {
+                Id = entity.EntityId,
+                Name = entity.Name,
+                QualifiedName = entity.QualifiedName,
+                ModuleName = module.Name,
+                AttributeCount = entity.Attributes.Count,
+                AssociationCount = 0,
+                IsPersistable = entity.Persistable
+            })
+            .OrderBy(entity => entity.QualifiedName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return module with
+        {
+            Entities = entities,
+            Security = (module.Security ?? new MicroflowSecurityAssetSummaryDto()) with
+            {
+                EntityAccessCount = entities.Count(entity => entity.IsPersistable)
+            }
+        };
     }
 
     private async Task<MicroflowAppAssetDescriptor> LoadAppAssetAsync(string appId, string workspaceId, CancellationToken cancellationToken)

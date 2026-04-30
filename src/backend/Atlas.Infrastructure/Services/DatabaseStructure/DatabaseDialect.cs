@@ -63,6 +63,8 @@ public interface IDatabaseDialect
 
     string BuildCreateTableSql(PreviewCreateTableDdlRequest request);
 
+    string BuildAddColumnSql(string tableName, string? schema, TableColumnDesignDto column);
+
     string BuildCreateViewSql(CreateViewRequest request);
 
     string BuildDropSql(string objectName, string? schema, string objectType);
@@ -294,6 +296,12 @@ public abstract class DatabaseDialectBase : IDatabaseDialect
         AppendTableOptions(builder, request);
         builder.Append(';');
         return builder.ToString();
+    }
+
+    public virtual string BuildAddColumnSql(string tableName, string? schema, TableColumnDesignDto column)
+    {
+        ValidateIdentifier(tableName);
+        return $"ALTER TABLE {QualifiedName(tableName, schema)} ADD COLUMN {BuildColumnSql(column)};";
     }
 
     public virtual string BuildCreateViewSql(CreateViewRequest request)

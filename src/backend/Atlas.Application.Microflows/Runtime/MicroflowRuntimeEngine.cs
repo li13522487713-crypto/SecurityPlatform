@@ -148,7 +148,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         try
         {
             effectiveToken.ThrowIfCancellationRequested();
-            var graph = MicroflowRuntimeGraph.Build(context.Model);
+            var graph = request.ExecutionPlan is null
+                ? MicroflowRuntimeGraph.Build(context.Model)
+                : MicroflowRuntimeGraph.Build(context.Model, context.ResolveExecutionPlan(), context.ResolveExecutionPlanQuery());
             var bindingError = BindParameters(context);
             if (bindingError is not null)
             {
@@ -704,7 +706,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             DebugCoordinator = _debugCoordinator,
             Options = new MicroflowActionExecutionOptions
             {
-                Mode = MicroflowRuntimeExecutionMode.TestRun,
+                Mode = context.AsRuntimeExecutionContext().Mode,
                 AllowRealHttp = context.Options.AllowRealHttp ?? false,
                 SimulateRestError = context.Options.SimulateRestError ?? false,
                 StopOnUnsupported = true,
@@ -775,32 +777,6 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 ActionId = error.ActionId ?? action.Id,
                 FlowId = error.FlowId ?? incomingFlowId
             };
-
-            // P0-4: 当 executor 设置 ShouldEnterErrorHandler 且节点定义了 error handler outgoing flow，
-            // 引擎跳转到该错误分支继续执行而不是直接终止；同时把 latestError 写入变量便于错误分支读取。
-            if (result.ShouldEnterErrorHandler)
-            {
-                var errorOutgoing = graph.ErrorHandlerOutgoing(node.Id);
-                if (errorOutgoing.Count == 1)
-                {
-                    var errorFlow = errorOutgoing[0];
-                    context.AddNodeFailure(node, incomingFlowId, error, errorFlow.Id);
-                    context.SetVariable(
-                        "$latestError",
-                        Type("Object"),
-                        JsonSerializer.SerializeToElement(error, JsonOptions),
-                        $"action:{action.Kind}:errorHandler");
-                    if (result.LatestHttpResponse.HasValue)
-                    {
-                        context.SetVariable(
-                            "$latestHttpResponse",
-                            Type("Object"),
-                            result.LatestHttpResponse.Value,
-                            $"action:{action.Kind}:errorHandler");
-                    }
-                    return NodeExecution.Next(errorFlow.DestinationObjectId!, errorFlow.Id);
-                }
-            }
 
             var handledFailure = TryHandleConfiguredFailure(
                 context,
@@ -1168,9 +1144,16 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return null;
         }
 
-        var errorHandlingType = action is not null
+            var errorHandlingType = action is not null
             ? ReadString(action.Raw, "errorHandlingType") ?? ReadStringByPath(action.Raw, "errorHandling", "type")
             : ReadString(node.Raw, "errorHandlingType") ?? ReadStringByPath(node.Raw, "errorHandling", "type");
+        if (string.IsNullOrWhiteSpace(errorHandlingType)
+            && actionResult?.ShouldEnterErrorHandler == true
+            && graph.ErrorHandlerOutgoing(node.Id).Count > 0)
+        {
+            errorHandlingType = MicroflowErrorHandlingType.CustomWithoutRollback;
+        }
+
         if (string.IsNullOrWhiteSpace(errorHandlingType))
         {
             return null;
@@ -1770,6 +1753,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         private readonly MicroflowVariableStore _expressionVariableStore = new();
         private RuntimeExecutionContext? _executionContext;
         private MicroflowExecutionPlan? _executionPlan;
+        private MicroflowExecutionPlanQuery? _executionPlanQuery;
         private int _steps;
         private bool _sessionFinalized;
 
@@ -1857,6 +1841,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         {
             return _executionPlan ??= _request.ExecutionPlan ?? BuildMinimalExecutionPlan();
         }
+
+        public MicroflowExecutionPlanQuery ResolveExecutionPlanQuery()
+            => _executionPlanQuery ??= new MicroflowExecutionPlanQuery(ResolveExecutionPlan());
 
         public MicroflowExecutionNode ResolveExecutionNode(MicroflowObjectModel node, MicroflowActionModel action)
         {
@@ -1949,7 +1936,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             _executionContext = RuntimeExecutionContext.Create(
                 runId: RunId,
                 executionPlan: plan,
-                mode: MicroflowRuntimeExecutionMode.TestRun,
+                mode: _request.ExecutionMode,
                 input: _request.Input,
                 securityContext: _request.RequestContext,
                 startedAt: StartedAt,
@@ -1963,7 +1950,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 variableStore: _expressionVariableStore,
                 debugSessionId: _request.DebugSessionId,
                 databaseSession: databaseSession,
-                ownsTransactionLifecycle: !sharedTransaction);
+                ownsTransactionLifecycle: !sharedTransaction,
+                planQuery: ResolveExecutionPlanQuery());
             if (sharedTransaction && parentRuntimeContext is not null)
             {
                 _executionContext.Transaction = parentRuntimeContext.Transaction;
@@ -2213,6 +2201,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         {
             var started = _clock.UtcNow;
             var ended = _clock.UtcNow;
+            var preparedInput = PrepareTracePayload(input);
+            var preparedOutput = PrepareTracePayload(output);
             Frames.Add(new MicroflowTraceFrameDto
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -2232,12 +2222,22 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 StartedAt = started,
                 EndedAt = ended,
                 DurationMs = Math.Max(0, (int)(ended - started).TotalMilliseconds),
-                Input = input,
-                Output = output,
+                Input = preparedInput,
+                Output = preparedOutput,
                 Error = error,
                 VariablesSnapshot = SnapshotVariables(),
                 Message = message ?? objectTitle
             });
+            AsRuntimeExecutionContext().NodeResults[objectId] = new NodeExecutionResultSummary
+            {
+                ObjectId = objectId,
+                ActionId = actionId,
+                Status = status,
+                DurationMs = Math.Max(0, (int)(ended - started).TotalMilliseconds),
+                OutgoingFlowId = outgoingFlowId,
+                Message = message ?? objectTitle,
+                Output = preparedOutput
+            };
         }
 
         public MicroflowRunSessionDto BuildSession(string status, MicroflowRuntimeErrorDto? error, JsonElement? output = null)
@@ -2309,9 +2309,40 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     SourceActionId = pair.Value.SourceActionId,
                     CollectionId = pair.Value.CollectionId,
                     Readonly = pair.Value.Readonly,
-                    ScopeKind = pair.Value.ScopeKind
+                    ScopeKind = pair.Value.ScopeKind,
+                    EstimatedSizeBytes = pair.Value.EstimatedSizeBytes,
+                    IsLargeObject = pair.Value.IsLargeObject,
+                    ValueRef = pair.Value.ValueRef
                 },
                 StringComparer.Ordinal);
+        }
+
+        private JsonElement? PrepareTracePayload(JsonElement? payload)
+        {
+            if (!payload.HasValue)
+            {
+                return null;
+            }
+
+            var runtimeContext = AsRuntimeExecutionContext();
+            if (runtimeContext.ShouldCaptureRawValues())
+            {
+                return payload;
+            }
+
+            var raw = payload.Value.GetRawText();
+            var sizeBytes = MicroflowVariableStore.EstimateSizeBytes(raw);
+            if (sizeBytes <= runtimeContext.MemoryBudget.MaxNodeOutputBytes)
+            {
+                return payload;
+            }
+
+            return JsonObj(new
+            {
+                summary = true,
+                sizeBytes,
+                preview = MicroflowVariableStore.TrimPreview(MicroflowVariableStore.Preview(raw), 200)
+            });
         }
 
         public MicroflowDebugRuntimeSnapshot CreateDebugSnapshot(MicroflowDebugSafePoint point)
@@ -2420,10 +2451,22 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
     private sealed class MicroflowRuntimeGraph
     {
-        private MicroflowRuntimeGraph(IReadOnlyDictionary<string, MicroflowObjectModel> objects, IReadOnlyDictionary<string, MicroflowFlowModel> flows)
+        private readonly string? _startNodeId;
+        private readonly Dictionary<string, IReadOnlyList<MicroflowFlowModel>> _normalOutgoingByObjectId;
+        private readonly Dictionary<string, IReadOnlyList<MicroflowFlowModel>> _errorOutgoingByObjectId;
+
+        private MicroflowRuntimeGraph(
+            IReadOnlyDictionary<string, MicroflowObjectModel> objects,
+            IReadOnlyDictionary<string, MicroflowFlowModel> flows,
+            string? startNodeId = null,
+            Dictionary<string, IReadOnlyList<MicroflowFlowModel>>? normalOutgoingByObjectId = null,
+            Dictionary<string, IReadOnlyList<MicroflowFlowModel>>? errorOutgoingByObjectId = null)
         {
             Objects = objects;
             Flows = flows;
+            _startNodeId = startNodeId;
+            _normalOutgoingByObjectId = normalOutgoingByObjectId ?? [];
+            _errorOutgoingByObjectId = errorOutgoingByObjectId ?? [];
         }
 
         public IReadOnlyDictionary<string, MicroflowObjectModel> Objects { get; }
@@ -2450,8 +2493,78 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return new MicroflowRuntimeGraph(objects, flows);
         }
 
+        public static MicroflowRuntimeGraph Build(
+            MicroflowSchemaModel model,
+            MicroflowExecutionPlan plan,
+            MicroflowExecutionPlanQuery query)
+        {
+            var objects = model.Objects
+                .Where(static item => !string.IsNullOrWhiteSpace(item.Id))
+                .ToDictionary(static item => item.Id, StringComparer.Ordinal);
+            var modelFlows = model.Flows
+                .Where(static item => !string.IsNullOrWhiteSpace(item.Id))
+                .ToDictionary(static item => item.Id, StringComparer.Ordinal);
+            var flows = new Dictionary<string, MicroflowFlowModel>(StringComparer.Ordinal);
+            foreach (var planFlow in plan.Flows)
+            {
+                if (string.IsNullOrWhiteSpace(planFlow.FlowId))
+                {
+                    continue;
+                }
+
+                if (modelFlows.TryGetValue(planFlow.FlowId, out var modelFlow))
+                {
+                    flows[planFlow.FlowId] = modelFlow with
+                    {
+                        OriginObjectId = planFlow.OriginObjectId,
+                        DestinationObjectId = planFlow.DestinationObjectId,
+                        IsErrorHandler = planFlow.IsErrorHandler,
+                        CaseValues = planFlow.CaseValues
+                    };
+                    continue;
+                }
+
+                flows[planFlow.FlowId] = new MicroflowFlowModel
+                {
+                    Id = planFlow.FlowId,
+                    Kind = "sequence",
+                    OriginObjectId = planFlow.OriginObjectId,
+                    DestinationObjectId = planFlow.DestinationObjectId,
+                    EdgeKind = planFlow.EdgeKind,
+                    IsErrorHandler = planFlow.IsErrorHandler,
+                    CaseValues = planFlow.CaseValues,
+                    CollectionId = planFlow.CollectionId ?? string.Empty,
+                    Raw = JsonNull()
+                };
+            }
+
+            var normalOutgoing = plan.Nodes
+                .Where(node => !string.IsNullOrWhiteSpace(node.ObjectId))
+                .ToDictionary(
+                    node => node.ObjectId,
+                    node => (IReadOnlyList<MicroflowFlowModel>)query.GetNormalOutgoingFlows(plan, node.ObjectId, node.CollectionId)
+                        .Select(flow => flows[flow.FlowId])
+                        .ToArray(),
+                    StringComparer.Ordinal);
+            var errorOutgoing = plan.Nodes
+                .Where(node => !string.IsNullOrWhiteSpace(node.ObjectId))
+                .ToDictionary(
+                    node => node.ObjectId,
+                    node => (IReadOnlyList<MicroflowFlowModel>)query.GetErrorHandlerFlows(plan, node.ObjectId, node.CollectionId)
+                        .Select(flow => flows[flow.FlowId])
+                        .ToArray(),
+                    StringComparer.Ordinal);
+
+            return new MicroflowRuntimeGraph(objects, flows, plan.StartNodeId, normalOutgoing, errorOutgoing);
+        }
+
         public StartResult FindStart()
         {
+            if (!string.IsNullOrWhiteSpace(_startNodeId) && Objects.TryGetValue(_startNodeId, out var plannedStart))
+            {
+                return StartResult.Ok(plannedStart);
+            }
+
             var starts = Objects.Values.Where(static node => string.Equals(node.Kind, "startEvent", StringComparison.OrdinalIgnoreCase) && !node.InsideLoop).ToArray();
             return starts.Length switch
             {
@@ -2462,7 +2575,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         }
 
         public IReadOnlyList<MicroflowFlowModel> NormalOutgoing(string objectId)
-            => Flows.Values
+            => _normalOutgoingByObjectId.TryGetValue(objectId, out var planned)
+                ? planned
+                : Flows.Values
                 .Where(flow => string.Equals(flow.OriginObjectId, objectId, StringComparison.Ordinal)
                     && !flow.IsErrorHandler
                     && !string.Equals(flow.Kind, "annotation", StringComparison.OrdinalIgnoreCase)
@@ -2474,7 +2589,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         /// that are explicitly marked as error-handler edges (used by P0-4 error routing).
         /// </summary>
         public IReadOnlyList<MicroflowFlowModel> ErrorHandlerOutgoing(string objectId)
-            => Flows.Values
+            => _errorOutgoingByObjectId.TryGetValue(objectId, out var planned)
+                ? planned
+                : Flows.Values
                 .Where(flow => string.Equals(flow.OriginObjectId, objectId, StringComparison.Ordinal)
                     && flow.IsErrorHandler
                     && !string.Equals(flow.Kind, "annotation", StringComparison.OrdinalIgnoreCase)

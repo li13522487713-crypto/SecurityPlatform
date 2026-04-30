@@ -142,6 +142,18 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
         await scope.Client.Ado.ExecuteCommandAsync(WithBuiltInAuditFields(request.Sql, scope.Dialect));
     }
 
+    public async Task AddColumnAsync(TenantId tenantId, long databaseId, AddTableColumnRequest request, CancellationToken cancellationToken)
+    {
+        using var scope = await OpenAsync(tenantId, databaseId, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+        var schema = ResolveDefaultSchema(scope.Database, AiDatabaseRecordEnvironment.Draft, request.Schema);
+        var sql = scope.Dialect.BuildAddColumnSql(
+            request.TableName,
+            schema,
+            request.Column with { DataType = scope.Dialect.NormalizeDataType(request.Column.DataType, request.Column.Length, request.Column.Precision, request.Column.Scale) });
+        await scope.Client.Ado.ExecuteCommandAsync(sql);
+        _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
+    }
+
     public async Task<PreviewDataResponse> PreviewViewSqlAsync(
         TenantId tenantId,
         long databaseId,

@@ -69,6 +69,8 @@ public interface IDatabaseStructureService
 
     Task CreateTableBySqlAsync(TenantId tenantId, long databaseId, CreateTableSqlRequest request, CancellationToken cancellationToken);
 
+    Task AddColumnAsync(TenantId tenantId, long databaseId, AddTableColumnRequest request, CancellationToken cancellationToken);
+
     Task<PreviewDataResponse> PreviewViewSqlAsync(
         TenantId tenantId,
         long databaseId,

@@ -315,6 +315,7 @@ public static class AtlasOrmSchemaCatalog
         typeof(SetupSeedBundleLog),
         // M01 低代码 UI Builder：7 张表（PLAN.md §M01 S01-1）
         typeof(AppDefinition),
+        typeof(MendixDomainModelDocument),
         typeof(PageDefinition),
         typeof(AppVariable),
         typeof(AppContentParam),

@@ -4,6 +4,9 @@ namespace Atlas.Application.Microflows.Models;
 
 public record GetMicroflowMetadataRequestDto
 {
+    [JsonPropertyName("appId")]
+    public string? AppId { get; init; }
+
     [JsonPropertyName("workspaceId")]
     public string? WorkspaceId { get; init; }
 

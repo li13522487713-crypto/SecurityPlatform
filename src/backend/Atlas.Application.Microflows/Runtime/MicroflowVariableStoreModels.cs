@@ -33,10 +33,14 @@ public static class MicroflowVariableSourceKind
 public static class MicroflowVariableScopeKind
 {
     public const string Global = "global";
+    public const string Parameter = "parameter";
+    public const string NodeLocal = "nodeLocal";
     public const string Action = "action";
     public const string Loop = "loop";
     public const string ErrorHandler = "errorHandler";
     public const string Call = "call";
+    public const string ParallelBranch = "parallelBranch";
+    public const string BranchMerge = "branchMerge";
     public const string System = "system";
     public const string Downstream = "downstream";
 }
@@ -103,6 +107,15 @@ public sealed record MicroflowRuntimeVariableValue
 
     [JsonPropertyName("updatedAt")]
     public DateTimeOffset UpdatedAt { get; init; }
+
+    [JsonPropertyName("estimatedSizeBytes")]
+    public long EstimatedSizeBytes { get; init; }
+
+    [JsonPropertyName("isLargeObject")]
+    public bool IsLargeObject { get; init; }
+
+    [JsonPropertyName("valueRef")]
+    public RuntimeValueRef? ValueRef { get; init; }
 }
 
 public sealed record MicroflowVariableDefinition
@@ -124,6 +137,10 @@ public sealed record MicroflowVariableDefinition
     public int? DeclaredAtStep { get; init; }
     public string? Documentation { get; init; }
     public bool AllowShadowing { get; init; }
+    public ExecutionMemoryBudget? MemoryBudget { get; init; }
+    public bool PreferReferenceWhenLarge { get; init; }
+    public string? ValueRefKind { get; init; }
+    public string? ValueRefContentType { get; init; }
 }
 
 public sealed record MicroflowVariableScopeFrame

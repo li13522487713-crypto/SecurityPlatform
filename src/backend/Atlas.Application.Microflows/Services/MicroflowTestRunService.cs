@@ -97,7 +97,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 validationIssues: validation.Issues);
         }
 
-        var executionPlan = await TryPreloadExecutionPlanAsync(resource, schema, cancellationToken);
+        var executionPlan = await TryPreloadExecutionPlanAsync(resource, schema, request.Mode, cancellationToken);
 
         var metadata = await _metadataService.GetCatalogAsync(
             new GetMicroflowMetadataRequestDto
@@ -132,6 +132,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                     Version = request.Version ?? resource.Version,
                     Schema = schema,
                     ExecutionPlan = executionPlan,
+                    ExecutionMode = NormalizeExecutionMode(request.Mode),
                     Input = input,
                     Options = options,
                     Metadata = metadata,
@@ -344,7 +345,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         };
     }
 
-    private async Task<MicroflowExecutionPlan?> TryPreloadExecutionPlanAsync(MicroflowResourceEntity resource, JsonElement schema, CancellationToken cancellationToken)
+    private async Task<MicroflowExecutionPlan?> TryPreloadExecutionPlanAsync(MicroflowResourceEntity resource, JsonElement schema, string? executionMode, CancellationToken cancellationToken)
     {
         try
         {
@@ -354,12 +355,18 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 {
                     ResourceId = resource.Id,
                     Version = resource.Version,
-                    Mode = MicroflowExecutionPlanMode.TestRun,
+                    Mode = NormalizeExecutionMode(executionMode) switch
+                    {
+                        MicroflowRuntimeExecutionMode.PublishedRun => MicroflowExecutionPlanMode.PublishedRun,
+                        MicroflowRuntimeExecutionMode.PreviewRun => MicroflowExecutionPlanMode.PreviewRun,
+                        _ => MicroflowExecutionPlanMode.TestRun
+                    },
                     IncludeDiagnostics = true,
                     FailOnUnsupported = false,
                     WorkspaceId = resource.WorkspaceId,
                     TenantId = _requestContextAccessor.Current.TenantId,
-                    UserId = _requestContextAccessor.Current.UserId
+                    UserId = _requestContextAccessor.Current.UserId,
+                    MetadataVersion = resource.CurrentSchemaSnapshotId ?? resource.SchemaId
                 },
                 cancellationToken);
         }
@@ -780,6 +787,14 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     private static T? Deserialize<T>(string json)
         => JsonSerializer.Deserialize<T>(json, JsonOptions);
+
+    private static string NormalizeExecutionMode(string? mode)
+        => mode switch
+        {
+            var value when string.Equals(value, MicroflowRuntimeExecutionMode.PublishedRun, StringComparison.OrdinalIgnoreCase) => MicroflowRuntimeExecutionMode.PublishedRun,
+            var value when string.Equals(value, MicroflowRuntimeExecutionMode.PreviewRun, StringComparison.OrdinalIgnoreCase) => MicroflowRuntimeExecutionMode.PreviewRun,
+            _ => MicroflowRuntimeExecutionMode.TestRun
+        };
 
     private static SessionExtra ReadSessionExtra(string? json)
     {

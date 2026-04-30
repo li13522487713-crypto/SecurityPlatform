@@ -25,6 +25,7 @@ public sealed class MicroflowMetadataController : MicroflowApiControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowMetadataCatalogDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MicroflowMetadataCatalogDto>>> GetCatalog(
+        [FromQuery] string? appId,
         [FromQuery] string? workspaceId,
         [FromQuery] string? moduleId,
         [FromQuery] bool includeSystem = true,
@@ -35,6 +36,7 @@ public sealed class MicroflowMetadataController : MicroflowApiControllerBase
         var result = await _metadataService.GetCatalogAsync(
             new GetMicroflowMetadataRequestDto
             {
+                AppId = appId,
                 WorkspaceId = workspaceId ?? current.WorkspaceId,
                 ModuleId = moduleId,
                 IncludeSystem = includeSystem,
@@ -72,6 +74,7 @@ public sealed class MicroflowMetadataController : MicroflowApiControllerBase
             Uri.UnescapeDataString(qualifiedName),
             new GetMicroflowMetadataRequestDto
             {
+                AppId = HttpContext.Request.Query["appId"],
                 WorkspaceId = workspaceId ?? current.WorkspaceId,
                 ModuleId = moduleId,
                 IncludeSystem = includeSystem,
@@ -97,6 +100,7 @@ public sealed class MicroflowMetadataController : MicroflowApiControllerBase
             Uri.UnescapeDataString(qualifiedName),
             new GetMicroflowMetadataRequestDto
             {
+                AppId = HttpContext.Request.Query["appId"],
                 WorkspaceId = workspaceId ?? current.WorkspaceId,
                 ModuleId = moduleId,
                 IncludeSystem = includeSystem,
@@ -120,6 +124,7 @@ public sealed class MicroflowMetadataController : MicroflowApiControllerBase
         var result = await _metadataService.GetMicroflowRefsAsync(
             new GetMicroflowRefsRequestDto
             {
+                AppId = HttpContext.Request.Query["appId"],
                 WorkspaceId = workspaceId ?? current.WorkspaceId,
                 ModuleId = moduleId,
                 IncludeArchived = includeArchived,

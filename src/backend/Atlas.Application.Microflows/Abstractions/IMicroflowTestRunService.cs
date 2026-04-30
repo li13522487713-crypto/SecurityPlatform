@@ -48,6 +48,8 @@ public sealed record MicroflowExecutionRequest
 
     public MicroflowExecutionPlan? ExecutionPlan { get; init; }
 
+    public string ExecutionMode { get; init; } = MicroflowRuntimeExecutionMode.TestRun;
+
     public IReadOnlyDictionary<string, JsonElement> Input { get; init; } = new Dictionary<string, JsonElement>();
 
     public MicroflowTestRunOptionsDto Options { get; init; } = new();

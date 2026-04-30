@@ -7,18 +7,21 @@ namespace Atlas.Application.Microflows.Runtime.Objects;
 public sealed class DomainModelRuntimeObjectStore : IMicroflowRuntimeObjectStore
 {
     private readonly IMicroflowEntityAccessService _entityAccessService;
-    private readonly InMemoryRuntimeObjectStore _fallbackStore = new();
+    private readonly IDatabaseBackedMicroflowRuntimeObjectStore? _databaseStore;
 
-    public DomainModelRuntimeObjectStore(IMicroflowEntityAccessService entityAccessService)
+    public DomainModelRuntimeObjectStore(
+        IMicroflowEntityAccessService entityAccessService,
+        IDatabaseBackedMicroflowRuntimeObjectStore? databaseStore = null)
     {
         _entityAccessService = entityAccessService;
+        _databaseStore = databaseStore;
     }
 
     public async Task<MicroflowRuntimeObjectStoreResult> RetrieveAsync(MicroflowRuntimeObjectQuery query, CancellationToken ct)
     {
         var access = await _entityAccessService.CanReadAsync(Security(query), Entity(query.EntityType), ct);
         return access.Allowed
-            ? await _fallbackStore.RetrieveAsync(query, ct)
+            ? await ResolveStore().RetrieveAsync(query, ct)
             : Denied(access.Reason);
     }
 
@@ -26,7 +29,7 @@ public sealed class DomainModelRuntimeObjectStore : IMicroflowRuntimeObjectStore
     {
         var access = await _entityAccessService.CanCreateAsync(Security(mutation), Entity(mutation.EntityType), ct);
         return access.Allowed
-            ? await _fallbackStore.CreateAsync(mutation, ct)
+            ? await ResolveStore().CreateAsync(mutation, ct)
             : Denied(access.Reason);
     }
 
@@ -34,7 +37,7 @@ public sealed class DomainModelRuntimeObjectStore : IMicroflowRuntimeObjectStore
     {
         var access = await _entityAccessService.CanUpdateAsync(Security(mutation), Entity(mutation.EntityType), ct);
         return access.Allowed
-            ? await _fallbackStore.ChangeAsync(mutation, ct)
+            ? await ResolveStore().ChangeAsync(mutation, ct)
             : Denied(access.Reason);
     }
 
@@ -42,7 +45,7 @@ public sealed class DomainModelRuntimeObjectStore : IMicroflowRuntimeObjectStore
     {
         var access = await _entityAccessService.CanUpdateAsync(Security(mutation), Entity(mutation.EntityType), ct);
         return access.Allowed
-            ? await _fallbackStore.CommitAsync(mutation with { DryRun = false }, ct)
+            ? await ResolveStore().CommitAsync(mutation with { DryRun = false }, ct)
             : Denied(access.Reason);
     }
 
@@ -50,12 +53,12 @@ public sealed class DomainModelRuntimeObjectStore : IMicroflowRuntimeObjectStore
     {
         var access = await _entityAccessService.CanDeleteAsync(Security(mutation), Entity(mutation.EntityType), ct);
         return access.Allowed
-            ? await _fallbackStore.DeleteAsync(mutation, ct)
+            ? await ResolveStore().DeleteAsync(mutation, ct)
             : Denied(access.Reason);
     }
 
     public Task<MicroflowRuntimeObjectStoreResult> RollbackAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
-        => _fallbackStore.RollbackAsync(mutation, ct);
+        => ResolveStore().RollbackAsync(mutation, ct);
 
     private static MicroflowRuntimeSecurityContext Security(MicroflowRuntimeObjectQuery query)
         => new()
@@ -87,4 +90,7 @@ public sealed class DomainModelRuntimeObjectStore : IMicroflowRuntimeObjectStore
             Code = RuntimeErrorCode.RuntimeEntityAccessDenied,
             Message = reason
         };
+
+    private IDatabaseBackedMicroflowRuntimeObjectStore ResolveStore()
+        => _databaseStore ?? throw new InvalidOperationException("DB-backed runtime object store is not registered.");
 }

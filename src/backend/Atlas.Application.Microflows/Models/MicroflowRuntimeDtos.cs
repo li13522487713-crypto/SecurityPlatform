@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Transactions;
 
@@ -403,6 +404,15 @@ public sealed record MicroflowRuntimeVariableValueDto
 
     [JsonPropertyName("scopeKind")]
     public string? ScopeKind { get; init; }
+
+    [JsonPropertyName("estimatedSizeBytes")]
+    public long? EstimatedSizeBytes { get; init; }
+
+    [JsonPropertyName("isLargeObject")]
+    public bool? IsLargeObject { get; init; }
+
+    [JsonPropertyName("valueRef")]
+    public RuntimeValueRef? ValueRef { get; init; }
 }
 
 public record GetMicroflowRunTraceResponse

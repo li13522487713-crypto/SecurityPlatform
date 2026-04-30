@@ -18,9 +18,11 @@ export interface HttpMicroflowMetadataAdapterOptions extends MicroflowApiClientO
  */
 export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadataAdapterOptions): MicroflowMetadataAdapter {
   const client = options.apiClient ?? new MicroflowApiClient(options);
+  const appId = (options as HttpMicroflowMetadataAdapterOptions & { appId?: string }).appId;
 
   async function load(request?: GetMicroflowMetadataRequest): Promise<MicroflowMetadataCatalog> {
     const body = await client.get<GetMicroflowMetadataResponseBody>("/microflow-metadata", {
+      appId: appId,
       workspaceId: request?.workspaceId ?? options.workspaceId,
       moduleId: request?.moduleId,
       includeSystem: request?.includeSystem,
@@ -36,12 +38,15 @@ export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadat
     getMetadataCatalog: load,
     refreshMetadataCatalog: load,
     getEntity: qualifiedName => client.get(`/microflow-metadata/entities/${encodeURIComponent(qualifiedName)}`, {
+      appId,
       workspaceId: options.workspaceId,
     }),
     getEnumeration: qualifiedName => client.get(`/microflow-metadata/enumerations/${encodeURIComponent(qualifiedName)}`, {
+      appId,
       workspaceId: options.workspaceId,
     }),
     getMicroflowRefs: request => client.get("/microflow-metadata/microflows", {
+      appId,
       workspaceId: request?.workspaceId ?? options.workspaceId,
       moduleId: request?.moduleId,
       includeSystem: request?.includeSystem,
@@ -50,11 +55,13 @@ export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadat
       status: request?.status,
     }),
     getPageRefs: request => client.get("/microflow-metadata/pages", {
+      appId,
       workspaceId: request?.workspaceId ?? options.workspaceId,
       moduleId: request?.moduleId,
       keyword: request?.keyword,
     }),
     getWorkflowRefs: request => client.get("/microflow-metadata/workflows", {
+      appId,
       workspaceId: request?.workspaceId ?? options.workspaceId,
       moduleId: request?.moduleId,
       keyword: request?.keyword,

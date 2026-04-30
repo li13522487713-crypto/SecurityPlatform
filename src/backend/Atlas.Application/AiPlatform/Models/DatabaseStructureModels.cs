@@ -108,6 +108,11 @@ public sealed record CreateTableRequest(
 
 public sealed record CreateTableSqlRequest(string Sql);
 
+public sealed record AddTableColumnRequest(
+    string? Schema,
+    string TableName,
+    TableColumnDesignDto Column);
+
 public sealed record PreviewViewSqlRequest(
     string Sql,
     int Limit = 100,

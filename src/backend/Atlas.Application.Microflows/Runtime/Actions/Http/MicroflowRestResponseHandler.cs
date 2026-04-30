@@ -72,7 +72,8 @@ public sealed class MicroflowRestResponseHandler
                     outputVariableName!,
                     JsonSerializer.Serialize(new { kind = "string" }, JsonOptions),
                     JsonSerializer.Serialize(response.BodyText ?? string.Empty, JsonOptions),
-                    response.BodyPreview ?? string.Empty));
+                    response.BodyPreview ?? string.Empty,
+                    "httpBody"));
                 break;
             case MicroflowRestResponseHandlingKind.Json:
                 if (string.IsNullOrWhiteSpace(outputVariableName))
@@ -90,7 +91,8 @@ public sealed class MicroflowRestResponseHandler
                     outputVariableName!,
                     JsonSerializer.Serialize(new { kind = "json" }, JsonOptions),
                     response.BodyJson.Value.GetRawText(),
-                    response.BodyPreview ?? response.BodyJson.Value.GetRawText()));
+                    response.BodyPreview ?? response.BodyJson.Value.GetRawText(),
+                    "httpBody"));
                 break;
             case MicroflowRestResponseHandlingKind.ImportMapping:
             {
@@ -133,7 +135,8 @@ public sealed class MicroflowRestResponseHandler
                     outputVariableName!,
                     JsonSerializer.Serialize(new { kind = "object" }, JsonOptions),
                     connectorResult.OutputJson ?? "null",
-                    MicroflowVariableStore.Preview(connectorResult.OutputJson)));
+                    MicroflowVariableStore.Preview(connectorResult.OutputJson),
+                    "connectorPayload"));
                 break;
             }
             default:
@@ -172,14 +175,18 @@ public sealed class MicroflowRestResponseHandler
         string name,
         string dataTypeJson,
         string rawValueJson,
-        string valuePreview)
+        string valuePreview,
+        string? valueRefKind = null)
     {
+        var estimatedSizeBytes = MicroflowVariableStore.EstimateSizeBytes(rawValueJson);
+        var budget = context.RuntimeExecutionContext.MemoryBudget;
+        var useReference = estimatedSizeBytes > budget.MaxHttpResponseBytes || estimatedSizeBytes > budget.MaxVariableBytes;
         var value = new MicroflowRuntimeVariableValue
         {
             Name = name,
             DataTypeJson = dataTypeJson,
             Kind = MicroflowVariableStore.InferKind(dataTypeJson, rawValueJson),
-            RawValueJson = rawValueJson,
+            RawValueJson = useReference ? null : rawValueJson,
             ValuePreview = MicroflowVariableStore.TrimPreview(valuePreview, 200),
             TypePreview = MicroflowVariableStore.CreateTypePreview(dataTypeJson),
             SourceKind = MicroflowVariableSourceKind.RestResponse,
@@ -188,7 +195,18 @@ public sealed class MicroflowRestResponseHandler
             CollectionId = context.CollectionId,
             ScopeKind = MicroflowVariableScopeKind.Action,
             CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
+            UpdatedAt = DateTimeOffset.UtcNow,
+            EstimatedSizeBytes = estimatedSizeBytes,
+            IsLargeObject = useReference,
+            ValueRef = useReference
+                ? new RuntimeValueRef
+                {
+                    RefKind = valueRefKind ?? "httpBody",
+                    ContentType = "application/json",
+                    SizeBytes = estimatedSizeBytes,
+                    Preview = MicroflowVariableStore.TrimPreview(valuePreview, 200)
+                }
+                : null
         };
 
         if (context.VariableStore.Exists(name))
@@ -207,7 +225,10 @@ public sealed class MicroflowRestResponseHandler
                 SourceObjectId = context.ObjectId,
                 SourceActionId = context.ActionId,
                 CollectionId = context.CollectionId,
-                ScopeKind = MicroflowVariableScopeKind.Action
+                ScopeKind = MicroflowVariableScopeKind.Action,
+                MemoryBudget = budget,
+                PreferReferenceWhenLarge = true,
+                ValueRefKind = valueRefKind
             });
             value = context.VariableStore.Get(name);
         }
@@ -228,7 +249,10 @@ public sealed class MicroflowRestResponseHandler
             SourceActionId = value.SourceActionId,
             CollectionId = value.CollectionId,
             Readonly = value.Readonly,
-            ScopeKind = value.ScopeKind
+            ScopeKind = value.ScopeKind,
+            EstimatedSizeBytes = value.EstimatedSizeBytes,
+            IsLargeObject = value.IsLargeObject,
+            ValueRef = value.ValueRef
         };
 
     private static MicroflowRestResponseHandleResult Failed(

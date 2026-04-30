@@ -187,6 +187,7 @@ public sealed class CallMicroflowActionExecutor : IMicroflowActionExecutor
                     Version = selected.Version ?? target.Version,
                     Schema = selected.Schema,
                     ExecutionPlan = childPlan,
+                    ExecutionMode = context.Options.Mode,
                     Input = bindings.Input,
                     Options = new MicroflowTestRunOptionsDto(),
                     Metadata = context.MetadataCatalog ?? context.RuntimeExecutionContext.MetadataCatalog,

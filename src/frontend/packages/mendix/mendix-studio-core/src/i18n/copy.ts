@@ -82,6 +82,41 @@ export interface MendixStudioCopy {
     readonly openDomainModel: (moduleName: string) => string;
     readonly openSecurity: (moduleName: string) => string;
   };
+  readonly domainModelWorkbench: {
+    readonly title: string;
+    readonly saveModel: string;
+    readonly bindDatabase: string;
+    readonly importTables: string;
+    readonly previewSync: string;
+    readonly syncDraft: string;
+    readonly refresh: string;
+    readonly bindingsTitle: string;
+    readonly entitiesTitle: string;
+    readonly noApi: string;
+    readonly noSelection: string;
+    readonly noEntities: string;
+    readonly selectEntityHint: string;
+    readonly fieldName: string;
+    readonly fieldType: string;
+    readonly required: string;
+    readonly primaryKey: string;
+    readonly addField: string;
+    readonly previewTitle: string;
+    readonly syncState: string;
+    readonly lastSync: string;
+    readonly bindModalTitle: string;
+    readonly importModalTitle: string;
+    readonly availableDatabases: string;
+    readonly aliasLabel: string;
+    readonly sourceLabel: string;
+    readonly bindingLabel: string;
+    readonly schemaLabel: string;
+    readonly tableLabel: string;
+    readonly saveSuccess: string;
+    readonly bindSuccess: string;
+    readonly importSuccess: string;
+    readonly syncSuccess: string;
+  };
   readonly index: {
     readonly workspaceLabel: string;
     readonly sampleAppTitle: string;
@@ -219,6 +254,41 @@ const zhCN: MendixStudioCopy = {
     openDomainModel: moduleName => `打开 ${moduleName} 领域模型`,
     openSecurity: moduleName => `打开 ${moduleName} 安全设置`,
   },
+  domainModelWorkbench: {
+    title: "Domain Model 设计器",
+    saveModel: "保存模型",
+    bindDatabase: "绑定数据库",
+    importTables: "导入表",
+    previewSync: "预览同步",
+    syncDraft: "同步到 Draft",
+    refresh: "刷新",
+    bindingsTitle: "数据库绑定",
+    entitiesTitle: "实体",
+    noApi: "当前未配置 HTTP API 客户端，无法操作真实 Domain Model。",
+    noSelection: "请选择一个实体",
+    noEntities: "当前模块还没有实体，请先绑定数据库并导入表。",
+    selectEntityHint: "从左侧选择一个实体后，在右侧编辑字段。",
+    fieldName: "字段名",
+    fieldType: "字段类型",
+    required: "必填",
+    primaryKey: "主键",
+    addField: "新增字段",
+    previewTitle: "同步预览",
+    syncState: "同步状态",
+    lastSync: "上次同步",
+    bindModalTitle: "绑定数据库",
+    importModalTitle: "导入数据库表",
+    availableDatabases: "可用数据库",
+    aliasLabel: "别名",
+    sourceLabel: "数据源",
+    bindingLabel: "绑定",
+    schemaLabel: "Schema",
+    tableLabel: "数据表",
+    saveSuccess: "领域模型已保存",
+    bindSuccess: "数据库绑定已保存",
+    importSuccess: "表已导入到 Domain Model",
+    syncSuccess: "Draft 结构同步完成",
+  },
   index: {
     workspaceLabel: "工作区",
     sampleAppTitle: "Procurement Approval（示例）",
@@ -355,6 +425,41 @@ const enUS: MendixStudioCopy = {
     openResource: title => `Open ${title}`,
     openDomainModel: moduleName => `Open ${moduleName} Domain Model`,
     openSecurity: moduleName => `Open ${moduleName} Security`,
+  },
+  domainModelWorkbench: {
+    title: "Domain Model designer",
+    saveModel: "Save model",
+    bindDatabase: "Bind database",
+    importTables: "Import tables",
+    previewSync: "Preview sync",
+    syncDraft: "Sync to Draft",
+    refresh: "Refresh",
+    bindingsTitle: "Database bindings",
+    entitiesTitle: "Entities",
+    noApi: "HTTP API client is not configured for the real Domain Model flow.",
+    noSelection: "Select an entity",
+    noEntities: "No entities yet. Bind a database and import tables first.",
+    selectEntityHint: "Select an entity on the left, then edit fields on the right.",
+    fieldName: "Field",
+    fieldType: "Type",
+    required: "Required",
+    primaryKey: "Primary key",
+    addField: "Add field",
+    previewTitle: "Sync preview",
+    syncState: "Sync state",
+    lastSync: "Last sync",
+    bindModalTitle: "Bind database",
+    importModalTitle: "Import database tables",
+    availableDatabases: "Available databases",
+    aliasLabel: "Alias",
+    sourceLabel: "Source",
+    bindingLabel: "Binding",
+    schemaLabel: "Schema",
+    tableLabel: "Tables",
+    saveSuccess: "Domain model saved",
+    bindSuccess: "Database bindings saved",
+    importSuccess: "Tables imported into the Domain Model",
+    syncSuccess: "Draft structure synchronized",
   },
   index: {
     workspaceLabel: "Workspace",

@@ -54,6 +54,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
             sp.GetService<IMicroflowTransactionManager>(),
             sp.GetService<IMicroflowRuntimeDbSessionFactory>()));
         services.TryAddScoped<IMicroflowVariableStore, MicroflowVariableStore>();
+        services.TryAddSingleton<IMicroflowExecutionPlanCache, MicroflowExecutionPlanCache>();
         services.TryAddScoped<IMicroflowExpressionEvaluator, MicroflowExpressionEvaluator>();
         services.TryAddScoped<MicroflowExpressionFormatter>();
         services.TryAddScoped<MicroflowExpressionCompletionProvider>();
@@ -63,11 +64,14 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowMetadataResolver, MicroflowMetadataResolver>();
         services.TryAddScoped<IMicroflowEntityAccessService, MicroflowEntityAccessService>();
         services.TryAddScoped<IMicroflowRuntimeObjectMetadataService, MicroflowRuntimeObjectMetadataService>();
-        services.TryAddScoped<IMicroflowRuntimeObjectStore, InMemoryRuntimeObjectStore>();
+        services.TryAddScoped<InMemoryRuntimeObjectStore>();
+        services.TryAddScoped<IMicroflowRuntimeObjectStore, ModeAwareRuntimeObjectStore>();
         services.TryAddScoped<DomainModelRuntimeObjectStore>();
         services.TryAddScoped<IMicroflowTransactionManager, MicroflowTransactionManager>();
         services.TryAddScoped<IMicroflowErrorHandlingService, MicroflowErrorHandlingService>();
         services.TryAddTransient<IMicroflowUnitOfWork, MicroflowUnitOfWork>();
+        services.TryAddScoped<IVariableScopeForker, DefaultVariableScopeForker>();
+        services.TryAddSingleton<IBranchMergePolicy, NoOpBranchMergePolicy>();
         services.TryAddScoped<IMicroflowActionExecutorRegistry>(sp => new MicroflowActionExecutorRegistry(sp));
         services.TryAddScoped<CreateVariableActionExecutor>();
         services.TryAddScoped<ChangeVariableActionExecutor>();

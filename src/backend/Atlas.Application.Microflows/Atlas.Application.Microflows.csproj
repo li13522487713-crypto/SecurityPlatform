@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.LowCode\Atlas.Domain.LowCode.csproj" />
     <ProjectReference Include="..\Atlas.Domain.Microflows\Atlas.Domain.Microflows.csproj" />
   </ItemGroup>
 

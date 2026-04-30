@@ -16,6 +16,7 @@ import { MicroflowWorkbenchToolbar } from "./components/microflow-workbench-tool
 import { MicroflowStudioBottomPanel } from "./components/microflow-studio-bottom-panel";
 import { WorkbenchCommandPalette } from "./components/workbench-command-palette";
 import { ResourceReadonlyWorkbench } from "./components/resource-readonly-workbench";
+import { MendixDomainModelWorkbench } from "./components/mendix-domain-model-workbench";
 import { RuntimePreview } from "./components/runtime-preview";
 import { useMendixStudioStore } from "./store";
 import type { OpenWorkbenchResourceInput } from "./store";
@@ -104,6 +105,7 @@ export function MendixStudioApp({
     try {
       return createMicroflowAdapterBundle({
         ...adapterConfig,
+        appId: adapterConfig?.appId ?? appId,
         workspaceId: adapterConfig?.workspaceId ?? workspaceId,
         tenantId: adapterConfig?.tenantId ?? tenantId,
         currentUser: adapterConfig?.currentUser ?? currentUser,
@@ -530,6 +532,14 @@ export function MendixStudioApp({
                   ) : null}
                   </div>
                 </div>
+              ) : activeWorkbenchTab?.kind === "domainModel" ? (
+                <MendixDomainModelWorkbench
+                  tab={activeWorkbenchTab!}
+                  modules={appAssetModules}
+                  appId={appId}
+                  workspaceId={workspaceId}
+                  apiClient={_resolvedBundle?.apiClient}
+                />
               ) : (
                 <ResourceReadonlyWorkbench tab={activeWorkbenchTab!} modules={appAssetModules} />
               )}

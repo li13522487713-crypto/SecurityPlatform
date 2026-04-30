@@ -17,6 +17,7 @@ export interface MicroflowAdapterRuntimePolicy {
 export interface MicroflowAdapterFactoryConfig {
   mode?: MicroflowAdapterMode;
   apiBaseUrl?: string;
+  appId?: string;
   workspaceId?: string;
   tenantId?: string;
   currentUser?: {

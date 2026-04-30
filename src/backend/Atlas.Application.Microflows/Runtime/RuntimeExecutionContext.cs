@@ -5,6 +5,7 @@ using Atlas.Application.Microflows.Runtime.Calls;
 using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Runtime.Transactions;
+using Atlas.Application.Microflows.Services;
 
 namespace Atlas.Application.Microflows.Runtime;
 
@@ -34,6 +35,7 @@ public sealed class RuntimeExecutionContext
         VariableStore = variableStore;
         StartedAt = startedAt;
         MetadataVersion = executionPlan.SchemaVersion;
+        PlanQuery = new MicroflowExecutionPlanQuery(executionPlan);
     }
 
     public string RunId { get; }
@@ -42,6 +44,7 @@ public sealed class RuntimeExecutionContext
     public string? Version { get; init; }
     public string Mode { get; init; } = MicroflowRuntimeExecutionMode.DryRun;
     public MicroflowExecutionPlan ExecutionPlan { get; }
+    public MicroflowExecutionPlanQuery PlanQuery { get; init; }
     public IMicroflowVariableStore VariableStore { get; }
     public string? CurrentNodeId { get; set; }
     public string? CurrentFlowId { get; set; }
@@ -59,6 +62,7 @@ public sealed class RuntimeExecutionContext
     public Stack<MicroflowVariableScopeFrame> ErrorStack { get; } = new();
     public MicroflowRuntimeTransactionContext? Transaction { get; set; }
     public IMicroflowUnitOfWork? UnitOfWork { get; set; }
+    public IMicroflowDatabaseUnitOfWork? DatabaseUnitOfWork { get; set; }
     public IMicroflowTransactionManager? TransactionManager { get; set; }
     public MicroflowRuntimeTransactionOptions? TransactionOptions { get; set; }
     public IMicroflowRuntimeDbSession? DatabaseSession { get; set; }
@@ -83,6 +87,11 @@ public sealed class RuntimeExecutionContext
 
     /// <summary>可选：绑定调试会话 ID，供 CallMicroflow 子执行传播。</summary>
     public string? DebugSessionId { get; init; }
+    public CancellationToken CancellationToken { get; init; }
+    public ExecutionMemoryBudget MemoryBudget { get; init; } = new();
+    public string TraceCaptureMode { get; init; } = ExecutionTraceCaptureMode.Full;
+    public Dictionary<string, NodeExecutionResultSummary> NodeResults { get; } = new(StringComparer.Ordinal);
+    public List<MicroflowRuntimeErrorDto> Errors { get; } = [];
 
     public DateTimeOffset StartedAt { get; }
     public IReadOnlyList<MicroflowVariableStoreDiagnostic> Diagnostics => VariableStore.Diagnostics;
@@ -113,12 +122,16 @@ public sealed class RuntimeExecutionContext
         IMicroflowVariableStore? variableStore = null,
         string? debugSessionId = null,
         IMicroflowRuntimeDbSession? databaseSession = null,
-        bool ownsTransactionLifecycle = true)
+        bool ownsTransactionLifecycle = true,
+        CancellationToken cancellationToken = default,
+        ExecutionMemoryBudget? memoryBudget = null,
+        MicroflowExecutionPlanQuery? planQuery = null)
     {
         var store = variableStore ?? new MicroflowVariableStore(() => DateTimeOffset.UtcNow);
+        var normalizedMode = NormalizeMode(mode);
         var context = new RuntimeExecutionContext(runId, executionPlan, store, startedAt)
         {
-            Mode = mode,
+            Mode = normalizedMode,
             SecurityContext = securityContext ?? new MicroflowRequestContext(),
             RuntimeSecurityContext = MicroflowRuntimeSecurityContext.FromRequestContext(securityContext, applyEntityAccess: true),
             TransactionManager = transactionManager,
@@ -131,7 +144,13 @@ public sealed class RuntimeExecutionContext
             CurrentCallFrame = currentCallFrame,
             DebugSessionId = debugSessionId,
             DatabaseSession = databaseSession,
-            OwnsTransactionLifecycle = ownsTransactionLifecycle
+            OwnsTransactionLifecycle = ownsTransactionLifecycle,
+            CancellationToken = cancellationToken,
+            MemoryBudget = memoryBudget ?? DefaultBudget(normalizedMode),
+            PlanQuery = planQuery ?? new MicroflowExecutionPlanQuery(executionPlan),
+            TraceCaptureMode = ShouldCaptureRawValues(normalizedMode, debugSessionId)
+                ? ExecutionTraceCaptureMode.Full
+                : ExecutionTraceCaptureMode.Summary
         };
         if (callStackFrames is not null)
         {
@@ -154,6 +173,9 @@ public sealed class RuntimeExecutionContext
 
         return context;
     }
+
+    public bool ShouldCaptureRawValues()
+        => string.Equals(TraceCaptureMode, ExecutionTraceCaptureMode.Full, StringComparison.OrdinalIgnoreCase);
 
     public IDisposable PushLoopScope(
         string loopObjectId,
@@ -305,30 +327,35 @@ public sealed class RuntimeExecutionContext
     {
         _unhandledErrorCount++;
         SetLatestErrorPreview(error);
+        Errors.Add(error);
     }
 
     public void RecordContinuedError(MicroflowRuntimeErrorDto error)
     {
         _continuedErrorCount++;
         SetLatestErrorPreview(error);
+        Errors.Add(error);
     }
 
     public void RecordRollback(MicroflowRuntimeErrorDto error)
     {
         _rollbackCount++;
         SetLatestErrorPreview(error);
+        Errors.Add(error);
     }
 
     public void RecordCustomHandler(MicroflowRuntimeErrorDto error)
     {
         _customHandlerCount++;
         SetLatestErrorPreview(error);
+        Errors.Add(error);
     }
 
     public void RecordErrorEvent(MicroflowRuntimeErrorDto error)
     {
         _errorEventCount++;
         SetLatestErrorPreview(error);
+        Errors.Add(error);
     }
 
     private void SetLatestErrorPreview(MicroflowRuntimeErrorDto error)
@@ -349,7 +376,7 @@ public sealed class RuntimeExecutionContext
             CollectionId = collectionId,
             StepIndex = stepIndex,
             IncludeSystem = includeSystem,
-            IncludeRawValue = includeRawValue,
+            IncludeRawValue = includeRawValue && ShouldCaptureRawValues(),
             MaxValuePreviewLength = 200,
             MaxRawValueLength = maxRawValueLength
         });
@@ -455,6 +482,29 @@ public sealed class RuntimeExecutionContext
             && value.ValueKind == JsonValueKind.String
                 ? value.GetString()
                 : null;
+
+    private static string NormalizeMode(string? mode)
+        => mode switch
+        {
+            var value when string.Equals(value, MicroflowRuntimeExecutionMode.PublishedRun, StringComparison.OrdinalIgnoreCase) => MicroflowRuntimeExecutionMode.PublishedRun,
+            var value when string.Equals(value, MicroflowRuntimeExecutionMode.PreviewRun, StringComparison.OrdinalIgnoreCase) => MicroflowRuntimeExecutionMode.PreviewRun,
+            _ => MicroflowRuntimeExecutionMode.TestRun
+        };
+
+    private static ExecutionMemoryBudget DefaultBudget(string mode)
+        => string.Equals(mode, MicroflowRuntimeExecutionMode.PublishedRun, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, MicroflowRuntimeExecutionMode.PreviewRun, StringComparison.OrdinalIgnoreCase)
+            ? new ExecutionMemoryBudget
+            {
+                MaxVariableBytes = 64 * 1024,
+                MaxNodeOutputBytes = 64 * 1024,
+                MaxHttpResponseBytes = 64 * 1024
+            }
+            : new ExecutionMemoryBudget();
+
+    private static bool ShouldCaptureRawValues(string mode, string? debugSessionId)
+        => string.Equals(mode, MicroflowRuntimeExecutionMode.TestRun, StringComparison.OrdinalIgnoreCase)
+           || !string.IsNullOrWhiteSpace(debugSessionId);
 
     private sealed class RuntimeScopeLease : IDisposable
     {

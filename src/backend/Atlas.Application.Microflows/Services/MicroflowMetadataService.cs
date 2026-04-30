@@ -18,19 +18,22 @@ public sealed class MicroflowMetadataService : IMicroflowMetadataService
     private readonly IMicroflowSchemaSnapshotRepository _schemaSnapshotRepository;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowClock _clock;
+    private readonly IMendixDomainModelService? _domainModelService;
 
     public MicroflowMetadataService(
         IMicroflowMetadataCacheRepository metadataCacheRepository,
         IMicroflowResourceRepository resourceRepository,
         IMicroflowSchemaSnapshotRepository schemaSnapshotRepository,
         IMicroflowRequestContextAccessor requestContextAccessor,
-        IMicroflowClock clock)
+        IMicroflowClock clock,
+        IMendixDomainModelService? domainModelService = null)
     {
         _metadataCacheRepository = metadataCacheRepository;
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
         _requestContextAccessor = requestContextAccessor;
         _clock = clock;
+        _domainModelService = domainModelService;
     }
 
     public async Task<MicroflowMetadataCatalogDto> GetCatalogAsync(GetMicroflowMetadataRequestDto request, CancellationToken cancellationToken)
@@ -46,12 +49,16 @@ public sealed class MicroflowMetadataService : IMicroflowMetadataService
             status: Array.Empty<string>(),
             keyword: null,
             cancellationToken);
+        var domainCatalog = _domainModelService is null || string.IsNullOrWhiteSpace(request.ModuleId)
+            ? null
+            : await _domainModelService.GetMetadataCatalogAsync(request.AppId, workspaceId ?? context.WorkspaceId ?? string.Empty, request.ModuleId, cancellationToken);
 
-        return ApplyCatalogFilters(sourceCatalog with
+        var mergedCatalog = MergeDomainModelCatalog(sourceCatalog, domainCatalog);
+        return ApplyCatalogFilters(mergedCatalog with
         {
             Microflows = microflows,
-            Version = string.IsNullOrWhiteSpace(sourceCatalog.Version) ? cache?.CatalogVersion ?? MicroflowSeedMetadataCatalog.Version : sourceCatalog.Version,
-            UpdatedAt = sourceCatalog.UpdatedAt == default ? cache?.UpdatedAt ?? _clock.UtcNow : sourceCatalog.UpdatedAt
+            Version = string.IsNullOrWhiteSpace(mergedCatalog.Version) ? cache?.CatalogVersion ?? MicroflowSeedMetadataCatalog.Version : mergedCatalog.Version,
+            UpdatedAt = mergedCatalog.UpdatedAt == default ? cache?.UpdatedAt ?? _clock.UtcNow : mergedCatalog.UpdatedAt
         }, request);
     }
 
@@ -241,6 +248,30 @@ public sealed class MicroflowMetadataService : IMicroflowMetadataService
             Microflows = catalog.Microflows,
             Pages = catalog.Pages.Where(page => MatchesModule(page.ModuleName, request.ModuleId)).ToArray(),
             Workflows = catalog.Workflows.Where(workflow => MatchesModule(workflow.ModuleName, request.ModuleId)).ToArray()
+        };
+    }
+
+    private static MicroflowMetadataCatalogDto MergeDomainModelCatalog(
+        MicroflowMetadataCatalogDto sourceCatalog,
+        MendixDomainModelMetadataCatalogDto? domainCatalog)
+    {
+        if (domainCatalog is null)
+        {
+            return sourceCatalog;
+        }
+
+        var entities = sourceCatalog.Entities
+            .Where(entity => domainCatalog.Entities.All(domain => !string.Equals(domain.QualifiedName, entity.QualifiedName, StringComparison.OrdinalIgnoreCase)))
+            .Concat(domainCatalog.Entities)
+            .ToArray();
+        var associations = sourceCatalog.Associations
+            .Where(association => domainCatalog.Associations.All(domain => !string.Equals(domain.QualifiedName, association.QualifiedName, StringComparison.OrdinalIgnoreCase)))
+            .Concat(domainCatalog.Associations)
+            .ToArray();
+        return sourceCatalog with
+        {
+            Entities = entities,
+            Associations = associations
         };
     }
 

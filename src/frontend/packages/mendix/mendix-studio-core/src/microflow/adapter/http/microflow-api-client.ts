@@ -7,6 +7,7 @@ import { MicroflowApiException, mapHttpStatusToMicroflowErrorCode, normalizeMicr
 
 export interface MicroflowApiClientOptions {
   apiBaseUrl: string;
+  appId?: string;
   workspaceId?: string;
   tenantId?: string;
   currentUser?: {

@@ -8,7 +8,7 @@ using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.Microflows;
 
-public sealed class SqlSugarMicroflowRuntimeObjectStore : IMicroflowRuntimeObjectStore
+public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicroflowRuntimeObjectStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ISqlSugarClient _db;

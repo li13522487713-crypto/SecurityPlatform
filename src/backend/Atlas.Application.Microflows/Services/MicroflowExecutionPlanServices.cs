@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Exceptions;
@@ -670,7 +672,7 @@ public sealed class MicroflowExecutionPlanBuilder : IMicroflowExecutionPlanBuild
         var ignoredFlows = runtimeDto.Flows.Where(flow => flow.ControlFlow == "ignored").ToArray();
         var preliminary = new MicroflowExecutionPlan
         {
-            Id = $"plan-{runtimeDto.SchemaId}-{Guid.NewGuid():N}",
+            Id = StableId(runtimeDto, options),
             SchemaId = runtimeDto.SchemaId,
             ResourceId = runtimeDto.ResourceId,
             Version = runtimeDto.Version,
@@ -700,6 +702,35 @@ public sealed class MicroflowExecutionPlanBuilder : IMicroflowExecutionPlanBuild
                 : Array.Empty<MicroflowExecutionDiagnosticDto>(),
             Validation = validation
         };
+    }
+
+    private static string StableId(MicroflowRuntimeDto runtimeDto, MicroflowExecutionPlanLoadOptions options)
+    {
+        var connectorHash = ComputeConnectorCapabilitiesHash(options.ConnectorCapabilities);
+        var raw = string.Join(
+            "|",
+            runtimeDto.ResourceId ?? options.ResourceId ?? string.Empty,
+            runtimeDto.SchemaId,
+            runtimeDto.Version ?? options.Version ?? string.Empty,
+            runtimeDto.SchemaVersion ?? string.Empty,
+            options.Mode,
+            options.MetadataVersion ?? string.Empty,
+            connectorHash);
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+        var hash = Convert.ToHexString(bytes).ToLowerInvariant();
+        return $"plan-{runtimeDto.SchemaId}-{hash[..16]}";
+    }
+
+    internal static string ComputeConnectorCapabilitiesHash(IReadOnlyList<string> capabilities)
+    {
+        var normalized = string.Join("|", capabilities.OrderBy(static item => item, StringComparer.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "none";
+        }
+
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(bytes).ToLowerInvariant()[..16];
     }
 }
 
@@ -748,6 +779,29 @@ public sealed class MicroflowExecutionPlanValidator : IMicroflowExecutionPlanVal
             if (group.Count() > 1)
             {
                 diagnostics.Add(Diagnostic("RUNTIME_ERROR_HANDLER_DUPLICATED", "error", "A source object can have at most one error handler flow.", objectId: group.Key));
+            }
+        }
+
+        foreach (var node in plan.Nodes)
+        {
+            var normalOutgoing = plan.NormalFlows.Where(flow => string.Equals(flow.OriginObjectId, node.ObjectId, StringComparison.Ordinal)).ToArray();
+            if (string.Equals(node.Kind, "actionActivity", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.Kind, "exclusiveMerge", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.Kind, "parallelGateway", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.Kind, "inclusiveGateway", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.Kind, "loopedActivity", StringComparison.OrdinalIgnoreCase))
+            {
+                if (normalOutgoing.Length == 0 && !plan.EndNodeIds.Contains(node.ObjectId, StringComparer.Ordinal))
+                {
+                    diagnostics.Add(Diagnostic("RUNTIME_NODE_DEAD_END", "error", "ExecutionPlan node has no normal outgoing flow.", objectId: node.ObjectId, actionId: node.ActionId));
+                }
+            }
+
+            if (string.Equals(node.Kind, "exclusiveSplit", StringComparison.OrdinalIgnoreCase)
+                && normalOutgoing.Length > 1
+                && !normalOutgoing.Any(flow => flow.CaseValues.Count == 0))
+            {
+                diagnostics.Add(Diagnostic("RUNTIME_DECISION_DEFAULT_FLOW_MISSING", "warning", "Decision node has multiple outgoing flows but no default branch.", objectId: node.ObjectId, actionId: node.ActionId));
             }
         }
 
@@ -868,6 +922,7 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
     private readonly IMicroflowPublishSnapshotRepository _publishSnapshotRepository;
     private readonly IMicroflowRuntimeDtoBuilder _runtimeDtoBuilder;
     private readonly IMicroflowExecutionPlanBuilder _planBuilder;
+    private readonly IMicroflowExecutionPlanCache _planCache;
 
     public MicroflowExecutionPlanLoader(
         IMicroflowResourceRepository resourceRepository,
@@ -875,7 +930,8 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
         IMicroflowVersionRepository versionRepository,
         IMicroflowPublishSnapshotRepository publishSnapshotRepository,
         IMicroflowRuntimeDtoBuilder runtimeDtoBuilder,
-        IMicroflowExecutionPlanBuilder planBuilder)
+        IMicroflowExecutionPlanBuilder planBuilder,
+        IMicroflowExecutionPlanCache planCache)
     {
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
@@ -883,6 +939,7 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
         _publishSnapshotRepository = publishSnapshotRepository;
         _runtimeDtoBuilder = runtimeDtoBuilder;
         _planBuilder = planBuilder;
+        _planCache = planCache;
     }
 
     public async Task<MicroflowExecutionPlan> LoadCurrentAsync(string resourceId, MicroflowExecutionPlanLoadOptions options, CancellationToken cancellationToken)
@@ -892,11 +949,12 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
         var snapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId ?? resource.SchemaId, cancellationToken)
             ?? await _schemaSnapshotRepository.GetLatestByResourceIdAsync(resource.Id, cancellationToken)
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "微流当前 Schema 快照不存在。", 400);
-        return BuildPlan(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), options with
+        var normalizedOptions = options with
         {
             ResourceId = resource.Id,
             Version = string.IsNullOrWhiteSpace(options.Version) ? resource.Version : options.Version
-        });
+        };
+        return await GetOrCreatePlanAsync(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), normalizedOptions, cancellationToken);
     }
 
     public async Task<MicroflowExecutionPlan> LoadPublishedVersionAsync(string resourceId, string version, MicroflowExecutionPlanLoadOptions options, CancellationToken cancellationToken)
@@ -905,11 +963,12 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
         var snapshot = await _publishSnapshotRepository.GetByResourceVersionAsync(resourceId, version, cancellationToken)
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流发布版本不存在。", 404);
-        return BuildPlan(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), options with
+        var normalizedOptions = options with
         {
             ResourceId = resourceId,
             Version = snapshot.Version
-        });
+        };
+        return await GetOrCreatePlanAsync(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), normalizedOptions, cancellationToken);
     }
 
     public async Task<MicroflowExecutionPlan> LoadLatestPublishedAsync(string resourceId, MicroflowExecutionPlanLoadOptions options, CancellationToken cancellationToken)
@@ -918,11 +977,12 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
         var snapshot = await _publishSnapshotRepository.GetLatestByResourceIdAsync(resourceId, cancellationToken)
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流最新发布快照不存在。", 404);
-        return BuildPlan(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), options with
+        var normalizedOptions = options with
         {
             ResourceId = resourceId,
             Version = snapshot.Version
-        });
+        };
+        return await GetOrCreatePlanAsync(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), normalizedOptions, cancellationToken);
     }
 
     public async Task<MicroflowExecutionPlan> LoadVersionAsync(string resourceId, string versionId, MicroflowExecutionPlanLoadOptions options, CancellationToken cancellationToken)
@@ -936,11 +996,12 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
         }
         var snapshot = await LoadSnapshotAsync(version.SchemaSnapshotId, cancellationToken)
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "微流版本 Schema 快照不存在。", 400);
-        return BuildPlan(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), options with
+        var normalizedOptions = options with
         {
             ResourceId = resourceId,
             Version = version.Version
-        });
+        };
+        return await GetOrCreatePlanAsync(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), normalizedOptions, cancellationToken);
     }
 
     public Task<MicroflowExecutionPlan> LoadFromSchemaAsync(JsonElement schema, MicroflowExecutionPlanLoadOptions options, CancellationToken cancellationToken)
@@ -950,7 +1011,7 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
         {
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "ExecutionPlan inline schema 必须是对象。", 400);
         }
-        return Task.FromResult(BuildPlan(schema.Clone(), options));
+        return GetOrCreatePlanAsync(schema.Clone(), options, cancellationToken);
     }
 
     private MicroflowExecutionPlan BuildPlan(JsonElement schema, MicroflowExecutionPlanLoadOptions options)
@@ -966,6 +1027,39 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
                 validationIssues: plan.Diagnostics.Select(ToValidationIssue).ToArray());
         }
         return plan;
+    }
+
+    private Task<MicroflowExecutionPlan> GetOrCreatePlanAsync(
+        JsonElement schema,
+        MicroflowExecutionPlanLoadOptions options,
+        CancellationToken cancellationToken)
+    {
+        var runtimeDto = _runtimeDtoBuilder.Build(schema, options);
+        var key = new MicroflowExecutionPlanCacheKey(
+            options.ResourceId ?? runtimeDto.ResourceId,
+            runtimeDto.SchemaId,
+            runtimeDto.Version ?? options.Version,
+            runtimeDto.SchemaVersion,
+            options.Mode,
+            options.MetadataVersion,
+            MicroflowExecutionPlanBuilder.ComputeConnectorCapabilitiesHash(options.ConnectorCapabilities));
+        return _planCache.GetOrCreateAsync(
+            key,
+            _ =>
+            {
+                var plan = _planBuilder.Build(runtimeDto, options);
+                if (options.FailOnUnsupported && plan.Validation.ErrorCount > 0)
+                {
+                    throw new MicroflowApiException(
+                        MicroflowApiErrorCode.MicroflowValidationFailed,
+                        "ExecutionPlan 校验失败。",
+                        422,
+                        validationIssues: plan.Diagnostics.Select(ToValidationIssue).ToArray());
+                }
+
+                return Task.FromResult(plan);
+            },
+            cancellationToken).AsTask();
     }
 
     private async Task<MicroflowSchemaSnapshotEntity?> LoadSnapshotAsync(string? snapshotId, CancellationToken cancellationToken)

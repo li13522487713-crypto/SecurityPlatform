@@ -49,6 +49,9 @@ public sealed record MicroflowExecutionPlanLoadOptions
 
     [JsonPropertyName("userId")]
     public string? UserId { get; init; }
+
+    [JsonPropertyName("metadataVersion")]
+    public string? MetadataVersion { get; init; }
 }
 
 public sealed record LoadMicroflowExecutionPlanRequestDto
