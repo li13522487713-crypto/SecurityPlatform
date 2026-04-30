@@ -20,6 +20,7 @@ export class FlowGramMicroflowBridgeService {
   private schema?: MicroflowSchema;
   private gridEnabled = true;
   private gridSize = MICROFLOW_GRID_SIZE;
+  private onDeleteFlow?: (flowId: string) => void;
 
   setSchema(schema: MicroflowSchema) {
     this.schema = schema;
@@ -40,6 +41,14 @@ export class FlowGramMicroflowBridgeService {
       enabled: this.gridEnabled,
       size: this.gridSize,
     };
+  }
+
+  registerDeleteFlowHandler(handler: (flowId: string) => void): void {
+    this.onDeleteFlow = handler;
+  }
+
+  deleteFlow(flowId: string): void {
+    this.onDeleteFlow?.(flowId);
   }
 }
 

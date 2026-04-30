@@ -977,30 +977,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
                     }
                 }
             },
-            flows = new object[]
-            {
-                new
-                {
-                    id = "flow-start-end",
-                    stableId = "flow-start-end",
-                    kind = "sequence",
-                    officialType = "Microflows$SequenceFlow",
-                    originObjectId = "start",
-                    destinationObjectId = "end",
-                    originConnectionIndex = 0,
-                    destinationConnectionIndex = 0,
-                    caseValues = Array.Empty<object>(),
-                    isErrorHandler = false,
-                    line = new
-                    {
-                        kind = "orthogonal",
-                        points = Array.Empty<object>(),
-                        routing = new { mode = "auto", bendPoints = Array.Empty<object>() },
-                        style = new { strokeType = "solid", strokeWidth = 2, arrow = "target" }
-                    },
-                    editor = new { edgeKind = "sequence" }
-                }
-            },
+            flows = Array.Empty<object>(),
             security = input.Security ?? JsonSerializer.SerializeToElement(new { applyEntityAccess = true, allowedModuleRoleIds = Array.Empty<string>(), allowedRoleNames = Array.Empty<string>() }, JsonOptions),
             concurrency = input.Concurrency ?? JsonSerializer.SerializeToElement(new { allowConcurrentExecution = true, errorMicroflowId = (string?)null }, JsonOptions),
             exposure = input.Exposure ?? JsonSerializer.SerializeToElement(new { exportLevel = "module", markAsUsed = true, asMicroflowAction = new { enabled = false }, asWorkflowAction = new { enabled = false }, url = new { enabled = false } }, JsonOptions),

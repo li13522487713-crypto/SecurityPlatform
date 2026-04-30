@@ -134,6 +134,8 @@ test.describe.serial("@microflow Mendix Studio layout", () => {
     const endNode = page.locator(".microflow-flowgram-node--end").first();
     await expect(startNode).toBeVisible();
     await expect(endNode).toBeVisible();
+    await expect(page.getByText("MF_START_NO_OUTGOING")).toHaveCount(0);
+    await expect(page.getByText("MF_OBJECT_UNREACHABLE")).toHaveCount(0);
     const startBefore = await startNode.boundingBox();
     const endBefore = await endNode.boundingBox();
     expect(startBefore).toBeTruthy();
@@ -150,6 +152,8 @@ test.describe.serial("@microflow Mendix Studio layout", () => {
       const box = await endNode.boundingBox();
       return box ? Math.hypot(box.x - endBefore!.x, box.y - endBefore!.y) : 0;
     }).toBeGreaterThan(30);
+    await expect(page.getByText("MF_START_NO_OUTGOING")).toHaveCount(0);
+    await expect(page.getByText("MF_OBJECT_UNREACHABLE")).toHaveCount(0);
 
     const startMoved = await startNode.boundingBox();
     const endMoved = await endNode.boundingBox();
@@ -161,6 +165,16 @@ test.describe.serial("@microflow Mendix Studio layout", () => {
     expect(endReloaded).toBeTruthy();
     expect(Math.hypot(startReloaded!.x - startMoved!.x, startReloaded!.y - startMoved!.y)).toBeLessThan(8);
     expect(Math.hypot(endReloaded!.x - endMoved!.x, endReloaded!.y - endMoved!.y)).toBeLessThan(8);
+    await expect(page.getByText("MF_START_NO_OUTGOING")).toHaveCount(0);
+    await expect(page.getByText("MF_OBJECT_UNREACHABLE")).toHaveCount(0);
+  });
+
+  test("Start 和 End 连线后 Problems 不应出现可达性 warning", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    await expect(page.locator(".microflow-flowgram-node")).toHaveCount(2);
+    await expect(page.getByText("MF_START_NO_OUTGOING")).toHaveCount(0);
+    await expect(page.getByText("MF_OBJECT_UNREACHABLE")).toHaveCount(0);
   });
 
   test("节点工具箱节点可以拖入画布创建节点", async ({ page }) => {

@@ -27,7 +27,9 @@ import {
   mapFlowGramEdgeToMicroflowFlow,
   mapMicroflowFlowToFlowGramEdge,
 } from "./flowgram/adapters/flowgram-edge-mapping";
-import { findDeletedObjectId, flowGramPositionPatch, flowGramSelectionPatch } from "./flowgram/adapters/flowgram-to-authoring-patch";
+import { stableFlowGramEdgeKey, stableFlowGramEdgeStructuralKey } from "./flowgram/adapters/flowgram-identity";
+import { selectionFromFlowGramEntityIds } from "./flowgram/adapters/flowgram-selection-sync";
+import { findDeletedFlowId, findDeletedObjectId, findNewFlowGramEdge, flowGramPositionPatch, flowGramSelectionPatch } from "./flowgram/adapters/flowgram-to-authoring-patch";
 import {
   booleanCaseValue,
   enumerationCaseValue,
@@ -315,6 +317,45 @@ describe("microflow editor interactions", () => {
     expect(flow?.editor.label).toBe("High Amount");
   });
 
+  it("persists a Start to End FlowGram edge as a valid authoring sequence flow", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "minimal-start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 240, y: 0 }, "minimal-end");
+    const base = schemaWith([start, end]);
+    const graph = toEditorGraph(base);
+    const sourcePort = graph.nodes.find(node => node.objectId === start.id)?.ports.find(port => port.direction === "output");
+    const targetPort = graph.nodes.find(node => node.objectId === end.id)?.ports.find(port => port.direction === "input");
+    if (!sourcePort || !targetPort) {
+      throw new Error("Expected Start/End ports.");
+    }
+    const flow = mapFlowGramEdgeToMicroflowFlow(base, {
+      id: "edge-start-end",
+      sourceNodeID: start.id,
+      targetNodeID: end.id,
+      sourcePortID: sourcePort.id,
+      targetPortID: targetPort.id,
+      data: { label: "done" },
+    });
+    if (!flow) {
+      throw new Error("Expected FlowGram edge to map to a sequence flow.");
+    }
+
+    const next = applyEditorGraphPatchToAuthoring(base, {
+      addFlow: flow,
+      selectedFlowId: flow.id,
+      selectedObjectId: undefined,
+    });
+    const issues = validateMicroflowSchema({ schema: next, metadata: mockMeta }).issues;
+
+    expect(next.flows).toContainEqual(expect.objectContaining({
+      id: flow.id,
+      kind: "sequence",
+      originObjectId: start.id,
+      destinationObjectId: end.id,
+    }));
+    expect(issues.some(issue => issue.code === "MF_START_NO_OUTGOING")).toBe(false);
+    expect(issues.some(issue => issue.code === "MF_OBJECT_UNREACHABLE" && issue.objectId === end.id)).toBe(false);
+  });
+
   it("maps schema flows back to FlowGram edges with connection-index based handles", () => {
     const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "map-start");
     const end = createObjectFromRegistry(registry("endEvent"), { x: 200, y: 0 }, "map-end");
@@ -380,6 +421,30 @@ describe("microflow editor interactions", () => {
     expect(deletedObjectId).toBe(decision.id);
     expect(next.objectCollection.objects.some(object => object.id === decision.id)).toBe(false);
     expect(collectFlowsRecursive(next).some(flow => flow.originObjectId === decision.id || flow.destinationObjectId === decision.id)).toBe(false);
+  });
+
+  it("treats moving connected Start and End as position-only changes", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "position-start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 240, y: 0 }, "position-end");
+    const flow = createSequenceFlow({ originObjectId: start.id, destinationObjectId: end.id });
+    const schema = schemaWith([start, end], [flow]);
+    const json = authoringToFlowGram(schema, [], []);
+    const startNode = json.nodes.find(node => node.id === start.id);
+    const endNode = json.nodes.find(node => node.id === end.id);
+    if (!startNode || !endNode) {
+      throw new Error("Expected Start/End nodes.");
+    }
+    startNode.meta = { ...startNode.meta, position: { x: 120, y: 72 } };
+    endNode.meta = { ...endNode.meta, position: { x: 408, y: 120 } };
+
+    const patch = flowGramPositionPatch(schema, json, { gridEnabled: false });
+
+    expect(patch.movedNodes).toEqual([
+      { objectId: start.id, position: { x: 120, y: 72 } },
+      { objectId: end.id, position: { x: 408, y: 120 } },
+    ]);
+    expect(findNewFlowGramEdge(schema, json)).toBeUndefined();
+    expect(findDeletedFlowId(schema, json)).toBeUndefined();
   });
 
   it("keeps flow creation isolated between separate microflow schemas", () => {
@@ -590,11 +655,74 @@ describe("microflow editor interactions", () => {
     if (!node) {
       throw new Error("Expected FlowGram start node.");
     }
-    node.id = Number(start.id);
+    (node as unknown as { id: string | number }).id = Number(start.id);
     node.meta = { ...node.meta, position: { x: 101, y: 58 } };
     expect(flowGramPositionPatch(schema, json, { gridEnabled: true }).movedNodes).toEqual([
       { objectId: start.id, position: { x: 96, y: 48 } },
     ]);
+  });
+
+  it("keeps stable edge identity when only node position or path metadata changes", () => {
+    const first = {
+      id: "flow-start-end",
+      sourceNodeID: "node-start",
+      sourcePortID: "start:sequenceOut:0",
+      targetNodeID: "node-end",
+      targetPortID: "end:sequenceIn:0",
+      data: { flowId: "flow-start-end" },
+      meta: { path: [{ x: 0, y: 0 }, { x: 100, y: 0 }] },
+    };
+    const second = {
+      ...first,
+      meta: { path: [{ x: 10, y: 20 }, { x: 140, y: 80 }] },
+      selected: true,
+    };
+
+    expect(stableFlowGramEdgeKey({
+      flowId: "flow-start-end",
+      sourceObjectId: "start",
+      sourcePortId: "start:sequenceOut:0",
+      targetObjectId: "end",
+      targetPortId: "end:sequenceIn:0",
+    })).toBe(stableFlowGramEdgeKey({
+      flowId: "flow-start-end",
+      sourceObjectId: "start",
+      sourcePortId: "start:sequenceOut:0",
+      targetObjectId: "end",
+      targetPortId: "end:sequenceIn:0",
+    }));
+    expect(stableFlowGramEdgeStructuralKey({
+      flowId: "flow-start-end",
+      sourceObjectId: "start",
+      sourcePortId: "start:sequenceOut:0",
+      targetObjectId: "end",
+      targetPortId: "end:sequenceIn:0",
+    })).toBe(stableFlowGramEdgeStructuralKey({
+      flowId: "another-runtime-id",
+      sourceObjectId: "start",
+      sourcePortId: "start:sequenceOut:0",
+      targetObjectId: "end",
+      targetPortId: "end:sequenceIn:0",
+    }));
+    expect(first.meta).not.toEqual(second.meta);
+  });
+
+  it("maps FlowGram runtime entity ids back to authoring object and flow ids", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "selection-start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 240, y: 0 }, "selection-end");
+    const flow = createSequenceFlow({ originObjectId: start.id, destinationObjectId: end.id, id: "selection-flow" });
+    const schema = schemaWith([start, end], [flow]);
+
+    const selection = selectionFromFlowGramEntityIds(schema, [`node-${start.id}`, `edge-${flow.id}`]);
+
+    expect(selection).toEqual({
+      objectId: start.id,
+      flowId: undefined,
+      collectionId: schema.objectCollection.id,
+      objectIds: [start.id],
+      flowIds: [flow.id],
+      mode: "multi",
+    });
   });
 
   it("adds dragged action activities, parameters, annotations, and loops through AuthoringSchema", () => {

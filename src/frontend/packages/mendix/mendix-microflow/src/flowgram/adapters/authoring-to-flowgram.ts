@@ -17,6 +17,7 @@ type MicroflowFlowGramTraceRow = MicroflowTraceFrame | MicroflowAuthoringPersist
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { flowCaseLabel } from "./flowgram-case-options";
 import { LOOP_HEADER_OFFSET_PX } from "./flowgram-coordinate";
+import { toFlowGramEdgeId, toFlowGramNodeId } from "./flowgram-identity";
 import { validationStateFromIssues } from "./flowgram-validation-sync";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowIssueIndex, FlowGramMicroflowNodeData } from "../FlowGramMicroflowTypes";
 
@@ -222,7 +223,7 @@ export function authoringToFlowGram(
       issueCount: objectIssues.length,
     };
     return {
-      id: node.objectId,
+      id: toFlowGramNodeId(node.objectId),
       type: data.objectKind,
       data,
       meta: {
@@ -254,9 +255,9 @@ export function authoringToFlowGram(
       validationState: validationStateFromIssues(flowIssues),
     };
     return {
-      id: edge.flowId,
-      sourceNodeID: edge.sourceObjectId ?? edge.sourceNodeId,
-      targetNodeID: edge.targetObjectId ?? edge.targetNodeId,
+      id: toFlowGramEdgeId(edge.flowId),
+      sourceNodeID: toFlowGramNodeId(edge.sourceObjectId ?? edge.sourceNodeId),
+      targetNodeID: toFlowGramNodeId(edge.targetObjectId ?? edge.targetNodeId),
       sourcePortID: edge.sourcePortId,
       targetPortID: edge.targetPortId,
       data,

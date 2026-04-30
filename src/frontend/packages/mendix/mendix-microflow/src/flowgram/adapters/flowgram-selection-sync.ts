@@ -1,18 +1,21 @@
 import type { MicroflowEditorGraphPatch, MicroflowSchema } from "../../schema";
 import { findFlowWithCollection, findObjectWithCollection } from "../../schema/utils/object-utils";
 import type { FlowGramMicroflowSelection } from "../FlowGramMicroflowTypes";
+import { toMicroflowFlowId, toMicroflowObjectId } from "./flowgram-identity";
 import { flowGramSelectionPatch } from "./flowgram-to-authoring-patch";
 
 export function selectionFromFlowGramEntityId(schema: MicroflowSchema, id?: string): FlowGramMicroflowSelection {
   if (!id) {
     return { objectIds: [], flowIds: [], mode: "none" };
   }
-  const flow = findFlowWithCollection(schema, id);
+  const flowId = toMicroflowFlowId(id);
+  const flow = findFlowWithCollection(schema, flowId);
   if (flow) {
-    return { flowId: id, objectId: undefined, collectionId: flow.collectionId, objectIds: [], flowIds: [id], mode: "single" };
+    return { flowId, objectId: undefined, collectionId: flow.collectionId, objectIds: [], flowIds: [flowId], mode: "single" };
   }
-  const object = findObjectWithCollection(schema, id);
-  return { objectId: id, flowId: undefined, collectionId: object?.collectionId, objectIds: object ? [id] : [], flowIds: [], mode: object ? "single" : "none" };
+  const objectId = toMicroflowObjectId(id);
+  const object = findObjectWithCollection(schema, objectId);
+  return { objectId, flowId: undefined, collectionId: object?.collectionId, objectIds: object ? [objectId] : [], flowIds: [], mode: object ? "single" : "none" };
 }
 
 export function selectionFromFlowGramEntityIds(schema: MicroflowSchema, ids: readonly string[] = []): FlowGramMicroflowSelection {
@@ -21,15 +24,17 @@ export function selectionFromFlowGramEntityIds(schema: MicroflowSchema, ids: rea
   let collectionId: string | undefined;
 
   for (const id of ids) {
-    const flow = findFlowWithCollection(schema, id);
+    const flowId = toMicroflowFlowId(id);
+    const flow = findFlowWithCollection(schema, flowId);
     if (flow) {
-      flowIds.push(id);
+      flowIds.push(flowId);
       collectionId ??= flow.collectionId;
       continue;
     }
-    const object = findObjectWithCollection(schema, id);
+    const objectId = toMicroflowObjectId(id);
+    const object = findObjectWithCollection(schema, objectId);
     if (object) {
-      objectIds.push(id);
+      objectIds.push(objectId);
       collectionId ??= object.collectionId;
     }
   }

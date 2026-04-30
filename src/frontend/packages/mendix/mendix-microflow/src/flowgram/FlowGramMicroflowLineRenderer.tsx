@@ -1,6 +1,18 @@
-import type { LineRenderProps } from "@flowgram-adapter/free-layout-editor";
+import { useState } from "react";
+
+import { Button } from "@douyinfe/semi-ui";
+import { IconClose } from "@douyinfe/semi-icons";
+import {
+  type LineRenderProps,
+  usePlaygroundReadonlyState,
+  useService,
+} from "@flowgram-adapter/free-layout-editor";
 
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
+import {
+  FlowGramMicroflowBridgeService,
+  FlowGramMicroflowBridgeServiceToken,
+} from "./FlowGramMicroflowEvents";
 
 function edgeDataFromLine(line: LineRenderProps["line"]): FlowGramMicroflowEdgeData | undefined {
   const maybeLine = line as unknown as {
@@ -51,6 +63,10 @@ export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string |
 }
 
 export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
+  const [hovered, setHovered] = useState(false);
+  const readonly = usePlaygroundReadonlyState();
+  const bridgeService = useService<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeServiceToken);
+
   const data = edgeDataFromLine(line);
   if (!data) {
     return null;
@@ -64,8 +80,24 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
       data-edge-kind={data.edgeKind}
       data-runtime-state={data.runtimeState ?? "idle"}
       data-validation-state={data.validationState}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       {label}
+      {hovered && !readonly ? (
+        <Button
+          icon={<IconClose />}
+          size="small"
+          type="danger"
+          theme="borderless"
+          className="microflow-flowgram-line__delete-btn"
+          aria-label="删除连线"
+          onClick={e => {
+            e.stopPropagation();
+            bridgeService.deleteFlow(data.flowId);
+          }}
+        />
+      ) : null}
     </span>
   );
 }

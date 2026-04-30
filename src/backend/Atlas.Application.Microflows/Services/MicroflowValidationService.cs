@@ -351,7 +351,8 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                         string.Equals(f.Kind, "sequence", StringComparison.OrdinalIgnoreCase)
                         && !f.IsErrorHandler))
                 {
-                    Add(context, MicroflowValidationCodes.StartNoOutgoing, "StartEvent 必须有 outgoing flow。", "event", obj.FieldPath, objectId: obj.Id);
+                    Add(context, MicroflowValidationCodes.StartNoOutgoing, "StartEvent 必须有 outgoing flow。", "event", obj.FieldPath, objectId: obj.Id,
+                        severity: ModeSeverity(context, warningInEdit: true));
                 }
             }
 

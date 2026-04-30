@@ -55,6 +55,21 @@ function getValidationServiceCode(error: unknown): string {
   return "MICROFLOW_VALIDATION_API_FAILED";
 }
 
+/** Correlates duplicate local+server rows (same code + anchored ids) into a single problem entry. */
+function dedupeMergedMicroflowIssues(issues: MicroflowValidationIssue[]): MicroflowValidationIssue[] {
+  const out: MicroflowValidationIssue[] = [];
+  const keys = new Set<string>();
+  for (const issue of issues) {
+    const key = `${issue.code}\0${issue.objectId ?? ""}\0${issue.flowId ?? ""}\0${issue.actionId ?? ""}\0${issue.parameterId ?? ""}`;
+    if (keys.has(key)) {
+      continue;
+    }
+    keys.add(key);
+    out.push(issue);
+  }
+  return out;
+}
+
 function createValidationServiceIssue(error: unknown, microflowId: string, severity: MicroflowValidationIssue["severity"] = "warning"): MicroflowValidationIssue {
   const code = getValidationServiceCode(error);
   return {
@@ -123,7 +138,7 @@ export function useDebouncedMicroflowValidation({
             includeWarnings: true,
             includeInfo: true,
           });
-          nextIssues = [
+          nextIssues = dedupeMergedMicroflowIssues([
             ...localResult.issues,
             ...serverResult.issues.map(issue => ({
               ...issue,
@@ -133,7 +148,7 @@ export function useDebouncedMicroflowValidation({
               blockSave: issue.blockSave ?? issue.severity === "error",
               blockPublish: issue.blockPublish ?? issue.severity === "error",
             })),
-          ];
+          ]);
         } catch (error) {
           serverError = error;
           nextIssues = [...localResult.issues, createValidationServiceIssue(error, targetId, "warning")];

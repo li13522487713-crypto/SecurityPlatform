@@ -22,6 +22,12 @@ import {
   findNewFlowGramEdge,
   flowGramPositionPatch,
 } from "../adapters/flowgram-to-authoring-patch";
+import {
+  flowGramEdgeIdentitySignature,
+  flowGramNodeIdentitySignature,
+  flowGramPositionSignature,
+  toFlowGramNodeId,
+} from "../adapters/flowgram-identity";
 import { selectionFromFlowGramEntityIds } from "../adapters/flowgram-selection-sync";
 import { createMicroflowFlowFromPorts } from "../adapters/flowgram-edge-factory";
 import { getCaseEditorKind } from "../adapters/flowgram-case-options";
@@ -33,46 +39,15 @@ import type { FlowGramMicroflowPendingLine, FlowGramMicroflowSelection } from ".
 import { MICROFLOW_GRID_SIZE } from "../adapters/flowgram-coordinate";
 
 export function hasSameNodeAndEdgeIdentity(a: WorkflowJSON | undefined, b: WorkflowJSON | undefined): boolean {
-  if (!a || !b) {
-    return false;
-  }
-  const nodeIdentity = (json: WorkflowJSON) => (json.nodes ?? [])
-    .map(node => {
-      const meta = node.meta as { parentObjectId?: string; collectionId?: string } | undefined;
-      return [String(node.id), String(node.type ?? ""), meta?.parentObjectId ?? "", meta?.collectionId ?? ""].join("::");
-    })
-    .sort()
-    .join("|");
-  const edgeIdentity = (json: WorkflowJSON) => (json.edges ?? [])
-    .map(edge => {
-      const edgeData = edge as WorkflowEdgeJSON & { id?: string };
-      return [
-        String(edgeData.id ?? ""),
-        String(edge.sourceNodeID ?? ""),
-        String(edge.sourcePortID ?? ""),
-        String(edge.targetNodeID ?? ""),
-        String(edge.targetPortID ?? ""),
-      ].join("::");
-    })
-    .sort()
-    .join("|");
-  return nodeIdentity(a) === nodeIdentity(b) && edgeIdentity(a) === edgeIdentity(b);
+  return flowGramNodeIdentitySignature(a) === flowGramNodeIdentitySignature(b)
+    && flowGramEdgeIdentitySignature(a) === flowGramEdgeIdentitySignature(b);
 }
 
 function getWorkflowIdentity(json: WorkflowJSON): string {
-  const nodes = (json.nodes ?? [])
-    .map(node => {
-      const meta = node.meta as { parentObjectId?: string; collectionId?: string } | undefined;
-      return `${String(node.id)}:${String(node.type ?? "")}:${meta?.parentObjectId ?? ""}:${meta?.collectionId ?? ""}`;
-    })
-    .sort();
-  const edges = (json.edges ?? [])
-    .map(edge => {
-      const edgeData = edge as WorkflowEdgeJSON & { id?: string };
-      return `${String(edgeData.id ?? "")}:${String(edge.sourceNodeID ?? "")}:${String(edge.sourcePortID ?? "")}:${String(edge.targetNodeID ?? "")}:${String(edge.targetPortID ?? "")}`;
-    })
-    .sort();
-  return JSON.stringify({ nodes, edges });
+  return JSON.stringify({
+    nodes: flowGramNodeIdentitySignature(json),
+    edges: flowGramEdgeIdentitySignature(json),
+  });
 }
 
 function movedNodeSignature(patch: MicroflowEditorGraphPatch): string {
@@ -103,7 +78,7 @@ function syncFlowGramPositionsToSchema(doc: WorkflowDocument, schema: MicroflowS
   const graph = toEditorGraph(schema);
   let synced = false;
   for (const node of graph.nodes) {
-    const entity = doc.getNode?.(node.objectId) as WorkflowNodeEntity | undefined;
+    const entity = doc.getNode?.(toFlowGramNodeId(node.objectId)) as WorkflowNodeEntity | undefined;
     const transform = entity?.getData?.(FlowNodeTransformData);
     if (!transform) {
       continue;
@@ -142,13 +117,18 @@ export function useFlowGramMicroflowBridge(params: {
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
   onPendingCaseLine: (line?: FlowGramMicroflowPendingLine) => void;
 }) {
+  type FlowGramChangeKind = "nodePosition" | "nodeStructure" | "edgeStructure";
+
   const doc = useService<WorkflowDocument>(WorkflowDocument);
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
   const bridgeService = useService<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeServiceToken);
-  const reloadingRef = useRef(false);
-  const internalPositionChangeRef = useRef(false);
-  const lastLoadedIdentityRef = useRef<string>();
+  const reloadingFromSchemaRef = useRef(false);
+  const draggingNodeRef = useRef(false);
+  const applyingPositionPatchRef = useRef(false);
+  const lastWorkflowIdentityRef = useRef<string>();
+  const lastPositionSignatureRef = useRef<string>();
   const snapReconcileTimerRef = useRef<number>();
+  const positionSettleTimerRef = useRef<number>();
   const latestSchemaRef = useRef(params.schema);
   const paramsRef = useRef(params);
   const lastAppliedPatchSignatureRef = useRef<string>();
@@ -162,15 +142,33 @@ export function useFlowGramMicroflowBridge(params: {
     [params.schema.flows, params.schema.objectCollection, params.issues, params.traceFrames],
   );
 
+  const reloadFromSchema = (schema: MicroflowSchema) => {
+    const nextJson = authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace);
+    const nextIdentity = getWorkflowIdentity(nextJson);
+    const nextPositionSignature = flowGramPositionSignature(nextJson);
+    reloadingFromSchemaRef.current = true;
+    void Promise.resolve(doc.fromJSON(nextJson)).finally(() => {
+      lastWorkflowIdentityRef.current = nextIdentity;
+      lastPositionSignatureRef.current = nextPositionSignature;
+      reloadingFromSchemaRef.current = false;
+    });
+  };
+
   useEffect(() => {
     const nextIdentity = getWorkflowIdentity(workflowJson);
-    if (internalPositionChangeRef.current && lastLoadedIdentityRef.current === nextIdentity) {
+    const nextPositionSignature = flowGramPositionSignature(workflowJson);
+    if (lastWorkflowIdentityRef.current === nextIdentity && lastPositionSignatureRef.current === nextPositionSignature) {
       return;
     }
-    reloadingRef.current = true;
+    if ((applyingPositionPatchRef.current || draggingNodeRef.current) && lastWorkflowIdentityRef.current === nextIdentity) {
+      lastPositionSignatureRef.current = nextPositionSignature;
+      return;
+    }
+    reloadingFromSchemaRef.current = true;
     void Promise.resolve(doc.fromJSON(workflowJson)).finally(() => {
-      lastLoadedIdentityRef.current = nextIdentity;
-      reloadingRef.current = false;
+      lastWorkflowIdentityRef.current = nextIdentity;
+      lastPositionSignatureRef.current = nextPositionSignature;
+      reloadingFromSchemaRef.current = false;
     });
   }, [doc, workflowJson]);
 
@@ -178,15 +176,81 @@ export function useFlowGramMicroflowBridge(params: {
     if (snapReconcileTimerRef.current !== undefined) {
       window.clearTimeout(snapReconcileTimerRef.current);
     }
+    if (positionSettleTimerRef.current !== undefined) {
+      window.clearTimeout(positionSettleTimerRef.current);
+    }
   }, []);
 
   useEffect(() => {
+    bridgeService.registerDeleteFlowHandler((flowId: string) => {
+      const schema = latestSchemaRef.current;
+      paramsRef.current.onSchemaChange(
+        applyEditorGraphPatchToAuthoring(schema, { deleteFlowId: flowId } as MicroflowEditorGraphPatch),
+        "flowgramLineDelete",
+      );
+    });
+  }, [bridgeService]);
+
+  useEffect(() => {
     const disposable = doc.onContentChange(() => {
-      if (reloadingRef.current || paramsRef.current.readonly) {
+      if (reloadingFromSchemaRef.current || paramsRef.current.readonly) {
         return;
       }
       const json = doc.toJSON() as WorkflowJSON;
       const schema = latestSchemaRef.current;
+      const currentJson = authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace);
+      const changeKind: FlowGramChangeKind = !hasSameNodeAndEdgeIdentity(currentJson, json)
+        ? flowGramNodeIdentitySignature(currentJson) !== flowGramNodeIdentitySignature(json)
+          ? "nodeStructure"
+          : "edgeStructure"
+        : "nodePosition";
+      const grid = bridgeService.getGridConfig();
+      const rawPatch = flowGramPositionPatch(schema, json, { gridEnabled: false });
+      const patch = flowGramPositionPatch(schema, json, {
+        gridEnabled: grid.enabled,
+        gridSize: grid.size,
+      });
+      const patchSignature = `${movedNodeSignature(patch)}|${resizedNodeSignature(patch)}`;
+      if (changeKind === "nodePosition") {
+        if (patchSignature === lastAppliedPatchSignatureRef.current && (patch.movedNodes?.length || patch.resizedNodes?.length)) {
+          return;
+        }
+        if (!(patch.movedNodes?.length || patch.resizedNodes?.length)) {
+          return;
+        }
+        const nextSchema = applyEditorGraphPatchToAuthoring(schema, patch);
+        const snapChanged = movedNodeSignature(rawPatch) !== movedNodeSignature(patch);
+        const shouldReconcileSnap = snapChanged
+          && (patch.movedNodes?.length ?? 0) > 0
+          && hasMeaningfulSnapDelta(rawPatch, patch, Math.max(2, grid.size));
+        draggingNodeRef.current = true;
+        applyingPositionPatchRef.current = true;
+        if (positionSettleTimerRef.current !== undefined) {
+          window.clearTimeout(positionSettleTimerRef.current);
+        }
+        positionSettleTimerRef.current = window.setTimeout(() => {
+          positionSettleTimerRef.current = undefined;
+          draggingNodeRef.current = false;
+          applyingPositionPatchRef.current = false;
+        }, 120);
+        latestSchemaRef.current = nextSchema;
+        bridgeService.setSchema(nextSchema);
+        lastAppliedPatchSignatureRef.current = patchSignature;
+        paramsRef.current.onSchemaChange(nextSchema, "flowgramNodeMove");
+        if (shouldReconcileSnap) {
+          if (snapReconcileTimerRef.current !== undefined) {
+            window.clearTimeout(snapReconcileTimerRef.current);
+          }
+          snapReconcileTimerRef.current = window.setTimeout(() => {
+            snapReconcileTimerRef.current = undefined;
+            const directlySynced = syncFlowGramPositionsToSchema(doc, nextSchema);
+            if (!directlySynced) {
+              reloadFromSchema(nextSchema);
+            }
+          }, 80);
+        }
+        return;
+      }
       const deletedObjectId = findDeletedObjectId(schema, json);
       if (deletedObjectId) {
         paramsRef.current.onSchemaChange(
@@ -210,10 +274,7 @@ export function useFlowGramMicroflowBridge(params: {
         const check = sourcePort && targetPort ? canConnectPorts(schema, sourcePort, targetPort) : undefined;
         if (!sourcePort || !targetPort || !check?.allowed) {
           Toast.warning(check?.message ?? "The selected ports cannot be connected.");
-          reloadingRef.current = true;
-          void Promise.resolve(doc.fromJSON(authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace))).finally(() => {
-            reloadingRef.current = false;
-          });
+          reloadFromSchema(schema);
           return;
         }
         const caseKind = getCaseEditorKind(schema, sourcePort.objectId);
@@ -225,19 +286,13 @@ export function useFlowGramMicroflowBridge(params: {
             sourceObjectId: sourcePort.objectId,
             targetObjectId: targetPort.objectId,
           });
-          reloadingRef.current = true;
-          void Promise.resolve(doc.fromJSON(authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace))).finally(() => {
-            reloadingRef.current = false;
-          });
+          reloadFromSchema(schema);
           return;
         }
         const flow = createFlowFromFlowGramEdge(schema, newEdge);
         if (!flow) {
           Toast.warning("无法识别连线端口，已回退本次连线。");
-          reloadingRef.current = true;
-          void Promise.resolve(doc.fromJSON(authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace))).finally(() => {
-            reloadingRef.current = false;
-          });
+          reloadFromSchema(schema);
           return;
         }
         paramsRef.current.onSchemaChange(
@@ -246,51 +301,7 @@ export function useFlowGramMicroflowBridge(params: {
         );
         return;
       }
-      const grid = bridgeService.getGridConfig();
-      const rawPatch = flowGramPositionPatch(schema, json, { gridEnabled: false });
-      const patch = flowGramPositionPatch(schema, json, {
-        gridEnabled: grid.enabled,
-        gridSize: grid.size,
-      });
-      const patchSignature = `${movedNodeSignature(patch)}|${resizedNodeSignature(patch)}`;
-      if (patchSignature === lastAppliedPatchSignatureRef.current && (patch.movedNodes?.length || patch.resizedNodes?.length)) {
-        return;
-      }
-      if (patch.movedNodes?.length || patch.resizedNodes?.length) {
-        const nextSchema = applyEditorGraphPatchToAuthoring(schema, patch);
-        const snapChanged = movedNodeSignature(rawPatch) !== movedNodeSignature(patch);
-        const shouldReconcileSnap = snapChanged
-          && (patch.movedNodes?.length ?? 0) > 0
-          && hasMeaningfulSnapDelta(rawPatch, patch, Math.max(2, grid.size));
-        internalPositionChangeRef.current = true;
-        latestSchemaRef.current = nextSchema;
-        bridgeService.setSchema(nextSchema);
-        lastAppliedPatchSignatureRef.current = patchSignature;
-        paramsRef.current.onSchemaChange(nextSchema, "flowgramNodeMove");
-        if (shouldReconcileSnap) {
-          if (snapReconcileTimerRef.current !== undefined) {
-            window.clearTimeout(snapReconcileTimerRef.current);
-          }
-          snapReconcileTimerRef.current = window.setTimeout(() => {
-            snapReconcileTimerRef.current = undefined;
-            reloadingRef.current = true;
-            const directlySynced = syncFlowGramPositionsToSchema(doc, nextSchema);
-            if (directlySynced) {
-              reloadingRef.current = false;
-              return;
-            }
-            void Promise.resolve(
-              doc.fromJSON(authoringToFlowGram(nextSchema, nextSchema.validation.issues, nextSchema.debug?.lastTrace)),
-            ).finally(() => {
-              lastLoadedIdentityRef.current = getWorkflowIdentity(authoringToFlowGram(nextSchema, nextSchema.validation.issues, nextSchema.debug?.lastTrace));
-              reloadingRef.current = false;
-            });
-          }, 80);
-        }
-        queueMicrotask(() => {
-          internalPositionChangeRef.current = false;
-        });
-      }
+      reloadFromSchema(schema);
     });
     return () => disposable.dispose();
   }, [doc]);

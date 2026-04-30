@@ -36,6 +36,7 @@ import {
   normalizeFlowGramPoint,
   snapMicroflowPoint,
 } from "./adapters/flowgram-coordinate";
+import { toFlowGramNodeId, toMicroflowObjectId } from "./adapters/flowgram-identity";
 import type { FlowGramMicroflowPendingLine, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import { useFlowGramMicroflowBridge } from "./hooks/useFlowGramMicroflowBridge";
 import "@flowgram-adapter/free-layout-editor/css-load";
@@ -106,8 +107,8 @@ function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSc
     <div className="microflow-flowgram-minimap" aria-label="Microflow minimap">
       <svg viewBox={viewBox} role="img">
         {minimapEdges.map(edge => {
-          const source = nodeById.get(editorNodeIdToObjectId(edge.sourceNodeId));
-          const target = nodeById.get(editorNodeIdToObjectId(edge.targetNodeId));
+          const source = nodeById.get(toMicroflowObjectId(edge.sourceNodeId));
+          const target = nodeById.get(toMicroflowObjectId(edge.targetNodeId));
           if (!source || !target) {
             return null;
           }
@@ -177,10 +178,6 @@ function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSc
       </svg>
     </div>
   );
-}
-
-function editorNodeIdToObjectId(editorNodeId: string): string {
-  return editorNodeId.startsWith("node-") ? editorNodeId.slice(5) : editorNodeId;
 }
 
 export function getLoopContainerByClientPoint(
@@ -331,7 +328,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   };
 
   const focusNodeFromMiniMap = (objectId: string) => {
-    const node = playground.entityManager.getEntityById<FlowNodeEntity>(objectId);
+    const node = playground.entityManager.getEntityById<FlowNodeEntity>(toFlowGramNodeId(objectId));
     if (node) {
       void selectService.selectNodeAndScrollToView(node, true);
     }
@@ -363,7 +360,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     if (!props.focusObjectId) {
       return;
     }
-    const node = playground.entityManager.getEntityById<FlowNodeEntity>(props.focusObjectId);
+    const node = playground.entityManager.getEntityById<FlowNodeEntity>(toFlowGramNodeId(props.focusObjectId));
     if (!node) {
       return;
     }

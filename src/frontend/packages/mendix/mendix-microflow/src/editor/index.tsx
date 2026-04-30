@@ -80,6 +80,7 @@ import {
   filterNodeResultsByMicroflowId,
   shouldBlockRun,
   type MicroflowDebugCommand,
+  type MicroflowDebugTraceEventDto,
   type MicroflowDebugSessionDto,
   type MicroflowDebugVariableSnapshotDto,
   type MicroflowDebugWatchExpressionDto,
@@ -1655,6 +1656,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [pendingDebugSessionId, setPendingDebugSessionId] = useState<string>();
   const [debugSessionByMicroflowId, setDebugSessionByMicroflowId] = useState<Record<string, MicroflowDebugSessionDto | undefined>>({});
   const [debugVariablesBySessionId, setDebugVariablesBySessionId] = useState<Record<string, MicroflowDebugVariableSnapshotDto[]>>({});
+  const [debugTraceBySessionId, setDebugTraceBySessionId] = useState<Record<string, MicroflowDebugTraceEventDto[]>>({});
   const [debugWatchesBySessionId, setDebugWatchesBySessionId] = useState<Record<string, MicroflowDebugWatchExpressionDto[]>>({});
   const [testRunModalOpen, setTestRunModalOpen] = useState(false);
   const [runInputsByMicroflowId, setRunInputsByMicroflowId] = useState<Record<string, Record<string, unknown>>>({});
@@ -2311,10 +2313,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       if (debugSessionId) {
         setPendingDebugSessionId(undefined);
       }
-      if (response.hydration?.degraded) {
+      const hydration = response.hydration;
+      if (hydration?.degraded) {
         setRuntimeServiceErrorByMicroflowId(current => ({
           ...current,
-          [microflowId]: response.hydration.warning ?? "运行会话回读未完全成功，请刷新 Run History 或重新运行。",
+          [microflowId]: hydration.warning ?? "运行会话回读未完全成功，请刷新 Run History 或重新运行。",
         }));
       }
       props.onTestRunComplete?.(response);
@@ -3490,7 +3493,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 {selectedRunSession?.logs?.length ? (
                   <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
                     {selectedRunSession.logs.map(log => (
-                      <Card key={log.id} shadows="never" style={{ width: "100%" }}>
+                      <Card key={log.id} style={{ width: "100%" }}>
                         <Space vertical align="start" spacing={4}>
                           <Tag color={log.level === "error" ? "red" : log.level === "warning" ? "orange" : "blue"}>{log.level}</Tag>
                           <Text>{log.message}</Text>

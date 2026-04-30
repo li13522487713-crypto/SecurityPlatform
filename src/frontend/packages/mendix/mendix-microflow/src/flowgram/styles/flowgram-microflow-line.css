@@ -1,5 +1,6 @@
 .gedit-flow-lines-layer svg path {
   stroke-linecap: round;
+  pointer-events: none;
 }
 
 .microflow-flowgram-line--errorHandler {
@@ -36,4 +37,19 @@
 
 .microflow-flowgram-line.is-runtime-failed {
   stroke: #d73135;
+}
+
+.microflow-flowgram-line {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.microflow-flowgram-line__delete-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  pointer-events: all;
 }

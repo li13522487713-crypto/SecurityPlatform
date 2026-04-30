@@ -1,5 +1,10 @@
 <Project>
   <PropertyGroup>
+    <!--
+      测试/工具链若将 BaseIntermediateOutputPath 指到项目内的 artifacts/tmp，会留下与 obj 同型的生成 .cs；
+      SDK 默认只排除 $(BaseIntermediateOutputPath)，不排除 artifacts，导致 **/*.cs 把两份 AssemblyInfo 一起编译 → CS0579。
+    -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/artifacts/**</DefaultItemExcludes>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
