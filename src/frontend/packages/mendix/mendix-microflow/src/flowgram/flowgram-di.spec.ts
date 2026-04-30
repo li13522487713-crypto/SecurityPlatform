@@ -13,9 +13,9 @@ import {
 } from "../node-registry";
 import { sampleMicroflowSchema, type MicroflowObject, type MicroflowSchema } from "../schema";
 import {
-  FlowGramMicroflowBridgeService,
-  FlowGramMicroflowBridgeServiceToken,
   FlowGramMicroflowDocumentOptions,
+  FlowGramMicroflowSchemaContextService,
+  FlowGramMicroflowSchemaContextServiceToken,
 } from "./FlowGramMicroflowEvents";
 
 function registry(key: string) {
@@ -36,20 +36,20 @@ function schemaWith(objects: MicroflowObject[]): MicroflowSchema {
 }
 
 describe("FlowGram microflow DI", () => {
-  it("binds document options to the same stable bridge singleton", () => {
+  it("binds document options to a stable schema context singleton", () => {
     const container = new Container({ defaultScope: "Singleton" });
     container
-      .bind<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeServiceToken)
-      .to(FlowGramMicroflowBridgeService)
+      .bind<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken)
+      .to(FlowGramMicroflowSchemaContextService)
       .inSingletonScope();
     container
       .bind(FlowGramMicroflowDocumentOptions)
       .toDynamicValue(ctx => new FlowGramMicroflowDocumentOptions(
-        ctx.container.get<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeServiceToken),
+        ctx.container.get<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken),
       ))
       .inSingletonScope();
     container.bind(WorkflowDocumentOptions).toService(FlowGramMicroflowDocumentOptions);
-    const bridge = container.get<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeServiceToken);
+    const schemaContext = container.get<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken);
     const options = container.get<FlowGramMicroflowDocumentOptions>(FlowGramMicroflowDocumentOptions);
     const workflowOptions = container.get<WorkflowDocumentOptions>(WorkflowDocumentOptions);
 
@@ -64,8 +64,8 @@ describe("FlowGram microflow DI", () => {
       throw new Error("Expected start and end ports.");
     }
 
-    bridge.setSchema(schema);
-    expect(bridge.getSchema()).toBe(schema);
+    schemaContext.setSchema(schema);
+    expect(schemaContext.getSchema()).toBe(schema);
     expect(options.canAddLine({ portID: sourcePort.id } as WorkflowPortEntity, { portID: targetPort.id } as WorkflowPortEntity)).toBe(true);
   });
 });

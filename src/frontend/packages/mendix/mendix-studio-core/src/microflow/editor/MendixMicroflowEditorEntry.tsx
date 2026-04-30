@@ -31,6 +31,8 @@ interface SaveConflictDetails {
   baseVersion?: string;
 }
 
+type MicroflowLayoutObject = MicroflowSchema["objectCollection"]["objects"][number];
+
 export interface MendixMicroflowEditorEntryProps {
   resource: MicroflowResource;
   adapter: MicroflowResourceAdapter;
@@ -76,6 +78,66 @@ function parseSaveConflictDetails(details?: string): SaveConflictDetails {
     // 老后端可能只返回 schemaId/version 字符串，保留兼容展示。
   }
   return { remoteVersion: details, remoteSchemaId: details };
+}
+
+function hasNestedObjectCollection(
+  object: MicroflowLayoutObject,
+): object is MicroflowLayoutObject & { objectCollection: MicroflowSchema["objectCollection"] } {
+  return "objectCollection" in object
+    && typeof (object as { objectCollection?: unknown }).objectCollection === "object"
+    && (object as { objectCollection?: unknown }).objectCollection !== null;
+}
+
+function collectLayoutEntries(objects: readonly MicroflowLayoutObject[], parentId = ""): string[] {
+  const entries: string[] = [];
+  for (const object of objects) {
+    entries.push([
+      parentId,
+      object.id,
+      object.relativeMiddlePoint.x,
+      object.relativeMiddlePoint.y,
+      object.size.width,
+      object.size.height,
+    ].join(":"));
+    if (hasNestedObjectCollection(object)) {
+      entries.push(...collectLayoutEntries(object.objectCollection.objects, object.id));
+    }
+  }
+  return entries.sort();
+}
+
+function microflowSchemaLayoutSignature(schema: MicroflowSchema): string {
+  const viewport = schema.editor.viewport;
+  return JSON.stringify({
+    objects: collectLayoutEntries(schema.objectCollection.objects),
+    viewport: viewport ? {
+      x: viewport.x,
+      y: viewport.y,
+      zoom: viewport.zoom,
+    } : undefined,
+  });
+}
+
+function reconcileSavedResourceSchema(
+  saved: MicroflowResource,
+  schemaToSave: MicroflowSchema,
+  requestId: string,
+): MicroflowResource {
+  const requestLayout = microflowSchemaLayoutSignature(schemaToSave);
+  const responseLayout = microflowSchemaLayoutSignature(saved.schema);
+  if (requestLayout === responseLayout) {
+    return saved;
+  }
+  console.warn("Microflow save response schema layout differs from the submitted schema; preserving local layout.", {
+    microflowId: saved.id,
+    requestId,
+    requestLayout,
+    responseLayout,
+  });
+  return {
+    ...saved,
+    schema: schemaToSave,
+  };
 }
 
 export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode, shellMode, onLayoutStateChange, onWorkbenchStatusChange }: MendixMicroflowEditorEntryProps) {
@@ -235,7 +297,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
         });
 
         try {
-          const saved = await adapter.saveMicroflowSchema(activeResource.id, schemaToSave, {
+          const savedResponse = await adapter.saveMicroflowSchema(activeResource.id, schemaToSave, {
             baseVersion: nextForce ? undefined : activeResource.schemaId || activeResource.version,
             schemaId: activeResource.schemaId,
             version: activeResource.version,
@@ -243,6 +305,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
             clientRequestId: requestId,
             force: nextForce
           });
+          const saved = reconcileSavedResourceSchema(savedResponse, schemaToSave, requestId);
           lastSaved = saved;
           currentResourceRef.current = saved;
           const queued = queuedSaveRef.current;
@@ -405,7 +468,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
   return (
     <div style={{ height: "100%", minHeight: 720, overflow: "hidden", background: "var(--semi-color-bg-0)" }}>
       <MicroflowEditor
-        key={`${currentResource.id}:${currentResource.schemaId}:${currentResource.version}`}
+        key={currentResource.id}
         schema={schema}
         apiClient={apiClient}
         metadataAdapter={metadataAdapter}

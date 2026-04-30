@@ -2,8 +2,13 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, 
 
 import { Toast } from "@douyinfe/semi-ui";
 import {
+  FlowNodeTransformData,
+  WorkflowDocument,
+  WorkflowDragService,
   type FlowNodeEntity,
   PlaygroundReactRenderer,
+  type WorkflowJSON,
+  type WorkflowNodeEntity,
   WorkflowSelectService,
   usePlayground,
   useService,
@@ -11,6 +16,7 @@ import {
 
 import {
   canDragRegistryItem,
+  canConnectPorts,
   canCreateRegistryItem,
   getDisabledDragReason,
   hasMicroflowNodeDragType,
@@ -20,14 +26,25 @@ import {
   type MicroflowNodeRegistryItem,
 } from "../node-registry";
 import type { MicroflowTraceFrame } from "../debug/trace-types";
-import type { MicroflowPoint, MicroflowSchema, MicroflowValidationIssue } from "../schema";
-import { toEditorGraph } from "../adapters";
+import type {
+  MicroflowCaseValue,
+  MicroflowEditorGraphPatch,
+  MicroflowPoint,
+  MicroflowSchema,
+  MicroflowValidationIssue,
+} from "../schema";
+import { applyEditorGraphPatchToAuthoring, toEditorGraph } from "../adapters";
 import { FlowGramMicroflowCaseEditor } from "./FlowGramMicroflowCaseEditor";
+import {
+  FlowGramMicroflowSchemaContextService,
+  FlowGramMicroflowSchemaContextServiceToken,
+} from "./FlowGramMicroflowEvents";
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
 import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
 import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
 import { useMicroflowMetadataCatalog } from "../metadata";
-import { getCaseOptionsForSource } from "./adapters/flowgram-case-options";
+import { getCaseEditorKind, getCaseOptionsForSource } from "./adapters/flowgram-case-options";
+import { authoringToFlowGram } from "./adapters/authoring-to-flowgram";
 import {
   clientPointToFlowGramPoint,
   flowGramPointToAuthoringPoint,
@@ -36,9 +53,23 @@ import {
   normalizeFlowGramPoint,
   snapMicroflowPoint,
 } from "./adapters/flowgram-coordinate";
-import { toFlowGramNodeId, toMicroflowObjectId } from "./adapters/flowgram-identity";
+import {
+  flowGramEdgeIdentitySignature,
+  flowGramNodeIdentitySignature,
+  flowGramPositionSignature,
+  toFlowGramNodeId,
+  toMicroflowObjectId,
+} from "./adapters/flowgram-identity";
+import {
+  createFlowFromFlowGramEdge,
+  findDeletedFlowId,
+  findDeletedObjectId,
+  findNewFlowGramEdge,
+  flowGramPositionPatch,
+} from "./adapters/flowgram-to-authoring-patch";
+import { selectionFromFlowGramEntityIds } from "./adapters/flowgram-selection-sync";
+import { createMicroflowFlowFromPorts } from "./adapters/flowgram-edge-factory";
 import type { FlowGramMicroflowPendingLine, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
-import { useFlowGramMicroflowBridge } from "./hooks/useFlowGramMicroflowBridge";
 import "@flowgram-adapter/free-layout-editor/css-load";
 import "./styles/flowgram-microflow-canvas.css";
 import "./styles/flowgram-microflow-port.css";
@@ -264,24 +295,94 @@ function fitViewportForGraph(graph: ReturnType<typeof toEditorGraph>, rect: Pick
   };
 }
 
+function hasSameNodeAndEdgeIdentity(a: WorkflowJSON | undefined, b: WorkflowJSON | undefined): boolean {
+  return flowGramNodeIdentitySignature(a) === flowGramNodeIdentitySignature(b)
+    && flowGramEdgeIdentitySignature(a) === flowGramEdgeIdentitySignature(b);
+}
+
+function workflowIdentity(json: WorkflowJSON): string {
+  return JSON.stringify({
+    nodes: flowGramNodeIdentitySignature(json),
+    edges: flowGramEdgeIdentitySignature(json),
+  });
+}
+
+function movedNodeSignature(patch: MicroflowEditorGraphPatch): string {
+  return JSON.stringify((patch.movedNodes ?? [])
+    .map(node => `${node.objectId}:${node.position.x}:${node.position.y}`)
+    .sort());
+}
+
+function resizedNodeSignature(patch: MicroflowEditorGraphPatch): string {
+  return JSON.stringify((patch.resizedNodes ?? [])
+    .map(node => `${node.objectId}:${node.size.width}:${node.size.height}`)
+    .sort());
+}
+
+function syncFlowGramPositionsToSchema(doc: WorkflowDocument, schema: MicroflowSchema): boolean {
+  const graph = toEditorGraph(schema);
+  let synced = false;
+  for (const node of graph.nodes) {
+    const entity = doc.getNode?.(toFlowGramNodeId(node.objectId)) as WorkflowNodeEntity | undefined;
+    const transform = entity?.getData?.(FlowNodeTransformData);
+    if (!transform) {
+      continue;
+    }
+    const current = transform.position ?? transform.bounds;
+    if (!current) {
+      continue;
+    }
+    if (Math.abs(current.x - node.position.x) <= 0.5 && Math.abs(current.y - node.position.y) <= 0.5) {
+      continue;
+    }
+    transform.transform.update({
+      position: {
+        x: node.position.x,
+        y: node.position.y,
+      },
+    });
+    synced = true;
+  }
+  return synced;
+}
+
+function portById(schema: MicroflowSchema, portId?: string) {
+  if (!portId) {
+    return undefined;
+  }
+  return toEditorGraph(schema).nodes.flatMap(node => node.ports).find(port => port.id === portId);
+}
+
 function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
+  type FlowGramChangeKind = "nodePosition" | "nodeStructure" | "edgeStructure";
+
   const playground = usePlayground();
+  const doc = useService<WorkflowDocument>(WorkflowDocument);
+  const dragService = useService<WorkflowDragService>(WorkflowDragService);
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
+  const schemaContext = useService<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken);
   const containerRef = useRef<HTMLDivElement>(null);
   const initialViewportFitDoneRef = useRef(false);
+  const reloadingFromSchemaRef = useRef(false);
+  const draggingNodeRef = useRef(false);
+  const applyingPositionPatchRef = useRef(false);
+  const lastWorkflowIdentityRef = useRef<string>();
+  const lastPositionSignatureRef = useRef<string>();
+  const positionSettleTimerRef = useRef<number>();
+  const latestSchemaRef = useRef(props.schema);
+  const propsRef = useRef(props);
+  const lastAppliedPatchSignatureRef = useRef<string>();
   const [pendingCaseLine, setPendingCaseLine] = useState<FlowGramMicroflowPendingLine>();
   const [dropActive, setDropActive] = useState(false);
   const miniMapVisible = props.schema.editor.showMiniMap === true;
   const gridEnabled = props.schema.editor.gridEnabled !== false;
-  const bridge = useFlowGramMicroflowBridge({
-    schema: props.schema,
-    issues: props.validationIssues,
-    traceFrames: props.runtimeTrace,
-    readonly: props.readonly,
-    onSchemaChange: props.onSchemaChange,
-    onSelectionChange: props.onSelectionChange,
-    onPendingCaseLine: setPendingCaseLine,
-  });
+  propsRef.current = props;
+  latestSchemaRef.current = props.schema;
+  schemaContext.setSchema(props.schema);
+  const workflowJson = useMemo(
+    () => authoringToFlowGram(props.schema, props.validationIssues, props.runtimeTrace),
+    [props.schema.flows, props.schema.objectCollection, props.validationIssues, props.runtimeTrace],
+  );
   const metadataCatalog = useMicroflowMetadataCatalog();
   const options = useMemo(
     () => pendingCaseLine && metadataCatalog
@@ -289,6 +390,75 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       : [],
     [pendingCaseLine, props.schema, metadataCatalog],
   );
+
+  const rememberSchemaPositionSignature = (schema: MicroflowSchema) => {
+    lastPositionSignatureRef.current = flowGramPositionSignature(
+      authoringToFlowGram(schema, propsRef.current.validationIssues, propsRef.current.runtimeTrace),
+    );
+  };
+
+  const reloadFromSchema = (schema: MicroflowSchema) => {
+    const nextJson = authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace);
+    const nextIdentity = workflowIdentity(nextJson);
+    const nextPositionSignature = flowGramPositionSignature(nextJson);
+    reloadingFromSchemaRef.current = true;
+    void Promise.resolve(doc.fromJSON(nextJson)).finally(() => {
+      lastWorkflowIdentityRef.current = nextIdentity;
+      lastPositionSignatureRef.current = nextPositionSignature;
+      reloadingFromSchemaRef.current = false;
+    });
+  };
+
+  const releaseDragPositionGuardSoon = () => {
+    if (positionSettleTimerRef.current !== undefined) {
+      window.clearTimeout(positionSettleTimerRef.current);
+    }
+    positionSettleTimerRef.current = window.setTimeout(() => {
+      positionSettleTimerRef.current = undefined;
+      draggingNodeRef.current = false;
+      applyingPositionPatchRef.current = false;
+    }, 120);
+  };
+
+  const commitFinalDraggedPositions = () => {
+    const schema = latestSchemaRef.current;
+    const patch = flowGramPositionPatch(schema, doc.toJSON() as WorkflowJSON, {
+      gridEnabled: schema.editor.gridEnabled !== false,
+      gridSize: MICROFLOW_GRID_SIZE,
+    });
+    const patchSignature = `${movedNodeSignature(patch)}|${resizedNodeSignature(patch)}`;
+    if (!(patch.movedNodes?.length || patch.resizedNodes?.length) || patchSignature === lastAppliedPatchSignatureRef.current) {
+      releaseDragPositionGuardSoon();
+      return;
+    }
+    const nextSchema = applyEditorGraphPatchToAuthoring(schema, patch);
+    latestSchemaRef.current = nextSchema;
+    schemaContext.setSchema(nextSchema);
+    rememberSchemaPositionSignature(nextSchema);
+    lastAppliedPatchSignatureRef.current = patchSignature;
+    applyingPositionPatchRef.current = true;
+    syncFlowGramPositionsToSchema(doc, nextSchema);
+    propsRef.current.onSchemaChange(nextSchema, "flowgramNodeMove");
+    releaseDragPositionGuardSoon();
+  };
+
+  const createCaseFlow = (caseValues: MicroflowCaseValue[], label: string, pending: FlowGramMicroflowPendingLine) => {
+    const sourcePort = portById(latestSchemaRef.current, pending.sourcePortId);
+    const targetPort = portById(latestSchemaRef.current, pending.targetPortId);
+    if (!sourcePort || !targetPort) {
+      return;
+    }
+    const flow = createMicroflowFlowFromPorts(latestSchemaRef.current, sourcePort, targetPort, { caseValues, label });
+    const nextSchema = applyEditorGraphPatchToAuthoring(latestSchemaRef.current, {
+      addFlow: flow,
+      selectedFlowId: flow.id,
+      selectedObjectId: undefined,
+    } as MicroflowEditorGraphPatch);
+    latestSchemaRef.current = nextSchema;
+    schemaContext.setSchema(nextSchema);
+    rememberSchemaPositionSignature(nextSchema);
+    propsRef.current.onSchemaChange(nextSchema, "flowgramLineAdd");
+  };
 
   useEffect(() => {
     const config = playground.config as typeof playground.config & { readonly?: boolean };
@@ -298,6 +468,154 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       config.readonly = previous;
     };
   }, [playground.config, props.readonly]);
+
+  useEffect(() => {
+    const nextIdentity = workflowIdentity(workflowJson);
+    const nextPositionSignature = flowGramPositionSignature(workflowJson);
+    if (lastWorkflowIdentityRef.current === nextIdentity && lastPositionSignatureRef.current === nextPositionSignature) {
+      return;
+    }
+    if ((applyingPositionPatchRef.current || draggingNodeRef.current) && lastWorkflowIdentityRef.current === nextIdentity) {
+      lastPositionSignatureRef.current = nextPositionSignature;
+      return;
+    }
+    if (lastWorkflowIdentityRef.current === nextIdentity) {
+      syncFlowGramPositionsToSchema(doc, props.schema);
+      lastPositionSignatureRef.current = nextPositionSignature;
+      return;
+    }
+    reloadingFromSchemaRef.current = true;
+    void Promise.resolve(doc.fromJSON(workflowJson)).finally(() => {
+      lastWorkflowIdentityRef.current = nextIdentity;
+      lastPositionSignatureRef.current = nextPositionSignature;
+      reloadingFromSchemaRef.current = false;
+    });
+  }, [doc, props.schema, workflowJson]);
+
+  useEffect(() => () => {
+    if (positionSettleTimerRef.current !== undefined) {
+      window.clearTimeout(positionSettleTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    const disposable = dragService.onNodesDrag(event => {
+      if (propsRef.current.readonly) {
+        return;
+      }
+      if (event.type === "onDragStart") {
+        draggingNodeRef.current = true;
+        applyingPositionPatchRef.current = false;
+        lastAppliedPatchSignatureRef.current = undefined;
+        if (positionSettleTimerRef.current !== undefined) {
+          window.clearTimeout(positionSettleTimerRef.current);
+          positionSettleTimerRef.current = undefined;
+        }
+        return;
+      }
+      if (event.type === "onDragEnd") {
+        commitFinalDraggedPositions();
+      }
+    });
+    return () => disposable.dispose();
+  }, [dragService]);
+
+  useEffect(() => {
+    const disposable = doc.onContentChange(() => {
+      if (reloadingFromSchemaRef.current || propsRef.current.readonly) {
+        return;
+      }
+      const json = doc.toJSON() as WorkflowJSON;
+      const schema = latestSchemaRef.current;
+      const currentJson = authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace);
+      const changeKind: FlowGramChangeKind = !hasSameNodeAndEdgeIdentity(currentJson, json)
+        ? flowGramNodeIdentitySignature(currentJson) !== flowGramNodeIdentitySignature(json)
+          ? "nodeStructure"
+          : "edgeStructure"
+        : "nodePosition";
+      if (changeKind === "nodePosition") {
+        return;
+      }
+      const deletedObjectId = findDeletedObjectId(schema, json);
+      if (deletedObjectId) {
+        const patch = flowGramPositionPatch(schema, json, {
+          gridEnabled: schema.editor.gridEnabled !== false,
+          gridSize: MICROFLOW_GRID_SIZE,
+        });
+        const nextSchema = applyEditorGraphPatchToAuthoring(schema, {
+          ...patch,
+          deleteObjectId: deletedObjectId,
+        } as MicroflowEditorGraphPatch);
+        latestSchemaRef.current = nextSchema;
+        schemaContext.setSchema(nextSchema);
+        rememberSchemaPositionSignature(nextSchema);
+        propsRef.current.onSchemaChange(nextSchema, "flowgramNodeDelete");
+        return;
+      }
+      const deletedFlowId = findDeletedFlowId(schema, json);
+      if (deletedFlowId) {
+        const nextSchema = applyEditorGraphPatchToAuthoring(schema, {
+          deleteFlowId: deletedFlowId,
+        } as MicroflowEditorGraphPatch);
+        latestSchemaRef.current = nextSchema;
+        schemaContext.setSchema(nextSchema);
+        rememberSchemaPositionSignature(nextSchema);
+        propsRef.current.onSchemaChange(nextSchema, "flowgramLineDelete");
+        return;
+      }
+      const newEdge = findNewFlowGramEdge(schema, json);
+      if (newEdge) {
+        const sourcePort = portById(schema, newEdge.sourcePortID === undefined ? undefined : String(newEdge.sourcePortID));
+        const targetPort = portById(schema, newEdge.targetPortID === undefined ? undefined : String(newEdge.targetPortID));
+        const check = sourcePort && targetPort ? canConnectPorts(schema, sourcePort, targetPort) : undefined;
+        if (!sourcePort || !targetPort || !check?.allowed) {
+          Toast.warning(check?.message ?? "The selected ports cannot be connected.");
+          reloadFromSchema(schema);
+          return;
+        }
+        const caseKind = getCaseEditorKind(schema, sourcePort.objectId);
+        if (caseKind && (check.suggestedEdgeKind === "decisionCondition" || check.suggestedEdgeKind === "objectTypeCondition")) {
+          setPendingCaseLine({
+            caseKind,
+            sourcePortId: sourcePort.id,
+            targetPortId: targetPort.id,
+            sourceObjectId: sourcePort.objectId,
+            targetObjectId: targetPort.objectId,
+          });
+          reloadFromSchema(schema);
+          return;
+        }
+        const flow = createFlowFromFlowGramEdge(schema, newEdge);
+        if (!flow) {
+          Toast.warning("无法识别连线端口，已回退本次连线。");
+          reloadFromSchema(schema);
+          return;
+        }
+        const nextSchema = applyEditorGraphPatchToAuthoring(schema, {
+          addFlow: flow,
+          selectedFlowId: flow.id,
+          selectedObjectId: undefined,
+        } as MicroflowEditorGraphPatch);
+        latestSchemaRef.current = nextSchema;
+        schemaContext.setSchema(nextSchema);
+        rememberSchemaPositionSignature(nextSchema);
+        propsRef.current.onSchemaChange(nextSchema, "flowgramLineAdd");
+        return;
+      }
+      reloadFromSchema(schema);
+    });
+    return () => disposable.dispose();
+  }, [doc]);
+
+  useEffect(() => {
+    const disposable = selectService.onSelectionChanged(() => {
+      const ids = (selectService.selection ?? [])
+        .map(selection => selection?.id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0);
+      propsRef.current.onSelectionChange(selectionFromFlowGramEntityIds(latestSchemaRef.current, ids));
+    });
+    return () => disposable.dispose();
+  }, [selectService]);
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {
@@ -494,7 +812,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
           if (!pendingCaseLine) {
             return;
           }
-          bridge.createCaseFlow([caseValue], label, pendingCaseLine);
+          createCaseFlow([caseValue], label, pendingCaseLine);
           setPendingCaseLine(undefined);
         }}
       />

@@ -8,18 +8,18 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import {
-  FlowGramMicroflowBridgeService,
-  FlowGramMicroflowBridgeServiceToken,
   FlowGramMicroflowDocumentOptions,
   FlowGramMicroflowRenderContribution,
+  FlowGramMicroflowSchemaContextService,
+  FlowGramMicroflowSchemaContextServiceToken,
 } from "./FlowGramMicroflowEvents";
 import { FlowGramMicroflowNodeRegistryContribution } from "./FlowGramMicroflowNodeRegistries";
 
 export const FlowGramMicroflowContainerModule = new ContainerModule(
   (bind, _unbind, isBound, rebind) => {
-    if (!isBound(FlowGramMicroflowBridgeServiceToken)) {
-      bind<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeServiceToken)
-        .to(FlowGramMicroflowBridgeService)
+    if (!isBound(FlowGramMicroflowSchemaContextServiceToken)) {
+      bind<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken)
+        .to(FlowGramMicroflowSchemaContextService)
         .inSingletonScope();
     }
     bindContributions(bind, FlowGramMicroflowNodeRegistryContribution, [
@@ -30,13 +30,13 @@ export const FlowGramMicroflowContainerModule = new ContainerModule(
     const bindDocumentOptions = () =>
       bind(FlowGramMicroflowDocumentOptions)
         .toDynamicValue(ctx => new FlowGramMicroflowDocumentOptions(
-          ctx.container.get<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeServiceToken),
+          ctx.container.get<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken),
         ))
         .inSingletonScope();
     if (isBound(FlowGramMicroflowDocumentOptions)) {
       rebind(FlowGramMicroflowDocumentOptions)
         .toDynamicValue(ctx => new FlowGramMicroflowDocumentOptions(
-          ctx.container.get<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeServiceToken),
+          ctx.container.get<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken),
         ))
         .inSingletonScope();
     } else {

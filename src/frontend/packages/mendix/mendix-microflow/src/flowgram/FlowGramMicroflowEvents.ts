@@ -9,46 +9,21 @@ import {
 import { canConnectPorts } from "../node-registry";
 import { toEditorGraph } from "../adapters";
 import type { MicroflowSchema } from "../schema";
-import { MICROFLOW_GRID_SIZE } from "./adapters/flowgram-coordinate";
 import { FlowGramMicroflowNodeRenderer } from "./FlowGramMicroflowNodeRenderer";
 
-export const FlowGramMicroflowBridgeServiceToken = Symbol.for(
-  "atlas.mendix.microflow.FlowGramMicroflowBridgeService",
+export const FlowGramMicroflowSchemaContextServiceToken = Symbol.for(
+  "atlas.mendix.microflow.FlowGramMicroflowSchemaContextService",
 );
 
-export class FlowGramMicroflowBridgeService {
+export class FlowGramMicroflowSchemaContextService {
   private schema?: MicroflowSchema;
-  private gridEnabled = true;
-  private gridSize = MICROFLOW_GRID_SIZE;
-  private onDeleteFlow?: (flowId: string) => void;
 
   setSchema(schema: MicroflowSchema) {
     this.schema = schema;
-    this.gridEnabled = schema.editor.gridEnabled !== false;
   }
 
   getSchema() {
     return this.schema;
-  }
-
-  setGrid(enabled: boolean, gridSize = MICROFLOW_GRID_SIZE) {
-    this.gridEnabled = enabled;
-    this.gridSize = gridSize;
-  }
-
-  getGridConfig() {
-    return {
-      enabled: this.gridEnabled,
-      size: this.gridSize,
-    };
-  }
-
-  registerDeleteFlowHandler(handler: (flowId: string) => void): void {
-    this.onDeleteFlow = handler;
-  }
-
-  deleteFlow(flowId: string): void {
-    this.onDeleteFlow?.(flowId);
   }
 }
 
@@ -57,10 +32,10 @@ function portId(port: WorkflowPortEntity): string | undefined {
 }
 
 export class FlowGramMicroflowDocumentOptions implements WorkflowDocumentOptions {
-  constructor(private readonly bridge: FlowGramMicroflowBridgeService) {}
+  constructor(private readonly schemaContext: FlowGramMicroflowSchemaContextService) {}
 
   canAddLine(fromPort: WorkflowPortEntity, toPort: WorkflowPortEntity): boolean {
-    const schema = this.bridge.getSchema();
+    const schema = this.schemaContext.getSchema();
     if (!schema) {
       return false;
     }

@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { Tag, Typography } from "@douyinfe/semi-ui";
 import {
@@ -83,7 +83,6 @@ function StaticTag(props: { children: ReactNode; color?: "blue" | "orange" | "gr
 export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   const { selected, activated, ports, selectNode, nodeRef, startDrag, onFocus, onBlur } = useNodeRender();
   const readonly = usePlaygroundReadonlyState();
-  const draggingRef = useRef(false);
   const [focused, setFocused] = useState(false);
   const data = tryReadNodeData(props);
 
@@ -99,37 +98,10 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
       return;
     }
     focusMicroflowNodeDragRoot(event.currentTarget);
-    draggingRef.current = true;
     startDrag(event);
-  };
-
-  const handleDragStart = (event: DragEvent<HTMLDivElement>) => {
-    if (readonly) {
-      event.preventDefault();
-      return;
-    }
-    draggingRef.current = true;
-    startDrag(event);
-  };
-
-  const handleDragEnd = () => {
-    window.setTimeout(() => {
-      draggingRef.current = false;
-    }, 0);
-  };
-
-  const handleMouseUp = () => {
-    window.setTimeout(() => {
-      draggingRef.current = false;
-    }, 0);
   };
 
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (draggingRef.current) {
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
     selectNode(event);
   };
 
@@ -144,19 +116,16 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
           activated ? "is-active" : "",
           focused ? "is-focused" : "",
         ].filter(Boolean).join(" ")}
-        draggable={!readonly}
+        draggable={false}
         onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
         onClick={handleClick}
-        onFocus={event => {
+        onFocus={() => {
           setFocused(true);
-          onFocus(event);
+          onFocus();
         }}
-        onBlur={event => {
+        onBlur={() => {
           setFocused(false);
-          onBlur(event);
+          onBlur();
         }}
         data-testid={`microflow-node-${String(props.node.id)}`}
         data-node-selected={String(selected)}
@@ -183,19 +152,16 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         data.validationState !== "valid" ? `is-${data.validationState}` : "",
         data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
       ].filter(Boolean).join(" ")}
-      draggable={!readonly}
+      draggable={false}
       onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
       onClick={handleClick}
-      onFocus={event => {
+      onFocus={() => {
         setFocused(true);
-        onFocus(event);
+        onFocus();
       }}
-      onBlur={event => {
+      onBlur={() => {
         setFocused(false);
-        onBlur(event);
+        onBlur();
       }}
       data-testid={`microflow-node-${data.objectId}`}
       data-microflow-object-id={data.objectId}

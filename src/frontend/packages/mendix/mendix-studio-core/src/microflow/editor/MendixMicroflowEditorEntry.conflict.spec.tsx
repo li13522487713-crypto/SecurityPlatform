@@ -37,7 +37,21 @@ vi.mock("@atlas/microflow", () => ({
     <div>
       <div>{toolbarPrefix}</div>
       <div>{toolbarSuffix}</div>
-      <button type="button" onClick={() => onSchemaChange?.({ ...schema, displayName: "Changed" })}>make-dirty</button>
+      <button
+        type="button"
+        onClick={() => onSchemaChange?.({
+          ...schema,
+          displayName: "Changed",
+          objectCollection: {
+            ...schema.objectCollection,
+            objects: schema.objectCollection.objects.map((object: any, index: number) => index === 0
+              ? { ...object, relativeMiddlePoint: { x: 320, y: 180 } }
+              : object),
+          },
+        })}
+      >
+        make-dirty
+      </button>
       <button type="button" onClick={() => void apiClient.saveMicroflow({ schema }).catch(() => undefined)}>save-now</button>
     </div>
   ),
@@ -73,6 +87,27 @@ function schema(id: string): MicroflowAuthoringSchema {
     validation: { issues: [] },
     editor: { viewport: { x: 0, y: 0, zoom: 1 }, selection: {} },
     audit: { version: "1", status: "draft" },
+  } as MicroflowAuthoringSchema;
+}
+
+function schemaWithStart(id: string, position: { x: number; y: number }): MicroflowAuthoringSchema {
+  return {
+    ...schema(id),
+    objectCollection: {
+      id: "root-collection",
+      officialType: "Microflows$MicroflowObjectCollection",
+      objects: [{
+        id: "start-1",
+        stableId: "start-1",
+        kind: "startEvent",
+        officialType: "Microflows$StartEvent",
+        caption: "Start",
+        relativeMiddlePoint: position,
+        size: { width: 160, height: 72 },
+        editor: {},
+        trigger: { type: "manual" },
+      }],
+    },
   } as MicroflowAuthoringSchema;
 }
 
@@ -210,5 +245,34 @@ describe("MendixMicroflowEditorEntry save conflict", () => {
     });
 
     vi.useRealTimers();
+  });
+
+  it("preserves submitted node layout when the save response returns stale positions", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const initialSchema = schemaWithStart("mf-1", { x: 0, y: 0 });
+    const initial = resource({ schema: initialSchema });
+    const saved = resource({ schemaId: "schema-2", version: "2", schema: initialSchema });
+    const saveMicroflowSchema = vi.fn(async () => saved);
+    const onSave = vi.fn();
+    const adapter = {
+      saveMicroflowSchema,
+      getMicroflow: vi.fn(async () => saved),
+      getMicroflowSchema: vi.fn(async () => saved.schema),
+    } as unknown as MicroflowResourceAdapter;
+
+    render(<MendixMicroflowEditorEntry resource={initial} adapter={adapter} onSave={onSave} />);
+
+    fireEvent.click(screen.getByText("make-dirty"));
+    fireEvent.click(screen.getByText("save-now"));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(saveMicroflowSchema.mock.calls[0]?.[1].objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 320, y: 180 });
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({ schemaId: "schema-2", version: "2" });
+    expect(onSave.mock.calls[0]?.[0].schema.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 320, y: 180 });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("Microflow save response schema layout differs"),
+      expect.objectContaining({ microflowId: "mf-1" }),
+    );
+    warn.mockRestore();
   });
 });
