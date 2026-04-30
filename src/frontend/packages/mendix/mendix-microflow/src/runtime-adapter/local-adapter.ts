@@ -14,12 +14,11 @@ import type {
   MicroflowResource,
   MicroflowResourceSortKey,
   MicroflowResourceStatus,
-  MicroflowDataType,
-  MicroflowTypeRef,
   MicroflowAuthoringSchema,
+  MicroflowDesignSchema,
   PublishMicroflowPayload
 } from "../schema/types";
-import { sampleMicroflowSchema } from "../schema/sample";
+import { compileMicroflowDesignToRuntime } from "../flowgram/flowgram-native-schema";
 import type {
   ListMicroflowRunsResponse,
   MicroflowApiClient,
@@ -38,9 +37,17 @@ import type {
 
 const STORAGE_KEY = "atlas_microflow_resources_v1";
 
-function cloneSchema(schema: MicroflowAuthoringSchema): MicroflowAuthoringSchema {
-  const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowAuthoringSchema;
-  return ensureAuthoringSchema(cloned);
+function isDesignSchema(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): schema is MicroflowDesignSchema {
+  return "workflow" in schema;
+}
+
+function toAuthoringSchema(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): MicroflowAuthoringSchema {
+  return isDesignSchema(schema) ? compileMicroflowDesignToRuntime(schema) : schema;
+}
+
+function cloneSchema(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): MicroflowAuthoringSchema {
+  const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowAuthoringSchema | MicroflowDesignSchema;
+  return ensureAuthoringSchema(toAuthoringSchema(cloned));
 }
 
 function cloneResource(resource: MicroflowResource): MicroflowResource {
@@ -49,37 +56,6 @@ function cloneResource(resource: MicroflowResource): MicroflowResource {
     tags: [...resource.tags],
     schema: cloneSchema(resource.schema)
   };
-}
-
-function typeRefToDataType(type: MicroflowTypeRef): MicroflowDataType {
-  if (type.kind === "void") {
-    return { kind: "void" };
-  }
-  if (type.kind === "entity" || type.kind === "object") {
-    return { kind: "object", entityQualifiedName: type.entity ?? type.name };
-  }
-  if (type.kind === "list") {
-    return { kind: "list", itemType: type.itemType ? typeRefToDataType(type.itemType) : { kind: "unknown", reason: "missing list item type" } };
-  }
-  if (type.name === "Boolean") {
-    return { kind: "boolean" };
-  }
-  if (type.name === "Integer") {
-    return { kind: "integer" };
-  }
-  if (type.name === "Long") {
-    return { kind: "long" };
-  }
-  if (type.name === "Decimal") {
-    return { kind: "decimal" };
-  }
-  if (type.name === "DateTime") {
-    return { kind: "dateTime" };
-  }
-  if (type.name === "String" || type.kind === "primitive") {
-    return { kind: "string" };
-  }
-  return { kind: "unknown", reason: type.name };
 }
 
 function nowIso(): string {
@@ -110,10 +86,10 @@ function updatedRangeMatches(resource: MicroflowResource, range: NonNullable<Mic
 
 function makeResource(
   id: string,
-  overrides: Partial<Omit<MicroflowResource, "id" | "schema">> & { schema?: MicroflowAuthoringSchema }
+  overrides: Partial<Omit<MicroflowResource, "id" | "schema">> & { schema: MicroflowAuthoringSchema | MicroflowDesignSchema }
 ): MicroflowResource {
   const timestamp = nowIso();
-  const schema = cloneSchema(overrides.schema ?? sampleMicroflowSchema);
+  const schema = cloneSchema(overrides.schema);
   schema.id = id;
   schema.name = overrides.name ?? schema.name;
   schema.description = overrides.description ?? schema.description;
@@ -139,47 +115,13 @@ function makeResource(
   };
 }
 
-function defaultResources(): MicroflowResource[] {
-  const publishedAt = nowIso();
-  return [
-    makeResource("mf-order-process", {
-      name: "Order Processing Microflow",
-      description: "Sample microflow for order retrieval, status validation, inventory call, and commit.",
-      version: "v3",
-      status: "published",
-      favorite: true,
-      publishedAt,
-      tags: ["order", "inventory", "published"]
-    }),
-    makeResource("mf-customer-onboarding", {
-      name: "Customer Onboarding Microflow",
-      description: "Creates a customer profile and calls an external verification service.",
-      moduleId: "customer",
-      moduleName: "Customer",
-      version: "v1",
-      status: "draft",
-      tags: ["customer", "draft"]
-    }),
-    makeResource("mf-payment-archive", {
-      name: "Payment Archive Microflow",
-      description: "Archives payment records and writes audit logs.",
-      moduleId: "payment",
-      moduleName: "Payment",
-      version: "v2",
-      status: "archived",
-      sharedWithMe: true,
-      tags: ["payment", "archive"]
-    })
-  ];
-}
-
 export class LocalMicroflowApiClient implements MicroflowApiClient {
   private readonly resources = new Map<string, MicroflowResource>();
   private readonly traces = new Map<string, MicroflowTraceFrame[]>();
   private readonly sessions = new Map<string, MicroflowRunSession>();
   private readonly runMicroflowIndex = new Map<string, string>();
 
-  constructor(initialSchemas: MicroflowAuthoringSchema[] = [sampleMicroflowSchema]) {
+  constructor(initialSchemas: Array<MicroflowAuthoringSchema | MicroflowDesignSchema> = []) {
     const restored = this.restoreResources();
     if (restored.length > 0) {
       for (const resource of restored) {
@@ -188,14 +130,8 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
       return;
     }
 
-    if (initialSchemas.length === 1 && initialSchemas[0]?.id === sampleMicroflowSchema.id) {
-      for (const resource of defaultResources()) {
-        this.resources.set(resource.id, resource);
-      }
-    } else {
-      for (const schema of initialSchemas) {
-        this.resources.set(schema.id, makeResource(schema.id, { schema, name: schema.name, description: schema.description ?? "" }));
-      }
+    for (const schema of initialSchemas) {
+      this.resources.set(schema.id, makeResource(schema.id, { schema, name: schema.name, description: schema.description ?? "" }));
     }
     this.persistResources();
   }
@@ -243,42 +179,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 
   async createMicroflow(input: CreateMicroflowInput): Promise<MicroflowResource> {
-    const id = `mf-${Date.now()}`;
-    const schema = cloneSchema(sampleMicroflowSchema);
-    schema.id = id;
-    schema.name = input.name.trim();
-    schema.description = input.description.trim();
-    schema.audit = { ...schema.audit, version: "v0.1" };
-    if (input.returnType?.kind && input.returnType.kind !== "void") {
-      const returnType = typeRefToDataType(input.returnType);
-      schema.returnType = returnType;
-      schema.objectCollection.objects = schema.objectCollection.objects.map(object => object.kind === "endEvent"
-        ? {
-            ...object,
-            returnValue: {
-              id: `${id}-return`,
-              raw: "empty",
-              inferredType: returnType,
-              references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
-              diagnostics: []
-            }
-          }
-        : object);
-    }
-    const resource = makeResource(id, {
-      schema,
-      name: input.name.trim(),
-      description: input.description.trim(),
-      moduleId: input.moduleId.trim() || "default",
-      moduleName: input.moduleName?.trim() || input.moduleId.trim() || "Default",
-      tags: input.tags,
-      version: schema.audit.version,
-      status: "draft",
-      favorite: false
-    });
-    this.resources.set(id, resource);
-    this.persistResources();
-    return cloneResource(resource);
+    throw new Error(`LocalMicroflowApiClient.createMicroflow requires a real MicroflowDesignSchema from the resource adapter. Requested: ${input.name}`);
   }
 
   async getMicroflow(id: string): Promise<MicroflowResource> {
@@ -318,7 +219,11 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 
   async loadMicroflow(id: string): Promise<MicroflowAuthoringSchema> {
-    return cloneSchema(this.resources.get(id)?.schema ?? sampleMicroflowSchema);
+    const resource = this.resources.get(id);
+    if (!resource) {
+      throw new Error(`Microflow ${id} was not found.`);
+    }
+    return cloneSchema(resource.schema);
   }
 
   async validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse> {
@@ -330,7 +235,11 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 
   async testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse> {
-    const schema = request.schema ?? this.resources.get(request.microflowId ?? "")?.schema ?? sampleMicroflowSchema;
+    const selectedSchema = request.schema ?? this.resources.get(request.microflowId ?? "")?.schema;
+    if (!selectedSchema) {
+      throw new Error(`Microflow ${request.microflowId ?? "(unspecified)"} was not found.`);
+    }
+    const schema = cloneSchema(selectedSchema);
     const microflowId = request.microflowId ?? schema.id;
     const session = await mockTestRunMicroflow({
       schema,
@@ -561,6 +470,6 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 }
 
-export function createLocalMicroflowApiClient(initialSchemas?: MicroflowAuthoringSchema[]): LocalMicroflowApiClient {
+export function createLocalMicroflowApiClient(initialSchemas?: Array<MicroflowAuthoringSchema | MicroflowDesignSchema>): LocalMicroflowApiClient {
   return new LocalMicroflowApiClient(initialSchemas);
 }

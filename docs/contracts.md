@@ -2365,6 +2365,7 @@ export function formatStudioTemplate(template: string, params: Record<string, st
   - `/space/:space_id/mendix-studio/:appId`
 - 左导航新增 `Mendix Studio` 菜单；资源中心微流 Tab 新增“在 Mendix Studio 中打开”。
 - 微流资源 API 统一使用 `/api/v1` 前缀；资源列表/创建/更新返回的 `MicroflowResource` 包含可选 `folderId`、`folderPath`。`GET /api/v1/microflows` 支持可选 `folderId` 过滤，`POST /api/v1/microflows/{id}/move` 请求体为 `{ "targetFolderId": string | null }`，用于在模块内移动单个微流到目标文件夹或未分组根。
+- 微流设计态 schema 为 FlowGram 原生 `MicroflowDesignSchema`，根字段包含 `schemaVersion: "flowgram.microflow.v1"`、`id/name/moduleId`、`workflow.nodes[]`、`workflow.edges[]`、`editor`、`parameters` 与 `returnType`。`PUT /api/v1/microflows/{id}/schema` 不再接受旧 `objectCollection/flows` 设计态，也不允许缺少 `workflow.nodes/workflow.edges` 的裸 JSON；运行、校验、发布前由服务或前端编译到 runtime schema。
 - 微流文件夹由后端真实 `MicroflowFolder` 实体持久化，REST 前缀为 `/api/v1/microflow-folders`：
   - `GET /api/v1/microflow-folders?workspaceId=&moduleId=` 返回扁平文件夹列表；
   - `GET /api/v1/microflow-folders/tree?workspaceId=&moduleId=` 返回多级树；

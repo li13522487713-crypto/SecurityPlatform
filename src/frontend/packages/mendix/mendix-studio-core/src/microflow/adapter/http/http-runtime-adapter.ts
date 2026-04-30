@@ -10,7 +10,7 @@ import type {
   MicroflowRunHistoryQuery,
   MicroflowReference as RuntimeMicroflowReference,
   MicroflowResource as RuntimeMicroflowResource,
-  MicroflowSchema,
+  MicroflowDesignSchema,
   PublishMicroflowPayload,
   PublishMicroflowResponse,
   SaveMicroflowRequest,
@@ -230,7 +230,7 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       return toRuntimeResource(await client.get<MicroflowResource>(`/microflows/${encodeURIComponent(id)}`));
     },
     async saveMicroflow(request: SaveMicroflowRequest): Promise<SaveMicroflowResponse> {
-      const schema = request.schema as MicroflowSchema;
+      const schema = request.schema as MicroflowDesignSchema;
       const saved = await client.put<SaveMicroflowSchemaResponse>(`/microflows/${encodeURIComponent(schema.id)}/schema`, {
         schema,
         saveReason: request.comment,
@@ -240,8 +240,8 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
         microflowId: resource.id,
         version: resource.version,
         savedAt: resource.updatedAt,
-        nodeCount: resource.schema.objectCollection.objects.length,
-        edgeCount: resource.schema.flows.length,
+        nodeCount: resource.schema.workflow.nodes.length,
+        edgeCount: resource.schema.workflow.edges.length,
       };
     },
     async loadMicroflow(id: string) {

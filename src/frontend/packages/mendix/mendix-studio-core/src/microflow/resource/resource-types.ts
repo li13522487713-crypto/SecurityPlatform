@@ -1,7 +1,7 @@
 import type {
-  MicroflowAuthoringSchema,
   MicroflowConcurrencyConfig,
   MicroflowDataType,
+  MicroflowDesignSchema,
   MicroflowExposureConfig,
   MicroflowParameter,
   MicroflowSecurityConfig
@@ -54,7 +54,7 @@ export interface MicroflowResource {
   referenceCount: number;
   lastRunStatus?: MicroflowLastRunStatus;
   lastRunAt?: string;
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowDesignSchema;
   permissions?: MicroflowResourcePermissions;
 }
 
@@ -110,7 +110,7 @@ export interface MicroflowResourcePatch {
   publishStatus?: MicroflowPublishStatus;
   favorite?: boolean;
   archived?: boolean;
-  schema?: MicroflowAuthoringSchema;
+  schema?: MicroflowDesignSchema;
   permissions?: MicroflowResourcePermissions;
 }
 

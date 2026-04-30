@@ -2,7 +2,6 @@ import {
   type CreateMicroflowInput as RuntimeCreateMicroflowInput,
   type MicroflowApiClient,
   type MicroflowResource as RuntimeMicroflowResource,
-  type MicroflowSchema,
   type PublishMicroflowPayload,
   type PublishMicroflowResponse,
   type SaveMicroflowRequest,
@@ -93,8 +92,8 @@ export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter
         microflowId: saved.id,
         version: saved.version,
         savedAt: saved.updatedAt,
-        nodeCount: saved.schema.objectCollection.objects.length,
-        edgeCount: saved.schema.flows.length
+        nodeCount: saved.schema.workflow.nodes.length,
+        edgeCount: saved.schema.workflow.edges.length
       };
     },
     async publishMicroflow(id: string, payload: PublishMicroflowPayload = { version: resource.version, releaseNote: "", overwriteCurrent: true }): Promise<PublishMicroflowResponse> {

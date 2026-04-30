@@ -9,7 +9,7 @@
 #   artifacts/microflow-e2e/round60/coverage-matrix.json
 # Safety:
 # - Round60 seed/reset only deletes names starting with R60_E2E_ or E2E_MF_.
-# - Requests below use AuthoringSchema only; FlowGram JSON must not be persisted.
+# - Resource schema is FlowGram-native MicroflowDesignSchema; runtime-only AuthoringSchema is still used by runtime diagnostic endpoints.
 
 ### Round 60 - Health / Environment
 # Expected JSON path:
@@ -120,7 +120,7 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
-### Round 60 - Save AuthoringSchema
+### Round 60 - Save MicroflowDesignSchema
 # Expected JSON path:
 # - $.success=true
 # - $.data.resource.schemaId exists
@@ -134,27 +134,42 @@ X-Trace-Id: {{traceId}}
 {
   "saveReason": "round60-http-regression",
   "schema": {
-    "schemaVersion": "1.0.0",
+    "schemaVersion": "flowgram.microflow.v1",
     "id": "{{microflowId}}",
-    "stableId": "{{microflowId}}",
     "name": "R60_E2E_Blank",
     "displayName": "R60_E2E_Blank",
     "moduleId": "verify-module",
     "moduleName": "Verify",
     "parameters": [],
     "returnType": { "kind": "void" },
-    "objectCollection": {
-      "id": "root-collection",
-      "objects": [
-        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
-        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+    "workflow": {
+      "nodes": [
+        {
+          "id": "start",
+          "type": "startEvent",
+          "meta": {
+            "position": { "x": 180, "y": 180 },
+            "size": { "width": 124, "height": 70 },
+            "defaultPorts": [{ "type": "output", "portID": "out" }]
+          },
+          "data": { "id": "start", "objectKind": "startEvent", "caption": "Start", "officialType": "Microflows$StartEvent" }
+        },
+        {
+          "id": "end",
+          "type": "endEvent",
+          "meta": {
+            "position": { "x": 460, "y": 180 },
+            "size": { "width": 124, "height": 70 },
+            "defaultPorts": [{ "type": "input", "portID": "in" }]
+          },
+          "data": { "id": "end", "objectKind": "endEvent", "caption": "End", "officialType": "Microflows$EndEvent" }
+        }
       ],
-      "flows": [
-        { "id": "f-start-end", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "end" }
+      "edges": [
+        { "id": "f-start-end", "sourceNodeID": "start", "targetNodeID": "end", "sourcePortID": "out", "targetPortID": "in", "data": { "id": "f-start-end", "flowId": "f-start-end", "kind": "sequence", "edgeKind": "sequence" } }
       ]
     },
-    "flows": [],
-    "variables": {},
+    "editor": { "viewport": { "x": 0, "y": 0, "zoom": 1 }, "grid": { "enabled": true, "size": 16 }, "selection": {} },
     "validation": { "issues": [] }
   }
 }
@@ -1161,21 +1176,39 @@ X-Trace-Id: {{traceId}}
   "baseVersion": "0.1.0",
   "saveReason": "manual .http save",
   "schema": {
-    "schemaVersion": "1.0.0",
+    "schemaVersion": "flowgram.microflow.v1",
     "id": "{{microflowId}}",
-    "stableId": "{{microflowId}}",
     "name": "OrderApprovalDemo",
     "displayName": "Order Approval Demo",
     "moduleId": "demo-module",
     "parameters": [],
     "returnType": { "kind": "void" },
-    "objectCollection": {
-      "id": "root-collection",
-      "officialType": "Microflows$MicroflowObjectCollection",
-      "objects": []
+    "workflow": {
+      "nodes": [
+        {
+          "id": "start",
+          "type": "startEvent",
+          "meta": {
+            "position": { "x": 180, "y": 160 },
+            "size": { "width": 124, "height": 70 },
+            "defaultPorts": [{ "type": "output", "portID": "out" }]
+          },
+          "data": { "id": "start", "objectKind": "startEvent", "caption": "Start", "officialType": "Microflows$StartEvent" }
+        },
+        {
+          "id": "end",
+          "type": "endEvent",
+          "meta": {
+            "position": { "x": 460, "y": 160 },
+            "size": { "width": 124, "height": 70 },
+            "defaultPorts": [{ "type": "input", "portID": "in" }]
+          },
+          "data": { "id": "end", "objectKind": "endEvent", "caption": "End", "officialType": "Microflows$EndEvent" }
+        }
+      ],
+      "edges": []
     },
-    "flows": [],
-    "variables": {},
+    "editor": { "viewport": { "x": 0, "y": 0, "zoom": 1 }, "grid": { "enabled": true, "size": 16 }, "selection": {} },
     "validation": { "issues": [] }
   }
 }
@@ -1241,7 +1274,7 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
-### Microflow invalid schema save rejects FlowGram JSON
+### Microflow invalid schema save rejects incomplete design schema
 PUT {{host}}/api/v1/microflows/{{microflowId}}/schema
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
@@ -1251,10 +1284,14 @@ X-Trace-Id: {{traceId}}
 
 {
   "baseVersion": "0.1.0",
-  "saveReason": "should reject FlowGram JSON",
+  "saveReason": "should reject incomplete design schema",
   "schema": {
-    "nodes": [],
-    "edges": []
+    "schemaVersion": "flowgram.microflow.v1",
+    "id": "{{microflowId}}",
+    "name": "MissingWorkflowDemo",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" }
   }
 }
 
@@ -1269,11 +1306,11 @@ X-Trace-Id: {{traceId}}
 {
   "baseVersion": "stale-version",
   "schema": {
-    "schemaVersion": "1.0.0",
+    "schemaVersion": "flowgram.microflow.v1",
     "id": "{{microflowId}}",
     "name": "ConflictDemo",
-    "objectCollection": { "id": "root-collection", "objects": [] },
-    "flows": [],
+    "moduleId": "demo-module",
+    "workflow": { "nodes": [], "edges": [] },
     "parameters": [],
     "returnType": { "kind": "void" }
   }

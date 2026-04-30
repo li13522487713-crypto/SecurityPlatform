@@ -2,7 +2,11 @@
  * Local development/offline debug only.
  * Do not use localStorage adapter as production persistence.
  */
-import { normalizeMicroflowSchema, validateMicroflowSchema, type MicroflowAuthoringSchema } from "@atlas/microflow";
+import {
+  compileMicroflowDesignToRuntime,
+  validateMicroflowSchema,
+  type MicroflowDesignSchema,
+} from "@atlas/microflow";
 import { getDefaultMockMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowPublishInput, MicroflowPublishResult } from "../publish/microflow-publish-types";
@@ -60,14 +64,14 @@ function isDevelopmentRuntime(): boolean {
 function normalizeResource(resource: MicroflowResource): MicroflowResource {
   return {
     ...resource,
-    schema: normalizeMicroflowSchema(resource.schema as unknown)
+    schema: clone(resource.schema)
   };
 }
 
 function normalizeSnapshot(snapshot: MicroflowPublishedSnapshot): MicroflowPublishedSnapshot {
   return {
     ...snapshot,
-    schema: normalizeMicroflowSchema(snapshot.schema as unknown)
+    schema: clone(snapshot.schema)
   };
 }
 
@@ -98,7 +102,7 @@ function nextPatchVersion(version: string): string {
   return parts.join(".");
 }
 
-function createValidationSummary(schema: MicroflowAuthoringSchema) {
+function createValidationSummary(schema: MicroflowDesignSchema) {
   return summarizeValidation(schema, getDefaultMockMetadataCatalog());
 }
 
@@ -106,7 +110,7 @@ function createSnapshot(input: {
   id: string;
   resourceId: string;
   version: string;
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowDesignSchema;
   publishedAt: string;
   publishedBy?: string;
   description?: string;
@@ -155,138 +159,6 @@ function createResourceFromInput(input: MicroflowCreateInput, options: Required<
     lastRunStatus: "neverRun",
     schema,
     permissions: defaultPermissions()
-  };
-}
-
-function seedResources(options: Required<Pick<LocalMicroflowResourceAdapterOptions, "workspaceId" | "currentUser">>): StoredMicroflowResources {
-  const order = createResourceFromInput({
-    name: "OrderProcessing",
-    displayName: "订单处理微流",
-    description: "处理订单校验、库存检查与提交的示例微流。",
-    moduleId: "sales",
-    moduleName: "Sales",
-    tags: ["order", "inventory", "published"],
-    parameters: [
-      { id: "param-order-id", stableId: "param-order-id", name: "orderId", dataType: { kind: "string" }, required: true, documentation: "Order identifier." }
-    ],
-    returnType: { kind: "boolean" },
-    returnVariableName: "isProcessed",
-    template: "orderProcessing"
-  }, options);
-  const publishedAt = nowIso();
-  const published: MicroflowResource = {
-    ...order,
-    id: "mf-order-process",
-    schemaId: "mf-order-process",
-    status: "published",
-    publishStatus: "published",
-    latestPublishedVersion: "1.0.0",
-    version: "1.0.0",
-    favorite: true,
-    referenceCount: 3,
-    lastRunStatus: "success",
-    lastRunAt: publishedAt,
-    schema: { ...order.schema, id: "mf-order-process", stableId: "mf-order-process", audit: { ...order.schema.audit, status: "published", version: "1.0.0" } }
-  };
-  const changedSchema = clone(published.schema);
-  changedSchema.id = "mf-order-breaking";
-  changedSchema.stableId = "mf-order-breaking";
-  changedSchema.name = "OrderProcessingV2Draft";
-  changedSchema.displayName = "订单处理微流 V2 草稿";
-  changedSchema.parameters = [];
-  changedSchema.returnType = { kind: "primitive", name: "String" };
-  changedSchema.audit = { ...changedSchema.audit, status: "draft", updatedAt: publishedAt, updatedBy: options.currentUser.name };
-  const changedAfterPublish: MicroflowResource = {
-    ...published,
-    id: "mf-order-breaking",
-    schemaId: "mf-order-breaking",
-    name: changedSchema.name,
-    displayName: changedSchema.displayName,
-    description: "基于已发布版本修改了参数和返回类型，用于演示发布影响分析。",
-    status: "published",
-    publishStatus: "changedAfterPublish",
-    latestPublishedVersion: "1.0.0",
-    referenceCount: 2,
-    favorite: false,
-    schema: changedSchema
-  };
-  const draft = createResourceFromInput({
-    name: "CustomerOnboarding",
-    displayName: "用户注册微流",
-    description: "新用户注册、资料初始化和欢迎消息编排。",
-    moduleId: "customer",
-    moduleName: "Customer",
-    tags: ["customer", "draft"],
-    parameters: [],
-    returnType: { kind: "void" },
-    template: "blank"
-  }, options);
-  const publishedSnapshotId = `${published.id}@1.0.0`;
-  const changedSnapshotId = `${changedAfterPublish.id}@1.0.0`;
-  const publishedSnapshot = createSnapshot({
-    id: publishedSnapshotId,
-    resourceId: published.id,
-    version: "1.0.0",
-    schema: published.schema,
-    publishedAt,
-    publishedBy: options.currentUser.name,
-    description: "Initial published version."
-  });
-  const changedSnapshotSchema = clone(published.schema);
-  changedSnapshotSchema.id = changedAfterPublish.id;
-  changedSnapshotSchema.stableId = changedAfterPublish.id;
-  const changedSnapshot = createSnapshot({
-    id: changedSnapshotId,
-    resourceId: changedAfterPublish.id,
-    version: "1.0.0",
-    schema: changedSnapshotSchema,
-    publishedAt,
-    publishedBy: options.currentUser.name,
-    description: "Baseline before breaking draft changes."
-  });
-  return {
-    resources: [published, changedAfterPublish, draft],
-    versions: {
-      [published.id]: [
-        {
-          id: makeId("version"),
-          resourceId: published.id,
-          version: "1.0.0",
-          status: "published",
-          createdAt: publishedAt,
-          createdBy: options.currentUser.name,
-          description: "Initial published version.",
-          schemaSnapshotId: publishedSnapshotId,
-          validationSummary: publishedSnapshot.validationSummary,
-          referenceCount: published.referenceCount,
-          isLatestPublished: true
-        }
-      ],
-      [changedAfterPublish.id]: [
-        {
-          id: makeId("version"),
-          resourceId: changedAfterPublish.id,
-          version: "1.0.0",
-          status: "published",
-          createdAt: publishedAt,
-          createdBy: options.currentUser.name,
-          description: "Baseline before breaking draft changes.",
-          schemaSnapshotId: changedSnapshotId,
-          validationSummary: changedSnapshot.validationSummary,
-          referenceCount: changedAfterPublish.referenceCount,
-          isLatestPublished: true
-        }
-      ]
-    },
-    snapshots: {
-      [publishedSnapshotId]: publishedSnapshot,
-      [changedSnapshotId]: changedSnapshot
-    },
-    references: {
-      [published.id]: createMockReferences(published.id, "1.0.0"),
-      [changedAfterPublish.id]: createMockReferences(changedAfterPublish.id, "1.0.0").slice(0, 2),
-      [draft.id]: []
-    }
   };
 }
 
@@ -384,7 +256,12 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     this.storageKey = options.storageKey;
     this.enableLocalStorage = options.enableLocalStorage === true;
     // local development only: persistence is opt-in so production paths cannot accidentally rely on it.
-    const restored = (this.enableLocalStorage ? readStoredMicroflowResources(this.storageKey) : undefined) ?? seedResources({ workspaceId: this.workspaceId, currentUser: this.currentUser });
+    const restored = (this.enableLocalStorage ? readStoredMicroflowResources(this.storageKey) : undefined) ?? {
+      resources: [],
+      versions: {},
+      snapshots: {},
+      references: {},
+    };
     restored.resources.forEach(resource => this.resources.set(resource.id, clone(normalizeResource(resource))));
     Object.entries(restored.versions ?? {}).forEach(([id, versions]) => this.versions.set(id, clone(versions)));
     Object.entries(restored.snapshots ?? {}).forEach(([id, snapshot]) => this.snapshots.set(id, clone(normalizeSnapshot(snapshot))));
@@ -459,7 +336,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     return resource ? clone(resource) : undefined;
   }
 
-  async getMicroflowSchema(id: string): Promise<MicroflowAuthoringSchema> {
+  async getMicroflowSchema(id: string): Promise<MicroflowDesignSchema> {
     return clone(this.requireResource(id).schema);
   }
 
@@ -480,7 +357,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
   async updateMicroflow(id: string, patch: MicroflowResourcePatch): Promise<MicroflowResource> {
     const current = this.requireResource(id);
     const timestamp = nowIso();
-    const schema = patch.schema ? normalizeMicroflowSchema(clone(patch.schema) as unknown) : current.schema;
+    const schema = patch.schema ? clone(patch.schema) : current.schema;
     const next: MicroflowResource = {
       ...current,
       ...patch,
@@ -494,12 +371,12 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     return clone(next);
   }
 
-  async saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema, _options?: SaveMicroflowSchemaOptions): Promise<MicroflowResource> {
+  async saveMicroflowSchema(id: string, schema: MicroflowDesignSchema, _options?: SaveMicroflowSchemaOptions): Promise<MicroflowResource> {
     void _options;
     const current = this.requireResource(id);
     const timestamp = nowIso();
-    const nextSchema = normalizeMicroflowSchema(clone(schema) as unknown);
-    nextSchema.id = current.schemaId;
+    const nextSchema = clone(schema);
+    nextSchema.id = current.id;
     nextSchema.audit = {
       ...nextSchema.audit,
       version: current.version,
@@ -731,7 +608,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
       throw new Error(versionValidation.message);
     }
     const validation = validateMicroflowSchema({
-      schema: current.schema,
+      schema: compileMicroflowDesignToRuntime(current.schema),
       metadata: getDefaultMockMetadataCatalog(),
       options: { mode: "publish", includeWarnings: true, includeInfo: true },
     });
@@ -744,7 +621,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     }
     const timestamp = nowIso();
     const description = input.description ?? input.releaseNote;
-    const schema: MicroflowAuthoringSchema = {
+    const schema: MicroflowDesignSchema = {
       ...clone(current.schema),
       audit: { ...current.schema.audit, status: "published", version, updatedAt: timestamp, updatedBy: this.currentUser.name }
     };
@@ -839,7 +716,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
       throw new Error("Version snapshot was not found.");
     }
     const timestamp = nowIso();
-    const schema = normalizeMicroflowSchema(clone(detail.snapshot.schema) as unknown);
+    const schema = clone(detail.snapshot.schema);
     schema.audit = { ...schema.audit, version: current.version, status: "draft", updatedAt: timestamp, updatedBy: this.currentUser.name };
     const next: MicroflowResource = {
       ...current,
@@ -881,7 +758,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     }
     const nextId = makeId("mf");
     const timestamp = nowIso();
-    const schema = normalizeMicroflowSchema(clone(detail.snapshot.schema) as unknown);
+    const schema = clone(detail.snapshot.schema);
     schema.id = nextId;
     schema.stableId = nextId;
     schema.name = input.name || `${current.name}VersionCopy`;

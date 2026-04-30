@@ -1,4 +1,5 @@
 export * from "./FlowGramMicroflowCanvas";
+export * from "./FlowGramMicroflowNativeCanvas";
 export * from "./FlowGramMicroflowLineRenderer";
 export * from "./FlowGramMicroflowNodeRenderer";
 export * from "./FlowGramMicroflowPortRenderer";
@@ -6,5 +7,6 @@ export * from "./FlowGramMicroflowProvider";
 export * from "./FlowGramMicroflowStatusStrip";
 export * from "./FlowGramMicroflowToolbar";
 export * from "./FlowGramMicroflowTypes";
+export * from "./flowgram-native-schema";
 export * from "./adapters";
 export * from "./hooks";

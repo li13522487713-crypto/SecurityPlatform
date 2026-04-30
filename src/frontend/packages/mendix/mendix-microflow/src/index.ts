@@ -63,6 +63,10 @@ export {
   type MicroflowWorkbenchStatus,
 } from "./editor";
 export {
+  NativeMicroflowEditor,
+  type NativeMicroflowEditorProps,
+} from "./editor/NativeMicroflowEditor";
+export {
   ExpressionEditor,
   MicroflowPropertyForm,
   objectActivityFormKey,

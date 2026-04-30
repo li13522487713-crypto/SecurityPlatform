@@ -8,7 +8,6 @@ export * from "./migration";
 export * from "./examples";
 export * from "./runtime-dto-contract";
 export * from "./adapter-contracts";
-export * from "./sample-manifest";
 export { verifyMicroflowContracts, type MicroflowContractVerificationResult } from "./verify-microflow-contracts";
 export * from "./runtime-semantics";
 

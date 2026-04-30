@@ -1,4 +1,4 @@
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 import type { MicroflowPublishImpactAnalysis, MicroflowPublishInput, MicroflowPublishResult } from "../publish/microflow-publish-types";
 import type { MicroflowReference } from "../references/microflow-reference-types";
@@ -37,10 +37,10 @@ export interface MicroflowResourceAdapter {
   listMicroflowAppModules?(appId: string, query?: { workspaceId?: string }): Promise<MicroflowAppAsset["modules"]>;
   listMicroflows(query?: MicroflowResourceQuery): Promise<MicroflowResourceListResult>;
   getMicroflow(id: string): Promise<MicroflowResource | undefined>;
-  getMicroflowSchema(id: string): Promise<MicroflowAuthoringSchema>;
+  getMicroflowSchema(id: string): Promise<MicroflowDesignSchema>;
   createMicroflow(input: MicroflowCreateInput): Promise<MicroflowResource>;
   updateMicroflow(id: string, patch: MicroflowResourcePatch): Promise<MicroflowResource>;
-  saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema, options?: SaveMicroflowSchemaOptions): Promise<MicroflowResource>;
+  saveMicroflowSchema(id: string, schema: MicroflowDesignSchema, options?: SaveMicroflowSchemaOptions): Promise<MicroflowResource>;
   duplicateMicroflow(id: string, input?: MicroflowDuplicateInput): Promise<MicroflowResource>;
   renameMicroflow(id: string, name: string, displayName?: string): Promise<MicroflowResource>;
   moveMicroflow(id: string, targetFolderId?: string): Promise<MicroflowResource>;

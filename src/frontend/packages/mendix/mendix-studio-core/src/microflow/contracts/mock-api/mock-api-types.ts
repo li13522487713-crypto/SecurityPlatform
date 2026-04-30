@@ -1,4 +1,4 @@
-import type { MicroflowAuthoringSchema, MicroflowMetadataCatalog, MicroflowRunSession } from "@atlas/microflow";
+import type { MicroflowDesignSchema, MicroflowMetadataCatalog, MicroflowRunSession } from "@atlas/microflow";
 
 import type { MicroflowReference } from "../../references/microflow-reference-types";
 import type { MicroflowResource } from "../../resource/resource-types";
@@ -6,7 +6,7 @@ import type { MicroflowPublishedSnapshot, MicroflowVersionSummary } from "../../
 
 export interface MicroflowSchemaSnapshotContract {
   resourceId: string;
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowDesignSchema;
   schemaVersion: string;
   updatedAt: string;
   updatedBy?: string;

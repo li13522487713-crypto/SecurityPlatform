@@ -21,13 +21,15 @@ export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] 
     return ({
       type: kind,
       meta: {
-        isStart: kind === "startEvent",
+        // Keep Start as business data only. FlowGram's special start-node flag
+        // pins the node in free-layout interactions and blocks single-node drag.
+        isStart: false,
         isNodeEnd: isEndLike,
         isContainer: kind === "loopedActivity",
         nodeDTOType: kind,
         size: { width: item.render.width, height: item.render.height },
-        deleteDisable: kind === "startEvent",
-        copyDisable: kind === "startEvent",
+        deleteDisable: false,
+        copyDisable: false,
         useDynamicPort: true,
         defaultPorts: flowGramPortsForObjectKind(kind),
       },

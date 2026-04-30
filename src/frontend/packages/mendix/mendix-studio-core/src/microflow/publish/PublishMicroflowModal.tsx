@@ -31,10 +31,6 @@ export interface PublishMicroflowModalProps {
   onSaveBeforePublish?: () => Promise<MicroflowResource>;
 }
 
-function isSampleMicroflow(resource: MicroflowResource): boolean {
-  return resource.id === "sampleOrderProcessingMicroflow" || resource.name === "sampleOrderProcessingMicroflow";
-}
-
 function isBlockPublishIssue(issue: MicroflowValidationIssue): boolean {
   return issue.blockPublish ?? issue.severity === "error";
 }
@@ -149,7 +145,6 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
 
   const hasHighImpact = (impact?.summary.highImpactCount ?? 0) > 0;
   const schemaValidated = Boolean(resource && validatedResourceId === resource.id && validatedSchemaId === resource.schemaId);
-  const sampleBlocked = Boolean(resource && isSampleMicroflow(resource));
   const canPublish = Boolean(
     resource
       && version.trim()
@@ -158,7 +153,6 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
       && schemaValidated
       && !loading
       && !savingBeforePublish
-      && !sampleBlocked
       && (!dirty || Boolean(onSaveBeforePublish))
       && (!hasHighImpact || confirmBreakingChanges)
       && !versionMessage?.includes("需符合")
@@ -269,7 +263,6 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
           {versionMessage ? <Text type={versionMessage.includes("不推荐") ? "warning" : "danger"}>{versionMessage}</Text> : null}
           <TextArea value={description} onChange={setDescription} placeholder="Version notes / release notes" rows={3} />
           {dirty ? <Text type="warning">当前微流有未保存更改。本轮默认使用 Save & Publish：先保存当前 schema，保存成功后重新校验并调用真实 publish API。</Text> : null}
-          {sampleBlocked ? <Text type="danger">sampleOrderProcessingMicroflow 禁止发布，请从 App Explorer 打开真实微流资源。</Text> : null}
           {!schemaValidated ? <Text type="warning">当前 schema 尚未完成本轮发布前校验，Publish 将保持禁用。</Text> : null}
           {loading ? <Spin /> : null}
           {apiError ? <MicroflowErrorState error={apiError} title="发布检查失败" compact /> : null}

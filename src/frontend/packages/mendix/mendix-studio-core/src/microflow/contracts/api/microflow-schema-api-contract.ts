@@ -1,4 +1,4 @@
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 import type { MicroflowResource } from "../../resource/resource-types";
 
@@ -6,12 +6,12 @@ import type { MicroflowApiResponse } from "./api-envelope";
 
 /**
  * GET /api/microflows/{id}/schema
- * 仅持久化/传输 `MicroflowAuthoringSchema`（JSON），**不**包含 FlowGram WorkflowJSON。
+ * 仅持久化/传输 `MicroflowDesignSchema`（JSON），以 FlowGram WorkflowJSON 作为唯一设计态。
  */
 export interface GetMicroflowSchemaResponse {
   resourceId: string;
-  schema: MicroflowAuthoringSchema;
-  /** 结构版本，对应 Authoring 模型演进。 */
+  schema: MicroflowDesignSchema;
+  /** 结构版本，对应 FlowGram-native 设计态模型演进。 */
   schemaVersion: string;
   /** 后端侧存储迁移脚本版本。 */
   migrationVersion?: string;
@@ -27,7 +27,7 @@ export type GetMicroflowSchemaApiResponse = MicroflowApiResponse<GetMicroflowSch
  * 与 `MICROFLOW_VERSION_CONFLICT` 搭配。
  */
 export interface SaveMicroflowSchemaRequest {
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowDesignSchema;
   baseVersion?: string;
   schemaId?: string;
   version?: string;
@@ -48,7 +48,7 @@ export type SaveMicroflowSchemaApiResponse = MicroflowApiResponse<SaveMicroflowS
 
 /**
  * POST /api/microflows/{id}/schema/migrate
- * 入参 `schema` 可为未知版本 JSON；成功则回当前 `MicroflowAuthoringSchema`。
+ * 入参 `schema` 可为未知版本 JSON；成功则回当前 `MicroflowDesignSchema`。
  */
 export interface MigrateMicroflowSchemaRequest {
   fromVersion: string;
@@ -57,7 +57,7 @@ export interface MigrateMicroflowSchemaRequest {
 }
 
 export interface MigrateMicroflowSchemaResponse {
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowDesignSchema;
   warnings: string[];
 }
 

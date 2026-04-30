@@ -1,4 +1,3 @@
-import { normalizeMicroflowSchema } from "@atlas/microflow";
 import { HttpResponse, type HttpHandler } from "msw";
 
 import type { DuplicateMicroflowVersionRequest } from "../api/microflow-version-api-contract";
@@ -37,7 +36,7 @@ export function createMicroflowVersionMockHandlers(store: MicroflowContractMockS
         return HttpResponse.json(notFound("Microflow version was not found."), { status: 404 });
       }
       const timestamp = new Date().toISOString();
-      const schema = normalizeMicroflowSchema(clone(snapshot.schema) as unknown);
+      const schema = clone(snapshot.schema);
       schema.audit = { ...schema.audit, status: "draft", updatedAt: timestamp };
       const resource = saveMockResource(store, {
         ...current,
@@ -69,7 +68,7 @@ export function createMicroflowVersionMockHandlers(store: MicroflowContractMockS
       const input = await request.json() as DuplicateMicroflowVersionRequest;
       const timestamp = new Date().toISOString();
       const id = makeMockId("mf");
-      const schema = normalizeMicroflowSchema(clone(snapshot.schema) as unknown);
+      const schema = clone(snapshot.schema);
       schema.id = id;
       schema.stableId = id;
       schema.name = input.name || `${current.name}VersionCopy`;

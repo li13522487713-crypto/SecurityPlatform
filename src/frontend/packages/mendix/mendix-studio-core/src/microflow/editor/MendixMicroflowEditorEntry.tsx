@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Button, Modal, Space, Switch, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconArrowLeft } from "@douyinfe/semi-icons";
-import { MicroflowEditor, type MicroflowApiClient, type MicroflowEditorHandle, type MicroflowSchema, type MicroflowWorkbenchLayoutState, type MicroflowWorkbenchStatus, type SaveMicroflowRequest } from "@atlas/microflow";
+import { NativeMicroflowEditor, type MicroflowApiClient, type MicroflowDesignSchema, type MicroflowEditorHandle, type MicroflowWorkbenchLayoutState, type MicroflowWorkbenchStatus, type SaveMicroflowRequest } from "@atlas/microflow";
 import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
@@ -30,8 +30,6 @@ interface SaveConflictDetails {
   remoteConcurrencyStamp?: string;
   baseVersion?: string;
 }
-
-type MicroflowLayoutObject = MicroflowSchema["objectCollection"]["objects"][number];
 
 export interface MendixMicroflowEditorEntryProps {
   resource: MicroflowResource;
@@ -80,36 +78,28 @@ function parseSaveConflictDetails(details?: string): SaveConflictDetails {
   return { remoteVersion: details, remoteSchemaId: details };
 }
 
-function hasNestedObjectCollection(
-  object: MicroflowLayoutObject,
-): object is MicroflowLayoutObject & { objectCollection: MicroflowSchema["objectCollection"] } {
-  return "objectCollection" in object
-    && typeof (object as { objectCollection?: unknown }).objectCollection === "object"
-    && (object as { objectCollection?: unknown }).objectCollection !== null;
-}
-
-function collectLayoutEntries(objects: readonly MicroflowLayoutObject[], parentId = ""): string[] {
-  const entries: string[] = [];
-  for (const object of objects) {
-    entries.push([
-      parentId,
-      object.id,
-      object.relativeMiddlePoint.x,
-      object.relativeMiddlePoint.y,
-      object.size.width,
-      object.size.height,
-    ].join(":"));
-    if (hasNestedObjectCollection(object)) {
-      entries.push(...collectLayoutEntries(object.objectCollection.objects, object.id));
-    }
-  }
-  return entries.sort();
-}
-
-function microflowSchemaLayoutSignature(schema: MicroflowSchema): string {
+function microflowSchemaLayoutSignature(schema: MicroflowDesignSchema): string {
   const viewport = schema.editor.viewport;
   return JSON.stringify({
-    objects: collectLayoutEntries(schema.objectCollection.objects),
+    nodes: schema.workflow.nodes
+      .map(node => [
+        node.id,
+        node.type,
+        node.meta?.position?.x ?? "",
+        node.meta?.position?.y ?? "",
+        node.meta?.size?.width ?? "",
+        node.meta?.size?.height ?? "",
+      ].join(":"))
+      .sort(),
+    edges: schema.workflow.edges
+      .map(edge => [
+        edge.id ?? "",
+        edge.sourceNodeID,
+        edge.sourcePortID ?? "",
+        edge.targetNodeID,
+        edge.targetPortID ?? "",
+      ].join(":"))
+      .sort(),
     viewport: viewport ? {
       x: viewport.x,
       y: viewport.y,
@@ -120,7 +110,7 @@ function microflowSchemaLayoutSignature(schema: MicroflowSchema): string {
 
 function reconcileSavedResourceSchema(
   saved: MicroflowResource,
-  schemaToSave: MicroflowSchema,
+  schemaToSave: MicroflowDesignSchema,
   requestId: string,
 ): MicroflowResource {
   const requestLayout = microflowSchemaLayoutSignature(schemaToSave);
@@ -141,7 +131,7 @@ function reconcileSavedResourceSchema(
 }
 
 export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode, shellMode, onLayoutStateChange, onWorkbenchStatusChange }: MendixMicroflowEditorEntryProps) {
-  const [schema, setSchema] = useState<MicroflowSchema>(resource.schema);
+  const [schema, setSchema] = useState<MicroflowDesignSchema>(resource.schema);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -153,7 +143,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
   const setMicroflowValidationState = useMendixStudioStore(state => state.setMicroflowValidationState);
   const mountedRef = useRef(false);
   const saveRefreshSeqRef = useRef(0);
-  const latestSchemaRef = useRef<MicroflowSchema>(resource.schema);
+  const latestSchemaRef = useRef<MicroflowDesignSchema>(resource.schema);
   const currentResourceRef = useRef(resource);
   const inFlightSaveRef = useRef<Promise<MicroflowResource> | undefined>();
   const queuedSaveRef = useRef<{ reason: SaveReason; force?: boolean } | undefined>();
@@ -467,7 +457,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
 
   return (
     <div style={{ height: "100%", minHeight: 720, overflow: "hidden", background: "var(--semi-color-bg-0)" }}>
-      <MicroflowEditor
+      <NativeMicroflowEditor
         key={currentResource.id}
         schema={schema}
         apiClient={apiClient}

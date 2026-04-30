@@ -1,10 +1,22 @@
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema, MicroflowWorkflowEdgeJSON, MicroflowWorkflowNodeJSON } from "@atlas/microflow";
 
 import { formatMicroflowDataType } from "./microflow-version-utils";
 import type { MicroflowBreakingChange, MicroflowVersionDiff } from "./microflow-version-types";
 
-function asIdMap<T extends { id: string }>(items: T[]): Map<string, T> {
-  return new Map(items.map(item => [item.id, item]));
+function asIdMap<T extends { id?: string }>(items: T[]): Map<string, T> {
+  return new Map(items.flatMap(item => item.id ? [[item.id, item] as const] : []));
+}
+
+function flowId(edge: MicroflowWorkflowEdgeJSON): string | undefined {
+  const data = edge.data as { flowId?: unknown } | undefined;
+  return typeof data?.flowId === "string" ? data.flowId : edge.id;
+}
+
+function asEdgeIdMap(items: MicroflowWorkflowEdgeJSON[]): Map<string, MicroflowWorkflowEdgeJSON> {
+  return new Map(items.flatMap(item => {
+    const id = flowId(item);
+    return id ? [[id, item] as const] : [];
+  }));
 }
 
 function createBreakingChange(input: Omit<MicroflowBreakingChange, "id">): MicroflowBreakingChange {
@@ -14,13 +26,13 @@ function createBreakingChange(input: Omit<MicroflowBreakingChange, "id">): Micro
   };
 }
 
-export function diffMicroflowSchemas(before: MicroflowAuthoringSchema, after: MicroflowAuthoringSchema): MicroflowVersionDiff {
+export function diffMicroflowSchemas(before: MicroflowDesignSchema, after: MicroflowDesignSchema): MicroflowVersionDiff {
   const beforeParameters = new Map(before.parameters.map(parameter => [parameter.name, parameter]));
   const afterParameters = new Map(after.parameters.map(parameter => [parameter.name, parameter]));
-  const beforeObjects = asIdMap(before.objectCollection.objects);
-  const afterObjects = asIdMap(after.objectCollection.objects);
-  const beforeFlows = asIdMap(before.flows ?? before.objectCollection.flows ?? []);
-  const afterFlows = asIdMap(after.flows ?? after.objectCollection.flows ?? []);
+  const beforeObjects = asIdMap(before.workflow.nodes as MicroflowWorkflowNodeJSON[]);
+  const afterObjects = asIdMap(after.workflow.nodes as MicroflowWorkflowNodeJSON[]);
+  const beforeFlows = asEdgeIdMap(before.workflow.edges as MicroflowWorkflowEdgeJSON[]);
+  const afterFlows = asEdgeIdMap(after.workflow.edges as MicroflowWorkflowEdgeJSON[]);
   const breakingChanges: MicroflowBreakingChange[] = [];
 
   const addedParameters = [...afterParameters.keys()].filter(name => !beforeParameters.has(name));
@@ -70,8 +82,10 @@ export function diffMicroflowSchemas(before: MicroflowAuthoringSchema, after: Mi
     }));
   }
 
-  const beforeUrlPath = before.exposure.url?.path;
-  const afterUrlPath = after.exposure.url?.path;
+  const beforeExposure = before as MicroflowDesignSchema & { exposure?: { url?: { path?: string }; asMicroflowAction?: { enabled?: boolean } } };
+  const afterExposure = after as MicroflowDesignSchema & { exposure?: { url?: { path?: string }; asMicroflowAction?: { enabled?: boolean } } };
+  const beforeUrlPath = beforeExposure.exposure?.url?.path;
+  const afterUrlPath = afterExposure.exposure?.url?.path;
   if (beforeUrlPath && afterUrlPath && beforeUrlPath !== afterUrlPath) {
     breakingChanges.push(createBreakingChange({
       severity: "medium",
@@ -83,8 +97,8 @@ export function diffMicroflowSchemas(before: MicroflowAuthoringSchema, after: Mi
     }));
   }
 
-  const publishedActionEnabled = before.exposure.asMicroflowAction?.enabled === true;
-  const currentActionEnabled = after.exposure.asMicroflowAction?.enabled === true;
+  const publishedActionEnabled = beforeExposure.exposure?.asMicroflowAction?.enabled === true;
+  const currentActionEnabled = afterExposure.exposure?.asMicroflowAction?.enabled === true;
   if (publishedActionEnabled && !currentActionEnabled) {
     breakingChanges.push(createBreakingChange({
       severity: "medium",
@@ -101,8 +115,8 @@ export function diffMicroflowSchemas(before: MicroflowAuthoringSchema, after: Mi
     breakingChanges.push(createBreakingChange({
       severity: "low",
       code: "PUBLISHED_NODE_REMOVED",
-      message: `已发布节点 ${beforeObjects.get(id)?.caption ?? id} 被删除。`,
-      fieldPath: `objectCollection.objects.${id}`,
+      message: `已发布节点 ${String((beforeObjects.get(id)?.data as { title?: unknown } | undefined)?.title ?? id)} 被删除。`,
+      fieldPath: `workflow.nodes.${id}`,
       before: id
     }));
   });

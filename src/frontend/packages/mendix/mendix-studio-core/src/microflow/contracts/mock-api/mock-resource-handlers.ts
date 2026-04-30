@@ -1,4 +1,3 @@
-import { normalizeMicroflowSchema, type MicroflowAuthoringSchema } from "@atlas/microflow";
 import { HttpResponse, type HttpHandler } from "msw";
 
 import type { CreateMicroflowRequest, DuplicateMicroflowRequest, RenameMicroflowRequest, ToggleFavoriteMicroflowRequest, UpdateMicroflowResourceRequest } from "../api/microflow-resource-api-contract";
@@ -126,7 +125,7 @@ function createResource(input: MicroflowCreateInput, request: Request, workspace
 function duplicateResource(store: MicroflowContractMockStore, source: MicroflowResource, input: DuplicateMicroflowRequest = {}): MicroflowResource {
   const timestamp = new Date().toISOString();
   const id = makeMockId("mf");
-  const schema = normalizeMicroflowSchema(clone(source.schema) as unknown);
+  const schema = clone(source.schema);
   schema.id = id;
   schema.stableId = id;
   schema.name = input.name || `${source.name}Copy`;
@@ -214,11 +213,11 @@ export function createMicroflowResourceMockHandlers(store: MicroflowContractMock
       if (body.baseVersion === "conflict") {
         return HttpResponse.json(versionConflict(), { status: 409 });
       }
-      if (!body.schema?.objectCollection) {
+      if (!body.schema?.workflow || !Array.isArray(body.schema.workflow.nodes) || !Array.isArray(body.schema.workflow.edges)) {
         return HttpResponse.json(schemaInvalid(), { status: 422 });
       }
       const timestamp = new Date().toISOString();
-      const schema = normalizeMicroflowSchema(clone(body.schema) as unknown);
+      const schema = clone(body.schema);
       schema.id = current.schemaId;
       schema.audit = { ...schema.audit, version: current.version, status: current.status === "published" ? "draft" : schema.audit.status, updatedAt: timestamp };
       const resource = saveMockResource(store, {
@@ -244,7 +243,9 @@ export function createMicroflowResourceMockHandlers(store: MicroflowContractMock
         return HttpResponse.json(notFound(), { status: 404 });
       }
       const body = await request.json() as MigrateMicroflowSchemaRequest;
-      const schema = normalizeMicroflowSchema(body.schema as unknown);
+      const schema = body.schema && typeof body.schema === "object" && "workflow" in body.schema
+        ? clone(body.schema as typeof current.schema)
+        : current.schema;
       return HttpResponse.json(ok({ schema, warnings: body.fromVersion === body.toVersion ? [] : [`Mock migrated from ${body.fromVersion} to ${body.toVersion}.`] }));
     }),
     ...mockPost("/api/microflows/:id/duplicate", async ({ request, params }) => {

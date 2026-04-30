@@ -1,4 +1,4 @@
-import { validateMicroflowSchema, type MicroflowAuthoringSchema, type MicroflowValidationIssue } from "@atlas/microflow";
+import { compileMicroflowDesignToRuntime, validateMicroflowSchema, type MicroflowDesignSchema, type MicroflowValidationIssue } from "@atlas/microflow";
 import type { MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import { MicroflowApiClient, type MicroflowApiClientOptions } from "./http/microflow-api-client";
@@ -18,7 +18,7 @@ export type MicroflowValidationMode = "edit" | "save" | "publish" | "testRun";
 
 export interface MicroflowValidationInput {
   resourceId?: string;
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowDesignSchema;
   metadata?: MicroflowMetadataCatalog;
   mode: MicroflowValidationMode;
   includeInfo?: boolean;
@@ -43,7 +43,7 @@ export function createLocalMicroflowValidationAdapter(): MicroflowValidationAdap
   return {
     async validate(input) {
       const result = validateMicroflowSchema({
-        schema: input.schema,
+        schema: compileMicroflowDesignToRuntime(input.schema),
         metadata: input.metadata,
         options: {
           mode: input.mode,
@@ -69,7 +69,7 @@ export function createHttpMicroflowValidationAdapter(options: HttpMicroflowValid
     async validate(input) {
       const id = input.resourceId ?? input.schema.id;
       const result = await client.post<MicroflowValidationResult>(`/microflows/${encodeURIComponent(id)}/validate`, {
-        schema: input.schema,
+        schema: compileMicroflowDesignToRuntime(input.schema),
         mode: input.mode,
         includeWarnings: input.includeWarnings ?? true,
         includeInfo: input.includeInfo ?? true,

@@ -1,5 +1,5 @@
 export type { MicroflowVersionSummary } from "../resource/resource-types";
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 export interface MicroflowValidationSummary {
   errorCount: number;
@@ -62,7 +62,7 @@ export interface MicroflowPublishedSnapshot {
   id: string;
   resourceId: string;
   version: string;
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowDesignSchema;
   publishedAt: string;
   publishedBy?: string;
   description?: string;

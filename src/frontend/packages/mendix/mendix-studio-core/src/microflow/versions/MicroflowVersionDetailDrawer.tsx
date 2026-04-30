@@ -42,7 +42,7 @@ export function MicroflowVersionDetailDrawer({
           <div style={{ width: "100%", border: "1px solid var(--semi-color-border)", borderRadius: 8, padding: 12 }}>
             <Space vertical align="start">
               <Text strong>Schema 基础信息</Text>
-              <Text>参数 {schema.parameters.length} · 节点 {schema.objectCollection.objects.length} · 连线 {(schema.flows ?? schema.objectCollection.flows ?? []).length}</Text>
+              <Text>参数 {schema.parameters.length} · 节点 {schema.workflow.nodes.length} · 连线 {schema.workflow.edges.length}</Text>
               <Text>返回类型 {formatMicroflowDataType(schema.returnType)}</Text>
             </Space>
           </div>

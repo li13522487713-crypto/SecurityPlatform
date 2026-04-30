@@ -25,9 +25,9 @@ function hasUsableSchema(resource: MicroflowResource): boolean {
   return Boolean(
     resource.schema &&
     resource.schema.id &&
-    resource.schema.objectCollection &&
-    Array.isArray(resource.schema.objectCollection.objects) &&
-    Array.isArray(resource.schema.flows)
+    resource.schema.workflow &&
+    Array.isArray(resource.schema.workflow.nodes) &&
+    Array.isArray(resource.schema.workflow.edges)
   );
 }
 
@@ -90,8 +90,8 @@ export function StudioEmbeddedMicroflowEditor({
       setError(new Error("缺少 resourceAdapter，无法加载真实微流 schema。"));
       return;
     }
-    if (!adapterBundle.runtimeAdapter) {
-      setError(new Error("缺少 runtimeAdapter，无法调用真实 schema 加载接口。"));
+    if (!adapterBundle.resourceAdapter.getMicroflowSchema) {
+      setError(new Error("resourceAdapter.getMicroflowSchema 未配置，无法加载真实微流 schema。"));
       return;
     }
 
@@ -99,7 +99,7 @@ export function StudioEmbeddedMicroflowEditor({
     try {
       const [loadedResource, loadedSchema] = await Promise.all([
         adapterBundle.resourceAdapter.getMicroflow(microflowId),
-        adapterBundle.runtimeAdapter.loadMicroflow(microflowId)
+        adapterBundle.resourceAdapter.getMicroflowSchema(microflowId)
       ]);
       if (requestSeqRef.current !== requestSeq) {
         return;
@@ -160,7 +160,7 @@ export function StudioEmbeddedMicroflowEditor({
     return (
       <Empty
         title="Microflow schema not found"
-        description="未加载到当前微流的真实 schema，不会回退到 sampleOrderProcessingMicroflow。"
+        description="未加载到当前微流的真实 schema，不会回退到内置样例。"
         style={{ padding: 80 }}
       >
         <Button type="primary" onClick={() => void load()}>

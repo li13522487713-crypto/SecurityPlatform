@@ -2,7 +2,7 @@
  * Integration/production adapter.
  * Uses backend API contracts and MicroflowApiResponse envelope.
  */
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 import type { MicroflowPublishImpactAnalysis, MicroflowPublishInput, MicroflowPublishResult } from "../../publish/microflow-publish-types";
 import type { MicroflowReference } from "../../references/microflow-reference-types";
@@ -145,7 +145,7 @@ export function createHttpMicroflowResourceAdapter(options: HttpMicroflowResourc
     async updateMicroflow(id: string, patch: MicroflowResourcePatch) {
       return client.patch<MicroflowResource>(`/microflows/${encodeURIComponent(id)}`, { patch });
     },
-    async saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema, saveOptions?: SaveMicroflowSchemaOptions) {
+    async saveMicroflowSchema(id: string, schema: MicroflowDesignSchema, saveOptions?: SaveMicroflowSchemaOptions) {
       const response = await client.put<SaveMicroflowSchemaResponse>(`/microflows/${encodeURIComponent(id)}/schema`, { schema, ...saveOptions });
       return response.resource;
     },

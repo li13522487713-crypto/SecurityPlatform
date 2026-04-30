@@ -1,6 +1,7 @@
 import type {
   MicroflowFlow,
   MicroflowExpression,
+  MicroflowDesignSchema,
   MicroflowObject,
   MicroflowAuthoringSchema,
   MicroflowValidationIssue,
@@ -26,6 +27,7 @@ export type MicroflowNodePatch = MicroflowPropertyChangePayload;
 export type MicroflowEdgePatch = Partial<MicroflowFlow>;
 
 export interface MicroflowPropertyPanelProps {
+  schemaProtocol?: "authoring";
   selectedObject: MicroflowObject | null;
   selectedFlow?: MicroflowFlow | null;
   schema: MicroflowAuthoringSchema;
@@ -41,6 +43,21 @@ export interface MicroflowPropertyPanelProps {
   onDeleteObject?: (objectId: string) => void;
   onDeleteFlow?: (flowId: string) => void;
 }
+
+export interface MicroflowDesignPropertyPanelProps {
+  schemaProtocol: "design";
+  selectedObject?: null;
+  selectedFlow?: null;
+  schema: MicroflowDesignSchema;
+  validationIssues: MicroflowValidationIssue[];
+  traceFrames?: MicroflowTraceFrame[];
+  readonly?: boolean;
+  onSchemaChange?: (nextSchema: MicroflowDesignSchema, reason: string) => void;
+  onClose: () => void;
+  onLocateObject?: (objectId: string) => void;
+}
+
+export type MicroflowPropertyPanelRuntimeProps = MicroflowPropertyPanelProps | MicroflowDesignPropertyPanelProps;
 
 export interface MicroflowNodeFormProps<TObject = MicroflowObject> {
   object: TObject;

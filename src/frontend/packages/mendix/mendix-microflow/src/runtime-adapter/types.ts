@@ -5,6 +5,7 @@ import type {
   MicroflowResource,
   MicroflowRuntimeDto,
   MicroflowAuthoringSchema,
+  MicroflowDesignSchema,
   MicroflowValidationIssue,
   PublishMicroflowPayload
 } from "../schema/types";
@@ -23,7 +24,7 @@ import type {
 } from "../debug/step-debug-api";
 
 export interface SaveMicroflowRequest {
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowAuthoringSchema | MicroflowDesignSchema;
   comment?: string;
 }
 
@@ -141,7 +142,7 @@ export interface MicroflowApiClient {
   createMicroflow(input: CreateMicroflowInput): Promise<MicroflowResource>;
   getMicroflow(id: string): Promise<MicroflowResource>;
   saveMicroflow(request: SaveMicroflowRequest): Promise<SaveMicroflowResponse>;
-  loadMicroflow(id: string): Promise<MicroflowAuthoringSchema>;
+  loadMicroflow(id: string): Promise<MicroflowAuthoringSchema | MicroflowDesignSchema>;
   validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse>;
   testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse>;
   cancelMicroflowRun(runId: string): Promise<{ runId: string; status: "cancelled" | "success" | "failed" } | void>;
@@ -159,11 +160,11 @@ export interface MicroflowApiClient {
 }
 
 export interface MicroflowSaveService {
-  saveMicroflow(schema: MicroflowAuthoringSchema): Promise<SaveMicroflowResponse>;
+  saveMicroflow(schema: MicroflowDesignSchema): Promise<SaveMicroflowResponse>;
 }
 
 export interface MicroflowLoadService {
-  loadMicroflow(id: string): Promise<MicroflowAuthoringSchema>;
+  loadMicroflow(id: string): Promise<MicroflowAuthoringSchema | MicroflowDesignSchema>;
 }
 
 export interface MicroflowValidateService {

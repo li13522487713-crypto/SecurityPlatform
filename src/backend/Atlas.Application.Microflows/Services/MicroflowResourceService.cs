@@ -28,7 +28,6 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowAuditWriter _auditWriter;
     private readonly IMicroflowClock _clock;
-    private readonly MicroflowSchemaMigrationService _schemaMigrationService;
     private readonly Dictionary<string, SaveMicroflowSchemaResponseDto> _saveResponsesByClientRequestId = new(StringComparer.Ordinal);
 
     public MicroflowResourceService(
@@ -70,7 +69,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         _requestContextAccessor = requestContextAccessor;
         _auditWriter = auditWriter;
         _clock = clock;
-        _schemaMigrationService = schemaMigrationService ?? new MicroflowSchemaMigrationService();
+        _ = schemaMigrationService;
     }
 
     public async Task<MicroflowApiPageResult<MicroflowResourceDto>> ListAsync(
@@ -149,8 +148,8 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var schema = request.Input.Schema.HasValue
             ? request.Input.Schema.Value
             : CreateBlankSchemaElement(request.Input, resourceId, context.UserName ?? context.UserId ?? "Current User", now);
-        var schemaJson = NormalizeAndValidateAuthoringSchema(schema, _schemaMigrationService);
-        var snapshot = CreateSnapshot(resourceId, workspaceId, context, schemaJson, "1.0.0", "initial create", null, now);
+        var schemaJson = NormalizeAndValidateDesignSchema(schema);
+        var snapshot = CreateSnapshot(resourceId, workspaceId, context, schemaJson, "flowgram.microflow.v1", "initial create", null, now);
         var entity = new MicroflowResourceEntity
         {
             Id = resourceId,
@@ -345,10 +344,10 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             throw SchemaInvalid("schema 不能为空。");
         }
 
-        var schemaJson = NormalizeAndValidateAuthoringSchema(request.Schema.Value, _schemaMigrationService);
+        var schemaJson = NormalizeAndValidateDesignSchema(request.Schema.Value);
         var context = _requestContextAccessor.Current;
         var now = _clock.UtcNow;
-        var snapshot = CreateSnapshot(resource.Id, resource.WorkspaceId, context, schemaJson, "1.0.0", request.SaveReason, baseVersion, now);
+        var snapshot = CreateSnapshot(resource.Id, resource.WorkspaceId, context, schemaJson, "flowgram.microflow.v1", request.SaveReason, baseVersion, now);
         await _schemaSnapshotRepository.InsertAsync(snapshot, cancellationToken);
 
         resource.CurrentSchemaSnapshotId = snapshot.Id;
@@ -368,7 +367,9 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         return new SaveMicroflowSchemaResponseDto
         {
             Resource = MicroflowResourceMapper.ToDto(resource, snapshot),
+            SchemaId = snapshot.Id,
             SchemaVersion = snapshot.SchemaVersion,
+            Version = resource.Version,
             UpdatedAt = resource.UpdatedAt,
             ChangedAfterPublish = changedAfterPublish,
             ClientRequestId = request.ClientRequestId,
@@ -396,7 +397,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var folder = request.FolderId is null
             ? source.FolderId is null ? null : await ResolveFolderAsync(source.FolderId, workspaceId, source.TenantId, targetModuleId, cancellationToken)
             : await ResolveFolderAsync(request.FolderId, workspaceId, source.TenantId, targetModuleId, cancellationToken);
-        var schemaJson = MutateSchemaFields(sourceSnapshot!.SchemaJson, newId, name, displayName, targetModuleId, targetModuleName, _schemaMigrationService);
+        var schemaJson = MutateSchemaFields(sourceSnapshot!.SchemaJson, newId, name, displayName, targetModuleId, targetModuleName);
         var snapshot = CreateSnapshot(newId, workspaceId, context, schemaJson, "1.0.0", "duplicate", null, now);
         var resource = new MicroflowResourceEntity
         {
@@ -450,7 +451,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var now = _clock.UtcNow;
         var currentSnapshot = await LoadCurrentSnapshotAsync(resource, true, cancellationToken);
         var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? name : request.DisplayName.Trim();
-        var schemaJson = MutateSchemaFields(currentSnapshot!.SchemaJson, resource.Id, name, displayName, resource.ModuleId, resource.ModuleName, _schemaMigrationService);
+        var schemaJson = MutateSchemaFields(currentSnapshot!.SchemaJson, resource.Id, name, displayName, resource.ModuleId, resource.ModuleName);
         var snapshot = CreateSnapshot(resource.Id, resource.WorkspaceId, context, schemaJson, currentSnapshot.SchemaVersion, "rename", currentSnapshot.Id, now);
         await _schemaSnapshotRepository.InsertAsync(snapshot, cancellationToken);
 
@@ -751,33 +752,73 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         }
     }
 
-    private static string NormalizeAndValidateAuthoringSchema(JsonElement schema)
+    private static string NormalizeAndValidateDesignSchema(JsonElement schema)
     {
         if (schema.ValueKind != JsonValueKind.Object)
         {
             throw SchemaInvalid("schema 必须是对象。");
         }
 
-        if (schema.TryGetProperty("nodes", out _)
-            || schema.TryGetProperty("edges", out _)
-            || schema.TryGetProperty("workflowJson", out _)
-            || schema.TryGetProperty("flowgram", out _))
+        if (schema.TryGetProperty("objectCollection", out _)
+            || schema.TryGetProperty("flows", out _)
+            || schema.TryGetProperty("nodes", out _)
+            || schema.TryGetProperty("edges", out _))
         {
-            throw SchemaInvalid("不允许保存 FlowGram JSON。");
+            throw SchemaInvalid("微流设计态必须使用 workflow.nodes/workflow.edges，禁止保存旧 objectCollection/flows 或裸 FlowGram JSON。");
         }
 
         RequireProperty(schema, "schemaVersion");
         RequireProperty(schema, "id");
         RequireProperty(schema, "name");
-        RequireProperty(schema, "objectCollection");
-        RequireProperty(schema, "flows");
+        RequireProperty(schema, "moduleId");
+        RequireProperty(schema, "workflow");
         RequireProperty(schema, "parameters");
         RequireProperty(schema, "returnType");
+        var workflow = schema.GetProperty("workflow");
+        if (workflow.ValueKind != JsonValueKind.Object)
+        {
+            throw SchemaInvalid("workflow 必须是对象。");
+        }
+
+        RequireProperty(workflow, "nodes");
+        RequireProperty(workflow, "edges");
+        if (workflow.GetProperty("nodes").ValueKind != JsonValueKind.Array)
+        {
+            throw SchemaInvalid("workflow.nodes 必须是数组。");
+        }
+
+        if (workflow.GetProperty("edges").ValueKind != JsonValueKind.Array)
+        {
+            throw SchemaInvalid("workflow.edges 必须是数组。");
+        }
+
+        foreach (var node in workflow.GetProperty("nodes").EnumerateArray())
+        {
+            if (node.ValueKind != JsonValueKind.Object)
+            {
+                throw SchemaInvalid("workflow.nodes 项必须是对象。");
+            }
+            RequireProperty(node, "id");
+            RequireProperty(node, "type");
+            RequireProperty(node, "meta");
+            var meta = node.GetProperty("meta");
+            if (meta.ValueKind != JsonValueKind.Object || !meta.TryGetProperty("position", out var position) || position.ValueKind != JsonValueKind.Object)
+            {
+                throw SchemaInvalid("workflow.nodes[].meta.position 不能为空。");
+            }
+        }
+
+        foreach (var edge in workflow.GetProperty("edges").EnumerateArray())
+        {
+            if (edge.ValueKind != JsonValueKind.Object)
+            {
+                throw SchemaInvalid("workflow.edges 项必须是对象。");
+            }
+            RequireProperty(edge, "sourceNodeID");
+            RequireProperty(edge, "targetNodeID");
+        }
         return JsonSerializer.Serialize(schema, JsonOptions);
     }
-
-    private static string NormalizeAndValidateAuthoringSchema(JsonElement schema, MicroflowSchemaMigrationService migrationService)
-        => NormalizeAndValidateAuthoringSchema(migrationService.NormalizeForSave(schema).Schema);
 
     private static void RequireProperty(JsonElement schema, string propertyName)
     {
@@ -789,7 +830,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     }
 
     private static MicroflowApiException SchemaInvalid(string message)
-        => new(MicroflowApiErrorCode.MicroflowSchemaInvalid, message, 400);
+        => new(MicroflowApiErrorCode.MicroflowSchemaInvalid, message, 422);
 
     private MicroflowSchemaSnapshotEntity CreateSnapshot(
         string resourceId,
@@ -850,7 +891,9 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             response = new SaveMicroflowSchemaResponseDto
             {
                 Resource = MicroflowResourceMapper.ToDto(resource),
+                SchemaId = idempotency.SchemaId,
                 SchemaVersion = idempotency.SchemaVersion,
+                Version = resource.Version,
                 UpdatedAt = idempotency.UpdatedAt,
                 ChangedAfterPublish = idempotency.ChangedAfterPublish,
                 ClientRequestId = clientRequestId,
@@ -931,8 +974,7 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         var parameters = input.Parameters ?? JsonSerializer.SerializeToElement(Array.Empty<object>(), JsonOptions);
         var schema = new
         {
-            schemaVersion = "1.0.0",
-            mendixProfile = "mx10",
+            schemaVersion = "flowgram.microflow.v1",
             id,
             stableId = id,
             name = input.Name,
@@ -943,47 +985,76 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
             parameters,
             returnType,
             returnVariableName = input.ReturnVariableName,
-            objectCollection = new
+            workflow = new
             {
-                id = "root-collection",
-                officialType = "Microflows$MicroflowObjectCollection",
-                objects = new object[]
+                nodes = new object[]
                 {
                     new
                     {
                         id = "start",
-                        stableId = "start",
-                        kind = "startEvent",
-                        officialType = "Microflows$StartEvent",
-                        caption = "Start",
-                        documentation = "",
-                        relativeMiddlePoint = new { x = 320, y = 200 },
-                        size = new { width = 132, height = 70 },
-                        editor = new { iconKey = "startEvent" },
-                        trigger = new { type = "manual" }
+                        type = "startEvent",
+                        data = new
+                        {
+                            objectId = "start",
+                            objectKind = "startEvent",
+                            collectionId = "root-collection",
+                            title = "Start",
+                            subtitle = "Microflows$StartEvent",
+                            officialType = "Microflows$StartEvent",
+                            disabled = false,
+                            validationState = "valid",
+                            runtimeState = "idle",
+                            issueCount = 0
+                        },
+                        meta = new
+                        {
+                            position = new { x = 320, y = 220 },
+                            size = new { width = 132, height = 70 },
+                            nodeDTOType = "startEvent",
+                            useDynamicPort = true,
+                            collectionId = "root-collection",
+                            defaultPorts = new object[]
+                            {
+                                new { type = "output", portID = "start:out" }
+                            }
+                        }
                     },
                     new
                     {
                         id = "end",
-                        stableId = "end",
-                        kind = "endEvent",
-                        officialType = "Microflows$EndEvent",
-                        caption = "End",
-                        documentation = "",
-                        relativeMiddlePoint = new { x = 560, y = 200 },
-                        size = new { width = 132, height = 70 },
-                        editor = new { iconKey = "endEvent" },
-                        endBehavior = new { type = "normalReturn" }
+                        type = "endEvent",
+                        data = new
+                        {
+                            objectId = "end",
+                            objectKind = "endEvent",
+                            collectionId = "root-collection",
+                            title = "End",
+                            subtitle = "Microflows$EndEvent",
+                            officialType = "Microflows$EndEvent",
+                            disabled = false,
+                            validationState = "valid",
+                            runtimeState = "idle",
+                            issueCount = 0
+                        },
+                        meta = new
+                        {
+                            position = new { x = 620, y = 220 },
+                            size = new { width = 132, height = 70 },
+                            nodeDTOType = "endEvent",
+                            useDynamicPort = true,
+                            collectionId = "root-collection",
+                            defaultPorts = new object[]
+                            {
+                                new { type = "input", portID = "end:in" }
+                            }
+                        }
                     }
-                }
+                },
+                edges = Array.Empty<object>()
             },
-            flows = Array.Empty<object>(),
-            security = input.Security ?? JsonSerializer.SerializeToElement(new { applyEntityAccess = true, allowedModuleRoleIds = Array.Empty<string>(), allowedRoleNames = Array.Empty<string>() }, JsonOptions),
-            concurrency = input.Concurrency ?? JsonSerializer.SerializeToElement(new { allowConcurrentExecution = true, errorMicroflowId = (string?)null }, JsonOptions),
-            exposure = input.Exposure ?? JsonSerializer.SerializeToElement(new { exportLevel = "module", markAsUsed = true, asMicroflowAction = new { enabled = false }, asWorkflowAction = new { enabled = false }, url = new { enabled = false } }, JsonOptions),
-            variables = new { schemaId = id, builtAt = timestamp, all = Array.Empty<object>(), parameters = new { }, localVariables = new { }, objectOutputs = new { }, listOutputs = new { }, loopVariables = new { }, errorVariables = new { }, systemVariables = new { } },
+            variables = Array.Empty<object>(),
             validation = new { issues = Array.Empty<object>() },
-            editor = new { selection = new { }, viewport = new { x = 0, y = 0, zoom = 1 } },
+            editor = new { selection = new { }, viewport = new { x = 0, y = 0, zoom = 1 }, zoom = 1, showMiniMap = false, gridEnabled = true, layoutMode = "freeform" },
             audit = new { version = "0.1.0", status = "draft", createdBy = ownerName, createdAt = timestamp, updatedBy = ownerName, updatedAt = timestamp }
         };
 
@@ -1006,25 +1077,8 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
         node["displayName"] = displayName;
         node["moduleId"] = moduleId;
         node["moduleName"] = moduleName;
-        return NormalizeAndValidateAuthoringSchema(JsonSerializer.SerializeToElement(node, JsonOptions));
+        return NormalizeAndValidateDesignSchema(JsonSerializer.SerializeToElement(node, JsonOptions));
     }
-
-    private static string MutateSchemaFields(
-        string schemaJson,
-        string id,
-        string name,
-        string displayName,
-        string moduleId,
-        string? moduleName,
-        MicroflowSchemaMigrationService migrationService)
-        => NormalizeAndValidateAuthoringSchema(
-            MicroflowSchemaJsonHelper.ParseRequired(MicroflowSchemaJsonHelper.MutateFields(
-                migrationService.NormalizeForLoad(schemaJson).SchemaJson,
-                id,
-                name,
-                displayName,
-                moduleId,
-                moduleName)));
 
     private static string ComputeSha256(string value)
     {

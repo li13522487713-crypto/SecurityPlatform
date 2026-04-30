@@ -1578,6 +1578,66 @@ export interface MicroflowDebugState {
   activeFrameIndex?: number;
 }
 
+export interface MicroflowWorkflowPortJSON {
+  type: MicroflowPortDirection;
+  portID: string;
+  disabled?: boolean;
+}
+
+export interface MicroflowWorkflowNodeJSON {
+  id: string;
+  type: string;
+  data?: Record<string, unknown>;
+  meta?: {
+    position?: MicroflowPosition;
+    size?: MicroflowSize;
+    nodeDTOType?: string;
+    useDynamicPort?: boolean;
+    defaultPorts?: MicroflowWorkflowPortJSON[];
+    parentObjectId?: string;
+    collectionId?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface MicroflowWorkflowEdgeJSON {
+  id?: string;
+  sourceNodeID: string;
+  targetNodeID: string;
+  sourcePortID?: string;
+  targetPortID?: string;
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface MicroflowWorkflowJSON {
+  nodes: MicroflowWorkflowNodeJSON[];
+  edges: MicroflowWorkflowEdgeJSON[];
+  [key: string]: unknown;
+}
+
+export interface MicroflowDesignSchema {
+  schemaVersion: "flowgram.microflow.v1";
+  id: string;
+  moduleId: string;
+  name: string;
+  displayName: string;
+  stableId?: string;
+  description?: string;
+  documentation?: string;
+  moduleName?: string;
+  workflow: MicroflowWorkflowJSON;
+  editor: MicroflowEditorState;
+  parameters: MicroflowParameter[];
+  returnType: MicroflowDataType;
+  returnVariableName?: string;
+  variables: MicroflowVariable[];
+  validation: MicroflowValidationState;
+  audit: MicroflowAuditState;
+  debug?: MicroflowDebugState;
+}
+
 export interface MicroflowEditorPort {
   id: string;
   objectId: string;
@@ -1944,7 +2004,7 @@ export interface MicroflowResource {
   updatedAt: string;
   publishedAt?: string;
   lastModifiedBy?: string;
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowAuthoringSchema | MicroflowDesignSchema;
 }
 
 export interface MicroflowListQuery {

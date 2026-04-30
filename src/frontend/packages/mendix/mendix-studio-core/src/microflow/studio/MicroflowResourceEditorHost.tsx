@@ -39,9 +39,9 @@ function hasUsableSchema(resource: MicroflowResource): boolean {
   return Boolean(
     resource.schema &&
     resource.schema.id &&
-    resource.schema.objectCollection &&
-    Array.isArray(resource.schema.objectCollection.objects) &&
-    Array.isArray(resource.schema.flows)
+    resource.schema.workflow &&
+    Array.isArray(resource.schema.workflow.nodes) &&
+    Array.isArray(resource.schema.workflow.edges)
   );
 }
 
@@ -149,7 +149,7 @@ export function MicroflowResourceEditorHost({
         schema: loadedSchema
       };
       if (!hasUsableSchema(nextResource)) {
-        throw new Error("后端未返回可用的 MicroflowAuthoringSchema；不会回退到 sample schema。");
+        throw new Error("后端未返回可用的 MicroflowDesignSchema；不会回退到内置样例。");
       }
       setResource(nextResource);
       onDirtyChangeRef.current?.(false);
@@ -194,7 +194,7 @@ export function MicroflowResourceEditorHost({
     return (
       <Empty
         title="Microflow schema not found"
-        description="未加载到当前微流的真实 schema，不会回退到 sampleOrderProcessingMicroflow。"
+        description="未加载到当前微流的真实 schema，不会回退到内置样例。"
         style={{ padding: 80 }}
       >
         <Space>
@@ -225,7 +225,7 @@ export function MicroflowResourceEditorHost({
       ) : null}
       <div data-testid="microflow-resource-editor-body" style={{ flex: 1, minHeight: 0 }}>
         <MendixMicroflowEditorEntry
-          key={`${microflowId}:${resource.schemaId}:${resource.version}`}
+          key={microflowId}
           resource={resource}
           adapter={adapterBundle.resourceAdapter}
           workspaceId={workspaceId}
