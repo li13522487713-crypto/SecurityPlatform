@@ -105,6 +105,57 @@ describe("Workbench microflow document lifecycle", () => {
     expect(useMendixStudioStore.getState().activeMicroflowId).toBeUndefined();
   });
 
+  it("opens read-only page, workflow, domain model, and security tabs without entering microflow dirty state", () => {
+    const store = useMendixStudioStore.getState();
+
+    store.openResourceWorkbenchTab({
+      kind: "page",
+      resourceId: "page-order",
+      moduleId: "mod_procurement",
+      title: "Order Edit",
+      qualifiedName: "Procurement.Order_Edit",
+    });
+    store.openResourceWorkbenchTab({
+      kind: "workflow",
+      resourceId: "wf-order",
+      moduleId: "mod_procurement",
+      title: "Order Approval",
+      qualifiedName: "Procurement.OrderApproval",
+    });
+    store.openResourceWorkbenchTab({
+      kind: "domainModel",
+      resourceId: "mod_procurement",
+      moduleId: "mod_procurement",
+      title: "Procurement Domain Model",
+      qualifiedName: "Procurement",
+    });
+    store.openResourceWorkbenchTab({
+      kind: "security",
+      resourceId: "mod_procurement",
+      moduleId: "mod_procurement",
+      title: "Procurement Security",
+      qualifiedName: "Procurement",
+    });
+    store.openResourceWorkbenchTab({
+      kind: "page",
+      resourceId: "page-order",
+      moduleId: "mod_procurement",
+      title: "Order Edit",
+      qualifiedName: "Procurement.Order_Edit",
+    });
+
+    const state = useMendixStudioStore.getState();
+    expect(state.workbenchTabs.filter(tab => tab.id === "page:page-order")).toHaveLength(1);
+    expect(state.workbenchTabs.some(tab => tab.id === "workflow:wf-order")).toBe(true);
+    expect(state.workbenchTabs.some(tab => tab.id === "domainModel:mod_procurement")).toBe(true);
+    expect(state.workbenchTabs.some(tab => tab.id === "security:mod_procurement")).toBe(true);
+    expect(state.activeWorkbenchTabId).toBe("page:page-order");
+    expect(state.activeTab).toBe("pageBuilder");
+    expect(state.activeMicroflowId).toBeUndefined();
+    expect(state.dirtyByWorkbenchTabId).toEqual({});
+    expect(state.saveStateByMicroflowId).toEqual({});
+  });
+
   it("uses per-tab dirty state and opens a close guard before discarding", () => {
     const microflow = createMicroflow({ id: "mf-dirty", name: "MF_Dirty" });
     useMendixStudioStore.getState().setModuleMicroflows("mod_procurement", [microflow]);

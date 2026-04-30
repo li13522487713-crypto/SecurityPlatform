@@ -15,7 +15,18 @@ import { createMicroflowStateChildren, MicroflowsSectionKey } from "./Microflows
 import { resolveExplorerCreateContext, type ExplorerCreateContext } from "./app-explorer-create-context";
 import { CreateMicroflowModal, DuplicateMicroflowModal, RenameMicroflowModal } from "../../microflow/resource";
 import { CreateMicroflowFolderDialog, RenameMicroflowFolderDialog } from "../../microflow/tree-crud";
-import type { MicroflowCreateInput, MicroflowDuplicateInput, MicroflowModuleAsset, MicroflowResource } from "../../microflow/resource";
+import type {
+  MicroflowCreateInput,
+  MicroflowDomainEntitySummary,
+  MicroflowDuplicateInput,
+  MicroflowModuleAsset,
+  MicroflowPageAssetSummary,
+  MicroflowResource,
+  MicroflowSecurityAssetSummary,
+  MicroflowWorkflowAssetSummary
+} from "../../microflow/resource";
+import type { OpenWorkbenchResourceInput } from "../../store";
+import { getMendixStudioCopy, type MendixStudioCopy } from "../../i18n/copy";
 
 export type ExplorerTreeNodeKind =
   | "module"
@@ -25,6 +36,7 @@ export type ExplorerTreeNodeKind =
   | "page"
   | "microflow"
   | "workflow"
+  | "domainModel"
   | "security"
   | "navigation"
   | "constant"
@@ -45,6 +57,7 @@ export interface ExplorerTreeNode {
   folderPath?: string;
   microflowId?: string;
   resourceId?: string;
+  resourceKind?: OpenWorkbenchResourceInput["kind"];
   name?: string;
   displayName?: string;
   qualifiedName?: string;
@@ -58,6 +71,10 @@ export interface ExplorerTreeNode {
   error?: MicroflowApiError;
   problemSummary?: MicroflowValidationSummary;
   action?: "retryMicroflows";
+  page?: MicroflowPageAssetSummary;
+  workflow?: MicroflowWorkflowAssetSummary;
+  entity?: MicroflowDomainEntitySummary;
+  securitySummary?: MicroflowSecurityAssetSummary;
   children?: ExplorerTreeNode[];
   defaultOpen?: boolean;
 }
@@ -69,6 +86,7 @@ export interface AppExplorerProps {
   refreshToken?: number;
   onViewMicroflowReferences?: (microflowId: string) => void;
   onOpenMicroflow?: (microflowId: string) => void;
+  onOpenResource?: (resource: OpenWorkbenchResourceInput) => void;
 }
 
 export type MicroflowLoadStatus = "idle" | "loading" | "success" | "error";
@@ -88,7 +106,7 @@ export function getCurrentExplorerModuleId(node?: Pick<ExplorerTreeNode, "key" |
   return fallbackModuleId;
 }
 
-function createAppAssetTree(modules: MicroflowModuleAsset[]): ExplorerTreeNode[] {
+function createAppAssetTree(modules: MicroflowModuleAsset[], copy: MendixStudioCopy): ExplorerTreeNode[] {
   if (modules.length === 0) {
     return [{
       key: "module:empty",
@@ -115,6 +133,10 @@ function createAppAssetTree(modules: MicroflowModuleAsset[]): ExplorerTreeNode[]
   return modules.map(module => {
     const moduleId = module.moduleId;
     const moduleName = module?.name || module?.qualifiedName || "Module";
+    const pages = module.pages ?? [];
+    const workflows = module.workflows ?? [];
+    const entities = module.entities ?? [];
+    const security = module.security;
     return {
       key: moduleId ? `module:${moduleId}` : "module:unloaded",
       label: moduleName,
@@ -124,17 +146,52 @@ function createAppAssetTree(modules: MicroflowModuleAsset[]): ExplorerTreeNode[]
       children: [
         {
           key: `domain-model:${moduleId}`,
-          label: "Domain Model",
-          kind: "folder",
+          label: copy.explorer.domainModel,
+          kind: "domainModel",
+          icon: "E",
+          moduleId,
+          resourceId: moduleId,
+          resourceKind: "domainModel",
+          title: `${moduleName} Domain Model`,
           defaultOpen: true,
-          children: [{ key: `domain-model-placeholder:${moduleId}`, label: "Domain metadata is loaded in Microflow editor", kind: "empty" }]
+          children: entities.length > 0
+            ? entities.map(entity => ({
+                key: `entity:${entity.id}`,
+                label: entity.name || entity.qualifiedName,
+                kind: "entity" as const,
+                icon: "E",
+                moduleId,
+                resourceId: moduleId,
+                resourceKind: "domainModel" as const,
+                name: entity.name,
+                displayName: entity.name,
+                qualifiedName: entity.qualifiedName,
+                title: `${entity.qualifiedName} · ${entity.attributeCount} attributes`,
+                entity
+              }))
+            : [{ key: `domain-model-empty:${moduleId}`, label: copy.explorer.noDomainEntities, kind: "empty" }]
         },
         {
           key: `pages:${moduleId}`,
-          label: "Pages",
+          label: copy.explorer.pages,
           kind: "folder",
           defaultOpen: true,
-          children: [{ key: `pages-placeholder:${moduleId}`, label: "Pages asset tree is not connected in this release", kind: "empty" }]
+          children: pages.length > 0
+            ? pages.map(page => ({
+                key: `page:${page.id}`,
+                label: page.name || page.qualifiedName,
+                kind: "page" as const,
+                icon: "P",
+                moduleId,
+                resourceId: page.id,
+                resourceKind: "page" as const,
+                name: page.name,
+                displayName: page.name,
+                qualifiedName: page.qualifiedName,
+                title: page.description ?? page.qualifiedName,
+                page
+              }))
+            : [{ key: `pages-empty:${moduleId}`, label: copy.explorer.noPages, kind: "empty" }]
         },
         {
           key: `${MicroflowsSectionKey}:${moduleId}`,
@@ -146,20 +203,47 @@ function createAppAssetTree(modules: MicroflowModuleAsset[]): ExplorerTreeNode[]
         },
         {
           key: `workflows:${moduleId}`,
-          label: "Workflows",
+          label: copy.explorer.workflows,
           kind: "folder",
           defaultOpen: true,
-          children: [{ key: `workflows-placeholder:${moduleId}`, label: "Workflows asset tree is not connected in this release", kind: "empty" }]
+          children: workflows.length > 0
+            ? workflows.map(workflow => ({
+                key: `workflow:${workflow.id}`,
+                label: workflow.name || workflow.qualifiedName,
+                kind: "workflow" as const,
+                icon: "W",
+                moduleId,
+                resourceId: workflow.id,
+                resourceKind: "workflow" as const,
+                name: workflow.name,
+                displayName: workflow.name,
+                qualifiedName: workflow.qualifiedName,
+                title: workflow.description ?? workflow.qualifiedName,
+                workflow
+              }))
+            : [{ key: `workflows-empty:${moduleId}`, label: copy.explorer.noWorkflows, kind: "empty" }]
         },
         {
           key: `security:${moduleId}`,
-          label: "Security",
+          label: copy.explorer.security,
           kind: "security",
+          icon: "A",
+          moduleId,
+          resourceId: moduleId,
+          resourceKind: "security",
+          title: `${moduleName} Security`,
+          securitySummary: security,
           children: [
-            { key: `user-roles:${moduleId}`, label: "用户角色" },
-            { key: `module-roles:${moduleId}`, label: "模块角色" },
-            { key: `permission-matrix:${moduleId}`, label: "权限矩阵" },
-            { key: `entity-access:${moduleId}`, label: "实体访问" }
+            {
+              key: `security-entity-access:${moduleId}`,
+              label: copy.explorer.entityAccessRules(security?.entityAccessCount ?? 0),
+              kind: "empty",
+            },
+            {
+              key: `security-readonly:${moduleId}`,
+              label: security?.readonly === false ? copy.explorer.securityEditable : copy.explorer.securityReadonly,
+              kind: "empty",
+            }
           ]
         },
         { key: `navigation:${moduleId}`, label: "Navigation", kind: "navigation" },
@@ -192,6 +276,138 @@ function withMicroflowChildren(
   }));
 }
 
+function createRecentlyOpenedTree(tabs: Array<{ id: string; kind: string; title: string; moduleId?: string; resourceId?: string; microflowId?: string; qualifiedName?: string; openedAt: string }>, copy: MendixStudioCopy): ExplorerTreeNode[] {
+  const recent = [...tabs]
+    .sort((left, right) => right.openedAt.localeCompare(left.openedAt))
+    .slice(0, 8)
+    .map(tab => ({
+      key: `recent:${tab.id}`,
+      label: tab.title,
+      kind: tab.kind === "microflow" ? "microflow" as const : tab.kind as ExplorerTreeNodeKind,
+      icon: tab.kind === "microflow" ? "M" : tab.kind === "page" ? "P" : tab.kind === "workflow" ? "W" : tab.kind === "domainModel" ? "E" : "A",
+      moduleId: tab.moduleId,
+      microflowId: tab.microflowId,
+      resourceId: tab.kind === "microflow" ? tab.microflowId ?? tab.resourceId : tab.resourceId,
+      resourceKind: tab.kind === "microflow" ? undefined : tab.kind as OpenWorkbenchResourceInput["kind"],
+      qualifiedName: tab.qualifiedName,
+      title: tab.qualifiedName ?? tab.title
+    }));
+
+  if (recent.length === 0) {
+    return [];
+  }
+
+  return [{
+    key: "recently-opened",
+    label: copy.explorer.recentlyOpened,
+    kind: "folder",
+    defaultOpen: true,
+    children: recent
+  }];
+}
+
+function includesSearch(values: Array<string | undefined>, normalizedSearch: string): boolean {
+  return values.some(value => value?.toLocaleLowerCase().includes(normalizedSearch));
+}
+
+function createSearchResultsTree(
+  modules: MicroflowModuleAsset[],
+  microflowResources: StudioMicroflowDefinitionView[],
+  searchText: string,
+  copy: MendixStudioCopy
+): ExplorerTreeNode[] {
+  const normalizedSearch = searchText.trim().toLocaleLowerCase();
+  if (!normalizedSearch) {
+    return [];
+  }
+
+  const results: ExplorerTreeNode[] = [];
+  for (const module of modules) {
+    if (includesSearch([module.name, module.qualifiedName, module.description], normalizedSearch)) {
+      results.push({
+        key: `search-module:${module.moduleId}`,
+        label: module.name || module.qualifiedName,
+        kind: "module",
+        moduleId: module.moduleId,
+        title: module.description ?? module.qualifiedName
+      });
+    }
+
+    for (const page of module.pages ?? []) {
+      if (includesSearch([page.name, page.qualifiedName, page.description], normalizedSearch)) {
+        results.push({
+          key: `search-page:${page.id}`,
+          label: page.name || page.qualifiedName,
+          kind: "page",
+          icon: "P",
+          moduleId: module.moduleId,
+          resourceId: page.id,
+          resourceKind: "page",
+          qualifiedName: page.qualifiedName,
+          page
+        });
+      }
+    }
+
+    for (const workflow of module.workflows ?? []) {
+      if (includesSearch([workflow.name, workflow.qualifiedName, workflow.description, workflow.contextEntityQualifiedName], normalizedSearch)) {
+        results.push({
+          key: `search-workflow:${workflow.id}`,
+          label: workflow.name || workflow.qualifiedName,
+          kind: "workflow",
+          icon: "W",
+          moduleId: module.moduleId,
+          resourceId: workflow.id,
+          resourceKind: "workflow",
+          qualifiedName: workflow.qualifiedName,
+          workflow
+        });
+      }
+    }
+
+    for (const entity of module.entities ?? []) {
+      if (includesSearch([entity.name, entity.qualifiedName], normalizedSearch)) {
+        results.push({
+          key: `search-entity:${entity.id}`,
+          label: entity.name || entity.qualifiedName,
+          kind: "entity",
+          icon: "E",
+          moduleId: module.moduleId,
+          resourceId: module.moduleId,
+          resourceKind: "domainModel",
+          qualifiedName: entity.qualifiedName,
+          entity
+        });
+      }
+    }
+  }
+
+  for (const resource of microflowResources) {
+    if (includesSearch([resource.name, resource.displayName, resource.qualifiedName, resource.description], normalizedSearch)) {
+      results.push({
+        key: `search-microflow:${resource.id}`,
+        label: resource.displayName || resource.name,
+        kind: "microflow",
+        icon: "M",
+        moduleId: resource.moduleId,
+        microflowId: resource.id,
+        resourceId: resource.id,
+        qualifiedName: resource.qualifiedName
+      });
+    }
+  }
+
+  return [{
+    key: "search-results",
+    label: copy.explorer.searchResults,
+    kind: "folder",
+    defaultOpen: true,
+    children: results.length > 0
+      ? results
+      : [{ key: "search-results-empty", label: copy.explorer.noMatchingResources, kind: "empty" }]
+  }];
+}
+
 function formatMicroflowListError(error: MicroflowApiError): string {
   const parts = [error.message || "Load failed"];
   if (error.httpStatus) {
@@ -206,7 +422,8 @@ function formatMicroflowListError(error: MicroflowApiError): string {
   return parts.join(" · ");
 }
 
-export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refreshToken, onViewMicroflowReferences, onOpenMicroflow }: AppExplorerProps) {
+export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refreshToken, onViewMicroflowReferences, onOpenMicroflow, onOpenResource }: AppExplorerProps) {
+  const copy = getMendixStudioCopy();
   const [searchText, setSearchText] = useState("");
   const [microflowStatus, setMicroflowStatus] = useState<MicroflowLoadStatus>("idle");
   const [microflowError, setMicroflowError] = useState<MicroflowApiError>();
@@ -228,6 +445,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
   const setActiveModuleId = useMendixStudioStore(state => state.setActiveModuleId);
   const setActiveMicroflowId = useMendixStudioStore(state => state.setActiveMicroflowId);
   const setModuleMicroflows = useMendixStudioStore(state => state.setModuleMicroflows);
+  const setAppAssetModules = useMendixStudioStore(state => state.setAppAssetModules);
   const setFoldersForModule = useMendixStudioStore(state => state.setFoldersForModule);
   const upsertFolder = useMendixStudioStore(state => state.upsertFolder);
   const setFolderLoading = useMendixStudioStore(state => state.setFolderLoading);
@@ -243,6 +461,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
   const foldersByModuleId = useMendixStudioStore(state => state.foldersByModuleId);
   const moduleLoadStateByModuleId = useMendixStudioStore(state => state.microflowsLoadStateByModuleId);
   const folderErrorByModuleId = useMendixStudioStore(state => state.folderErrorByModuleId);
+  const workbenchTabs = useMendixStudioStore(state => state.workbenchTabs);
 
   const primaryModule = modules[0];
   const moduleId = activeModuleId ?? primaryModule?.moduleId ?? "";
@@ -250,6 +469,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
   const loadAppAssetTree = useCallback(async (force = false) => {
     if (!workspaceId || !appId || !adapterBundle?.resourceAdapter?.getMicroflowApp) {
       setModules([]);
+      setAppAssetModules([]);
       return;
     }
     const requestKey = `${workspaceId}:${appId}:${adapterBundle.mode}`;
@@ -264,15 +484,17 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
       explorerAppAssetRequests.set(requestKey, request);
       const nextModules = await request;
       setModules(nextModules);
+      setAppAssetModules(nextModules);
       if (!activeModuleId && nextModules[0]?.moduleId) {
         setActiveModuleId(nextModules[0].moduleId);
       }
     } catch (caught) {
       setModules([]);
+      setAppAssetModules([]);
       setMicroflowStatus("error");
       setMicroflowError(getMicroflowApiError(caught));
     }
-  }, [activeModuleId, adapterBundle, appId, setActiveModuleId, workspaceId]);
+  }, [activeModuleId, adapterBundle, appId, setActiveModuleId, setAppAssetModules, workspaceId]);
 
   useEffect(() => {
     void loadAppAssetTree();
@@ -414,11 +636,15 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
     const view = mapMicroflowResourceToStudioDefinitionView(created);
     upsertStudioMicroflow(view);
     setActiveModuleId(view.moduleId);
-    setActiveMicroflowId(view.id);
-    openMicroflowWorkbenchTab(view.id);
+    if (onOpenMicroflow) {
+      onOpenMicroflow(view.id);
+    } else {
+      setActiveMicroflowId(view.id);
+      openMicroflowWorkbenchTab(view.id);
+    }
     await loadModuleMicroflows(view.moduleId, true);
     return created;
-  }, [adapterBundle?.resourceAdapter, createContext?.folderId, loadModuleMicroflows, openMicroflowWorkbenchTab, setActiveMicroflowId, setActiveModuleId, upsertStudioMicroflow]);
+  }, [adapterBundle?.resourceAdapter, createContext?.folderId, loadModuleMicroflows, onOpenMicroflow, openMicroflowWorkbenchTab, setActiveMicroflowId, setActiveModuleId, upsertStudioMicroflow]);
 
   const renameMicroflow = useCallback(async (name: string, displayName?: string) => {
     if (!renameMicroflowId) {
@@ -605,6 +831,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
 
   const treeData = useMemo(() => {
     const explorerModules = modules;
+    const allMicroflowResources = Object.values(microflowResourcesById);
     const childrenByModuleId = Object.fromEntries(explorerModules.map(module => {
       const ids = microflowIdsByModuleId[module.moduleId] ?? [];
       const resources = ids
@@ -624,7 +851,12 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
         )
       ];
     }));
-    return withMicroflowChildren(createAppAssetTree(explorerModules), childrenByModuleId);
+    const appTree = withMicroflowChildren(createAppAssetTree(explorerModules, copy), childrenByModuleId);
+    return [
+      ...createRecentlyOpenedTree(workbenchTabs, copy),
+      ...createSearchResultsTree(explorerModules, allMicroflowResources, searchText, copy),
+      ...appTree
+    ];
   }, [
     folderErrorByModuleId,
     foldersByModuleId,
@@ -635,7 +867,10 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
     moduleId,
     moduleLoadStateByModuleId,
     modules,
-    validationSummaryByMicroflowId
+    copy,
+    searchText,
+    validationSummaryByMicroflowId,
+    workbenchTabs
   ]);
 
   const handleSelect = useCallback((node: ExplorerTreeNode) => {
@@ -661,6 +896,19 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
       return;
     }
 
+    if (node.resourceKind && node.resourceId) {
+      setSelected(node.resourceKind, node.resourceId);
+      onOpenResource?.({
+        kind: node.resourceKind,
+        resourceId: node.resourceId,
+        moduleId: node.moduleId,
+        title: node.displayName || node.name || node.label,
+        qualifiedName: node.qualifiedName,
+        subtitle: node.qualifiedName ?? node.title
+      });
+      return;
+    }
+
     if (node.tabId) {
       setActiveWorkbenchTab(node.tabId);
     }
@@ -677,6 +925,7 @@ export function AppExplorerContainer({ adapterBundle, appId, workspaceId, refres
     setActiveModuleId,
     setActiveWorkbenchTab,
     onOpenMicroflow,
+    onOpenResource,
     openMicroflowWorkbenchTab,
     setSelected,
     setSelectedExplorerNodeId

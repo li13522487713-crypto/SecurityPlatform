@@ -12,28 +12,26 @@ import { AppExplorer } from "./components/app-explorer";
 import { ExplorerSplitLayout } from "./components/explorer-split-layout";
 import { WidgetToolbox } from "./components/widget-toolbox";
 import { WorkbenchTabs } from "./components/workbench-tabs";
-import { WorkbenchToolbar } from "./components/workbench-toolbar";
 import { MicroflowWorkbenchToolbar } from "./components/microflow-workbench-toolbar";
 import { MicroflowStudioBottomPanel } from "./components/microflow-studio-bottom-panel";
 import { WorkbenchCommandPalette } from "./components/workbench-command-palette";
-import { PageDesignerCanvas } from "./components/page-designer-canvas";
-import { WidgetStructurePanel } from "./components/widget-structure-panel";
-import { PropertiesPanel } from "./components/properties-panel";
-import { RightInspectorRail } from "./components/right-inspector-rail";
-import { BottomPanel } from "./components/bottom-panel";
+import { ResourceReadonlyWorkbench } from "./components/resource-readonly-workbench";
 import { RuntimePreview } from "./components/runtime-preview";
 import { useMendixStudioStore } from "./store";
+import type { OpenWorkbenchResourceInput } from "./store";
 import { MicroflowResourceEditorHost } from "./microflow/studio/MicroflowResourceEditorHost";
 import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
 import { MicroflowReferencesDrawer } from "./microflow/references/MicroflowReferencesDrawer";
 import { MicroflowWorkbenchCommandBus } from "./microflow/workbench/microflow-workbench-command-bus";
-import { resolveMicroflowActivation } from "./microflow/workbench/microflow-activation-guard";
+import { resolveWorkbenchResourceActivation } from "./microflow/workbench/microflow-activation-guard";
 import { MicroflowWorkbenchErrorBus } from "./microflow/workbench/microflow-workbench-error-bus";
 import { getMendixStudioCopy } from "./i18n/copy";
 
-interface PendingMicroflowActivation {
-  microflowId: string;
-  reason: "explorer" | "deeplink" | "references";
+type ResourceActivationReason = "explorer" | "deeplink" | "references" | "recent" | "search" | "editor";
+
+interface PendingResourceActivation {
+  target: OpenWorkbenchResourceInput | { kind: "microflow"; resourceId: string };
+  reason: ResourceActivationReason;
 }
 
 export interface MendixStudioAppProps {
@@ -58,24 +56,26 @@ export function MendixStudioApp({
   useNativeMicroflowDocking = true,
 }: MendixStudioAppProps) {
   const copy = getMendixStudioCopy();
-  const activeTab = useMendixStudioStore(state => state.activeTab);
   const activeWorkbenchTab = useMendixStudioStore(state =>
     state.activeWorkbenchTabId
       ? state.workbenchTabs.find(tab => tab.id === state.activeWorkbenchTabId)
       : undefined
   );
+  const workbenchTabs = useMendixStudioStore(state => state.workbenchTabs);
   const dirtyByWorkbenchTabId = useMendixStudioStore(state => state.dirtyByWorkbenchTabId);
   const saveStateByMicroflowId = useMendixStudioStore(state => state.saveStateByMicroflowId);
   const setStudioContext = useMendixStudioStore(state => state.setStudioContext);
   const microflowResourcesById = useMendixStudioStore(state => state.microflowResourcesById);
+  const appAssetModules = useMendixStudioStore(state => state.appAssetModules);
   const markMicroflowDirty = useMendixStudioStore(state => state.markMicroflowDirty);
   const upsertStudioMicroflow = useMendixStudioStore(state => state.upsertStudioMicroflow);
   const updateMicroflowWorkbenchTabFromResource = useMendixStudioStore(state => state.updateMicroflowWorkbenchTabFromResource);
   const openMicroflowWorkbenchTab = useMendixStudioStore(state => state.openMicroflowWorkbenchTab);
+  const openResourceWorkbenchTab = useMendixStudioStore(state => state.openResourceWorkbenchTab);
   const closeWorkbenchTab = useMendixStudioStore(state => state.closeWorkbenchTab);
   const [microflowResourceRefreshToken, setMicroflowResourceRefreshToken] = useState(0);
   const [referencesMicroflowId, setReferencesMicroflowId] = useState<string>();
-  const [openedDeepLinkMicroflowId, setOpenedDeepLinkMicroflowId] = useState<string>();
+  const [openedDeepLinkKey, setOpenedDeepLinkKey] = useState<string>();
   const [microflowWorkbenchStatus, setMicroflowWorkbenchStatus] = useState<MicroflowWorkbenchStatus | null>(null);
   const [microflowWorkbenchLayout, setMicroflowWorkbenchLayout] = useState<MicroflowWorkbenchLayoutState | null>(null);
   const [commandBus] = useState(() => new MicroflowWorkbenchCommandBus());
@@ -95,7 +95,7 @@ export function MendixStudioApp({
     },
   }));
   const [errorBusSnapshot, setErrorBusSnapshot] = useState(() => errorBus.getSnapshot());
-  const [pendingMicroflowActivation, setPendingMicroflowActivation] = useState<PendingMicroflowActivation>();
+  const [pendingResourceActivation, setPendingResourceActivation] = useState<PendingResourceActivation>();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // 创建 adapter bundle；如果构建失败，仅 console.warn，不阻断页面渲染。
@@ -124,18 +124,76 @@ export function MendixStudioApp({
       return;
     }
 
-    const microflowId = new URLSearchParams(window.location.search).get("microflowId")?.trim();
-    if (!microflowId || openedDeepLinkMicroflowId === microflowId) {
+    const query = new URLSearchParams(window.location.search);
+    const microflowId = query.get("microflowId")?.trim();
+    const pageId = query.get("pageId")?.trim();
+    const workflowId = query.get("workflowId")?.trim();
+    const moduleId = query.get("moduleId")?.trim();
+    const panel = query.get("panel")?.trim();
+    const deepLinkKey = microflowId
+      ? `microflow:${microflowId}`
+      : pageId
+        ? `page:${pageId}`
+        : workflowId
+          ? `workflow:${workflowId}`
+          : moduleId && (panel === "domainModel" || panel === "security")
+            ? `${panel}:${moduleId}`
+            : undefined;
+    if (!deepLinkKey || openedDeepLinkKey === deepLinkKey) {
       return;
     }
 
-    if (!microflowResourcesById[microflowId]) {
+    if (microflowId) {
+      if (!microflowResourcesById[microflowId]) {
+        return;
+      }
+      requestOpenMicroflow(microflowId, "deeplink");
+      setOpenedDeepLinkKey(deepLinkKey);
       return;
     }
 
-    requestOpenMicroflow(microflowId, "deeplink");
-    setOpenedDeepLinkMicroflowId(microflowId);
-  }, [microflowResourcesById, openedDeepLinkMicroflowId]);
+    const pageModule = appAssetModules.find(module => module.pages?.some(page => page.id === pageId));
+    const page = pageModule?.pages?.find(item => item.id === pageId);
+    if (page && pageModule) {
+      requestOpenResource({
+        kind: "page",
+        resourceId: page.id,
+        moduleId: pageModule.moduleId,
+        title: page.name || page.qualifiedName,
+        qualifiedName: page.qualifiedName,
+        subtitle: page.description
+      }, "deeplink");
+      setOpenedDeepLinkKey(deepLinkKey);
+      return;
+    }
+
+    const workflowModule = appAssetModules.find(module => module.workflows?.some(workflow => workflow.id === workflowId));
+    const workflow = workflowModule?.workflows?.find(item => item.id === workflowId);
+    if (workflow && workflowModule) {
+      requestOpenResource({
+        kind: "workflow",
+        resourceId: workflow.id,
+        moduleId: workflowModule.moduleId,
+        title: workflow.name || workflow.qualifiedName,
+        qualifiedName: workflow.qualifiedName,
+        subtitle: workflow.description
+      }, "deeplink");
+      setOpenedDeepLinkKey(deepLinkKey);
+      return;
+    }
+
+    const module = appAssetModules.find(item => item.moduleId === moduleId);
+    if (module && moduleId && (panel === "domainModel" || panel === "security")) {
+      requestOpenResource({
+        kind: panel,
+        resourceId: moduleId,
+        moduleId,
+        title: panel === "domainModel" ? `${module.name} Domain Model` : `${module.name} Security`,
+        qualifiedName: module.qualifiedName
+      }, "deeplink");
+      setOpenedDeepLinkKey(deepLinkKey);
+    }
+  }, [appAssetModules, microflowResourcesById, openedDeepLinkKey]);
 
   const isMicroflow = activeWorkbenchTab?.kind === "microflow";
   const activeMicroflowId = isMicroflow
@@ -157,28 +215,56 @@ export function MendixStudioApp({
     setReferencesMicroflowId(microflowId);
   };
 
-  const activateMicroflowWorkbenchTab = (microflowId: string) => {
-    openMicroflowWorkbenchTab(microflowId);
-    useMendixStudioStore.getState().setSelected("microflow", microflowId);
-    useMendixStudioStore.getState().setSelectedExplorerNodeId(`microflow:${microflowId}`);
-    const resource = microflowResourcesById[microflowId];
-    if (resource?.moduleId) {
-      useMendixStudioStore.getState().setActiveModuleId(resource.moduleId);
+  const getExplorerNodeIdForResource = (target: PendingResourceActivation["target"]) => {
+    if (target.kind === "microflow") {
+      return `microflow:${target.resourceId}`;
+    }
+    if (target.kind === "domainModel") {
+      return `domain-model:${target.moduleId ?? target.resourceId}`;
+    }
+    if (target.kind === "security") {
+      return `security:${target.moduleId ?? target.resourceId}`;
+    }
+    return `${target.kind}:${target.resourceId}`;
+  };
+
+  const activateWorkbenchResource = (target: PendingResourceActivation["target"]) => {
+    if (target.kind === "microflow") {
+      const microflowId = target.resourceId;
+      openMicroflowWorkbenchTab(microflowId);
+      useMendixStudioStore.getState().setSelected("microflow", microflowId);
+      useMendixStudioStore.getState().setSelectedExplorerNodeId(getExplorerNodeIdForResource(target));
+      const resource = microflowResourcesById[microflowId];
+      if (resource?.moduleId) {
+        useMendixStudioStore.getState().setActiveModuleId(resource.moduleId);
+      }
+      return;
+    }
+
+    openResourceWorkbenchTab(target);
+    useMendixStudioStore.getState().setSelected(target.kind, target.resourceId);
+    useMendixStudioStore.getState().setSelectedExplorerNodeId(getExplorerNodeIdForResource(target));
+    if (target.moduleId) {
+      useMendixStudioStore.getState().setActiveModuleId(target.moduleId);
     }
   };
 
-  const requestOpenMicroflow = (microflowId: string, reason: PendingMicroflowActivation["reason"]) => {
-    const decision = resolveMicroflowActivation({
-      targetMicroflowId: microflowId,
+  const requestOpenResource = (target: PendingResourceActivation["target"], reason: ResourceActivationReason) => {
+    const decision = resolveWorkbenchResourceActivation({
+      target,
       activeWorkbenchTabId: useMendixStudioStore.getState().activeWorkbenchTabId,
       workbenchTabs: useMendixStudioStore.getState().workbenchTabs,
       dirtyByWorkbenchTabId: useMendixStudioStore.getState().dirtyByWorkbenchTabId,
     });
     if (decision.kind === "confirm-dirty") {
-      setPendingMicroflowActivation({ microflowId, reason });
+      setPendingResourceActivation({ target, reason });
       return;
     }
-    activateMicroflowWorkbenchTab(microflowId);
+    activateWorkbenchResource(target);
+  };
+
+  const requestOpenMicroflow = (microflowId: string, reason: ResourceActivationReason) => {
+    requestOpenResource({ kind: "microflow", resourceId: microflowId }, reason);
   };
 
   useEffect(() => {
@@ -221,14 +307,14 @@ export function MendixStudioApp({
       if (isEditable) {
         return;
       }
-      if (commandKey && event.key.toLowerCase() === "k" && activeMicroflowId) {
+      if (commandKey && event.key.toLowerCase() === "k" && hasActiveWorkbenchTab) {
         event.preventDefault();
         setCommandPaletteOpen(true);
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [activeMicroflowId]);
+  }, [hasActiveWorkbenchTab]);
 
   useEffect(() => {
     const hasDirtyTab = Object.values(dirtyByWorkbenchTabId).some(Boolean);
@@ -308,7 +394,15 @@ export function MendixStudioApp({
           mode={isMicroflow ? "microflowDesigner" : "normal"}
           defaultCollapsed={isMicroflow}
           activeTool={isMicroflow ? "toolbox" : "explorer"}
-          explorer={<AppExplorer adapterBundle={_resolvedBundle} appId={appId} workspaceId={workspaceId} refreshToken={microflowResourceRefreshToken} onViewMicroflowReferences={openReferencesPanel} onOpenMicroflow={microflowId => requestOpenMicroflow(microflowId, "explorer")} />}
+          explorer={<AppExplorer
+            adapterBundle={_resolvedBundle}
+            appId={appId}
+            workspaceId={workspaceId}
+            refreshToken={microflowResourceRefreshToken}
+            onViewMicroflowReferences={openReferencesPanel}
+            onOpenMicroflow={microflowId => requestOpenMicroflow(microflowId, "explorer")}
+            onOpenResource={resource => requestOpenResource(resource, "explorer")}
+          />}
         >
           <div
             style={{
@@ -396,9 +490,8 @@ export function MendixStudioApp({
                       readonly={Boolean(errorBusSnapshot.readonlyReason)}
                       onRefreshResourceList={() => setMicroflowResourceRefreshToken(token => token + 1)}
                       onCloseTab={() => closeWorkbenchTab(activeMicroflowTabId, { force: true })}
-                      onOpenMicroflow={openMicroflowWorkbenchTab}
+                      onOpenMicroflow={microflowId => requestOpenMicroflow(microflowId, "editor")}
                       onDirtyChange={dirty => markMicroflowDirty(activeMicroflowId, dirty)}
-                      readonly={Boolean(errorBusSnapshot.readonlyReason)}
                       onResourceUpdated={resource => {
                         const view = mapMicroflowResourceToStudioDefinitionView(resource);
                         upsertStudioMicroflow(view);
@@ -438,36 +531,9 @@ export function MendixStudioApp({
                   </div>
                 </div>
               ) : (
-                <>
-                  <div
-                    style={{
-                      display: "flex",
-                      flex: 1,
-                      minHeight: 0,
-                      overflow: "hidden"
-                    }}
-                  >
-                    {/* 只在 pageBuilder Tab 显示 Widget Toolbox */}
-                    {activeTab === "pageBuilder" && <WidgetToolbox />}
-
-                    {/* 中央画布 */}
-                    <PageDesignerCanvas />
-
-                    {/* 组件结构树 */}
-                    <WidgetStructurePanel />
-                  </div>
-
-                  {/* 底部 Errors + Debug Trace */}
-                  <BottomPanel />
-                </>
+                <ResourceReadonlyWorkbench tab={activeWorkbenchTab!} modules={appAssetModules} />
               )}
             </div>
-
-            {/* 右侧属性面板（微流模式下隐藏，MicroflowEditor 自带） */}
-            {hasActiveWorkbenchTab && !isMicroflow && <PropertiesPanel />}
-
-            {/* 最右侧 Inspector Rail（微流模式下隐藏） */}
-            {hasActiveWorkbenchTab && !isMicroflow && <RightInspectorRail />}
           </div>
         </ExplorerSplitLayout>
       </div>
@@ -489,12 +555,15 @@ export function MendixStudioApp({
         visible={commandPaletteOpen}
         status={microflowWorkbenchStatus}
         commandBus={commandBus}
+        modules={appAssetModules}
+        recentTabs={workbenchTabs}
+        onOpenResource={resource => requestOpenResource(resource, "recent")}
         onClose={() => setCommandPaletteOpen(false)}
       />
       <Modal
         title="切换前处理未保存更改"
-        visible={Boolean(pendingMicroflowActivation)}
-        onCancel={() => setPendingMicroflowActivation(undefined)}
+        visible={Boolean(pendingResourceActivation)}
+        onCancel={() => setPendingResourceActivation(undefined)}
         footer={
           <Space>
             <Button
@@ -502,16 +571,16 @@ export function MendixStudioApp({
               disabled={!activeMicroflowId || Boolean(activeMicroflowId && saveStateByMicroflowId[activeMicroflowId]?.saving)}
               loading={Boolean(activeMicroflowId && saveStateByMicroflowId[activeMicroflowId]?.saving)}
               onClick={() => {
-                if (!activeMicroflowId || !pendingMicroflowActivation) {
+                if (!activeMicroflowId || !pendingResourceActivation) {
                   return;
                 }
                 window.dispatchEvent(new CustomEvent("atlas:microflow-save-request", {
                   detail: {
                     microflowId: activeMicroflowId,
                     onSaved: () => {
-                      const nextTarget = pendingMicroflowActivation;
-                      setPendingMicroflowActivation(undefined);
-                      activateMicroflowWorkbenchTab(nextTarget.microflowId);
+                      const nextTarget = pendingResourceActivation;
+                      setPendingResourceActivation(undefined);
+                      activateWorkbenchResource(nextTarget.target);
                     },
                   },
                 }));
@@ -519,20 +588,20 @@ export function MendixStudioApp({
             >
               Save
             </Button>
-            <Button onClick={() => setPendingMicroflowActivation(undefined)}>
+            <Button onClick={() => setPendingResourceActivation(undefined)}>
               Cancel
             </Button>
             <Button
               type="danger"
               onClick={() => {
                 const currentActiveTabId = useMendixStudioStore.getState().activeWorkbenchTabId;
-                const nextTarget = pendingMicroflowActivation;
-                setPendingMicroflowActivation(undefined);
+                const nextTarget = pendingResourceActivation;
+                setPendingResourceActivation(undefined);
                 if (currentActiveTabId) {
                   closeWorkbenchTab(currentActiveTabId, { force: true });
                 }
                 if (nextTarget) {
-                  activateMicroflowWorkbenchTab(nextTarget.microflowId);
+                  activateWorkbenchResource(nextTarget.target);
                 }
               }}
             >
@@ -543,10 +612,12 @@ export function MendixStudioApp({
       >
         <Space vertical align="start" spacing={8}>
           <Text strong>{activeWorkbenchTab?.title ?? "当前微流"}</Text>
-          <Text type="tertiary">当前微流存在未保存更改。为避免切换后丢失本地草稿，请先保存，或显式放弃更改后再打开目标微流。</Text>
-          {pendingMicroflowActivation ? (
+          <Text type="tertiary">当前微流存在未保存更改。为避免切换后丢失本地草稿，请先保存，或显式放弃更改后再打开目标资源。</Text>
+          {pendingResourceActivation ? (
             <Text type="tertiary">
-              目标微流：{microflowResourcesById[pendingMicroflowActivation.microflowId]?.displayName ?? pendingMicroflowActivation.microflowId}
+              目标资源：{pendingResourceActivation.target.kind === "microflow"
+                ? microflowResourcesById[pendingResourceActivation.target.resourceId]?.displayName ?? pendingResourceActivation.target.resourceId
+                : "title" in pendingResourceActivation.target ? pendingResourceActivation.target.title : pendingResourceActivation.target.resourceId}
             </Text>
           ) : null}
         </Space>

@@ -11,7 +11,7 @@ function getTabType(tab: StudioWorkbenchTab): { label: string; className: string
       return {
         label: "P",
         className: "studio-workbench-tab__type-icon--page",
-        explorerNodeId: tab.resourceId
+        explorerNodeId: tab.resourceId ? `page:${tab.resourceId}` : undefined
       };
     case "microflow":
       return {
@@ -23,7 +23,19 @@ function getTabType(tab: StudioWorkbenchTab): { label: string; className: string
       return {
         label: "W",
         className: "studio-workbench-tab__type-icon--wf",
-        explorerNodeId: tab.resourceId
+        explorerNodeId: tab.resourceId ? `workflow:${tab.resourceId}` : undefined
+      };
+    case "domainModel":
+      return {
+        label: "E",
+        className: "studio-workbench-tab__type-icon--other",
+        explorerNodeId: tab.moduleId ? `domain-model:${tab.moduleId}` : undefined
+      };
+    case "security":
+      return {
+        label: "S",
+        className: "studio-workbench-tab__type-icon--other",
+        explorerNodeId: tab.moduleId ? `security:${tab.moduleId}` : undefined
       };
     default:
       return {

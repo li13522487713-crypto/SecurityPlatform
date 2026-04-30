@@ -48,6 +48,7 @@ function getIconColor(icon?: string): string {
     case "M": return "#389e0d";
     case "W": return "#d46b08";
     case "E": return "#722ed1";
+    case "S": return "#cf1322";
     case "A": return "#08979c";
     default: return "#6b7280";
   }
@@ -59,6 +60,7 @@ function getIconBg(icon?: string): string {
     case "M": return "#f6ffed";
     case "W": return "#fff7e6";
     case "E": return "#f9f0ff";
+    case "S": return "#fff1f0";
     case "A": return "#e6fffb";
     default: return "#f0f2f5";
   }

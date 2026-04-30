@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppExplorer } from "./app-explorer";
 import { useMendixStudioStore } from "../store";
 import type { MicroflowAdapterBundle } from "../microflow/adapter/microflow-adapter-factory";
-import type { MicroflowResource } from "../microflow/resource/resource-types";
+import type { MicroflowModuleAsset, MicroflowResource } from "../microflow/resource/resource-types";
 
 vi.mock("@atlas/microflow", () => ({
   sampleOrderProcessingMicroflow: {
@@ -83,7 +83,7 @@ function createResource(input: Partial<MicroflowResource> & Pick<MicroflowResour
 
 function createBundle(
   listMicroflows: MicroflowAdapterBundle["resourceAdapter"]["listMicroflows"],
-  modules: Array<{ moduleId: string; name?: string; qualifiedName?: string }> = [
+  modules: MicroflowModuleAsset[] = [
     { moduleId: "mod_procurement", name: "Procurement", qualifiedName: "Procurement" },
   ],
 ): MicroflowAdapterBundle {
@@ -214,15 +214,15 @@ describe("AppExplorer Microflows assets", () => {
     render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" appId="app-1" />);
 
     expect(await screen.findByText("Approve Purchase")).toBeTruthy();
-    expect(screen.getByText("Reject Purchase")).toBeTruthy();
+    expect(screen.getAllByText("Reject Purchase").length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText("搜索（⌘K）"), { target: { value: "Reject" } });
     await waitFor(() => expect(screen.queryByText("Approve Purchase")).toBeNull());
-    expect(screen.getByText("Reject Purchase")).toBeTruthy();
+    expect(screen.getAllByText("Reject Purchase").length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText("搜索（⌘K）"), { target: { value: "" } });
     await waitFor(() => expect(screen.getByText("Approve Purchase")).toBeTruthy());
-    expect(screen.getByText("Reject Purchase")).toBeTruthy();
+    expect(screen.getAllByText("Reject Purchase").length).toBeGreaterThan(0);
   });
 
   it("clicking a real microflow opens a microflowId workbench tab without using the sample editor tab", async () => {
@@ -274,6 +274,78 @@ describe("AppExplorer Microflows assets", () => {
     expect(listMicroflows).toHaveBeenCalledTimes(2);
     expect(useMendixStudioStore.getState().microflowIdsByModuleId.mod_procurement).toEqual(["mf-2"]);
     expect(useMendixStudioStore.getState().microflowResourcesById["mf-1"]).toBeUndefined();
+  });
+
+  it("renders real page, workflow, domain, security summaries and opens them through the resource callback", async () => {
+    const onOpenResource = vi.fn();
+    const bundle = createBundle(
+      vi.fn(async () => ({ items: [], total: 0, pageIndex: 1, pageSize: 100 })),
+      [{
+        moduleId: "mod_procurement",
+        name: "Procurement",
+        qualifiedName: "Procurement",
+        pages: [{
+          id: "page-order",
+          name: "Order Edit",
+          qualifiedName: "Procurement.Order_Edit",
+          moduleName: "Procurement",
+          parameterCount: 1,
+        }],
+        workflows: [{
+          id: "wf-order",
+          name: "Order Approval",
+          qualifiedName: "Procurement.OrderApproval",
+          moduleName: "Procurement",
+          contextEntityQualifiedName: "Procurement.Order",
+        }],
+        entities: [{
+          id: "entity-order",
+          name: "Order",
+          qualifiedName: "Procurement.Order",
+          moduleName: "Procurement",
+          attributeCount: 3,
+          associationCount: 1,
+          isPersistable: true,
+        }],
+        security: {
+          moduleId: "mod_procurement",
+          moduleName: "Procurement",
+          entityAccessCount: 1,
+          readonly: true,
+        },
+      }],
+    );
+
+    render(<AppExplorer adapterBundle={bundle} workspaceId="workspace-1" appId="app-1" onOpenResource={onOpenResource} />);
+
+    fireEvent.click(await screen.findByText("Order Edit"));
+    expect(onOpenResource).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "page",
+      resourceId: "page-order",
+      moduleId: "mod_procurement",
+    }));
+
+    fireEvent.click(screen.getByText("Order Approval"));
+    expect(onOpenResource).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "workflow",
+      resourceId: "wf-order",
+      moduleId: "mod_procurement",
+    }));
+
+    fireEvent.click(screen.getByText("Domain Model"));
+    expect(onOpenResource).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "domainModel",
+      resourceId: "mod_procurement",
+      moduleId: "mod_procurement",
+    }));
+
+    fireEvent.click(screen.getByText("Security"));
+    expect(onOpenResource).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "security",
+      resourceId: "mod_procurement",
+      moduleId: "mod_procurement",
+    }));
+    expect(screen.queryByText(/not connected in this release/u)).toBeNull();
   });
 
   it("opens the references panel from the microflow context menu", async () => {

@@ -2387,6 +2387,13 @@ export function formatStudioTemplate(template: string, params: Record<string, st
   - `MicroflowRunSessionDto` 新增 `persistedAt`、`finalized`、`traceFrameCount`、`hasHydratedTrace`，用于工作台判断运行会话是否已完成持久化与 trace hydration。
   - `MicroflowDebugSession` / 前端 `MicroflowDebugSessionDto` 额外暴露 `state`、`availableCommands`、`lastUpdatedAt`，供 step-debug 面板与外置工作台统一消费。
   - `GET /api/v1/microflows/runs/{runId}`、`GET /api/v1/microflows/runs/{runId}/trace`、`GET /api/v1/microflows/debug-sessions/{sessionId}` 必须继续执行 workspace / tenant / user ownership 校验，禁止仅按主键直读。
+- Microflow App Explorer P1 资源摘要契约：
+  - `GET /api/v1/microflow-apps/{appId}` 与 `GET /api/v1/microflow-apps/{appId}/modules` 的 `modules[]` 除 `moduleId/name/qualifiedName/description` 外，新增只读摘要字段 `pages[]`、`workflows[]`、`entities[]`、`security`。
+  - `pages[]` 来自 metadata catalog 的 `MetadataPageRefDto`，字段为 `id/name/qualifiedName/moduleName/description/parameterCount`；仅用于 Explorer 展示、搜索和只读 Page tab，不表示 Page 编辑保存 API 已可用。
+  - `workflows[]` 来自 metadata catalog 的 `MetadataWorkflowRefDto`，字段为 `id/name/qualifiedName/moduleName/contextEntityQualifiedName/description`；仅用于 Explorer 展示、搜索和只读 Workflow tab。
+  - `entities[]` 来自 metadata catalog 的 `MetadataEntityDto`，字段为 `id/name/qualifiedName/moduleName/attributeCount/associationCount/isPersistable`；用于 Domain Model 只读摘要。
+  - `security` 为只读摘要 `{ moduleId, moduleName, entityAccessCount, readonly }`；P1 不新增 Security 写接口，也不接入 presence / soft lock / lease。
+  - 前端 deep link 支持 `?microflowId=`、`?pageId=`、`?workflowId=`、`?moduleId=&panel=domainModel|security`；同时存在时优先级为 `microflowId > pageId > workflowId > panel`。
 - P0-7 补齐 Microflow 资源 API：
   - `POST /api/v1/microflows/{id}/unpublish` 取消发布。请求体 `UnpublishMicroflowRequestDto { reason?: string; force?: boolean }`。资源 `publishStatus` 置为 `unpublished`，`Status` 重置为 `draft`，`LatestPublishedVersion` 清空；历史 `MicroflowPublishSnapshot` / `MicroflowVersion` 行保持不可变。当 `force=false` 且仍有 active 引用时返回 409 `MICROFLOW_REFERENCE_BLOCKED`；尚未发布时返回 409 `MICROFLOW_PUBLISH_BLOCKED`。
   - `GET /api/v1/microflows/{id}/callers` 列出"谁调用了我"，与 `GET .../references` 同语义（target 维度）。

@@ -3419,3 +3419,19 @@ X-Trace-Id: {{traceId}}
   "inputs": {},
   "debugSessionId": "{{debugSessionId}}"
 }
+
+### App Explorer — get Mendix Studio app assets
+# modules[] includes read-only pages/workflows/entities/security summaries for P1 explorer tabs.
+GET {{host}}/api/v1/microflow-apps/{{appId}}?workspaceId={{workspaceId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### App Explorer — list Mendix Studio app modules
+# Same module summary shape as GET /microflow-apps/{appId}. No Page/Workflow write APIs are introduced by this endpoint.
+GET {{host}}/api/v1/microflow-apps/{{appId}}/modules?workspaceId={{workspaceId}}
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}

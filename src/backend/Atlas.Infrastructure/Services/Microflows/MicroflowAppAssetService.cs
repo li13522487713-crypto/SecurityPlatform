@@ -53,13 +53,7 @@ public sealed class MicroflowAppAssetService : IMicroflowAppAssetService
             cancellationToken);
 
         var modules = catalog.Modules
-            .Select(module => new MicroflowModuleAssetDto
-            {
-                ModuleId = string.IsNullOrWhiteSpace(module.Id) ? module.Name : module.Id,
-                Name = string.IsNullOrWhiteSpace(module.Name) ? module.Id : module.Name,
-                QualifiedName = string.IsNullOrWhiteSpace(module.QualifiedName) ? module.Name : module.QualifiedName,
-                Description = module.Description
-            })
+            .Select(module => CreateModuleAsset(module, catalog))
             .Where(module => !string.IsNullOrWhiteSpace(module.ModuleId))
             .GroupBy(module => module.ModuleId, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
@@ -69,14 +63,100 @@ public sealed class MicroflowAppAssetService : IMicroflowAppAssetService
             ? modules
             : new[]
             {
-                new MicroflowModuleAssetDto
-                {
-                    ModuleId = "main",
-                    Name = "Main",
-                    QualifiedName = "Main",
-                    Description = "Default module"
-                }
+                CreateFallbackModuleAsset(catalog)
             };
+    }
+
+    private static MicroflowModuleAssetDto CreateModuleAsset(MetadataModuleDto module, MicroflowMetadataCatalogDto catalog)
+    {
+        var moduleId = string.IsNullOrWhiteSpace(module.Id) ? module.Name : module.Id;
+        var moduleName = string.IsNullOrWhiteSpace(module.Name) ? module.Id : module.Name;
+        var qualifiedName = string.IsNullOrWhiteSpace(module.QualifiedName) ? moduleName : module.QualifiedName;
+
+        var pages = catalog.Pages
+            .Where(page => BelongsToModule(page.ModuleName, moduleId, moduleName, qualifiedName))
+            .Select(page => new MicroflowPageAssetSummaryDto
+            {
+                Id = page.Id,
+                Name = page.Name,
+                QualifiedName = page.QualifiedName,
+                ModuleName = page.ModuleName,
+                Description = page.Description,
+                ParameterCount = page.Parameters.Count
+            })
+            .OrderBy(page => page.QualifiedName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var workflows = catalog.Workflows
+            .Where(workflow => BelongsToModule(workflow.ModuleName, moduleId, moduleName, qualifiedName))
+            .Select(workflow => new MicroflowWorkflowAssetSummaryDto
+            {
+                Id = workflow.Id,
+                Name = workflow.Name,
+                QualifiedName = workflow.QualifiedName,
+                ModuleName = workflow.ModuleName,
+                ContextEntityQualifiedName = workflow.ContextEntityQualifiedName,
+                Description = workflow.Description
+            })
+            .OrderBy(workflow => workflow.QualifiedName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var entities = catalog.Entities
+            .Where(entity => BelongsToModule(entity.ModuleId, moduleId, moduleName, qualifiedName) || BelongsToModule(entity.ModuleName, moduleId, moduleName, qualifiedName))
+            .Select(entity => new MicroflowDomainEntitySummaryDto
+            {
+                Id = entity.Id,
+                Name = entity.Name,
+                QualifiedName = entity.QualifiedName,
+                ModuleName = entity.ModuleName,
+                AttributeCount = entity.Attributes.Count,
+                AssociationCount = entity.Associations.Count,
+                IsPersistable = entity.IsPersistable
+            })
+            .OrderBy(entity => entity.QualifiedName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new MicroflowModuleAssetDto
+        {
+            ModuleId = moduleId,
+            Name = moduleName,
+            QualifiedName = qualifiedName,
+            Description = module.Description,
+            Pages = pages,
+            Workflows = workflows,
+            Entities = entities,
+            Security = new MicroflowSecurityAssetSummaryDto
+            {
+                ModuleId = moduleId,
+                ModuleName = moduleName,
+                EntityAccessCount = entities.Count(entity => entity.IsPersistable),
+                Readonly = true
+            }
+        };
+    }
+
+    private static MicroflowModuleAssetDto CreateFallbackModuleAsset(MicroflowMetadataCatalogDto catalog)
+    {
+        var module = new MetadataModuleDto
+        {
+            Id = "main",
+            Name = "Main",
+            QualifiedName = "Main",
+            Description = "Default module"
+        };
+        return CreateModuleAsset(module, catalog);
+    }
+
+    private static bool BelongsToModule(string? candidate, params string[] moduleAliases)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return false;
+        }
+
+        return moduleAliases.Any(alias =>
+            !string.IsNullOrWhiteSpace(alias) &&
+            string.Equals(candidate, alias, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task<MicroflowAppAssetDescriptor> LoadAppAssetAsync(string appId, string workspaceId, CancellationToken cancellationToken)

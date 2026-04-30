@@ -82,4 +82,25 @@ describe("MicroflowWorkbenchCommandBus", () => {
       errorMessage: "run failed",
     });
   });
+
+  it("deduplicates run commands while the same microflow is already running", async () => {
+    const handle = createHandle();
+    let resolveRun: (() => void) | undefined;
+    handle.runTest.mockImplementationOnce(() => new Promise<void>(resolve => {
+      resolveRun = resolve;
+    }));
+    const bus = new MicroflowWorkbenchCommandBus();
+    bus.bindContext({
+      microflowId: "mf-1",
+      tabId: "microflow:mf-1",
+      getEditorHandle: () => handle as any,
+    });
+
+    const first = bus.execute("microflow.run");
+    await bus.execute("microflow.run");
+    resolveRun?.();
+    await first;
+
+    expect(handle.runTest).toHaveBeenCalledTimes(1);
+  });
 });

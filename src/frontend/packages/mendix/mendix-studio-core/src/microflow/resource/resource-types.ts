@@ -137,6 +137,45 @@ export interface MicroflowModuleAsset {
   name: string;
   qualifiedName: string;
   description?: string;
+  pages?: MicroflowPageAssetSummary[];
+  workflows?: MicroflowWorkflowAssetSummary[];
+  entities?: MicroflowDomainEntitySummary[];
+  security?: MicroflowSecurityAssetSummary;
+}
+
+export interface MicroflowPageAssetSummary {
+  id: string;
+  name: string;
+  qualifiedName: string;
+  moduleName: string;
+  description?: string;
+  parameterCount: number;
+}
+
+export interface MicroflowWorkflowAssetSummary {
+  id: string;
+  name: string;
+  qualifiedName: string;
+  moduleName: string;
+  contextEntityQualifiedName?: string;
+  description?: string;
+}
+
+export interface MicroflowDomainEntitySummary {
+  id: string;
+  name: string;
+  qualifiedName: string;
+  moduleName: string;
+  attributeCount: number;
+  associationCount: number;
+  isPersistable: boolean;
+}
+
+export interface MicroflowSecurityAssetSummary {
+  moduleId: string;
+  moduleName: string;
+  entityAccessCount: number;
+  readonly: boolean;
 }
 
 export interface MicroflowAppAsset {

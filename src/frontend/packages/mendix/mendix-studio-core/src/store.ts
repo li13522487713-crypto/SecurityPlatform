@@ -10,6 +10,7 @@ import { EMPTY_APP_SCHEMA } from "./empty-app";
 import type { StudioMicroflowDefinitionView } from "./microflow/studio/studio-microflow-types";
 import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
 import type { MicroflowResource } from "./microflow/resource/resource-types";
+import type { MicroflowModuleAsset } from "./microflow/resource/resource-types";
 import type { MicroflowApiError } from "./microflow/contracts/api/api-envelope";
 import type { MicroflowFolder } from "./microflow/folders/microflow-folder-types";
 
@@ -37,6 +38,7 @@ export type StudioWorkbenchTabKind =
 export interface StudioWorkbenchTab {
   id: string;
   kind: StudioWorkbenchTabKind;
+  resourceKind?: StudioWorkbenchTabKind;
   title: string;
   subtitle?: string;
   moduleId?: string;
@@ -51,6 +53,16 @@ export interface StudioWorkbenchTab {
   openedAt: string;
   updatedAt?: string;
   historyKey?: string;
+}
+
+export interface OpenWorkbenchResourceInput {
+  kind: Exclude<StudioWorkbenchTabKind, "microflow">;
+  resourceId: string;
+  title: string;
+  moduleId?: string;
+  qualifiedName?: string;
+  subtitle?: string;
+  status?: string;
 }
 
 export interface MicroflowValidationSummary {
@@ -148,6 +160,7 @@ type StudioState = {
   appId?: string;
 
   /** 微流资产索引（仅存放展示层视图，不存 MicroflowAuthoringSchema） */
+  appAssetModules: MicroflowModuleAsset[];
   activeModuleId?: string;
   activeMicroflowId?: string;
   microflowResourcesById: Record<string, StudioMicroflowDefinitionView>;
@@ -180,10 +193,12 @@ type StudioState = {
   setMicroflowImmersive: (immersive: boolean) => void;
   /** Studio 上下文 action */
   setStudioContext: (input: { workspaceId?: string; appId?: string }) => void;
+  setAppAssetModules: (modules: MicroflowModuleAsset[]) => void;
   setActiveModuleId: (moduleId?: string) => void;
   setActiveMicroflowId: (microflowId?: string) => void;
   setActiveWorkbenchTab: (tabId: string) => void;
   openMicroflowWorkbenchTab: (microflowId: string) => void;
+  openResourceWorkbenchTab: (input: OpenWorkbenchResourceInput) => void;
   closeWorkbenchTab: (tabId: string, options?: { force?: boolean }) => void;
   cancelWorkbenchTabCloseGuard: () => void;
   renameMicroflowWorkbenchTab: (microflowId: string, title: string, subtitle?: string) => void;
@@ -259,6 +274,8 @@ function getStudioTabForWorkbenchKind(kind: StudioWorkbenchTabKind): MendixStudi
       return "workflowDesigner";
     case "domainModel":
       return "domainModel";
+    case "security":
+      return "securityEditor";
     default:
       return "pageBuilder";
   }
@@ -266,6 +283,10 @@ function getStudioTabForWorkbenchKind(kind: StudioWorkbenchTabKind): MendixStudi
 
 function getMicroflowWorkbenchTabId(microflowId: string): string {
   return `microflow:${microflowId}`;
+}
+
+export function getResourceWorkbenchTabId(kind: StudioWorkbenchTabKind, resourceId: string): string {
+  return `${kind}:${resourceId}`;
 }
 
 function ensureMicroflowSaveState(
@@ -307,6 +328,7 @@ function createMicroflowWorkbenchTab(resource: StudioMicroflowDefinitionView): S
   return {
     id: tabId,
     kind: "microflow",
+    resourceKind: "microflow",
     title: resource.displayName || resource.name,
     subtitle: resource.qualifiedName,
     moduleId: resource.moduleId,
@@ -317,6 +339,35 @@ function createMicroflowWorkbenchTab(resource: StudioMicroflowDefinitionView): S
     publishStatus: resource.publishStatus,
     closable: true,
     icon: "M",
+    openedAt: now,
+    updatedAt: now,
+    historyKey: tabId
+  };
+}
+
+function createResourceWorkbenchTab(input: OpenWorkbenchResourceInput): StudioWorkbenchTab {
+  const tabId = getResourceWorkbenchTabId(input.kind, input.resourceId);
+  const now = new Date().toISOString();
+  const iconByKind: Partial<Record<StudioWorkbenchTabKind, string>> = {
+    page: "P",
+    workflow: "W",
+    domainModel: "E",
+    security: "S",
+    navigation: "N",
+    other: "O"
+  };
+  return {
+    id: tabId,
+    kind: input.kind,
+    resourceKind: input.kind,
+    title: input.title,
+    subtitle: input.subtitle ?? input.qualifiedName,
+    moduleId: input.moduleId,
+    resourceId: input.resourceId,
+    qualifiedName: input.qualifiedName,
+    status: input.status,
+    closable: true,
+    icon: iconByKind[input.kind] ?? "O",
     openedAt: now,
     updatedAt: now,
     historyKey: tabId
@@ -386,6 +437,7 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   microflowSchema: INITIAL_MICROFLOW_SCHEMA,
   microflowImmersive: false,
 
+  appAssetModules: [],
   microflowResourcesById: {},
   microflowIdsByModuleId: {},
   foldersByModuleId: {},
@@ -421,6 +473,7 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   setMicroflowSchema: microflowSchema => set({ microflowSchema }),
   setMicroflowImmersive: microflowImmersive => set({ microflowImmersive }),
   setStudioContext: ({ workspaceId, appId }) => set({ workspaceId, appId }),
+  setAppAssetModules: appAssetModules => set({ appAssetModules }),
   setActiveModuleId: activeModuleId => set({ activeModuleId }),
   setActiveMicroflowId: activeMicroflowId => set({ activeMicroflowId }),
 
@@ -469,6 +522,36 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
       activeMicroflowId: microflowId,
       activeModuleId: resource.moduleId,
       lastActiveMicroflowTabId: tabId
+    });
+  },
+
+  openResourceWorkbenchTab: input => {
+    const tabId = getResourceWorkbenchTabId(input.kind, input.resourceId);
+    const existingTab = get().workbenchTabs.find(tab => tab.id === tabId);
+    const nextTabs = existingTab
+      ? get().workbenchTabs.map(tab =>
+          tab.id === tabId
+            ? {
+                ...tab,
+                title: input.title,
+                subtitle: input.subtitle ?? input.qualifiedName ?? tab.subtitle,
+                moduleId: input.moduleId ?? tab.moduleId,
+                resourceId: input.resourceId,
+                qualifiedName: input.qualifiedName ?? tab.qualifiedName,
+                status: input.status ?? tab.status,
+                updatedAt: new Date().toISOString()
+              }
+            : tab
+        )
+      : [...get().workbenchTabs, createResourceWorkbenchTab(input)];
+
+    set({
+      workbenchTabs: nextTabs,
+      activeWorkbenchTabId: tabId,
+      activeTabId: tabId,
+      activeTab: getStudioTabForWorkbenchKind(input.kind),
+      activeMicroflowId: undefined,
+      activeModuleId: input.moduleId ?? get().activeModuleId
     });
   },
 

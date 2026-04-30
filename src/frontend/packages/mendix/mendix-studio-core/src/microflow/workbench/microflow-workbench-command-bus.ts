@@ -108,6 +108,11 @@ export class MicroflowWorkbenchCommandBus {
       throw new Error(`Command ${command} requires an active microflow context.`);
     }
 
+    const latest = this.snapshot.latestExecutionByCommand[command];
+    if ((command === "microflow.run" || command === "microflow.debugRun") && latest?.state === "running" && latest.microflowId === microflowId) {
+      return;
+    }
+
     const execution = createExecution(command, microflowId, tabId);
     this.publish({
       ...execution,

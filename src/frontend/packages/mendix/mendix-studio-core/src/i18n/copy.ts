@@ -16,6 +16,72 @@ export interface MendixStudioCopy {
     readonly emptyWorkbenchTitle: string;
     readonly emptyWorkbenchDescription: string;
   };
+  readonly readonlyResource: {
+    readonly pageTitle: string;
+    readonly workflowTitle: string;
+    readonly domainModelTitle: string;
+    readonly securityTitle: string;
+    readonly readonlyBadge: string;
+    readonly moduleLabel: string;
+    readonly qualifiedNameLabel: string;
+    readonly descriptionLabel: string;
+    readonly parametersLabel: string;
+    readonly contextEntityLabel: string;
+    readonly entitiesLabel: string;
+    readonly attributesLabel: string;
+    readonly associationsLabel: string;
+    readonly entityAccessLabel: string;
+    readonly emptyTitle: string;
+    readonly emptyDescription: string;
+  };
+  readonly explorer: {
+    readonly domainModel: string;
+    readonly pages: string;
+    readonly workflows: string;
+    readonly security: string;
+    readonly recentlyOpened: string;
+    readonly searchResults: string;
+    readonly noDomainEntities: string;
+    readonly noPages: string;
+    readonly noWorkflows: string;
+    readonly noMatchingResources: string;
+    readonly entityAccessRules: (count: number) => string;
+    readonly securityReadonly: string;
+    readonly securityEditable: string;
+  };
+  readonly commandPalette: {
+    readonly title: string;
+    readonly searchPlaceholder: string;
+    readonly saved: string;
+    readonly dirty: string;
+    readonly running: string;
+    readonly idle: string;
+    readonly errors: (count: number) => string;
+    readonly noCommandsTitle: string;
+    readonly noCommandsDescription: string;
+    readonly save: string;
+    readonly validate: string;
+    readonly run: string;
+    readonly debugRun: string;
+    readonly publish: string;
+    readonly openProblems: string;
+    readonly openDebug: string;
+    readonly openConsole: string;
+    readonly openInfo: string;
+    readonly openReferences: string;
+    readonly toggleFocusMode: string;
+    readonly resetLayout: string;
+    readonly undo: string;
+    readonly redo: string;
+    readonly recentHint: string;
+    readonly domainHint: string;
+    readonly securityHint: string;
+    readonly pageHint: string;
+    readonly workflowHint: string;
+    readonly openResource: (title: string) => string;
+    readonly openDomainModel: (moduleName: string) => string;
+    readonly openSecurity: (moduleName: string) => string;
+  };
   readonly index: {
     readonly workspaceLabel: string;
     readonly sampleAppTitle: string;
@@ -87,6 +153,72 @@ const zhCN: MendixStudioCopy = {
     emptyWorkbenchTitle: "请选择一个资源开始编辑",
     emptyWorkbenchDescription: "从左侧 App Explorer 打开微流，或通过 URL deep link 进入指定微流。工作台不会再自动创建示例 Page / Workflow Tab。",
   },
+  readonlyResource: {
+    pageTitle: "页面资源",
+    workflowTitle: "工作流资源",
+    domainModelTitle: "领域模型",
+    securityTitle: "安全设置",
+    readonlyBadge: "只读",
+    moduleLabel: "模块",
+    qualifiedNameLabel: "限定名",
+    descriptionLabel: "说明",
+    parametersLabel: "参数",
+    contextEntityLabel: "上下文实体",
+    entitiesLabel: "实体",
+    attributesLabel: "属性",
+    associationsLabel: "关联",
+    entityAccessLabel: "实体访问",
+    emptyTitle: "未找到资源摘要",
+    emptyDescription: "该资源可能尚未进入 metadata catalog，或当前工作区不可见。",
+  },
+  explorer: {
+    domainModel: "Domain Model",
+    pages: "Pages",
+    workflows: "Workflows",
+    security: "Security",
+    recentlyOpened: "Recently Opened",
+    searchResults: "Search Results",
+    noDomainEntities: "当前模块暂无领域实体",
+    noPages: "当前模块暂无页面",
+    noWorkflows: "当前模块暂无工作流",
+    noMatchingResources: "没有匹配的资源",
+    entityAccessRules: count => `${count} 条实体访问规则`,
+    securityReadonly: "安全元数据为只读",
+    securityEditable: "安全元数据可编辑",
+  },
+  commandPalette: {
+    title: "工作台命令面板",
+    searchPlaceholder: "搜索命令或资源",
+    saved: "已保存",
+    dirty: "有改动",
+    running: "运行中",
+    idle: "空闲",
+    errors: count => `${count} 个错误`,
+    noCommandsTitle: "没有匹配命令",
+    noCommandsDescription: "请尝试其他搜索关键词。",
+    save: "保存",
+    validate: "校验",
+    run: "运行",
+    debugRun: "调试运行",
+    publish: "发布",
+    openProblems: "打开 Problems",
+    openDebug: "打开 Debug",
+    openConsole: "打开 Console",
+    openInfo: "打开 Info",
+    openReferences: "打开 References",
+    toggleFocusMode: "切换专注模式",
+    resetLayout: "恢复默认布局",
+    undo: "撤销",
+    redo: "重做",
+    recentHint: "最近打开",
+    domainHint: "领域模型",
+    securityHint: "安全",
+    pageHint: "页面",
+    workflowHint: "工作流",
+    openResource: title => `打开 ${title}`,
+    openDomainModel: moduleName => `打开 ${moduleName} 领域模型`,
+    openSecurity: moduleName => `打开 ${moduleName} 安全设置`,
+  },
   index: {
     workspaceLabel: "工作区",
     sampleAppTitle: "Procurement Approval（示例）",
@@ -157,6 +289,72 @@ const enUS: MendixStudioCopy = {
       "No fake resource will be created. Refresh resources or reopen a real microflow from App Explorer.",
     emptyWorkbenchTitle: "Select a resource to start editing",
     emptyWorkbenchDescription: "Open a microflow from App Explorer, or use a URL deep link. The workbench no longer creates sample Page / Workflow tabs automatically.",
+  },
+  readonlyResource: {
+    pageTitle: "Page resource",
+    workflowTitle: "Workflow resource",
+    domainModelTitle: "Domain model",
+    securityTitle: "Security",
+    readonlyBadge: "Read-only",
+    moduleLabel: "Module",
+    qualifiedNameLabel: "Qualified name",
+    descriptionLabel: "Description",
+    parametersLabel: "Parameters",
+    contextEntityLabel: "Context entity",
+    entitiesLabel: "Entities",
+    attributesLabel: "Attributes",
+    associationsLabel: "Associations",
+    entityAccessLabel: "Entity access",
+    emptyTitle: "Resource summary not found",
+    emptyDescription: "This resource is not in the metadata catalog yet, or is not visible in the current workspace.",
+  },
+  explorer: {
+    domainModel: "Domain Model",
+    pages: "Pages",
+    workflows: "Workflows",
+    security: "Security",
+    recentlyOpened: "Recently Opened",
+    searchResults: "Search Results",
+    noDomainEntities: "No domain entities in this module",
+    noPages: "No pages in this module",
+    noWorkflows: "No workflows in this module",
+    noMatchingResources: "No matching resources",
+    entityAccessRules: count => `${count} entity access rules`,
+    securityReadonly: "Security metadata is read-only",
+    securityEditable: "Security metadata is editable",
+  },
+  commandPalette: {
+    title: "Workbench Command Palette",
+    searchPlaceholder: "Search commands or resources",
+    saved: "Saved",
+    dirty: "Dirty",
+    running: "Running",
+    idle: "Idle",
+    errors: count => `${count} errors`,
+    noCommandsTitle: "No commands",
+    noCommandsDescription: "Try a different search keyword.",
+    save: "Save",
+    validate: "Validate",
+    run: "Run",
+    debugRun: "Debug Run",
+    publish: "Publish",
+    openProblems: "Open Problems",
+    openDebug: "Open Debug",
+    openConsole: "Open Console",
+    openInfo: "Open Info",
+    openReferences: "Open References",
+    toggleFocusMode: "Toggle Focus Mode",
+    resetLayout: "Reset Layout",
+    undo: "Undo",
+    redo: "Redo",
+    recentHint: "Recent",
+    domainHint: "Domain",
+    securityHint: "Security",
+    pageHint: "Page",
+    workflowHint: "Workflow",
+    openResource: title => `Open ${title}`,
+    openDomainModel: moduleName => `Open ${moduleName} Domain Model`,
+    openSecurity: moduleName => `Open ${moduleName} Security`,
   },
   index: {
     workspaceLabel: "Workspace",

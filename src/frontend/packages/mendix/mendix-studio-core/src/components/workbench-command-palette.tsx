@@ -3,6 +3,9 @@ import { Button, Empty, Input, Modal, Space, Tag, Typography } from "@douyinfe/s
 
 import type { MicroflowWorkbenchCommandBus } from "../microflow/workbench/microflow-workbench-command-bus";
 import type { MicroflowWorkbenchStatus } from "@atlas/microflow";
+import type { MicroflowModuleAsset } from "../microflow/resource";
+import type { OpenWorkbenchResourceInput, StudioWorkbenchTab } from "../store";
+import { getMendixStudioCopy } from "../i18n/copy";
 
 const { Text } = Typography;
 
@@ -10,6 +13,9 @@ interface WorkbenchCommandPaletteProps {
   visible: boolean;
   status?: MicroflowWorkbenchStatus | null;
   commandBus: MicroflowWorkbenchCommandBus;
+  modules?: MicroflowModuleAsset[];
+  recentTabs?: StudioWorkbenchTab[];
+  onOpenResource?: (resource: OpenWorkbenchResourceInput) => void;
   onClose: () => void;
 }
 
@@ -21,99 +27,191 @@ interface WorkbenchPaletteCommand {
   run: () => void | Promise<void>;
 }
 
-export function WorkbenchCommandPalette({ visible, status, commandBus, onClose }: WorkbenchCommandPaletteProps) {
+export function WorkbenchCommandPalette({ visible, status, commandBus, modules = [], recentTabs = [], onOpenResource, onClose }: WorkbenchCommandPaletteProps) {
+  const copy = getMendixStudioCopy().commandPalette;
   const [query, setQuery] = useState("");
 
   const commands = useMemo<WorkbenchPaletteCommand[]>(() => [
     {
       id: "save",
-      label: "Save",
+      label: copy.save,
       hint: "Ctrl/Cmd+S",
       disabled: !status?.dirty,
       run: () => commandBus.execute("microflow.save"),
     },
     {
       id: "validate",
-      label: "Validate",
+      label: copy.validate,
+      disabled: !status,
       run: () => commandBus.execute("microflow.validate"),
     },
     {
       id: "run",
-      label: "Run",
-      disabled: Boolean(status?.running || (status?.errorCount ?? 0) > 0),
+      label: copy.run,
+      disabled: !status || Boolean(status.running || (status.errorCount ?? 0) > 0),
       run: () => commandBus.execute("microflow.run"),
     },
     {
       id: "debug-run",
-      label: "Debug Run",
-      disabled: Boolean(status?.running || (status?.errorCount ?? 0) > 0),
+      label: copy.debugRun,
+      disabled: !status || Boolean(status.running || (status.errorCount ?? 0) > 0),
       run: () => commandBus.execute("microflow.debugRun"),
     },
     {
       id: "publish",
-      label: "Publish",
-      disabled: Boolean(status?.dirty || (status?.errorCount ?? 0) > 0),
+      label: copy.publish,
+      disabled: !status || Boolean(status.dirty || (status.errorCount ?? 0) > 0),
       run: () => commandBus.execute("microflow.publish"),
     },
     {
       id: "open-problems",
-      label: "Open Problems",
+      label: copy.openProblems,
+      disabled: !status,
       run: () => commandBus.execute("microflow.openPanel", { panel: "problems" }),
     },
     {
       id: "open-debug",
-      label: "Open Debug",
+      label: copy.openDebug,
+      disabled: !status,
       run: () => commandBus.execute("microflow.openPanel", { panel: "debug" }),
     },
     {
       id: "open-console",
-      label: "Open Console",
+      label: copy.openConsole,
+      disabled: !status,
       run: () => commandBus.execute("microflow.openPanel", { panel: "console" }),
     },
     {
       id: "open-info",
-      label: "Open Info",
+      label: copy.openInfo,
+      disabled: !status,
       run: () => commandBus.execute("microflow.openPanel", { panel: "info" }),
     },
     {
       id: "open-references",
-      label: "Open References",
+      label: copy.openReferences,
+      disabled: !status,
       run: () => commandBus.execute("microflow.openPanel", { panel: "references" }),
     },
     {
       id: "toggle-focus",
-      label: "Toggle Focus Mode",
+      label: copy.toggleFocusMode,
       hint: "F11",
+      disabled: !status,
       run: () => commandBus.execute("microflow.toggleFocusMode"),
     },
     {
       id: "reset-layout",
-      label: "Reset Layout",
+      label: copy.resetLayout,
+      disabled: !status,
       run: () => commandBus.execute("microflow.resetLayout"),
     },
     {
       id: "undo",
-      label: "Undo",
+      label: copy.undo,
       disabled: !status?.canUndo,
       run: () => commandBus.execute("microflow.undo"),
     },
     {
       id: "redo",
-      label: "Redo",
+      label: copy.redo,
       disabled: !status?.canRedo,
       run: () => commandBus.execute("microflow.redo"),
     },
-  ], [commandBus, status?.canRedo, status?.canUndo, status?.dirty, status?.errorCount, status?.running]);
+  ], [commandBus, copy, status?.canRedo, status?.canUndo, status?.dirty, status?.errorCount, status?.running]);
+
+  const resourceCommands = useMemo<WorkbenchPaletteCommand[]>(() => {
+    if (!onOpenResource) {
+      return [];
+    }
+    const resources: WorkbenchPaletteCommand[] = [];
+    for (const tab of recentTabs.slice(0, 8)) {
+      if (tab.kind === "microflow" || !tab.resourceId) {
+        continue;
+      }
+      resources.push({
+        id: `recent-${tab.id}`,
+        label: copy.openResource(tab.title),
+        hint: copy.recentHint,
+        run: () => onOpenResource({
+          kind: tab.kind as OpenWorkbenchResourceInput["kind"],
+          resourceId: tab.resourceId!,
+          moduleId: tab.moduleId,
+          title: tab.title,
+          qualifiedName: tab.qualifiedName,
+          subtitle: tab.subtitle,
+        }),
+      });
+    }
+    for (const module of modules) {
+      resources.push({
+        id: `domain-${module.moduleId}`,
+        label: copy.openDomainModel(module.name),
+        hint: copy.domainHint,
+        run: () => onOpenResource({
+          kind: "domainModel",
+          resourceId: module.moduleId,
+          moduleId: module.moduleId,
+          title: copy.openDomainModel(module.name),
+          qualifiedName: module.qualifiedName,
+        }),
+      });
+      resources.push({
+        id: `security-${module.moduleId}`,
+        label: copy.openSecurity(module.name),
+        hint: copy.securityHint,
+        run: () => onOpenResource({
+          kind: "security",
+          resourceId: module.moduleId,
+          moduleId: module.moduleId,
+          title: copy.openSecurity(module.name),
+          qualifiedName: module.qualifiedName,
+        }),
+      });
+      for (const page of module.pages ?? []) {
+        resources.push({
+          id: `page-${page.id}`,
+          label: copy.openResource(page.name),
+          hint: copy.pageHint,
+          run: () => onOpenResource({
+            kind: "page",
+            resourceId: page.id,
+            moduleId: module.moduleId,
+            title: page.name || page.qualifiedName,
+            qualifiedName: page.qualifiedName,
+            subtitle: page.description,
+          }),
+        });
+      }
+      for (const workflow of module.workflows ?? []) {
+        resources.push({
+          id: `workflow-${workflow.id}`,
+          label: copy.openResource(workflow.name),
+          hint: copy.workflowHint,
+          run: () => onOpenResource({
+            kind: "workflow",
+            resourceId: workflow.id,
+            moduleId: module.moduleId,
+            title: workflow.name || workflow.qualifiedName,
+            qualifiedName: workflow.qualifiedName,
+            subtitle: workflow.description,
+          }),
+        });
+      }
+    }
+    return resources;
+  }, [copy, modules, onOpenResource, recentTabs]);
 
   const normalized = query.trim().toLocaleLowerCase();
+  const allCommands = [...commands, ...resourceCommands];
   const filtered = normalized
-    ? commands.filter(command => command.label.toLocaleLowerCase().includes(normalized) || command.id.includes(normalized))
-    : commands;
+    ? allCommands.filter(command => command.label.toLocaleLowerCase().includes(normalized) || command.id.includes(normalized) || command.hint?.toLocaleLowerCase().includes(normalized))
+    : allCommands;
 
   return (
     <Modal
       visible={visible}
-      title="Workbench Command Palette"
+      title={copy.title}
       footer={null}
       onCancel={onClose}
       style={{ maxWidth: 560 }}
@@ -124,7 +222,7 @@ export function WorkbenchCommandPalette({ visible, status, commandBus, onClose }
         <Input
           autoFocus
           value={query}
-          placeholder="Search commands"
+          placeholder={copy.searchPlaceholder}
           onChange={setQuery}
           onEnterPress={() => {
             const first = filtered.find(command => !command.disabled);
@@ -135,9 +233,9 @@ export function WorkbenchCommandPalette({ visible, status, commandBus, onClose }
         />
         {status ? (
           <Space wrap>
-            <Tag color={status.dirty ? "orange" : "green"}>{status.dirty ? "Dirty" : "Saved"}</Tag>
-            <Tag color={status.running ? "blue" : "grey"}>{status.running ? "Running" : "Idle"}</Tag>
-            <Tag color={(status.errorCount ?? 0) > 0 ? "red" : "green"}>{status.errorCount ?? 0} errors</Tag>
+            <Tag color={status.dirty ? "orange" : "green"}>{status.dirty ? copy.dirty : copy.saved}</Tag>
+            <Tag color={status.running ? "blue" : "grey"}>{status.running ? copy.running : copy.idle}</Tag>
+            <Tag color={(status.errorCount ?? 0) > 0 ? "red" : "green"}>{copy.errors(status.errorCount ?? 0)}</Tag>
           </Space>
         ) : null}
         <Space vertical align="start" spacing={6} style={{ width: "100%", maxHeight: 360, overflow: "auto" }}>
@@ -158,7 +256,7 @@ export function WorkbenchCommandPalette({ visible, status, commandBus, onClose }
               </Space>
             </Button>
           ))}
-          {filtered.length === 0 ? <Empty title="No commands" description="Try a different search keyword." /> : null}
+          {filtered.length === 0 ? <Empty title={copy.noCommandsTitle} description={copy.noCommandsDescription} /> : null}
         </Space>
       </Space>
     </Modal>
