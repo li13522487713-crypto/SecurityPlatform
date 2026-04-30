@@ -1,4 +1,4 @@
-import { useRef, type DragEvent, type MouseEvent, type ReactNode } from "react";
+import { useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 
 import { Tag, Typography } from "@douyinfe/semi-ui";
 import {
@@ -11,6 +11,10 @@ import {
 
 import type { FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
 import { FlowGramMicroflowPortRenderer } from "./FlowGramMicroflowPortRenderer";
+import {
+  focusMicroflowNodeDragRoot,
+  isMicroflowNodeDragBlockedTarget,
+} from "./flowgram-node-drag";
 import "./styles/flowgram-microflow-node.css";
 
 function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeData | undefined {
@@ -77,10 +81,27 @@ function StaticTag(props: { children: ReactNode; color?: "blue" | "orange" | "gr
 }
 
 export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
-  const { selected, ports, selectNode, nodeRef, startDrag, onFocus, onBlur } = useNodeRender();
+  const { selected, activated, ports, selectNode, nodeRef, startDrag, onFocus, onBlur } = useNodeRender();
   const readonly = usePlaygroundReadonlyState();
   const draggingRef = useRef(false);
+  const [focused, setFocused] = useState(false);
   const data = tryReadNodeData(props);
+
+  const canStartNodeDrag = (event: MouseEvent<HTMLDivElement>) => {
+    if (readonly || event.button !== 0) {
+      return false;
+    }
+    return !isMicroflowNodeDragBlockedTarget(event.target);
+  };
+
+  const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (!canStartNodeDrag(event)) {
+      return;
+    }
+    focusMicroflowNodeDragRoot(event.currentTarget);
+    draggingRef.current = true;
+    startDrag(event);
+  };
 
   const handleDragStart = (event: DragEvent<HTMLDivElement>) => {
     if (readonly) {
@@ -92,6 +113,12 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   };
 
   const handleDragEnd = () => {
+    window.setTimeout(() => {
+      draggingRef.current = false;
+    }, 0);
+  };
+
+  const handleMouseUp = () => {
     window.setTimeout(() => {
       draggingRef.current = false;
     }, 0);
@@ -114,14 +141,26 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
           "microflow-flowgram-node",
           "microflow-flowgram-node--fallback",
           selected ? "is-selected" : "",
+          activated ? "is-active" : "",
+          focused ? "is-focused" : "",
         ].filter(Boolean).join(" ")}
         draggable={!readonly}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={handleClick}
-        onFocus={onFocus}
-        onBlur={onBlur}
+        onFocus={event => {
+          setFocused(true);
+          onFocus(event);
+        }}
+        onBlur={event => {
+          setFocused(false);
+          onBlur(event);
+        }}
         data-testid={`microflow-node-${String(props.node.id)}`}
+        data-node-selected={String(selected)}
+        data-node-active={String(activated)}
         tabIndex={0}
       >
         Unknown node
@@ -138,19 +177,31 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         "microflow-flowgram-node",
         `microflow-flowgram-node--${tone}`,
         selected ? "is-selected" : "",
+        activated ? "is-active" : "",
+        focused ? "is-focused" : "",
         data.disabled ? "is-disabled" : "",
         data.validationState !== "valid" ? `is-${data.validationState}` : "",
         data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
       ].filter(Boolean).join(" ")}
       draggable={!readonly}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={handleClick}
-      onFocus={onFocus}
-      onBlur={onBlur}
+      onFocus={event => {
+        setFocused(true);
+        onFocus(event);
+      }}
+      onBlur={event => {
+        setFocused(false);
+        onBlur(event);
+      }}
       data-testid={`microflow-node-${data.objectId}`}
       data-microflow-object-id={data.objectId}
       data-microflow-collection-id={data.collectionId}
+      data-node-selected={String(selected)}
+      data-node-active={String(activated)}
       tabIndex={0}
     >
       <div className="microflow-flowgram-node__header">

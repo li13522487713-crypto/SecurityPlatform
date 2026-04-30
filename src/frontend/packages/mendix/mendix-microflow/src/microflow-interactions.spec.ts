@@ -579,6 +579,34 @@ describe("microflow editor interactions", () => {
     expect(flowGramSelectionPatch({ objectId: start.id })).toEqual({ selectedObjectId: start.id, selectedFlowId: undefined });
   });
 
+  it("keeps FlowGram start/end move patches when a sequence edge already exists", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 96, y: 120 }, "flowgram-edge-move-start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 420, y: 120 }, "flowgram-edge-move-end");
+    const flow = createSequenceFlow({ originObjectId: start.id, destinationObjectId: end.id });
+    const schema = schemaWith([start, end], [flow]);
+    const json = authoringToFlowGram(schema, [], []);
+    expect(json.edges).toHaveLength(1);
+
+    const startNode = json.nodes.find(item => item.id === start.id);
+    const endNode = json.nodes.find(item => item.id === end.id);
+    if (!startNode || !endNode) {
+      throw new Error("Expected FlowGram start/end nodes.");
+    }
+    startNode.meta = { ...startNode.meta, position: { x: 216, y: 192 } };
+    endNode.meta = { ...endNode.meta, position: { x: 312, y: 264 } };
+
+    const patch = flowGramPositionPatch(schema, json, { gridEnabled: true });
+    expect(patch.movedNodes).toEqual([
+      { objectId: start.id, position: { x: 216, y: 192 } },
+      { objectId: end.id, position: { x: 312, y: 264 } },
+    ]);
+
+    const next = applyEditorGraphPatchToAuthoring(schema, patch);
+    expect(next.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 216, y: 192 });
+    expect(next.objectCollection.objects.find(object => object.id === end.id)?.relativeMiddlePoint).toEqual({ x: 312, y: 264 });
+    expect(next.flows).toEqual(schema.flows);
+  });
+
   it("keeps loop child relative coordinates stable when a parent loop moves in FlowGram", () => {
     const child = createObjectFromRegistry(registry("activity:logMessage"), { x: 80, y: 42 }, "loop-child-log");
     const loop = createObjectFromRegistry(registry("loop"), { x: 320, y: 160 }, "loop-parent");

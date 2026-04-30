@@ -163,7 +163,7 @@ async function getAppInstanceByKey(
   return matched!;
 }
 
-async function ensureAppDataSourceBinding(
+async function _ensureAppDataSourceBinding(
   request: APIRequestContext,
   appKey: string
 ): Promise<void> {
@@ -462,8 +462,11 @@ export async function loginApp(
         await agreementControl.click({ force: true });
       });
       await page.waitForTimeout(100);
-      const agreedAfterClick = await agreementCheckbox.isChecked().catch(() => false);
-      if (!agreedAfterClick) {
+      if (!(await agreementCheckbox.isChecked().catch(() => false))) {
+        await agreementControl.click({ force: true }).catch(() => undefined);
+        await page.waitForTimeout(100);
+      }
+      if (!(await agreementCheckbox.isChecked().catch(() => false))) {
         await page.evaluate(() => {
           const input = document.querySelector<HTMLInputElement>('[data-testid="app-login-page"] input[type="checkbox"]');
           if (!input || input.checked) {

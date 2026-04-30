@@ -1,6 +1,5 @@
 .gedit-flow-lines-layer svg path {
   stroke-linecap: round;
-  pointer-events: none;
 }
 
 .microflow-flowgram-line--errorHandler {

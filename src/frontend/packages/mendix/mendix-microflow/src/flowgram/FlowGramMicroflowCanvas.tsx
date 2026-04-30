@@ -66,7 +66,7 @@ export interface FlowGramMicroflowCanvasProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onAutoLayout?: () => void;
-  onViewportChange?: (viewport: MicroflowSchema["editor"]["viewport"]) => void;
+  onViewportChange?: (viewport: MicroflowSchema["editor"]["viewport"], options?: { skipDirty?: boolean }) => void;
   onToggleMiniMap?: (visible: boolean) => void;
   onToggleGrid?: (enabled: boolean) => void;
   dirty?: boolean;
@@ -202,10 +202,73 @@ export function getLoopContainerByClientPoint(
   };
 }
 
+function hasUsableViewport(viewport: MicroflowSchema["editor"]["viewport"] | undefined): viewport is NonNullable<MicroflowSchema["editor"]["viewport"]> {
+  return Boolean(
+    viewport
+      && Number.isFinite(viewport.x)
+      && Number.isFinite(viewport.y)
+      && Number.isFinite(viewport.zoom)
+      && viewport.zoom >= 0.2
+      && viewport.zoom <= 2,
+  );
+}
+
+function graphBounds(graph: ReturnType<typeof toEditorGraph>) {
+  if (graph.nodes.length === 0) {
+    return undefined;
+  }
+  const minX = Math.min(...graph.nodes.map(node => node.position.x - node.size.width / 2));
+  const minY = Math.min(...graph.nodes.map(node => node.position.y - node.size.height / 2));
+  const maxX = Math.max(...graph.nodes.map(node => node.position.x + node.size.width / 2));
+  const maxY = Math.max(...graph.nodes.map(node => node.position.y + node.size.height / 2));
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
+function viewportContainsGraph(
+  graph: ReturnType<typeof toEditorGraph>,
+  rect: Pick<DOMRect, "width" | "height">,
+  viewport: NonNullable<MicroflowSchema["editor"]["viewport"]>,
+) {
+  const bounds = graphBounds(graph);
+  if (!bounds) {
+    return true;
+  }
+  const padding = 48;
+  const left = bounds.minX * viewport.zoom + viewport.x;
+  const top = bounds.minY * viewport.zoom + viewport.y;
+  const right = bounds.maxX * viewport.zoom + viewport.x;
+  const bottom = bounds.maxY * viewport.zoom + viewport.y;
+  return left >= padding
+    && top >= padding
+    && right <= rect.width - padding
+    && bottom <= rect.height - padding;
+}
+
+function fitViewportForGraph(graph: ReturnType<typeof toEditorGraph>, rect: Pick<DOMRect, "width" | "height">): MicroflowSchema["editor"]["viewport"] {
+  const bounds = graphBounds(graph);
+  if (!bounds) {
+    return { x: 0, y: 0, zoom: 1 };
+  }
+  const zoom = Math.max(0.2, Math.min(1.2, Math.min((rect.width - 120) / bounds.width, (rect.height - 120) / bounds.height)));
+  return {
+    x: Math.round(rect.width / 2 - (bounds.minX + bounds.width / 2) * zoom),
+    y: Math.round(rect.height / 2 - (bounds.minY + bounds.height / 2) * zoom),
+    zoom,
+  };
+}
+
 function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   const playground = usePlayground();
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
   const containerRef = useRef<HTMLDivElement>(null);
+  const initialViewportFitDoneRef = useRef(false);
   const [pendingCaseLine, setPendingCaseLine] = useState<FlowGramMicroflowPendingLine>();
   const [dropActive, setDropActive] = useState(false);
   const miniMapVisible = props.schema.editor.showMiniMap === true;
@@ -342,19 +405,26 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       props.onViewportChange?.({ x: 0, y: 0, zoom: 1 });
       return;
     }
-    const minX = Math.min(...graph.nodes.map(node => node.position.x - node.size.width / 2));
-    const minY = Math.min(...graph.nodes.map(node => node.position.y - node.size.height / 2));
-    const maxX = Math.max(...graph.nodes.map(node => node.position.x + node.size.width / 2));
-    const maxY = Math.max(...graph.nodes.map(node => node.position.y + node.size.height / 2));
-    const width = Math.max(1, maxX - minX);
-    const height = Math.max(1, maxY - minY);
-    const zoom = Math.max(0.2, Math.min(1.2, Math.min((rect.width - 120) / width, (rect.height - 120) / height)));
-    props.onViewportChange?.({
-      x: Math.round(rect.width / 2 - (minX + width / 2) * zoom),
-      y: Math.round(rect.height / 2 - (minY + height / 2) * zoom),
-      zoom,
-    });
+    props.onViewportChange?.(fitViewportForGraph(graph, rect));
   };
+
+  useEffect(() => {
+    if (initialViewportFitDoneRef.current) {
+      return;
+    }
+    const graph = toEditorGraph(props.schema);
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || graph.nodes.length === 0) {
+      return;
+    }
+    const viewport = props.schema.editor.viewport;
+    if (hasUsableViewport(viewport) && viewportContainsGraph(graph, rect, viewport)) {
+      initialViewportFitDoneRef.current = true;
+      return;
+    }
+    initialViewportFitDoneRef.current = true;
+    props.onViewportChange?.(fitViewportForGraph(graph, rect), { skipDirty: true });
+  }, [props.schema, props.onViewportChange]);
 
   useEffect(() => {
     if (!props.focusObjectId) {

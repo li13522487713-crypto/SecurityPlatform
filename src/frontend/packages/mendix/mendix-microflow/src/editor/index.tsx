@@ -3121,11 +3121,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           onUndo={handleUndo}
           onRedo={handleRedo}
           onAutoLayout={handleAutoLayout}
-          onViewportChange={viewport => {
+          onViewportChange={(viewport, options) => {
             commitSchema(
               { ...schema, editor: { ...schema.editor, viewport, zoom: viewport.zoom } },
               "bulkUpdate",
-              { pushHistory: false, historyLabel: "Update viewport", skipValidate: true, preserveSelection: true, source: "flowgram" },
+              { pushHistory: false, historyLabel: "Update viewport", skipDirty: options?.skipDirty, skipValidate: true, preserveSelection: true, source: "flowgram" },
             );
           }}
           onToggleMiniMap={visible => {

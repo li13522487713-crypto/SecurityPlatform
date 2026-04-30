@@ -15,7 +15,28 @@
 
 .microflow-flowgram-node.is-selected {
   border-color: #165dff;
-  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.16), 0 4px 12px rgba(31, 35, 41, 0.08);
+  background: #e8f3ff;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.26), 0 8px 18px rgba(22, 93, 255, 0.12);
+}
+
+.microflow-flowgram-node.is-active,
+.microflow-flowgram-node.is-focused {
+  border-color: #165dff;
+  box-shadow: 0 0 0 3px rgba(22, 93, 255, 0.18), 0 8px 18px rgba(31, 35, 41, 0.1);
+}
+
+.microflow-flowgram-node:focus-visible {
+  outline: 2px solid #165dff;
+  outline-offset: 3px;
+}
+
+.microflow-flowgram-node:not(.is-selected):not(.is-active):not(.is-focused) {
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.microflow-flowgram-node:not(.is-selected):not(.is-active):not(.is-focused):hover {
+  border-color: rgba(22, 93, 255, 0.42);
+  box-shadow: 0 6px 16px rgba(31, 35, 41, 0.12);
 }
 
 .microflow-flowgram-node.is-disabled {

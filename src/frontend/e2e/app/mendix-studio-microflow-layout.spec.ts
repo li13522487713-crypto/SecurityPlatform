@@ -80,6 +80,24 @@ async function dragLocatorBy(page: import("@playwright/test").Page, locator: imp
   await page.mouse.up();
 }
 
+async function focusAppExplorerSearch(page: import("@playwright/test").Page) {
+  const searchInput = page.getByTestId("mendix-studio-app-explorer").locator("input").first();
+  await expect(searchInput).toBeVisible();
+  await searchInput.fill("Customer");
+}
+
+async function focusPropertyPanelInput(page: import("@playwright/test").Page, node: import("@playwright/test").Locator) {
+  await node.click();
+  const panel = page.getByTestId("microflow-property-panel");
+  if (await panel.count() === 0) {
+    await page.getByTestId("microflow-editor-right-shell").getByRole("button").click();
+  }
+  await expect(panel).toBeVisible();
+  const field = panel.locator("input, textarea").first();
+  await expect(field).toBeVisible();
+  await field.click();
+}
+
 async function saveAndReloadMicroflow(page: import("@playwright/test").Page) {
   await expect(page.getByTestId("microflow-workbench-save")).toBeEnabled({ timeout: 10_000 });
   await page.getByTestId("microflow-workbench-save").click();
@@ -87,6 +105,42 @@ async function saveAndReloadMicroflow(page: import("@playwright/test").Page) {
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("microflow-editor-shell")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".microflow-flowgram-canvas")).toBeVisible();
+}
+
+interface MicroflowObjectSnapshot {
+  id?: string;
+  kind?: string;
+  relativeMiddlePoint?: { x: number; y: number };
+  objectCollection?: MicroflowObjectCollectionSnapshot;
+}
+
+interface MicroflowObjectCollectionSnapshot {
+  objects?: MicroflowObjectSnapshot[];
+}
+
+function flattenMicroflowObjects(collection: MicroflowObjectCollectionSnapshot | undefined): MicroflowObjectSnapshot[] {
+  return (collection?.objects ?? []).flatMap(object => [
+    object,
+    ...(object.kind === "loopedActivity" ? flattenMicroflowObjects(object.objectCollection) : [])
+  ]);
+}
+
+async function readMicroflowObjectPosition(
+  page: import("@playwright/test").Page,
+  microflowId: string,
+  workspaceId: string,
+  objectId: string
+) {
+  const response = await page.request.get(`${appApiBase}/api/v1/microflows/${encodeURIComponent(microflowId)}/schema`, {
+    headers: { "X-Tenant-Id": defaultTenantId, "X-Workspace-Id": workspaceId }
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json();
+  const object = flattenMicroflowObjects(payload?.data?.schema?.objectCollection as MicroflowObjectCollectionSnapshot | undefined).find(item => item.id === objectId);
+  if (!object?.relativeMiddlePoint) {
+    throw new Error(`Microflow object position not found: ${objectId}`);
+  }
+  return object.relativeMiddlePoint;
 }
 
 test.describe.serial("@microflow Mendix Studio layout", () => {
@@ -175,6 +229,48 @@ test.describe.serial("@microflow Mendix Studio layout", () => {
     await expect(page.locator(".microflow-flowgram-node")).toHaveCount(2);
     await expect(page.getByText("MF_START_NO_OUTGOING")).toHaveCount(0);
     await expect(page.getByText("MF_OBJECT_UNREACHABLE")).toHaveCount(0);
+  });
+
+  test("Start 和 End 已连线后仍可移动并按拖拽位置保存", async ({ page }) => {
+    const { microflowId, workspaceId } = await openLayoutPage(page, appKey);
+
+    const startBefore = await readMicroflowObjectPosition(page, microflowId, workspaceId, "start");
+    const endBefore = await readMicroflowObjectPosition(page, microflowId, workspaceId, "end");
+    await expect(page.locator(".microflow-flowgram-node")).toHaveCount(2);
+    await expect(page.getByTestId("microflow-flowgram-line-label")).toHaveCount(1);
+
+    const startNode = page.locator(".microflow-flowgram-node--start").first();
+    const endNode = page.locator(".microflow-flowgram-node--end").first();
+    await focusAppExplorerSearch(page);
+    await dragLocatorBy(page, startNode, { x: 120, y: 48 });
+    await focusPropertyPanelInput(page, endNode);
+    await dragLocatorBy(page, endNode, { x: -72, y: 96 });
+
+    await saveAndReloadMicroflow(page);
+    const startAfter = await readMicroflowObjectPosition(page, microflowId, workspaceId, "start");
+    const endAfter = await readMicroflowObjectPosition(page, microflowId, workspaceId, "end");
+    expect(Math.hypot(startAfter.x - startBefore.x, startAfter.y - startBefore.y)).toBeGreaterThan(30);
+    expect(Math.hypot(endAfter.x - endBefore.x, endAfter.y - endBefore.y)).toBeGreaterThan(30);
+    await expect(page.getByTestId("microflow-flowgram-line-label")).toHaveCount(1);
+    await expect(page.getByText("MF_START_NO_OUTGOING")).toHaveCount(0);
+    await expect(page.getByText("MF_OBJECT_UNREACHABLE")).toHaveCount(0);
+  });
+
+  test("普通拖拽保存不会触发自动布局，只有 Auto 按钮会重排", async ({ page }) => {
+    const { microflowId, workspaceId } = await openLayoutPage(page, appKey);
+
+    const startNode = page.locator(".microflow-flowgram-node--start").first();
+    await dragLocatorBy(page, startNode, { x: 144, y: 96 });
+    await saveAndReloadMicroflow(page);
+    const draggedStart = await readMicroflowObjectPosition(page, microflowId, workspaceId, "start");
+    expect(draggedStart).not.toEqual({ x: 120, y: 120 });
+
+    await page.locator(".microflow-flowgram-toolbar").getByRole("button", { name: "Auto" }).click();
+    await saveAndReloadMicroflow(page);
+    const autoStart = await readMicroflowObjectPosition(page, microflowId, workspaceId, "start");
+    const autoEnd = await readMicroflowObjectPosition(page, microflowId, workspaceId, "end");
+    expect(autoStart).toEqual({ x: 120, y: 120 });
+    expect(autoEnd).toEqual({ x: 400, y: 120 });
   });
 
   test("节点工具箱节点可以拖入画布创建节点", async ({ page }) => {
