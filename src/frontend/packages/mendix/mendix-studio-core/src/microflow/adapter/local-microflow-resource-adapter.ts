@@ -3,11 +3,8 @@
  * Do not use localStorage adapter as production persistence.
  */
 import {
-  compileMicroflowDesignToRuntime,
-  validateMicroflowSchema,
   type MicroflowDesignSchema,
 } from "@atlas/microflow";
-import { getDefaultMockMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowPublishInput, MicroflowPublishResult } from "../publish/microflow-publish-types";
 import { analyzeMicroflowPublishImpact, hashSchemaSnapshot, summarizeValidation, validatePublishVersion } from "../publish/microflow-publish-utils";
@@ -607,11 +604,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     if (!versionValidation.valid) {
       throw new Error(versionValidation.message);
     }
-    const validation = validateMicroflowSchema({
-      schema: compileMicroflowDesignToRuntime(current.schema),
-      metadata: getDefaultMockMetadataCatalog(),
-      options: { mode: "publish", includeWarnings: true, includeInfo: true },
-    });
+    const validation = { summary: summarizeValidation(current.schema) };
     if (validation.summary.errorCount > 0) {
       throw new Error("存在错误，无法发布。");
     }

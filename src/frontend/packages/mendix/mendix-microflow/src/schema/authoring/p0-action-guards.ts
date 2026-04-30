@@ -1,12 +1,16 @@
 import type {
+  MicroflowAggregateListAction,
   MicroflowAction,
   MicroflowCallMicroflowAction,
   MicroflowChangeMembersAction,
+  MicroflowChangeListAction,
   MicroflowChangeVariableAction,
   MicroflowCommitAction,
+  MicroflowCreateListAction,
   MicroflowCreateObjectAction,
   MicroflowCreateVariableAction,
   MicroflowDeleteAction,
+  MicroflowListOperationAction,
   MicroflowLogMessageAction,
   MicroflowRetrieveAction,
   MicroflowRollbackAction,
@@ -20,6 +24,10 @@ const P0 = new Set<MicroflowAction["kind"]>([
   "commit",
   "delete",
   "rollback",
+  "createList",
+  "changeList",
+  "aggregateList",
+  "listOperation",
   "createVariable",
   "changeVariable",
   "callMicroflow",
@@ -46,6 +54,10 @@ export function isMicroflowP0ActionStronglyTyped(action: MicroflowAction): actio
   | MicroflowCommitAction
   | MicroflowDeleteAction
   | MicroflowRollbackAction
+  | MicroflowCreateListAction
+  | MicroflowChangeListAction
+  | MicroflowAggregateListAction
+  | MicroflowListOperationAction
   | MicroflowCreateVariableAction
   | MicroflowChangeVariableAction
   | MicroflowCallMicroflowAction
@@ -93,6 +105,104 @@ export function isMicroflowP0ActionStronglyTyped(action: MicroflowAction): actio
     case "rollback": {
       const a = action as MicroflowCommitAction | MicroflowDeleteAction | MicroflowRollbackAction;
       return hasString(a as unknown as Record<string, unknown>, "objectOrListVariableName");
+    }
+    case "createList": {
+      const a = action as MicroflowCreateListAction;
+      const record = a as unknown as Record<string, unknown>;
+      return (hasString(record, "outputListVariableName") || hasString(record, "outputVariableName") || hasString(record, "listVariableName"))
+        && a.itemType != null;
+    }
+    case "changeList": {
+      const a = action as MicroflowChangeListAction;
+      const record = a as unknown as Record<string, unknown>;
+      if (!(hasString(record, "targetListVariableName") || hasString(record, "targetVariableName") || hasString(record, "listVariableName"))) {
+        return false;
+      }
+
+      const operation = typeof record.operation === "string" ? String(record.operation) : "";
+      if (!operation) {
+        return false;
+      }
+
+      if (operation === "clear") {
+        return true;
+      }
+
+      if (operation === "removeWhere") {
+        return a.conditionExpression != null && typeof a.conditionExpression === "object";
+      }
+
+      if (operation === "addAll" || operation === "addRange" || operation === "removeAll") {
+        return (a.itemsExpression != null && typeof a.itemsExpression === "object") || hasString(record, "sourceListVariableName");
+      }
+
+      if (operation === "set") {
+        return ((a.indexExpression != null && typeof a.indexExpression === "object")
+          && (a.itemExpression != null && typeof a.itemExpression === "object"))
+          || (a.itemsExpression != null && typeof a.itemsExpression === "object")
+          || hasString(record, "sourceListVariableName");
+      }
+
+      return (a.itemExpression != null && typeof a.itemExpression === "object") || hasString(record, "objectVariableName");
+    }
+    case "aggregateList": {
+      const a = action as MicroflowAggregateListAction;
+      const record = a as unknown as Record<string, unknown>;
+      if (!(hasString(record, "sourceListVariableName") || hasString(record, "listVariableName"))) {
+        return false;
+      }
+      if (!(hasString(record, "outputVariableName") || hasString(record, "resultVariableName"))) {
+        return false;
+      }
+
+      const aggregateFunction = typeof record.aggregateFunction === "string"
+        ? String(record.aggregateFunction)
+        : typeof record.aggregate === "string"
+          ? String(record.aggregate)
+          : typeof record.operation === "string"
+            ? String(record.operation)
+            : "count";
+      if (aggregateFunction === "count") {
+        return true;
+      }
+
+      return hasString(record, "attributeQualifiedName")
+        || hasString(record, "member")
+        || (a.aggregateExpression != null && typeof a.aggregateExpression === "object");
+    }
+    case "listOperation": {
+      const a = action as MicroflowListOperationAction;
+      const record = a as unknown as Record<string, unknown>;
+      if (!(hasString(record, "leftListVariableName") || hasString(record, "sourceListVariableName") || hasString(record, "listVariableName"))) {
+        return false;
+      }
+      if (!(hasString(record, "outputListVariableName") || hasString(record, "outputVariableName") || hasString(record, "resultVariableName"))) {
+        return false;
+      }
+
+      const operation = typeof record.operation === "string" ? String(record.operation) : "";
+      if (!operation) {
+        return false;
+      }
+
+      if (operation === "filter") {
+        return (a.filterExpression != null && typeof a.filterExpression === "object")
+          || (a.expression != null && typeof a.expression === "object");
+      }
+
+      if (operation === "sort") {
+        return Array.isArray((record as { sortKeys?: unknown[] }).sortKeys) || hasString(record, "sortExpression");
+      }
+
+      if (operation === "map") {
+        return a.expression != null && typeof a.expression === "object";
+      }
+
+      if (operation === "take" || operation === "skip") {
+        return typeof record.limit === "number" || typeof record.offset === "number";
+      }
+
+      return true;
     }
     case "createVariable": {
       const a = action as MicroflowCreateVariableAction;

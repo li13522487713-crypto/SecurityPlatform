@@ -69,7 +69,14 @@ export function createDefaultActionConfig(
         failOnInvalidType: true
       };
     case "aggregateList":
-      return { listVariableName: "", sourceListVariableName: "", operation: "count", aggregateFunction: "count", resultVariableName: "", outputVariableName: "" };
+      return {
+        listVariableName: "",
+        sourceListVariableName: "",
+        aggregateFunction: "count",
+        resultVariableName: "",
+        outputVariableName: "",
+        emptyListBehavior: "zero"
+      };
     case "createList":
       return {
         entity: "",

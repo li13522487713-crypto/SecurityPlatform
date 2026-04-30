@@ -29,30 +29,20 @@ function schemaWithAction(action: Record<string, unknown>): MicroflowDesignSchem
             title: "Call target",
             subtitle: "Microflows$ActionActivity",
             officialType: "Microflows$ActionActivity",
-            propertyObject: {
-              id: "node-call",
-              stableId: "stable-node-call",
-              kind: "actionActivity",
-              officialType: "Microflows$ActionActivity",
-              caption: "Call target",
-              autoGenerateCaption: false,
-              backgroundColor: "blue",
-              disabled: false,
-              relativeMiddlePoint: { x: 100, y: 100 },
-              size: { width: 120, height: 80 },
-              editor: {},
-              action: {
-                id: "action-call",
-                officialType: "Microflows$MicroflowCallAction",
-                kind: "callMicroflow",
-                caption: "Call target action",
-                errorHandlingType: "rollback",
-                editor: { category: "call", iconKey: "callMicroflow", availability: "available" },
-                parameterMappings: [],
-                returnValue: { storeResult: false },
-                callMode: "sync",
-                ...action
-              }
+            autoGenerateCaption: false,
+            backgroundColor: "blue",
+            disabled: false,
+            action: {
+              id: "action-call",
+              officialType: "Microflows$MicroflowCallAction",
+              kind: "callMicroflow",
+              caption: "Call target action",
+              errorHandlingType: "rollback",
+              editor: { category: "call", iconKey: "callMicroflow", availability: "available" },
+              parameterMappings: [],
+              returnValue: { storeResult: false },
+              callMode: "sync",
+              ...action
             }
           },
           meta: {

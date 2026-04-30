@@ -3,64 +3,50 @@ import { appApiBase, appBaseUrl, defaultTenantId, ensureAppSetup, navigateBySide
 
 function withLogNode(schema: any, message: string) {
   const next = JSON.parse(JSON.stringify(schema));
-  const collection = next.objectCollection;
   const logNode = {
     id: "e2e-log-node",
-    stableId: "e2e-log-node",
-    kind: "actionActivity",
-    officialType: "Microflows$ActionActivity",
-    caption: "E2E Log",
-    documentation: "",
-    relativeMiddlePoint: { x: 440, y: 200 },
-    size: { width: 152, height: 72 },
-    editor: { iconKey: "logMessage" },
-    autoGenerateCaption: false,
-    backgroundColor: "default",
-    disabled: false,
-    action: {
-      id: "action-e2e-log-node",
-      kind: "logMessage",
-      officialType: "Microflows$LogMessageAction",
-      errorHandlingType: "rollback",
-      documentation: "E2E save verification",
-      editor: { category: "logging", iconKey: "logMessage", availability: "supported" },
-      level: "info",
-      logNodeName: "MicroflowE2E",
-      template: { text: message, arguments: [] },
-      includeContextVariables: false,
-      includeTraceId: true
-    }
+    type: "actionActivity",
+    data: {
+      objectId: "e2e-log-node",
+      objectKind: "actionActivity",
+      officialType: "Microflows$ActionActivity",
+      title: "E2E Log",
+      documentation: "",
+      collectionId: "root-collection",
+      autoGenerateCaption: false,
+      backgroundColor: "default",
+      disabled: false,
+      actionKind: "logMessage",
+      action: {
+        id: "action-e2e-log-node",
+        kind: "logMessage",
+        officialType: "Microflows$LogMessageAction",
+        errorHandlingType: "rollback",
+        documentation: "E2E save verification",
+        editor: { category: "logging", iconKey: "logMessage", availability: "supported" },
+        level: "info",
+        logNodeName: "MicroflowE2E",
+        template: { text: message, arguments: [] },
+        includeContextVariables: false,
+        includeTraceId: true
+      }
+    },
+    meta: { nodeDTOType: "microflow", collectionId: "root-collection", position: { x: 440, y: 200 }, size: { width: 152, height: 72 } }
   };
-  collection.objects = collection.objects.filter((item: { id?: string }) => item.id !== logNode.id);
-  collection.objects.push(logNode);
-  next.flows = [
+  next.workflow.nodes = next.workflow.nodes.filter((item: { id?: string }) => item.id !== logNode.id);
+  next.workflow.nodes.push(logNode);
+  next.workflow.edges = [
     {
       id: "flow-start-e2e-log",
-      stableId: "flow-start-e2e-log",
-      kind: "sequence",
-      officialType: "Microflows$SequenceFlow",
-      originObjectId: "start",
-      destinationObjectId: logNode.id,
-      originConnectionIndex: 0,
-      destinationConnectionIndex: 0,
-      caseValues: [],
-      isErrorHandler: false,
-      line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } },
-      editor: { edgeKind: "sequence" }
+      sourceNodeID: "start",
+      targetNodeID: logNode.id,
+      data: { flowId: "flow-start-e2e-log", flowKind: "sequence", edgeKind: "sequence", caseValues: [], isErrorHandler: false, line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } } }
     },
     {
       id: "flow-e2e-log-end",
-      stableId: "flow-e2e-log-end",
-      kind: "sequence",
-      officialType: "Microflows$SequenceFlow",
-      originObjectId: logNode.id,
-      destinationObjectId: "end",
-      originConnectionIndex: 0,
-      destinationConnectionIndex: 0,
-      caseValues: [],
-      isErrorHandler: false,
-      line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } },
-      editor: { edgeKind: "sequence" }
+      sourceNodeID: logNode.id,
+      targetNodeID: "end",
+      data: { flowId: "flow-e2e-log-end", flowKind: "sequence", edgeKind: "sequence", caseValues: [], isErrorHandler: false, line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } } }
     }
   ];
   next.audit = { ...(next.audit ?? {}), updatedAt: new Date().toISOString(), status: "draft" };
@@ -143,8 +129,8 @@ test.describe.serial("@microflow Mendix studio create/save", () => {
     });
     expect(reloadResp.ok()).toBeTruthy();
     const reloadedSchema = (await reloadResp.json())?.data?.schema;
-    const savedLogNode = reloadedSchema?.objectCollection?.objects?.find((item: { id?: string }) => item.id === "e2e-log-node");
-    expect(savedLogNode?.action?.template?.text).toBe(`Saved from E2E ${name}`);
-    expect(reloadedSchema?.flows?.some((flow: { id?: string }) => flow.id === "flow-start-e2e-log")).toBeTruthy();
+    const savedLogNode = reloadedSchema?.workflow?.nodes?.find((item: { id?: string }) => item.id === "e2e-log-node");
+    expect(savedLogNode?.data?.action?.template?.text).toBe(`Saved from E2E ${name}`);
+    expect(reloadedSchema?.workflow?.edges?.some((flow: { id?: string }) => flow.id === "flow-start-e2e-log")).toBeTruthy();
   });
 });

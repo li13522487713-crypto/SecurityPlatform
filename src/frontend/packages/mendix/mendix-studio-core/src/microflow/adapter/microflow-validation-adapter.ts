@@ -1,4 +1,4 @@
-import { compileMicroflowDesignToRuntime, validateMicroflowSchema, type MicroflowDesignSchema, type MicroflowValidationIssue } from "@atlas/microflow";
+import type { MicroflowDesignSchema, MicroflowValidationIssue } from "@atlas/microflow";
 import type { MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import { MicroflowApiClient, type MicroflowApiClientOptions } from "./http/microflow-api-client";
@@ -39,21 +39,62 @@ export interface MicroflowValidationAdapter {
   validate(input: MicroflowValidationInput): Promise<MicroflowValidationResult>;
 }
 
+function issue(id: string, code: string, message: string, fieldPath: string, microflowId: string): MicroflowValidationIssue {
+  return {
+    id: `${microflowId}:local:${id}`,
+    code,
+    severity: "error",
+    message,
+    source: "schema",
+    fieldPath,
+    microflowId,
+    blockSave: true,
+    blockPublish: true,
+  };
+}
+
+function validateDesignSchemaLocally(schema: MicroflowDesignSchema): MicroflowValidationIssue[] {
+  const issues: MicroflowValidationIssue[] = [];
+  if (schema.schemaVersion !== "flowgram.microflow.v1") {
+    issues.push(issue("schema-version", "MICROFLOW_SCHEMA_INVALID", "当前微流不是新版设计态。", "schemaVersion", schema.id));
+  }
+  if (!schema.workflow || !Array.isArray(schema.workflow.nodes) || !Array.isArray(schema.workflow.edges)) {
+    issues.push(issue("workflow", "MICROFLOW_SCHEMA_INVALID", "workflow.nodes/workflow.edges 不能为空。", "workflow", schema.id));
+    return issues;
+  }
+  const nodeIds = new Set<string>();
+  for (const [index, node] of schema.workflow.nodes.entries()) {
+    if (!node.id) {
+      issues.push(issue(`node-${index}-id`, "MF_OBJECT_MISSING", "节点 id 不能为空。", `workflow.nodes.${index}.id`, schema.id));
+      continue;
+    }
+    if (nodeIds.has(node.id)) {
+      issues.push(issue(`node-${node.id}-duplicated`, "MF_OBJECT_ID_DUPLICATED", `节点 ${node.id} 重复。`, `workflow.nodes.${index}.id`, schema.id));
+    }
+    nodeIds.add(node.id);
+  }
+  for (const [index, edge] of schema.workflow.edges.entries()) {
+    if (!nodeIds.has(edge.sourceNodeID)) {
+      issues.push(issue(`edge-${index}-source`, "MF_FLOW_INVALID_SOURCE", "连线起点节点不存在。", `workflow.edges.${index}.sourceNodeID`, schema.id));
+    }
+    if (!nodeIds.has(edge.targetNodeID)) {
+      issues.push(issue(`edge-${index}-target`, "MF_FLOW_INVALID_TARGET", "连线终点节点不存在。", `workflow.edges.${index}.targetNodeID`, schema.id));
+    }
+  }
+  return issues;
+}
+
 export function createLocalMicroflowValidationAdapter(): MicroflowValidationAdapter {
   return {
     async validate(input) {
-      const result = validateMicroflowSchema({
-        schema: compileMicroflowDesignToRuntime(input.schema),
-        metadata: input.metadata,
-        options: {
-          mode: input.mode,
-          includeWarnings: input.includeWarnings ?? true,
-          includeInfo: input.includeInfo ?? true,
-        },
-      });
+      const issues = validateDesignSchemaLocally(input.schema);
       return {
-        issues: result.issues,
-        summary: result.summary,
+        issues,
+        summary: {
+          errorCount: issues.filter(item => item.severity === "error").length,
+          warningCount: issues.filter(item => item.severity === "warning").length,
+          infoCount: issues.filter(item => item.severity === "info").length,
+        },
       };
     },
   };
@@ -69,7 +110,7 @@ export function createHttpMicroflowValidationAdapter(options: HttpMicroflowValid
     async validate(input) {
       const id = input.resourceId ?? input.schema.id;
       const result = await client.post<MicroflowValidationResult>(`/microflows/${encodeURIComponent(id)}/validate`, {
-        schema: compileMicroflowDesignToRuntime(input.schema),
+        schema: input.schema,
         mode: input.mode,
         includeWarnings: input.includeWarnings ?? true,
         includeInfo: input.includeInfo ?? true,

@@ -77,7 +77,7 @@
 | 34 | Loop body / exit flow 基础保存刷新恢复 | Stage 17 已完成：Loop body 使用 `originConnectionIndex=2`，after/exit 使用 `originConnectionIndex=1`，FlowEdgeForm 可识别与设置；刷新后由 handle/index 恢复 |
 | 35 | Break/Continue 合法性 warning | Stage 17 已完成：无 Loop、未处于 Loop body、target stale、多 Loop ambiguous、存在 outgoing flow 均显示 warning；不实现完整拓扑执行顺序分析 |
 | 36 | List / Collection 节点属性配置 | Stage 18 已完成 Create List / Change List / Aggregate List / List Operation 基础属性面板；字段写回当前 active microflow schema |
-| 37 | Create List / Change List / Aggregate List / List Operation 基础能力 | Stage 18 已完成集合变量创建、List selector、聚合 result variable、List Operation output variable 基础建模；不执行表达式或集合运行逻辑 |
+| 37 | Create List / Change List / Aggregate List / List Operation 基础能力 | 第 61 轮补齐 runtime 基础执行：Create List / Change List / Aggregate List / List Operation 对齐当前 authoring payload，支持 canonical list 变量字段；Aggregate List 覆盖 `count/sum/average/min/max`；List Operation 覆盖集合/标量操作以及 `filter/sort/map/take/skip` |
 | 38 | List variable index | Stage 18 已完成 `createList`、`aggregateList`、`listOperation` 变量索引扩展；selector 仅显示当前 schema 的 List 类型变量 |
 | 39 | 集合变量保存刷新恢复 | Stage 18 已完成 schema 字段与派生 `variables` 同步；保存仍复用 `PUT /api/microflows/{activeMicroflowId}/schema`，A/B 微流索引隔离通过测试覆盖 |
 | 40 | Object Activity 节点属性配置 | Stage 19 已完成：Create/Retrieve/Change/Commit/Delete/Rollback Object 基础属性表单写回当前 active schema，保存仍复用 `PUT /api/microflows/{activeMicroflowId}/schema` |

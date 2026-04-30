@@ -63,6 +63,22 @@ vi.mock("../selectors", async () => {
 afterEach(() => cleanup());
 
 describe("ActionActivityForm aggregate/filter/sort", () => {
+  it("aggregate function sum patches decimal result type", () => {
+    const onPatch = vi.fn();
+    render(<ActionActivityForm schema={schema()} object={aggregateObject()} issues={[]} onPatch={onPatch} />);
+
+    fireEvent.change(screen.getByDisplayValue("count"), { target: { value: "sum" } });
+
+    expect(onPatch).toHaveBeenCalledWith(expect.objectContaining({
+      object: expect.objectContaining({
+        action: expect.objectContaining({
+          aggregateFunction: "sum",
+          resultType: expect.objectContaining({ kind: "decimal" }),
+        }),
+      }),
+    }));
+  });
+
   it("patches aggregate emptyListBehavior", () => {
     const onPatch = vi.fn();
     render(<ActionActivityForm schema={schema()} object={aggregateObject()} issues={[]} onPatch={onPatch} />);

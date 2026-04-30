@@ -299,6 +299,13 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
         {
             AddRef(refs, "attribute", ReadString(sort, "attributeQualifiedName"), obj, $"{action.FieldPath}.sortItems.attributeQualifiedName", required: false);
         }
+
+        foreach (var sortKey in EnumerateArray(action.Raw, "sortKeys"))
+        {
+            AddRef(refs, "attribute", ReadString(sortKey, "attributeQualifiedName") ?? ReadString(sortKey, "memberName") ?? ReadString(sortKey, "field"), obj, $"{action.FieldPath}.sortKeys.attributeQualifiedName", required: false);
+        }
+
+        AddRef(refs, "attribute", ReadString(action.Raw, "attributeQualifiedName") ?? ReadString(action.Raw, "member"), obj, $"{action.FieldPath}.attributeQualifiedName", required: false);
     }
 
     private static void ExtractDataTypeMetadataRefs(IEnumerable<JsonElement> dataTypes, List<MicroflowExecutionMetadataRef> refs)
@@ -323,6 +330,7 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
         }
 
         var outputName = ReadString(action.Raw, "outputVariableName")
+            ?? ReadString(action.Raw, "outputListVariableName")
             ?? ReadString(action.Raw, "resultVariableName")
             ?? ReadString(action.Raw, "targetVariableName")
             ?? ReadStringByPath(action.Raw, "response", "handling", "outputVariableName");
@@ -377,6 +385,43 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
             var entity = ReadStringByPath(action, "retrieveSource", "entityQualifiedName");
             return JsonSerializer.SerializeToElement(new { kind = "list", itemType = new { kind = "object", entityQualifiedName = entity } }, JsonOptions);
         }
+        if (string.Equals(actionKind, "createList", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "listOperation", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "filterList", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "sortList", StringComparison.OrdinalIgnoreCase))
+        {
+            if (action.TryGetProperty("outputElementType", out var outputElementType))
+            {
+                return JsonSerializer.SerializeToElement(new { kind = "list", itemType = outputElementType.Clone() }, JsonOptions);
+            }
+
+            if (action.TryGetProperty("itemType", out var itemType))
+            {
+                return JsonSerializer.SerializeToElement(new { kind = "list", itemType = itemType.Clone() }, JsonOptions);
+            }
+
+            if (action.TryGetProperty("elementType", out var elementType))
+            {
+                return JsonSerializer.SerializeToElement(new { kind = "list", itemType = elementType.Clone() }, JsonOptions);
+            }
+
+            return JsonSerializer.SerializeToElement(new { kind = "list" }, JsonOptions);
+        }
+        if (string.Equals(actionKind, "aggregateList", StringComparison.OrdinalIgnoreCase))
+        {
+            if (action.TryGetProperty("resultType", out var resultType))
+            {
+                return resultType.Clone();
+            }
+
+            var aggregateFunction = (ReadString(action, "aggregateFunction") ?? ReadString(action, "aggregate") ?? ReadString(action, "operation") ?? "count").Trim();
+            return aggregateFunction switch
+            {
+                "sum" or "average" => JsonSerializer.SerializeToElement(new { kind = "decimal" }, JsonOptions),
+                "count" => JsonSerializer.SerializeToElement(new { kind = "integer" }, JsonOptions),
+                _ => Type("unknown")
+            };
+        }
         return Type("unknown");
     }
 
@@ -385,6 +430,12 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
         {
             "retrieve" => "actionOutput",
             "createObject" => "actionOutput",
+            "createList" => "actionOutput",
+            "changeList" => "actionOutput",
+            "listOperation" => "actionOutput",
+            "aggregateList" => "actionOutput",
+            "filterList" => "actionOutput",
+            "sortList" => "actionOutput",
             "createVariable" => "createVariable",
             "callMicroflow" => "microflowReturn",
             "restCall" => "restResponse",
@@ -461,10 +512,22 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
         };
 
     private static IReadOnlyList<string> ExtractInputVariableNames(JsonElement? action)
-        => ExtractVariableNames(action, "inputVariableNames", "inputVariableName", "targetVariableName");
+        => ExtractVariableNames(
+            action,
+            "inputVariableNames",
+            "inputVariableName",
+            "targetVariableName",
+            "listVariableName",
+            "sourceListVariableName",
+            "targetListVariableName",
+            "leftListVariableName",
+            "rightListVariableName",
+            "otherListVariableName",
+            "objectOrListVariableName",
+            "objectVariableName");
 
     private static IReadOnlyList<string> ExtractOutputVariableNames(JsonElement? action)
-        => ExtractVariableNames(action, "outputVariableNames", "outputVariableName", "resultVariableName");
+        => ExtractVariableNames(action, "outputVariableNames", "outputVariableName", "outputListVariableName", "resultVariableName");
 
     private static IReadOnlyList<string> ExtractVariableNames(JsonElement? action, string arrayName, params string[] names)
     {

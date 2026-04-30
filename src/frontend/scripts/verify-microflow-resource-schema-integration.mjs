@@ -69,10 +69,8 @@ async function expectError(label, method, path, body, status, code) {
 
 function makeSchema(resource, caption = "Start") {
   return {
-    schemaVersion: "1.0.0",
-    mendixProfile: "mx10",
+    schemaVersion: "flowgram.microflow.v1",
     id: resource.id,
-    stableId: resource.id,
     name: resource.name,
     displayName: resource.displayName,
     description: resource.description,
@@ -80,42 +78,49 @@ function makeSchema(resource, caption = "Start") {
     moduleName: resource.moduleName,
     parameters: [],
     returnType: { kind: "void" },
-    objectCollection: {
-      id: "root-collection",
-      officialType: "Microflows$MicroflowObjectCollection",
-      objects: [
+    workflow: {
+      nodes: [
         {
           id: "start",
-          stableId: "start",
-          kind: "startEvent",
-          officialType: "Microflows$StartEvent",
-          caption,
-          documentation: "",
-          relativeMiddlePoint: { x: 320, y: 200 },
+          type: "startEvent",
+          data: {
+            objectId: "start",
+            objectKind: "startEvent",
+            officialType: "Microflows$StartEvent",
+            title: caption,
+            collectionId: "root-collection",
+          },
+          meta: { nodeDTOType: "microflow", collectionId: "root-collection", position: { x: 320, y: 200 }, size: { width: 152, height: 72 } },
         },
         {
           id: "end",
-          stableId: "end",
-          kind: "endEvent",
-          officialType: "Microflows$EndEvent",
-          caption: "End",
-          documentation: "",
-          relativeMiddlePoint: { x: 560, y: 200 },
+          type: "endEvent",
+          data: {
+            objectId: "end",
+            objectKind: "endEvent",
+            officialType: "Microflows$EndEvent",
+            title: "End",
+            collectionId: "root-collection",
+          },
+          meta: { nodeDTOType: "microflow", collectionId: "root-collection", position: { x: 560, y: 200 }, size: { width: 152, height: 72 } },
+        },
+      ],
+      edges: [
+        {
+          id: "flow-start-end",
+          sourceNodeID: "start",
+          targetNodeID: "end",
+          data: {
+            flowId: "flow-start-end",
+            flowKind: "sequence",
+            edgeKind: "sequence",
+            collectionId: "root-collection",
+            caseValues: [],
+            isErrorHandler: false,
+          },
         },
       ],
     },
-    flows: [
-      {
-        id: "flow-start-end",
-        stableId: "flow-start-end",
-        kind: "sequence",
-        officialType: "Microflows$SequenceFlow",
-        originObjectId: "start",
-        destinationObjectId: "end",
-        caseValues: [],
-        isErrorHandler: false,
-      },
-    ],
     variables: { all: [] },
     validation: { issues: [] },
     editor: { viewport: { x: 0, y: 0, zoom: 1 } },
@@ -163,8 +168,8 @@ async function main() {
 
   resource = await expectOk("get created resource", "GET", `/api/microflows/${state.createdId}`);
   const loadedSchema = await expectOk("get schema", "GET", `/api/microflows/${state.createdId}/schema`);
-  if (!loadedSchema.schema?.objectCollection) {
-    throw new Error("get schema: schema is not MicroflowAuthoringSchema.");
+  if (!Array.isArray(loadedSchema.schema?.workflow?.nodes) || !Array.isArray(loadedSchema.schema?.workflow?.edges)) {
+    throw new Error("get schema: schema is not MicroflowDesignSchema.");
   }
 
   const saved = await expectOk("save schema", "PUT", `/api/microflows/${state.createdId}/schema`, {
@@ -176,9 +181,9 @@ async function main() {
   state.currentSchemaId = resource.schemaId;
 
   const savedSchema = await expectOk("get schema after save", "GET", `/api/microflows/${state.createdId}/schema`);
-  const startNode = savedSchema.schema.objectCollection.objects.find(item => item.id === "start");
-  if (startNode?.caption !== "Verified Start") {
-    throw new Error("get schema after save: saved caption was not persisted.");
+  const startNode = savedSchema.schema.workflow.nodes.find(item => item.id === "start");
+  if (startNode?.data?.title !== "Verified Start") {
+    throw new Error("get schema after save: saved node title was not persisted.");
   }
 
   await expectError("schema invalid save", "PUT", `/api/microflows/${state.createdId}/schema`, {

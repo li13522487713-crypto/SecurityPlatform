@@ -189,21 +189,72 @@ public sealed class MicroflowSeedDataHostedService : IHostedService
         var now = DateTimeOffset.UtcNow;
         var schemaJson = """
             {
-              "schemaVersion": "1.0.0",
+              "schemaVersion": "flowgram.microflow.v1",
               "id": "mf-seed-blank-schema",
               "stableId": "mf-seed-blank-schema",
               "name": "SeedBlankMicroflow",
               "displayName": "Seed Blank Microflow",
               "moduleId": "demo-module",
-              "objectCollection": {
-                "id": "root-collection",
-                "officialType": "Microflows$MicroflowObjectCollection",
-                "objects": []
+              "workflow": {
+                "nodes": [
+                  {
+                    "id": "start",
+                    "type": "startEvent",
+                    "data": {
+                      "objectId": "start",
+                      "objectKind": "startEvent",
+                      "collectionId": "root-collection",
+                      "title": "Start",
+                      "officialType": "Microflows$StartEvent",
+                      "disabled": false,
+                      "validationState": "valid",
+                      "runtimeState": "idle",
+                      "issueCount": 0
+                    },
+                    "meta": {
+                      "position": { "x": 320, "y": 220 },
+                      "size": { "width": 160, "height": 76 },
+                      "nodeDTOType": "startEvent",
+                      "collectionId": "root-collection"
+                    }
+                  },
+                  {
+                    "id": "end",
+                    "type": "endEvent",
+                    "data": {
+                      "objectId": "end",
+                      "objectKind": "endEvent",
+                      "collectionId": "root-collection",
+                      "title": "End",
+                      "officialType": "Microflows$EndEvent",
+                      "disabled": false,
+                      "validationState": "valid",
+                      "runtimeState": "idle",
+                      "issueCount": 0
+                    },
+                    "meta": {
+                      "position": { "x": 620, "y": 220 },
+                      "size": { "width": 160, "height": 76 },
+                      "nodeDTOType": "endEvent",
+                      "collectionId": "root-collection"
+                    }
+                  }
+                ],
+                "edges": []
               },
-              "flows": [],
+              "editor": { "viewport": { "x": 0, "y": 0, "zoom": 1 }, "selection": { "objectIds": [], "flowIds": [], "mode": "none" } },
               "parameters": [],
               "variables": [],
-              "returnType": { "kind": "void" }
+              "returnType": { "kind": "void" },
+              "validation": { "issues": [] },
+              "audit": {
+                "version": "0.1.0",
+                "status": "draft",
+                "createdBy": "seed",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedBy": "seed",
+                "updatedAt": "2026-01-01T00:00:00Z"
+              }
             }
             """;
         var snapshot = new MicroflowSchemaSnapshotEntity
@@ -212,8 +263,8 @@ public sealed class MicroflowSeedDataHostedService : IHostedService
             ResourceId = seedId,
             WorkspaceId = "demo-workspace",
             TenantId = "demo-tenant",
-            SchemaVersion = "1.0",
-            MigrationVersion = "backend-skeleton",
+            SchemaVersion = "flowgram.microflow.v1",
+            MigrationVersion = "design-schema-v1",
             SchemaJson = schemaJson,
             SchemaHash = "seed",
             CreatedBy = "seed",

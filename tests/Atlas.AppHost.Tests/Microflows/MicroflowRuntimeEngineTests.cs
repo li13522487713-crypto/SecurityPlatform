@@ -476,24 +476,7 @@ public sealed class MicroflowRuntimeEngineTests
             id: resourceId);
 
     private static JsonElement Schema(IReadOnlyList<object> objects, IReadOnlyList<object> flows, IReadOnlyList<object>? parameters = null, string id = "mf-test")
-        => JsonSerializer.SerializeToElement(new
-        {
-            schemaVersion = "1.0.0",
-            id,
-            name = id,
-            displayName = id,
-            moduleId = "mod",
-            parameters = parameters ?? [],
-            returnType = Type("unknown"),
-            objectCollection = new { id = "root", objects },
-            flows,
-            security = new { },
-            concurrency = new { },
-            exposure = new { },
-            validation = new { },
-            editor = new { },
-            audit = new { }
-        }, JsonOptions);
+        => MicroflowDesignSchemaTestFactory.Schema(objects, flows, parameters, id, JsonOptions);
 
     private static IReadOnlyList<object> Objects(params object[] objects) => objects;
 

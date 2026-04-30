@@ -213,6 +213,78 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
         required: mapping.parameterType != null && mapping.parameterType.kind !== "void",
       }));
     }
+    if (action.kind === "changeList") {
+      if (action.itemExpression) {
+        targets.push({
+          expression: action.itemExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.itemExpression",
+        });
+      }
+      if (action.itemsExpression) {
+        targets.push({
+          expression: action.itemsExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.itemsExpression",
+        });
+      }
+      if (action.conditionExpression) {
+        targets.push({
+          expression: action.conditionExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.conditionExpression",
+          expectedType: { kind: "boolean" },
+        });
+      }
+      if (action.indexExpression) {
+        targets.push({
+          expression: action.indexExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.indexExpression",
+          expectedType: { kind: "integer" },
+        });
+      }
+    }
+    if (action.kind === "aggregateList" && action.aggregateFunction !== "count" && action.aggregateExpression) {
+      targets.push({
+        expression: action.aggregateExpression,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.aggregateExpression",
+        required: true,
+      });
+    }
+    if (action.kind === "listOperation") {
+      if (action.expression) {
+        targets.push({
+          expression: action.expression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.expression",
+        });
+      }
+      if (action.filterExpression) {
+        targets.push({
+          expression: action.filterExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.filterExpression",
+          expectedType: { kind: "boolean" },
+        });
+      }
+      if (action.sortExpression) {
+        targets.push({
+          expression: action.sortExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.sortExpression",
+        });
+      }
+    }
   }
   return targets.flatMap(target => expressionIssues(schema, metadata, variableIndex, target));
 }

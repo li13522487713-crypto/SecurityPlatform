@@ -7,7 +7,7 @@ function clone<T>(value: T): T {
 
 function createBrokenPublishSchema(schema: any) {
   const next = clone(schema);
-  next.flows = [];
+  next.workflow.edges = [];
   next.audit = { ...(next.audit ?? {}), updatedAt: new Date().toISOString(), status: "draft" };
   return next;
 }
@@ -16,61 +16,48 @@ function createRunnableLogSchema(schema: any, message: string) {
   const next = clone(schema);
   const logNode = {
     id: "e2e-runtime-log",
-    stableId: "e2e-runtime-log",
-    kind: "actionActivity",
-    officialType: "Microflows$ActionActivity",
-    caption: "E2E Runtime Log",
-    documentation: "",
-    relativeMiddlePoint: { x: 440, y: 200 },
-    size: { width: 168, height: 72 },
-    editor: { iconKey: "logMessage" },
-    autoGenerateCaption: false,
-    backgroundColor: "default",
-    disabled: false,
-    action: {
-      id: "action-e2e-runtime-log",
-      kind: "logMessage",
-      officialType: "Microflows$LogMessageAction",
-      errorHandlingType: "rollback",
-      documentation: "E2E publish and runtime verification",
-      editor: { category: "logging", iconKey: "logMessage", availability: "supported" },
-      level: "info",
-      logNodeName: "MicroflowE2E",
-      template: { text: message, arguments: [] },
-      includeContextVariables: true,
-      includeTraceId: true
-    }
+    type: "actionActivity",
+    data: {
+      objectId: "e2e-runtime-log",
+      objectKind: "actionActivity",
+      officialType: "Microflows$ActionActivity",
+      title: "E2E Runtime Log",
+      documentation: "",
+      collectionId: "root-collection",
+      autoGenerateCaption: false,
+      backgroundColor: "default",
+      disabled: false,
+      actionKind: "logMessage",
+      action: {
+        id: "action-e2e-runtime-log",
+        kind: "logMessage",
+        officialType: "Microflows$LogMessageAction",
+        errorHandlingType: "rollback",
+        documentation: "E2E publish and runtime verification",
+        editor: { category: "logging", iconKey: "logMessage", availability: "supported" },
+        level: "info",
+        logNodeName: "MicroflowE2E",
+        template: { text: message, arguments: [] },
+        includeContextVariables: true,
+        includeTraceId: true
+      }
+    },
+    meta: { nodeDTOType: "microflow", collectionId: "root-collection", position: { x: 440, y: 200 }, size: { width: 168, height: 72 } }
   };
-  next.objectCollection.objects = next.objectCollection.objects.filter((item: { id?: string }) => item.id !== logNode.id);
-  next.objectCollection.objects.push(logNode);
-  next.flows = [
+  next.workflow.nodes = next.workflow.nodes.filter((item: { id?: string }) => item.id !== logNode.id);
+  next.workflow.nodes.push(logNode);
+  next.workflow.edges = [
     {
       id: "flow-start-runtime-log",
-      stableId: "flow-start-runtime-log",
-      kind: "sequence",
-      officialType: "Microflows$SequenceFlow",
-      originObjectId: "start",
-      destinationObjectId: logNode.id,
-      originConnectionIndex: 0,
-      destinationConnectionIndex: 0,
-      caseValues: [],
-      isErrorHandler: false,
-      line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } },
-      editor: { edgeKind: "sequence" }
+      sourceNodeID: "start",
+      targetNodeID: logNode.id,
+      data: { flowId: "flow-start-runtime-log", flowKind: "sequence", edgeKind: "sequence", caseValues: [], isErrorHandler: false, line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } } }
     },
     {
       id: "flow-runtime-log-end",
-      stableId: "flow-runtime-log-end",
-      kind: "sequence",
-      officialType: "Microflows$SequenceFlow",
-      originObjectId: logNode.id,
-      destinationObjectId: "end",
-      originConnectionIndex: 0,
-      destinationConnectionIndex: 0,
-      caseValues: [],
-      isErrorHandler: false,
-      line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } },
-      editor: { edgeKind: "sequence" }
+      sourceNodeID: logNode.id,
+      targetNodeID: "end",
+      data: { flowId: "flow-runtime-log-end", flowKind: "sequence", edgeKind: "sequence", caseValues: [], isErrorHandler: false, line: { kind: "orthogonal", points: [], routing: { mode: "auto", bendPoints: [] }, style: { strokeType: "solid", strokeWidth: 2, arrow: "target" } } }
     }
   ];
   next.audit = { ...(next.audit ?? {}), updatedAt: new Date().toISOString(), status: "draft" };

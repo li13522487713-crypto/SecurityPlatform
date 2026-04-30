@@ -19,8 +19,8 @@
 |---|---|---|---|---|---|
 | Object | retrieve | serverExecutable | RetrieveActionExecutor | supported | testRun mock；真实 DB 后续需 objectStore.crud |
 | Object | createObject, changeMembers, commit, delete, rollback | serverExecutable | 对应 Object Action Executor | supported | 写 VariableStore/TransactionManager |
-| Object | cast | serverExecutable | CastObjectActionExecutor | modeledOnlyConverted | 输出目标类型变量 |
-| List | createList, changeList, listOperation, aggregateList | serverExecutable | List Action Executors | modeledOnlyConverted | 写 VariableStore |
+| Object | cast | serverExecutable | CastObjectActionExecutor | supported | 输出目标类型变量 |
+| List | createList, changeList, listOperation, aggregateList | serverExecutable | List Action Executors | supported | 写 VariableStore；与当前 authoring payload 字段对齐 |
 | Variable | createVariable, changeVariable | serverExecutable | Variable Action Executors | supported | 表达式求值 + VariableStore |
 | Call | callMicroflow | serverExecutable | CallMicroflowActionExecutor | supported | testRun/previewRun/publishedRun 本地同步子微流调用；参数/返回绑定、callStack、childRunId、recursion guard |
 | Call | callJavaAction | connectorBacked | JavaActionExecutor | requiresConnector | java.action |

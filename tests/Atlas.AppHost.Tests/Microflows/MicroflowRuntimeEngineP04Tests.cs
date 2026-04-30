@@ -191,24 +191,7 @@ public sealed class MicroflowRuntimeEngineP04Tests
     }
 
     private static JsonElement Schema(IReadOnlyList<object> objects, IReadOnlyList<object> flows)
-        => JsonSerializer.SerializeToElement(new
-        {
-            schemaVersion = "1.0.0",
-            id = "mf-p04",
-            name = "mf-p04",
-            displayName = "mf-p04",
-            moduleId = "mod",
-            parameters = Array.Empty<object>(),
-            returnType = new { kind = "unknown" },
-            objectCollection = new { id = "root", objects },
-            flows,
-            security = new { },
-            concurrency = new { },
-            exposure = new { },
-            validation = new { },
-            editor = new { },
-            audit = new { }
-        }, JsonOptions);
+        => MicroflowDesignSchemaTestFactory.Schema(objects, flows, Array.Empty<object>(), "mf-p04", JsonOptions);
 
     private static IReadOnlyList<object> Objects(params object[] objects) => objects;
 

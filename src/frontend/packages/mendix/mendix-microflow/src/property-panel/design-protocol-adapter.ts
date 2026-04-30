@@ -3,7 +3,6 @@ import type { WorkflowNodeJSON } from "@flowgram-adapter/free-layout-editor";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData } from "../flowgram/FlowGramMicroflowTypes";
 import {
   MICROFLOW_ROOT_COLLECTION_ID,
-  compileMicroflowDesignToRuntime,
   createMicroflowWorkflowNode,
   workflowEdgeById,
   workflowNodeById,
@@ -20,8 +19,10 @@ import type {
   MicroflowAuthoringSchema,
   MicroflowDesignSchema,
   MicroflowFlow,
+  MicroflowLine,
   MicroflowObject,
   MicroflowPoint,
+  MicroflowSequenceFlow,
   MicroflowWorkflowEdgeJSON,
   MicroflowWorkflowNodeJSON,
 } from "../schema";
@@ -29,13 +30,24 @@ import { createStableId } from "../schema/utils/ids";
 import type { MicroflowEdgePatch, MicroflowNodePatch } from "./types";
 
 type NodeDataWithPropertyObject = Partial<FlowGramMicroflowNodeData> & {
-  propertyObject?: MicroflowObject;
   config?: Record<string, unknown>;
   editor?: Record<string, unknown>;
+  parameterId?: string;
+  parameterName?: string;
+  text?: string;
+  splitCondition?: unknown;
+  mergeBehavior?: unknown;
+  errorHandlingType?: unknown;
+  autoGenerateCaption?: boolean;
+  backgroundColor?: MicroflowActionActivity["backgroundColor"];
+  objectCollection?: never;
 };
 
 type EdgeDataWithPropertyFlow = Partial<FlowGramMicroflowEdgeData> & {
-  propertyFlow?: MicroflowFlow;
+  line?: MicroflowLine;
+  exposeLatestError?: boolean;
+  targetErrorVariableName?: string;
+  logError?: boolean;
 };
 
 export interface DesignPropertyPanelModel {
@@ -75,6 +87,11 @@ function findRegistryKeyForNode(node: MicroflowWorkflowNodeJSON): string | undef
 function defaultObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: MicroflowObject): MicroflowObject {
   const data = node.data as NodeDataWithPropertyObject | undefined;
   const position = nodePosition(node);
+  const baseOverrides = {
+    caption: data?.title ?? fallback?.caption,
+    documentation: data?.documentation ?? fallback?.documentation,
+    disabled: data?.disabled,
+  } as Partial<MicroflowObject>;
   if ((data?.objectKind ?? node.type) === "actionActivity" && data?.actionKind) {
     try {
       return createActionActivityFromActionRegistry({
@@ -82,10 +99,11 @@ function defaultObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microf
         id: node.id,
         position,
         overrides: {
-          caption: data.title ?? fallback?.caption,
-          documentation: data.documentation ?? fallback?.documentation,
+          ...baseOverrides,
           disabled: data.disabled ?? (fallback as MicroflowActionActivity | undefined)?.disabled,
           action: data.action ?? (fallback as MicroflowActionActivity | undefined)?.action,
+          autoGenerateCaption: data.autoGenerateCaption ?? (fallback as MicroflowActionActivity | undefined)?.autoGenerateCaption,
+          backgroundColor: data.backgroundColor ?? (fallback as MicroflowActionActivity | undefined)?.backgroundColor,
         } as Partial<MicroflowActionActivity>,
       });
     } catch {
@@ -100,9 +118,14 @@ function defaultObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microf
         id: node.id,
         position,
         overrides: {
-          caption: data?.title ?? fallback?.caption,
-          documentation: data?.documentation ?? fallback?.documentation,
-          disabled: data?.disabled,
+          ...baseOverrides,
+          ...(data?.parameterId ? { parameterId: data.parameterId } : {}),
+          ...(data?.parameterName ? { parameterName: data.parameterName } : {}),
+          ...(data?.loopSource ? { loopSource: data.loopSource } : {}),
+          ...(data?.text ? { text: data.text } : {}),
+          ...(data?.splitCondition ? { splitCondition: data.splitCondition } : {}),
+          ...(data?.mergeBehavior ? { mergeBehavior: data.mergeBehavior } : {}),
+          ...(data?.errorHandlingType ? { errorHandlingType: data.errorHandlingType } : {}),
         } as Partial<MicroflowObject>,
       }).object;
     } catch {
@@ -123,30 +146,31 @@ function defaultObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microf
   } as MicroflowObject);
 }
 
-function propertyObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: MicroflowObject): MicroflowObject {
+function designObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: MicroflowObject): MicroflowObject {
   const data = node.data as NodeDataWithPropertyObject | undefined;
   const base = defaultObjectForNode(node, fallback);
-  const stored = data?.propertyObject && data.propertyObject.id === node.id ? data.propertyObject : undefined;
   return {
     ...base,
-    ...stored,
     id: node.id,
-    stableId: stored?.stableId ?? base.stableId ?? node.id,
-    kind: stored?.kind ?? base.kind,
-    officialType: stored?.officialType ?? base.officialType,
-    caption: data?.title ?? stored?.caption ?? base.caption,
-    documentation: data?.documentation ?? stored?.documentation ?? base.documentation,
+    stableId: base.stableId ?? node.id,
+    kind: base.kind,
+    officialType: base.officialType,
+    caption: data?.title ?? base.caption,
+    documentation: data?.documentation ?? base.documentation,
     disabled: data?.disabled ?? ("disabled" in base ? base.disabled : undefined),
     relativeMiddlePoint: nodePosition(node),
     size: nodeSize(node),
+    ...(base.kind === "actionActivity" && data?.action ? { action: data.action, actionKind: data.actionKind ?? data.action.kind } : {}),
+    ...(base.kind === "loopedActivity" && data?.loopSource ? { loopSource: data.loopSource } : {}),
+    ...(base.kind === "parameterObject" && data?.parameterId ? { parameterId: data.parameterId, parameterName: data.parameterName } : {}),
+    ...(base.kind === "annotation" && data?.text ? { text: data.text } : {}),
   } as MicroflowObject;
 }
 
-function propertyFlowForEdge(edge: MicroflowWorkflowEdgeJSON, fallback?: MicroflowFlow): MicroflowFlow {
+function designFlowForEdge(edge: MicroflowWorkflowEdgeJSON, fallback?: MicroflowFlow): MicroflowFlow {
   const data = edge.data as EdgeDataWithPropertyFlow | undefined;
   const flowId = data?.flowId ?? edge.id ?? createStableId("flow");
-  const stored = data?.propertyFlow && data.propertyFlow.id === flowId ? data.propertyFlow : undefined;
-  const base = stored ?? fallback ?? ({
+  const base = fallback ?? ({
     id: flowId,
     stableId: flowId,
     kind: "sequence",
@@ -170,6 +194,28 @@ function propertyFlowForEdge(edge: MicroflowWorkflowEdgeJSON, fallback?: Microfl
       branchOrder: data?.branchOrder,
     },
   } as MicroflowFlow);
+  const kind = data?.flowKind ?? base.kind ?? "sequence";
+  if (kind === "annotation") {
+    return {
+      id: flowId,
+      stableId: base.stableId ?? flowId,
+      kind: "annotation",
+      officialType: "Microflows$AnnotationFlow",
+      originObjectId: edge.sourceNodeID,
+      destinationObjectId: edge.targetNodeID,
+      originConnectionIndex: "originConnectionIndex" in base ? base.originConnectionIndex : 0,
+      destinationConnectionIndex: "destinationConnectionIndex" in base ? base.destinationConnectionIndex : 0,
+      line: data?.line ?? base.line,
+      caseValues: data?.caseValues ?? base.caseValues ?? [],
+      isErrorHandler: false,
+      editor: {
+        edgeKind: "annotation",
+        label: data?.label ?? base.editor.label,
+        description: data?.description ?? base.editor.description,
+        showInExport: data?.showInExport ?? ("showInExport" in base.editor ? base.editor.showInExport : true),
+      },
+    };
+  }
   return {
     ...base,
     id: flowId,
@@ -178,6 +224,9 @@ function propertyFlowForEdge(edge: MicroflowWorkflowEdgeJSON, fallback?: Microfl
     destinationObjectId: edge.targetNodeID,
     caseValues: data?.caseValues ?? base.caseValues ?? [],
     isErrorHandler: data?.isErrorHandler ?? base.isErrorHandler ?? false,
+    exposeLatestError: data?.exposeLatestError ?? (base as MicroflowSequenceFlow).exposeLatestError,
+    targetErrorVariableName: data?.targetErrorVariableName ?? (base as MicroflowSequenceFlow).targetErrorVariableName,
+    logError: data?.logError ?? (base as MicroflowSequenceFlow).logError,
     editor: {
       ...base.editor,
       edgeKind: data?.edgeKind ?? base.editor.edgeKind ?? "sequence",
@@ -186,6 +235,47 @@ function propertyFlowForEdge(edge: MicroflowWorkflowEdgeJSON, fallback?: Microfl
       branchOrder: data?.branchOrder ?? (base.editor as { branchOrder?: number }).branchOrder,
     },
   } as MicroflowFlow;
+}
+
+function createTransientAuthoringSchema(schema: MicroflowDesignSchema): MicroflowAuthoringSchema {
+  const timestamp = new Date().toISOString();
+  const objects = schema.workflow.nodes.map(node => designObjectForNode(node));
+  const flows = schema.workflow.edges.map(edge => designFlowForEdge(edge));
+  return {
+    schemaVersion: schema.schemaVersion,
+    mendixProfile: "mx10",
+    id: schema.id,
+    stableId: schema.stableId ?? schema.id,
+    name: schema.name,
+    displayName: schema.displayName,
+    description: schema.description,
+    documentation: schema.documentation,
+    moduleId: schema.moduleId,
+    moduleName: schema.moduleName,
+    parameters: schema.parameters,
+    returnType: schema.returnType,
+    returnVariableName: schema.returnVariableName,
+    objectCollection: {
+      id: MICROFLOW_ROOT_COLLECTION_ID,
+      officialType: "Microflows$MicroflowObjectCollection",
+      objects,
+    },
+    flows,
+    security: { applyEntityAccess: true, allowedModuleRoleIds: [] },
+    concurrency: { allowConcurrentExecution: true, errorMicroflowId: null },
+    exposure: {
+      exportLevel: "module",
+      markAsUsed: true,
+      asMicroflowAction: { enabled: false },
+      asWorkflowAction: { enabled: false },
+      url: { enabled: false },
+    },
+    variables: undefined,
+    validation: schema.validation,
+    editor: schema.editor,
+    audit: { ...schema.audit, updatedAt: schema.audit.updatedAt ?? timestamp },
+    debug: schema.debug,
+  };
 }
 
 function flowMatchesEdge(edge: MicroflowWorkflowEdgeJSON, flowId?: string): boolean {
@@ -214,14 +304,7 @@ function withSelection(schema: MicroflowDesignSchema, objectId?: string, flowId?
 }
 
 export function buildDesignPropertyPanelModel(schema: MicroflowDesignSchema): DesignPropertyPanelModel {
-  const authoringSchema = compileMicroflowDesignToRuntime(schema);
-  const runtimeObjects = new Map(authoringSchema.objectCollection.objects.map(object => [object.id, object]));
-  const runtimeFlows = new Map(authoringSchema.flows.map(flow => [flow.id, flow]));
-  authoringSchema.objectCollection.objects = schema.workflow.nodes.map(node => propertyObjectForNode(node, runtimeObjects.get(node.id)));
-  authoringSchema.flows = schema.workflow.edges.map(edge => {
-    const data = edge.data as Partial<FlowGramMicroflowEdgeData> | undefined;
-    return propertyFlowForEdge(edge, runtimeFlows.get(data?.flowId ?? edge.id ?? ""));
-  });
+  const authoringSchema = createTransientAuthoringSchema(schema);
   const selectedObjectId = schema.editor.selection?.objectId ?? schema.editor.selectedObjectId;
   const selectedFlowId = schema.editor.selection?.flowId ?? schema.editor.selectedFlowId;
   return {
@@ -262,7 +345,6 @@ export function applyDesignObjectPatch(schema: MicroflowDesignSchema, objectId: 
         const existingData = node.data as NodeDataWithPropertyObject | undefined;
         const nextData: NodeDataWithPropertyObject = {
           ...existingData,
-          propertyObject: cloneJson(nextObject),
           objectId,
           objectKind: nextObject.kind,
           collectionId: existingData?.collectionId ?? String(node.meta?.collectionId ?? MICROFLOW_ROOT_COLLECTION_ID),
@@ -272,7 +354,17 @@ export function applyDesignObjectPatch(schema: MicroflowDesignSchema, objectId: 
           disabled: "disabled" in nextObject ? Boolean(nextObject.disabled) : existingData?.disabled ?? false,
           actionKind: nextObject.kind === "actionActivity" ? nextObject.action.kind : existingData?.actionKind,
           action: nextObject.kind === "actionActivity" ? nextObject.action : existingData?.action,
+          parameterId: nextObject.kind === "parameterObject" ? nextObject.parameterId : existingData?.parameterId,
+          parameterName: nextObject.kind === "parameterObject" ? nextObject.parameterName : existingData?.parameterName,
+          loopSource: nextObject.kind === "loopedActivity" ? nextObject.loopSource : existingData?.loopSource,
+          iteratorVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.iteratorVariableName : existingData?.iteratorVariableName,
+          listVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.listVariableName : existingData?.listVariableName,
+          currentIndexVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.currentIndexVariableName : existingData?.currentIndexVariableName,
+          text: nextObject.kind === "annotation" ? nextObject.text : existingData?.text,
+          autoGenerateCaption: nextObject.kind === "actionActivity" ? nextObject.autoGenerateCaption : existingData?.autoGenerateCaption,
+          backgroundColor: nextObject.kind === "actionActivity" ? nextObject.backgroundColor : existingData?.backgroundColor,
         };
+        delete (nextData as Record<string, unknown>).objectCollection;
         return {
           ...node,
           type: nextObject.kind,
@@ -308,16 +400,19 @@ export function applyDesignFlowPatch(schema: MicroflowDesignSchema, flowId: stri
         const edgeKind = nextFlow.kind === "annotation" ? "annotation" : nextFlow.isErrorHandler ? "errorHandler" : nextFlow.editor.edgeKind;
         const nextData: EdgeDataWithPropertyFlow = {
           ...existingData,
-          propertyFlow: cloneJson(nextFlow),
           flowId: nextFlow.id,
           flowKind: nextFlow.kind,
           edgeKind,
           isErrorHandler: nextFlow.kind === "sequence" ? nextFlow.isErrorHandler : false,
           caseValues: nextFlow.kind === "sequence" ? nextFlow.caseValues : nextFlow.caseValues ?? [],
+          line: nextFlow.line,
           label: nextFlow.editor.label,
           description: nextFlow.editor.description,
           branchOrder: (nextFlow.editor as { branchOrder?: number }).branchOrder,
           showInExport: nextFlow.kind === "annotation" ? nextFlow.editor.showInExport : existingData?.showInExport,
+          exposeLatestError: nextFlow.kind === "sequence" ? nextFlow.exposeLatestError : existingData?.exposeLatestError,
+          targetErrorVariableName: nextFlow.kind === "sequence" ? nextFlow.targetErrorVariableName : existingData?.targetErrorVariableName,
+          logError: nextFlow.kind === "sequence" ? nextFlow.logError : existingData?.logError,
           validationState: existingData?.validationState ?? "valid",
           runtimeState: existingData?.runtimeState ?? "idle",
         };
@@ -390,7 +485,6 @@ export function duplicateDesignObject(schema: MicroflowDesignSchema, objectId: s
       ...(cloneJson(node.data ?? {}) as Partial<FlowGramMicroflowNodeData> & Record<string, unknown>),
       objectId: id,
       title: `${String((node.data as Partial<FlowGramMicroflowNodeData> | undefined)?.title ?? node.id)} Copy`,
-      propertyObject: undefined,
     },
   }) as WorkflowNodeJSON;
   return withSelection({

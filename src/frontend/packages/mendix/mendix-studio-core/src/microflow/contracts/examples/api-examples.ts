@@ -6,7 +6,7 @@ import type { ListMicroflowsResponse } from "../api/microflow-resource-api-contr
 
 /**
  * 与 `request-response-examples.md` 保持字段一致，用于契约静态示例与单测可引用数据。
- * 不引用真实 `MicroflowAuthoringSchema` 全量，以免样例过胖。
+ * 不引用真实微流设计态全量，以免样例过胖。
  */
 export const exampleListMicroflowsEnvelope: MicroflowApiResponse<ListMicroflowsResponse> = {
   success: true,

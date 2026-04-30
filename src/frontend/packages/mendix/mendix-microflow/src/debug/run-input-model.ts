@@ -1,5 +1,5 @@
 import type { TestRunMicroflowRequest } from "../runtime-adapter/types";
-import type { MicroflowDataType, MicroflowObjectCollection, MicroflowParameter, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import type { MicroflowDataType, MicroflowDesignSchema, MicroflowObjectCollection, MicroflowParameter, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import type { MicroflowTestRunOptions } from "./trace-types";
 
 export type MicroflowRunInputControlKind = "text" | "number" | "boolean" | "dateTime" | "json" | "readonly";
@@ -17,6 +17,10 @@ export interface MicroflowRunInputModel {
   schemaVersion: string;
   fields: MicroflowRunInputField[];
   warnings: string[];
+}
+
+function isDesignSchema(schema: unknown): schema is MicroflowDesignSchema {
+  return (schema as { workflow?: unknown }).workflow != null;
 }
 
 export interface MicroflowRunInputValidationResult {
@@ -151,7 +155,7 @@ export function buildRunRequest(
   return {
     microflowId: schema.id,
     input: values,
-    schema: includeDraftSchema ? schema : undefined,
+    schema: includeDraftSchema && isDesignSchema(schema) ? schema : undefined,
     schemaId: undefined,
     version: undefined,
     debug: true,

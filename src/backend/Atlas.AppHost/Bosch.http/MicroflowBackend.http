@@ -956,9 +956,9 @@ X-Trace-Id: {{traceId}}
         { "id": "start", "kind": "startEvent" },
         { "id": "create", "kind": "actionActivity", "action": { "id": "create-action", "kind": "createObject", "entityQualifiedName": "Sales.Order", "outputVariableName": "order", "commit": { "enabled": true } } },
         { "id": "cast", "kind": "actionActivity", "action": { "id": "cast-action", "kind": "cast", "inputVariableName": "order", "outputVariableName": "specializedOrder", "targetEntityQualifiedName": "Sales.SpecialOrder" } },
-        { "id": "create-list", "kind": "actionActivity", "action": { "id": "create-list-action", "kind": "createList", "outputVariableName": "orders", "itemType": { "kind": "object", "entityQualifiedName": "Sales.Order" } } },
-        { "id": "change-list", "kind": "actionActivity", "action": { "id": "change-list-action", "kind": "changeList", "listVariableName": "orders", "operation": "add", "valueExpression": "$order" } },
-        { "id": "aggregate", "kind": "actionActivity", "action": { "id": "aggregate-action", "kind": "aggregateList", "sourceListVariableName": "orders", "outputVariableName": "orderCount", "aggregate": "count" } },
+        { "id": "create-list", "kind": "actionActivity", "action": { "id": "create-list-action", "kind": "createList", "outputListVariableName": "orders", "itemType": { "kind": "object", "entityQualifiedName": "Sales.Order" } } },
+        { "id": "change-list", "kind": "actionActivity", "action": { "id": "change-list-action", "kind": "changeList", "targetListVariableName": "orders", "operation": "add", "objectVariableName": "order" } },
+        { "id": "aggregate", "kind": "actionActivity", "action": { "id": "aggregate-action", "kind": "aggregateList", "sourceListVariableName": "orders", "outputVariableName": "orderCount", "aggregateFunction": "count", "emptyListBehavior": "zero" } },
         { "id": "show-message", "kind": "actionActivity", "action": { "id": "show-message-action", "kind": "showMessage", "template": { "text": "Order saved" }, "level": "info" } },
         { "id": "end", "kind": "endEvent" }
       ]

@@ -115,9 +115,10 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
                 Start(),
                 Action("count", "aggregateList", new
                 {
-                    listVariableName = "items",
-                    operation = "count",
-                    resultVariableName = "total"
+                    sourceListVariableName = "items",
+                    aggregateFunction = "count",
+                    outputVariableName = "total",
+                    emptyListBehavior = "zero"
                 }),
                 End(returnValue: "$total")),
             Flows(
@@ -337,24 +338,7 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
     }
 
     private static JsonElement Schema(IReadOnlyList<object> objects, IReadOnlyList<object> flows, IReadOnlyList<object>? parameters = null)
-        => JsonSerializer.SerializeToElement(new
-        {
-            schemaVersion = "1.0.0",
-            id = "mf-test",
-            name = "mf-test",
-            displayName = "mf-test",
-            moduleId = "mod",
-            parameters = parameters ?? [],
-            returnType = new { kind = "unknown" },
-            objectCollection = new { id = "root", objects },
-            flows,
-            security = new { },
-            concurrency = new { },
-            exposure = new { },
-            validation = new { },
-            editor = new { },
-            audit = new { }
-        }, JsonOptions);
+        => MicroflowDesignSchemaTestFactory.Schema(objects, flows, parameters, "mf-test", JsonOptions);
 
     private static IReadOnlyList<object> Objects(params object[] objects) => objects;
 

@@ -228,11 +228,10 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             }
 
             if (obj.Kind.Equals("loopedActivity", StringComparison.OrdinalIgnoreCase)
-                && !obj.Raw.TryGetProperty("objectCollection", out _)
-                && !obj.Raw.TryGetProperty("containedObjectCollection", out _)
-                && !obj.Raw.TryGetProperty("loopObjectCollection", out _))
+                && (!obj.Raw.TryGetProperty("loopSource", out var loopSource)
+                    || loopSource.ValueKind != JsonValueKind.Object))
             {
-                Add(context, MicroflowValidationCodes.LoopSourceMissing, "LoopedActivity 必须包含内部 objectCollection。", "loop", $"{obj.FieldPath}.objectCollection", objectId: obj.Id);
+                Add(context, MicroflowValidationCodes.LoopSourceMissing, "LoopedActivity 必须包含 data.loopSource。", "loop", $"{obj.FieldPath}.data.loopSource", objectId: obj.Id);
             }
 
             if (obj.Kind.Equals("parameterObject", StringComparison.OrdinalIgnoreCase)

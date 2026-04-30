@@ -1,62 +1,37 @@
-import type { MicroflowAction, MicroflowDataType, MicroflowExpression, MicroflowDiscriminatedRuntimeP0ActionDto } from "@atlas/microflow/schema";
+import type { MicroflowDesignSchema } from "@atlas/microflow/schema";
 
 /**
- * 前端 v1 运行时 DTO 契约：与 toRuntimeDto() 产出的 MicroflowRuntimeDto 配套。
- * 业务主数据仍为 MicroflowAuthoringSchema；本组类型供后端按字段落地或二次映射，不包含 FlowGram JSON。
- * P0 动作为强类型：见 `MicroflowRuntimeDto.p0RuntimeActionBlocks` 与 {@link MicroflowDiscriminatedRuntimeP0ActionDto}。
+ * 新版微流运行计划契约：输入仍是 MicroflowDesignSchema，执行计划是服务端按 workflow.nodes/edges 构建的派生视图。
+ * 这里不再导出历史运行 DTO，也不提供设计态到历史 DTO 的桥接。
  */
-export type {
-  MicroflowRuntimeDto,
-  MicroflowRuntimeNodeDto,
-  MicroflowRuntimeEdgeDto
-} from "@atlas/microflow/schema";
+export interface MicroflowRuntimePlanDto {
+  schemaVersion: MicroflowDesignSchema["schemaVersion"];
+  microflowId: string;
+  nodes: MicroflowRuntimePlanNodeDto[];
+  edges: MicroflowRuntimePlanEdgeDto[];
+  parameters: MicroflowRuntimePlanParameterDto[];
+}
 
-export type { MicroflowDiscriminatedRuntimeP0ActionDto };
+export interface MicroflowRuntimePlanNodeDto {
+  id: string;
+  kind: string;
+  title?: string;
+  actionKind?: string;
+  disabled?: boolean;
+}
 
-export { toRuntimeDto } from "@atlas/microflow/adapters/runtime";
+export interface MicroflowRuntimePlanEdgeDto {
+  id: string;
+  sourceNodeID: string;
+  targetNodeID: string;
+  edgeKind?: string;
+  isErrorHandler?: boolean;
+  caseValues?: unknown[];
+}
 
-/** 与 schema.parameters 对齐的执行期参数描述（精简版）。 */
-export interface MicroflowRuntimeParameterDto {
+export interface MicroflowRuntimePlanParameterDto {
   id: string;
   name: string;
-  dataType: MicroflowDataType;
-  required: boolean;
-}
-
-/** 执行期变量槽位（与 VariableIndex 条目对应的概念视图）。 */
-export interface MicroflowRuntimeVariableDto {
-  name: string;
-  dataType: MicroflowDataType;
-  source?: string;
-}
-
-/**
- * 以 objectId + actionId 为键的动作摘要；完整载荷仍以 Authoring 侧 MicroflowAction 为准，执行器按 actionKind 分支。
- * P0：retrieve、createObject、changeMembers、commit、delete、rollback、createVariable、changeVariable、callMicroflow、restCall、logMessage 等由后端逐步消费。
- */
-export interface MicroflowRuntimeActionDto {
-  objectId: string;
-  actionId: string;
-  actionKind: MicroflowAction["kind"];
-  errorHandlingType?: MicroflowAction["errorHandlingType"];
-  /** 表达式原文，不含画布几何。 */
-  expressionFields?: Array<{ fieldPath: string; expression: MicroflowExpression }>;
-}
-
-export interface MicroflowRuntimeFlowDto {
-  flowId: string;
-  kind: "sequence" | "annotation";
-  originObjectId: string;
-  destinationObjectId: string;
-  isErrorHandler?: boolean;
-}
-
-export interface MicroflowRuntimeMetadataRefDto {
-  refKind: "entity" | "enumeration" | "microflow" | "page" | "workflow" | "association" | "attribute";
-  qualifiedName: string;
-}
-
-export interface MicroflowRuntimeErrorHandlingDto {
-  errorHandlingType: MicroflowAction["errorHandlingType"];
-  scopeObjectId: string;
+  type?: unknown;
+  required?: boolean;
 }

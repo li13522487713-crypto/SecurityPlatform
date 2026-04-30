@@ -85,6 +85,96 @@ export function tryMapP0ActionToDiscriminatedDto(action: MicroflowAction): Micro
         errorHandlingType: eh,
         config: { objectOrListVariableName: action.objectOrListVariableName, refreshInClient: action.refreshInClient },
       };
+    case "createList":
+      {
+        const record = action as unknown as Record<string, unknown>;
+      return {
+        ...base,
+        actionKind: "createList",
+        errorHandlingType: eh,
+        config: {
+          outputListVariableName: String(record.outputListVariableName ?? record.outputVariableName ?? record.listVariableName ?? ""),
+          listVariableName: action.listVariableName,
+          itemType: action.itemType,
+          elementType: action.elementType,
+          listType: action.listType,
+          initialItemsExpression: action.initialItemsExpression,
+        },
+      };
+      }
+    case "changeList":
+      {
+        const record = action as unknown as Record<string, unknown>;
+      return {
+        ...base,
+        actionKind: "changeList",
+        errorHandlingType: eh,
+        config: {
+          targetListVariableName: String(record.targetListVariableName ?? record.targetVariableName ?? record.listVariableName ?? ""),
+          sourceListVariableName: action.sourceListVariableName,
+          operation: action.operation,
+          objectVariableName: action.objectVariableName,
+          itemExpression: action.itemExpression,
+          itemsExpression: action.itemsExpression,
+          conditionExpression: action.conditionExpression,
+          indexExpression: action.indexExpression,
+        },
+      };
+      }
+    case "aggregateList":
+      {
+        const record = action as unknown as Record<string, unknown>;
+      return {
+        ...base,
+        actionKind: "aggregateList",
+        errorHandlingType: eh,
+        config: {
+          sourceListVariableName: action.sourceListVariableName || action.listVariableName,
+          listVariableName: action.listVariableName,
+          aggregateFunction: String(record.aggregateFunction ?? record.aggregate ?? record.operation ?? "count"),
+          attributeQualifiedName: action.attributeQualifiedName,
+          member: action.member,
+          aggregateExpression: action.aggregateExpression,
+          outputVariableName: String(record.outputVariableName ?? record.resultVariableName ?? ""),
+          resultVariableName: action.resultVariableName,
+          resultType: action.resultType,
+          emptyListBehavior: action.emptyListBehavior,
+        },
+      };
+      }
+    case "listOperation":
+      {
+        const record = action as unknown as Record<string, unknown>;
+      return {
+        ...base,
+        actionKind: "listOperation",
+        errorHandlingType: eh,
+        config: {
+          leftListVariableName: String(record.leftListVariableName ?? record.sourceListVariableName ?? record.listVariableName ?? ""),
+          sourceListVariableName: String(record.sourceListVariableName ?? record.leftListVariableName ?? record.listVariableName ?? ""),
+          rightListVariableName: typeof record.rightListVariableName === "string"
+            ? record.rightListVariableName
+            : typeof record.otherListVariableName === "string"
+              ? record.otherListVariableName
+              : undefined,
+          operation: action.operation,
+          objectVariableName: action.objectVariableName,
+          expression: action.expression,
+          filterExpression: action.filterExpression,
+          sortExpression: action.sortExpression,
+          sortKeys: (record.sortKeys as Array<Record<string, unknown>> | undefined),
+          outputListVariableName: String(record.outputListVariableName ?? record.outputVariableName ?? ""),
+          outputVariableName: typeof record.outputVariableName === "string"
+            ? record.outputVariableName
+            : typeof record.outputListVariableName === "string"
+              ? record.outputListVariableName
+              : undefined,
+          outputElementType: record.outputElementType as typeof action.outputElementType,
+          limit: typeof record.limit === "number" ? record.limit : undefined,
+          offset: typeof record.offset === "number" ? record.offset : undefined,
+        },
+      };
+      }
     case "createVariable":
       return {
         ...base,
@@ -167,6 +257,10 @@ export function mapAuthoringP0ToRuntimeBlocks(schema: MicroflowAuthoringSchema):
       || act.kind === "commit"
       || act.kind === "delete"
       || act.kind === "rollback"
+      || act.kind === "createList"
+      || act.kind === "changeList"
+      || act.kind === "aggregateList"
+      || act.kind === "listOperation"
       || act.kind === "createVariable"
       || act.kind === "changeVariable"
       || act.kind === "callMicroflow"

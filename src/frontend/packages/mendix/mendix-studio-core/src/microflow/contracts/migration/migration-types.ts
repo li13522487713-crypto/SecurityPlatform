@@ -1,7 +1,8 @@
-import type { MicroflowAuthoringSchema } from "@atlas/microflow";
+import type { MicroflowDesignSchema } from "@atlas/microflow";
 
 /**
- * 描述一条 Authoring 结构迁移（`schemaVersion` 轴），与 `migrationVersion` / 行级 `MicroflowSchemaMigrationRow` 配合。
+ * 描述一条新版设计态 schemaVersion 轴上的结构升级记录。
+ * 旧设计态不再进入运行时迁移流程，命中旧格式时应由 API 直接返回 MICROFLOW_SCHEMA_INVALID。
  */
 export interface MicroflowSchemaMigration {
   fromVersion: string;
@@ -11,7 +12,7 @@ export interface MicroflowSchemaMigration {
 }
 
 export interface MicroflowSchemaMigrationResult {
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowDesignSchema;
   warnings: string[];
   changed: boolean;
 }

@@ -14,7 +14,6 @@ import {
   FlowGramMicroflowNativeCanvas,
 } from "../flowgram/FlowGramMicroflowNativeCanvas";
 import {
-  compileMicroflowDesignToRuntime,
   createWorkflowNodeFromPanelItem,
   workflowEdgeById,
   workflowEdgeCount,
@@ -211,10 +210,9 @@ function deleteSelection(schema: MicroflowDesignSchema, targetSelection?: FlowGr
       .flatMap(node => {
         const data = node.data as (Partial<FlowGramMicroflowNodeData> & {
           parameterId?: string;
-          propertyObject?: { kind?: string; parameterId?: string };
         }) | undefined;
-        const parameterId = data?.parameterId ?? data?.propertyObject?.parameterId;
-        return data?.objectKind === "parameterObject" || data?.propertyObject?.kind === "parameterObject"
+        const parameterId = data?.parameterId;
+        return data?.objectKind === "parameterObject"
           ? [parameterId].filter((id): id is string => Boolean(id))
           : [];
       }),
@@ -450,11 +448,10 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         Toast.warning("存在校验错误，无法运行。");
         return;
       }
-      const runtimeSchema = compileMicroflowDesignToRuntime(latestSchemaRef.current);
       const response = await props.apiClient?.testRunMicroflow({
         microflowId: latestSchemaRef.current.id,
         input: {},
-        schema: runtimeSchema,
+        schema: latestSchemaRef.current,
       });
       if (response) {
         props.onTestRunComplete?.(response);

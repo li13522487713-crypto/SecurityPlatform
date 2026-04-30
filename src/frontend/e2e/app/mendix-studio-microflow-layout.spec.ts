@@ -109,20 +109,8 @@ async function saveAndReloadMicroflow(page: import("@playwright/test").Page) {
 
 interface MicroflowObjectSnapshot {
   id?: string;
-  kind?: string;
-  relativeMiddlePoint?: { x: number; y: number };
-  objectCollection?: MicroflowObjectCollectionSnapshot;
-}
-
-interface MicroflowObjectCollectionSnapshot {
-  objects?: MicroflowObjectSnapshot[];
-}
-
-function flattenMicroflowObjects(collection: MicroflowObjectCollectionSnapshot | undefined): MicroflowObjectSnapshot[] {
-  return (collection?.objects ?? []).flatMap(object => [
-    object,
-    ...(object.kind === "loopedActivity" ? flattenMicroflowObjects(object.objectCollection) : [])
-  ]);
+  data?: { relativeMiddlePoint?: { x: number; y: number } };
+  meta?: { position?: { x: number; y: number } };
 }
 
 async function readMicroflowObjectPosition(
@@ -136,11 +124,12 @@ async function readMicroflowObjectPosition(
   });
   expect(response.ok()).toBeTruthy();
   const payload = await response.json();
-  const object = flattenMicroflowObjects(payload?.data?.schema?.objectCollection as MicroflowObjectCollectionSnapshot | undefined).find(item => item.id === objectId);
-  if (!object?.relativeMiddlePoint) {
+  const object = (payload?.data?.schema?.workflow?.nodes as MicroflowObjectSnapshot[] | undefined)?.find(item => item.id === objectId);
+  const position = object?.meta?.position ?? object?.data?.relativeMiddlePoint;
+  if (!position) {
     throw new Error(`Microflow object position not found: ${objectId}`);
   }
-  return object.relativeMiddlePoint;
+  return position;
 }
 
 test.describe.serial("@microflow Mendix Studio layout", () => {

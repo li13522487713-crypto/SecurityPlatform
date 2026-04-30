@@ -2,11 +2,6 @@
  * Local development/offline debug only.
  * Do not use localStorage adapter as production persistence.
  */
-import { validateMicroflowSchema } from "../schema/validator";
-import { ensureAuthoringSchema, flattenObjectCollection } from "../adapters";
-import { getDefaultMockMetadataCatalog } from "../metadata";
-import { buildVariableIndex } from "../variables";
-import { mockTestRunMicroflow } from "../debug";
 import type {
   CreateMicroflowInput,
   MicroflowListQuery,
@@ -14,11 +9,10 @@ import type {
   MicroflowResource,
   MicroflowResourceSortKey,
   MicroflowResourceStatus,
-  MicroflowAuthoringSchema,
   MicroflowDesignSchema,
+  MicroflowValidationIssue,
   PublishMicroflowPayload
 } from "../schema/types";
-import { compileMicroflowDesignToRuntime } from "../flowgram/flowgram-native-schema";
 import type {
   ListMicroflowRunsResponse,
   MicroflowApiClient,
@@ -37,17 +31,8 @@ import type {
 
 const STORAGE_KEY = "atlas_microflow_resources_v1";
 
-function isDesignSchema(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): schema is MicroflowDesignSchema {
-  return "workflow" in schema;
-}
-
-function toAuthoringSchema(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): MicroflowAuthoringSchema {
-  return isDesignSchema(schema) ? compileMicroflowDesignToRuntime(schema) : schema;
-}
-
-function cloneSchema(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): MicroflowAuthoringSchema {
-  const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowAuthoringSchema | MicroflowDesignSchema;
-  return ensureAuthoringSchema(toAuthoringSchema(cloned));
+function cloneSchema(schema: MicroflowDesignSchema): MicroflowDesignSchema {
+  return JSON.parse(JSON.stringify(schema)) as MicroflowDesignSchema;
 }
 
 function cloneResource(resource: MicroflowResource): MicroflowResource {
@@ -64,6 +49,50 @@ function nowIso(): string {
 
 function compareByString(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function validateDesignSchema(schema: MicroflowDesignSchema): MicroflowValidationIssue[] {
+  const issues: MicroflowValidationIssue[] = [];
+  const nodeIds = new Set<string>();
+  schema.workflow.nodes.forEach((node, index) => {
+    if (!node.id) {
+      issues.push({
+        id: `issue-node-id-${index}`,
+        code: "MF_NODE_ID_MISSING",
+        severity: "error",
+        message: "节点 id 不能为空。",
+        source: "node",
+        fieldPath: `workflow.nodes.${index}.id`,
+      });
+      return;
+    }
+    if (nodeIds.has(node.id)) {
+      issues.push({
+        id: `issue-node-duplicate-${node.id}`,
+        code: "MF_NODE_ID_DUPLICATED",
+        severity: "error",
+        message: `节点 id ${node.id} 重复。`,
+        source: "node",
+        nodeId: node.id,
+        fieldPath: `workflow.nodes.${index}.id`,
+      });
+    }
+    nodeIds.add(node.id);
+  });
+  schema.workflow.edges.forEach((edge, index) => {
+    if (!nodeIds.has(edge.sourceNodeID) || !nodeIds.has(edge.targetNodeID)) {
+      issues.push({
+        id: `issue-edge-endpoint-${edge.id || index}`,
+        code: "MF_EDGE_ENDPOINT_MISSING",
+        severity: "error",
+        message: "边端点必须引用 workflow.nodes 中存在的节点。",
+        source: "flow",
+        edgeId: edge.id,
+        fieldPath: `workflow.edges.${index}`,
+      });
+    }
+  });
+  return issues;
 }
 
 function updatedRangeMatches(resource: MicroflowResource, range: NonNullable<MicroflowListQuery["updatedRange"]>): boolean {
@@ -86,7 +115,7 @@ function updatedRangeMatches(resource: MicroflowResource, range: NonNullable<Mic
 
 function makeResource(
   id: string,
-  overrides: Partial<Omit<MicroflowResource, "id" | "schema">> & { schema: MicroflowAuthoringSchema | MicroflowDesignSchema }
+  overrides: Partial<Omit<MicroflowResource, "id" | "schema">> & { schema: MicroflowDesignSchema }
 ): MicroflowResource {
   const timestamp = nowIso();
   const schema = cloneSchema(overrides.schema);
@@ -121,7 +150,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   private readonly sessions = new Map<string, MicroflowRunSession>();
   private readonly runMicroflowIndex = new Map<string, string>();
 
-  constructor(initialSchemas: Array<MicroflowAuthoringSchema | MicroflowDesignSchema> = []) {
+  constructor(initialSchemas: MicroflowDesignSchema[] = []) {
     const restored = this.restoreResources();
     if (restored.length > 0) {
       for (const resource of restored) {
@@ -191,6 +220,9 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 
   async saveMicroflow(request: SaveMicroflowRequest): Promise<SaveMicroflowResponse> {
+    if (!("workflow" in request.schema)) {
+      throw new Error("LocalMicroflowApiClient only saves MicroflowDesignSchema.");
+    }
     const schema = cloneSchema(request.schema);
     const current = this.resources.get(schema.id) ?? makeResource(schema.id, {
       schema,
@@ -213,12 +245,12 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
       microflowId: schema.id,
       version: schema.audit.version,
       savedAt: next.updatedAt,
-      nodeCount: flattenObjectCollection(schema.objectCollection).length,
-      edgeCount: schema.flows.length
+      nodeCount: schema.workflow.nodes.length,
+      edgeCount: schema.workflow.edges.length
     };
   }
 
-  async loadMicroflow(id: string): Promise<MicroflowAuthoringSchema> {
+  async loadMicroflow(id: string): Promise<MicroflowDesignSchema> {
     const resource = this.resources.get(id);
     if (!resource) {
       throw new Error(`Microflow ${id} was not found.`);
@@ -227,7 +259,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 
   async validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse> {
-    const { issues } = validateMicroflowSchema({ schema: request.schema, metadata: getDefaultMockMetadataCatalog() });
+    const issues = validateDesignSchema(request.schema);
     return {
       valid: issues.every(item => item.severity !== "error"),
       issues,
@@ -239,15 +271,29 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     if (!selectedSchema) {
       throw new Error(`Microflow ${request.microflowId ?? "(unspecified)"} was not found.`);
     }
+    if (!("workflow" in selectedSchema)) {
+      throw new Error("LocalMicroflowApiClient only accepts MicroflowDesignSchema.");
+    }
     const schema = cloneSchema(selectedSchema);
     const microflowId = request.microflowId ?? schema.id;
-    const session = await mockTestRunMicroflow({
-      schema,
-      metadata: getDefaultMockMetadataCatalog(),
-      variableIndex: buildVariableIndex(schema, getDefaultMockMetadataCatalog()),
-      parameters: request.input,
-      options: request.options,
-    });
+    const startedAt = nowIso();
+    const session: MicroflowRunSession = {
+      id: `run-${Date.now()}`,
+      schemaId: schema.id,
+      resourceId: microflowId,
+      status: "unsupported",
+      startedAt,
+      endedAt: startedAt,
+      input: request.input,
+      output: {},
+      trace: [],
+      logs: [],
+      variables: [],
+      error: {
+        code: "RUNTIME_UNSUPPORTED_ACTION",
+        message: "本地离线适配器不再把新版设计态编译为旧 runtime schema。",
+      },
+    };
     this.traces.set(session.id, session.trace);
     this.sessions.set(session.id, session);
     this.runMicroflowIndex.set(session.id, microflowId);
@@ -470,6 +516,6 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 }
 
-export function createLocalMicroflowApiClient(initialSchemas?: Array<MicroflowAuthoringSchema | MicroflowDesignSchema>): LocalMicroflowApiClient {
+export function createLocalMicroflowApiClient(initialSchemas?: MicroflowDesignSchema[]): LocalMicroflowApiClient {
   return new LocalMicroflowApiClient(initialSchemas);
 }

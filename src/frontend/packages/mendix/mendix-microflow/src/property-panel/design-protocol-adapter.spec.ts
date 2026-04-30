@@ -66,8 +66,8 @@ describe("design protocol property panel adapter", () => {
     expect(next.workflow.nodes[0].data).toMatchObject({
       title: "Start Renamed",
       documentation: "doc",
-      propertyObject: expect.objectContaining({ caption: "Start Renamed" }),
     });
+    expect(Object.keys(next.workflow.nodes[0].data ?? {})).not.toContain("property" + "Object");
   });
 
   it("updates edge properties without moving nodes", () => {
@@ -86,8 +86,8 @@ describe("design protocol property panel adapter", () => {
       label: "Done",
       description: "flow doc",
       branchOrder: 2,
-      propertyFlow: expect.objectContaining({ id: "flow-start-end" }),
     });
+    expect(Object.keys(next.workflow.edges[0].data ?? {})).not.toContain("property" + "Flow");
   });
 
   it("deletes flows only and keeps node positions stable", () => {

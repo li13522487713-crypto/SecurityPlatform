@@ -127,9 +127,16 @@ public sealed class MicroflowActionDescriptorNormalizer : IMicroflowActionDescri
         var normalizedKind = ReadString(obj, "actionKind") ?? ReadString(obj, "kind");
         if (!string.Equals(normalizedKind, "listOperation", StringComparison.Ordinal))
         {
+            NormalizeListFamilyProperties(obj, normalizedKind);
             return;
         }
 
+        NormalizeListOperation(obj);
+        NormalizeListFamilyProperties(obj, normalizedKind);
+    }
+
+    private void NormalizeListOperation(JsonObject obj)
+    {
         var operation = ReadString(obj, "operation");
         if (string.IsNullOrWhiteSpace(operation))
         {
@@ -146,6 +153,69 @@ public sealed class MicroflowActionDescriptorNormalizer : IMicroflowActionDescri
         if (!string.IsNullOrWhiteSpace(operation))
         {
             obj["operation"] = operation;
+        }
+    }
+
+    private void NormalizeListFamilyProperties(JsonObject obj, string? normalizedKind)
+    {
+        switch (normalizedKind)
+        {
+            case "createList":
+                CopyIfMissing(obj, "outputListVariableName", "outputVariableName", "resultVariableName", "listVariableName");
+                break;
+            case "changeList":
+                CopyIfMissing(obj, "targetListVariableName", "targetVariableName", "listVariableName");
+                CopyIfMissing(obj, "sourceListVariableName", "sourceVariableName");
+                break;
+            case "aggregateList":
+                CopyIfMissing(obj, "sourceListVariableName", "sourceVariableName", "listVariableName");
+                CopyIfMissing(obj, "aggregateFunction", "aggregate", "operation");
+                NormalizeAggregateFunction(obj, "aggregateFunction");
+                break;
+            case "listOperation":
+                CopyIfMissing(obj, "leftListVariableName", "inputListVariable", "inputListVariableName", "listVariableName", "sourceVariableName", "leftVariableName");
+                CopyIfMissing(obj, "sourceListVariableName", "leftListVariableName");
+                CopyIfMissing(obj, "rightListVariableName", "otherListVariableName", "secondListVariable", "secondListVariableName", "rightVariableName");
+                CopyIfMissing(obj, "outputListVariableName", "outputVariableName", "resultVariableName");
+                break;
+        }
+    }
+
+    private static void NormalizeAggregateFunction(JsonObject obj, string propertyName)
+    {
+        var raw = ReadString(obj, propertyName);
+        if (raw is null)
+        {
+            return;
+        }
+
+        var canonical = raw switch
+        {
+            "minimum" => "min",
+            "maximum" => "max",
+            _ => raw
+        };
+
+        if (!string.Equals(raw, canonical, StringComparison.Ordinal))
+        {
+            obj[propertyName] = canonical;
+        }
+    }
+
+    private static void CopyIfMissing(JsonObject obj, string targetPropertyName, params string[] sourcePropertyNames)
+    {
+        if (!string.IsNullOrWhiteSpace(ReadString(obj, targetPropertyName)))
+        {
+            return;
+        }
+
+        foreach (var sourcePropertyName in sourcePropertyNames)
+        {
+            if (obj[sourcePropertyName] is JsonValue value)
+            {
+                obj[targetPropertyName] = value.GetValue<string>();
+                return;
+            }
         }
     }
 

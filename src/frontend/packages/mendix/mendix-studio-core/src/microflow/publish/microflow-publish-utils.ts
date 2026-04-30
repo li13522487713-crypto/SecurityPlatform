@@ -1,6 +1,4 @@
-import { compileMicroflowDesignToRuntime, validateMicroflowSchema } from "@atlas/microflow";
 import type { MicroflowDesignSchema } from "@atlas/microflow";
-import type { MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowReference } from "../references/microflow-reference-types";
 import { diffMicroflowSchemas } from "../versions/microflow-version-diff";
@@ -26,13 +24,15 @@ export function validatePublishVersion(version: string, existingVersions: Microf
   return { valid: true };
 }
 
-export function summarizeValidation(schema: MicroflowDesignSchema, metadata?: MicroflowMetadataCatalog): MicroflowValidationSummary {
-  const result = validateMicroflowSchema({
-    schema: compileMicroflowDesignToRuntime(schema),
-    metadata,
-    options: { mode: "publish", includeWarnings: true, includeInfo: true },
-  });
-  return result.summary;
+export function summarizeValidation(schema: MicroflowDesignSchema): MicroflowValidationSummary {
+  const hasWorkflow = Boolean(schema.workflow && Array.isArray(schema.workflow.nodes) && Array.isArray(schema.workflow.edges));
+  const nodeIds = new Set(schema.workflow?.nodes?.map(node => node.id) ?? []);
+  const invalidEdgeCount = schema.workflow?.edges?.filter(edge => !nodeIds.has(edge.sourceNodeID) || !nodeIds.has(edge.targetNodeID)).length ?? 0;
+  return {
+    errorCount: schema.schemaVersion === "flowgram.microflow.v1" && hasWorkflow && invalidEdgeCount === 0 ? 0 : 1 + invalidEdgeCount,
+    warningCount: 0,
+    infoCount: 0,
+  };
 }
 
 export function analyzeMicroflowPublishImpact(input: {

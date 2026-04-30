@@ -52,7 +52,7 @@
 |-------------------------------|-----------|---------------|---------------|
 | `activity:listCreate` / `createList` | 创建列表 / Create List | `CreateListActionExecutor` | supported |
 | `activity:listChange` / `changeList` | 修改列表 / Change List | `ChangeListActionExecutor` | supported |
-| `activity:listOperation` / `listOperation` | 列表操作 / List Operation | `ConfiguredMicroflowActionExecutor` | supported |
+| `activity:listOperation` / `listOperation` | 列表操作 / List Operation | `ListOperationActionExecutor` | supported |
 | `activity:listAggregate` / `aggregateList` | 聚合列表 / Aggregate List | `AggregateListActionExecutor` | supported |
 | `activity:listFilter` / `filterList` | 过滤列表 / Filter List | `FilterListActionExecutor` | supported |
 | `activity:listSort` / `sortList` | 排序列表 / Sort List | `SortListActionExecutor` | supported |

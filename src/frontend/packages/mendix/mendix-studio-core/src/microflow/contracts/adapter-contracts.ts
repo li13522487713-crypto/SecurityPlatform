@@ -1,4 +1,3 @@
-import type { MicroflowAuthoringSchema, MicroflowRuntimeDto } from "@atlas/microflow/schema";
 import type {
   MicroflowMetadataCatalog,
   MetadataEntity,
@@ -32,15 +31,13 @@ export interface MicroflowMetadataAdapter {
 }
 
 /**
- * 与本地/远端执行器通信；当前 {@link @atlas/microflow} 的 createLocalMicroflowApiClient 提供相近能力。
- * 不写入 AuthoringSchema；trace 仅用于 DebugPanel 展示。
+ * 与本地/远端执行器通信；trace 仅用于 DebugPanel 展示。
  */
 export interface MicroflowRuntimeAdapter {
   validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse>;
   testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse>;
   cancelMicroflowRun(runId: string): Promise<void>;
   getMicroflowRunTrace(runId: string): Promise<MicroflowTraceFrame[]>;
-  toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntimeDto;
 }
 
 /**

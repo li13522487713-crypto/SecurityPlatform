@@ -27,7 +27,7 @@ const genericActionFieldDefinitions: Partial<Record<MicroflowAction["kind"], Gen
   ],
   aggregateList: [
     { key: "listVariableName", label: "List Variable", control: "text", required: true },
-    { key: "aggregateFunction", label: "Aggregate Function", control: "select", options: ["count", "sum", "average", "minimum", "maximum"], required: true },
+    { key: "aggregateFunction", label: "Aggregate Function", control: "select", options: ["count", "sum", "average", "min", "max"], required: true },
     { key: "attributeQualifiedName", label: "Attribute", control: "text" },
     { key: "outputVariableName", label: "Output Variable", control: "text", required: true }
   ],
@@ -37,12 +37,12 @@ const genericActionFieldDefinitions: Partial<Record<MicroflowAction["kind"], Gen
   ],
   changeList: [
     { key: "targetListVariableName", label: "Target List Variable", control: "text", required: true },
-    { key: "operation", label: "Operation", control: "select", options: ["add", "remove", "clear", "replace"], required: true },
+    { key: "operation", label: "Operation", control: "select", options: ["add", "addAll", "addRange", "remove", "removeAll", "removeWhere", "clear", "set"], required: true },
     { key: "objectVariableName", label: "Object Variable", control: "text" }
   ],
   listOperation: [
     { key: "leftListVariableName", label: "Left List Variable", control: "text", required: true },
-    { key: "operation", label: "Operation", control: "select", options: ["union", "intersect", "subtract", "equals", "contains", "filter", "sort", "find", "head", "tail"], required: true },
+    { key: "operation", label: "Operation", control: "select", options: ["union", "intersect", "subtract", "equals", "contains", "filter", "sort", "map", "take", "skip", "find", "head", "tail", "first", "last", "distinct", "reverse", "isEmpty", "size"], required: true },
     { key: "rightListVariableName", label: "Right List Variable", control: "text" },
     { key: "objectVariableName", label: "Object Variable", control: "text" },
     { key: "expression", label: "Expression", control: "expression" },

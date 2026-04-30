@@ -138,18 +138,12 @@ function flattenDesignSchemaCallNodes(schema: MicroflowDesignSchema | undefined)
     .map(node => {
       const data = node.data as {
         title?: string;
-        propertyObject?: {
-          id?: string;
-          caption?: string;
-          kind?: string;
-          action?: DesignSchemaCallNode["action"];
-        };
+        action?: DesignSchemaCallNode["action"];
       } | undefined;
-      const propertyObject = data?.propertyObject;
-      const action = propertyObject?.action;
+      const action = data?.action;
       return {
         id: node.id,
-        caption: propertyObject?.caption ?? data?.title,
+        caption: data?.title,
         action: action ? {
           kind: action.kind,
           actionKind: action.actionKind,

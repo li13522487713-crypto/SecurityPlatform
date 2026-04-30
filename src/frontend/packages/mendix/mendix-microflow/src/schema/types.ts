@@ -1863,6 +1863,10 @@ export type MicroflowDiscriminatedRuntimeP0ActionDto =
   | RuntimeCommitP0Dto
   | RuntimeDeleteP0Dto
   | RuntimeRollbackP0Dto
+  | RuntimeCreateListP0Dto
+  | RuntimeChangeListP0Dto
+  | RuntimeAggregateListP0Dto
+  | RuntimeListOperationP0Dto
   | RuntimeCreateVariableP0Dto
   | RuntimeChangeVariableP0Dto
   | RuntimeCallMicroflowP0Dto
@@ -1924,6 +1928,72 @@ export type RuntimeRollbackP0Dto = RuntimeP0Base & {
   config: { objectOrListVariableName: string; refreshInClient: boolean };
 };
 
+export type RuntimeCreateListP0Dto = RuntimeP0Base & {
+  actionKind: "createList";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    outputListVariableName: string;
+    listVariableName?: string;
+    itemType?: MicroflowDataType;
+    elementType?: MicroflowDataType;
+    listType?: string;
+    initialItemsExpression?: MicroflowExpression;
+  };
+};
+
+export type RuntimeChangeListP0Dto = RuntimeP0Base & {
+  actionKind: "changeList";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    targetListVariableName: string;
+    sourceListVariableName?: string;
+    operation: string;
+    objectVariableName?: string;
+    itemExpression?: MicroflowExpression;
+    itemsExpression?: MicroflowExpression;
+    conditionExpression?: MicroflowExpression;
+    indexExpression?: MicroflowExpression;
+  };
+};
+
+export type RuntimeAggregateListP0Dto = RuntimeP0Base & {
+  actionKind: "aggregateList";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    sourceListVariableName?: string;
+    listVariableName?: string;
+    aggregateFunction: string;
+    attributeQualifiedName?: string;
+    member?: string;
+    aggregateExpression?: MicroflowExpression;
+    outputVariableName: string;
+    resultVariableName?: string;
+    resultType?: MicroflowDataType;
+    emptyListBehavior?: "zero" | "null" | "error";
+  };
+};
+
+export type RuntimeListOperationP0Dto = RuntimeP0Base & {
+  actionKind: "listOperation";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    leftListVariableName?: string;
+    sourceListVariableName?: string;
+    rightListVariableName?: string;
+    operation: string;
+    objectVariableName?: string;
+    expression?: MicroflowExpression;
+    filterExpression?: MicroflowExpression;
+    sortExpression?: MicroflowExpression;
+    sortKeys?: Array<Record<string, unknown>>;
+    outputListVariableName: string;
+    outputVariableName?: string;
+    outputElementType?: MicroflowDataType;
+    limit?: number;
+    offset?: number;
+  };
+};
+
 export type RuntimeCreateVariableP0Dto = RuntimeP0Base & {
   actionKind: "createVariable";
   errorHandlingType: MicroflowErrorHandlingType;
@@ -1983,9 +2053,6 @@ export interface MicroflowRuntimeDto {
   p0RuntimeActionBlocks: MicroflowRuntimeP0Block[];
 }
 
-/**
- * @deprecated Prefer {@link MicroflowAuthoringSchema}. Kept as an alias for gradual migration of import sites.
- */
 export type MicroflowSchema = MicroflowAuthoringSchema;
 
 export interface MicroflowResource {
@@ -2004,7 +2071,7 @@ export interface MicroflowResource {
   updatedAt: string;
   publishedAt?: string;
   lastModifiedBy?: string;
-  schema: MicroflowAuthoringSchema | MicroflowDesignSchema;
+  schema: MicroflowDesignSchema;
 }
 
 export interface MicroflowListQuery {

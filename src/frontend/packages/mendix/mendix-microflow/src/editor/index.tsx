@@ -97,6 +97,7 @@ import type {
   MicroflowEditorNode,
   MicroflowEditorPort,
   MicroflowFlow,
+  MicroflowDesignSchema,
   MicroflowObject,
   MicroflowPoint,
   MicroflowSchema,
@@ -122,6 +123,10 @@ const BOTTOM_DOCK_FULL_MIN_PX = 320;
 const MOVE_HISTORY_DEBOUNCE_MS = 250;
 const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest", "activity:logMessage"];
 const INTERNAL_TOOLBAR_ROW_PX = 60;
+
+function isDesignSchema(schema: unknown): schema is MicroflowDesignSchema {
+  return (schema as { workflow?: unknown }).workflow != null;
+}
 
 type MendixLayoutInspectorMode = "floating" | "docked";
 type BottomDockMode = "collapsed" | "peek" | "full";
@@ -2084,6 +2089,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     const saveRevision = schemaRevisionRef.current;
     const schemaToSave = schema;
+    if (!isDesignSchema(schemaToSave)) {
+      Toast.error("旧版 Authoring 编辑器不再支持保存，请使用新版 FlowGram Studio。");
+      return false;
+    }
     const validation = await validateForMode(schemaToSave, "save");
     const blockers = validation.issues.filter(issue => issue.blockSave && issue.severity === "error");
     if (blockers.length > 0) {
