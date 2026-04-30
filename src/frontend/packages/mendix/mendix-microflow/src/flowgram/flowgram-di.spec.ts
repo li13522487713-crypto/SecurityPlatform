@@ -6,66 +6,53 @@ vi.mock("./FlowGramMicroflowNodeRenderer", () => ({
   FlowGramMicroflowNodeRenderer: () => null,
 }));
 
-import { createObjectFromRegistry, toEditorGraph } from "../adapters";
-import {
-  defaultMicroflowNodeRegistry,
-  getMicroflowNodeRegistryKey,
-} from "../node-registry";
-import { sampleMicroflowSchema, type MicroflowObject, type MicroflowSchema } from "../schema";
-import {
-  FlowGramMicroflowDocumentOptions,
-  FlowGramMicroflowSchemaContextService,
-  FlowGramMicroflowSchemaContextServiceToken,
-} from "./FlowGramMicroflowEvents";
+import { FlowGramMicroflowDocumentOptions } from "./FlowGramMicroflowEvents";
 
-function registry(key: string) {
-  const item = defaultMicroflowNodeRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key || entry.type === key);
-  if (!item) {
-    throw new Error(`Missing registry item ${key}`);
-  }
-  return item;
-}
-
-function schemaWith(objects: MicroflowObject[]): MicroflowSchema {
-  return {
-    ...sampleMicroflowSchema,
-    objectCollection: { ...sampleMicroflowSchema.objectCollection, objects },
-    flows: [],
-    editor: { ...sampleMicroflowSchema.editor, selection: {} },
+type TestPort = WorkflowPortEntity & {
+  disabled?: boolean;
+  node?: {
+    id?: string;
+    parent?: { id?: string };
   };
+};
+
+function port(options: {
+  portType: "input" | "output";
+  nodeId: string;
+  parentId?: string;
+  disabled?: boolean;
+}): WorkflowPortEntity {
+  return {
+    portType: options.portType,
+    disabled: options.disabled,
+    node: {
+      id: options.nodeId,
+      parent: options.parentId ? { id: options.parentId } : undefined,
+    },
+  } as TestPort;
 }
 
 describe("FlowGram microflow DI", () => {
-  it("binds document options to a stable schema context singleton", () => {
+  it("binds document options without a runtime schema bridge service", () => {
     const container = new Container({ defaultScope: "Singleton" });
-    container
-      .bind<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken)
-      .to(FlowGramMicroflowSchemaContextService)
-      .inSingletonScope();
-    container
-      .bind(FlowGramMicroflowDocumentOptions)
-      .toDynamicValue(ctx => new FlowGramMicroflowDocumentOptions(
-        ctx.container.get<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken),
-      ))
-      .inSingletonScope();
+    container.bind(FlowGramMicroflowDocumentOptions).to(FlowGramMicroflowDocumentOptions).inSingletonScope();
     container.bind(WorkflowDocumentOptions).toService(FlowGramMicroflowDocumentOptions);
-    const schemaContext = container.get<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken);
+
     const options = container.get<FlowGramMicroflowDocumentOptions>(FlowGramMicroflowDocumentOptions);
     const workflowOptions = container.get<WorkflowDocumentOptions>(WorkflowDocumentOptions);
 
     expect(options).toBe(workflowOptions);
-    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "di-start");
-    const end = createObjectFromRegistry(registry("endEvent"), { x: 240, y: 0 }, "di-end");
-    const schema = schemaWith([start, end]);
-    const graph = toEditorGraph(schema);
-    const sourcePort = graph.nodes.find(node => node.objectId === start.id)?.ports.find(port => port.direction === "output");
-    const targetPort = graph.nodes.find(node => node.objectId === end.id)?.ports.find(port => port.direction === "input");
-    if (!sourcePort || !targetPort) {
-      throw new Error("Expected start and end ports.");
-    }
-
-    schemaContext.setSchema(schema);
-    expect(schemaContext.getSchema()).toBe(schema);
-    expect(options.canAddLine({ portID: sourcePort.id } as WorkflowPortEntity, { portID: targetPort.id } as WorkflowPortEntity)).toBe(true);
+    expect(options.canAddLine(
+      port({ portType: "output", nodeId: "start", parentId: "root" }),
+      port({ portType: "input", nodeId: "end", parentId: "root" }),
+    )).toBe(true);
+    expect(options.canAddLine(
+      port({ portType: "input", nodeId: "start", parentId: "root" }),
+      port({ portType: "input", nodeId: "end", parentId: "root" }),
+    )).toBe(false);
+    expect(options.canAddLine(
+      port({ portType: "output", nodeId: "start", parentId: "root" }),
+      port({ portType: "input", nodeId: "end", parentId: "nested" }),
+    )).toBe(false);
   });
 });

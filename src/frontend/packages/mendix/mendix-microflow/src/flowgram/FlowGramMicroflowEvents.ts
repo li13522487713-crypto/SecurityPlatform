@@ -6,46 +6,27 @@ import {
   type WorkflowPortEntity,
 } from "@flowgram-adapter/free-layout-editor";
 
-import { canConnectPorts } from "../node-registry";
-import { toEditorGraph } from "../adapters";
-import type { MicroflowSchema } from "../schema";
 import { FlowGramMicroflowNodeRenderer } from "./FlowGramMicroflowNodeRenderer";
 
-export const FlowGramMicroflowSchemaContextServiceToken = Symbol.for(
-  "atlas.mendix.microflow.FlowGramMicroflowSchemaContextService",
-);
-
-export class FlowGramMicroflowSchemaContextService {
-  private schema?: MicroflowSchema;
-
-  setSchema(schema: MicroflowSchema) {
-    this.schema = schema;
-  }
-
-  getSchema() {
-    return this.schema;
-  }
-}
-
-function portId(port: WorkflowPortEntity): string | undefined {
-  return typeof port.portID === "string" ? port.portID : port.portID === undefined ? undefined : String(port.portID);
-}
+type FlowGramPortForBasicRules = WorkflowPortEntity & {
+  disabled?: boolean;
+  node?: {
+    id?: string;
+    parent?: { id?: string };
+  };
+};
 
 export class FlowGramMicroflowDocumentOptions implements WorkflowDocumentOptions {
-  constructor(private readonly schemaContext: FlowGramMicroflowSchemaContextService) {}
-
   canAddLine(fromPort: WorkflowPortEntity, toPort: WorkflowPortEntity): boolean {
-    const schema = this.schemaContext.getSchema();
-    if (!schema) {
+    const source = fromPort as FlowGramPortForBasicRules;
+    const target = toPort as FlowGramPortForBasicRules;
+    if (source === target || source.node === target.node || source.disabled || target.disabled) {
       return false;
     }
-    const ports = toEditorGraph(schema).nodes.flatMap(node => node.ports);
-    const sourcePort = ports.find(port => port.id === portId(fromPort));
-    const targetPort = ports.find(port => port.id === portId(toPort));
-    if (!sourcePort || !targetPort) {
+    if (source.portType === "input" || target.portType !== "input") {
       return false;
     }
-    return canConnectPorts(schema, sourcePort, targetPort).allowed;
+    return source.node?.parent?.id === target.node?.parent?.id;
   }
 }
 

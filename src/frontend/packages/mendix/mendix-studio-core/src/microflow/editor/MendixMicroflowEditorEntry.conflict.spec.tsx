@@ -2,6 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
 import type { MicroflowAuthoringSchema } from "@atlas/microflow";
 
 import { MicroflowApiException } from "../adapter/http/microflow-api-error";
@@ -12,28 +13,57 @@ import { useMendixStudioStore } from "../../store";
 
 const modalConfirm = vi.hoisted(() => vi.fn((options: { onOk?: () => void }) => options.onOk?.()));
 
+interface MockShellProps {
+  children?: ReactNode;
+}
+
+interface MockButtonProps extends MockShellProps {
+  disabled?: boolean;
+  onClick?: () => void;
+}
+
+interface MockModalProps extends MockShellProps {
+  visible?: boolean;
+  footer?: ReactNode;
+}
+
+interface MockSwitchProps {
+  checked?: boolean;
+  onChange?: (checked: boolean) => void;
+}
+
+interface MockMicroflowEditorProps {
+  schema: MicroflowAuthoringSchema;
+  onSchemaChange?: (schema: MicroflowAuthoringSchema) => void;
+  apiClient: {
+    saveMicroflow: (request: { schema: MicroflowAuthoringSchema }) => Promise<unknown>;
+  };
+  toolbarPrefix?: ReactNode;
+  toolbarSuffix?: ReactNode;
+}
+
 vi.mock("@douyinfe/semi-icons", () => ({
   IconArrowLeft: () => <span>back</span>,
 }));
 
 vi.mock("@douyinfe/semi-ui", () => ({
-  Button: ({ children, onClick, disabled }: any) => <button type="button" disabled={disabled} onClick={onClick}>{children}</button>,
+  Button: ({ children, onClick, disabled }: MockButtonProps) => <button type="button" disabled={disabled} onClick={() => onClick?.()}>{children}</button>,
   Modal: Object.assign(
-    ({ visible, children, footer }: any) => visible ? <div role="dialog">{children}<div>{footer}</div></div> : null,
+    ({ visible, children, footer }: MockModalProps) => visible ? <div role="dialog">{children}<div>{footer}</div></div> : null,
     { confirm: modalConfirm },
   ),
-  Space: ({ children }: any) => <div>{children}</div>,
-  Switch: ({ checked, onChange }: any) => <input aria-label="autosave" type="checkbox" checked={checked} onChange={event => onChange?.(event.currentTarget.checked)} />,
-  Tag: ({ children }: any) => <span>{children}</span>,
+  Space: ({ children }: MockShellProps) => <div>{children}</div>,
+  Switch: ({ checked, onChange }: MockSwitchProps) => <input aria-label="autosave" type="checkbox" checked={checked} onChange={event => onChange?.(event.currentTarget.checked)} />,
+  Tag: ({ children }: MockShellProps) => <span>{children}</span>,
   Toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
-  Tooltip: ({ children }: any) => <>{children}</>,
+  Tooltip: ({ children }: MockShellProps) => <>{children}</>,
   Typography: {
-    Text: ({ children }: any) => <span>{children}</span>,
+    Text: ({ children }: MockShellProps) => <span>{children}</span>,
   },
 }));
 
 vi.mock("@atlas/microflow", () => ({
-  MicroflowEditor: ({ schema, onSchemaChange, apiClient, toolbarPrefix, toolbarSuffix }: any) => (
+  MicroflowEditor: ({ schema, onSchemaChange, apiClient, toolbarPrefix, toolbarSuffix }: MockMicroflowEditorProps) => (
     <div>
       <div>{toolbarPrefix}</div>
       <div>{toolbarSuffix}</div>
@@ -44,7 +74,7 @@ vi.mock("@atlas/microflow", () => ({
           displayName: "Changed",
           objectCollection: {
             ...schema.objectCollection,
-            objects: schema.objectCollection.objects.map((object: any, index: number) => index === 0
+            objects: schema.objectCollection.objects.map((object, index) => index === 0
               ? { ...object, relativeMiddlePoint: { x: 320, y: 180 } }
               : object),
           },

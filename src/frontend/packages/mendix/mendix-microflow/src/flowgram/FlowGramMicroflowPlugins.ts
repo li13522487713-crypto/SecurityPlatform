@@ -10,18 +10,11 @@ import {
 import {
   FlowGramMicroflowDocumentOptions,
   FlowGramMicroflowRenderContribution,
-  FlowGramMicroflowSchemaContextService,
-  FlowGramMicroflowSchemaContextServiceToken,
 } from "./FlowGramMicroflowEvents";
 import { FlowGramMicroflowNodeRegistryContribution } from "./FlowGramMicroflowNodeRegistries";
 
 export const FlowGramMicroflowContainerModule = new ContainerModule(
   (bind, _unbind, isBound, rebind) => {
-    if (!isBound(FlowGramMicroflowSchemaContextServiceToken)) {
-      bind<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken)
-        .to(FlowGramMicroflowSchemaContextService)
-        .inSingletonScope();
-    }
     bindContributions(bind, FlowGramMicroflowNodeRegistryContribution, [
       EntityManagerContribution,
       FlowDocumentContribution,
@@ -29,15 +22,11 @@ export const FlowGramMicroflowContainerModule = new ContainerModule(
     bindContributions(bind, FlowGramMicroflowRenderContribution, [FlowRendererContribution]);
     const bindDocumentOptions = () =>
       bind(FlowGramMicroflowDocumentOptions)
-        .toDynamicValue(ctx => new FlowGramMicroflowDocumentOptions(
-          ctx.container.get<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken),
-        ))
+        .to(FlowGramMicroflowDocumentOptions)
         .inSingletonScope();
     if (isBound(FlowGramMicroflowDocumentOptions)) {
       rebind(FlowGramMicroflowDocumentOptions)
-        .toDynamicValue(ctx => new FlowGramMicroflowDocumentOptions(
-          ctx.container.get<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken),
-        ))
+        .to(FlowGramMicroflowDocumentOptions)
         .inSingletonScope();
     } else {
       bindDocumentOptions();

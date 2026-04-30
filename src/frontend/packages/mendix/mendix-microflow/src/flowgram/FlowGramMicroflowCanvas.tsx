@@ -7,7 +7,10 @@ import {
   WorkflowDragService,
   type FlowNodeEntity,
   PlaygroundReactRenderer,
+  type WorkflowEdgeJSON,
   type WorkflowJSON,
+  type WorkflowLineEntity,
+  WorkflowLinesManager,
   type WorkflowNodeEntity,
   WorkflowSelectService,
   usePlayground,
@@ -35,10 +38,6 @@ import type {
 } from "../schema";
 import { applyEditorGraphPatchToAuthoring, toEditorGraph } from "../adapters";
 import { FlowGramMicroflowCaseEditor } from "./FlowGramMicroflowCaseEditor";
-import {
-  FlowGramMicroflowSchemaContextService,
-  FlowGramMicroflowSchemaContextServiceToken,
-} from "./FlowGramMicroflowEvents";
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
 import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
 import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
@@ -353,14 +352,60 @@ function portById(schema: MicroflowSchema, portId?: string) {
   return toEditorGraph(schema).nodes.flatMap(node => node.ports).find(port => port.id === portId);
 }
 
+type DisposableLineSnapshot = {
+  id?: string | number;
+  data?: { flowId?: string };
+  sourceNodeID?: string | number;
+  targetNodeID?: string | number;
+  sourcePortID?: string | number;
+  targetPortID?: string | number;
+};
+
+type DisposableLineCandidate = WorkflowLineEntity & {
+  id?: string | number;
+  info?: {
+    from?: string | number;
+    to?: string | number;
+    fromPort?: string | number;
+    toPort?: string | number;
+  };
+  data?: { flowId?: string };
+};
+
+function lineMatchesEdge(line: WorkflowLineEntity, edge: WorkflowEdgeJSON): boolean {
+  const candidate = line as DisposableLineCandidate;
+  const json = (line as { toJSON?: () => DisposableLineSnapshot }).toJSON?.();
+  const edgeCandidate = edge as WorkflowEdgeJSON & { id?: string | number; data?: { flowId?: string } };
+  const edgeId = edgeCandidate.id === undefined ? undefined : String(edgeCandidate.id);
+  const edgeFlowId = edgeCandidate.data?.flowId;
+  if (
+    (edgeId && (String(candidate.id) === edgeId || String(json?.id) === edgeId))
+    || (edgeFlowId && (candidate.data?.flowId === edgeFlowId || json?.data?.flowId === edgeFlowId))
+  ) {
+    return true;
+  }
+  const sourceNodeId = edge.sourceNodeID === undefined ? undefined : String(edge.sourceNodeID);
+  const targetNodeId = edge.targetNodeID === undefined ? undefined : String(edge.targetNodeID);
+  const sourcePortId = edge.sourcePortID === undefined ? undefined : String(edge.sourcePortID);
+  const targetPortId = edge.targetPortID === undefined ? undefined : String(edge.targetPortID);
+  return Boolean(
+    sourceNodeId
+      && targetNodeId
+      && String(candidate.info?.from ?? json?.sourceNodeID ?? "") === sourceNodeId
+      && String(candidate.info?.to ?? json?.targetNodeID ?? "") === targetNodeId
+      && String(candidate.info?.fromPort ?? json?.sourcePortID ?? "") === (sourcePortId ?? "")
+      && String(candidate.info?.toPort ?? json?.targetPortID ?? "") === (targetPortId ?? ""),
+  );
+}
+
 function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   type FlowGramChangeKind = "nodePosition" | "nodeStructure" | "edgeStructure";
 
   const playground = usePlayground();
   const doc = useService<WorkflowDocument>(WorkflowDocument);
   const dragService = useService<WorkflowDragService>(WorkflowDragService);
+  const linesManager = useService<WorkflowLinesManager>(WorkflowLinesManager);
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
-  const schemaContext = useService<FlowGramMicroflowSchemaContextService>(FlowGramMicroflowSchemaContextServiceToken);
   const containerRef = useRef<HTMLDivElement>(null);
   const initialViewportFitDoneRef = useRef(false);
   const reloadingFromSchemaRef = useRef(false);
@@ -378,7 +423,6 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   const gridEnabled = props.schema.editor.gridEnabled !== false;
   propsRef.current = props;
   latestSchemaRef.current = props.schema;
-  schemaContext.setSchema(props.schema);
   const workflowJson = useMemo(
     () => authoringToFlowGram(props.schema, props.validationIssues, props.runtimeTrace),
     [props.schema.flows, props.schema.objectCollection, props.validationIssues, props.runtimeTrace],
@@ -433,7 +477,6 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     }
     const nextSchema = applyEditorGraphPatchToAuthoring(schema, patch);
     latestSchemaRef.current = nextSchema;
-    schemaContext.setSchema(nextSchema);
     rememberSchemaPositionSignature(nextSchema);
     lastAppliedPatchSignatureRef.current = patchSignature;
     applyingPositionPatchRef.current = true;
@@ -455,9 +498,14 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       selectedObjectId: undefined,
     } as MicroflowEditorGraphPatch);
     latestSchemaRef.current = nextSchema;
-    schemaContext.setSchema(nextSchema);
     rememberSchemaPositionSignature(nextSchema);
     propsRef.current.onSchemaChange(nextSchema, "flowgramLineAdd");
+  };
+
+  const disposeTemporaryEdgeLine = (edge: WorkflowEdgeJSON) => {
+    const line = linesManager.getAllLines().find(item => lineMatchesEdge(item, edge));
+    line?.dispose();
+    return Boolean(line);
   };
 
   useEffect(() => {
@@ -547,7 +595,6 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
           deleteObjectId: deletedObjectId,
         } as MicroflowEditorGraphPatch);
         latestSchemaRef.current = nextSchema;
-        schemaContext.setSchema(nextSchema);
         rememberSchemaPositionSignature(nextSchema);
         propsRef.current.onSchemaChange(nextSchema, "flowgramNodeDelete");
         return;
@@ -558,7 +605,6 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
           deleteFlowId: deletedFlowId,
         } as MicroflowEditorGraphPatch);
         latestSchemaRef.current = nextSchema;
-        schemaContext.setSchema(nextSchema);
         rememberSchemaPositionSignature(nextSchema);
         propsRef.current.onSchemaChange(nextSchema, "flowgramLineDelete");
         return;
@@ -570,7 +616,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
         const check = sourcePort && targetPort ? canConnectPorts(schema, sourcePort, targetPort) : undefined;
         if (!sourcePort || !targetPort || !check?.allowed) {
           Toast.warning(check?.message ?? "The selected ports cannot be connected.");
-          reloadFromSchema(schema);
+          disposeTemporaryEdgeLine(newEdge);
           return;
         }
         const caseKind = getCaseEditorKind(schema, sourcePort.objectId);
@@ -582,13 +628,13 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
             sourceObjectId: sourcePort.objectId,
             targetObjectId: targetPort.objectId,
           });
-          reloadFromSchema(schema);
+          disposeTemporaryEdgeLine(newEdge);
           return;
         }
         const flow = createFlowFromFlowGramEdge(schema, newEdge);
         if (!flow) {
           Toast.warning("无法识别连线端口，已回退本次连线。");
-          reloadFromSchema(schema);
+          disposeTemporaryEdgeLine(newEdge);
           return;
         }
         const nextSchema = applyEditorGraphPatchToAuthoring(schema, {
@@ -597,7 +643,6 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
           selectedObjectId: undefined,
         } as MicroflowEditorGraphPatch);
         latestSchemaRef.current = nextSchema;
-        schemaContext.setSchema(nextSchema);
         rememberSchemaPositionSignature(nextSchema);
         propsRef.current.onSchemaChange(nextSchema, "flowgramLineAdd");
         return;
@@ -605,7 +650,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       reloadFromSchema(schema);
     });
     return () => disposable.dispose();
-  }, [doc]);
+  }, [doc, linesManager]);
 
   useEffect(() => {
     const disposable = selectService.onSelectionChanged(() => {
