@@ -139,7 +139,11 @@ function collectRawSchemaShapeIssues(input: unknown): MicroflowValidationIssue[]
 function applyMode(issues: MicroflowValidationIssue[], mode: MicroflowValidatorContext["mode"]): MicroflowValidationIssue[] {
   return issues.map(item => {
     if (mode === "edit") {
-      if (item.code === "MF_ACTION_REQUIRED_FIELD_MISSING" || item.code.endsWith("_MISSING")) {
+      if (
+        item.code === "MF_ACTION_REQUIRED_FIELD_MISSING"
+        || item.code.endsWith("_MISSING")
+        || item.code === "MF_ERROR_HANDLER_WITH_ROLLBACK_MISSING_FLOW"
+      ) {
         return { ...item, severity: "warning" };
       }
       return item;

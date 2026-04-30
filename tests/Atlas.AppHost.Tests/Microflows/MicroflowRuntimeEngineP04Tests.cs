@@ -53,6 +53,44 @@ public sealed class MicroflowRuntimeEngineP04Tests
     }
 
     [Fact]
+    public async Task Run_LoopedActivity_With_CustomErrorHandler_Routes_To_Handler()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                new { id = "loop", kind = "loopedActivity", caption = "Loop", errorHandlingType = "customWithoutRollback" },
+                new { id = "handler", kind = "exclusiveMerge", caption = "Handler" },
+                End(returnValue: "$latestError")),
+            Flows(
+                Flow("f1", "start", "loop"),
+                ErrorFlow("f2-err", "loop", "handler"),
+                Flow("f3", "handler", "end")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("success", session.Status);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "handler");
+    }
+
+    [Fact]
+    public async Task Run_LoopedActivity_With_Continue_ErrorHandling_Continues_Normal_Flow()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                new { id = "loop", kind = "loopedActivity", caption = "Loop", errorHandlingType = "continue" },
+                End()),
+            Flows(
+                Flow("f1", "start", "loop"),
+                Flow("f2", "loop", "end")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("success", session.Status);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "end" && frame.Status == "success");
+    }
+
+    [Fact]
     public async Task Run_ParallelGateway_FailsWhenOutgoingFlowMissing()
     {
         var schema = Schema(
@@ -104,10 +142,11 @@ public sealed class MicroflowRuntimeEngineP04Tests
     }
 
     [Fact]
-    public async Task Run_PendingClientCommand_FailsExplicitly()
+    public async Task Run_PendingClientCommand_Continues_And_Emits_RuntimeCommand()
     {
         // showPage 注册为 RuntimeCommand，executor 返回 PendingClientCommand。
-        // 之前引擎会当作 success 继续 ContinueAfterAction，导致 server-only test-run 形成假成功。
+        // 当前 runtime 会把命令写入 trace/output，然后继续 normal flow，
+        // 由前端在同一 run session 中消费这些命令。
         var schema = Schema(
             Objects(
                 Start(),
@@ -119,8 +158,32 @@ public sealed class MicroflowRuntimeEngineP04Tests
 
         var session = await RunAsync(schema);
 
-        Assert.Equal("failed", session.Status);
-        Assert.Equal(RuntimeErrorCode.RuntimePendingClientCommand, session.Error?.Code);
+        Assert.Equal("success", session.Status);
+        var showFrame = session.Trace.Single(frame => frame.ObjectId == "show");
+        Assert.Equal("success", showFrame.Status);
+        Assert.Contains(showFrame.Output?.GetRawText() ?? string.Empty, "runtimeCommands");
+    }
+
+    [Theory]
+    [InlineData("counter", "{ \"metricName\": \"orders.total\", \"valueExpression\": { \"raw\": \"1\" } }")]
+    [InlineData("incrementCounter", "{ \"metricName\": \"orders.increment\" }")]
+    [InlineData("gauge", "{ \"metricName\": \"orders.gauge\", \"valueExpression\": { \"raw\": \"2\" } }")]
+    public async Task Run_MetricsActions_Succeed(string actionKind, string rawAction)
+    {
+        var actionJson = JsonDocument.Parse(rawAction).RootElement.Clone();
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("metric", actionKind, actionJson),
+                End()),
+            Flows(
+                Flow("f1", "start", "metric"),
+                Flow("f2", "metric", "end")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("success", session.Status);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "metric" && frame.Status == "success");
     }
 
     [Fact]

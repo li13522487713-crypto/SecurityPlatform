@@ -208,33 +208,55 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
                 return NavigationSignal.Failed(error, node.ObjectId);
             }
 
-            if (IsKind(node, "breakEvent"))
-            {
-                if (context.LoopStack.Count == 0)
+                if (IsKind(node, "breakEvent"))
                 {
-                    var error = Error(RuntimeErrorCode.RuntimeLoopControlOutOfScope, "BreakEvent is only valid inside loop context.", node.ObjectId, flowId: incoming);
-                    AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Failed, loopIteration, error);
-                    return NavigationSignal.Failed(error);
+                    if (context.LoopStack.Count == 0)
+                    {
+                        var error = Error(RuntimeErrorCode.RuntimeLoopControlOutOfScope, "BreakEvent is only valid inside loop context.", node.ObjectId, flowId: incoming);
+                        AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Failed, loopIteration, error);
+                        return NavigationSignal.Failed(error);
+                    }
+
+                    var targetLoopObjectId = node.ConfigJson is { ValueKind: JsonValueKind.Object } config
+                        ? ReadString(config, "targetLoopObjectId")
+                        : null;
+                    if (targetLoopObjectId is not null && !context.LoopStack.Any(frame => string.Equals(frame.LoopObjectId, targetLoopObjectId, StringComparison.Ordinal)))
+                    {
+                        var error = Error(RuntimeErrorCode.RuntimeLoopControlOutOfScope, $"BreakEvent target loop '{targetLoopObjectId}' is not in scope.", node.ObjectId, flowId: incoming);
+                        AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Failed, loopIteration, error);
+                        return NavigationSignal.Failed(error);
+                    }
+
+                    var effectiveTargetLoopObjectId = targetLoopObjectId ?? context.LoopStack.Peek().LoopObjectId;
+                    context.LoopStack.First(frame => string.Equals(frame.LoopObjectId, effectiveTargetLoopObjectId, StringComparison.Ordinal)).BreakRequested = true;
+                    AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Success, WithLoopControl(loopIteration, MicroflowLoopControlSignal.Break), message: "Break loop.", output: JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Break, targetLoopObjectId = effectiveTargetLoopObjectId }, JsonOptions));
+                    return NavigationSignal.Break(node.ObjectId, effectiveTargetLoopObjectId);
                 }
 
-                context.LoopStack.Peek().BreakRequested = true;
-                AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Success, WithLoopControl(loopIteration, MicroflowLoopControlSignal.Break), message: "Break loop.", output: JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Break }, JsonOptions));
-                return NavigationSignal.Break(node.ObjectId);
-            }
-
-            if (IsKind(node, "continueEvent"))
-            {
-                if (context.LoopStack.Count == 0)
+                if (IsKind(node, "continueEvent"))
+                {
+                    if (context.LoopStack.Count == 0)
                 {
                     var error = Error(RuntimeErrorCode.RuntimeLoopControlOutOfScope, "ContinueEvent is only valid inside loop context.", node.ObjectId, flowId: incoming);
                     AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Failed, loopIteration, error);
                     return NavigationSignal.Failed(error);
                 }
 
-                context.LoopStack.Peek().ContinueRequested = true;
-                AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Success, WithLoopControl(loopIteration, MicroflowLoopControlSignal.Continue), message: "Continue loop.", output: JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Continue }, JsonOptions));
-                return NavigationSignal.Continue(node.ObjectId);
-            }
+                    var targetLoopObjectId = node.ConfigJson is { ValueKind: JsonValueKind.Object } config
+                        ? ReadString(config, "targetLoopObjectId")
+                        : null;
+                    if (targetLoopObjectId is not null && !context.LoopStack.Any(frame => string.Equals(frame.LoopObjectId, targetLoopObjectId, StringComparison.Ordinal)))
+                    {
+                        var error = Error(RuntimeErrorCode.RuntimeLoopControlOutOfScope, $"ContinueEvent target loop '{targetLoopObjectId}' is not in scope.", node.ObjectId, flowId: incoming);
+                        AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Failed, loopIteration, error);
+                        return NavigationSignal.Failed(error);
+                    }
+
+                    var effectiveTargetLoopObjectId = targetLoopObjectId ?? context.LoopStack.Peek().LoopObjectId;
+                    context.LoopStack.First(frame => string.Equals(frame.LoopObjectId, effectiveTargetLoopObjectId, StringComparison.Ordinal)).ContinueRequested = true;
+                    AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Success, WithLoopControl(loopIteration, MicroflowLoopControlSignal.Continue), message: "Continue loop.", output: JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Continue, targetLoopObjectId = effectiveTargetLoopObjectId }, JsonOptions));
+                    return NavigationSignal.Continue(node.ObjectId, effectiveTargetLoopObjectId);
+                }
 
             if (IsKind(node, "exclusiveSplit"))
             {
@@ -273,7 +295,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             if (IsKind(node, "loopedActivity"))
             {
                 var loopSignal = NavigateLoop(context, query, node, incoming, loopIteration);
-                if (loopSignal.Kind is NavigationSignalKind.Failed or NavigationSignalKind.MaxStepsExceeded or NavigationSignalKind.Cancelled)
+                if (loopSignal.Kind is NavigationSignalKind.Failed or NavigationSignalKind.MaxStepsExceeded or NavigationSignalKind.Cancelled or NavigationSignalKind.Break or NavigationSignalKind.Continue)
                 {
                     return loopSignal;
                 }
@@ -423,14 +445,26 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         {
             return NavigationSignal.Cancelled(loopResult.Error is null ? CancelledError() : ToNavigationError(loopResult.Error, incomingFlowId));
         }
+        if (loopResult.Status == MicroflowLoopExecutionStatus.Break)
+        {
+            return string.IsNullOrWhiteSpace(loopResult.TargetLoopObjectId) || string.Equals(loopResult.TargetLoopObjectId, loopNode.ObjectId, StringComparison.Ordinal)
+                ? NavigationSignal.LoopIterationCompleted(loopNode.ObjectId)
+                : NavigationSignal.Break(loopNode.ObjectId, loopResult.TargetLoopObjectId);
+        }
+        if (loopResult.Status == MicroflowLoopExecutionStatus.Continue)
+        {
+            return string.IsNullOrWhiteSpace(loopResult.TargetLoopObjectId) || string.Equals(loopResult.TargetLoopObjectId, loopNode.ObjectId, StringComparison.Ordinal)
+                ? NavigationSignal.LoopIterationCompleted(loopNode.ObjectId)
+                : NavigationSignal.Continue(loopNode.ObjectId, loopResult.TargetLoopObjectId);
+        }
         return NavigationSignal.LoopIterationCompleted(loopNode.ObjectId);
     }
 
     private static MicroflowLoopBodyExecutionResult ToLoopBodyExecutionResult(NavigationSignal signal)
         => signal.Kind switch
         {
-            NavigationSignalKind.Break => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Break },
-            NavigationSignalKind.Continue => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Continue },
+            NavigationSignalKind.Break => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Break, TargetLoopObjectId = signal.TargetLoopObjectId },
+            NavigationSignalKind.Continue => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Continue, TargetLoopObjectId = signal.TargetLoopObjectId },
             NavigationSignalKind.Cancelled => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Cancelled, Error = signal.Error is null ? null : ToRuntimeError(signal.Error) },
             NavigationSignalKind.MaxStepsExceeded => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.MaxStepsExceeded, Error = signal.Error is null ? null : ToRuntimeError(signal.Error) },
             NavigationSignalKind.Failed => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Failed, Error = signal.Error is null ? null : ToRuntimeError(signal.Error) },
@@ -1196,7 +1230,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         ContinueWith
     }
 
-    private sealed record NavigationSignal(NavigationSignalKind Kind, MicroflowNavigationError? Error = null, string? TerminalNodeId = null, MicroflowExecutionFlow? NextFlow = null)
+    private sealed record NavigationSignal(NavigationSignalKind Kind, MicroflowNavigationError? Error = null, string? TerminalNodeId = null, MicroflowExecutionFlow? NextFlow = null, string? TargetLoopObjectId = null)
     {
         public static NavigationSignal Success(string terminalNodeId) => new(NavigationSignalKind.Success, TerminalNodeId: terminalNodeId);
 
@@ -1206,9 +1240,9 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
 
         public static NavigationSignal MaxStepsExceeded(MicroflowNavigationError error) => new(NavigationSignalKind.MaxStepsExceeded, error);
 
-        public static NavigationSignal Break(string terminalNodeId) => new(NavigationSignalKind.Break, TerminalNodeId: terminalNodeId);
+        public static NavigationSignal Break(string terminalNodeId, string? targetLoopObjectId = null) => new(NavigationSignalKind.Break, TerminalNodeId: terminalNodeId, TargetLoopObjectId: targetLoopObjectId);
 
-        public static NavigationSignal Continue(string terminalNodeId) => new(NavigationSignalKind.Continue, TerminalNodeId: terminalNodeId);
+        public static NavigationSignal Continue(string terminalNodeId, string? targetLoopObjectId = null) => new(NavigationSignalKind.Continue, TerminalNodeId: terminalNodeId, TargetLoopObjectId: targetLoopObjectId);
 
         public static NavigationSignal LoopIterationCompleted(string terminalNodeId) => new(NavigationSignalKind.LoopIterationCompleted, TerminalNodeId: terminalNodeId);
 

@@ -353,7 +353,7 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
         {
             variables.Add(new MicroflowExecutionVariableDeclaration
             {
-                Name = "latestHttpResponse",
+                Name = "$latestHttpResponse",
                 DataTypeJson = Type("object"),
                 SourceKind = "errorHandler",
                 SourceObjectId = obj.Id,

@@ -28,6 +28,9 @@ const P0 = new Set<MicroflowAction["kind"]>([
   "changeList",
   "aggregateList",
   "listOperation",
+  "counter",
+  "incrementCounter",
+  "gauge",
   "createVariable",
   "changeVariable",
   "callMicroflow",
@@ -203,6 +206,17 @@ export function isMicroflowP0ActionStronglyTyped(action: MicroflowAction): actio
       }
 
       return true;
+    }
+    case "counter":
+    case "gauge": {
+      const record = action as unknown as Record<string, unknown>;
+      return hasString(record, "metricName")
+        && record.valueExpression != null
+        && typeof record.valueExpression === "object";
+    }
+    case "incrementCounter": {
+      const record = action as unknown as Record<string, unknown>;
+      return hasString(record, "metricName");
     }
     case "createVariable": {
       const a = action as MicroflowCreateVariableAction;

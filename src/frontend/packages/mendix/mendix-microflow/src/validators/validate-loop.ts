@@ -50,9 +50,6 @@ export function validateLoop(schema: MicroflowSchema, _context: MicroflowValidat
       if (object.targetLoopObjectId && !loopIds.has(object.targetLoopObjectId)) {
         issues.push(issue(object.kind === "breakEvent" ? "MF_BREAK_TARGET_LOOP_NOT_FOUND" : "MF_CONTINUE_TARGET_LOOP_NOT_FOUND", "Break/Continue targetLoopObjectId references a missing Loop.", { objectId: object.id, fieldPath: "targetLoopObjectId", collectionId }));
       }
-      if (loopObjectId && !object.targetLoopObjectId && loopIds.size > 1) {
-        issues.push(issue("MF_LOOP_CONTROL_TARGET_AMBIGUOUS", "Break/Continue target loop is ambiguous when multiple loops exist.", { objectId: object.id, fieldPath: "targetLoopObjectId", collectionId }, "warning"));
-      }
     }
     if (loopObjectId && (object.kind === "startEvent" || object.kind === "endEvent")) {
       issues.push(issue(object.kind === "startEvent" ? "MF_LOOP_START_FORBIDDEN" : "MF_LOOP_END_FORBIDDEN", "StartEvent and EndEvent cannot be placed inside a Loop body.", { objectId: object.id, collectionId }));

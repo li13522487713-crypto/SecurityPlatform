@@ -1,17 +1,16 @@
-import { toRuntimeDto } from "../adapters/microflow-adapters";
-import { collectRuntimeFlows, collectRuntimeObjects, getStartEvent } from "../debug/trace-utils";
 import type {
   MicroflowAction,
-  MicroflowAnnotationFlow,
-  MicroflowAuthoringSchema,
-  MicroflowObject,
-  MicroflowObjectCollection,
-  MicroflowFlow,
-  MicroflowRuntimeDto,
-  MicroflowSequenceFlow,
+  MicroflowCaseValue,
+  MicroflowDataType,
+  MicroflowDesignSchema,
+  MicroflowTypeRef,
+  MicroflowVariable,
   MicroflowVariableSymbol,
+  MicroflowWorkflowEdgeJSON,
+  MicroflowWorkflowNodeJSON,
 } from "../schema/types";
-import { tryMapP0ActionToDiscriminatedDto } from "./map-authoring-p0-runtime";
+import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData } from "../flowgram/FlowGramMicroflowTypes";
+import { tryMapP0ActionToDiscriminatedDto } from "./p0-action-runtime";
 import { resolveActionRuntimeSupportLevel } from "./runtime-action-support";
 import type { MicroflowRuntimeSupportLevel, MicroflowUnsupportedActionReason } from "./runtime-action-support";
 import type {
@@ -27,6 +26,114 @@ import type {
 } from "./runtime-execution-plan";
 import { flowControlFlow, nodeRuntimeBehavior } from "./runtime-execution-plan";
 
+const DESIGN_SCHEMA_VERSION = "flowgram.microflow.v1";
+const ROOT_COLLECTION_ID = "root-collection";
+
+function assertDesignSchema(schema: MicroflowDesignSchema): void {
+  if (schema.schemaVersion !== DESIGN_SCHEMA_VERSION || !Array.isArray(schema.workflow?.nodes) || !Array.isArray(schema.workflow?.edges)) {
+    throw new Error("Microflow runtime plan only accepts flowgram.microflow.v1 design schema.");
+  }
+}
+
+function nodeData(node: MicroflowWorkflowNodeJSON): Partial<FlowGramMicroflowNodeData> & Record<string, unknown> {
+  return (node.data ?? {}) as Partial<FlowGramMicroflowNodeData> & Record<string, unknown>;
+}
+
+function edgeData(edge: MicroflowWorkflowEdgeJSON): Partial<FlowGramMicroflowEdgeData> & Record<string, unknown> {
+  return (edge.data ?? {}) as Partial<FlowGramMicroflowEdgeData> & Record<string, unknown>;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function nodeObjectId(node: MicroflowWorkflowNodeJSON): string {
+  return readString(nodeData(node).objectId) ?? node.id;
+}
+
+function nodeKind(node: MicroflowWorkflowNodeJSON): string {
+  return readString(nodeData(node).objectKind) ?? node.type;
+}
+
+function nodeOfficialType(node: MicroflowWorkflowNodeJSON): string {
+  return readString(nodeData(node).officialType) ?? node.type;
+}
+
+function nodeCaption(node: MicroflowWorkflowNodeJSON): string | undefined {
+  return readString(nodeData(node).title) ?? readString(nodeData(node).caption) ?? readString(nodeData(node).label);
+}
+
+function nodeCollectionId(node: MicroflowWorkflowNodeJSON): string {
+  return readString(nodeData(node).collectionId) ?? readString(node.meta?.collectionId) ?? ROOT_COLLECTION_ID;
+}
+
+function nodeParentObjectId(node: MicroflowWorkflowNodeJSON): string | undefined {
+  return readString(nodeData(node).parentObjectId) ?? readString(node.meta?.parentObjectId);
+}
+
+function nodeAction(node: MicroflowWorkflowNodeJSON): MicroflowAction | undefined {
+  const action = nodeData(node).action;
+  return action && typeof action === "object" ? action as MicroflowAction : undefined;
+}
+
+function nodeActionKind(node: MicroflowWorkflowNodeJSON): string | undefined {
+  return readString(nodeData(node).actionKind) ?? nodeAction(node)?.kind;
+}
+
+function edgeFlowId(edge: MicroflowWorkflowEdgeJSON): string {
+  return readString(edgeData(edge).flowId) ?? readString(edge.id) ?? `${edge.sourceNodeID}-${edge.targetNodeID}`;
+}
+
+function edgeKind(edge: MicroflowWorkflowEdgeJSON): MicroflowExecutionFlow["edgeKind"] {
+  const raw = readString(edgeData(edge).edgeKind);
+  if (raw === "decisionCondition" || raw === "objectTypeCondition" || raw === "errorHandler" || raw === "annotation") {
+    return raw;
+  }
+  return "sequence";
+}
+
+function flowKind(edge: MicroflowWorkflowEdgeJSON): MicroflowExecutionFlow["kind"] {
+  return readString(edgeData(edge).flowKind) === "annotation" || edgeKind(edge) === "annotation" ? "annotation" : "sequence";
+}
+
+function edgeCollectionId(edge: MicroflowWorkflowEdgeJSON, nodesById: Map<string, MicroflowWorkflowNodeJSON>): string | undefined {
+  return readString(edgeData(edge).collectionId) ?? (nodesById.get(edge.sourceNodeID) ? nodeCollectionId(nodesById.get(edge.sourceNodeID)!) : undefined);
+}
+
+function edgeParentLoopObjectId(edge: MicroflowWorkflowEdgeJSON, nodesById: Map<string, MicroflowWorkflowNodeJSON>): string | undefined {
+  return readString(edgeData(edge).parentLoopObjectId) ?? (nodesById.get(edge.sourceNodeID) ? nodeParentObjectId(nodesById.get(edge.sourceNodeID)!) : undefined);
+}
+
+function toDataType(type?: MicroflowTypeRef): MicroflowDataType {
+  if (!type) {
+    return { kind: "unknown", reason: "missing type" };
+  }
+  if (type.kind === "primitive") {
+    const name = type.name.toLowerCase();
+    if (name === "boolean") return { kind: "boolean" };
+    if (name === "integer") return { kind: "integer" };
+    if (name === "long") return { kind: "long" };
+    if (name === "decimal") return { kind: "decimal" };
+    if (name === "datetime" || name === "dateTime".toLowerCase()) return { kind: "dateTime" };
+    if (name === "string") return { kind: "string" };
+    return { kind: "unknown", reason: `Unsupported primitive type ${type.name}.` };
+  }
+  if (type.kind === "entity" || type.kind === "object") {
+    return { kind: "object", entityQualifiedName: type.entity ?? type.name };
+  }
+  if (type.kind === "list") {
+    return { kind: "list", itemType: toDataType(type.itemType) };
+  }
+  if (type.kind === "void") {
+    return { kind: "void" };
+  }
+  return { kind: "unknown", reason: type.name };
+}
+
 function addUniqueRef(refs: MicroflowRuntimeMetadataRefDto[], ref: MicroflowRuntimeMetadataRefDto): void {
   if (!ref.qualifiedName || refs.some(item => item.refKind === ref.refKind && item.qualifiedName === ref.qualifiedName)) {
     return;
@@ -34,7 +141,10 @@ function addUniqueRef(refs: MicroflowRuntimeMetadataRefDto[], ref: MicroflowRunt
   refs.push(ref);
 }
 
-function collectRefsFromAction(action: MicroflowAction, refs: MicroflowRuntimeMetadataRefDto[]): void {
+function collectRefsFromAction(action: MicroflowAction | undefined, refs: MicroflowRuntimeMetadataRefDto[]): void {
+  if (!action) {
+    return;
+  }
   switch (action.kind) {
     case "retrieve":
       if (action.retrieveSource.kind === "database" && action.retrieveSource.entityQualifiedName) {
@@ -51,159 +161,117 @@ function collectRefsFromAction(action: MicroflowAction, refs: MicroflowRuntimeMe
       action.memberChanges.forEach(change => change.memberQualifiedName && addUniqueRef(refs, { refKind: "attribute", qualifiedName: change.memberQualifiedName }));
       break;
     case "callMicroflow":
-      addUniqueRef(refs, { refKind: "microflow", qualifiedName: action.targetMicroflowId || "invalid" });
+      addUniqueRef(refs, { refKind: "microflow", qualifiedName: action.targetMicroflowId || action.targetMicroflowQualifiedName || "invalid" });
       break;
     default:
       break;
   }
 }
 
-function collectMetadataRefsFromObjects(objects: MicroflowObject[], refs: MicroflowRuntimeMetadataRefDto[]): void {
-  for (const object of objects) {
-    if (object.kind === "actionActivity") {
-      collectRefsFromAction(object.action, refs);
-    }
-    if (object.kind === "loopedActivity") {
-      collectMetadataRefsFromObjects(collectRuntimeObjects(object.objectCollection), refs);
-    }
-  }
+function buildErrorHandling(node: MicroflowWorkflowNodeJSON) {
+  const data = nodeData(node);
+  const action = nodeAction(node);
+  const errorHandlingType = action?.errorHandlingType ?? readString(data.errorHandlingType);
+  return errorHandlingType ? { errorHandlingType, scopeObjectId: nodeObjectId(node) } : undefined;
 }
 
-function mapFlowKind(flow: MicroflowSequenceFlow | MicroflowAnnotationFlow, isErrorHandler: boolean): MicroflowExecutionFlow["edgeKind"] {
-  if (flow.kind === "annotation") {
-    return "annotation";
+function toExecutionNode(node: MicroflowWorkflowNodeJSON, unsupported: MicroflowUnsupportedActionDescriptor[], refs: MicroflowRuntimeMetadataRefDto[]): MicroflowExecutionNode {
+  const action = nodeAction(node);
+  const actionKind = nodeActionKind(node);
+  const support = actionKind
+    ? resolveActionRuntimeSupportLevel(actionKind as Parameters<typeof resolveActionRuntimeSupportLevel>[0])
+    : { supportLevel: "supported" as MicroflowRuntimeSupportLevel, message: "Supported object." };
+  if (action && support.supportLevel !== "supported" && support.reason) {
+    unsupported.push({
+      objectId: nodeObjectId(node),
+      actionId: action.id,
+      actionKind: action.kind,
+      reason: support.reason as MicroflowUnsupportedActionReason,
+      message: support.message,
+      supportLevel: support.supportLevel,
+    });
   }
-  if (isErrorHandler) {
-    return "errorHandler";
-  }
-  return flow.editor.edgeKind === "decisionCondition" || flow.editor.edgeKind === "objectTypeCondition" || flow.editor.edgeKind === "errorHandler"
-    ? flow.editor.edgeKind
-    : "sequence";
-}
-
-function toExecutionFlow(navigation: { objectCollection: MicroflowRuntimeDto["objectCollection"]; flows: MicroflowRuntimeDto["flows"] }, flow: MicroflowSequenceFlow | MicroflowAnnotationFlow): MicroflowExecutionFlow {
-  const location = findFlowLocation(navigation, flow.id);
-  const edgeKind = mapFlowKind(flow, flow.kind === "sequence" && flow.isErrorHandler);
-  const isErrorHandler = flow.kind === "sequence" && flow.isErrorHandler;
+  collectRefsFromAction(action, refs);
+  const kind = nodeKind(node);
   return {
-    flowId: flow.id,
-    kind: flow.kind,
-    edgeKind,
-    originObjectId: flow.originObjectId,
-    destinationObjectId: flow.destinationObjectId,
-    caseValues: flow.caseValues ?? [],
-    isErrorHandler,
-    originConnectionIndex: flow.originConnectionIndex,
-    destinationConnectionIndex: flow.destinationConnectionIndex,
-    collectionId: location?.collectionId,
-    parentLoopObjectId: location?.parentLoopObjectId,
-    branchOrder: flow.kind === "sequence" ? flow.editor.branchOrder : undefined,
-    controlFlow: flowControlFlow(edgeKind, isErrorHandler),
-    runtimeIgnored: edgeKind === "annotation",
+    objectId: nodeObjectId(node),
+    actionId: action?.id,
+    kind,
+    actionKind,
+    officialType: nodeOfficialType(node),
+    caption: nodeCaption(node),
+    config: {
+      ...nodeData(node),
+      objectKind: kind,
+      officialType: nodeOfficialType(node),
+      caption: nodeCaption(node),
+    },
+    p0ActionRuntime: action ? tryMapP0ActionToDiscriminatedDto(action) ?? undefined : undefined,
+    supportLevel: support.supportLevel,
+    runtimeBehavior: nodeRuntimeBehavior(kind, support.supportLevel),
+    errorHandling: buildErrorHandling(node),
+    collectionId: nodeCollectionId(node),
+    parentLoopObjectId: nodeParentObjectId(node),
   };
 }
 
-function findFlowLocation(
-  navigation: { objectCollection: MicroflowObjectCollection; flows: MicroflowFlow[] },
-  flowId: string,
-): { collectionId: string; parentLoopObjectId?: string } | undefined {
-  if (navigation.flows.some(flow => flow.id === flowId)) {
-    return { collectionId: navigation.objectCollection.id };
-  }
-  return findFlowLocationInCollection(navigation.objectCollection, flowId);
+function toExecutionFlow(edge: MicroflowWorkflowEdgeJSON, nodesById: Map<string, MicroflowWorkflowNodeJSON>): MicroflowExecutionFlow {
+  const kind = edgeKind(edge);
+  const isErrorHandler = edgeData(edge).isErrorHandler === true || kind === "errorHandler";
+  return {
+    flowId: edgeFlowId(edge),
+    kind: flowKind(edge),
+    edgeKind: kind,
+    originObjectId: edge.sourceNodeID,
+    destinationObjectId: edge.targetNodeID,
+    caseValues: Array.isArray(edgeData(edge).caseValues) ? edgeData(edge).caseValues as MicroflowCaseValue[] : [],
+    isErrorHandler,
+    originConnectionIndex: readNumber(edgeData(edge).originConnectionIndex),
+    destinationConnectionIndex: readNumber(edgeData(edge).destinationConnectionIndex),
+    collectionId: edgeCollectionId(edge, nodesById),
+    parentLoopObjectId: edgeParentLoopObjectId(edge, nodesById),
+    branchOrder: readNumber(edgeData(edge).branchOrder),
+    controlFlow: flowControlFlow(kind, isErrorHandler),
+    runtimeIgnored: kind === "annotation",
+  };
 }
 
-function findFlowLocationInCollection(
-  collection: MicroflowObjectCollection,
-  flowId: string,
-  parentLoopObjectId?: string,
-): { collectionId: string; parentLoopObjectId?: string } | undefined {
-  if (collection.flows?.some(flow => flow.id === flowId)) {
-    return { collectionId: collection.id, parentLoopObjectId };
-  }
-  for (const object of collection.objects) {
-    if (object.kind === "loopedActivity") {
-      const found = findFlowLocationInCollection(object.objectCollection, flowId, object.id);
-      if (found) {
-        return found;
-      }
-    }
-  }
-  return undefined;
+function toParameter(parameter: MicroflowDesignSchema["parameters"][number]): MicroflowExecutionParameter {
+  return {
+    id: parameter.id,
+    name: parameter.name,
+    dataType: parameter.dataType,
+    required: parameter.required ?? false,
+  };
 }
 
-function buildErrorHandling(object: MicroflowObject, objectId: string) {
-  if (object.kind === "actionActivity") {
-    return { errorHandlingType: object.action.errorHandlingType, scopeObjectId: objectId };
-  }
-  if (object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" || object.kind === "loopedActivity") {
-    return { errorHandlingType: object.errorHandlingType, scopeObjectId: objectId };
-  }
-  return undefined;
+function toVariableSymbol(variable: MicroflowVariable): MicroflowVariableSymbol {
+  const scope = { kind: variable.scope === "node" ? "collection" : "global", collectionId: ROOT_COLLECTION_ID } as const;
+  return {
+    id: variable.id,
+    name: variable.name,
+    displayName: variable.name,
+    kind: variable.scope === "latestError" ? "errorContext" : "localVariable",
+    dataType: toDataType(variable.type),
+    type: variable.type,
+    source: variable.scope === "latestError" ? { kind: "errorContext", flowId: "", errorVariable: "$latestError" } : { kind: "modeledOnly", objectId: variable.id },
+    scope,
+    readonly: false,
+  };
 }
 
-function addNodesFromCollection(
-  collection: MicroflowObjectCollection,
-  collectionId: string,
-  parentLoopObjectId: string | undefined,
-  nodes: MicroflowExecutionNode[],
-  unsupported: MicroflowUnsupportedActionDescriptor[],
-  loopCollections: MicroflowExecutionLoopCollection[],
-): void {
-  const collectionNodeIds = collection.objects.map(object => object.id);
-  const collectionFlowIds = collection.flows?.map(flow => flow.id) ?? [];
-  for (const object of collection.objects) {
-    let support: { supportLevel: MicroflowRuntimeSupportLevel; reason?: MicroflowUnsupportedActionReason; message: string } = {
-      supportLevel: "supported",
-      message: "Supported object.",
-    };
-    if (object.kind === "actionActivity") {
-      support = resolveActionRuntimeSupportLevel(object.action.kind);
-      if (support.supportLevel !== "supported" && support.reason) {
-        unsupported.push({
-          objectId: object.id,
-          actionId: object.action.id,
-          actionKind: object.action.kind,
-          reason: support.reason,
-          message: support.message,
-          supportLevel: support.supportLevel,
-        });
-      }
-    }
-    const node: MicroflowExecutionNode = {
-      objectId: object.id,
-      actionId: object.kind === "actionActivity" ? object.action.id : undefined,
-      kind: object.kind,
-      actionKind: object.kind === "actionActivity" ? object.action.kind : undefined,
-      officialType: object.officialType,
-      caption: "caption" in object ? object.caption : undefined,
-      config: { objectKind: object.kind, officialType: object.officialType, caption: "caption" in object ? object.caption : undefined },
-      p0ActionRuntime: object.kind === "actionActivity" ? tryMapP0ActionToDiscriminatedDto(object.action) ?? undefined : undefined,
-      supportLevel: support.supportLevel,
-      runtimeBehavior: nodeRuntimeBehavior(object, support.supportLevel),
-      errorHandling: buildErrorHandling(object, object.id),
-      collectionId,
-      parentLoopObjectId,
-    };
-    nodes.push(node);
-    if (object.kind === "loopedActivity") {
-      loopCollections.push({
-        loopObjectId: object.id,
-        collectionId: object.objectCollection.id,
-        startNodeId: object.objectCollection.objects.find(candidate => candidate.kind === "startEvent")?.id ?? object.objectCollection.objects.find(candidate => candidate.kind !== "annotation" && candidate.kind !== "parameterObject")?.id,
-        nodeIds: object.objectCollection.objects.map(candidate => candidate.id),
-        flowIds: object.objectCollection.flows?.map(flow => flow.id) ?? [],
-      });
-      addNodesFromCollection(object.objectCollection, object.objectCollection.id, object.id, nodes, unsupported, loopCollections);
-    }
-  }
-  if (parentLoopObjectId) {
-    const existing = loopCollections.find(item => item.loopObjectId === parentLoopObjectId && item.collectionId === collectionId);
-    if (existing) {
-      existing.nodeIds = collectionNodeIds;
-      existing.flowIds = collectionFlowIds;
-    }
-  }
+function parameterSymbol(parameter: MicroflowDesignSchema["parameters"][number]): MicroflowVariableSymbol {
+  return {
+    id: parameter.id,
+    name: parameter.name,
+    displayName: parameter.name,
+    kind: "parameter",
+    dataType: parameter.dataType,
+    type: parameter.type,
+    source: { kind: "parameter", parameterId: parameter.id },
+    scope: { kind: "global", collectionId: ROOT_COLLECTION_ID },
+    readonly: true,
+  };
 }
 
 function sourceObjectId(symbol: MicroflowVariableSymbol): string | undefined {
@@ -248,51 +316,61 @@ function toVariableScopes(symbols: MicroflowVariableSymbol[]): MicroflowExecutio
   return [...scopes.values()];
 }
 
-export function toExecutionPlan(dto: MicroflowRuntimeDto, options?: { resourceId?: string; version?: string }): MicroflowExecutionPlan {
-  const navigation = { flows: dto.flows, objectCollection: dto.objectCollection };
-  const allObjects = collectRuntimeObjects(dto.objectCollection);
-  const allFlows = collectRuntimeFlows(navigation)
-    .filter((flow): flow is MicroflowSequenceFlow => flow.kind === "sequence")
-    .map(flow => toExecutionFlow(navigation, flow));
-  const normalFlows = allFlows.filter(flow => flow.controlFlow === "normal");
-  const decisionFlows = allFlows.filter(flow => flow.controlFlow === "decision" || flow.controlFlow === "objectType");
-  const errorHandlerFlows = allFlows.filter(flow => flow.controlFlow === "errorHandler");
-  const start = getStartEvent(navigation);
-  const endNodeIds = allObjects.filter(object => object.kind === "endEvent").map(object => object.id);
-  const parameters: MicroflowExecutionParameter[] = dto.parameters.map(parameter => ({
-    id: parameter.id,
-    name: parameter.name,
-    dataType: parameter.dataType,
-    required: parameter.required ?? false,
-  }));
-  const nodes: MicroflowExecutionNode[] = [];
+function toLoopCollections(nodes: MicroflowWorkflowNodeJSON[], flows: MicroflowExecutionFlow[]): MicroflowExecutionLoopCollection[] {
+  return nodes
+    .filter(node => nodeKind(node) === "loopedActivity")
+    .map(node => {
+      const loopObjectId = nodeObjectId(node);
+      const collectionId = readString(nodeData(node).bodyCollectionId) ?? `${loopObjectId}-body`;
+      const childNodes = nodes.filter(candidate => nodeParentObjectId(candidate) === loopObjectId || nodeCollectionId(candidate) === collectionId);
+      const childNodeIds = childNodes.map(nodeObjectId);
+      return {
+        loopObjectId,
+        collectionId,
+        startNodeId: childNodes.find(candidate => nodeKind(candidate) === "startEvent")?.id ?? childNodeIds[0],
+        nodeIds: childNodeIds,
+        flowIds: flows.filter(flow => flow.collectionId === collectionId || flow.parentLoopObjectId === loopObjectId).map(flow => flow.flowId),
+      };
+    });
+}
+
+export function toExecutionPlan(schema: MicroflowDesignSchema, options?: { resourceId?: string; version?: string }): MicroflowExecutionPlan {
+  assertDesignSchema(schema);
+  const nodesById = new Map(schema.workflow.nodes.map(node => [node.id, node]));
   const unsupportedActions: MicroflowUnsupportedActionDescriptor[] = [];
-  const loopCollections: MicroflowExecutionLoopCollection[] = [];
-  addNodesFromCollection(dto.objectCollection, dto.objectCollection.id, undefined, nodes, unsupportedActions, loopCollections);
-  const variableSymbols = dto.variables.all ?? [];
-  const variableDeclarations = variableSymbols.map(toVariableDeclaration);
   const metadataRefs: MicroflowRuntimeMetadataRefDto[] = [];
-  collectMetadataRefsFromObjects(allObjects, metadataRefs);
+  const nodes = schema.workflow.nodes.map(node => toExecutionNode(node, unsupportedActions, metadataRefs));
+  const flows = schema.workflow.edges
+    .map(edge => toExecutionFlow(edge, nodesById))
+    .filter(flow => !flow.runtimeIgnored);
+  const normalFlows = flows.filter(flow => flow.controlFlow === "normal");
+  const decisionFlows = flows.filter(flow => flow.controlFlow === "decision" || flow.controlFlow === "objectType");
+  const errorHandlerFlows = flows.filter(flow => flow.controlFlow === "errorHandler");
+  const start = schema.workflow.nodes.find(node => nodeKind(node) === "startEvent")
+    ?? schema.workflow.nodes.find(node => !["annotation", "parameterObject"].includes(nodeKind(node)));
+  const endNodeIds = schema.workflow.nodes.filter(node => nodeKind(node) === "endEvent").map(nodeObjectId);
+  const variableSymbols = [...schema.parameters.map(parameterSymbol), ...(schema.variables ?? []).map(toVariableSymbol)];
+  const variableDeclarations = variableSymbols.map(toVariableDeclaration);
   return {
-    id: `plan-${dto.microflowId}`,
-    schemaId: dto.microflowId,
+    id: `plan-${schema.id}`,
+    schemaId: schema.id,
     resourceId: options?.resourceId,
-    version: options?.version ?? dto.schemaVersion,
-    parameters,
+    version: options?.version ?? schema.schemaVersion,
+    parameters: schema.parameters.map(toParameter),
     variableDeclarations,
     actionOutputs: variableDeclarations.filter(item => item.source.kind === "actionOutput" || item.source.kind === "microflowReturn" || item.source.kind === "restResponse" || item.source.kind === "createVariable" || item.source.kind === "modeledOnly"),
     loopVariables: variableDeclarations.filter(item => item.source.kind === "loopIterator" || item.scope.kind === "loop"),
     systemVariables: variableDeclarations.filter(item => item.source.kind === "system"),
     errorContextVariables: variableDeclarations.filter(item => item.source.kind === "errorContext" || item.scope.kind === "errorHandler"),
     variableScopes: toVariableScopes(variableSymbols),
-    variableDiagnostics: dto.variables.diagnostics ?? [],
+    variableDiagnostics: [],
     nodes,
-    flows: allFlows,
+    flows,
     normalFlows,
     decisionFlows,
     errorHandlerFlows,
-    loopCollections,
-    startNodeId: start?.id ?? "missing-start",
+    loopCollections: toLoopCollections(schema.workflow.nodes, flows),
+    startNodeId: start ? nodeObjectId(start) : "missing-start",
     endNodeIds,
     metadataRefs,
     unsupportedActions,
@@ -300,6 +378,6 @@ export function toExecutionPlan(dto: MicroflowRuntimeDto, options?: { resourceId
   };
 }
 
-export function toExecutionPlanFromSchema(schema: MicroflowAuthoringSchema, options?: { resourceId?: string; version?: string }): MicroflowExecutionPlan {
-  return toExecutionPlan(toRuntimeDto(schema), { resourceId: options?.resourceId, version: options?.version ?? schema.schemaVersion });
+export function toExecutionPlanFromSchema(schema: MicroflowDesignSchema, options?: { resourceId?: string; version?: string }): MicroflowExecutionPlan {
+  return toExecutionPlan(schema, options);
 }

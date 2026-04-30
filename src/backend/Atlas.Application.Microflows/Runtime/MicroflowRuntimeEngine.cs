@@ -7,6 +7,7 @@ using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Debug;
+using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Loops;
 using Atlas.Application.Microflows.Runtime.Security;
@@ -34,12 +35,13 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     private readonly IMicroflowActionExecutorRegistry? _actionExecutorRegistry;
     private readonly IMicroflowLoopExecutor? _loopExecutor;
     private readonly IMicroflowRuntimeConnectorRegistry? _connectorRegistry;
+    private readonly IMicroflowErrorHandlingService? _errorHandlingService;
     private readonly IMicroflowDebugCoordinator? _debugCoordinator;
     private readonly IMicroflowRunCancellationRegistry? _cancellationRegistry;
     private readonly MicroflowEntityAccessOptions _runtimeOptions;
 
     public MicroflowRuntimeEngine(IMicroflowSchemaReader schemaReader, IMicroflowClock clock)
-        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null, null, null)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null, null, null, null)
     {
     }
 
@@ -48,7 +50,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowClock clock,
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
-        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), resourceRepository, schemaSnapshotRepository, null, null, null, null)
+        : this(schemaReader, clock, new MicroflowExpressionEvaluator(), resourceRepository, schemaSnapshotRepository, null, null, null, null, null)
     {
     }
 
@@ -58,7 +60,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowExpressionEvaluator expressionEvaluator,
         IMicroflowResourceRepository? resourceRepository,
         IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
-        : this(schemaReader, clock, expressionEvaluator, resourceRepository, schemaSnapshotRepository, null, null, null, null)
+        : this(schemaReader, clock, expressionEvaluator, resourceRepository, schemaSnapshotRepository, null, null, null, null, null)
     {
     }
 
@@ -71,6 +73,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowActionExecutorRegistry? actionExecutorRegistry,
         IMicroflowLoopExecutor? loopExecutor,
         IMicroflowRuntimeConnectorRegistry? connectorRegistry,
+        IMicroflowErrorHandlingService? errorHandlingService,
         IMicroflowDebugCoordinator? debugCoordinator = null,
         IMicroflowRunCancellationRegistry? cancellationRegistry = null,
         MicroflowEntityAccessOptions? runtimeOptions = null)
@@ -83,6 +86,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         _actionExecutorRegistry = actionExecutorRegistry;
         _loopExecutor = loopExecutor;
         _connectorRegistry = connectorRegistry;
+        _errorHandlingService = errorHandlingService;
         _debugCoordinator = debugCoordinator;
         _cancellationRegistry = cancellationRegistry;
         _runtimeOptions = runtimeOptions ?? new MicroflowEntityAccessOptions();
@@ -417,6 +421,20 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             || string.Equals(loopResult.Status, MicroflowLoopExecutionStatus.MaxIterationsExceeded, StringComparison.OrdinalIgnoreCase))
         {
             var loopError = loopResult.Error ?? Error(RuntimeErrorCode.RuntimeLoopMaxIterationsExceeded, $"循环执行失败：{loopResult.Status}", node.Id, flowId: incomingFlowId);
+            var handledLoopFailure = TryHandleConfiguredFailure(
+                context,
+                graph,
+                node,
+                action: null,
+                incomingFlowId,
+                loopError,
+                actionResult: null,
+                sourceExecutionNode: actionContext.ExecutionNode);
+            if (handledLoopFailure is not null)
+            {
+                return handledLoopFailure;
+            }
+
             context.AddNodeFailure(node, incomingFlowId, loopError);
             return NodeExecution.Failed(loopError);
         }
@@ -710,26 +728,20 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             context.Logs.Add(log);
         }
 
-        // P0-4: PendingClientCommand 不再静默成功。
-        // 服务端 test-run 没有客户端，showPage / closePage 等 RuntimeCommand 类
-        // action 应该把节点显式标记 failed + RUNTIME_PENDING_CLIENT_COMMAND，
-        // 由前端负责区分 server-only run 与可恢复的 client-driven 流程。
+        // Client-executed family: runtimeCommand 类动作在 executor 层仍返回
+        // PendingClientCommand，但 RuntimeEngine 不再把它视为失败，而是把
+        // 命令写入 trace/output 并沿 normal flow 继续，让前端可在同一 run
+        // session 中消费这些命令。
         if (string.Equals(result.Status, MicroflowActionExecutionStatus.PendingClientCommand, StringComparison.OrdinalIgnoreCase))
         {
-            var pendingError = result.Error ?? Error(
-                RuntimeErrorCode.RuntimePendingClientCommand,
-                result.Message ?? $"Action {action.Kind} 需要客户端继续执行；服务端 test-run 不会代为完成。",
-                node.Id,
-                action.Id,
-                incomingFlowId);
-            pendingError = pendingError with
+            var commandOutput = result.OutputJson ?? JsonObj(new
             {
-                ObjectId = pendingError.ObjectId ?? node.Id,
-                ActionId = pendingError.ActionId ?? action.Id,
-                FlowId = pendingError.FlowId ?? incomingFlowId
-            };
-            context.AddNodeFailure(node, incomingFlowId, pendingError);
-            return NodeExecution.Failed(pendingError);
+                actionKind = action.Kind,
+                status = result.Status,
+                runtimeCommands = result.RuntimeCommands,
+                message = result.Message
+            });
+            return ContinueAfterAction(context, graph, node, incomingFlowId, commandOutput);
         }
 
         // Failure / unsupported / connector-required paths halt the run with a
@@ -765,8 +777,30 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                         Type("Object"),
                         JsonSerializer.SerializeToElement(error, JsonOptions),
                         $"action:{action.Kind}:errorHandler");
+                    if (result.LatestHttpResponse.HasValue)
+                    {
+                        context.SetVariable(
+                            "$latestHttpResponse",
+                            Type("Object"),
+                            result.LatestHttpResponse.Value,
+                            $"action:{action.Kind}:errorHandler");
+                    }
                     return NodeExecution.Next(errorFlow.DestinationObjectId!, errorFlow.Id);
                 }
+            }
+
+            var handledFailure = TryHandleConfiguredFailure(
+                context,
+                graph,
+                node,
+                action,
+                incomingFlowId,
+                error,
+                result,
+                sourceExecutionNode: actionContext.ExecutionNode);
+            if (handledFailure is not null)
+            {
+                return handledFailure;
             }
 
             context.AddNodeFailure(node, incomingFlowId, error);
@@ -1104,6 +1138,84 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         var flow = outgoing[0];
         context.AddFrame(node, incomingFlowId, flow.Id, "success", JsonObj(new { actionKind = node.Action?.Kind }), output, null);
         return NodeExecution.Next(flow.DestinationObjectId!, flow.Id);
+    }
+
+    private NodeExecution? TryHandleConfiguredFailure(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        MicroflowObjectModel node,
+        MicroflowActionModel? action,
+        string? incomingFlowId,
+        MicroflowRuntimeErrorDto error,
+        MicroflowActionExecutionResult? actionResult,
+        MicroflowExecutionNode sourceExecutionNode)
+    {
+        if (_errorHandlingService is null)
+        {
+            return null;
+        }
+
+        var errorHandlingType = action is not null
+            ? ReadString(action.Raw, "errorHandlingType") ?? ReadStringByPath(action.Raw, "errorHandling", "type")
+            : ReadString(node.Raw, "errorHandlingType") ?? ReadStringByPath(node.Raw, "errorHandling", "type");
+        if (string.IsNullOrWhiteSpace(errorHandlingType))
+        {
+            return null;
+        }
+
+        var runtimeContext = context.AsRuntimeExecutionContext();
+        var normalOutgoingFlow = graph.NormalOutgoing(node.Id).FirstOrDefault();
+        var handling = _errorHandlingService.Handle(new MicroflowErrorHandlingContext
+        {
+            RuntimeContext = runtimeContext,
+            Plan = context.ResolveExecutionPlan(),
+            SourceNode = sourceExecutionNode,
+            ActionResult = actionResult ?? new MicroflowActionExecutionResult { Error = error, Status = MicroflowActionExecutionStatus.Failed },
+            Error = error,
+            ErrorHandlingType = errorHandlingType!,
+            SourceObjectId = node.Id,
+            SourceActionId = action?.Id,
+            CollectionId = node.CollectionId,
+            IncomingFlowId = incomingFlowId,
+            NormalOutgoingFlowId = normalOutgoingFlow?.Id,
+            LatestHttpResponse = actionResult?.LatestHttpResponse,
+            ErrorDepth = runtimeContext.ErrorStack.Count
+        });
+
+        if (handling.ShouldContinueNormalFlow && normalOutgoingFlow is not null)
+        {
+            context.AddNodeFailure(node, incomingFlowId, handling.Error ?? error, normalOutgoingFlow.Id);
+            return NodeExecution.Next(normalOutgoingFlow.DestinationObjectId!, normalOutgoingFlow.Id);
+        }
+
+        if (!string.IsNullOrWhiteSpace(handling.NextFlowId)
+            && graph.Flows.TryGetValue(handling.NextFlowId!, out var errorFlow)
+            && !string.IsNullOrWhiteSpace(errorFlow.DestinationObjectId))
+        {
+            context.AddNodeFailure(node, incomingFlowId, handling.Error ?? error, errorFlow.Id);
+            context.SetVariable(
+                "$latestError",
+                Type("Object"),
+                JsonSerializer.SerializeToElement(handling.Error ?? error, JsonOptions),
+                $"errorHandling:{errorHandlingType}");
+            if (actionResult?.LatestHttpResponse.HasValue == true)
+            {
+                context.SetVariable(
+                    "$latestHttpResponse",
+                    Type("Object"),
+                    actionResult.LatestHttpResponse.Value,
+                    $"errorHandling:{errorHandlingType}");
+            }
+
+            return NodeExecution.Next(errorFlow.DestinationObjectId!, errorFlow.Id);
+        }
+
+        if (handling.ShouldStopRun)
+        {
+            return NodeExecution.Failed(handling.Error ?? error);
+        }
+
+        return null;
     }
 
     private static NodeExecution ExecuteDecision(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId)
@@ -1815,15 +1927,34 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     ObjectId = obj.Id,
                     ActionId = obj.Action?.Id,
                     CollectionId = obj.CollectionId,
+                    ParentLoopObjectId = obj.ParentLoopObjectId,
                     Kind = obj.Kind,
                     OfficialType = obj.OfficialType,
                     Caption = obj.Caption,
                     ActionKind = obj.Action?.Kind,
                     ActionOfficialType = obj.Action?.OfficialType,
                     SupportLevel = MicroflowRuntimeSupportLevel.Supported,
-                    ConfigJson = obj.Action?.Raw
+                    ConfigJson = obj.Action?.Raw ?? obj.Raw
                 });
             }
+
+            var flows = Model.Flows.Select(flow => new MicroflowExecutionFlow
+            {
+                FlowId = flow.Id,
+                CollectionId = flow.CollectionId,
+                EdgeKind = string.IsNullOrWhiteSpace(flow.EdgeKind) ? "sequence" : flow.EdgeKind!,
+                ControlFlow = flow.IsErrorHandler
+                    || string.Equals(flow.EdgeKind, "errorHandler", StringComparison.OrdinalIgnoreCase)
+                        ? "errorHandler"
+                        : string.Equals(flow.EdgeKind, "annotation", StringComparison.OrdinalIgnoreCase)
+                            ? "ignored"
+                            : "normal",
+                OriginObjectId = flow.OriginObjectId,
+                DestinationObjectId = flow.DestinationObjectId,
+                CaseValues = flow.CaseValues,
+                IsErrorHandler = flow.IsErrorHandler,
+                BranchOrder = null
+            }).ToArray();
 
             return new MicroflowExecutionPlan
             {
@@ -1831,7 +1962,14 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 SchemaId = _request.SchemaId,
                 ResourceId = ResourceId,
                 Version = _request.Version,
+                SchemaVersion = Model.SchemaVersion,
+                StartNodeId = Model.Objects.FirstOrDefault(obj => string.Equals(obj.Kind, "startEvent", StringComparison.OrdinalIgnoreCase))?.Id ?? string.Empty,
+                EndNodeIds = Model.Objects.Where(obj => string.Equals(obj.Kind, "endEvent", StringComparison.OrdinalIgnoreCase)).Select(obj => obj.Id).ToArray(),
                 Nodes = nodes,
+                Flows = flows,
+                NormalFlows = flows.Where(flow => string.Equals(flow.ControlFlow, "normal", StringComparison.OrdinalIgnoreCase)).ToArray(),
+                ErrorHandlerFlows = flows.Where(flow => string.Equals(flow.ControlFlow, "errorHandler", StringComparison.OrdinalIgnoreCase)).ToArray(),
+                IgnoredFlows = flows.Where(flow => string.Equals(flow.ControlFlow, "ignored", StringComparison.OrdinalIgnoreCase)).ToArray(),
                 Parameters = Model.Parameters
                     .Select(parameter => new MicroflowExecutionParameter
                     {

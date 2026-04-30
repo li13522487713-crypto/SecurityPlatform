@@ -3,12 +3,7 @@ import { Button, Space, Table, Typography } from "@douyinfe/semi-ui";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useAppI18n } from "../../i18n";
 import { useBootstrap } from "../../bootstrap-context";
-import {
-  applyWorkspaceSeedBundle,
-  completeWorkspaceInit,
-  initializeWorkspace
-} from "../../../services/mock";
-import type { WorkspaceSetupStateDto } from "../../../services/api-setup-console";
+import { setupConsoleApi, type WorkspaceSetupStateDto } from "../../../services/api-setup-console";
 import type { AppMessageKey } from "../../messages";
 import {
   isWorkspaceInitDone,
@@ -58,7 +53,7 @@ export function WorkspaceInitTab({ workspaces, onSnapshotChanged }: WorkspaceIni
       setBusyWorkspaceId(workspace.workspaceId);
       setErrorMessage(null);
       try {
-        await initializeWorkspace(workspace.workspaceId, {
+        await setupConsoleApi.workspaceInit(workspace.workspaceId, {
           workspaceName: workspace.workspaceName,
           seedBundleVersion: "v1",
           applyDefaultRoles: true,
@@ -79,7 +74,7 @@ export function WorkspaceInitTab({ workspaces, onSnapshotChanged }: WorkspaceIni
       setBusyWorkspaceId(workspace.workspaceId);
       setErrorMessage(null);
       try {
-        await applyWorkspaceSeedBundle(workspace.workspaceId, {
+        await setupConsoleApi.workspaceSeedBundle(workspace.workspaceId, {
           bundleVersion: "v1",
           forceReapply: true
         });
@@ -98,7 +93,7 @@ export function WorkspaceInitTab({ workspaces, onSnapshotChanged }: WorkspaceIni
       setBusyWorkspaceId(workspace.workspaceId);
       setErrorMessage(null);
       try {
-        await completeWorkspaceInit(workspace.workspaceId);
+        await setupConsoleApi.workspaceComplete(workspace.workspaceId);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : t("setupConsoleStepStateFailed"));
       } finally {

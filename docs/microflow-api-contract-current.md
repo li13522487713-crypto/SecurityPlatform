@@ -94,7 +94,8 @@
 |---|---|---|---|
 | RunSession/Trace 仅按 runId 查询 | `MicroflowTestRunService.GetRunTraceAsync/GetRunSessionAsync/CancelAsync` | IDOR：跨 workspace 用户知 runId 即可读 trace、cancel | P0-3 修复 |
 | 引擎与控制面节点覆盖不一致 | `MicroflowRuntimeEngine.ExecuteNodeAsync` 仅 6 种 kind；validation 接受更多 kind | unsupported 节点静默/失败行为不清 | P0-4 修复 |
-| `ShouldEnterErrorHandler` 标志未消费 | `RestCallActionExecutor`/`ThrowExceptionActionExecutor` 等设置；`MicroflowRuntimeEngine` 主循环未消费 | error handler 分支不被触发 | P0-4 修复 |
+| `ShouldEnterErrorHandler` 标志仅部分消费 | `RestCallActionExecutor`/`ThrowExceptionActionExecutor` 等设置；`MicroflowRuntimeEngine` 当前已消费 action 级 error handler 跳转，并开始接入 loop/continue/custom 路径，但完整统一 error-handling 管道仍在继续收口 | error handler 分支已可触发，但 action/loop/custom/continue 语义仍需继续追平 | 继续收口 |
+| `PendingClientCommand` 一律失败 | 旧行为：`showPage/showMessage/closePage/...` 一律转成 `RUNTIME_PENDING_CLIENT_COMMAND` 失败；当前行为：命令写入 trace/session 后继续 normal flow，前端消费链继续补齐 | run session 不再因 client command 天然失败，但前端是否真正执行命令仍取决于 studio/runtime 消费端 | 第 62 轮已部分修复 |
 | `PendingClientCommand` 在引擎中走 success | `ExecuteActionViaRegistryAsync` 仅判 Failed/Unsupported/ConnectorRequired | server-side 假成功 | P0-4 修复 |
 | CallMicroflow 双路径 | 引擎内联 `ExecuteCallMicroflowAsync` + `CallMicroflowActionExecutor` | 行为分叉、维护成本 | P0-5 修复 |
 | RunTimeoutSeconds 引擎未 enforce + cancel 不中断 | `RuntimeContext.TryStep` 只控 MaxSteps；`CancelAsync` 仅改 DB | 长跑/失控风险 | P0-6 修复 |

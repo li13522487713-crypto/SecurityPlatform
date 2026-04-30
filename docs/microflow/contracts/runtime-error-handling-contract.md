@@ -1,6 +1,6 @@
 # Runtime Error Handling Contract
 
-P0 Mock Runtime 与后端 Runtime 都以 `ExecutionPlan.errorHandlerFlows` 解释错误路径。
+后端 Runtime 以 `ExecutionPlan.errorHandlerFlows` 解释错误路径。
 
 ## 模式
 

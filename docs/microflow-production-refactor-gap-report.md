@@ -57,11 +57,11 @@ flowchart LR
 | Parallel/Inclusive Gateway | 显式 unsupported | engine 显式失败 | OK，留 P2 真实化 |
 | `showPage` / `closePage` 等 RuntimeCommand | partial | Executor 返回 `PendingClientCommand`，引擎当作 success → `ContinueAfterAction` | **P0-4 修复** |
 
-### 1.5 mock runner 双轨
+### 1.5 Runtime 双轨
 
 - 仓库不存在 `MicroflowMockRuntimeRunner.cs`/`IMicroflowMockRuntimeRunner` 实体（grep 0 命中）。`MicroflowTestRunService` 注入 `IMicroflowRuntimeEngine`。
 - 但 **CallMicroflow 双路径**：`MicroflowRuntimeEngine.ExecuteCallMicroflowAsync` 直接 `RunInternalAsync` 与 `CallMicroflowActionExecutor` 并存（P0-5）。
-- 前端 `mock-test-runner.ts` / `local-adapter.ts` 仅在非 `http` adapter mode 使用；生产 bundle 已禁用（参见 `microflow-adapter-config.ts`）。
+- 前端本地运行器已下线；test-run 只能走后端 runtime API。
 
 ### 1.6 Trace / Run / Cancel 权限漏洞（P0-3）
 

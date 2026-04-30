@@ -10,6 +10,23 @@ import type {
 /** Current authoring JSON `schemaVersion` written after migration. */
 export const CURRENT_AUTHORING_SCHEMA_VERSION = "1.0.0";
 
+const LEGACY_ACTION_KIND_TO_CANONICAL: Readonly<Record<string, string>> = {
+  webserviceCall: "webServiceCall",
+  webService: "webServiceCall",
+  callExternal: "callExternalAction",
+  externalCall: "callExternalAction",
+  deleteExternal: "deleteExternalObject",
+  sendExternal: "sendExternalObject",
+  rollbackObject: "rollback",
+  castObject: "cast",
+  listUnion: "listOperation",
+  listIntersect: "listOperation",
+  listSubtract: "listOperation",
+  aggregate: "aggregateList",
+  filter: "filterList",
+  sort: "sortList",
+};
+
 export function isLegacyMicroflowSchema(input: unknown): input is LegacyMicroflowGraphSchema {
   return isLegacyGraphSchema(input);
 }
@@ -34,6 +51,11 @@ function isAuthoringShape(value: object): value is MicroflowAuthoringSchema {
 }
 
 function migrateP0ActionFields(action: MicroflowAction): void {
+  const canonicalKind = LEGACY_ACTION_KIND_TO_CANONICAL[action.kind];
+  if (canonicalKind) {
+    (action as unknown as Record<string, unknown>).legacyKind ??= action.kind;
+    (action as unknown as Record<string, unknown>).kind = canonicalKind;
+  }
   if (action.kind === "changeVariable") {
     const a = action as unknown as Record<string, unknown>;
     if (typeof a.targetVariableName !== "string" && typeof a.variableName === "string") {

@@ -8,7 +8,7 @@
 - ErrorEvent 不擅自二次 rollback；它保持 upstream errorHandling 已决定的 transaction 状态，并导致 run failed。
 - 本事务模型仍为 Runtime 内存 UnitOfWork，不是分布式事务或真实 DB 补偿事务。
 
-本仓库前端不实现真实事务；Mock Runtime 只生成 transaction preview，用于 Trace/DebugPanel 与后端契约对齐。
+本仓库前端不实现事务；事务预览、Trace/DebugPanel 数据均来自后端 Runtime。
 
 ## 第 53 轮 Runtime TransactionManager / UnitOfWork
 

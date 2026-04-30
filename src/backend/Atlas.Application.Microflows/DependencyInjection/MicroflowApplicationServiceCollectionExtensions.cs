@@ -47,6 +47,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
             sp.GetService<IMicroflowActionExecutorRegistry>(),
             sp.GetService<IMicroflowLoopExecutor>(),
             sp.GetService<IMicroflowRuntimeConnectorRegistry>(),
+            sp.GetService<IMicroflowErrorHandlingService>(),
             sp.GetService<IMicroflowDebugCoordinator>(),
             sp.GetService<IMicroflowRunCancellationRegistry>(),
             sp.GetService<MicroflowEntityAccessOptions>()));
@@ -87,6 +88,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<ThrowExceptionActionExecutor>();
         services.TryAddScoped<FilterListActionExecutor>();
         services.TryAddScoped<SortListActionExecutor>();
+        services.TryAddScoped<MetricsActionExecutor>();
         services.TryAddSingleton<MicroflowRestExecutionOptions>();
         services.TryAddSingleton<MicroflowRestSecurityPolicy>();
         services.TryAddScoped<MicroflowRestRequestBuilder>();

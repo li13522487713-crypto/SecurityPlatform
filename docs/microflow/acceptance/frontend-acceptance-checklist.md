@@ -48,10 +48,10 @@
 36. **FlowGram port 协议**：保存/刷新后 edge 仍连接同一端口，`sourcePortID`/`targetPortID` 可由 `{objectId}:{portKind}:{connectionIndex}` 解析。
 37. **Edge 协议**：Decision/ObjectType/ErrorHandler/AnnotationFlow 的 `caseValues`、`isErrorHandler`、`label`、`branchOrder` 在保存、校验、AutoLayout 后不丢失。
 38. **Loop 边界**：root → loop internal、loop internal → root 被拒绝；同一 loop internal collection 内部可连；Break/Continue 无出边。
-39. **Runtime edge**：`toRuntimeDto().flows` 与 `toExecutionPlan().flows` 不包含 AnnotationFlow，且 plan 提供 normal/decision/errorHandler flow 分组。
+39. **Runtime edge**：后端 runtime plan 不包含 AnnotationFlow，且 plan 提供 normal/decision/errorHandler flow 分组。
 40. **AutoLayout 语义**：AutoLayout 前后 flow semantic hash 一致，case/errorHandler/annotation 类型不变化。
-41. **Runtime Pipeline**：编辑器 test-run 走 `toRuntimeDto → toExecutionPlan → mockRunExecutionPlan`，RunSession/TraceFrame 不含 FlowGram JSON。
-42. **Runtime 回归矩阵**：`sample-runtime-matrix.md` 中所有样例可完成 validate、FlowGram 投影、Runtime DTO、ExecutionPlan 与 mock run 契约验证。
+41. **Runtime Pipeline**：编辑器 test-run 走后端 runtime API，RunSession/TraceFrame 不含 FlowGram JSON。
+42. **Runtime 回归矩阵**：`sample-runtime-matrix.md` 中所有样例可完成 validate、FlowGram 投影与后端 runtime 契约验证。
 
 ## 自动化补充
 
@@ -69,10 +69,10 @@
 3. ProblemPanel、DebugPanel、PublishModal、VersionsDrawer、ReferencesDrawer 的失败态必须展示服务端 `code/message/traceId` 或前端归一化错误，不白屏、不污染 dirty schema。
 4. 大图样例 `R60_E2E_LargeGraph*` 至少完成加载、保存、校验和 runtime plan；若浏览器性能超阈值，在 Round60 报告中标记 major risk。
 
-## Contract Mock HTTP 模式
+## HTTP API 模式
 
-1. 设置 `VITE_MICROFLOW_API_MOCK=msw`、`VITE_MICROFLOW_ADAPTER_MODE=http`、`VITE_MICROFLOW_API_BASE_URL=/api`，启动 `pnpm run dev:app-web`。
-2. ResourceTab 通过 HTTP mock 加载资源列表，支持搜索、状态、发布状态、收藏、模块、标签、排序与分页。
+1. 设置 `VITE_MICROFLOW_ADAPTER_MODE=http`、`VITE_MICROFLOW_API_BASE_URL=/api`，启动 `pnpm run dev:app-web` 并连接后端 API。
+2. ResourceTab 通过后端 HTTP API 加载资源列表，支持搜索、状态、发布状态、收藏、模块、标签、排序与分页。
 3. 新建微流后进入 EditorPage，刷新详情与 schema 不丢。
 4. 保存 schema 走 `PUT /api/microflows/{id}/schema`，已发布资源保存后变为 `changedAfterPublish`。
 5. Metadata selectors 走 `GET /api/microflow-metadata` 及 entity/enumeration 子路径。
@@ -106,5 +106,5 @@
 1. `pnpm --dir src/frontend run build:app-web` 必须通过。
 2. `npx tsx scripts/verify-microflow-production-no-mock.ts` 必须通过，生产路径不得启用 MSW、mock adapter、local adapter 或 localStorage resource。
 3. `VITE_MICROFLOW_ADAPTER_MODE` 生产值必须为 `http` 或留空使用默认 `http`。
-4. 生产环境不设置 `VITE_MICROFLOW_API_MOCK`；开发态 Contract Mock 仅允许 `VITE_MICROFLOW_API_MOCK=msw` 且非 production。
+4. 生产和开发均不再支持微流 Contract Mock；所有微流 API 必须走后端 HTTP。
 5. 服务未连接、无权限、认证过期和 traceId 展示策略按 `docs/microflow/release/security-configuration.md` 与 `known-limitations.md` 执行。

@@ -25,7 +25,6 @@ export {
   type MicroflowApiClient,
   type MicroflowLoadService,
   type MicroflowPublishService,
-  type MicroflowRuntimeDto,
   type MicroflowRuntimeError,
   type MicroflowSaveService,
   type MicroflowTestRunService,

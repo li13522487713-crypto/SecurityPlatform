@@ -8,7 +8,7 @@
 
 第 33 轮起，HTTP 错误统一抛 `MicroflowApiException`：401/403 会触发宿主回调，404/409/422/5xx/network 会映射到 `MicroflowApiErrorCode`。`error.validationIssues` 由编辑器合并进 ProblemPanel；Publish blocked 留在 PublishModal 内展示；Runtime API 错误进入 DebugPanel 服务错误态。
 
-第 34 轮起，Contract Mock 使用 MSW 拦截上述 HTTP 请求，返回与后端契约一致的 `MicroflowApiResponse<T>`。该模式不是 `mock/local` adapter：`app-web` 仍传 `mode=http` 与 `apiBaseUrl`，不读取 mock store、不 import handler。
+微流 Contract Mock 已下线；`app-web` 只传 `mode=http` 与 `apiBaseUrl`，所有请求均连接后端 HTTP API。
 
 第 43 轮 Resource / Schema 真实联调回归要求 `app-web` 微流资源库与编辑器默认走 HTTP adapter：`apiBaseUrl=/api` 会通过前端 dev proxy 命中 AppHost，`http://localhost:5002` 与 `http://localhost:5002/api` 也必须解析到同一组 `/api/microflows` 路径。ResourceTab 的 list/create/rename/favorite/duplicate/archive/restore/delete 与 Editor 保存均只经 `MicroflowResourceAdapter`，不直接 fetch、不读取微流 localStorage，后端不可用时显示错误态而不回退 mock/local。
 
@@ -50,13 +50,13 @@
 
 第 40 轮后端已实现 `validateMicroflow` 真实 HTTP 路径。前端即时校验仍可本地执行，保存/发布/运行前校验应以该后端 API 为权威；`errorCount/warningCount/infoCount` 与 `MicroflowValidationIssue.fieldPath` 可直接供 ProblemPanel 和字段错误使用。
 
-第 42 轮后端已实现 RuntimeAdapter 所需 Mock TestRun HTTP 路径：`testRunMicroflow` 返回 `data.session`，DebugPanel 可直接展示 `session.trace/logs/variables/error`；`getMicroflowRunTrace` 读取持久化 trace/logs；`cancelMicroflowRun` 返回 cancelled 状态。该路径仍是契约级 Mock Runtime，不是真实 Mendix 执行引擎，不访问业务库或外部 REST。
+后端已实现 RuntimeAdapter 所需 TestRun HTTP 路径：`testRunMicroflow` 返回 `data.session`，DebugPanel 可直接展示 `session.trace/logs/variables/error`；`getMicroflowRunTrace` 读取持久化 trace/logs；`cancelMicroflowRun` 返回 cancelled 状态。前端不再提供 mock runner 或 MSW 回退。
 
 第 46～47 轮联调要求：PublishModal 使用 `mode=publish` validation + impact API；ReferencesDrawer 将 `includeInactive/sourceType/impactLevel` 下推；RuntimeAdapter 在 `testRunMicroflow` 后调用 `getMicroflowRunSession` 与 `getMicroflowRunTrace`，Cancel Run 后同样回读持久化 session/trace。
 
 ## MicroflowMetadataAdapter
 
-前端**生产路径**通过 Adapter / `MicroflowMetadataProvider` 获取 `MicroflowMetadataCatalog`；不得在生产组件、校验器、表达式与变量模块中直接 `import` mock catalog 或 `mockEntities`。同步桥接仅使用 `getDefaultMockMetadataCatalog()`（测试与过渡工具），新代码应 `await adapter.getMetadataCatalog()`。
+前端**生产路径**通过 Adapter / `MicroflowMetadataProvider` 获取 `MicroflowMetadataCatalog`；不得在生产组件、校验器、表达式与变量模块中直接 `import` fixture catalog 或 `mockEntities`。测试工具可使用静态 fixture，新代码应 `await adapter.getMetadataCatalog()`。
 
 | 方法 | HTTP | 说明 |
 |------|------|------|
@@ -74,7 +74,7 @@
 ## 本地 adapter
 
 - `local-microflow-resource-adapter` 直接返回 DTO，**不**包 `MicroflowApiResponse`；`listMicroflows` 在提供 `pageIndex`+`pageSize` 时给出 `hasMore`；`tags` 为 OR 语义；`getMicroflowReferences` 支持 query 过滤。
-- Contract Mock 位于 `mendix-studio-core/src/microflow/contracts/mock-api`，只服务 development/test/contract；生产路径不启动 MSW。
+- Contract Mock 已下线；development/test/contract 与生产路径均走后端 HTTP API。
 
 ## 第 60 轮映射回归
 

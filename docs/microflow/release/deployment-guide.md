@@ -23,7 +23,7 @@ dotnet src/backend/Atlas.AppHost/bin/Release/net10.0/Atlas.AppHost.dll
    - `VITE_APP_RUNTIME_MODE=direct`
    - `VITE_API_BASE=/api`
    - `VITE_MICROFLOW_ADAPTER_MODE=http`
-   - 不设置 `VITE_MICROFLOW_API_MOCK`。
+   - 不设置任何微流 mock/MSW 环境变量。
 2. 构建：
 
 ```powershell

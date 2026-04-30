@@ -250,6 +250,19 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             }
         }
 
+        if (string.Equals(actionKind, "counter", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "incrementCounter", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "gauge", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "metrics", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<MetricsActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(actionKind) && _executors.TryGetValue(actionKind, out var resolved))
         {
             executor = resolved;
@@ -372,10 +385,10 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Server("throwException", "ThrowExceptionAction", "errorHandling", "ThrowExceptionActionExecutor", producesVariables: false, producesTransaction: false, reason: "Server-side throwException stops the run with a structured RuntimeError."),
             Connector("generateDocument", "GenerateDocumentAction", "documentGeneration", "DocumentGenerationExecutor", MicroflowRuntimeConnectorCapability.DocumentGeneration, "Document generation is deprecated and requires document connector.", supportLevel: MicroflowActionSupportLevel.Deprecated),
 
-            Server("counter", "MetricsCounterAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted, reason: "Metrics fallback writes runtime log when metrics connector is absent."),
-            Server("incrementCounter", "MetricsIncrementCounterAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted, reason: "Metrics fallback writes runtime log when metrics connector is absent."),
-            Server("gauge", "MetricsGaugeAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted, reason: "Metrics fallback writes runtime log when metrics connector is absent."),
-            Server("metrics", "MicroflowGenericAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, supportLevel: MicroflowActionSupportLevel.ModeledOnlyConverted, reason: "Legacy metrics action writes runtime log fallback."),
+            Server("counter", "MetricsCounterAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, reason: "Counter emits a structured runtime metric entry."),
+            Server("incrementCounter", "MetricsIncrementCounterAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, reason: "IncrementCounter emits a structured runtime metric entry with value 1."),
+            Server("gauge", "MetricsGaugeAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, reason: "Gauge emits a structured runtime metric entry."),
+            Server("metrics", "MicroflowGenericAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, reason: "Legacy metrics alias emits a structured runtime metric entry."),
 
             Connector("mlModelCall", "MlModelCallAction", "mlKit", "MLModelCallExecutor", MicroflowRuntimeConnectorCapability.MlModel, "ML model execution requires ML connector."),
 

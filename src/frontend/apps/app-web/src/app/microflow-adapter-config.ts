@@ -1,13 +1,5 @@
 import { parseMicroflowAdapterMode, type MicroflowAdapterFactoryConfig } from "@atlas/mendix-studio-core";
 
-function isMicroflowContractMockEnabled(): boolean {
-  const mockMode = import.meta.env.VITE_MICROFLOW_API_MOCK ?? import.meta.env.MICROFLOW_API_MOCK;
-  if (import.meta.env.PROD && mockMode === "msw") {
-    throw new Error("Microflow mock/MSW mode is forbidden in production builds.");
-  }
-  return mockMode === "msw";
-}
-
 function assertProductionMicroflowAdapterMode(mode: string | undefined): void {
   if (!import.meta.env.PROD) {
     return;
@@ -50,10 +42,9 @@ export function createAppMicroflowAdapterConfig(input: {
   assertProductionMicroflowAdapterMode(configuredModeRaw);
   const configuredMode = parseMicroflowAdapterMode(configuredModeRaw);
   const mode = import.meta.env.PROD ? "http" : configuredMode;
-  const contractMockEnabled = isMicroflowContractMockEnabled();
   const microflowApiBaseUrl = resolveMicroflowApiBaseUrl();
   return {
-    mode: contractMockEnabled ? "http" : (mode ?? "http"),
+    mode: mode ?? "http",
     apiBaseUrl: microflowApiBaseUrl,
     workspaceId: input.workspaceId,
     tenantId: input.tenantId,

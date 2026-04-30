@@ -2,10 +2,10 @@
 
 - **类型源**：`src/frontend/packages/mendix/mendix-studio-core/src/microflow/contracts/api/*.ts`。
 - **统一响应**：`MicroflowApiResponse<T>`。成功时 `success: true` 且 `data` 非空；失败时 `success: false` 且 `error` 非空。
-- **不存储 FlowGram JSON**：仅 `MicroflowAuthoringSchema` / Runtime DTO / Trace 等，见 `storage-model-contract.md`。
+- **设计态只存新版 Schema**：仅 `MicroflowDesignSchema.workflow.nodes/workflow.edges` 作为设计态主数据；Runtime plan / Trace 为后端内部或运行结果。
 - **分页**：`pageIndex` **1-based**；`MicroflowResourceQuery` 与 `ListMicroflowsRequest` 对齐；多选 `status` / `publishStatus` / `tags` 均为 **OR** 语义；`sortBy` 推荐：`name`、`updatedAt`、`createdAt`、`version`、`referenceCount`。
 - **前端 HTTP 客户端**：`MicroflowApiClient` 统一附加 `X-Workspace-Id`、`X-Tenant-Id`、`X-User-Id`，解析 `MicroflowApiResponse<T>` 后再交给 Resource / Metadata / Runtime / Validation Adapter。
-- **Contract Mock**：第 34 轮提供 MSW mock server，路径与本文件及 `openapi-draft.yaml` 对齐；前端仍使用 `mode=http`，不回退到旧 mock/local adapter。
+- **Mock API 下线**：不再提供 MSW / Contract Mock；前端必须使用 `mode=http` 连接后端。
 - **第 43 轮联调回归**：Resource / Schema 链路以真实 `/api/microflows` 为准，`app-web` 默认 `mode=http`、`apiBaseUrl=/api`；`apiBaseUrl` 可为站点根、相对 `/api` 或带 `/api` 的绝对地址，前端 HTTP client 不得拼出 `/api/api/*`。
 
 ## 资源
@@ -62,12 +62,12 @@
 
 第 42 轮后端实现说明：
 
-- TestRun 已接入真实后端 Mock Runtime：运行前调用 Validation API，`mode=testRun` 且 `errorCount>0` 时返回 `MICROFLOW_VALIDATION_FAILED`，不执行 runner。
-- Mock Runner 只基于 `MicroflowAuthoringSchema` / 后端轻量 schema model 导航，不解析、不保存 FlowGram JSON，也不访问业务数据库或外部 REST。
+- TestRun 已接入后端 Runtime：运行前调用 Validation API，`mode=testRun` 且 `errorCount>0` 时返回 `MICROFLOW_VALIDATION_FAILED`，不执行 runner。
+- Runtime 直接读取新版 `MicroflowDesignSchema` / 后端 schema model，不再依赖前端 mock runner 或旧 authoring schema。
 - `RunSession`、`TraceFrame`、`RuntimeLog` 落库到 `MicroflowRunSession`、`MicroflowRunTraceFrame`、`MicroflowRunLog`；failed run 也会保存。
 - `options` 支持 `simulateRestError`、`decisionBooleanResult`、`enumerationCaseValue`、`objectTypeCase`、`loopIterations`、`maxSteps`。
-- Decision/ObjectType trace 写入 `selectedCaseValue`，Loop trace 写入 `loopIteration`，RestCall 可通过 `simulateRestError=true` 进入 error handler mock path。
-- `Resource.LastRunStatus` / `LastRunAt` 会更新；TestRun 不修改 `CurrentSchemaSnapshotId`、dirty/publishStatus 或 AuthoringSchema。
+- Decision/ObjectType trace 写入 `selectedCaseValue`，Loop trace 写入 `loopIteration`，RestCall 可通过 `simulateRestError=true` 进入 error handler 测试路径。
+- `Resource.LastRunStatus` / `LastRunAt` 会更新；TestRun 不修改 `CurrentSchemaSnapshotId`、dirty/publishStatus 或设计态 schema。
 - 第 56 轮起，`callMicroflow` 会生成 child RunSession；父 `TraceFrame.output.callMicroflow.childRunId` 可用于 `GET /api/microflows/runs/{childRunId}/trace` 查询子调用 trace。子 trace frame 带 `parentRunId/rootRunId/callFrameId/callDepth/callerObjectId/callerActionId`，不新增 API 路径或数据库表。
 
 ## Runtime Plan Inspection
@@ -149,12 +149,12 @@
 - **UI / ResourceAdapter**：直接消费业务 DTO，不经 `MicroflowApiResponse`。
 - **HTTP 客户端**：解析 Envelope 后返回 DTO 或抛业务异常。
 - **生产配置**：`mode=http` 必须配置 `apiBaseUrl`；服务不可用时前端显示服务未连接或 API 错误，不 fallback 到 mock。
-- **生产禁用 mock/local**：`MicroflowAdapterRuntimePolicy.production` 禁止 mock resource、mock metadata、mock runner、localStorage resource 与 local validation 作为主路径。
+- **生产禁用 mock/local**：`MicroflowAdapterRuntimePolicy.production` 禁止 mock resource、mock metadata、localStorage resource 与 local validation 作为主路径；前端 mock runner 已下线，Runtime test-run 只能走后端 runtime API。
 
 ## OpenAPI
 
 - 见同目录 `openapi-draft.yaml`。
-- Contract Mock 说明见 `contract-mock-readme.md`；校验脚本为 `pnpm run verify:microflow-contract-mock`。
+- 微流 Mock API 已下线；联调和契约校验必须连接后端 HTTP API。
 
 ## 第 60 轮 API 回归段
 

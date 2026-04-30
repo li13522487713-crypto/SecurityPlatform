@@ -3,19 +3,11 @@ import { Checkbox, Input, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../../i18n";
 import { useBootstrap } from "../../bootstrap-context";
 import type { AppMessageKey } from "../../messages";
-import {
-  bootstrapAdminUser,
-  bootstrapDefaultWorkspace,
-  completeSystemInit,
-  initializeSchema,
-  precheckSystem,
-  retrySystemStep,
-  seedSystem
-} from "../../../services/mock";
 import type {
   SetupStepRecordDto,
   SystemSetupStateDto
 } from "../../../services/api-setup-console";
+import { setupConsoleApi } from "../../../services/api-setup-console";
 import {
   isSystemInitDone,
   type SetupConsoleStep,
@@ -198,7 +190,7 @@ export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps)
   const runPrecheck = useCallback(
     () =>
       guardedRun("precheck", async () => {
-        await precheckSystem({});
+        await setupConsoleApi.systemPrecheck({});
       }),
     [guardedRun]
   );
@@ -206,7 +198,7 @@ export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps)
   const runSchema = useCallback(
     () =>
       guardedRun("schema", async () => {
-        await initializeSchema({});
+        await setupConsoleApi.systemSchema({});
       }),
     [guardedRun]
   );
@@ -214,7 +206,7 @@ export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps)
   const runSeed = useCallback(
     () =>
       guardedRun("seed", async () => {
-        await seedSystem({});
+        await setupConsoleApi.systemSeed({});
       }),
     [guardedRun]
   );
@@ -222,7 +214,7 @@ export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps)
   const runBootstrapUser = useCallback(
     () =>
       guardedRun("bootstrap-user", async () => {
-        const response = await bootstrapAdminUser({
+        const response = await setupConsoleApi.systemBootstrapUser({
           username: adminForm.username,
           password: adminForm.password,
           tenantId: adminForm.tenantId,
@@ -240,7 +232,7 @@ export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps)
   const runDefaultWorkspace = useCallback(
     () =>
       guardedRun("default-workspace", async () => {
-        await bootstrapDefaultWorkspace(workspaceForm);
+        await setupConsoleApi.systemDefaultWorkspace(workspaceForm);
       }),
     [guardedRun, workspaceForm]
   );
@@ -248,7 +240,7 @@ export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps)
   const runComplete = useCallback(
     () =>
       guardedRun("complete", async () => {
-        await completeSystemInit();
+        await setupConsoleApi.systemComplete();
       }),
     [guardedRun]
   );
@@ -256,7 +248,7 @@ export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps)
   const retryStep = useCallback(
     (step: SetupConsoleStep) =>
       guardedRun(step, async () => {
-        await retrySystemStep(step);
+        await setupConsoleApi.systemRetry(step);
       }),
     [guardedRun]
   );

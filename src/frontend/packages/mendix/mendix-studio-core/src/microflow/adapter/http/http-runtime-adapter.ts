@@ -69,6 +69,31 @@ function createHydrationSummary(input: {
   };
 }
 
+function extractRuntimeCommands(session: MicroflowRunSession): TestRunMicroflowResponse["runtimeCommands"] {
+  return session.trace.flatMap(frame => {
+    const output = frame.output;
+    if (!output || typeof output !== "object" || !("runtimeCommands" in output) || !Array.isArray((output as { runtimeCommands?: unknown[] }).runtimeCommands)) {
+      return [];
+    }
+
+    return ((output as { runtimeCommands?: Array<Record<string, unknown>> }).runtimeCommands ?? []).flatMap(command => {
+      const commandKind = typeof command.commandKind === "string" ? command.commandKind : undefined;
+      if (!commandKind) {
+        return [];
+      }
+
+      return [{
+        commandKind,
+        sourceObjectId: typeof command.sourceObjectId === "string" ? command.sourceObjectId : frame.objectId,
+        sourceActionId: typeof command.sourceActionId === "string" ? command.sourceActionId : frame.actionId,
+        payloadJson: typeof command.payloadJson === "string" ? command.payloadJson : undefined,
+        status: typeof command.status === "string" ? command.status : undefined,
+        requiresClientHandling: typeof command.requiresClientHandling === "boolean" ? command.requiresClientHandling : undefined,
+      }];
+    });
+  });
+}
+
 async function runWithSessionHydration(
   client: MicroflowApiClient,
   request: Parameters<RuntimeMicroflowApiClient["testRunMicroflow"]>[0],
@@ -128,6 +153,7 @@ async function runWithSessionHydration(
     traceHydrated: Boolean(hydratedTrace),
     debugSessionHydrated: hydratedDebugSessionResult.status === "fulfilled" && Boolean(hydratedDebugSessionResult.value),
   });
+  const runtimeCommands = extractRuntimeCommands(session);
 
   return {
     runId: session.id,
@@ -137,6 +163,7 @@ async function runWithSessionHydration(
     frames: session.trace,
     error: session.error,
     session,
+    runtimeCommands,
     hydration,
     debugSession: hydratedDebugSessionResult.status === "fulfilled" ? hydratedDebugSessionResult.value : undefined,
     debugVariables: hydratedVariablesResult.status === "fulfilled" ? hydratedVariablesResult.value : undefined,

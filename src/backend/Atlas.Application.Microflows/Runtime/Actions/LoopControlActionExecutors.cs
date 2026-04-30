@@ -22,17 +22,30 @@ public sealed class BreakActionExecutor : IMicroflowActionExecutor
             return Task.FromResult(Failed(started, RuntimeErrorCode.RuntimeLoopControlOutOfScope, "Break can only be used inside a loop."));
         }
 
+        var targetLoopObjectId = ResolveTargetLoopObjectId(context);
+        if (targetLoopObjectId is not null && !LoopExists(context, targetLoopObjectId))
+        {
+            return Task.FromResult(Failed(started, RuntimeErrorCode.RuntimeLoopControlOutOfScope, $"Break target loop '{targetLoopObjectId}' is not in scope."));
+        }
+
         started.Stop();
         return Task.FromResult(new MicroflowActionExecutionResult
         {
             Status = MicroflowLoopBodyExecutionStatus.Break,
-            OutputJson = JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Break }),
+            OutputJson = JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Break, targetLoopObjectId }),
             OutputPreview = MicroflowLoopControlSignal.Break,
+            TargetLoopObjectId = targetLoopObjectId,
             ShouldContinueNormalFlow = false,
             ShouldStopRun = false,
             DurationMs = (int)started.ElapsedMilliseconds
         });
     }
+
+    private static string? ResolveTargetLoopObjectId(MicroflowActionExecutionContext context)
+        => LoopControlHelpers.ResolveTargetLoopObjectId(context);
+
+    private static bool LoopExists(MicroflowActionExecutionContext context, string targetLoopObjectId)
+        => LoopControlHelpers.LoopExists(context, targetLoopObjectId);
 
     private static MicroflowActionExecutionResult Failed(Stopwatch started, string code, string message)
     {
@@ -66,17 +79,30 @@ public sealed class ContinueActionExecutor : IMicroflowActionExecutor
             return Task.FromResult(Failed(started, RuntimeErrorCode.RuntimeLoopControlOutOfScope, "Continue can only be used inside a loop."));
         }
 
+        var targetLoopObjectId = ResolveTargetLoopObjectId(context);
+        if (targetLoopObjectId is not null && !LoopExists(context, targetLoopObjectId))
+        {
+            return Task.FromResult(Failed(started, RuntimeErrorCode.RuntimeLoopControlOutOfScope, $"Continue target loop '{targetLoopObjectId}' is not in scope."));
+        }
+
         started.Stop();
         return Task.FromResult(new MicroflowActionExecutionResult
         {
             Status = MicroflowLoopBodyExecutionStatus.Continue,
-            OutputJson = JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Continue }),
+            OutputJson = JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Continue, targetLoopObjectId }),
             OutputPreview = MicroflowLoopControlSignal.Continue,
+            TargetLoopObjectId = targetLoopObjectId,
             ShouldContinueNormalFlow = false,
             ShouldStopRun = false,
             DurationMs = (int)started.ElapsedMilliseconds
         });
     }
+
+    private static string? ResolveTargetLoopObjectId(MicroflowActionExecutionContext context)
+        => LoopControlHelpers.ResolveTargetLoopObjectId(context);
+
+    private static bool LoopExists(MicroflowActionExecutionContext context, string targetLoopObjectId)
+        => LoopControlHelpers.LoopExists(context, targetLoopObjectId);
 
     private static MicroflowActionExecutionResult Failed(Stopwatch started, string code, string message)
     {
@@ -91,4 +117,18 @@ public sealed class ContinueActionExecutor : IMicroflowActionExecutor
             DurationMs = (int)started.ElapsedMilliseconds
         };
     }
+}
+
+internal static class LoopControlHelpers
+{
+    public static string? ResolveTargetLoopObjectId(MicroflowActionExecutionContext context)
+        => context.ActionConfig.ValueKind == JsonValueKind.Object
+            && context.ActionConfig.TryGetProperty("targetLoopObjectId", out var value)
+            && value.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(value.GetString())
+                ? value.GetString()
+                : null;
+
+    public static bool LoopExists(MicroflowActionExecutionContext context, string targetLoopObjectId)
+        => context.RuntimeExecutionContext.LoopStack.Any(frame => string.Equals(frame.LoopObjectId, targetLoopObjectId, StringComparison.Ordinal));
 }

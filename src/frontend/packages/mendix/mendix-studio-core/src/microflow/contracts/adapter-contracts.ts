@@ -31,7 +31,7 @@ export interface MicroflowMetadataAdapter {
 }
 
 /**
- * 与本地/远端执行器通信；trace 仅用于 DebugPanel 展示。
+ * 与本地/远端执行器通信；trace 既用于 DebugPanel 展示，也可能承载 runtime command 等前端消费信息。
  */
 export interface MicroflowRuntimeAdapter {
   validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse>;

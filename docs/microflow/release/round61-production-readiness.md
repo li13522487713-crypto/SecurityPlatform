@@ -8,7 +8,7 @@
 
 ## Baseline
 
-- Frontend: `app-web` 通过 `createAppMicroflowAdapterConfig` 默认走 HTTP，生产策略禁止 mock/local/MSW fallback；MSW 仅在 `VITE_MICROFLOW_API_MOCK=msw` 且非生产时启动。
+- Frontend: `app-web` 通过 `createAppMicroflowAdapterConfig` 默认走 HTTP；微流 mock/local/MSW fallback 已下线。
 - Backend: 已存在 Resource / Metadata / Validation / Publish / References / TestRun / Trace / Cancel / Runtime hardening API；新增 `appsettings.Production.json` 提供安全默认值。
 - Database: SqlSugar code-first 初始化微流表，表包括 `MicroflowResource`、`MicroflowSchemaSnapshot`、`MicroflowVersion`、`MicroflowPublishSnapshot`、`MicroflowReference`、`MicroflowRunSession`、`MicroflowRunTraceFrame`、`MicroflowRunLog`、`MicroflowMetadataCache`、`MicroflowSchemaMigration`。
 - Health: 已有 `/api/microflows/health`、`/api/microflows/storage/health`、`/api/microflow-metadata/health`，本轮新增 `/api/microflows/runtime/health`。

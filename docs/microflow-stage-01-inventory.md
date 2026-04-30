@@ -19,7 +19,7 @@
 | 微流验证适配器 | `microflow/adapter/microflow-validation-adapter.ts` | ✅ 已实现 |
 | HTTP API Client | `microflow/adapter/http/microflow-api-client.ts` | ✅ 已实现 |
 | API 合约（OpenAPI draft） | `microflow/contracts/api/` | ✅ 已定义 |
-| Mock API / Contract Mock | `microflow/contracts/mock-api/` | ✅ 已实现 |
+| Mock API / Contract Mock | 已下线 | 不再提供微流 mock API；统一走后端 HTTP |
 | 微流 Schema 定义 | `microflow/schema/` | ✅ 已实现 |
 | 微流引用类型 | `microflow/references/` | ✅ 已实现 |
 | 微流版本类型 | `microflow/versions/` | ✅ 已实现 |

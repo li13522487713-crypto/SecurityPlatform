@@ -4,7 +4,7 @@ import { getAccessToken, getTenantId } from "@atlas/shared-react-core/utils";
 import { getSetupState, type SetupStateResponse } from "../services/api-setup";
 import { getConfiguredAppKey, rememberConfiguredAppKey } from "../services/api-core";
 import { resolveAppInstanceId } from "../services/app-instance-context";
-import { getSetupConsoleOverview } from "../services/mock";
+import { setupConsoleApi } from "../services/api-setup-console";
 import type {
   SetupConsoleOverviewDto,
   SystemSetupStateDto,
@@ -20,7 +20,7 @@ export interface BootstrapState {
   spaceId: string;
   workspaceLabel: string;
   appStatus: string;
-  /** 控制台总览（M1 mock；M5 切真接口）。系统初始化与工作空间初始化的真理来源。 */
+  /** 控制台总览。系统初始化与工作空间初始化的真理来源。 */
   setupConsole: SetupConsoleOverviewDto | null;
   /** 控制台总览中的系统级状态快照，便于路由守卫与 UI 直接消费。 */
   systemInit: SystemSetupStateDto | null;
@@ -47,12 +47,11 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
 
   const refreshSetupConsole = async () => {
     try {
-      const response = await getSetupConsoleOverview();
+      const response = await setupConsoleApi.getOverview();
       if (response.success && response.data) {
         setSetupConsole(response.data);
       }
     } catch {
-      // mock 失败时不影响其它 bootstrap 流程；M5 真接口失败按 401 跳二次认证。
       setSetupConsole(null);
     }
   };

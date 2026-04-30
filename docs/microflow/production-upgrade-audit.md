@@ -19,7 +19,7 @@
 
 但仍存在生产发布前必须纳入后续轮次的缺口：
 
-- **Blocker**：生产构建没有在配置入口直接拒绝 `VITE_MICROFLOW_API_MOCK=msw`；store 仍保留 `SAMPLE_PROCUREMENT_APP` fallback。
+- **Blocker**：历史审计时存在微流 mock/MSW 入口；当前已下线，仍需确认 store 示例 fallback 是否彻底移除。
 - **Critical**：前端 registry 将 `rollback` / `listOperation` 标为 supported，但后端仍是 modeled-only 占位，存在“前端可建模、运行时假成功”的一致性风险。
 - **Major**：property panel 目前只有注册表抽象，缺少 R3 要求的专用 forms；Gateway、Step Debug、Expression Editor 仍是建模或基础能力，未达到 41 章生产级目标。
 - **Minor**：部分用户可见文案仍集中在组件内，后续 UI 变更需要同步 i18n 基线。
@@ -28,8 +28,8 @@
 
 | ID | 分级 | 证据路径 | 现象 | 生产风险 | 修复轮次 |
 |---|---|---|---|---|---|
-| F-01 | Blocker | `src/frontend/apps/app-web/src/app/microflow-adapter-config.ts:3-4` | `isMicroflowContractMockEnabled()` 读取 `VITE_MICROFLOW_API_MOCK` / `MICROFLOW_API_MOCK` 是否为 `msw`。 | 生产构建若注入 mock 环境变量，当前入口不会直接 fail build。 | R2 |
-| F-02 | Critical | `src/frontend/apps/app-web/src/app/microflow-adapter-config.ts:34-39` | `import.meta.env.PROD` 时 mode 被强制为 `http`，但返回值仍受 `contractMockEnabled` 分支影响。 | production no-mock 策略需要构建期扫描与运行期拒绝双保险。 | R2 |
+| F-01 | Blocker | `src/frontend/apps/app-web/src/app/microflow-adapter-config.ts` | 微流 mock/MSW 入口已下线。 | 后续仅需防止重新引入 mock API。 | R2 |
+| F-02 | Critical | `src/frontend/apps/app-web/src/app/microflow-adapter-config.ts` | `import.meta.env.PROD` 时 mode 被强制为 `http`，不再受 contract mock 分支影响。 | production no-mock 策略需要构建期扫描与运行期拒绝双保险。 | R2 |
 | F-03 | Major | `src/frontend/apps/app-web/src/app/microflow-adapter-config.ts:45-47` | 401/403/API error 已派发 `atlas:microflow-unauthorized` / `atlas:microflow-forbidden` / `atlas:microflow-api-error`。 | 事件机制可用，但 R2 仍需覆盖 spec 与全链路 UI 处理。 | R2 |
 | F-04 | Blocker | `src/frontend/packages/mendix/mendix-studio-core/src/store.ts:8-9` | store 仍 import `SAMPLE_PROCUREMENT_APP` / `SAMPLE_RUNTIME_OBJECT`。 | 生产入口可能保留 demo fallback 数据源。 | R2 |
 | F-05 | Blocker | `src/frontend/packages/mendix/mendix-studio-core/src/store.ts:450-453` | `loadSampleApp()` 仍会把采购样例写入 `appSchema` 与 runtime object。 | 空 app / 无权限 / 后端不可用时可能退回示例应用，掩盖 403/404。 | R2 |

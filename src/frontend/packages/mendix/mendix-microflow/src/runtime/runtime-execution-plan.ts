@@ -2,7 +2,6 @@ import type {
   MicroflowCaseValue,
   MicroflowDataType,
   MicroflowDiscriminatedRuntimeP0ActionDto,
-  MicroflowObject,
   MicroflowVariableDiagnostic,
   MicroflowVariableKind,
   MicroflowVariableScope,
@@ -85,6 +84,7 @@ export interface MicroflowExecutionNode {
     objectKind: string;
     officialType: string;
     caption?: string;
+    [key: string]: unknown;
   };
   p0ActionRuntime?: MicroflowDiscriminatedRuntimeP0ActionDto;
   supportLevel: MicroflowRuntimeSupportLevel;
@@ -151,14 +151,14 @@ export interface MicroflowExecutionPlanValidationResult {
   issues: MicroflowExecutionPlanValidationIssue[];
 }
 
-export function nodeRuntimeBehavior(object: MicroflowObject, supportLevel: MicroflowRuntimeSupportLevel): MicroflowExecutionRuntimeBehavior {
+export function nodeRuntimeBehavior(objectKind: string, supportLevel: MicroflowRuntimeSupportLevel): MicroflowExecutionRuntimeBehavior {
   if (supportLevel !== "supported") {
     return "unsupported";
   }
-  if (object.kind === "annotation" || object.kind === "parameterObject") {
+  if (objectKind === "annotation" || objectKind === "parameterObject") {
     return "ignored";
   }
-  if (["endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(object.kind)) {
+  if (["endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(objectKind)) {
     return "terminal";
   }
   return "executable";

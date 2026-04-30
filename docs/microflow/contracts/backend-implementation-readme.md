@@ -127,11 +127,11 @@
 - `PublishImpactService` 结合 active references 与 schema diff 计算 impact；发布 high impact 且未确认仍返回 `MICROFLOW_PUBLISH_BLOCKED`。
 - 删除/归档 target 微流前检查 active references，存在引用时返回 `MICROFLOW_REFERENCE_BLOCKED`；Page / Workflow / Schedule 引用作为模型扩展入口，真实资源系统后续接入。
 
-第 42 轮已补充 TestRun Mock API + Trace 存储：
+TestRun Runtime API + Trace 存储：
 
 - `POST /api/microflows/{id}/test-run`、`POST /api/microflows/runs/{runId}/cancel`、`GET /api/microflows/runs/{runId}`、`GET /api/microflows/runs/{runId}/trace` 已接入真实后端服务。
-- `MicroflowTestRunService` 负责读取资源与草稿/已保存 schema、调用 Validation `mode=testRun`、执行 MockRunner、保存 RunSession/TraceFrame/RunLog，并更新 `LastRunStatus/LastRunAt`。
-- `MicroflowMockRuntimeRunner` 基于 `MicroflowSchemaReader` 的 AuthoringSchema 模型执行契约级 mock，不依赖 FlowGram JSON，不访问业务数据库，不调用外部 REST，不实现完整表达式引擎。
+- `MicroflowTestRunService` 负责读取资源与草稿/已保存 schema、调用 Validation `mode=testRun`、执行 `IMicroflowRuntimeEngine`、保存 RunSession/TraceFrame/RunLog，并更新 `LastRunStatus/LastRunAt`。
+- Runtime 基于新版 `MicroflowDesignSchema` 构建执行模型，不依赖旧 AuthoringSchema 或前端 mock API。
 - RunSession、TraceFrame、RunLog 通过既有 SqlSugar Repository 持久化；failed run 也保存，validation failed 不生成成功 run。
 - 支持 `simulateRestError`、decision/object type case、loop iterations、max steps、LogMessage、unsupported action、RestCall error handler 的基础 trace。
 
@@ -146,15 +146,15 @@
 后续建议：
 
 - 第 40 轮：Validation API。
-- 第 42 轮：TestRun Mock API + Trace 存储。
+- TestRun Runtime API + Trace 存储。
 
-当前实现仍坚持不保存 FlowGram JSON，后端只围绕 `MicroflowAuthoringSchema` / Runtime DTO / Trace 等契约概念展开。
+当前实现只保存新版 `MicroflowDesignSchema` 设计态；Runtime plan / Trace 等为运行链路内部契约。
 
 ## 建议启动顺序
 
 1. **资源 CRUD** + 列表筛选分页（`MicroflowResource` 行 + DTO 映射)。
 2. **Schema GET/PUT** + `baseVersion` 乐观锁 + 审计字段。
-3. **版本**与**发布不可变快照**（`MicroflowPublishedSnapshot` 行，仅 Authoring JSON）。
+3. **版本**与**发布不可变快照**（`MicroflowPublishedSnapshot` 行，仅新版设计态 JSON）。
 4. **Metadata** 全量/缓存行（`updatedAt` / `version` 支持客户端缓存)。
 5. **Validation** 端点，与 `MicroflowValidationIssue` 同构。
 6. **TestRun 模拟器** + RunSession + Trace/Log 从表，REST 先全量再考虑流式。
@@ -198,7 +198,7 @@
 5. TestRun 等同理接入；后端暂未实现时，前端 http 模式会显示服务未连接/请求失败，不会静默切回 mock。
 6. 生产构建默认 `mode=http`，并由前端 runtime policy 拒绝 `mock/local/enableMockFallback`；联调环境若需使用 mock API server，应保持 `mode=http`，仅切换 `apiBaseUrl`。
 7. 错误响应请统一返回 `MicroflowApiResponse<T>`；401/403/404/409/422/5xx 应提供 `MicroflowApiError.code/message/traceId`。校验失败、发布阻断、试运行校验失败必须携带 `validationIssues`，前端会展示到 ProblemPanel / PublishModal。
-8. 前端 Contract Mock 已覆盖全量第 21 轮路径，可作为后端实现前的契约样板；真实后端应以 `backend-api-contract.md` 和 `openapi-draft.yaml` 为准，不依赖 MSW store 或 fixture。
+8. 前端 Contract Mock 已下线；真实后端应以 `backend-api-contract.md` 和 `openapi-draft.yaml` 为准，不依赖 MSW store 或 fixture。
 
 ## 第 46～47 轮后端联调补充
 

@@ -545,5 +545,9 @@ export const setupConsoleApi = {
   listEntityCatalog: (category?: SetupConsoleCatalogCategoryDto["category"]) => {
     const query = category ? `?category=${encodeURIComponent(category)}` : "";
     return fetchConsoleJson<SetupConsoleCatalogSummaryDto>(`/api/v1/setup-console/catalog/entities${query}`);
-  }
+  },
+  listEntityCatalogDetails: (category: string) =>
+    fetchConsoleJson<readonly string[]>(
+      `/api/v1/setup-console/catalog/entities/${encodeURIComponent(category)}/details`
+    )
 } as const;

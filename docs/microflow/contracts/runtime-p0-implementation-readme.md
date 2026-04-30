@@ -43,10 +43,10 @@
 - ErrorHandler 必须由 `isErrorHandler=true` 与 `editor.edgeKind="errorHandler"` 同时表达；P0 每个 source object 最多一个。
 - AutoLayout、validation sync、runtime highlight 只能更新视图/状态，不得修改 flow semantic hash。
 
-## 第 30 轮 Mock Runtime 补充
+## Runtime 补充
 
-- `mockRunExecutionPlan(plan, input)` 是 Mock Runner 主入口；旧 `mockTestRunMicroflow(schema)` 只做 validate 与 DTO/Plan 转换。
-- P0 mock 执行以 `MicroflowExecutionNode.p0ActionRuntime` 为准，不再从 AuthoringSchema 扫 action 执行。
+- 前端 mock runner 已删除；test-run 主入口为后端 runtime API。
+- P0 执行以新版设计态构建出的 runtime plan 为准，不再从 AuthoringSchema 扫 action 执行。
 - Decision/ObjectType 分支只从 `plan.decisionFlows[].caseValues` 选择。
 - RestCall `simulateRestError=true` 使用 `plan.errorHandlerFlows` 进入错误路径，并在 trace 中标记 `errorHandlerVisited`。
 - Unsupported/modeledOnly 到达时产生 `RUNTIME_UNSUPPORTED_ACTION` 或 `RUNTIME_CONNECTOR_REQUIRED`。
@@ -54,15 +54,15 @@
 ## 第 40 轮后端 Validation 补充
 
 - 后端 `MicroflowValidationService` 已实现 P0 action 必填字段、metadata reference、基础变量和基础表达式校验，可作为保存/发布/运行前权威校验入口。
-- 当前后端仍不执行 Runtime，也不实现完整表达式执行器；`testRun` mode 会把 unsupported/modeledOnly 等运行前阻断问题返回为 error，供第 42 轮 TestRun Mock API 复用。
+- `testRun` mode 会把 unsupported/modeledOnly 等运行前阻断问题返回为 error，供后端 Runtime 入口统一消费。
 
-## 第 42 轮后端 Mock Runtime 补充
+## 后端 Runtime 补充
 
-- 后端 TestRun 已从 skeleton 升级为契约级 Mock Runner：输入是 `MicroflowAuthoringSchema` 或当前保存 schema，输出是 `MicroflowRunSession`、`MicroflowTraceFrame`、`RuntimeLog` 与变量快照。
-- P0 mock 覆盖 Start/End、Decision、ObjectTypeDecision、Merge、Loop、Break、Continue、ErrorHandler flow，以及 retrieve/create/change/commit/delete/rollback/createVariable/changeVariable/callMicroflow/restCall/logMessage 等 action 的模拟输出。
-- `simulateRestError` 只模拟 REST 失败和 `$latestError` / `$latestHttpResponse`，不发送真实 HTTP；Retrieve/Commit/Delete 只生成 mock output，不访问业务数据库。
+- 后端 TestRun 输入是当前新版设计态 schema，输出是 `MicroflowRunSession`、`MicroflowTraceFrame`、`RuntimeLog` 与变量快照。
+- P0 runtime 覆盖 Start/End、Decision、ObjectTypeDecision、Merge、Loop、Break、Continue、ErrorHandler flow，以及 retrieve/create/change/commit/delete/rollback/createVariable/changeVariable/callMicroflow/restCall/logMessage 等 action。
+- `simulateRestError` 只模拟 REST 失败和 `$latestError` / `$latestHttpResponse`，不发送真实 HTTP；Retrieve/Commit/Delete 按 runtime 策略执行或返回明确 connector/runtime 错误。
 - max steps 默认 500，超过后返回 `RUNTIME_MAX_STEPS_EXCEEDED` failed session。
-- 第 48 轮真实 Runtime 应从 `ExecutionPlanLoader` 接管导航与执行，但沿用本轮 DTO、错误码和持久化表。
+- Runtime 由 `ExecutionPlanLoader` / `IMicroflowRuntimeEngine` 统一接管导航与执行。
 
 ## 第 46～47 轮前后端 Debug 联调
 
@@ -73,8 +73,8 @@
 ## 第 48 轮 ExecutionPlanLoader
 
 - 后端新增 `IMicroflowExecutionPlanLoader` / `MicroflowExecutionPlanLoader`，支持 current resource、version snapshot、inline schema 三种来源。
-- TestRunService 仅预热 `LoadFromSchemaAsync(..., mode=testRun)`，失败不改变现有 Mock Runtime 行为；MockRuntimeRunner 仍沿用第 42～47 轮 trace/result。
-- ExecutionPlanLoader 只读 AuthoringSchema，输出 plan/diagnostics，不执行 FlowNavigator、VariableStore、ExpressionEvaluator、CRUD、REST 或事务。
+- TestRunService 预热 `LoadFromSchemaAsync(..., mode=testRun)`，失败时直接返回明确 runtime/validation 错误。
+- ExecutionPlanLoader 只读新版设计态 schema，输出 plan/diagnostics，并交给 RuntimeEngine 执行导航、VariableStore、ExpressionEvaluator、CRUD、REST 或事务策略。
 - 后端可通过 `scripts/verify-microflow-execution-plan-loader.ts`、`MicroflowBackend.http` 的 Runtime ExecutionPlanLoader 段落检查 `startNodeId`、flow 分类、loop collection、metadataRefs、variableDeclarations、unsupportedActions 与 failOnUnsupported。
 - 下一轮建议：第 49 轮 FlowNavigator，以本轮 plan 的 `normalFlows`、`decisionFlows`、`objectTypeFlows`、`errorHandlerFlows` 和 loop collection 为导航输入。
 

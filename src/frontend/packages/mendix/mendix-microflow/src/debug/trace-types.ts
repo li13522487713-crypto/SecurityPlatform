@@ -1,10 +1,7 @@
 import type {
-  MicroflowAuthoringSchema,
   MicroflowCaseValue,
   MicroflowDataType,
-  MicroflowVariableIndex,
 } from "../schema";
-import type { MicroflowMetadataCatalog } from "../metadata";
 import type { MicroflowRuntimeErrorCode } from "./runtime-error-codes";
 
 export type MicroflowRunStatus =
@@ -156,16 +153,16 @@ export interface MicroflowRunSession {
 }
 
 export interface MicroflowTestRunOptions {
-  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
+  /** Backend runtime scenario option. Production Run Panel does not expose this. */
   simulateRestError?: boolean;
   allowRealHttp?: boolean;
-  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
+  /** Backend runtime scenario option. Production Run Panel does not expose this. */
   decisionBooleanResult?: boolean;
-  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
+  /** Backend runtime scenario option. Production Run Panel does not expose this. */
   enumerationCaseValue?: string;
-  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
+  /** Backend runtime scenario option. Production Run Panel does not expose this. */
   objectTypeCase?: string;
-  /** Legacy local/mock runner option. Production Run Panel does not expose this. */
+  /** Backend runtime scenario option. Production Run Panel does not expose this. */
   loopIterations?: number;
   maxSteps?: number;
   disableExpressionEvaluation?: boolean;
@@ -176,10 +173,3 @@ export interface MicroflowTestRunInput {
   options?: MicroflowTestRunOptions;
 }
 
-export interface MockTestRunMicroflowInput {
-  schema: MicroflowAuthoringSchema;
-  metadata: MicroflowMetadataCatalog;
-  variableIndex: MicroflowVariableIndex;
-  parameters: Record<string, unknown>;
-  options?: MicroflowTestRunOptions;
-}

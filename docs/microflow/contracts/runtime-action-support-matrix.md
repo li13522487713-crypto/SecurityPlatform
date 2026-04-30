@@ -29,11 +29,11 @@
 | Integration | webServiceCall | connectorBacked | WebServiceCallActionExecutor | requiresConnector | soap.webService |
 | Integration | importXml, exportXml | connectorBacked | XML Mapping Executors | requiresConnector | xml.importMapping / xml.exportMapping |
 | Integration | callExternalAction, restOperationCall | connectorBacked | External/REST Operation Executors | requiresConnector | external.action / rest.realHttp |
-| Client/UI | showPage, showHomePage, showMessage, closePage, validationFeedback, downloadFile | runtimeCommand | Client RuntimeCommand Executors | modeledOnlyConverted | MicroflowRuntimeCommand |
+| Client/UI | showPage, showHomePage, showMessage, closePage, validationFeedback, downloadFile | runtimeCommand | Client RuntimeCommand Executors | modeledOnlyConverted | 产生命令写入 trace/session，并沿 normal flow 继续；前端消费链继续补齐 |
 | Client/UI | synchronize | explicitUnsupported | ExplicitUnsupportedActionExecutor | nanoflowOnly | RUNTIME_UNSUPPORTED_ACTION |
 | Logging | logMessage | serverExecutable | LogMessageActionExecutor | supported | RuntimeLog |
 | Document | generateDocument | connectorBacked | DocumentGenerationExecutor | deprecated | document.generation |
-| Metrics | counter, incrementCounter, gauge | serverExecutable | MetricsActionExecutor | modeledOnlyConverted | RuntimeLog fallback |
+| Metrics | counter, incrementCounter, gauge | serverExecutable | MetricsActionExecutor | supported | 结构化 runtime metric log |
 | ML | mlModelCall | connectorBacked | MLModelCallExecutor | requiresConnector | ml.model |
 | Workflow | applyJumpToOption, callWorkflow, changeWorkflowState, completeUserTask, generateJumpToOptions, retrieveWorkflowActivityRecords, retrieveWorkflowContext, retrieveWorkflows, showUserTaskPage, showWorkflowAdminPage, lockWorkflow, unlockWorkflow, notifyWorkflow | connectorBacked | WorkflowActionExecutor | requiresConnector | workflow.action |
 | ExternalObject | deleteExternalObject, sendExternalObject | connectorBacked | ExternalObjectActionExecutor | requiresConnector | externalObject.crud |

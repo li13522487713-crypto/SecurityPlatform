@@ -3,7 +3,6 @@ import type {
   MicroflowListQuery,
   MicroflowReference,
   MicroflowResource,
-  MicroflowRuntimeDto,
   MicroflowDesignSchema,
   MicroflowValidationIssue,
   PublishMicroflowPayload
@@ -64,6 +63,14 @@ export interface TestRunMicroflowResponse {
   frames: MicroflowTraceFrame[];
   error?: MicroflowRuntimeError;
   session: MicroflowRunSession;
+  runtimeCommands?: Array<{
+    commandKind: string;
+    sourceObjectId?: string;
+    sourceActionId?: string;
+    payloadJson?: string;
+    status?: string;
+    requiresClientHandling?: boolean;
+  }>;
   hydration?: {
     sessionHydrated: boolean;
     traceHydrated: boolean;
@@ -122,8 +129,6 @@ export interface PublishMicroflowResponse {
   publishedAt: string;
   resource?: MicroflowResource;
 }
-
-export type { MicroflowRuntimeDto };
 
 export interface MicroflowDebugAdapter {
   createSession(microflowId: string): Promise<MicroflowDebugSessionDto>;

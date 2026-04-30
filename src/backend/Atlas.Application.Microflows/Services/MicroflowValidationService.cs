@@ -201,7 +201,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         {
             if (group.Count() > 1)
             {
-                Add(context, MicroflowValidationCodes.ObjectIdDuplicated, $"对象 id {group.Key} 重复。", "objectCollection", group.First().FieldPath, objectId: group.Key);
+                Add(context, MicroflowValidationCodes.ObjectIdDuplicated, $"节点 id {group.Key} 重复。", "workflow.nodes", group.First().FieldPath, objectId: group.Key);
             }
         }
 
@@ -209,17 +209,17 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         {
             if (string.IsNullOrWhiteSpace(obj.Id))
             {
-                Add(context, MicroflowValidationCodes.ObjectMissing, "对象 id 不能为空。", "objectCollection", $"{obj.FieldPath}.id", collectionId: obj.CollectionId);
+                Add(context, MicroflowValidationCodes.ObjectMissing, "节点 id 不能为空。", "workflow.nodes", $"{obj.FieldPath}.id", collectionId: obj.CollectionId);
             }
 
             if (string.IsNullOrWhiteSpace(obj.Kind) || !KnownObjectKinds.Contains(obj.Kind))
             {
-                Add(context, MicroflowValidationCodes.ObjectKindUnsupported, $"对象类型不支持：{obj.Kind}", "objectCollection", $"{obj.FieldPath}.kind", objectId: obj.Id, severity: LenientSeverity(context));
+                Add(context, MicroflowValidationCodes.ObjectKindUnsupported, $"节点类型不支持：{obj.Kind}", "workflow.nodes", $"{obj.FieldPath}.kind", objectId: obj.Id, severity: LenientSeverity(context));
             }
 
             if (string.IsNullOrWhiteSpace(obj.OfficialType))
             {
-                Add(context, MicroflowValidationCodes.ObjectKindUnsupported, "officialType 缺失。", "objectCollection", $"{obj.FieldPath}.officialType", objectId: obj.Id, severity: "warning");
+                Add(context, MicroflowValidationCodes.ObjectKindUnsupported, "officialType 缺失。", "workflow.nodes", $"{obj.FieldPath}.officialType", objectId: obj.Id, severity: "warning");
             }
 
             if (obj.Kind.Equals("actionActivity", StringComparison.OrdinalIgnoreCase) && obj.Action is null)
@@ -231,13 +231,13 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                 && (!obj.Raw.TryGetProperty("loopSource", out var loopSource)
                     || loopSource.ValueKind != JsonValueKind.Object))
             {
-                Add(context, MicroflowValidationCodes.LoopSourceMissing, "LoopedActivity 必须包含 data.loopSource。", "loop", $"{obj.FieldPath}.data.loopSource", objectId: obj.Id);
+                Add(context, MicroflowValidationCodes.LoopSourceMissing, "LoopedActivity 必须包含 data.loopSource。", "loop", $"{obj.FieldPath}.loopSource", objectId: obj.Id);
             }
 
             if (obj.Kind.Equals("parameterObject", StringComparison.OrdinalIgnoreCase)
                 && (string.IsNullOrWhiteSpace(obj.ParameterId) || context.SchemaModel.Parameters.All(p => p.Id != obj.ParameterId)))
             {
-                Add(context, MicroflowValidationCodes.ObjectMissing, "ParameterObject 必须引用已有参数。", "objectCollection", $"{obj.FieldPath}.parameterId", objectId: obj.Id, parameterId: obj.ParameterId);
+                Add(context, MicroflowValidationCodes.ObjectMissing, "ParameterObject 必须引用已有参数。", "workflow.nodes", $"{obj.FieldPath}.parameterId", objectId: obj.Id, parameterId: obj.ParameterId);
             }
 
             if (obj.InsideLoop && obj.Kind.Equals("startEvent", StringComparison.OrdinalIgnoreCase))
@@ -884,8 +884,8 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         variables["currentUser"] = new VariableInfo("currentUser", MicroflowSeedMetadataCatalog.Type("object"), "system.$currentUser", null, null, true);
         variables["currentIndex"] = new VariableInfo("currentIndex", MicroflowSeedMetadataCatalog.Type("integer"), "system.$currentIndex", null, null, true);
         variables["latestError"] = new VariableInfo("latestError", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestError", null, null, true);
-        variables["latestHttpResponse"] = new VariableInfo("latestHttpResponse", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestHttpResponse", null, null, true);
-        variables["latestSoapFault"] = new VariableInfo("latestSoapFault", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestSoapFault", null, null, true);
+        variables["$latestHttpResponse"] = new VariableInfo("$latestHttpResponse", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestHttpResponse", null, null, true);
+        variables["$latestSoapFault"] = new VariableInfo("$latestSoapFault", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestSoapFault", null, null, true);
 
         foreach (var obj in context.SchemaModel.Objects.Where(o => o.Action is not null))
         {

@@ -203,7 +203,7 @@ Content-Type: application/json
 }
 ```
 
-后端第 42 轮会先调用 Validation `mode=testRun`；如有 error，返回 `MICROFLOW_VALIDATION_FAILED`，`error.validationIssues` 可进入 ProblemPanel。Mock Runtime 不执行真实数据库或外部 REST。
+后端会先调用 Validation `mode=testRun`；如有 error，返回 `MICROFLOW_VALIDATION_FAILED`，`error.validationIssues` 可进入 ProblemPanel。Runtime 是否访问数据库或外部 REST 由后端 runtime policy 和 connector 配置决定。
 
 ## 6. 发布
 
@@ -373,16 +373,9 @@ GET /api/microflow-metadata/health
 - `403` → `MICROFLOW_PERMISSION_DENIED`，触发宿主 `onForbidden`。
 - `404` → EditorPage 显示资源不存在。
 
-## 14. Contract Mock 错误模拟
+## 14. HTTP 错误模拟
 
-在 MSW Contract Mock 模式下，任意 API 可加 header 或 query：
-
-```http
-GET /api/microflows?mockError=version-conflict
-x-microflow-mock-error: version-conflict
-```
-
-支持 `unauthorized`、`forbidden`、`not-found`、`version-conflict`、`validation-failed`、`publish-blocked`、`reference-blocked`、`service-unavailable`、`network`。响应仍为 `MicroflowApiResponse<never>`，network 场景使用 MSW network-like error。
+微流 Contract Mock 已下线；错误模拟必须由后端测试接口、测试数据或自动化脚本构造，不再通过 MSW query/header 注入。
 - `409` → 保存/发布显示版本冲突，保留本地 dirty schema。
 - `422` → `MICROFLOW_VALIDATION_FAILED`，`validationIssues` 进入 ProblemPanel。
 - `5xx/network/timeout` → ResourceTab / Metadata selector / DebugPanel 显示服务不可用并提供重试。

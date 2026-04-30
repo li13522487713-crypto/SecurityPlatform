@@ -72,6 +72,63 @@ describe("createHttpMicroflowRuntimeAdapter", () => {
     expect(response.debugTrace?.[0]).toMatchObject({ id: "evt-1" });
   });
 
+  it("extracts runtimeCommands from hydrated trace frames", async () => {
+    const apiClient = {
+      post: vi.fn(async () => ({
+        session: createRunSession("run-3")
+      })),
+      get: vi.fn(async (path: string) => {
+        switch (path) {
+          case "/microflows/runs/run-3":
+            return createRunSession("run-3", { persistedAt: "2026-04-30T08:00:01.500Z", finalized: true, traceFrameCount: 1, hasHydratedTrace: true });
+          case "/microflows/runs/run-3/trace":
+            return {
+              trace: [{
+                id: "frame-runtime-command",
+                runId: "run-3",
+                objectId: "show",
+                actionId: "show-action",
+                status: "success",
+                startedAt: "2026-04-30T08:00:00.000Z",
+                durationMs: 2,
+                output: {
+                  runtimeCommands: [
+                    {
+                      commandKind: "showMessage",
+                      payloadJson: "{\"message\":\"hello\"}",
+                      requiresClientHandling: true,
+                      status: "pending",
+                    }
+                  ]
+                }
+              }]
+            };
+          default:
+            throw new Error(`unexpected path ${path}`);
+        }
+      }),
+      delete: vi.fn(),
+    } as any;
+
+    const adapter = createHttpMicroflowRuntimeAdapter({
+      apiBaseUrl: "/api/v1",
+      apiClient,
+    });
+
+    const response = await adapter.testRunMicroflow({
+      microflowId: "mf-1",
+      input: {},
+    });
+
+    expect(response.runtimeCommands).toEqual([
+      expect.objectContaining({
+        commandKind: "showMessage",
+        sourceObjectId: "show",
+        sourceActionId: "show-action",
+      })
+    ]);
+  });
+
   it("keeps bootstrap session and marks hydration degraded when trace reload fails", async () => {
     const apiClient = {
       post: vi.fn(async () => ({

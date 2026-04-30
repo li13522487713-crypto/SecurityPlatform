@@ -138,11 +138,30 @@ public sealed class MicroflowLoopExecutor : IMicroflowLoopExecutor
                 iterationCount++;
                 if (body.Status == MicroflowLoopBodyExecutionStatus.Break)
                 {
-                    return Control(MicroflowLoopExecutionStatus.Break, iterationCount, loopContext, MicroflowLoopControlSignal.Break);
+                    var breakDecision = ResolveLoopControl(loopContext, body.TargetLoopObjectId, MicroflowLoopControlSignal.Break);
+                    if (breakDecision.FailedResult is not null)
+                    {
+                        return breakDecision.FailedResult;
+                    }
+
+                    return breakDecision.PropagateToAncestor
+                        ? Control(MicroflowLoopExecutionStatus.Break, iterationCount, loopContext, MicroflowLoopControlSignal.Break, breakDecision.TargetLoopObjectId)
+                        : Control(MicroflowLoopExecutionStatus.Break, iterationCount, loopContext, MicroflowLoopControlSignal.Break, loopContext.LoopCollection.LoopObjectId);
                 }
 
                 if (body.Status == MicroflowLoopBodyExecutionStatus.Continue)
                 {
+                    var continueDecision = ResolveLoopControl(loopContext, body.TargetLoopObjectId, MicroflowLoopControlSignal.Continue);
+                    if (continueDecision.FailedResult is not null)
+                    {
+                        return continueDecision.FailedResult;
+                    }
+
+                    if (continueDecision.PropagateToAncestor)
+                    {
+                        return Control(MicroflowLoopExecutionStatus.Continue, iterationCount, loopContext, MicroflowLoopControlSignal.Continue, continueDecision.TargetLoopObjectId);
+                    }
+
                     continue;
                 }
 
@@ -248,11 +267,30 @@ public sealed class MicroflowLoopExecutor : IMicroflowLoopExecutor
                 iterationCount++;
                 if (body.Status == MicroflowLoopBodyExecutionStatus.Break)
                 {
-                    return Control(MicroflowLoopExecutionStatus.Break, iterationCount, loopContext, MicroflowLoopControlSignal.Break);
+                    var breakDecision = ResolveLoopControl(loopContext, body.TargetLoopObjectId, MicroflowLoopControlSignal.Break);
+                    if (breakDecision.FailedResult is not null)
+                    {
+                        return breakDecision.FailedResult;
+                    }
+
+                    return breakDecision.PropagateToAncestor
+                        ? Control(MicroflowLoopExecutionStatus.Break, iterationCount, loopContext, MicroflowLoopControlSignal.Break, breakDecision.TargetLoopObjectId)
+                        : Control(MicroflowLoopExecutionStatus.Break, iterationCount, loopContext, MicroflowLoopControlSignal.Break, loopContext.LoopCollection.LoopObjectId);
                 }
 
                 if (body.Status == MicroflowLoopBodyExecutionStatus.Continue)
                 {
+                    var continueDecision = ResolveLoopControl(loopContext, body.TargetLoopObjectId, MicroflowLoopControlSignal.Continue);
+                    if (continueDecision.FailedResult is not null)
+                    {
+                        return continueDecision.FailedResult;
+                    }
+
+                    if (continueDecision.PropagateToAncestor)
+                    {
+                        return Control(MicroflowLoopExecutionStatus.Continue, iterationCount, loopContext, MicroflowLoopControlSignal.Continue, continueDecision.TargetLoopObjectId);
+                    }
+
                     continue;
                 }
 
@@ -461,18 +499,44 @@ public sealed class MicroflowLoopExecutor : IMicroflowLoopExecutor
             OutputPreview = output
         };
 
-    private static MicroflowLoopExecutionResult Control(string status, int iterationCount, MicroflowLoopExecutionContext context, string controlSignal)
+    private static MicroflowLoopExecutionResult Control(string status, int iterationCount, MicroflowLoopExecutionContext context, string controlSignal, string? targetLoopObjectId)
         => new()
         {
             Status = status,
             IterationCount = iterationCount,
+            TargetLoopObjectId = targetLoopObjectId,
             TransactionSnapshot = context.Options.IncludeTransactionSnapshot ? context.RuntimeExecutionContext.CreateTransactionSnapshot("loop-control") : null,
             OutputPreview = JsonSerializer.SerializeToElement(new
             {
                 iterations = iterationCount,
-                controlSignal
+                controlSignal,
+                targetLoopObjectId
             }, JsonOptions)
         };
+
+    private static LoopControlDecision ResolveLoopControl(MicroflowLoopExecutionContext context, string? requestedTargetLoopObjectId, string controlSignal)
+    {
+        if (string.IsNullOrWhiteSpace(requestedTargetLoopObjectId)
+            || string.Equals(requestedTargetLoopObjectId, context.LoopCollection.LoopObjectId, StringComparison.Ordinal))
+        {
+            return new LoopControlDecision(context.LoopCollection.LoopObjectId, PropagateToAncestor: false, FailedResult: null);
+        }
+
+        if (context.LoopStack.Any(frame => string.Equals(frame.LoopObjectId, requestedTargetLoopObjectId, StringComparison.Ordinal)))
+        {
+            return new LoopControlDecision(requestedTargetLoopObjectId, PropagateToAncestor: true, FailedResult: null);
+        }
+
+        return new LoopControlDecision(
+            requestedTargetLoopObjectId,
+            PropagateToAncestor: false,
+            Failed(
+                RuntimeErrorCode.RuntimeLoopControlOutOfScope,
+                $"{controlSignal} target loop '{requestedTargetLoopObjectId}' is not in scope.",
+                context.LoopNode));
+    }
+
+    private sealed record LoopControlDecision(string? TargetLoopObjectId, bool PropagateToAncestor, MicroflowLoopExecutionResult? FailedResult);
 
     private static MicroflowLoopExecutionResult MaxIterationsExceeded(MicroflowLoopExecutionContext context, int iterationCount)
         => Failed(RuntimeErrorCode.RuntimeLoopMaxIterationsExceeded, $"Loop exceeded maxIterations={context.Options.MaxIterations}.", context.LoopNode, MicroflowLoopExecutionStatus.MaxIterationsExceeded) with

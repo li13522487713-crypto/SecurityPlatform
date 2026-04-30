@@ -18,26 +18,26 @@
 
 1. RestCall request building 覆盖 GET URL literal、URL from expression、headers/query expression、json/text/form body、mapping body connector required。
 2. HTTP security 覆盖 invalid URL、file scheme、localhost/private network、denied host、allowed host 与 sensitive header redaction。
-3. Mock execution 覆盖 `allowRealHttp=false`、string/json response variable、statusCode/header variables 与 invalid JSON response failure。
+3. Runtime execution 覆盖 `allowRealHttp=false`、string/json response variable、statusCode/header variables 与 invalid JSON response failure。
 4. Error path 覆盖 `simulateRestError`、non-success HTTP、timeout/network classification、response too large truncated/error metadata 与 `$latestHttpResponse`。
 5. LogMessage 覆盖 simple info、template arguments、includeTraceId、includeContextVariables、expression error failed 与 persisted logs。
 6. Integration 覆盖 TraceFrame.output.restCall、error handler scope `$latestHttpResponse`、DebugPanel-compatible logs、No FlowGram JSON、connector-backed action 不 silent success。
 
-本文件定义前端 Mock Runtime 的最小回归场景。自动化入口为 `verifyMicroflowContracts()`。
+本文件定义后端 Runtime 的最小回归场景。前端 mock runner 已删除。
 
-1. 所有 manifest sample 可执行 `validate → authoringToFlowGram → toRuntimeDto → toExecutionPlan → mockRunExecutionPlan`。
+1. 所有 manifest sample 可执行新版设计态校验，并可通过后端 runtime test-run 或 runtime plan 入口验证。
 2. `sample-rest-error-handling` 在 `simulateRestError=true` 时应沿 error handler flow，若样例路径触达 RestCall。
 3. `sample-loop-processing` 在 `loopIterations=2` 时至少产生 `loopIteration.index=0` trace。
 4. object type / decision 样例若包含对应 decision flow，trace 必须写入 `selectedCaseValue`。
 5. modeledOnly / unsupported action 执行到达时必须产生 `RUNTIME_UNSUPPORTED_ACTION` 或更具体错误码。
-6. 大图样例不要求全量 mock run，但 Runtime 必须受 `RUNTIME_MAX_STEPS_EXCEEDED` 保护。
-7. Runtime DTO、ExecutionPlan、RunSession 均不得包含 FlowGram JSON。
+6. 大图样例不要求全量 test-run，但 Runtime 必须受 `RUNTIME_MAX_STEPS_EXCEEDED` 保护。
+7. Runtime plan、RunSession 均不得包含 FlowGram JSON。
 
-## 第 42 轮后端 Mock API 场景
+## 后端 Runtime API 场景
 
 1. `POST /api/microflows/{id}/test-run` 不传 `schema` 时读取后端当前保存 schema，传 `schema` 时执行草稿且不保存草稿。
 2. TestRun 前必须调用后端 Validation，`mode=testRun`；validation error 返回 `MICROFLOW_VALIDATION_FAILED`。
-3. `simulateRestError=false` 时 RestCall 生成 200 mock response；`simulateRestError=true` 时生成 `RUNTIME_REST_CALL_FAILED`，若配置 custom error handler 则进入错误分支。
+3. `simulateRestError=false` 时 RestCall 按 runtime 策略生成响应；`simulateRestError=true` 时生成 `RUNTIME_REST_CALL_FAILED`，若配置 custom error handler 则进入错误分支。
 4. `decisionBooleanResult`、`enumerationCaseValue`、`objectTypeCase` 必须控制 selected case，并写入 trace `selectedCaseValue`。
 5. `loopIterations=2` 必须生成 index 0/1 的 `loopIteration` trace；Break/Continue frame 可见。
 6. `GET /api/microflows/runs/{runId}` 返回完整 RunSession；`GET /trace` 返回 trace/logs；`POST /cancel` 可把未完成 run 改为 cancelled。
@@ -80,7 +80,7 @@
 12. Loop `loopIterations=2` 产生两轮内部 steps；Break 停止 loop；Continue 进入下一轮。
 13. `maxSteps` 返回 `RUNTIME_MAX_STEPS_EXCEEDED` / `maxStepsExceeded`。
 14. NavigationResult 生成 trace skeleton 且不包含 FlowGram JSON。
-15. 现有 TestRun Mock API 不切换到 FlowNavigator，本轮只做独立诊断验证。
+15. TestRun 走后端 Runtime；FlowNavigator 诊断入口仅用于独立 dry-run 验证。
 
 ## 第 50 轮 VariableStore 场景
 

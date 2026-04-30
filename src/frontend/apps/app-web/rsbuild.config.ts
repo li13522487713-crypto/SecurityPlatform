@@ -61,8 +61,6 @@ const clientEnv = Object.fromEntries(
 
 const forbiddenProductionMicroflowValues = new Set(["msw", "mock", "local"]);
 const microflowModeEnv = [
-  process.env.VITE_MICROFLOW_API_MOCK,
-  process.env.MICROFLOW_API_MOCK,
   process.env.VITE_MICROFLOW_ADAPTER_MODE,
   process.env.MICROFLOW_ADAPTER_MODE,
 ]

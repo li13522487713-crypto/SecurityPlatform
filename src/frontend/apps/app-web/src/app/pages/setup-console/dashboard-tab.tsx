@@ -2,13 +2,13 @@ import { useCallback, useState } from "react";
 import { Button, Collapse, Table, Typography } from "@douyinfe/semi-ui";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useAppI18n } from "../../i18n";
-import { getSetupConsoleCatalogEntities } from "../../../services/mock";
 import type {
   SetupConsoleOverviewDto,
   SystemSetupStateDto,
   WorkspaceSetupStateDto,
   DataMigrationJobDto
 } from "../../../services/api-setup-console";
+import { setupConsoleApi } from "../../../services/api-setup-console";
 import type { AppMessageKey } from "../../messages";
 import {
   isMigrationDone,
@@ -326,7 +326,7 @@ function CatalogCard({ catalog }: { catalog: SetupConsoleOverviewDto["catalogSum
       }
       setLoading(newlyOpened);
       try {
-        const response = await getSetupConsoleCatalogEntities(newlyOpened);
+        const response = await setupConsoleApi.listEntityCatalogDetails(newlyOpened);
         if (response.success && response.data) {
           setDetails((previous) => ({ ...previous, [newlyOpened]: response.data ?? [] }));
         }

@@ -22,8 +22,8 @@
 
 ## 执行图
 
-- Runtime 语义以 `MicroflowAuthoringSchema.objectCollection`、嵌套 Loop collection 与 `MicroflowFlow` 为准。
-- 第 30 轮起，前端 Mock Runner 的唯一执行输入是 `MicroflowExecutionPlan`；旧 schema test-run 入口仅负责 `toRuntimeDto → toExecutionPlan → mockRunExecutionPlan` 转换。
+- Runtime 语义以 `MicroflowDesignSchema.workflow.nodes/workflow.edges` 为准。
+- 前端 Mock Runner 已删除；test-run 入口必须调用后端 runtime API，不能再执行本地模拟运行。
 - `AnnotationFlow` 不参与执行图。
 - `ErrorHandlerFlow` 不参与 normal graph，只参与 error handler scope 与运行时异常跳转。
 - Loop collection 独立建图，外部变量可进入 Loop，Loop 内变量默认不回流外部主路径。
@@ -89,7 +89,7 @@ VariableStore 是真实 Runtime 的变量读写地基，位于 `ExecutionPlan ->
 
 TransactionManager 是真实 Runtime 引擎的第六块地基，链路为 `RuntimeExecutionContext -> TransactionManager -> UnitOfWork -> changed/committed/rolledBack objects -> Trace/Log/RunSession diagnostics`。
 
-- TestRun Mock Runtime 默认以 `singleRunTransaction` 自动 begin，并创建 `run-start` savepoint。
+- TestRun Runtime 默认以 `singleRunTransaction` 自动 begin，并创建 `run-start` savepoint。
 - 成功结束时，active transaction 自动 commit；失败且仍 active 时自动 rollback。
 - `CreateObject`、`ChangeMembers`、`CommitAction`、`DeleteAction`、`RollbackAction` 只写运行时 change set 与 transaction log，不写业务表。
 - `CommitAction` 除标记匹配 staged changes 为 committed 外，还会写一条 `operation=commit` 的结构化 changed object，便于 Trace/RunSession 预览提交动作。

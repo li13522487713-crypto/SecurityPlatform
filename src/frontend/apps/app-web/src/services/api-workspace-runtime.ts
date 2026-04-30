@@ -56,6 +56,13 @@ export interface WorkspaceTestsetItemDto {
   updatedAt: string;
 }
 
+export interface WorkspaceTestsetCreateRequest {
+  name: string;
+  description?: string;
+  workflowId?: string;
+  rows: Array<Record<string, unknown>>;
+}
+
 function workspaceBase(workspaceId: string): string {
   return `/workspaces/${encodeURIComponent(workspaceId)}`;
 }
@@ -152,4 +159,23 @@ export async function listWorkspaceTestsets(workspaceId: string, input?: {
     throw new Error(response.message || "获取测试集列表失败");
   }
   return response.data;
+}
+
+export async function createWorkspaceTestset(
+  workspaceId: string,
+  request: WorkspaceTestsetCreateRequest
+): Promise<{ testsetId: string }> {
+  const response = await requestApi<ApiResponse<{ id?: string; testsetId?: string }>>(
+    `${workspaceBase(workspaceId)}/testsets`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  const id = response.data?.testsetId ?? response.data?.id ?? "";
+  if (!id) {
+    throw new Error(response.message || "Failed to create testset");
+  }
+  return { testsetId: id };
 }

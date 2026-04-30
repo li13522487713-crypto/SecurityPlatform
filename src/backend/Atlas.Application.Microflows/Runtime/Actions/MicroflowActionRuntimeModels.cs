@@ -240,6 +240,9 @@ public sealed record MicroflowActionExecutionResult
     [JsonPropertyName("latestHttpResponse")]
     public JsonElement? LatestHttpResponse { get; init; }
 
+    [JsonPropertyName("targetLoopObjectId")]
+    public string? TargetLoopObjectId { get; init; }
+
     [JsonPropertyName("durationMs")]
     public int DurationMs { get; init; }
 

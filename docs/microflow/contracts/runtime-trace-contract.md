@@ -18,8 +18,8 @@
 
 - **运行时 trace 帧**：`MicroflowTraceFrame`（`@atlas/microflow/debug` → `trace-types.ts`）；与 `MicroflowRunSession`、`MicroflowRuntimeError` 等一并用于 test-run、本地 `runtime-adapter/types`。
 - **会话内变量切片**：`MicroflowRunSession.variables` 的元素为 **`MicroflowRunSessionVariableSnapshot`**（按 `frameId` / `objectId` 挂变量行），与编辑器用的 **`MicroflowEditorVariableSnapshot`**（`variables/variable-snapshot`）不同名、不同用途。
-- **Authoring 上可选的调试快照**：`MicroflowAuthoringSchema.debug` 中的 `traceFrames` / `lastTrace` 为 **`MicroflowAuthoringPersistedTraceFrame[]`**（`schema/types.ts`），仅会话/高亮辅助，**不**等同于一次完整 `MicroflowRunSession`。
-- 模拟测试运行：`mockRunExecutionPlan(plan, input)` 是主入口；`debug/mock-test-runner` 中的 schema 入口仅做 DTO/Plan 转换包装。
+- **DesignSchema 上可选的调试快照**：`MicroflowDesignSchema.debug` 仅作为会话/高亮辅助，**不**等同于一次完整 `MicroflowRunSession`。
+- Test-run 运行入口为后端 runtime API；前端 mock runner 已删除，不再生成本地模拟 `MicroflowRunSession`。
 
 ## 定位
 
@@ -36,18 +36,17 @@
 
 与 `TestRunMicroflowResponse` 对齐：`runId`、`status`、`frames[]`、`session`、`error?`。
 
-## 第 42 轮后端 Mock Trace
+## 后端 Runtime Trace
 
 - `POST /api/microflows/{id}/test-run` 已返回 `MicroflowApiResponse<{ session }>`；`session.trace/logs/variables/error` 与 DebugPanel 契约同构。
 - TraceFrame 按执行顺序持久化，字段包含 `objectId`、`actionId`、`collectionId`、incoming/outgoing flow、`selectedCaseValue`、`loopIteration`、input/output/error、`variablesSnapshot`、`errorHandlerVisited` 与 message。
 - 第 46～47 轮前端 HTTP RuntimeAdapter 在 test-run 返回后会回读 `GET /api/microflows/runs/{runId}` 与 `GET /api/microflows/runs/{runId}/trace`，DebugPanel 与 FlowGram runtime highlight 均消费后端持久化 trace。
 - RuntimeLog 单独持久化并按 timestamp 查询；LogMessage action 会生成对应 log。
-- Mock Runtime 不是真实 Runtime，不执行数据库 Retrieve/Commit/Delete，不调用外部 REST；RestCall success/error 只产生契约级输出与错误路径。
-- 第 48 轮真实 `ExecutionPlanLoader` 接入后，应继续复用本轮 DTO 与持久化结构。
+- 前端不再提供 mock runtime；所有 test-run trace 均来自后端 runtime。
 
 ## 第 49 轮 FlowNavigator Trace Skeleton
 
-FlowNavigator 生成 `MicroflowNavigationStep` 与 `MicroflowNavigationTraceFrame`，并提供 `NavigationResult.ToTraceFrames()` / `NavigationStep.ToTraceFrameDto()` 映射到既有 `MicroflowTraceFrameDto`。本轮 trace skeleton 不包含变量快照、不保存 RunSession、不替代 TestRun Mock trace。
+FlowNavigator 生成 `MicroflowNavigationStep` 与 `MicroflowNavigationTraceFrame`，并提供 `NavigationResult.ToTraceFrames()` / `NavigationStep.ToTraceFrameDto()` 映射到既有 `MicroflowTraceFrameDto`。诊断 trace skeleton 不包含变量快照、不保存 RunSession、不替代后端 test-run runtime trace。
 
 字段映射：
 

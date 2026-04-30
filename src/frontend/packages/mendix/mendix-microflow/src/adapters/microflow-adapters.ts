@@ -43,7 +43,6 @@ import type {
   MicroflowVariable,
   MicroflowVariableIndex
 } from "../schema/types";
-import { mapAuthoringP0ToRuntimeBlocks } from "../runtime/map-authoring-p0-runtime";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { createPortId } from "../schema/utils/port-utils";
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
@@ -1409,6 +1408,6 @@ export function toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntime
     objectCollection: schema.objectCollection,
     flows: schema.flows.filter(flow => flow.kind === "sequence"),
     variables: hasExistingVariables && existingVariables ? existingVariables : buildVariableIndexV2(schema, EMPTY_MICROFLOW_METADATA_CATALOG),
-    p0RuntimeActionBlocks: mapAuthoringP0ToRuntimeBlocks(schema)
+    p0RuntimeActionBlocks: []
   };
 }

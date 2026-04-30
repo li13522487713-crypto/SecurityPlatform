@@ -148,6 +148,7 @@ public sealed record MicroflowLoopBodyExecutionResult
     public MicroflowRuntimeErrorDto? Error { get; init; }
     public IReadOnlyList<MicroflowTraceFrameDto> TraceFrames { get; init; } = Array.Empty<MicroflowTraceFrameDto>();
     public JsonElement? Output { get; init; }
+    public string? TargetLoopObjectId { get; init; }
 }
 
 public sealed record MicroflowLoopExecutionResult
@@ -172,6 +173,9 @@ public sealed record MicroflowLoopExecutionResult
 
     [JsonPropertyName("finalOutgoingFlowId")]
     public string? FinalOutgoingFlowId { get; init; }
+
+    [JsonPropertyName("targetLoopObjectId")]
+    public string? TargetLoopObjectId { get; init; }
 
     [JsonPropertyName("transactionSnapshot")]
     public MicroflowRuntimeTransactionSnapshot? TransactionSnapshot { get; init; }

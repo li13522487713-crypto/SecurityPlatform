@@ -9,7 +9,7 @@
 #   artifacts/microflow-e2e/round60/coverage-matrix.json
 # Safety:
 # - Round60 seed/reset only deletes names starting with R60_E2E_ or E2E_MF_.
-# - Resource schema is FlowGram-native MicroflowDesignSchema; runtime-only AuthoringSchema is still used by runtime diagnostic endpoints.
+# - Resource schema and runtime test-run payloads use FlowGram-native MicroflowDesignSchema.
 
 ### Round 60 - Health / Environment
 # Expected JSON path:

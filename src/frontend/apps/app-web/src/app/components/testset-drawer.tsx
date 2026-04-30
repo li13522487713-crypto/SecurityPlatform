@@ -3,10 +3,10 @@ import { Button, Empty, Form, Input, Modal, SideSheet, Spin, Tag, Toast, Typogra
 import { IconPlus } from "@douyinfe/semi-icons";
 import { useAppI18n } from "../i18n";
 import {
-  createTestset,
-  listTestsets,
-  type TestsetItem
-} from "../../services/mock";
+  createWorkspaceTestset,
+  listWorkspaceTestsets,
+  type WorkspaceTestsetItemDto
+} from "../../services/api-workspace-runtime";
 
 interface TestsetDrawerProps {
   visible: boolean;
@@ -29,9 +29,9 @@ interface CreateFormValues {
 /**
  * 测试集抽屉（PRD 05-4.8）。
  *
- * 列表展示当前工作流的已存测试集（mock listTestsets），
+ * 列表展示当前工作流的已存测试集，
  * 新建按钮打开模态，按 startNodeFields 动态生成"节点数据"录入表单，
- * 对接 mock createTestset。
+ * 对接后端 workspace runtime API。
  */
 export function TestsetDrawer({
   visible,
@@ -41,13 +41,13 @@ export function TestsetDrawer({
   onClose
 }: TestsetDrawerProps) {
   const { t } = useAppI18n();
-  const [items, setItems] = useState<TestsetItem[]>([]);
+  const [items, setItems] = useState<WorkspaceTestsetItemDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
   const refresh = () => {
     setLoading(true);
-    listTestsets(workspaceId, { pageIndex: 1, pageSize: 50 })
+    listWorkspaceTestsets(workspaceId, { pageIndex: 1, pageSize: 50 })
       .then(result => {
         setItems(result.items.filter(item => !item.workflowId || item.workflowId === workflowId));
       })
@@ -143,7 +143,7 @@ function CreateTestsetModal({
     }
     setSubmitting(true);
     try {
-      await createTestset(workspaceId, {
+      await createWorkspaceTestset(workspaceId, {
         name,
         description: values.description?.trim() || undefined,
         workflowId,

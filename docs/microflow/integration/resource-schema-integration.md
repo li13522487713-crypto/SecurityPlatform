@@ -4,7 +4,7 @@
 
 本轮只覆盖微流 Resource / Schema 真实 API 链路：资源列表、创建、详情加载、Schema 加载、Schema 保存、重命名、收藏、复制、归档、恢复、删除与基础错误态。不覆盖 Publish / Version 深度逻辑、Metadata 深度联调、Validation 深度联调、References / Impact 深化、Runtime / TestRun / Trace。
 
-依赖后端至少完成第 37 轮 Resource CRUD + Schema Save/Load，前端至少完成第 31-34 轮 HTTP Adapter、错误处理与 Contract Mock。
+依赖后端至少完成 Resource CRUD + Schema Save/Load，前端走 HTTP Adapter 与错误处理；微流 Contract Mock 已下线。
 
 ## 配置
 

@@ -15,6 +15,10 @@ function supportsErrorHandlerSource(objectKind: string | undefined): boolean {
   return Boolean(objectKind && ["actionActivity", "loopedActivity", "exclusiveSplit", "inheritanceSplit"].includes(objectKind));
 }
 
+function supportsContinueErrorHandling(kind: string): boolean {
+  return kind === "callMicroflow" || kind === "restCall" || kind === "loopedActivity";
+}
+
 export function validateErrorHandling(schema: MicroflowSchema, _context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   const objects = objectMap(schema);
@@ -30,14 +34,14 @@ export function validateErrorHandling(schema: MicroflowSchema, _context: Microfl
     }
     if (source?.kind === "actionActivity") {
       if (source.action.errorHandlingType === "rollback") {
-        issues.push(issue("MF_ERROR_HANDLER_ROLLBACK", "rollback must not have error handler flow.", { objectId: source.id, flowId: flow.id, actionId: source.action.id }));
+        issues.push(issue("MF_ERROR_HANDLER_ROLLBACK_HAS_FLOW", "rollback must not have error handler flow.", { objectId: source.id, flowId: flow.id, actionId: source.action.id }));
       }
-      if (source.action.errorHandlingType === "continue" && source.action.kind !== "callMicroflow") {
-        issues.push(issue("MF_ERROR_HANDLER_CONTINUE", "continue is only valid for CallMicroflow or Loop.", { objectId: source.id, flowId: flow.id, actionId: source.action.id }));
+      if (source.action.errorHandlingType === "continue" && !supportsContinueErrorHandling(source.action.kind)) {
+        issues.push(issue("MF_ERROR_HANDLER_CONTINUE_NOT_ALLOWED", "continue is only valid for CallMicroflow, RestCall or Loop.", { objectId: source.id, flowId: flow.id, actionId: source.action.id }));
       }
     }
     if (source?.kind === "loopedActivity" && source.errorHandlingType === "rollback") {
-      issues.push(issue("MF_ERROR_HANDLER_ROLLBACK", "Loop rollback must not have error handler flow.", { objectId: source.id, flowId: flow.id }));
+      issues.push(issue("MF_ERROR_HANDLER_ROLLBACK_HAS_FLOW", "Loop rollback must not have error handler flow.", { objectId: source.id, flowId: flow.id }));
     }
   }
   for (const object of objects.values()) {
@@ -48,19 +52,19 @@ export function validateErrorHandling(schema: MicroflowSchema, _context: Microfl
     if (object.kind === "actionActivity") {
       const hasErrorFlow = outgoingErrorFlows.length > 0;
       if (["customWithRollback", "customWithoutRollback"].includes(object.action.errorHandlingType) && !hasErrorFlow) {
-        issues.push(issue("MF_ERROR_HANDLER_MISSING", "Custom error handling requires an error handler SequenceFlow.", { objectId: object.id, actionId: object.action.id }));
+        issues.push(issue("MF_ERROR_HANDLER_WITH_ROLLBACK_MISSING_FLOW", "Custom error handling requires an error handler SequenceFlow.", { objectId: object.id, actionId: object.action.id }));
       }
-      if (object.action.errorHandlingType === "continue" && object.action.kind !== "callMicroflow") {
-        issues.push(issue("MF_ERROR_HANDLER_CONTINUE", "continue is only valid for CallMicroflow or Loop.", { objectId: object.id, actionId: object.action.id }));
+      if (object.action.errorHandlingType === "continue" && !supportsContinueErrorHandling(object.action.kind)) {
+        issues.push(issue("MF_ERROR_HANDLER_CONTINUE_NOT_ALLOWED", "continue is only valid for CallMicroflow, RestCall or Loop.", { objectId: object.id, actionId: object.action.id }));
       }
     }
     if (object.kind === "loopedActivity") {
       const hasErrorFlow = outgoingErrorFlows.length > 0;
       if (["customWithRollback", "customWithoutRollback"].includes(object.errorHandlingType) && !hasErrorFlow) {
-        issues.push(issue("MF_ERROR_HANDLER_MISSING", "Custom loop error handling requires an error handler SequenceFlow.", { objectId: object.id }));
+        issues.push(issue("MF_ERROR_HANDLER_WITH_ROLLBACK_MISSING_FLOW", "Custom loop error handling requires an error handler SequenceFlow.", { objectId: object.id }));
       }
       if (object.errorHandlingType === "continue" && !hasErrorFlow) {
-        issues.push(issue("MF_ERROR_HANDLER_CONTINUE", "Loop continue mode should define an error handler SequenceFlow.", { objectId: object.id }));
+        issues.push(issue("MF_ERROR_HANDLER_WITH_ROLLBACK_MISSING_FLOW", "Loop continue mode should define an error handler SequenceFlow.", { objectId: object.id }));
       }
     }
   }

@@ -208,6 +208,26 @@ public abstract class ListActionExecutorBase : IMicroflowActionExecutor
     protected static JsonElement JsonNull()
         => JsonSerializer.SerializeToElement<object?>(null, JsonOptions);
 
+    protected static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.TryGetProperty(propertyName, out value))
+        {
+            return true;
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
     protected static JsonElement InferDataType(JsonElement value)
         => value.ValueKind switch
         {
@@ -519,6 +539,7 @@ public sealed class ChangeListActionExecutor : ListActionExecutorBase
                 index: kept.Count,
                 iteratorRawValue: item,
                 iteratorPreview: MicroflowVariableStore.Preview(item.GetRawText()),
+                iteratorDataTypeJson: InferDataType(item).GetRawText(),
                 defineIterator: true);
 
             if (!TryEvaluateExpression(context, conditionRaw, out var condition, out _)
@@ -655,6 +676,7 @@ public sealed class AggregateListActionExecutor : ListActionExecutorBase
             index: 0,
             iteratorRawValue: item,
             iteratorPreview: MicroflowVariableStore.Preview(item.GetRawText()),
+            iteratorDataTypeJson: InferDataType(item).GetRawText(),
             defineIterator: true);
 
         return TryEvaluateExpression(context, raw, out value, out _);
@@ -688,7 +710,7 @@ public sealed class AggregateListActionExecutor : ListActionExecutorBase
         var current = item;
         foreach (var segment in segments)
         {
-            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out var next))
+            if (current.ValueKind != JsonValueKind.Object || !TryGetPropertyIgnoreCase(current, segment, out var next))
             {
                 return JsonNull();
             }
@@ -899,6 +921,7 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
                 index: index,
                 iteratorRawValue: item,
                 iteratorPreview: MicroflowVariableStore.Preview(item.GetRawText()),
+                iteratorDataTypeJson: InferDataType(item).GetRawText(),
                 defineIterator: true);
 
             if (TryEvaluateExpression(context, expressionRaw, out var condition, out _)
@@ -953,7 +976,7 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
             return element;
         }
 
-        if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(sortField, out var value))
+        if (element.ValueKind == JsonValueKind.Object && TryGetPropertyIgnoreCase(element, sortField, out var value))
         {
             return value;
         }
@@ -1012,6 +1035,7 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
                 index: index,
                 iteratorRawValue: item,
                 iteratorPreview: MicroflowVariableStore.Preview(item.GetRawText()),
+                iteratorDataTypeJson: InferDataType(item).GetRawText(),
                 defineIterator: true);
 
             if (TryEvaluateExpression(context, expressionRaw, out var mapped, out _))

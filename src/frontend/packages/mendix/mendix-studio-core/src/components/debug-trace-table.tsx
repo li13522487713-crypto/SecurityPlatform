@@ -4,9 +4,26 @@ import { DISPLAY_TRACE_STEPS, MOCK_DEBUG_TRACE } from "../data/mock-debug-trace"
 export function DebugTraceTable() {
   const latestTrace = useMendixStudioStore(state => state.latestTrace);
   const trace = latestTrace ?? MOCK_DEBUG_TRACE;
-  const steps = DISPLAY_TRACE_STEPS;
+  const steps = trace.steps.length > 0
+    ? trace.steps.map((step, index) => ({
+        index: index + 1,
+        nodeName: step.nodeId ?? step.stepId,
+        nodeType: step.nodeType,
+        status: step.errorMessage ? "error" as const : "success" as const,
+        durationMs: 0,
+        summary: [
+          step.expressionResults?.length ? `expr:${step.expressionResults.length}` : "",
+          step.permissionChecks?.length ? `perm:${step.permissionChecks.length}` : "",
+          step.databaseQueries?.length ? `db:${step.databaseQueries.length}` : "",
+          step.uiCommands?.length ? `ui:${step.uiCommands.map(command => command.type).join(",")}` : "",
+          step.errorMessage ?? ""
+        ].filter(Boolean).join(" · ") || "执行完成",
+      }))
+    : DISPLAY_TRACE_STEPS;
 
   const totalMs = steps.reduce((sum, s) => sum + s.durationMs, 0);
+  const statusLabel = trace.status === "failed" ? "Failed" : trace.status === "running" ? "Running" : "Completed";
+  const statusColor = trace.status === "failed" ? "#f5222d" : trace.status === "running" ? "#1677ff" : "#52c41a";
 
   const formatTime = (iso: string) => {
     try {
@@ -37,10 +54,10 @@ export function DebugTraceTable() {
 
       {/* 状态信息条 */}
       <div className="studio-bottom-half__info-bar">
-        <span className="studio-bottom-half__status-dot studio-bottom-half__status-dot--success" />
-        <span style={{ fontWeight: 600, color: "#52c41a" }}>Completed</span>
+        <span className="studio-bottom-half__status-dot studio-bottom-half__status-dot--success" style={{ background: statusColor }} />
+        <span style={{ fontWeight: 600, color: statusColor }}>{statusLabel}</span>
         <span>Trace ID: <span style={{ fontFamily: "monospace", color: "#1c2a3a" }}>{trace.traceId}</span></span>
-        <span>Flow: Microflow / <span style={{ color: "#0958d9" }}>MF_SubmitPurchaseRequest</span></span>
+        <span>Flow: Microflow / <span style={{ color: "#0958d9" }}>{trace.flowId}</span></span>
         <span>耗时: <strong>{totalMs}ms</strong></span>
         <span>开始时间: {formatTime(trace.startedAt)}</span>
         <div

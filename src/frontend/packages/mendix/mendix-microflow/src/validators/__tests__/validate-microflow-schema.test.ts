@@ -155,6 +155,24 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_LIST_OPERATION_SOURCE_MISSING", severity: "error" })]));
   });
 
+  it("reports Counter missing metricName as an error", () => {
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), actionObject("activity:counter", "counter"), objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_ACTION_REQUIRED_FIELD_MISSING", severity: "error" })]));
+  });
+
+  it("reports IncrementCounter missing metricName as an error", () => {
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), actionObject("activity:incrementCounter", "increment-counter"), objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_ACTION_REQUIRED_FIELD_MISSING", severity: "error" })]));
+  });
+
+  it("reports Gauge missing valueExpression as an error", () => {
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), actionObject("activity:gauge", "gauge"), objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_ACTION_REQUIRED_FIELD_MISSING", severity: "error" })]));
+  });
+
   it("reports stale Object Activity entity as a metadata issue", () => {
     const createObject = actionObject("activity:objectCreate", "create-object");
     const stale = { ...createObject, action: { ...createObject.action, entityQualifiedName: "Missing.Entity", outputVariableName: "missingEntity" } };

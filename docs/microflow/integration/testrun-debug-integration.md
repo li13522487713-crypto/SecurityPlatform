@@ -4,7 +4,7 @@
 
 本轮覆盖 TestRunModal、HTTP RuntimeAdapter、MicroflowDebugPanel、Trace / Input / Output / Variables / Logs / Errors、Cancel Run、Get Run、Get Trace，以及 FlowGram runtime highlight。
 
-依赖后端已完成第 42 轮 TestRun Mock API 与 RunSession / TraceFrame / RuntimeLog 持久化。前端配置 `adapterMode=http` 后，不允许回退前端 mock runner。
+依赖后端 Runtime API 与 RunSession / TraceFrame / RuntimeLog 持久化。前端配置 `adapterMode=http` 后，不允许回退任何 mock API。
 
 ## 联调步骤
 
@@ -33,7 +33,7 @@ RunSession / TraceFrame / RunLog 从数据库读取；TestRun 不修改 Authorin
 
 ## 不覆盖
 
-本轮仍使用后端 Mock Runtime，不覆盖真实 Runtime、真实数据库 Retrieve / Commit / Delete、真实外部 REST、完整表达式执行器和完整事务引擎。下一轮建议接入 Runtime ExecutionPlanLoader。
+Test-run / Debug 已统一通过后端 Runtime API。数据库 Retrieve / Commit / Delete、外部 REST、表达式执行器和事务能力由后端 Runtime policy 与 connector 配置裁决，前端不再提供 mock runner 回退。
 
 ## 验证
 

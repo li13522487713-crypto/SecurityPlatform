@@ -1,6 +1,8 @@
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Actions;
+using Atlas.Application.Microflows.Runtime.Expressions;
+using System.Text.Json;
 
 namespace Atlas.AppHost.Tests.Microflows;
 
@@ -51,6 +53,44 @@ public sealed class MicroflowActionExecutorRegistryTests
         Assert.Equal(MicroflowActionExecutionStatus.PendingClientCommand, result.Status);
         Assert.Single(result.RuntimeCommands);
         Assert.Equal("showMessage", result.RuntimeCommands[0].CommandKind);
+    }
+
+    [Theory]
+    [InlineData("showPage")]
+    [InlineData("showHomePage")]
+    [InlineData("showMessage")]
+    [InlineData("closePage")]
+    [InlineData("validationFeedback")]
+    [InlineData("downloadFile")]
+    public async Task RuntimeCommandFamily_ProducesClientCommand(string actionKind)
+    {
+        var registry = new MicroflowActionExecutorRegistry();
+        var executor = registry.GetOrFallback(actionKind);
+
+        var result = await executor.ExecuteAsync(Context(actionKind), CancellationToken.None);
+
+        Assert.Equal(MicroflowActionExecutionStatus.PendingClientCommand, result.Status);
+        Assert.Single(result.RuntimeCommands);
+        Assert.Equal(actionKind, result.RuntimeCommands[0].CommandKind);
+    }
+
+    [Theory]
+    [InlineData("counter")]
+    [InlineData("incrementCounter")]
+    [InlineData("gauge")]
+    public async Task MetricsFamily_ExecutesWithoutRuntimeCommands(string actionKind)
+    {
+        var registry = new MicroflowActionExecutorRegistry();
+        var executor = registry.GetOrFallback(actionKind);
+
+        var result = await executor.ExecuteAsync(Context(actionKind, actionKind switch
+        {
+            "incrementCounter" => new { metricName = "orders.increment" },
+            _ => new { metricName = "orders.metric", valueExpression = new { raw = "1" } }
+        }), CancellationToken.None);
+
+        Assert.Equal(MicroflowActionExecutionStatus.Success, result.Status);
+        Assert.Empty(result.RuntimeCommands);
     }
 
     [Fact]
@@ -121,7 +161,7 @@ public sealed class MicroflowActionExecutorRegistryTests
         Assert.Equal(RuntimeErrorCode.RuntimeUnsupportedAction, result.Error?.Code);
     }
 
-    private static MicroflowActionExecutionContext Context(string actionKind)
+    private static MicroflowActionExecutionContext Context(string actionKind, object? config = null)
     {
         var plan = new MicroflowExecutionPlan
         {
@@ -144,7 +184,9 @@ public sealed class MicroflowActionExecutorRegistryTests
             ActionKind = actionKind,
             ObjectId = "action",
             ActionId = "action-id",
+            ActionConfig = JsonSerializer.SerializeToElement(config ?? new { }, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
             VariableStore = runtime.VariableStore,
+            ExpressionEvaluator = new MicroflowExpressionEvaluator(),
             ConnectorRegistry = new MicroflowRuntimeConnectorRegistry()
         };
     }

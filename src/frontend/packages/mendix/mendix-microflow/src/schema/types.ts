@@ -1867,6 +1867,9 @@ export type MicroflowDiscriminatedRuntimeP0ActionDto =
   | RuntimeChangeListP0Dto
   | RuntimeAggregateListP0Dto
   | RuntimeListOperationP0Dto
+  | RuntimeCounterP0Dto
+  | RuntimeIncrementCounterP0Dto
+  | RuntimeGaugeP0Dto
   | RuntimeCreateVariableP0Dto
   | RuntimeChangeVariableP0Dto
   | RuntimeCallMicroflowP0Dto
@@ -1991,6 +1994,35 @@ export type RuntimeListOperationP0Dto = RuntimeP0Base & {
     outputElementType?: MicroflowDataType;
     limit?: number;
     offset?: number;
+  };
+};
+
+export type RuntimeCounterP0Dto = RuntimeP0Base & {
+  actionKind: "counter";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    metricName: string;
+    valueExpression: MicroflowExpression;
+    tags?: string[];
+  };
+};
+
+export type RuntimeIncrementCounterP0Dto = RuntimeP0Base & {
+  actionKind: "incrementCounter";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    metricName: string;
+    tags?: string[];
+  };
+};
+
+export type RuntimeGaugeP0Dto = RuntimeP0Base & {
+  actionKind: "gauge";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    metricName: string;
+    valueExpression: MicroflowExpression;
+    tags?: string[];
   };
 };
 

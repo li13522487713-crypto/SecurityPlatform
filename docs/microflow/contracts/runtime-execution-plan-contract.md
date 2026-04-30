@@ -1,12 +1,12 @@
 # Runtime ExecutionPlan Contract
 
-ExecutionPlan 是前端 Mock Runner 与后端真实 Runtime 的共同执行输入，不包含 FlowGram / WorkflowJSON。
+ExecutionPlan 是后端 Runtime 的内部执行输入，不作为设计态存储格式；设计态主数据为 `MicroflowDesignSchema.workflow.nodes/workflow.edges`。
 
 ## Pipeline
 
-`MicroflowAuthoringSchema → toRuntimeDto → toExecutionPlan → mockRunExecutionPlan → MicroflowRunSession`
+`MicroflowDesignSchema → Runtime plan builder → 后端 runtime test-run → MicroflowRunSession`
 
-旧编辑器入口可以继续传入 AuthoringSchema，但只能作为 wrapper：先生成 Runtime DTO 和 ExecutionPlan，再执行。
+前端 mock runner 已删除；前端不得把 AuthoringSchema 或旧 runtime DTO 作为 test-run 输入。
 
 ## 顶层字段
 

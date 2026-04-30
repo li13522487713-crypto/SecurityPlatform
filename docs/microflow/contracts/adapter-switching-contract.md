@@ -4,8 +4,8 @@
 
 ## Mode
 
-- `mock`：dev/test/sample only；Resource/Metadata 使用 mock，Runtime 使用本地 mock runner，Validation 使用本地校验。
-- `local`：local development/offline only；Resource 使用本地存储，Metadata 使用本地目录，Runtime 使用本地 mock runner，Validation 使用本地校验。
+- `mock`：dev/test/sample only；Resource/Metadata 使用 mock；Runtime test-run 不再提供本地 runner，必须走后端 HTTP runtime。
+- `local`：local development/offline only；Resource 使用本地存储，Metadata 使用本地目录；Runtime test-run 不再提供本地 runner，必须走后端 HTTP runtime。
 - `http`：integration/production path；Resource/Metadata/Runtime/Validation 通过 HTTP API，不自动 fallback 到 mock。
 
 生产模式默认 `http`，开发模式默认 `local`。`app-web` 产品入口在第 43 轮 Resource / Schema 联调后默认显式传入 `mode=http` 与 `apiBaseUrl=/api`，避免资源库和编辑器静默落回 local。`http` 必须配置 `apiBaseUrl`；服务不可用时 UI 显示“微流服务未连接”或具体 API 错误。
@@ -26,7 +26,7 @@
 
 - `VITE_MICROFLOW_ADAPTER_MODE` / `MICROFLOW_ADAPTER_MODE`：`mock`、`local`、`http`。
 - `VITE_MICROFLOW_API_BASE_URL` / `MICROFLOW_API_BASE_URL`：HTTP adapter base url。
-- `VITE_MICROFLOW_API_MOCK` / `MICROFLOW_API_MOCK`：`msw` 时仅在 dev/test 启动 Contract Mock worker，adapter 仍强制为 `http`。
+- 微流 Contract Mock / MSW 已下线，不再支持 `VITE_MICROFLOW_API_MOCK` / `MICROFLOW_API_MOCK`。
 - `VITE_API_BASE`：未设置微流专用 base url 时的 app-web fallback；若也未设置，app-web 微流入口使用 `/api`。
 
 ## app-web 接入
@@ -73,7 +73,7 @@
 
 ## Contract Mock
 
-第 34 轮起，`@atlas/mendix-studio-core` 提供 `startMicroflowContractMockWorker()`。app-web 仅在 `MICROFLOW_API_MOCK=msw` 且非生产时调用该公开 helper；Resource/Metadata/Runtime/Validation 仍由 HTTP Adapter 发请求，MSW 返回标准 `MicroflowApiResponse<T>`。详见 `contract-mock-readme.md`。
+已下线。`@atlas/mendix-studio-core` 不再导出 `startMicroflowContractMockWorker()` / `createMicroflowContractMockHandlers()`，app-web 不再启动 MSW 微流 mock。Resource/Metadata/Validation/Publish/Version/Reference/Runtime 全部必须走后端 HTTP API。
 
 ## 边界验证
 
@@ -93,7 +93,7 @@ pnpm run verify:microflow-contract-mock
 
 - Round60 总控脚本会先运行 `verify:microflow-adapter-modes`、`verify:microflow-no-production-mock` 与 `verify:microflow-http-error-handling`。
 - 前端生产路径必须保持 `mode=http`，断开后端时显示错误态，不允许自动回退 mock/local。
-- `VITE_MICROFLOW_API_MOCK=msw` 仅用于非生产 contract mock，语义仍是 HTTP adapter 发请求并由 MSW 返回 `MicroflowApiResponse<T>`。
+- 不再支持微流 contract mock；所有联调和自动化必须连接后端 HTTP API。
 - 证据输出见 `artifacts/microflow-e2e/round60/e2e-summary.md`。
 
 ## 第 61 轮生产 no-mock 门禁
