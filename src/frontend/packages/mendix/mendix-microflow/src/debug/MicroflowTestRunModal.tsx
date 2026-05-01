@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Input, Modal, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
 
-import type { MicroflowDataType, MicroflowSchema } from "../schema";
+import type { MicroflowDataType, MicroflowDesignSchema, MicroflowSchema } from "../schema";
 import { buildDefaultRunInputValues, buildRunInputModel, validateRunInputs, type MicroflowRunInputField } from "./run-input-model";
 import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTestRunOptions } from "./trace-types";
 import { formatMendixMicroflowTemplate, getMendixMicroflowCopy } from "../i18n/copy";
@@ -10,7 +10,7 @@ const { Text } = Typography;
 
 export interface MicroflowTestRunModalProps {
   visible: boolean;
-  schema: MicroflowSchema;
+  schema: MicroflowSchema | MicroflowDesignSchema;
   running?: boolean;
   dirty?: boolean;
   validationErrorCount?: number;

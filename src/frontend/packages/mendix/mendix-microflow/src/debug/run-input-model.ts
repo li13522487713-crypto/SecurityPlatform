@@ -38,9 +38,10 @@ export interface MicroflowRunPanelState {
 
 export type MicroflowRunDirtyStrategy = "saveAndRun" | "blockUntilSaved" | "runDraftSchema";
 
-export function buildRunInputModel(schema: MicroflowSchema): MicroflowRunInputModel {
+export function buildRunInputModel(schema: MicroflowSchema | MicroflowDesignSchema): MicroflowRunInputModel {
   const schemaParameters = Array.isArray(schema.parameters) ? schema.parameters : [];
-  const nodeParameters = collectParameterObjects(schema.objectCollection).map(object => {
+  const nodeParameters = "objectCollection" in schema && schema.objectCollection
+    ? collectParameterObjects(schema.objectCollection).map(object => {
     const existing = schemaParameters.find(parameter => parameter.id === object.parameterId);
     return existing ?? {
       id: object.parameterId,
@@ -50,7 +51,8 @@ export function buildRunInputModel(schema: MicroflowSchema): MicroflowRunInputMo
       required: true,
       documentation: object.documentation,
     };
-  });
+  })
+    : [];
   const parameters = schemaParameters.length > 0 ? schemaParameters : nodeParameters;
   const warnings: string[] = [];
 

@@ -6,7 +6,8 @@ import { IconClose, IconDelete, IconPlay, IconRefresh, IconSave, IconSetting, Ic
 import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel";
 import { MicroflowPropertyPanel } from "../property-panel";
 import type { MicroflowApiClient, SaveMicroflowResponse, TestRunMicroflowResponse, ValidateMicroflowResponse } from "../runtime-adapter";
-import type { MicroflowTraceFrame } from "../debug/trace-types";
+import { MicroflowTestRunModal } from "../debug/MicroflowTestRunModal";
+import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTraceFrame } from "../debug/trace-types";
 import type { MicroflowValidationAdapterLike, MicroflowValidationMode } from "../performance";
 import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "../metadata";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "../flowgram/FlowGramMicroflowTypes";
@@ -306,6 +307,10 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [testRunModalOpen, setTestRunModalOpen] = useState(false);
+  const [testRunValues, setTestRunValues] = useState<Record<string, unknown>>();
+  const [lastRunSession, setLastRunSession] = useState<MicroflowRunSession>();
+  const [runtimeServiceError, setRuntimeServiceError] = useState<string>();
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [bottomDockMode, setBottomDockMode] = useState<BottomDockMode>("collapsed");
@@ -441,30 +446,52 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   }, [props, runValidation, saving]);
 
   const handleTestRun = useCallback(async () => {
+    if (saving || running || props.readonly || !latestSchemaRef.current.id) {
+      return;
+    }
+    const validation = await runValidation("testRun");
+    if (validation.summary.errorCount > 0) {
+      setBottomDockMode("peek");
+      setBottomTab("problems");
+      Toast.warning("存在校验错误，无法运行。");
+      return;
+    }
+    setRuntimeServiceError(undefined);
+    setTestRunModalOpen(true);
+  }, [props.readonly, runValidation, running, saving]);
+
+  const executeTestRun = useCallback(async (input: MicroflowTestRunInput) => {
+    if (!props.apiClient) {
+      Toast.warning("当前未配置运行适配器。");
+      return;
+    }
     setRunning(true);
+    setRuntimeServiceError(undefined);
     try {
-      const validation = await runValidation("testRun");
-      if (validation.summary.errorCount > 0) {
-        setBottomDockMode("peek");
-        setBottomTab("problems");
-        Toast.warning("存在校验错误，无法运行。");
-        return;
+      if (dirty) {
+        await handleSave();
       }
-      const response = await props.apiClient?.testRunMicroflow({
+      const response = await props.apiClient.testRunMicroflow({
         microflowId: latestSchemaRef.current.id,
-        input: {},
+        input: input.parameters,
+        options: input.options,
         schema: latestSchemaRef.current,
       });
-      if (response) {
-        props.onTestRunComplete?.(response);
-        Toast.success(`Run ${response.status}`);
-      } else {
-        Toast.warning("当前未配置运行适配器。");
-      }
+      setLastRunSession(response.session);
+      setBottomDockMode("peek");
+      setBottomTab("debug");
+      props.onTestRunComplete?.(response);
+      Toast[response.status === "succeeded" ? "success" : "error"](`Run ${response.status}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setRuntimeServiceError(message);
+      setBottomDockMode("peek");
+      setBottomTab("debug");
+      Toast.error(message);
     } finally {
       setRunning(false);
     }
-  }, [props, runValidation]);
+  }, [dirty, handleSave, props]);
 
   const handlePublish = useCallback(async () => {
     if (!props.onPublish) {
@@ -999,6 +1026,19 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
           <Button size="small" theme="borderless" onClick={() => setBottomDockMode(mode => mode === "collapsed" ? "peek" : "collapsed")}>{bottomOpen ? "Hide" : "Problems"}</Button>
         </Space>
       </div>
+      <MicroflowTestRunModal
+        visible={testRunModalOpen}
+        schema={schema}
+        running={running}
+        dirty={dirty}
+        validationErrorCount={issues.filter(item => item.severity === "error").length}
+        values={testRunValues}
+        lastSession={lastRunSession}
+        serviceError={runtimeServiceError}
+        onCancel={() => setTestRunModalOpen(false)}
+        onValuesChange={setTestRunValues}
+        onRun={executeTestRun}
+      />
     </div>
   );
 }

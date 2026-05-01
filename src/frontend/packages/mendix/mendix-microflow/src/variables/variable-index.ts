@@ -649,8 +649,9 @@ function addLoopVariables(index: MicroflowVariableIndex, object: Extract<Microfl
     scope: { kind: "loop", collectionId: object.objectCollection.id, loopObjectId: object.id },
     readonly: false,
   }));
+  const currentIndexVariableName = object.loopSource.currentIndexVariableName ?? "$currentIndex";
   addSymbol(index, createSymbol({
-    name: object.loopSource.currentIndexVariableName,
+    name: currentIndexVariableName,
     kind: "system",
     dataType: { kind: "integer" },
     source: { kind: "system", name: "$currentIndex" },

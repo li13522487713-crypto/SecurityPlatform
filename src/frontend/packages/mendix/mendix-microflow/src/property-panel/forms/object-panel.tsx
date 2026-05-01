@@ -248,7 +248,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
             </Field>
             {object.kind === "actionActivity" ? <Field label="Output Spec"><TextArea value={p0OutputSummary(object.action)} disabled autosize /></Field> : null}
             {object.kind === "parameterObject" ? <Field label="Parameter"><Input value={`${parameter?.name ?? object.parameterName ?? ""}: ${dataTypeLabel(parameter?.dataType)}`} disabled /></Field> : null}
-            {object.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? <Field label="Loop Variables"><Input value={`${object.loopSource.iteratorVariableName}, ${object.loopSource.currentIndexVariableName}`} disabled /></Field> : null}
+            {object.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? <Field label="Loop Variables"><Input value={`${object.loopSource.iteratorVariableName}, ${object.loopSource.currentIndexVariableName ?? "$currentIndex"}`} disabled /></Field> : null}
             {object.kind === "endEvent" ? <Field label="Return Value"><Input value={object.returnValue?.raw ?? ""} disabled /></Field> : null}
             {object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" ? <Field label="Branch Outputs"><TextArea value={collectFlowsRecursive(props.schema).filter(flow => flow.originObjectId === object.id).map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(value => value.kind).join(",") || "pending" : "annotation"}`).join("\n")} disabled autosize /></Field> : null}
           </>

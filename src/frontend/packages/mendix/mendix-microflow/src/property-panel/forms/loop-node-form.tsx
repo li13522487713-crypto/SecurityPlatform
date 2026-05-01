@@ -98,7 +98,7 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
             />
           </Field>
           <Field label="Current Index Variable">
-            <Input value={object.loopSource.currentIndexVariableName} disabled />
+            <Input value={object.loopSource.currentIndexVariableName ?? "$currentIndex"} disabled />
           </Field>
         </>
       ) : (
