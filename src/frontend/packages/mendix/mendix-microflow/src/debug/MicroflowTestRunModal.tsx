@@ -203,7 +203,7 @@ function RunResultPreview({ session, serviceError }: { session?: MicroflowRunSes
         {session.error?.callStack && session.error.callStack.length > 0 ? (
           <Text type="warning">{copy.testRun.callStackPrefix}: {session.error.callStack.join(" -> ")}</Text>
         ) : null}
-        <pre style={{ whiteSpace: "pre-wrap", margin: 0, maxHeight: 220, overflow: "auto", width: "100%" }}>
+        <pre data-testid="microflow-test-run-output-json" style={{ whiteSpace: "pre-wrap", margin: 0, maxHeight: 220, overflow: "auto", width: "100%" }}>
           {JSON.stringify({
             output: session.output,
             nodeOutputs,

@@ -822,8 +822,28 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
             "map" => ExecuteMap(context, source),
             "take" => JsonSerializer.SerializeToElement(source.Take(ReadLimit(context)).Select(item => item.Clone()).ToArray(), JsonOptions),
             "skip" => JsonSerializer.SerializeToElement(source.Skip(ReadOffset(context)).Select(item => item.Clone()).ToArray(), JsonOptions),
-            _ => JsonSerializer.SerializeToElement(source.Count, JsonOptions)
+            _ => default
         };
+
+        if (result.ValueKind == JsonValueKind.Undefined)
+        {
+            started.Stop();
+            return Task.FromResult(new MicroflowActionExecutionResult
+            {
+                Status = MicroflowActionExecutionStatus.Failed,
+                Error = new MicroflowRuntimeErrorDto
+                {
+                    Code = RuntimeErrorCode.RuntimeUnsupportedAction,
+                    Message = $"List Operation does not support operation '{operation}'.",
+                    ObjectId = context.ObjectId,
+                    ActionId = context.ActionId
+                },
+                Message = $"List Operation does not support operation '{operation}'.",
+                ShouldContinueNormalFlow = false,
+                ShouldStopRun = true,
+                DurationMs = (int)started.ElapsedMilliseconds
+            });
+        }
 
         SetOutputVariable(context, outputName, result, operation);
         started.Stop();

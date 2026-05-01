@@ -28,6 +28,7 @@ import type {
   MicroflowWorkflowJSON,
   MicroflowWorkflowNodeJSON,
 } from "../schema/types";
+import { createDefaultEditorState } from "../schema/utils/schema-utils";
 import type {
   MicroflowEditorHandle,
   MicroflowEditorLabels,
@@ -94,7 +95,30 @@ const defaultLabels: Partial<MicroflowEditorLabels> = {
 };
 
 function cloneSchema(schema: MicroflowDesignSchema): MicroflowDesignSchema {
-  return JSON.parse(JSON.stringify(schema)) as MicroflowDesignSchema;
+  const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowDesignSchema;
+  const defaultEditor = createDefaultEditorState();
+  return {
+    ...cloned,
+    workflow: {
+      ...(cloned.workflow ?? {}),
+      nodes: Array.isArray(cloned.workflow?.nodes) ? cloned.workflow.nodes : [],
+      edges: Array.isArray(cloned.workflow?.edges) ? cloned.workflow.edges : [],
+    },
+    editor: {
+      ...defaultEditor,
+      ...(cloned.editor ?? {}),
+      viewport: {
+        ...defaultEditor.viewport,
+        ...(cloned.editor?.viewport ?? {}),
+      },
+      selection: {
+        ...(cloned.editor?.selection ?? {}),
+      },
+    },
+    parameters: Array.isArray(cloned.parameters) ? cloned.parameters : [],
+    variables: Array.isArray(cloned.variables) ? cloned.variables : [],
+    validation: cloned.validation ?? { issues: [] },
+  };
 }
 
 function isEditableElement(target: EventTarget | null): boolean {

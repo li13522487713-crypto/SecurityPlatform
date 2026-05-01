@@ -269,8 +269,11 @@ function parseJsonInput(rawValue: unknown): { ok: true; value: unknown } | { ok:
   }
 }
 
-function collectParameterObjects(collection: MicroflowObjectCollection): Array<Extract<MicroflowObjectCollection["objects"][number], { kind: "parameterObject" }>> {
+function collectParameterObjects(collection?: MicroflowObjectCollection): Array<Extract<MicroflowObjectCollection["objects"][number], { kind: "parameterObject" }>> {
   const result: Array<Extract<MicroflowObjectCollection["objects"][number], { kind: "parameterObject" }>> = [];
+  if (!collection || !Array.isArray(collection.objects)) {
+    return result;
+  }
   for (const object of collection.objects) {
     if (object.kind === "parameterObject") result.push(object);
     if (object.kind === "loopedActivity") result.push(...collectParameterObjects(object.objectCollection));

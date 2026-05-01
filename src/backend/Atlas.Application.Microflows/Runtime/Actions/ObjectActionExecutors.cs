@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Atlas.Application.Microflows.Models;
+using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Metadata;
 using Atlas.Application.Microflows.Runtime.Objects;
 using Atlas.Application.Microflows.Runtime.Security;
@@ -48,12 +49,36 @@ public abstract class ObjectActionExecutorBase : IMicroflowActionExecutor
             };
         }
 
+        var producedVariables = result.ProducedVariables.ToList();
+        var outputVariableName = ReadString(context.ActionConfig, "outputVariableName")
+            ?? ReadString(context.ActionConfig, "outputObjectVariableName")
+            ?? ReadString(context.ActionConfig, "objectVariableName")
+            ?? ReadString(context.ActionConfig, "resultVariableName");
+        if (!string.IsNullOrWhiteSpace(outputVariableName)
+            && result.Value.HasValue
+            && producedVariables.All(variable => !string.Equals(variable.Name, outputVariableName, StringComparison.Ordinal)))
+        {
+            var value = result.Value.Value;
+            producedVariables.Add(new MicroflowRuntimeVariableValueDto
+            {
+                Name = outputVariableName!,
+                Type = JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = ReadEntityType(context) }, JsonOptions),
+                ValuePreview = MicroflowVariableStore.Preview(value.GetRawText()),
+                RawValue = value.Clone(),
+                RawValueJson = value.GetRawText(),
+                Source = MicroflowVariableSourceKind.ActionOutput,
+                SourceObjectId = context.ObjectId,
+                SourceActionId = context.ActionId,
+                CollectionId = context.CollectionId
+            });
+        }
+
         return new MicroflowActionExecutionResult
         {
             Status = MicroflowActionExecutionStatus.Success,
             OutputJson = result.Value ?? JsonSerializer.SerializeToElement(new { items = result.Items }, JsonOptions),
             OutputPreview = result.Message,
-            ProducedVariables = result.ProducedVariables,
+            ProducedVariables = producedVariables,
             DurationMs = (int)started.ElapsedMilliseconds
         };
     }

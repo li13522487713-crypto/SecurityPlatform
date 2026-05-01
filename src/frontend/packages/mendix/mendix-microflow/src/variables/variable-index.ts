@@ -101,10 +101,12 @@ function addDiagnostic(index: MicroflowVariableIndex, diagnostic: Omit<Microflow
 }
 
 function addSymbol(index: MicroflowVariableIndex, symbol: MicroflowVariableSymbol): void {
+  const name = typeof symbol.name === "string" ? symbol.name : "";
   const normalized: MicroflowVariableSymbol = {
     ...symbol,
-    id: symbol.id ?? `${symbol.source.kind}:${symbol.name}:${symbol.availableFromObjectId ?? symbol.scope.startObjectId ?? symbol.scope.collectionId}`,
-    displayName: symbol.displayName ?? symbol.name,
+    name,
+    id: symbol.id ?? `${symbol.source.kind}:${name}:${symbol.availableFromObjectId ?? symbol.scope.startObjectId ?? symbol.scope.collectionId}`,
+    displayName: symbol.displayName ?? name,
     visibility: symbol.visibility ?? "definite",
   };
   index.all ??= [];
@@ -170,8 +172,9 @@ function createSymbol(input: {
   };
 }
 
-function validateOutputName(index: MicroflowVariableIndex, name: string, objectId?: string, actionId?: string, fieldPath = "action.outputVariableName"): void {
-  if (!name.trim()) {
+function validateOutputName(index: MicroflowVariableIndex, name: string | undefined, objectId?: string, actionId?: string, fieldPath = "action.outputVariableName"): void {
+  const safeName = typeof name === "string" ? name : "";
+  if (!safeName.trim()) {
     addDiagnostic(index, {
       severity: "error",
       code: "MF_VARIABLE_NAME_REQUIRED",
@@ -179,31 +182,31 @@ function validateOutputName(index: MicroflowVariableIndex, name: string, objectI
       objectId,
       actionId,
       fieldPath,
-      variableName: name,
+      variableName: safeName,
     });
     return;
   }
-  if (name.startsWith("$")) {
+  if (safeName.startsWith("$")) {
     addDiagnostic(index, {
       severity: "error",
       code: "MF_VARIABLE_NAME_SYSTEM_RESERVED",
-      message: `Variable "${name}" cannot use the reserved system prefix $.`,
+      message: `Variable "${safeName}" cannot use the reserved system prefix $.`,
       objectId,
       actionId,
       fieldPath,
-      variableName: name,
+      variableName: safeName,
     });
     return;
   }
-  if (!variableNamePattern.test(name)) {
+  if (!variableNamePattern.test(safeName)) {
     addDiagnostic(index, {
       severity: "error",
       code: "MF_VARIABLE_NAME_INVALID",
-      message: `Variable "${name}" must start with a letter or underscore and contain only letters, numbers and underscores.`,
+      message: `Variable "${safeName}" must start with a letter or underscore and contain only letters, numbers and underscores.`,
       objectId,
       actionId,
       fieldPath,
-      variableName: name,
+      variableName: safeName,
     });
   }
 }
@@ -723,15 +726,16 @@ function finalizeDiagnostics(index: MicroflowVariableIndex): void {
   const groups = new Map<string, MicroflowVariableSymbol[]>();
   for (const symbols of Object.values(index.byName ?? {})) {
     for (const symbol of symbols) {
-      if (symbol.name.startsWith("$")) {
+      const symbolName = typeof symbol.name === "string" ? symbol.name : "";
+      if (!symbolName || symbolName.startsWith("$")) {
         continue;
       }
-      const normalized = symbol.name.trim().toLocaleLowerCase();
+      const normalized = symbolName.trim().toLocaleLowerCase();
       groups.set(normalized, [...(groups.get(normalized) ?? []), symbol]);
     }
   }
   for (const symbols of groups.values()) {
-    const userSymbols = symbols.filter(symbol => !symbol.name.startsWith("$"));
+    const userSymbols = symbols.filter(symbol => typeof symbol.name === "string" && !symbol.name.startsWith("$"));
     if (userSymbols.length > 1) {
       for (const symbol of userSymbols) {
         const hasParameterConflict = userSymbols.some(item => item.source.kind === "parameter") && symbol.source.kind !== "parameter";

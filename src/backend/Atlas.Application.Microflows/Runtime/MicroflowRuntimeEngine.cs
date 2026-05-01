@@ -389,6 +389,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             "exclusiveMerge" => ExecuteSingleOutgoing(context, graph, node, incomingFlowId, "Merge"),
             "endEvent" => ExecuteEnd(context, node, incomingFlowId),
             "exclusiveSplit" => ExecuteDecision(context, graph, node, incomingFlowId),
+            "inheritanceSplit" => ExecuteObjectTypeDecision(context, graph, node, incomingFlowId),
             "actionActivity" => await ExecuteActionAsync(context, graph, node, incomingFlowId, state, cancellationToken),
             "loopedActivity" => await ExecuteLoopActivityAsync(context, graph, node, incomingFlowId, cancellationToken).ConfigureAwait(false),
             "errorEvent" => ExecuteErrorEvent(context, node, incomingFlowId),
@@ -396,7 +397,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             "parallelGateway" or "parallelSplit" or "parallelMerge"
                 => await ExecuteParallelGatewayAsync(context, graph, node, incomingFlowId, state, cancellationToken).ConfigureAwait(false),
             "inclusiveGateway" or "inclusiveSplit" or "inclusiveMerge"
-                => ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "inclusive"),
+                => await ExecuteInclusiveGatewayAsync(context, graph, node, incomingFlowId, state, cancellationToken).ConfigureAwait(false),
             "tryCatch"
                 => ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "tryCatch"),
             "errorHandler"
@@ -753,6 +754,216 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             }),
             null);
         return NodeExecution.Next(joinNodeId!, outgoing[0].Id);
+    }
+
+    private async Task<NodeExecution> ExecuteInclusiveGatewayAsync(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        MicroflowObjectModel node,
+        string? incomingFlowId,
+        CallExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        var outgoing = graph.NormalOutgoing(node.Id);
+        if (outgoing.Count == 0)
+        {
+            var error = Error(RuntimeErrorCode.RuntimeFlowNotFound, $"inclusive Gateway 至少需要一条 normal outgoing flow：{node.Id}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        var selected = SelectInclusiveOutgoing(context, node, outgoing, out var selectedCases, out var selectionError);
+        if (selectionError is not null)
+        {
+            context.AddNodeFailure(node, incomingFlowId, selectionError);
+            return NodeExecution.Failed(selectionError);
+        }
+
+        if (selected.Count == 1)
+        {
+            var flow = selected[0];
+            context.AddFrame(
+                node,
+                incomingFlowId,
+                flow.Id,
+                "success",
+                JsonObj(new { node.Kind, gatewayKind = "inclusive", outgoingCount = outgoing.Count, selectedFlowIds = selected.Select(item => item.Id).ToArray() }),
+                JsonObj(new { nextNodeId = flow.DestinationObjectId, selectedFlowIds = selected.Select(item => item.Id).ToArray(), selectedCases }),
+                null);
+            return NodeExecution.Next(flow.DestinationObjectId!, flow.Id);
+        }
+
+        var joinNodeId = FindGatewayJoinNodeId(graph, node.Id, selected, candidate => candidate.Kind is "inclusiveGateway" or "inclusiveMerge" or "parallelGateway" or "parallelMerge");
+        if (string.IsNullOrWhiteSpace(joinNodeId))
+        {
+            var error = Error(RuntimeErrorCode.RuntimeFlowNotFound, $"inclusive Gateway 未找到可汇聚的 join 节点：{node.Id}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        var scheduler = new ParallelBranchScheduler();
+        var joinStore = new InMemoryGatewayJoinStateStore();
+        var splitInstanceId = SplitInstanceId.New(node.Id).ToString();
+        var branchContexts = new List<(string BranchId, RuntimeContext Context)>(selected.Count);
+        var requests = selected.Select((flow, index) =>
+        {
+            var branchId = string.IsNullOrWhiteSpace(flow.Id) ? $"inclusive-branch-{index + 1}" : flow.Id;
+            var branchContext = context.ForkForBranch(branchId, _variableScopeForker);
+            branchContexts.Add((branchId, branchContext));
+            return new MicroflowBranchExecutionRequest
+            {
+                BranchId = branchId,
+                SplitInstanceId = splitInstanceId,
+                ExecuteAsync = async ct =>
+                {
+                    joinStore.MarkArrived(splitInstanceId, branchId);
+                    var result = await ExecuteParallelBranchAsync(branchContext, graph, flow.DestinationObjectId!, joinNodeId!, state, ct).ConfigureAwait(false);
+                    if (result.Success)
+                    {
+                        joinStore.MarkCompleted(splitInstanceId, branchId);
+                    }
+                    else
+                    {
+                        joinStore.MarkFailed(splitInstanceId, branchId);
+                    }
+
+                    return result;
+                }
+            };
+        }).ToArray();
+
+        var results = await scheduler.RunAsync(requests, cancellationToken).ConfigureAwait(false);
+        var conflictCodes = GatewayWriteConflictDetector.Detect(branchContexts.SelectMany(item => item.Context.CollectWriteIntents(item.BranchId)).ToArray());
+        if (conflictCodes.Count > 0)
+        {
+            var conflict = conflictCodes[0];
+            var errorCode = conflict.Split(':', 2)[0];
+            var error = Error(errorCode, $"inclusive 分支写入冲突：{conflict}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        var failed = results.FirstOrDefault(result => !result.Success);
+        if (failed is not null)
+        {
+            var error = Error(
+                failed.ErrorCode ?? RuntimeErrorCode.RuntimeUnknownError,
+                failed.ErrorMessage ?? $"inclusive 分支执行失败：{failed.BranchId}",
+                node.Id,
+                flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        foreach (var branch in branchContexts)
+        {
+            context.MergeFromBranch(branch.Context);
+        }
+
+        _branchMergePolicy.Merge(
+            context.VariableStore,
+            branchContexts.Select(branch => new BranchExecutionContext
+            {
+                BranchId = branch.BranchId,
+                VariableStore = branch.Context.VariableStore
+            }).ToArray());
+
+        context.AddFrame(
+            node,
+            incomingFlowId,
+            selected[0].Id,
+            "success",
+            JsonObj(new
+            {
+                node.Kind,
+                gatewayKind = "inclusive",
+                outgoingCount = outgoing.Count,
+                selectedFlowIds = selected.Select(item => item.Id).ToArray(),
+                splitInstanceId
+            }),
+            JsonObj(new
+            {
+                joinNodeId,
+                selectedCases,
+                completedBranches = results.Select(result => result.BranchId).OrderBy(id => id, StringComparer.Ordinal).ToArray()
+            }),
+            null);
+        return NodeExecution.Next(joinNodeId!, selected[0].Id);
+    }
+
+    private static IReadOnlyList<MicroflowFlowModel> SelectInclusiveOutgoing(
+        RuntimeContext context,
+        MicroflowObjectModel node,
+        IReadOnlyList<MicroflowFlowModel> outgoing,
+        out JsonElement selectedCases,
+        out MicroflowRuntimeErrorDto? error)
+    {
+        error = null;
+        var selected = new List<MicroflowFlowModel>();
+        var cases = new List<JsonElement>();
+        MicroflowFlowModel? fallback = null;
+        JsonElement? fallbackCase = null;
+
+        foreach (var flow in outgoing)
+        {
+            if (flow.CaseValues.Count == 0)
+            {
+                fallback ??= flow;
+                continue;
+            }
+
+            var matched = false;
+            foreach (var caseValue in flow.CaseValues)
+            {
+                if (MicroflowRuntimeGraph.CaseMatches(caseValue, "otherwise")
+                    || MicroflowRuntimeGraph.CaseMatches(caseValue, "else")
+                    || MicroflowRuntimeGraph.CaseMatches(caseValue, "default"))
+                {
+                    fallback ??= flow;
+                    fallbackCase ??= caseValue.Clone();
+                    continue;
+                }
+
+                var expression = ReadExpressionText(caseValue)
+                    ?? ReadString(caseValue, "condition")
+                    ?? ReadString(caseValue, "expression");
+                if (string.IsNullOrWhiteSpace(expression))
+                {
+                    continue;
+                }
+
+                var evaluated = context.EvaluateExpression(expression!, currentObjectId: node.Id);
+                if (evaluated.ValueKind is not JsonValueKind.True and not JsonValueKind.False)
+                {
+                    error = Error(RuntimeErrorCode.RuntimeExpressionError, $"Inclusive Gateway 条件必须返回 boolean：{node.Id}", node.Id);
+                    selectedCases = JsonSerializer.SerializeToElement(Array.Empty<object>(), JsonOptions);
+                    return Array.Empty<MicroflowFlowModel>();
+                }
+
+                if (evaluated.GetBoolean())
+                {
+                    matched = true;
+                    cases.Add(caseValue.Clone());
+                }
+            }
+
+            if (matched)
+            {
+                selected.Add(flow);
+            }
+        }
+
+        if (selected.Count == 0 && fallback is not null)
+        {
+            selected.Add(fallback);
+            if (fallbackCase.HasValue)
+            {
+                cases.Add(fallbackCase.Value);
+            }
+        }
+
+        selectedCases = JsonSerializer.SerializeToElement(cases, JsonOptions);
+        return selected;
     }
 
     private static MicroflowFlowModel SelectGatewayOutgoing(
@@ -1483,6 +1694,193 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         return NodeExecution.Next(selected.Flow.DestinationObjectId!, selected.Flow.Id);
     }
 
+    private static NodeExecution ExecuteObjectTypeDecision(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId)
+    {
+        var inputVariableName = ReadString(node.Raw, "inputObjectVariableName")
+            ?? ReadString(node.Raw, "inputObject")
+            ?? ReadStringByPath(node.Raw, "config", "inputObjectVariableName")
+            ?? ReadStringByPath(node.Raw, "config", "inputObject");
+        if (string.IsNullOrWhiteSpace(inputVariableName))
+        {
+            var error = Error(RuntimeErrorCode.RuntimeVariableNotFound, $"Object Type Decision 缺少 inputObjectVariableName：{node.Id}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        var variableName = NormalizeVariableName(inputVariableName);
+        var outgoing = graph.NormalOutgoing(node.Id);
+        if (outgoing.Count == 0)
+        {
+            var error = Error(RuntimeErrorCode.RuntimeFlowNotFound, $"Object Type Decision 至少需要一条 outgoing flow：{node.Id}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        var hasValue = context.VariableStore.TryGet(variableName, out var variable)
+            && variable is not null
+            && !string.IsNullOrWhiteSpace(variable.RawValueJson);
+        JsonElement? objectValue = hasValue ? MicroflowVariableStore.ToJsonElement(variable!.RawValueJson!) : null;
+        if (!hasValue || objectValue is null || objectValue.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            var emptyFlow = FindObjectTypeFlow(outgoing, "empty") ?? FindObjectTypeFlow(outgoing, "noCase") ?? FindObjectTypeFlow(outgoing, "fallback");
+            if (emptyFlow is null)
+            {
+                var error = Error(RuntimeErrorCode.RuntimeInvalidCase, $"Object Type Decision 未找到 empty/fallback 分支：{node.Id}", node.Id, flowId: incomingFlowId);
+                context.AddNodeFailure(node, incomingFlowId, error);
+                return NodeExecution.Failed(error);
+            }
+
+            return ContinueObjectType(context, node, incomingFlowId, emptyFlow.Value.Flow, emptyFlow.Value.CaseValue, actualEntity: null);
+        }
+
+        var actualEntity = ReadString(objectValue.Value, "entityType")
+            ?? ReadString(objectValue.Value, "entityQualifiedName")
+            ?? ReadString(objectValue.Value, "$entity")
+            ?? TryReadEntityFromDataType(variable!.DataTypeJson);
+        if (string.IsNullOrWhiteSpace(actualEntity))
+        {
+            var error = Error(RuntimeErrorCode.RuntimeVariableTypeMismatch, $"Object Type Decision 无法识别对象变量实体：{variableName}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        foreach (var flow in outgoing)
+        {
+            foreach (var caseValue in flow.CaseValues)
+            {
+                var token = CaseToken(caseValue);
+                if (string.IsNullOrWhiteSpace(token)
+                    || IsFallbackObjectTypeCase(token)
+                    || string.Equals(token, "empty", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(token, "noCase", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (IsEntityAssignable(actualEntity, token!, context.Metadata))
+                {
+                    return ContinueObjectType(context, node, incomingFlowId, flow, caseValue, actualEntity);
+                }
+            }
+        }
+
+        var fallback = FindObjectTypeFlow(outgoing, "fallback") ?? FindObjectTypeFlow(outgoing, "noCase");
+        if (fallback is null)
+        {
+            var error = Error(RuntimeErrorCode.RuntimeInvalidCase, $"Object Type Decision 未找到匹配分支：{actualEntity}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        return ContinueObjectType(context, node, incomingFlowId, fallback.Value.Flow, fallback.Value.CaseValue, actualEntity);
+    }
+
+    private static NodeExecution ContinueObjectType(RuntimeContext context, MicroflowObjectModel node, string? incomingFlowId, MicroflowFlowModel selectedFlow, JsonElement selectedCase, string? actualEntity)
+    {
+        context.AddFrame(
+            node,
+            incomingFlowId,
+            selectedFlow.Id,
+            "success",
+            JsonObj(new { actualEntity }),
+            JsonObj(new { actualEntity, selectedFlowId = selectedFlow.Id, selectedCase }),
+            null,
+            selectedCase);
+        return NodeExecution.Next(selectedFlow.DestinationObjectId!, selectedFlow.Id);
+    }
+
+    private static (MicroflowFlowModel Flow, JsonElement CaseValue)? FindObjectTypeFlow(IReadOnlyList<MicroflowFlowModel> outgoing, string expected)
+    {
+        foreach (var flow in outgoing)
+        {
+            foreach (var caseValue in flow.CaseValues)
+            {
+                if (MicroflowRuntimeGraph.CaseMatches(caseValue, expected))
+                {
+                    return (flow, caseValue.Clone());
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsFallbackObjectTypeCase(string value)
+        => value.Equals("fallback", StringComparison.OrdinalIgnoreCase)
+           || value.Equals("otherwise", StringComparison.OrdinalIgnoreCase)
+           || value.Equals("else", StringComparison.OrdinalIgnoreCase)
+           || value.Equals("default", StringComparison.OrdinalIgnoreCase);
+
+    private static string? CaseToken(JsonElement caseValue)
+    {
+        if (caseValue.ValueKind == JsonValueKind.Object)
+        {
+            return ReadString(caseValue, "entityQualifiedName")
+                ?? ReadString(caseValue, "persistedValue")
+                ?? ReadString(caseValue, "value")
+                ?? ReadString(caseValue, "conditionKey")
+                ?? ReadString(caseValue, "kind");
+        }
+
+        return caseValue.ValueKind switch
+        {
+            JsonValueKind.String => caseValue.GetString(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Number => caseValue.GetRawText(),
+            _ => null
+        };
+    }
+
+    private static bool IsEntityAssignable(string actualEntity, string targetEntity, MicroflowMetadataCatalogDto? catalog)
+    {
+        if (string.Equals(actualEntity, targetEntity, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var current = actualEntity;
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (catalog?.Entities.FirstOrDefault(entity => string.Equals(entity.QualifiedName, current, StringComparison.OrdinalIgnoreCase)) is { } entity
+               && !string.IsNullOrWhiteSpace(entity.Generalization)
+               && visited.Add(current))
+        {
+            current = entity.Generalization!;
+            if (string.Equals(current, targetEntity, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? TryReadEntityFromDataType(string? dataTypeJson)
+    {
+        if (string.IsNullOrWhiteSpace(dataTypeJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(dataTypeJson);
+            return ReadString(document.RootElement, "entityQualifiedName")
+                ?? ReadString(document.RootElement, "entityType")
+                ?? ReadString(document.RootElement, "qualifiedName");
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string NormalizeVariableName(string variableName)
+    {
+        var value = variableName.Trim();
+        return value.StartsWith("$", StringComparison.Ordinal) ? value[1..] : value;
+    }
+
     private async Task<MicroflowBranchExecutionResult> ExecuteParallelBranchAsync(
         RuntimeContext context,
         MicroflowRuntimeGraph graph,
@@ -1556,6 +1954,13 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         MicroflowRuntimeGraph graph,
         string splitNodeId,
         IReadOnlyList<MicroflowFlowModel> outgoing)
+        => FindGatewayJoinNodeId(graph, splitNodeId, outgoing, candidate => candidate.Kind is "parallelGateway" or "parallelMerge");
+
+    private static string? FindGatewayJoinNodeId(
+        MicroflowRuntimeGraph graph,
+        string splitNodeId,
+        IReadOnlyList<MicroflowFlowModel> outgoing,
+        Func<MicroflowObjectModel, bool> isJoinCandidate)
     {
         var distancesPerBranch = outgoing
             .Where(flow => !string.IsNullOrWhiteSpace(flow.DestinationObjectId))
@@ -1575,7 +1980,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             })
             .Where(candidateId => !string.Equals(candidateId, splitNodeId, StringComparison.Ordinal))
             .Where(candidateId => graph.Objects.TryGetValue(candidateId, out var candidate)
-                && candidate.Kind is "parallelGateway" or "parallelMerge")
+                && isJoinCandidate(candidate))
             .ToArray();
         return candidateIds
             .OrderBy(candidateId => distancesPerBranch.Sum(map => map.GetValueOrDefault(candidateId, int.MaxValue)))

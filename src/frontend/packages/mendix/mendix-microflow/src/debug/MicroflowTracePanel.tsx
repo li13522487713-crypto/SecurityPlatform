@@ -143,7 +143,7 @@ export function MicroflowTracePanel({
           <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(session.input, null, 2)}</pre>
         </Tabs.TabPane>
         <Tabs.TabPane tab="Output" itemKey="output">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(session.output, null, 2)}</pre>
+          <pre data-testid="microflow-trace-output-json" style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(session.output, null, 2)}</pre>
         </Tabs.TabPane>
         <Tabs.TabPane tab="Logs" itemKey="logs">
           <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(session.logs, null, 2)}</pre>
