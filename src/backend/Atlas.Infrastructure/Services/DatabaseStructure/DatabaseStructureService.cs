@@ -1,5 +1,7 @@
 using System.Data;
 using System.Diagnostics;
+using System.Text;
+using System.Text.RegularExpressions;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Exceptions;
@@ -70,6 +72,15 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
         string? schema,
         CancellationToken cancellationToken)
         => await GetColumnsAsync(tenantId, databaseId, environment, tableName, schema, cancellationToken);
+
+    public async Task<IReadOnlyList<DatabaseForeignKeyDto>> GetTableForeignKeysAsync(
+        TenantId tenantId,
+        long databaseId,
+        AiDatabaseRecordEnvironment environment,
+        string tableName,
+        string? schema,
+        CancellationToken cancellationToken)
+        => await GetForeignKeysAsync(tenantId, databaseId, environment, tableName, schema, cancellationToken);
 
     public async Task<IReadOnlyList<DatabaseColumnDto>> GetViewColumnsAsync(
         TenantId tenantId,
@@ -150,6 +161,114 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
             request.TableName,
             schema,
             request.Column with { DataType = scope.Dialect.NormalizeDataType(request.Column.DataType, request.Column.Length, request.Column.Precision, request.Column.Scale) });
+        await scope.Client.Ado.ExecuteCommandAsync(sql);
+        _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
+    }
+
+    public async Task AlterColumnAsync(TenantId tenantId, long databaseId, AlterTableColumnRequest request, CancellationToken cancellationToken)
+    {
+        using var scope = await OpenAsync(tenantId, databaseId, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+        var schema = ResolveDefaultSchema(scope.Database, AiDatabaseRecordEnvironment.Draft, request.Schema);
+        if (string.Equals(scope.Database.DriverCode, "SQLite", StringComparison.OrdinalIgnoreCase))
+        {
+            var columns = (await ReadColumnsAsync(scope, request.TableName, schema)).ToList();
+            var index = columns.FindIndex(column => string.Equals(column.Name, request.ColumnName, StringComparison.OrdinalIgnoreCase));
+            if (index < 0)
+            {
+                throw new BusinessException("对象不存在。", ErrorCodes.NotFound);
+            }
+
+            columns[index] = new DatabaseColumnDto(
+                request.Column.Name,
+                request.Column.DataType,
+                request.Column.DataType,
+                request.Column.Length,
+                request.Column.Precision,
+                request.Column.Scale,
+                request.Column.Nullable,
+                request.Column.PrimaryKey,
+                request.Column.AutoIncrement,
+                request.Column.DefaultValue,
+                request.Column.Comment,
+                columns[index].Ordinal);
+            var foreignKeys = await ReadForeignKeysAsync(scope, request.TableName, schema);
+            await RebuildSqliteTableAsync(scope, request.TableName, schema, columns, foreignKeys, cancellationToken);
+            _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
+            return;
+        }
+
+        var sql = scope.Dialect.BuildAlterColumnSql(
+            request.TableName,
+            schema,
+            request.ColumnName,
+            request.Column with { DataType = scope.Dialect.NormalizeDataType(request.Column.DataType, request.Column.Length, request.Column.Precision, request.Column.Scale) });
+        await scope.Client.Ado.ExecuteCommandAsync(sql);
+        _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
+    }
+
+    public async Task RenameColumnAsync(TenantId tenantId, long databaseId, RenameTableColumnRequest request, CancellationToken cancellationToken)
+    {
+        using var scope = await OpenAsync(tenantId, databaseId, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+        var schema = ResolveDefaultSchema(scope.Database, AiDatabaseRecordEnvironment.Draft, request.Schema);
+        var sql = scope.Dialect.BuildRenameColumnSql(request.TableName, schema, request.ColumnName, request.NewColumnName);
+        await scope.Client.Ado.ExecuteCommandAsync(sql);
+        _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
+    }
+
+    public async Task DropColumnAsync(TenantId tenantId, long databaseId, DropTableColumnRequest request, CancellationToken cancellationToken)
+    {
+        using var scope = await OpenAsync(tenantId, databaseId, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+        var schema = ResolveDefaultSchema(scope.Database, AiDatabaseRecordEnvironment.Draft, request.Schema);
+        var sql = scope.Dialect.BuildDropColumnSql(request.TableName, schema, request.ColumnName);
+        await scope.Client.Ado.ExecuteCommandAsync(sql);
+        _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
+    }
+
+    public async Task CreateForeignKeyAsync(TenantId tenantId, long databaseId, CreateForeignKeyRequest request, CancellationToken cancellationToken)
+    {
+        using var scope = await OpenAsync(tenantId, databaseId, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+        var schema = ResolveDefaultSchema(scope.Database, AiDatabaseRecordEnvironment.Draft, request.Schema);
+        if (string.Equals(scope.Database.DriverCode, "SQLite", StringComparison.OrdinalIgnoreCase))
+        {
+            var columns = await ReadColumnsAsync(scope, request.TableName, schema);
+            var foreignKeys = (await ReadForeignKeysAsync(scope, request.TableName, schema)).ToList();
+            foreignKeys.RemoveAll(foreignKey => string.Equals(foreignKey.Name, request.ForeignKeyName, StringComparison.OrdinalIgnoreCase));
+            foreignKeys.Add(new DatabaseForeignKeyDto(
+                request.ForeignKeyName,
+                request.TableName,
+                schema,
+                request.SourceColumns,
+                request.ReferencedTableName,
+                request.ReferencedSchema,
+                request.ReferencedColumns,
+                request.OnDelete,
+                request.OnUpdate));
+            await RebuildSqliteTableAsync(scope, request.TableName, schema, columns, foreignKeys, cancellationToken);
+            _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
+            return;
+        }
+
+        var sql = scope.Dialect.BuildCreateForeignKeySql(request with { Schema = schema });
+        await scope.Client.Ado.ExecuteCommandAsync(sql);
+        _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
+    }
+
+    public async Task DropForeignKeyAsync(TenantId tenantId, long databaseId, DropForeignKeyRequest request, CancellationToken cancellationToken)
+    {
+        using var scope = await OpenAsync(tenantId, databaseId, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+        var schema = ResolveDefaultSchema(scope.Database, AiDatabaseRecordEnvironment.Draft, request.Schema);
+        if (string.Equals(scope.Database.DriverCode, "SQLite", StringComparison.OrdinalIgnoreCase))
+        {
+            var columns = await ReadColumnsAsync(scope, request.TableName, schema);
+            var foreignKeys = (await ReadForeignKeysAsync(scope, request.TableName, schema))
+                .Where(foreignKey => !string.Equals(foreignKey.Name, request.ForeignKeyName, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            await RebuildSqliteTableAsync(scope, request.TableName, schema, columns, foreignKeys, cancellationToken);
+            _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
+            return;
+        }
+
+        var sql = scope.Dialect.BuildDropForeignKeySql(request with { Schema = schema });
         await scope.Client.Ado.ExecuteCommandAsync(sql);
         _clientFactory.RemoveFromCache(databaseId, AiDatabaseRecordEnvironment.Draft);
     }
@@ -491,6 +610,57 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
         return table.Rows.Cast<DataRow>().Select(MapColumn).ToList();
     }
 
+    private static async Task<IReadOnlyList<DatabaseColumnDto>> ReadColumnsAsync(
+        DatabaseScope scope,
+        string objectName,
+        string? schema)
+    {
+        var table = await scope.Client.Ado.GetDataTableAsync(scope.Dialect.GetColumnListSql(objectName, schema));
+        if (table.Rows.Count == 0)
+        {
+            throw new BusinessException("对象不存在。", ErrorCodes.NotFound);
+        }
+
+        return table.Rows.Cast<DataRow>().Select(MapColumn).ToList();
+    }
+
+    private async Task<IReadOnlyList<DatabaseForeignKeyDto>> GetForeignKeysAsync(
+        TenantId tenantId,
+        long databaseId,
+        AiDatabaseRecordEnvironment environment,
+        string tableName,
+        string? schema,
+        CancellationToken cancellationToken)
+    {
+        using var scope = await OpenAsync(tenantId, databaseId, environment, cancellationToken);
+        schema = ResolveDefaultSchema(scope.Database, environment, schema);
+        var table = await scope.Client.Ado.GetDataTableAsync(scope.Dialect.BuildForeignKeysSql(tableName, schema));
+        var foreignKeys = MapForeignKeys(table, tableName, schema);
+        if (string.Equals(scope.Database.DriverCode, "SQLite", StringComparison.OrdinalIgnoreCase))
+        {
+            var ddl = await scope.Dialect.GetTableDdlAsync(scope.Client, tableName, schema, cancellationToken);
+            return ApplySqliteConstraintNames(foreignKeys, ddl);
+        }
+
+        return foreignKeys;
+    }
+
+    private static async Task<IReadOnlyList<DatabaseForeignKeyDto>> ReadForeignKeysAsync(
+        DatabaseScope scope,
+        string tableName,
+        string? schema)
+    {
+        var table = await scope.Client.Ado.GetDataTableAsync(scope.Dialect.BuildForeignKeysSql(tableName, schema));
+        var foreignKeys = MapForeignKeys(table, tableName, schema);
+        if (string.Equals(scope.Database.DriverCode, "SQLite", StringComparison.OrdinalIgnoreCase))
+        {
+            var ddl = await scope.Dialect.GetTableDdlAsync(scope.Client, tableName, schema, CancellationToken.None);
+            return ApplySqliteConstraintNames(foreignKeys, ddl);
+        }
+
+        return foreignKeys;
+    }
+
     private async Task<DdlResponse> GetDdlAsync(
         TenantId tenantId,
         long databaseId,
@@ -634,6 +804,199 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
             ReadString(row, "default_value"),
             ReadString(row, "comment"),
             ReadInt(row, "ordinal") ?? 0);
+    }
+
+    private static IReadOnlyList<DatabaseForeignKeyDto> MapForeignKeys(DataTable table, string tableName, string? schema)
+    {
+        if (table.Rows.Count == 0)
+        {
+            return [];
+        }
+
+        var sqliteRows = table.Columns.Contains("fk_id");
+        if (sqliteRows)
+        {
+            return table.Rows.Cast<DataRow>()
+                .GroupBy(row => ReadInt(row, "fk_id") ?? 0)
+                .Select(group => new DatabaseForeignKeyDto(
+                    $"fk_{tableName}_{group.Key}",
+                    tableName,
+                    schema,
+                    group.OrderBy(row => ReadInt(row, "fk_seq") ?? 0).Select(row => ReadString(row, "source_column_name") ?? string.Empty).Where(name => name.Length > 0).ToArray(),
+                    group.Select(row => ReadString(row, "referenced_table_name") ?? string.Empty).FirstOrDefault(name => name.Length > 0) ?? string.Empty,
+                    null,
+                    group.OrderBy(row => ReadInt(row, "fk_seq") ?? 0).Select(row => ReadString(row, "referenced_column_name") ?? string.Empty).Where(name => name.Length > 0).ToArray(),
+                    group.Select(row => ReadString(row, "on_delete")).FirstOrDefault(),
+                    group.Select(row => ReadString(row, "on_update")).FirstOrDefault()))
+                .Where(item => item.SourceColumns.Count > 0 && !string.IsNullOrWhiteSpace(item.ReferencedTableName))
+                .ToArray();
+        }
+
+        return table.Rows.Cast<DataRow>()
+            .GroupBy(row => ReadString(row, "foreign_key_name") ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .Where(group => !string.IsNullOrWhiteSpace(group.Key))
+            .Select(group => new DatabaseForeignKeyDto(
+                group.Key,
+                ReadString(group.First(), "table_name") ?? tableName,
+                ReadString(group.First(), "schema_name") ?? schema,
+                group.OrderBy(row => ReadInt(row, "ordinal_position") ?? 0).Select(row => ReadString(row, "source_column_name") ?? string.Empty).Where(name => name.Length > 0).ToArray(),
+                ReadString(group.First(), "referenced_table_name") ?? string.Empty,
+                ReadString(group.First(), "referenced_schema_name"),
+                group.OrderBy(row => ReadInt(row, "ordinal_position") ?? 0).Select(row => ReadString(row, "referenced_column_name") ?? string.Empty).Where(name => name.Length > 0).ToArray(),
+                ReadString(group.First(), "on_delete"),
+                ReadString(group.First(), "on_update")))
+            .Where(item => item.SourceColumns.Count > 0 && !string.IsNullOrWhiteSpace(item.ReferencedTableName))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<DatabaseForeignKeyDto> ApplySqliteConstraintNames(
+        IReadOnlyList<DatabaseForeignKeyDto> foreignKeys,
+        string ddl)
+    {
+        if (foreignKeys.Count == 0 || string.IsNullOrWhiteSpace(ddl))
+        {
+            return foreignKeys;
+        }
+
+        var namedConstraints = Regex.Matches(
+                ddl,
+                @"CONSTRAINT\s+[""`]?(?<name>[\w_]+)[""`]?\s+FOREIGN\s+KEY\s*\((?<source>[^\)]+)\)\s+REFERENCES\s+[""`]?(?<targetTable>[\w_]+)[""`]?\s*\((?<target>[^\)]+)\)",
+                RegexOptions.IgnoreCase | RegexOptions.Multiline)
+            .Select(match => new
+            {
+                Name = match.Groups["name"].Value,
+                SourceColumns = SplitIdentifierList(match.Groups["source"].Value),
+                TargetTable = match.Groups["targetTable"].Value,
+                TargetColumns = SplitIdentifierList(match.Groups["target"].Value)
+            })
+            .ToArray();
+
+        if (namedConstraints.Length == 0)
+        {
+            return foreignKeys;
+        }
+
+        return foreignKeys.Select(foreignKey =>
+        {
+            var named = namedConstraints.FirstOrDefault(item =>
+                string.Equals(item.TargetTable, foreignKey.ReferencedTableName, StringComparison.OrdinalIgnoreCase)
+                && item.SourceColumns.SequenceEqual(foreignKey.SourceColumns, StringComparer.OrdinalIgnoreCase)
+                && item.TargetColumns.SequenceEqual(foreignKey.ReferencedColumns, StringComparer.OrdinalIgnoreCase));
+            return named is null ? foreignKey : foreignKey with { Name = named.Name };
+        }).ToArray();
+    }
+
+    private static IReadOnlyList<string> SplitIdentifierList(string raw)
+        => raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(item => item.Trim().Trim('"', '`', '[', ']'))
+            .ToArray();
+
+    private static async Task RebuildSqliteTableAsync(
+        DatabaseScope scope,
+        string tableName,
+        string? schema,
+        IReadOnlyList<DatabaseColumnDto> columns,
+        IReadOnlyList<DatabaseForeignKeyDto> foreignKeys,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var dialect = scope.Dialect;
+        var temporaryTableName = $"{tableName}__atlas_rebuild_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        dialect.ValidateIdentifier(temporaryTableName, nameof(temporaryTableName));
+
+        var createSql = BuildSqliteCreateTableSql(dialect, temporaryTableName, schema, columns, foreignKeys);
+        var transferableColumns = columns.Select(column => column.Name).ToArray();
+        var selectColumns = string.Join(", ", transferableColumns.Select(dialect.QuoteIdentifier));
+        var tempName = dialect.QuoteFullName(schema, temporaryTableName);
+        var originalName = dialect.QuoteFullName(schema, tableName);
+        var renameSql = $"ALTER TABLE {tempName} RENAME TO {dialect.QuoteIdentifier(tableName)};";
+
+        await scope.Client.Ado.ExecuteCommandAsync("PRAGMA foreign_keys=OFF;");
+        scope.Client.Ado.BeginTran();
+        try
+        {
+            await scope.Client.Ado.ExecuteCommandAsync(createSql);
+            await scope.Client.Ado.ExecuteCommandAsync($"INSERT INTO {tempName} ({selectColumns}) SELECT {selectColumns} FROM {originalName};");
+            await scope.Client.Ado.ExecuteCommandAsync($"DROP TABLE {originalName};");
+            await scope.Client.Ado.ExecuteCommandAsync(renameSql);
+            scope.Client.Ado.CommitTran();
+        }
+        catch
+        {
+            scope.Client.Ado.RollbackTran();
+            throw;
+        }
+        finally
+        {
+            await scope.Client.Ado.ExecuteCommandAsync("PRAGMA foreign_keys=ON;");
+        }
+    }
+
+    private static string BuildSqliteCreateTableSql(
+        IDatabaseDialect dialect,
+        string tableName,
+        string? schema,
+        IReadOnlyList<DatabaseColumnDto> columns,
+        IReadOnlyList<DatabaseForeignKeyDto> foreignKeys)
+    {
+        var lines = columns.OrderBy(column => column.Ordinal).Select(column => BuildSqliteColumnDefinition(dialect, column)).ToList();
+        var primaryKeys = columns.Where(column => column.PrimaryKey && !column.AutoIncrement).OrderBy(column => column.Ordinal).Select(column => dialect.QuoteIdentifier(column.Name)).ToArray();
+        if (primaryKeys.Length > 0)
+        {
+            lines.Add($"PRIMARY KEY ({string.Join(", ", primaryKeys)})");
+        }
+
+        foreach (var foreignKey in foreignKeys)
+        {
+            var sourceColumns = string.Join(", ", foreignKey.SourceColumns.Select(dialect.QuoteIdentifier));
+            var referencedColumns = string.Join(", ", foreignKey.ReferencedColumns.Select(dialect.QuoteIdentifier));
+            lines.Add(
+                $"CONSTRAINT {dialect.QuoteIdentifier(foreignKey.Name)} FOREIGN KEY ({sourceColumns}) REFERENCES {dialect.QuoteFullName(foreignKey.ReferencedSchema, foreignKey.ReferencedTableName)} ({referencedColumns}) ON DELETE {NormalizeReferentialAction(foreignKey.OnDelete)} ON UPDATE {NormalizeReferentialAction(foreignKey.OnUpdate)}");
+        }
+
+        var builder = new StringBuilder();
+        builder.AppendLine($"CREATE TABLE {dialect.QuoteFullName(schema, tableName)} (");
+        builder.AppendLine("  " + string.Join("," + Environment.NewLine + "  ", lines));
+        builder.Append(");");
+        return builder.ToString();
+    }
+
+    private static string BuildSqliteColumnDefinition(IDatabaseDialect dialect, DatabaseColumnDto column)
+    {
+        if (column.PrimaryKey && column.AutoIncrement)
+        {
+            return $"{dialect.QuoteIdentifier(column.Name)} INTEGER PRIMARY KEY AUTOINCREMENT";
+        }
+
+        var pieces = new List<string>
+        {
+            dialect.QuoteIdentifier(column.Name),
+            string.IsNullOrWhiteSpace(column.RawDataType) ? column.DataType : column.RawDataType!
+        };
+        if (!column.Nullable || column.PrimaryKey)
+        {
+            pieces.Add("NOT NULL");
+        }
+
+        if (!string.IsNullOrWhiteSpace(column.DefaultValue))
+        {
+            pieces.Add($"DEFAULT {column.DefaultValue!.Trim()}");
+        }
+
+        return string.Join(' ', pieces);
+    }
+
+    private static string NormalizeReferentialAction(string? action)
+    {
+        var normalized = string.IsNullOrWhiteSpace(action) ? "NO ACTION" : action.Trim().ToUpperInvariant();
+        return normalized switch
+        {
+            "CASCADE" => "CASCADE",
+            "SET NULL" => "SET NULL",
+            "RESTRICT" => "RESTRICT",
+            "NO ACTION" => "NO ACTION",
+            _ => "NO ACTION"
+        };
     }
 
     private static PreviewDataResponse MapPreview(DataTable table, long total, int pageIndex, int pageSize, long elapsedMs)

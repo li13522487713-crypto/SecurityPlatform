@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   createMicroflowDesignSchema,
   createMicroflowWorkflowEdge,
+  createWorkflowNodeFromPanelItem,
 } from "../flowgram/flowgram-native-schema";
+import { defaultMicroflowNodePanelRegistry } from "../node-registry";
 import type { MicroflowActionActivity, MicroflowDesignSchema, MicroflowSequenceFlow, MicroflowWorkflowEdgeJSON } from "../schema";
 import {
   applyDesignFlowPatch,
@@ -161,5 +163,43 @@ describe("design protocol property panel adapter", () => {
     const nextModel = buildDesignPropertyPanelModel(next);
 
     expect((nextModel.selectedObject as MicroflowActionActivity).action).toMatchObject({ messageTemplate: "hello" });
+  });
+
+  it("creates native action nodes with complete action defaults", () => {
+    const createVariable = defaultMicroflowNodePanelRegistry.find(item => item.actionKind === "createVariable")!;
+
+    const node = createWorkflowNodeFromPanelItem(createVariable, { x: 120, y: 80 }, []);
+
+    expect(node.data).toMatchObject({
+      objectKind: "actionActivity",
+      actionKind: "createVariable",
+      action: {
+        id: `action-${node.id}`,
+        kind: "createVariable",
+        variableName: "newVariable",
+      },
+    });
+  });
+
+  it("hydrates malformed native action nodes instead of crashing property model", () => {
+    const schema = createMicroflowDesignSchema({ id: "mf-malformed", name: "MF_Malformed", moduleId: "module-a" });
+    const malformed = {
+      ...schema.workflow.nodes[0],
+      id: "malformed-action",
+      type: "actionActivity",
+      data: { objectId: "malformed-action", objectKind: "actionActivity", title: "Malformed Action" },
+    };
+    const actionSchema = {
+      ...schema,
+      workflow: { ...schema.workflow, nodes: [malformed], edges: [] },
+      editor: { ...schema.editor, selection: { objectId: "malformed-action", objectIds: ["malformed-action"], flowIds: [], mode: "single" }, selectedObjectId: "malformed-action" },
+    } as MicroflowDesignSchema;
+
+    const model = buildDesignPropertyPanelModel(actionSchema);
+
+    expect((model.selectedObject as MicroflowActionActivity).action).toMatchObject({
+      id: "action-malformed-action",
+      kind: "logMessage",
+    });
   });
 });

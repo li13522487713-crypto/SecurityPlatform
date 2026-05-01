@@ -351,6 +351,16 @@ function genericOutputName(action: MicroflowAction): { name: string; fieldPath: 
 
 function addListActionOutputs(index: MicroflowVariableIndex, object: MicroflowActionActivity, collectionId: string): boolean {
   const action = object.action;
+  if (!action) {
+    addDiagnostic(index, {
+      severity: "warning",
+      code: "MF_ACTION_CONFIG_MISSING",
+      message: "Action activity is missing action configuration.",
+      objectId: object.id,
+      fieldPath: "action",
+    });
+    return true;
+  }
   const downstream: MicroflowVariableScope = { kind: "downstream", collectionId, startObjectId: object.id };
   if (action.kind === "createList") {
     const name = action.outputListVariableName || action.listVariableName || "";

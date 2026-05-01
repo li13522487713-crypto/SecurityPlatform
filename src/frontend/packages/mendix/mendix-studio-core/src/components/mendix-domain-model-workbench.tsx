@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Card, Empty, Form, Input, Modal, Select, SideSheet, Space, Spin, Table, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Card, Divider, Empty, Form, Input, Modal, Select, SideSheet, Space, Spin, Table, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 
 import type { StudioWorkbenchTab } from "../store";
@@ -45,13 +45,32 @@ interface DomainModelEntity {
   attributes: DomainModelAttribute[];
 }
 
+interface DomainModelAssociation {
+  associationId: string;
+  name: string;
+  fromEntityId: string;
+  toEntityId: string;
+  sourceAttributeId?: string;
+  targetAttributeId?: string;
+  owner: string;
+  cardinality: string;
+  bindingMode: string;
+  joinSpec?: {
+    sourceBindingId: string;
+    targetBindingId: string;
+    sourceField: string;
+    targetField: string;
+    joinType: string;
+  };
+}
+
 interface DomainModelDocument {
   appId: string;
   workspaceId: string;
   moduleId: string;
   bindings: DomainModelBinding[];
   entities: DomainModelEntity[];
-  associations: Array<Record<string, unknown>>;
+  associations: DomainModelAssociation[];
   layout: {
     entityFrames: Record<string, { x: number; y: number; width: number; height: number }>;
   };
@@ -65,6 +84,11 @@ interface DomainModelDocument {
 interface DomainModelSyncPlan {
   createTables: Array<{ bindingId: string; schemaName: string; tableName: string; entityId: string }>;
   addColumns: Array<{ bindingId: string; schemaName: string; tableName: string; columnName: string }>;
+  alterColumns: Array<{ bindingId: string; schemaName: string; tableName: string; columnName: string }>;
+  renameColumns: Array<{ bindingId: string; schemaName: string; tableName: string; columnName: string; newColumnName: string }>;
+  dropColumns: Array<{ bindingId: string; schemaName: string; tableName: string; columnName: string }>;
+  createForeignKeys: Array<{ bindingId: string; schemaName: string; tableName: string; foreignKeyName: string; referencedTableName: string }>;
+  dropForeignKeys: Array<{ bindingId: string; schemaName: string; tableName: string; foreignKeyName: string }>;
   warnings: string[];
   errors: string[];
 }
@@ -113,7 +137,7 @@ function toModuleEntities(document: DomainModelDocument): MicroflowModuleAsset["
     qualifiedName: entity.qualifiedName,
     moduleName: document.moduleId,
     attributeCount: entity.attributes.length,
-    associationCount: 0,
+    associationCount: document.associations.filter(association => association.fromEntityId === entity.entityId || association.toEntityId === entity.entityId).length,
     isPersistable: entity.persistable
   }));
 }
@@ -133,17 +157,28 @@ export function MendixDomainModelWorkbench({
   const [previewVisible, setPreviewVisible] = useState(false);
   const [bindVisible, setBindVisible] = useState(false);
   const [importVisible, setImportVisible] = useState(false);
+  const [entityVisible, setEntityVisible] = useState(false);
+  const [relationVisible, setRelationVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [sources, setSources] = useState<DatabaseSourceSummary[]>([]);
   const [schemas, setSchemas] = useState<DatabaseSchemaSummary[]>([]);
   const [tables, setTables] = useState<string[]>([]);
   const [selectedEntityId, setSelectedEntityId] = useState<string>();
+  const [selectedRelationId, setSelectedRelationId] = useState<string>();
   const [bindSourceId, setBindSourceId] = useState<string>();
   const [bindAlias, setBindAlias] = useState("");
   const [importBindingId, setImportBindingId] = useState<string>();
   const [importSchemaName, setImportSchemaName] = useState<string>();
   const [importTableNames, setImportTableNames] = useState<string[]>([]);
+  const [newEntityName, setNewEntityName] = useState("");
+  const [newEntityBindingId, setNewEntityBindingId] = useState<string>();
+  const [newRelationName, setNewRelationName] = useState("");
+  const [newRelationSourceEntityId, setNewRelationSourceEntityId] = useState<string>();
+  const [newRelationTargetEntityId, setNewRelationTargetEntityId] = useState<string>();
+  const [newRelationSourceAttributeId, setNewRelationSourceAttributeId] = useState<string>();
+  const [newRelationTargetAttributeId, setNewRelationTargetAttributeId] = useState<string>();
+  const [newRelationCrossDatabase, setNewRelationCrossDatabase] = useState(false);
   const setAppAssetModules = useMendixStudioStore(state => state.setAppAssetModules);
 
   const moduleId = tab.moduleId ?? tab.resourceId ?? "";
@@ -154,6 +189,11 @@ export function MendixDomainModelWorkbench({
       : module);
     setAppAssetModules(nextModules);
   }, [moduleId, modules, setAppAssetModules]);
+
+  const applyLocalDocument = useCallback((nextDocument: DomainModelDocument) => {
+    setDocument(nextDocument);
+    applyModuleEntities(nextDocument);
+  }, [applyModuleEntities]);
 
   const request = useCallback(async <T,>(method: "GET" | "POST" | "PUT", path: string, body?: unknown): Promise<T> => {
     if (!apiClient) {
@@ -180,14 +220,12 @@ export function MendixDomainModelWorkbench({
         "GET",
         `/microflow-apps/${encodeURIComponent(appId)}/domain-model/modules/${encodeURIComponent(moduleId)}?workspaceId=${encodeURIComponent(workspaceId)}`
       );
-      setDocument(result);
+      applyLocalDocument(result);
       setSelectedEntityId(current => current ?? result.entities[0]?.entityId);
-      applyModuleEntities(result);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : c.noApi);
       const fallback = createEmptyDocument(appId, workspaceId, moduleId);
-      setDocument(fallback);
-      applyModuleEntities(fallback);
+      applyLocalDocument(fallback);
     } finally {
       setLoading(false);
     }
@@ -200,6 +238,10 @@ export function MendixDomainModelWorkbench({
   const selectedEntity = useMemo(
     () => document?.entities.find(entity => entity.entityId === selectedEntityId) ?? document?.entities[0],
     [document, selectedEntityId]
+  );
+  const selectedRelation = useMemo(
+    () => document?.associations.find(association => association.associationId === selectedRelationId),
+    [document, selectedRelationId]
   );
 
   const sourceOptions = useMemo(
@@ -218,6 +260,75 @@ export function MendixDomainModelWorkbench({
     () => tables.map(table => ({ label: table, value: table })),
     [tables]
   );
+  const entityOptions = useMemo(
+    () => (document?.entities ?? []).map(entity => ({ label: entity.qualifiedName, value: entity.entityId })),
+    [document]
+  );
+  const sourceFieldOptions = useMemo(() => {
+    const entity = document?.entities.find(item => item.entityId === newRelationSourceEntityId);
+    return (entity?.attributes ?? []).map(attribute => ({ label: attribute.name, value: attribute.attributeId }));
+  }, [document, newRelationSourceEntityId]);
+  const targetFieldOptions = useMemo(() => {
+    const entity = document?.entities.find(item => item.entityId === newRelationTargetEntityId);
+    return (entity?.attributes ?? []).map(attribute => ({ label: attribute.name, value: attribute.attributeId }));
+  }, [document, newRelationTargetEntityId]);
+  const relationFieldOptions = useMemo(() => {
+    const source = document?.entities.find(item => item.entityId === selectedRelation?.fromEntityId);
+    const target = document?.entities.find(item => item.entityId === selectedRelation?.toEntityId);
+    return {
+      source: (source?.attributes ?? []).map(attribute => ({ label: attribute.name, value: attribute.attributeId })),
+      target: (target?.attributes ?? []).map(attribute => ({ label: attribute.name, value: attribute.attributeId }))
+    };
+  }, [document, selectedRelation]);
+  const groupedTree = useMemo(() => {
+    if (!document) {
+      return [];
+    }
+
+    return document.bindings.map(binding => {
+      const entities = document.entities.filter(entity => entity.bindingId === binding.bindingId);
+      const schemaNames = Array.from(new Set(entities.map(entity => entity.schemaName))).sort((left, right) => left.localeCompare(right));
+      return {
+        binding,
+        schemas: schemaNames.map(schemaName => ({
+          schemaName,
+          entities: entities
+            .filter(entity => entity.schemaName === schemaName)
+            .sort((left, right) => left.name.localeCompare(right.name))
+            .map(entity => ({
+              entity,
+              associations: document.associations.filter(association => association.fromEntityId === entity.entityId || association.toEntityId === entity.entityId)
+            }))
+        }))
+      };
+    });
+  }, [document]);
+  const relationLines = useMemo(() => {
+    if (!document) {
+      return [];
+    }
+
+    return document.associations
+      .map(association => {
+        const sourceFrame = document.layout.entityFrames[association.fromEntityId];
+        const targetFrame = document.layout.entityFrames[association.toEntityId];
+        if (!sourceFrame || !targetFrame) {
+          return null;
+        }
+        const sourceEntity = document.entities.find(entity => entity.entityId === association.fromEntityId);
+        const targetEntity = document.entities.find(entity => entity.entityId === association.toEntityId);
+        return {
+          association,
+          sourceEntity,
+          targetEntity,
+          x1: sourceFrame.x + sourceFrame.width,
+          y1: sourceFrame.y + Math.max(48, sourceFrame.height / 2),
+          x2: targetFrame.x,
+          y2: targetFrame.y + Math.max(48, targetFrame.height / 2)
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+  }, [document]);
 
   const loadSources = useCallback(async () => {
     if (!workspaceId) {
@@ -257,8 +368,7 @@ export function MendixDomainModelWorkbench({
         `/microflow-apps/${encodeURIComponent(appId)}/domain-model/modules/${encodeURIComponent(moduleId)}?workspaceId=${encodeURIComponent(workspaceId)}`,
         nextDocument
       );
-      setDocument(result);
-      applyModuleEntities(result);
+      applyLocalDocument(result);
       Toast.success(c.saveSuccess);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : c.noApi);
@@ -292,8 +402,7 @@ export function MendixDomainModelWorkbench({
         `/microflow-apps/${encodeURIComponent(appId!)}/domain-model/modules/${encodeURIComponent(moduleId)}${`/bindings`}?workspaceId=${encodeURIComponent(workspaceId!)}`,
         nextBindings
       );
-      setDocument(result);
-      applyModuleEntities(result);
+      applyLocalDocument(result);
       setBindVisible(false);
       setBindAlias("");
       setBindSourceId(undefined);
@@ -325,9 +434,8 @@ export function MendixDomainModelWorkbench({
           tableNames: importTableNames
         }
       );
-      setDocument(result.document);
+      applyLocalDocument(result.document);
       setSelectedEntityId(result.document.entities[0]?.entityId);
-      applyModuleEntities(result.document);
       setImportVisible(false);
       setImportTableNames([]);
       Toast.success(c.importSuccess);
@@ -354,6 +462,108 @@ export function MendixDomainModelWorkbench({
     }
   }, [appId, workspaceId, moduleId, request, c.noApi]);
 
+  const handleCreateEntity = useCallback(() => {
+    if (!document || !newEntityName.trim()) {
+      return;
+    }
+    const bindingId = newEntityBindingId ?? document.bindings[0]?.bindingId;
+    if (!bindingId) {
+      Toast.error(c.bindDatabase);
+      return;
+    }
+    const binding = document.bindings.find(item => item.bindingId === bindingId);
+    if (!binding) {
+      return;
+    }
+    const schemaName = binding.defaultSchemaName ?? "main";
+    const tableName = newEntityName.trim().replace(/\s+/gu, "_").toLowerCase();
+    const entityId = `entity:${bindingId}:${schemaName}:${tableName}`;
+    const qualifiedName = `${binding.alias}.${schemaName}.${tableName}`;
+    const nextDocument: DomainModelDocument = {
+      ...document,
+      entities: [...document.entities, {
+        entityId,
+        bindingId,
+        name: newEntityName.trim(),
+        qualifiedName,
+        schemaName,
+        tableName,
+        origin: "local",
+        syncStatus: "dirty",
+        persistable: true,
+        attributes: [{
+          attributeId: `attr:${entityId}:id`,
+          name: "id",
+          columnName: "id",
+          type: "string",
+          required: true,
+          primaryKey: true,
+          indexed: true
+        }]
+      }],
+      layout: {
+        ...document.layout,
+        entityFrames: {
+          ...document.layout.entityFrames,
+          [entityId]: {
+            x: 48 + (document.entities.length % 3) * 320,
+            y: 48 + Math.floor(document.entities.length / 3) * 220,
+            width: 280,
+            height: 180
+          }
+        }
+      }
+    };
+    applyLocalDocument(nextDocument);
+    setSelectedEntityId(entityId);
+    setEntityVisible(false);
+    setNewEntityName("");
+    setNewEntityBindingId(undefined);
+  }, [document, newEntityName, newEntityBindingId, c.bindDatabase]);
+
+  const handleCreateRelation = useCallback(() => {
+    if (!document || !newRelationName.trim() || !newRelationSourceEntityId || !newRelationTargetEntityId) {
+      return;
+    }
+    const sourceEntity = document.entities.find(item => item.entityId === newRelationSourceEntityId);
+    const targetEntity = document.entities.find(item => item.entityId === newRelationTargetEntityId);
+    if (!sourceEntity || !targetEntity) {
+      return;
+    }
+    const sourceAttribute = sourceEntity.attributes.find(item => item.attributeId === newRelationSourceAttributeId) ?? sourceEntity.attributes[0];
+    const targetAttribute = targetEntity.attributes.find(item => item.attributeId === newRelationTargetAttributeId) ?? targetEntity.attributes[0];
+    const isCrossDatabase = newRelationCrossDatabase || sourceEntity.bindingId !== targetEntity.bindingId;
+    const nextDocument: DomainModelDocument = {
+      ...document,
+      associations: [...document.associations, {
+        associationId: `assoc:${sourceEntity.entityId}:${targetEntity.entityId}:${newRelationName.trim()}`,
+        name: newRelationName.trim(),
+        fromEntityId: sourceEntity.entityId,
+        toEntityId: targetEntity.entityId,
+        sourceAttributeId: sourceAttribute?.attributeId,
+        targetAttributeId: targetAttribute?.attributeId,
+        owner: "default",
+        cardinality: "manyToOne",
+        bindingMode: isCrossDatabase ? "logicalCrossDb" : "physicalFk",
+        joinSpec: sourceAttribute && targetAttribute ? {
+          sourceBindingId: sourceEntity.bindingId,
+          targetBindingId: targetEntity.bindingId,
+          sourceField: sourceAttribute.columnName,
+          targetField: targetAttribute.columnName,
+          joinType: "inner"
+        } : undefined
+      }]
+    };
+    applyLocalDocument(nextDocument);
+    setRelationVisible(false);
+    setNewRelationName("");
+    setNewRelationSourceEntityId(undefined);
+    setNewRelationTargetEntityId(undefined);
+    setNewRelationSourceAttributeId(undefined);
+    setNewRelationTargetAttributeId(undefined);
+    setNewRelationCrossDatabase(false);
+  }, [document, newRelationName, newRelationSourceEntityId, newRelationTargetEntityId, newRelationSourceAttributeId, newRelationTargetAttributeId, newRelationCrossDatabase]);
+
   const handleSyncDraft = useCallback(async () => {
     if (!appId || !workspaceId || !moduleId) {
       return;
@@ -364,9 +574,8 @@ export function MendixDomainModelWorkbench({
         "POST",
         `/microflow-apps/${encodeURIComponent(appId)}/domain-model/modules/${encodeURIComponent(moduleId)}/sync-draft?workspaceId=${encodeURIComponent(workspaceId)}`
       );
-      setDocument(result.document);
+      applyLocalDocument(result.document);
       setPreviewPlan(result.plan);
-      applyModuleEntities(result.document);
       Toast.success(c.syncSuccess);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : c.noApi);
@@ -374,6 +583,21 @@ export function MendixDomainModelWorkbench({
       setSyncing(false);
     }
   }, [appId, workspaceId, moduleId, request, applyModuleEntities, c.syncSuccess, c.noApi]);
+
+  const handleRefreshMetadata = useCallback(async () => {
+    if (!appId || !workspaceId || !moduleId) {
+      return;
+    }
+    try {
+      await request(
+        "POST",
+        `/microflow-apps/${encodeURIComponent(appId)}/domain-model/modules/${encodeURIComponent(moduleId)}/refresh-metadata?workspaceId=${encodeURIComponent(workspaceId)}`
+      );
+      Toast.success(c.refresh);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : c.noApi);
+    }
+  }, [appId, workspaceId, moduleId, request, c.refresh, c.noApi]);
 
   const fieldColumns = useMemo<ColumnProps<DomainModelAttribute>[]>(() => [
     {
@@ -388,7 +612,7 @@ export function MendixDomainModelWorkbench({
               ...selectedEntity,
               attributes: selectedEntity.attributes.map((item, itemIndex) => itemIndex === index ? { ...item, name: value, columnName: item.columnName || value } : item)
             };
-            setDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
+            applyLocalDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
           }}
         />
       )
@@ -413,7 +637,7 @@ export function MendixDomainModelWorkbench({
               ...selectedEntity,
               attributes: selectedEntity.attributes.map((item, itemIndex) => itemIndex === index ? { ...item, type: String(value) } : item)
             };
-            setDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
+            applyLocalDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
           }}
         />
       )
@@ -421,14 +645,67 @@ export function MendixDomainModelWorkbench({
     {
       title: c.required,
       dataIndex: "required",
-      render: (_value, record) => record.required ? <Tag color="red">Y</Tag> : <Tag>N</Tag>
+      render: (_value, record, index) => (
+        <Button
+          size="small"
+          theme="borderless"
+          type={record.required ? "danger" : "tertiary"}
+          onClick={() => {
+            if (!selectedEntity || !document) return;
+            const nextEntity: DomainModelEntity = {
+              ...selectedEntity,
+              attributes: selectedEntity.attributes.map((item, itemIndex) => itemIndex === index ? { ...item, required: !item.required } : item)
+            };
+            applyLocalDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
+          }}
+        >
+          {record.required ? "Y" : "N"}
+        </Button>
+      )
     },
     {
       title: c.primaryKey,
       dataIndex: "primaryKey",
-      render: (_value, record) => record.primaryKey ? <Tag color="blue">PK</Tag> : "-"
+      render: (_value, record, index) => (
+        <Button
+          size="small"
+          theme="borderless"
+          type={record.primaryKey ? "primary" : "tertiary"}
+          onClick={() => {
+            if (!selectedEntity || !document) return;
+            const nextEntity: DomainModelEntity = {
+              ...selectedEntity,
+              attributes: selectedEntity.attributes.map((item, itemIndex) => itemIndex === index ? { ...item, primaryKey: !item.primaryKey, required: !item.primaryKey ? true : item.required } : item)
+            };
+            applyLocalDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
+          }}
+        >
+          {record.primaryKey ? "PK" : "-"}
+        </Button>
+      )
+    },
+    {
+      title: c.fieldAction,
+      dataIndex: "attributeId",
+      render: (_value, record) => (
+        <Button
+          size="small"
+          theme="borderless"
+          type="danger"
+          onClick={() => {
+            if (!selectedEntity || !document) return;
+            const nextEntity: DomainModelEntity = {
+              ...selectedEntity,
+              attributes: selectedEntity.attributes.filter(item => item.attributeId !== record.attributeId)
+            };
+            applyLocalDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
+          }}
+        >
+          {c.deleteField}
+        </Button>
+      )
     }
-  ], [c.fieldName, c.fieldType, c.required, c.primaryKey, selectedEntity, document]);
+  ], [c.fieldName, c.fieldType, c.required, c.primaryKey, c.fieldAction, c.deleteField, selectedEntity, document, applyLocalDocument]);
 
   if (loading) {
     return <div className="studio-readonly-resource" style={{ display: "grid", placeItems: "center" }}><Spin /></div>;
@@ -439,45 +716,111 @@ export function MendixDomainModelWorkbench({
   }
 
   return (
-    <div className="studio-readonly-resource" style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
+    <div className="studio-readonly-resource" data-testid="domain-model-workbench" style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
       <Space style={{ justifyContent: "space-between", width: "100%" }}>
         <div>
           <Title heading={5} style={{ margin: 0 }}>{tab.title}</Title>
           <Text type="tertiary">{c.title}</Text>
         </div>
         <Space wrap>
-          <Button loading={saving} onClick={() => void saveDocument(document)}>{c.saveModel}</Button>
-          <Button onClick={() => { setBindVisible(true); void loadSources(); }}>{c.bindDatabase}</Button>
-          <Button disabled={document.bindings.length === 0} onClick={() => setImportVisible(true)}>{c.importTables}</Button>
-          <Button onClick={() => void handlePreviewSync()}>{c.previewSync}</Button>
-          <Button theme="solid" loading={syncing} onClick={() => void handleSyncDraft()}>{c.syncDraft}</Button>
-          <Button onClick={() => void loadDocument()}>{c.refresh}</Button>
+          <Button data-testid="domain-model-save" loading={saving} onClick={() => void saveDocument(document)}>{c.saveModel}</Button>
+          <Button data-testid="domain-model-bind-open" onClick={() => { setBindVisible(true); void loadSources(); }}>{c.bindDatabase}</Button>
+          <Button data-testid="domain-model-import-open" disabled={document.bindings.length === 0} onClick={() => setImportVisible(true)}>{c.importTables}</Button>
+          <Button data-testid="domain-model-create-entity-open" disabled={document.bindings.length === 0} onClick={() => setEntityVisible(true)}>{c.createEntity}</Button>
+          <Button data-testid="domain-model-create-relation-open" disabled={document.entities.length < 2} onClick={() => setRelationVisible(true)}>{c.createRelation}</Button>
+          <Button data-testid="domain-model-preview-sync" onClick={() => void handlePreviewSync()}>{c.previewSync}</Button>
+          <Button data-testid="domain-model-sync-draft" theme="solid" loading={syncing} onClick={() => void handleSyncDraft()}>{c.syncDraft}</Button>
+          <Button data-testid="domain-model-refresh-metadata" onClick={() => void handleRefreshMetadata()}>{c.refreshMetadata}</Button>
+          <Button data-testid="domain-model-refresh" onClick={() => void loadDocument()}>{c.refresh}</Button>
         </Space>
       </Space>
 
       {!apiClient ? <Card><Text type="danger">{c.noApi}</Text></Card> : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "260px minmax(0, 1fr) 360px", gap: 12, minHeight: 520 }}>
-        <Card bodyStyle={{ padding: 12, height: "100%", overflow: "auto" }}>
+        <Card data-testid="domain-model-tree-panel" bodyStyle={{ padding: 12, height: "100%", overflow: "auto" }}>
           <Space vertical align="start" style={{ width: "100%" }}>
             <Title heading={6} style={{ margin: 0 }}>{c.bindingsTitle}</Title>
-            {(document.bindings.length === 0) ? <Text type="tertiary">{c.noEntities}</Text> : document.bindings.map(binding => (
-              <Card key={binding.bindingId} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
-                <Space vertical align="start" spacing={4}>
-                  <Text strong>{binding.alias}</Text>
-                  <Text type="tertiary">{binding.displayName ?? binding.sourceId}</Text>
-                  <Tag>{binding.driverCode}</Tag>
+            {(groupedTree.length === 0) ? <Text type="tertiary">{c.noEntities}</Text> : groupedTree.map(group => (
+              <Card key={group.binding.bindingId} data-testid={`domain-model-binding-${group.binding.bindingId}`} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+                <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
+                  <Space style={{ justifyContent: "space-between", width: "100%" }}>
+                    <Text strong>{group.binding.alias}</Text>
+                    <Tag>{group.binding.driverCode}</Tag>
+                  </Space>
+                  <Text type="tertiary">{group.binding.displayName ?? group.binding.sourceId}</Text>
+                  {group.schemas.map(schema => (
+                    <div key={`${group.binding.bindingId}:${schema.schemaName}`} style={{ width: "100%" }}>
+                      <Text type="secondary">{schema.schemaName}</Text>
+                      <Space vertical align="start" spacing={6} style={{ width: "100%", marginTop: 6 }}>
+                        {schema.entities.map(item => (
+                          <div key={item.entity.entityId} style={{ width: "100%", borderLeft: "2px solid #dbe7f5", paddingLeft: 10 }}>
+                            <Button
+                              data-testid={`domain-model-entity-tree-${item.entity.entityId}`}
+                              theme={item.entity.entityId === selectedEntity?.entityId ? "solid" : "borderless"}
+                              type={item.entity.entityId === selectedEntity?.entityId ? "primary" : "tertiary"}
+                              style={{ justifyContent: "space-between", width: "100%" }}
+                              onClick={() => {
+                                setSelectedRelationId(undefined);
+                                setSelectedEntityId(item.entity.entityId);
+                              }}
+                            >
+                              <span>{item.entity.name}</span>
+                            </Button>
+                            <Space vertical align="start" spacing={4} style={{ width: "100%", marginTop: 4 }}>
+                              {item.entity.attributes.map(attribute => (
+                                <Button
+                                  data-testid={`domain-model-attribute-tree-${attribute.attributeId}`}
+                                  key={attribute.attributeId}
+                                  theme="borderless"
+                                  type="tertiary"
+                                  size="small"
+                                  style={{ justifyContent: "flex-start", width: "100%" }}
+                                  onClick={() => {
+                                    setSelectedRelationId(undefined);
+                                    setSelectedEntityId(item.entity.entityId);
+                                  }}
+                                >
+                                  {attribute.name}
+                                </Button>
+                              ))}
+                              {item.associations.map(association => (
+                                <Button
+                                  data-testid={`domain-model-association-tree-${association.associationId}`}
+                                  key={association.associationId}
+                                  theme={association.associationId === selectedRelation?.associationId ? "solid" : "borderless"}
+                                  type={association.associationId === selectedRelation?.associationId ? "warning" : "tertiary"}
+                                  size="small"
+                                  style={{ justifyContent: "flex-start", width: "100%" }}
+                                  onClick={() => {
+                                    setSelectedEntityId(undefined);
+                                    setSelectedRelationId(association.associationId);
+                                  }}
+                                >
+                                  {association.name}
+                                </Button>
+                              ))}
+                            </Space>
+                          </div>
+                        ))}
+                      </Space>
+                    </div>
+                  ))}
                 </Space>
               </Card>
             ))}
             <Title heading={6} style={{ margin: "8px 0 0" }}>{c.entitiesTitle}</Title>
             {document.entities.length === 0 ? <Text type="tertiary">{c.noEntities}</Text> : document.entities.map(entity => (
               <Button
+                data-testid={`domain-model-entity-list-${entity.entityId}`}
                 key={entity.entityId}
                 theme={entity.entityId === selectedEntity?.entityId ? "solid" : "borderless"}
                 type={entity.entityId === selectedEntity?.entityId ? "primary" : "tertiary"}
                 style={{ justifyContent: "flex-start", width: "100%" }}
-                onClick={() => setSelectedEntityId(entity.entityId)}
+                onClick={() => {
+                  setSelectedRelationId(undefined);
+                  setSelectedEntityId(entity.entityId);
+                }}
               >
                 {entity.qualifiedName}
               </Button>
@@ -485,17 +828,45 @@ export function MendixDomainModelWorkbench({
           </Space>
         </Card>
 
-        <Card bodyStyle={{ padding: 0, position: "relative", minHeight: 520, overflow: "auto", background: "linear-gradient(180deg, #fbfdff 0%, #f3f7fb 100%)" }}>
+        <Card data-testid="domain-model-canvas-panel" bodyStyle={{ padding: 0, position: "relative", minHeight: 520, overflow: "auto", background: "linear-gradient(180deg, #fbfdff 0%, #f3f7fb 100%)" }}>
           {document.entities.length === 0 ? (
             <div style={{ display: "grid", placeItems: "center", height: "100%" }}>
               <Empty title={c.noEntities} description={c.selectEntityHint} />
             </div>
           ) : (
             <div style={{ position: "relative", minHeight: 700 }}>
+              <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible" }}>
+                {relationLines.map(line => (
+                  <g key={line.association.associationId} data-testid={`domain-model-association-line-${line.association.associationId}`} style={{ pointerEvents: "auto", cursor: "pointer" }} onClick={() => {
+                    setSelectedEntityId(undefined);
+                    setSelectedRelationId(line.association.associationId);
+                  }}>
+                    <line
+                      x1={line.x1}
+                      y1={line.y1}
+                      x2={line.x2}
+                      y2={line.y2}
+                      stroke={line.association.associationId === selectedRelation?.associationId ? "#f59e0b" : "#94a3b8"}
+                      strokeWidth={line.association.associationId === selectedRelation?.associationId ? 3 : 2}
+                      strokeDasharray={line.association.bindingMode === "logicalCrossDb" ? "8 6" : undefined}
+                    />
+                    <text
+                      x={(line.x1 + line.x2) / 2}
+                      y={(line.y1 + line.y2) / 2 - 6}
+                      fill="#475569"
+                      fontSize="12"
+                      textAnchor="middle"
+                    >
+                      {line.association.name}
+                    </text>
+                  </g>
+                ))}
+              </svg>
               {document.entities.map(entity => {
                 const frame = document.layout.entityFrames[entity.entityId] ?? { x: 48, y: 48, width: 280, height: 180 };
                 return (
                   <Card
+                    data-testid={`domain-model-entity-card-${entity.entityId}`}
                     key={entity.entityId}
                     style={{
                       position: "absolute",
@@ -507,12 +878,18 @@ export function MendixDomainModelWorkbench({
                       boxShadow: entity.entityId === selectedEntity?.entityId ? "0 10px 24px rgba(59,130,246,0.16)" : "0 6px 18px rgba(15,23,42,0.06)"
                     }}
                     bodyStyle={{ padding: 12 }}
-                    onClick={() => setSelectedEntityId(entity.entityId)}
+                    onClick={() => {
+                      setSelectedRelationId(undefined);
+                      setSelectedEntityId(entity.entityId);
+                    }}
                   >
                     <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
                       <Space style={{ justifyContent: "space-between", width: "100%" }}>
                         <Text strong>{entity.name}</Text>
-                        <Tag color="blue">{entity.schemaName}</Tag>
+                        <Space spacing={4}>
+                          <Tag color="blue">{entity.schemaName}</Tag>
+                          <Tag color={entity.syncStatus === "clean" ? "green" : "orange"}>{entity.syncStatus}</Tag>
+                        </Space>
                       </Space>
                       <Text type="tertiary">{entity.qualifiedName}</Text>
                       {entity.attributes.slice(0, 6).map(attribute => (
@@ -529,33 +906,127 @@ export function MendixDomainModelWorkbench({
           )}
         </Card>
 
-        <Card bodyStyle={{ padding: 12, height: "100%", overflow: "auto" }}>
-          {!selectedEntity ? (
+        <Card data-testid="domain-model-properties-panel" bodyStyle={{ padding: 12, height: "100%", overflow: "auto" }}>
+          {selectedRelation ? (
+            <Space vertical align="start" style={{ width: "100%" }}>
+              <Title heading={6} style={{ margin: 0 }}>{selectedRelation.name}</Title>
+              <Text type="tertiary">{selectedRelation.bindingMode === "logicalCrossDb" ? c.crossDatabaseLabel : c.relationPhysicalHint}</Text>
+              <Form style={{ width: "100%" }}>
+                <Form.Input label={c.relationNameLabel} value={selectedRelation.name} onChange={value => {
+                  if (!document) return;
+                  applyLocalDocument({
+                    ...document,
+                    associations: document.associations.map(association => association.associationId === selectedRelation.associationId ? { ...association, name: value } : association)
+                  });
+                }} />
+                <Form.Select
+                  label={c.sourceFieldLabel}
+                  optionList={relationFieldOptions.source}
+                  value={selectedRelation.sourceAttributeId}
+                  onChange={value => {
+                    if (!document) return;
+                    applyLocalDocument({
+                      ...document,
+                      associations: document.associations.map(association => association.associationId === selectedRelation.associationId
+                        ? { ...association, sourceAttributeId: String(value) }
+                        : association)
+                    });
+                  }}
+                />
+                <Form.Select
+                  label={c.targetFieldLabel}
+                  optionList={relationFieldOptions.target}
+                  value={selectedRelation.targetAttributeId}
+                  onChange={value => {
+                    if (!document) return;
+                    applyLocalDocument({
+                      ...document,
+                      associations: document.associations.map(association => association.associationId === selectedRelation.associationId
+                        ? { ...association, targetAttributeId: String(value) }
+                        : association)
+                    });
+                  }}
+                />
+                <Form.Select
+                  label={c.cardinalityLabel}
+                  optionList={[
+                    { label: "oneToOne", value: "oneToOne" },
+                    { label: "oneToMany", value: "oneToMany" },
+                    { label: "manyToOne", value: "manyToOne" }
+                  ]}
+                  value={selectedRelation.cardinality}
+                  onChange={value => {
+                    if (!document) return;
+                    applyLocalDocument({
+                      ...document,
+                      associations: document.associations.map(association => association.associationId === selectedRelation.associationId
+                        ? { ...association, cardinality: String(value) }
+                        : association)
+                    });
+                  }}
+                />
+                <Form.Select
+                  label={c.relationModeLabel}
+                  optionList={[
+                    { label: c.relationModePhysical, value: "physicalFk" },
+                    { label: c.relationModeLogical, value: "logicalCrossDb" }
+                  ]}
+                  value={selectedRelation.bindingMode}
+                  onChange={value => {
+                    if (!document) return;
+                    const bindingMode = String(value);
+                    applyLocalDocument({
+                      ...document,
+                      associations: document.associations.map(association => association.associationId === selectedRelation.associationId
+                        ? { ...association, bindingMode }
+                        : association)
+                    });
+                  }}
+                />
+              </Form>
+              <Button
+                data-testid="domain-model-delete-relation"
+                theme="light"
+                type="danger"
+                onClick={() => {
+                  if (!document) return;
+                  applyLocalDocument({
+                    ...document,
+                    associations: document.associations.filter(association => association.associationId !== selectedRelation.associationId)
+                  });
+                  setSelectedRelationId(undefined);
+                  setSelectedEntityId(document.entities[0]?.entityId);
+                }}
+              >
+                {c.deleteRelation}
+              </Button>
+            </Space>
+          ) : !selectedEntity ? (
             <Empty description={c.noSelection} />
           ) : (
             <Space vertical align="start" style={{ width: "100%" }}>
               <Title heading={6} style={{ margin: 0 }}>{selectedEntity.qualifiedName}</Title>
               <Text type="tertiary">{c.syncState}: {document.syncState.status || "idle"}</Text>
               <Form style={{ width: "100%" }}>
-                <Form.Input label="Entity" value={selectedEntity.name} onChange={value => {
+                <Form.Input label={c.entityNameLabel} value={selectedEntity.name} onChange={value => {
                   if (!document) return;
                   const nextEntity = { ...selectedEntity, name: value };
-                  setDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
+                  applyLocalDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
                 }} />
                 <Form.Input label={c.schemaLabel} value={selectedEntity.schemaName} onChange={value => {
                   if (!document) return;
                   const nextEntity = { ...selectedEntity, schemaName: value };
-                  setDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
+                  applyLocalDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
                 }} />
-                <Form.Input label="Table" value={selectedEntity.tableName} onChange={value => {
+                <Form.Input label={c.tableLabel} value={selectedEntity.tableName} onChange={value => {
                   if (!document) return;
                   const nextEntity = { ...selectedEntity, tableName: value };
-                  setDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
+                  applyLocalDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
                 }} />
               </Form>
               <Space style={{ justifyContent: "space-between", width: "100%" }}>
                 <Title heading={6} style={{ margin: 0 }}>{c.entitiesTitle}</Title>
-                <Button size="small" onClick={() => {
+                <Button data-testid="domain-model-add-field" size="small" onClick={() => {
                   if (!document || !selectedEntity) return;
                   const nextEntity = {
                     ...selectedEntity,
@@ -569,22 +1040,25 @@ export function MendixDomainModelWorkbench({
                       indexed: false
                     }]
                   };
-                  setDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
+                  applyLocalDocument({ ...document, entities: document.entities.map(entity => entity.entityId === nextEntity.entityId ? nextEntity : entity) });
                 }}>{c.addField}</Button>
               </Space>
+              <Divider margin="8px 0" />
               <Table pagination={false} columns={fieldColumns} dataSource={selectedEntity.attributes} rowKey="attributeId" />
             </Space>
           )}
         </Card>
       </div>
 
-      <Card bodyStyle={{ padding: 12 }}>
+      <Card data-testid="domain-model-preview-panel" bodyStyle={{ padding: 12 }}>
         <Space vertical align="start" style={{ width: "100%" }}>
           <Title heading={6} style={{ margin: 0 }}>{c.previewTitle}</Title>
           <Text type="tertiary">{c.lastSync}: {document.syncState.lastSyncedAt ?? "-"}</Text>
           {previewPlan ? (
             <Space vertical align="start" style={{ width: "100%" }}>
               <Text>{`createTables: ${previewPlan.createTables.length}, addColumns: ${previewPlan.addColumns.length}`}</Text>
+              <Text>{`alterColumns: ${previewPlan.alterColumns.length}, renameColumns: ${previewPlan.renameColumns.length}, dropColumns: ${previewPlan.dropColumns.length}`}</Text>
+              <Text>{`createForeignKeys: ${previewPlan.createForeignKeys.length}, dropForeignKeys: ${previewPlan.dropForeignKeys.length}`}</Text>
               {previewPlan.warnings.map(item => <Text key={item} type="warning">{item}</Text>)}
               {previewPlan.errors.map(item => <Text key={item} type="danger">{item}</Text>)}
             </Space>
@@ -595,30 +1069,32 @@ export function MendixDomainModelWorkbench({
       </Card>
 
       <SideSheet
+        data-testid="domain-model-bind-sheet"
         title={c.bindModalTitle}
         visible={bindVisible}
         onCancel={() => setBindVisible(false)}
         footer={
           <Space>
-            <Button onClick={() => setBindVisible(false)}>Cancel</Button>
-            <Button theme="solid" loading={saving} onClick={() => void handleSaveBindings()}>{c.bindDatabase}</Button>
+            <Button data-testid="domain-model-bind-cancel" onClick={() => setBindVisible(false)}>Cancel</Button>
+            <Button data-testid="domain-model-bind-submit" theme="solid" loading={saving} onClick={() => void handleSaveBindings()}>{c.bindDatabase}</Button>
           </Space>
         }
       >
         <Form>
-          <Form.Select label={c.sourceLabel} optionList={sourceOptions} value={bindSourceId} onChange={value => setBindSourceId(String(value))} />
-          <Form.Input label={c.aliasLabel} value={bindAlias} onChange={value => setBindAlias(value)} />
+          <Form.Select field="sourceId" label={c.sourceLabel} optionList={sourceOptions} value={bindSourceId} onChange={value => setBindSourceId(String(value))} />
+          <Form.Input field="alias" label={c.aliasLabel} value={bindAlias} onChange={value => setBindAlias(value)} />
         </Form>
       </SideSheet>
 
       <SideSheet
+        data-testid="domain-model-import-sheet"
         title={c.importModalTitle}
         visible={importVisible}
         onCancel={() => setImportVisible(false)}
         footer={
           <Space>
-            <Button onClick={() => setImportVisible(false)}>Cancel</Button>
-            <Button theme="solid" loading={saving} onClick={() => void handleImportTables()}>{c.importTables}</Button>
+            <Button data-testid="domain-model-import-cancel" onClick={() => setImportVisible(false)}>Cancel</Button>
+            <Button data-testid="domain-model-import-submit" theme="solid" loading={saving} onClick={() => void handleImportTables()}>{c.importTables}</Button>
           </Space>
         }
       >
@@ -659,13 +1135,48 @@ export function MendixDomainModelWorkbench({
         </Form>
       </SideSheet>
 
-      <Modal title={c.previewTitle} visible={previewVisible} footer={null} onCancel={() => setPreviewVisible(false)}>
+      <Modal data-testid="domain-model-preview-modal" title={c.previewTitle} visible={previewVisible} footer={null} onCancel={() => setPreviewVisible(false)}>
         <Space vertical align="start" style={{ width: "100%" }}>
           <Text>{`createTables: ${previewPlan?.createTables.length ?? 0}`}</Text>
           <Text>{`addColumns: ${previewPlan?.addColumns.length ?? 0}`}</Text>
+          <Text>{`alterColumns: ${previewPlan?.alterColumns.length ?? 0}`}</Text>
+          <Text>{`renameColumns: ${previewPlan?.renameColumns.length ?? 0}`}</Text>
+          <Text>{`dropColumns: ${previewPlan?.dropColumns.length ?? 0}`}</Text>
+          <Text>{`createForeignKeys: ${previewPlan?.createForeignKeys.length ?? 0}`}</Text>
+          <Text>{`dropForeignKeys: ${previewPlan?.dropForeignKeys.length ?? 0}`}</Text>
           {previewPlan?.warnings.map(item => <Text key={item} type="warning">{item}</Text>)}
           {previewPlan?.errors.map(item => <Text key={item} type="danger">{item}</Text>)}
         </Space>
+      </Modal>
+
+      <Modal
+        data-testid="domain-model-entity-modal"
+        title={c.entityModalTitle}
+        visible={entityVisible}
+        onCancel={() => setEntityVisible(false)}
+        onOk={handleCreateEntity}
+      >
+        <Form>
+          <Form.Input label={c.entityNameLabel} value={newEntityName} onChange={value => setNewEntityName(value)} />
+          <Form.Select label={c.bindingLabel} optionList={bindingOptions} value={newEntityBindingId} onChange={value => setNewEntityBindingId(String(value))} />
+        </Form>
+      </Modal>
+
+      <Modal
+        data-testid="domain-model-relation-modal"
+        title={c.relationModalTitle}
+        visible={relationVisible}
+        onCancel={() => setRelationVisible(false)}
+        onOk={handleCreateRelation}
+      >
+        <Form>
+          <Form.Input label={c.relationNameLabel} value={newRelationName} onChange={value => setNewRelationName(value)} />
+          <Form.Select label={c.sourceEntityLabel} optionList={entityOptions} value={newRelationSourceEntityId} onChange={value => setNewRelationSourceEntityId(String(value))} />
+          <Form.Select label={c.sourceFieldLabel} optionList={sourceFieldOptions} value={newRelationSourceAttributeId} onChange={value => setNewRelationSourceAttributeId(String(value))} />
+          <Form.Select label={c.targetEntityLabel} optionList={entityOptions} value={newRelationTargetEntityId} onChange={value => setNewRelationTargetEntityId(String(value))} />
+          <Form.Select label={c.targetFieldLabel} optionList={targetFieldOptions} value={newRelationTargetAttributeId} onChange={value => setNewRelationTargetAttributeId(String(value))} />
+          <Form.Switch label={c.crossDatabaseLabel} checked={newRelationCrossDatabase} onChange={checked => setNewRelationCrossDatabase(checked)} />
+        </Form>
       </Modal>
     </div>
   );

@@ -43,6 +43,12 @@ public interface IMendixDomainModelService
         long? updatedByUserId,
         CancellationToken cancellationToken);
 
+    Task<MendixDomainModelMetadataCatalogDto> RefreshMetadataAsync(
+        string appId,
+        string workspaceId,
+        string moduleId,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<MendixDomainModelModuleSummaryDto>> ListModuleSummariesAsync(
         string appId,
         string workspaceId,

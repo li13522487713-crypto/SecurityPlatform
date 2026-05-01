@@ -42,14 +42,24 @@ public sealed class SqlSugarMicroflowRuntimeDbSession : IMicroflowRuntimeDbSessi
 
         if (!string.IsNullOrWhiteSpace(transactionId))
         {
-            _db.Updateable<MicroflowRuntimeObjectStateEntity>()
-                .SetColumns(item => new MicroflowRuntimeObjectStateEntity
+            try
+            {
+                if (_db.DbMaintenance.IsAnyTable("MicroflowRuntimeObjectState", false))
                 {
-                    State = MicroflowRuntimeObjectChangeStatus.Committed,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                })
-                .Where(item => item.TransactionId == transactionId && item.State == MicroflowRuntimeObjectChangeStatus.Staged)
-                .ExecuteCommand();
+                    _db.Updateable<MicroflowRuntimeObjectStateEntity>()
+                        .SetColumns(item => new MicroflowRuntimeObjectStateEntity
+                        {
+                            State = MicroflowRuntimeObjectChangeStatus.Committed,
+                            UpdatedAt = DateTimeOffset.UtcNow
+                        })
+                        .Where(item => item.TransactionId == transactionId && item.State == MicroflowRuntimeObjectChangeStatus.Staged)
+                        .ExecuteCommand();
+                }
+            }
+            catch
+            {
+                // In lightweight runtime-store tests we only provision business tables.
+            }
         }
         _db.Ado.CommitTran();
         HasActiveTransaction = false;

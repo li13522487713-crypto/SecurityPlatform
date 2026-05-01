@@ -3,6 +3,8 @@ using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Core.Identity;
+using Atlas.Presentation.Shared.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.AppHost.Microflows.Controllers;
@@ -26,6 +28,7 @@ public sealed class MendixDomainModelController : MicroflowApiControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.LowcodeAppView)]
     [ProducesResponseType(typeof(MicroflowApiResponse<MendixDomainModelDocumentDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MendixDomainModelDocumentDto>>> GetDocument(
         string appId,
@@ -38,6 +41,7 @@ public sealed class MendixDomainModelController : MicroflowApiControllerBase
     }
 
     [HttpPut]
+    [Authorize(Policy = PermissionPolicies.LowcodeAppUpdate)]
     [ProducesResponseType(typeof(MicroflowApiResponse<MendixDomainModelDocumentDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MendixDomainModelDocumentDto>>> SaveDocument(
         string appId,
@@ -51,6 +55,7 @@ public sealed class MendixDomainModelController : MicroflowApiControllerBase
     }
 
     [HttpPut("bindings")]
+    [Authorize(Policy = PermissionPolicies.LowcodeAppUpdate)]
     [ProducesResponseType(typeof(MicroflowApiResponse<MendixDomainModelDocumentDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MendixDomainModelDocumentDto>>> UpdateBindings(
         string appId,
@@ -64,6 +69,7 @@ public sealed class MendixDomainModelController : MicroflowApiControllerBase
     }
 
     [HttpPost("import-tables")]
+    [Authorize(Policy = PermissionPolicies.LowcodeAppUpdate)]
     [ProducesResponseType(typeof(MicroflowApiResponse<MendixDomainModelImportResultDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MendixDomainModelImportResultDto>>> ImportTables(
         string appId,
@@ -77,6 +83,7 @@ public sealed class MendixDomainModelController : MicroflowApiControllerBase
     }
 
     [HttpPost("preview-sync")]
+    [Authorize(Policy = PermissionPolicies.LowcodeAppView)]
     [ProducesResponseType(typeof(MicroflowApiResponse<MendixDomainModelSyncPlanDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MendixDomainModelSyncPlanDto>>> PreviewSync(
         string appId,
@@ -89,6 +96,7 @@ public sealed class MendixDomainModelController : MicroflowApiControllerBase
     }
 
     [HttpPost("sync-draft")]
+    [Authorize(Policy = PermissionPolicies.LowcodeAppUpdate)]
     [ProducesResponseType(typeof(MicroflowApiResponse<MendixDomainModelSyncResultDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MendixDomainModelSyncResultDto>>> SyncDraft(
         string appId,
@@ -97,6 +105,19 @@ public sealed class MendixDomainModelController : MicroflowApiControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _service.SyncDraftAsync(appId, ResolveWorkspaceId(workspaceId), moduleId, CurrentUserId(), cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpPost("refresh-metadata")]
+    [Authorize(Policy = PermissionPolicies.LowcodeAppView)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MendixDomainModelMetadataCatalogDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MendixDomainModelMetadataCatalogDto>>> RefreshMetadata(
+        string appId,
+        string moduleId,
+        [FromQuery] string? workspaceId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _service.RefreshMetadataAsync(appId, ResolveWorkspaceId(workspaceId), moduleId, cancellationToken);
         return MicroflowOk(result);
     }
 

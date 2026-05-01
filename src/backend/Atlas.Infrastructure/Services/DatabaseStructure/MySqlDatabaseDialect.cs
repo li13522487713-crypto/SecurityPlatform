@@ -53,6 +53,32 @@ public sealed class MySqlDatabaseDialect : DatabaseDialectBase
             $"FROM information_schema.COLUMNS WHERE {schemaPredicate} AND TABLE_NAME = '{objectName.Replace("'", "''", StringComparison.Ordinal)}' ORDER BY ORDINAL_POSITION";
     }
 
+    public override string BuildForeignKeysSql(string tableName, string? schema)
+    {
+        ValidateIdentifier(tableName);
+        var schemaPredicate = string.IsNullOrWhiteSpace(schema)
+            ? "kcu.TABLE_SCHEMA = DATABASE()"
+            : $"kcu.TABLE_SCHEMA = '{schema.Replace("'", "''", StringComparison.Ordinal)}'";
+        return
+            "SELECT " +
+            "kcu.CONSTRAINT_NAME AS foreign_key_name, " +
+            "kcu.TABLE_NAME AS table_name, " +
+            "kcu.TABLE_SCHEMA AS schema_name, " +
+            "kcu.COLUMN_NAME AS source_column_name, " +
+            "kcu.REFERENCED_TABLE_NAME AS referenced_table_name, " +
+            "kcu.REFERENCED_TABLE_SCHEMA AS referenced_schema_name, " +
+            "kcu.REFERENCED_COLUMN_NAME AS referenced_column_name, " +
+            "rc.DELETE_RULE AS on_delete, " +
+            "rc.UPDATE_RULE AS on_update, " +
+            "kcu.ORDINAL_POSITION AS ordinal_position " +
+            "FROM information_schema.KEY_COLUMN_USAGE kcu " +
+            "INNER JOIN information_schema.REFERENTIAL_CONSTRAINTS rc " +
+            "ON rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA " +
+            "AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME " +
+            $"WHERE {schemaPredicate} AND kcu.TABLE_NAME = '{tableName.Replace("'", "''", StringComparison.Ordinal)}' AND kcu.REFERENCED_TABLE_NAME IS NOT NULL " +
+            "ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION";
+    }
+
     public override string BuildDdlSql(string objectName, string? schema, string objectType)
     {
         ValidateIdentifier(objectName);
@@ -63,6 +89,44 @@ public sealed class MySqlDatabaseDialect : DatabaseDialectBase
 
     public override string LimitSelectSql(string selectSql, int limit)
         => $"SELECT * FROM ({selectSql.Trim().TrimEnd(';')}) atlas_preview LIMIT {Math.Clamp(limit, 1, 100)}";
+
+    public override string BuildAlterColumnSql(string tableName, string? schema, string columnName, TableColumnDesignDto column)
+    {
+        ValidateIdentifier(tableName);
+        ValidateIdentifier(columnName);
+        return $"ALTER TABLE {QualifiedName(tableName, schema)} MODIFY COLUMN {BuildColumnSql(column)};";
+    }
+
+    public override string BuildRenameColumnSql(string tableName, string? schema, string columnName, string newColumnName)
+    {
+        ValidateIdentifier(tableName);
+        ValidateIdentifier(columnName);
+        ValidateIdentifier(newColumnName);
+        return $"ALTER TABLE {QualifiedName(tableName, schema)} RENAME COLUMN {QuoteIdentifier(columnName)} TO {QuoteIdentifier(newColumnName)};";
+    }
+
+    public override string BuildDropColumnSql(string tableName, string? schema, string columnName)
+    {
+        ValidateIdentifier(tableName);
+        ValidateIdentifier(columnName);
+        return $"ALTER TABLE {QualifiedName(tableName, schema)} DROP COLUMN {QuoteIdentifier(columnName)};";
+    }
+
+    public override string BuildCreateForeignKeySql(CreateForeignKeyRequest request)
+    {
+        ValidateIdentifier(request.TableName);
+        ValidateIdentifier(request.ForeignKeyName);
+        var sourceColumns = request.SourceColumns.Select(QuoteIdentifier).ToArray();
+        var referencedColumns = request.ReferencedColumns.Select(QuoteIdentifier).ToArray();
+        return $"ALTER TABLE {QualifiedName(request.TableName, request.Schema)} ADD CONSTRAINT {QuoteIdentifier(request.ForeignKeyName)} FOREIGN KEY ({string.Join(", ", sourceColumns)}) REFERENCES {QualifiedName(request.ReferencedTableName, request.ReferencedSchema)} ({string.Join(", ", referencedColumns)}) ON DELETE {NormalizeReferentialAction(request.OnDelete)} ON UPDATE {NormalizeReferentialAction(request.OnUpdate)};";
+    }
+
+    public override string BuildDropForeignKeySql(DropForeignKeyRequest request)
+    {
+        ValidateIdentifier(request.TableName);
+        ValidateIdentifier(request.ForeignKeyName);
+        return $"ALTER TABLE {QualifiedName(request.TableName, request.Schema)} DROP FOREIGN KEY {QuoteIdentifier(request.ForeignKeyName)};";
+    }
 
     protected override string BuildColumnSql(TableColumnDesignDto column)
     {
@@ -112,4 +176,17 @@ public sealed class MySqlDatabaseDialect : DatabaseDialectBase
         => dataType.StartsWith("BIGINT", StringComparison.OrdinalIgnoreCase) ||
            dataType.StartsWith("INT", StringComparison.OrdinalIgnoreCase) ||
            dataType.StartsWith("TINYINT", StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeReferentialAction(string? action)
+    {
+        var normalized = string.IsNullOrWhiteSpace(action) ? "NO ACTION" : action.Trim().ToUpperInvariant();
+        return normalized switch
+        {
+            "CASCADE" => "CASCADE",
+            "SET NULL" => "SET NULL",
+            "RESTRICT" => "RESTRICT",
+            "NO ACTION" => "NO ACTION",
+            _ => throw new InvalidOperationException($"MySQL foreign key action {action} is not supported.")
+        };
+    }
 }

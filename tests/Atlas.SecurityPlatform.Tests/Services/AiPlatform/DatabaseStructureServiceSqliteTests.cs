@@ -142,6 +142,70 @@ public sealed class DatabaseStructureServiceSqliteTests : IDisposable
                 );
                 """),
             CancellationToken.None));
+
+        await service.RenameColumnAsync(
+            Tenant,
+            database.Id,
+            new RenameTableColumnRequest(null, "sys_user_demo", "name", "display_name"),
+            CancellationToken.None);
+
+        var renamedColumns = await service.GetTableColumnsAsync(Tenant, database.Id, AiDatabaseRecordEnvironment.Draft, "sys_user_demo", null, CancellationToken.None);
+        Assert.Contains(renamedColumns, column => column.Name == "display_name");
+
+        await service.AlterColumnAsync(
+            Tenant,
+            database.Id,
+            new AlterTableColumnRequest(
+                null,
+                "sys_user_demo",
+                "display_name",
+                new TableColumnDesignDto("display_name", "TEXT", Nullable: false, DefaultValue: "'unknown'")),
+            CancellationToken.None);
+
+        await draftClient.Ado.ExecuteCommandAsync("INSERT INTO \"sys_user_demo\" (\"display_name\") VALUES ('bob')");
+        var alteredColumns = await service.GetTableColumnsAsync(Tenant, database.Id, AiDatabaseRecordEnvironment.Draft, "sys_user_demo", null, CancellationToken.None);
+        Assert.Contains(alteredColumns, column => column.Name == "display_name" && !column.Nullable);
+
+        await service.DropColumnAsync(
+            Tenant,
+            database.Id,
+            new DropTableColumnRequest(null, "sys_user_demo", "display_name"),
+            CancellationToken.None);
+
+        var droppedColumns = await service.GetTableColumnsAsync(Tenant, database.Id, AiDatabaseRecordEnvironment.Draft, "sys_user_demo", null, CancellationToken.None);
+        Assert.DoesNotContain(droppedColumns, column => column.Name == "display_name");
+
+        await draftClient.Ado.ExecuteCommandAsync("""
+            CREATE TABLE "customer_demo" (
+              "id" TEXT NOT NULL PRIMARY KEY
+            );
+            """);
+        await draftClient.Ado.ExecuteCommandAsync("""
+            CREATE TABLE "order_fk_demo" (
+              "id" TEXT NOT NULL PRIMARY KEY,
+              "customer_id" TEXT NOT NULL
+            );
+            """);
+
+        await service.CreateForeignKeyAsync(
+            Tenant,
+            database.Id,
+            new CreateForeignKeyRequest(null, "order_fk_demo", "fk_order_customer", ["customer_id"], "customer_demo", null, ["id"], "CASCADE", "NO ACTION"),
+            CancellationToken.None);
+
+        var foreignKeys = await service.GetTableForeignKeysAsync(Tenant, database.Id, AiDatabaseRecordEnvironment.Draft, "order_fk_demo", null, CancellationToken.None);
+        var customerFk = Assert.Single(foreignKeys);
+        Assert.Equal("customer_demo", customerFk.ReferencedTableName);
+        Assert.Equal(["customer_id"], customerFk.SourceColumns);
+        Assert.Equal(["id"], customerFk.ReferencedColumns);
+
+        await service.DropForeignKeyAsync(
+            Tenant,
+            database.Id,
+            new DropForeignKeyRequest(null, "order_fk_demo", "fk_order_customer"),
+            CancellationToken.None);
+        var foreignKeysAfterDrop = await service.GetTableForeignKeysAsync(Tenant, database.Id, AiDatabaseRecordEnvironment.Draft, "order_fk_demo", null, CancellationToken.None);
+        Assert.Empty(foreignKeysAfterDrop);
     }
 
     [Theory]

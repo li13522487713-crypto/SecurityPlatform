@@ -75,6 +75,9 @@ function findRegistryKeyForNode(node: MicroflowWorkflowNodeJSON): string | undef
   const data = node.data as NodeDataWithPropertyObject | undefined;
   const objectKind = data?.objectKind ?? node.type;
   const actionKind = data?.actionKind;
+  if (objectKind === "actionActivity" && !actionKind) {
+    return undefined;
+  }
   const entry = defaultMicroflowNodePanelRegistry.find(item => {
     if (actionKind && item.actionKind === actionKind) {
       return true;
@@ -93,6 +96,7 @@ function defaultObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microf
     disabled: data?.disabled,
   } as Partial<MicroflowObject>;
   if ((data?.objectKind ?? node.type) === "actionActivity" && data?.actionKind) {
+    const existingAction = data.action ?? (fallback as MicroflowActionActivity | undefined)?.action;
     try {
       return createActionActivityFromActionRegistry({
         actionRegistryKey: data.actionKind,
@@ -101,7 +105,7 @@ function defaultObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microf
         overrides: {
           ...baseOverrides,
           disabled: data.disabled ?? (fallback as MicroflowActionActivity | undefined)?.disabled,
-          action: data.action ?? (fallback as MicroflowActionActivity | undefined)?.action,
+          ...(existingAction ? { action: existingAction } : {}),
           autoGenerateCaption: data.autoGenerateCaption ?? (fallback as MicroflowActionActivity | undefined)?.autoGenerateCaption,
           backgroundColor: data.backgroundColor ?? (fallback as MicroflowActionActivity | undefined)?.backgroundColor,
         } as Partial<MicroflowActionActivity>,
@@ -131,6 +135,21 @@ function defaultObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microf
     } catch {
       // Fall through to compiled object when the registry cannot construct this node.
     }
+  }
+  if ((data?.objectKind ?? node.type) === "actionActivity") {
+    const existingAction = data?.action ?? (fallback as MicroflowActionActivity | undefined)?.action;
+    return createActionActivityFromActionRegistry({
+      actionRegistryKey: "logMessage",
+      id: node.id,
+      position,
+      overrides: {
+        ...baseOverrides,
+        caption: data?.title ?? fallback?.caption ?? "Action",
+        ...(existingAction ? { action: existingAction } : {}),
+        autoGenerateCaption: data?.autoGenerateCaption ?? (fallback as MicroflowActionActivity | undefined)?.autoGenerateCaption,
+        backgroundColor: data?.backgroundColor ?? (fallback as MicroflowActionActivity | undefined)?.backgroundColor,
+      } as Partial<MicroflowActionActivity>,
+    });
   }
   return fallback ?? ({
     id: node.id,

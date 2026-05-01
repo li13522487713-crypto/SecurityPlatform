@@ -31,6 +31,17 @@ public sealed record DatabaseColumnDto(
     string? Comment,
     int Ordinal);
 
+public sealed record DatabaseForeignKeyDto(
+    string Name,
+    string TableName,
+    string? Schema,
+    IReadOnlyList<string> SourceColumns,
+    string ReferencedTableName,
+    string? ReferencedSchema,
+    IReadOnlyList<string> ReferencedColumns,
+    string? OnDelete,
+    string? OnUpdate);
+
 public sealed record PreviewDataRequest(
     string? Schema,
     int PageIndex = 1,
@@ -112,6 +123,41 @@ public sealed record AddTableColumnRequest(
     string? Schema,
     string TableName,
     TableColumnDesignDto Column);
+
+public sealed record AlterTableColumnRequest(
+    string? Schema,
+    string TableName,
+    string ColumnName,
+    TableColumnDesignDto Column);
+
+public sealed record RenameTableColumnRequest(
+    string? Schema,
+    string TableName,
+    string ColumnName,
+    string NewColumnName);
+
+public sealed record DropTableColumnRequest(
+    string? Schema,
+    string TableName,
+    string ColumnName,
+    bool ConfirmDanger = true);
+
+public sealed record CreateForeignKeyRequest(
+    string? Schema,
+    string TableName,
+    string ForeignKeyName,
+    IReadOnlyList<string> SourceColumns,
+    string ReferencedTableName,
+    string? ReferencedSchema,
+    IReadOnlyList<string> ReferencedColumns,
+    string OnDelete = "NO ACTION",
+    string OnUpdate = "NO ACTION");
+
+public sealed record DropForeignKeyRequest(
+    string? Schema,
+    string TableName,
+    string ForeignKeyName,
+    bool ConfirmDanger = true);
 
 public sealed record PreviewViewSqlRequest(
     string Sql,

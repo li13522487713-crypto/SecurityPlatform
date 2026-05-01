@@ -1,4 +1,5 @@
 using System.Data;
+using System.Dynamic;
 using System.Globalization;
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Models;
@@ -25,6 +26,8 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
         _clientFactory = clientFactory;
         _dialects = dialects;
     }
+
+    private sealed record QueryFilterCondition(string ColumnName, string Operator, IReadOnlyList<object?> Values);
 
     public async Task<MicroflowRuntimeObjectStoreResult> RetrieveAsync(MicroflowRuntimeObjectQuery query, CancellationToken ct)
     {
@@ -58,6 +61,7 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
             ReadSortItems(query.ActionConfig),
             ResolveEnvironment(query.RuntimeContext),
             query.RuntimeContext,
+            query.ActionConfig,
             ct);
         var payload = rangeKind == "first"
             ? items.FirstOrDefault()
@@ -290,6 +294,7 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
             ReadSortItems(query.ActionConfig),
             ResolveEnvironment(query.RuntimeContext),
             query.RuntimeContext,
+            query.ActionConfig,
             ct);
         var payload = JsonSerializer.SerializeToElement(items, JsonOptions);
         return new MicroflowRuntimeObjectStoreResult
@@ -310,47 +315,49 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
         IReadOnlyList<(string ColumnName, string Direction)> sortItems,
         AiDatabaseRecordEnvironment environment,
         RuntimeExecutionContext? runtimeContext,
+        JsonElement actionConfig,
         CancellationToken ct)
     {
         var (client, dialect) = await ResolveConnectionAsync(entity, environment, runtimeContext, ct);
-        var sql = $"SELECT * FROM {dialect.QuoteFullName(entity.SchemaName, entity.TableName ?? entity.Name)}";
-        var parameters = new List<SugarParameter>();
-        if (inFilters is { Count: > 0 })
+        var query = CreateDynamicQuery(client, entity);
+        var parsedConstraint = ParseXPathConditions(actionConfig, entity, runtimeContext);
+        var conditions = BuildFilterConditions(inFilters).Concat(parsedConstraint.Conditions).ToArray();
+        var wherePredicate = string.Empty;
+        List<SugarParameter> whereParameters = [];
+        var canPushWhere = conditions.Length > 0 && TryBuildWhereClause(dialect, conditions, out wherePredicate, out whereParameters);
+        if (canPushWhere)
         {
-            var clauses = new List<string>();
-            foreach (var filter in inFilters)
-            {
-                if (filter.Value.Count == 0)
-                {
-                    continue;
-                }
-
-                var placeholders = new List<string>();
-                for (var index = 0; index < filter.Value.Count; index++)
-                {
-                    var parameterName = $"@p_{parameters.Count}";
-                    placeholders.Add(parameterName);
-                    parameters.Add(new SugarParameter(parameterName, filter.Value[index] ?? DBNull.Value));
-                }
-                clauses.Add($"{dialect.QuoteIdentifier(filter.Key)} IN ({string.Join(", ", placeholders)})");
-            }
-            if (clauses.Count > 0)
-            {
-                sql += " WHERE " + string.Join(" AND ", clauses);
-            }
+            query = query.Where(wherePredicate, whereParameters.ToArray());
         }
 
         if (sortItems.Count > 0)
         {
-            var orderBy = sortItems
-                .Select(item => $"{dialect.QuoteIdentifier(item.ColumnName)} {(string.Equals(item.Direction, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC")}")
-                .ToArray();
-            sql += " ORDER BY " + string.Join(", ", orderBy);
+            var orderBys = sortItems
+                .Select(item => new OrderByModel
+                {
+                    FieldName = item.ColumnName,
+                    OrderByType = string.Equals(item.Direction, "desc", StringComparison.OrdinalIgnoreCase)
+                        ? OrderByType.Desc
+                        : OrderByType.Asc
+                })
+                .ToList();
+            query = query.OrderBy(orderBys);
         }
 
-        sql += $" LIMIT {Math.Clamp(limit, 1, 500)} OFFSET {Math.Max(0, offset)}";
-        var table = await Task.Run(() => client.Ado.GetDataTable(sql, parameters.ToArray()), ct);
-        return table.Rows.Cast<DataRow>().Select(row => ToObjectJson(entity, row)).ToList();
+        var canPushRange = parsedConstraint.AllSupported && (conditions.Length == 0 || canPushWhere);
+        if (canPushRange)
+        {
+            query = query.Skip(Math.Max(0, offset)).Take(Math.Clamp(limit, 1, 500));
+        }
+
+        var rows = await query.ToListAsync(ct);
+        var filtered = rows
+            .Select(row => ToObjectJson(entity, ToDictionary(row)))
+            .Where(row => MatchesConditions(row, conditions))
+            .Skip(canPushRange ? 0 : Math.Max(0, offset))
+            .Take(canPushRange ? rows.Count : Math.Clamp(limit, 1, 500))
+            .ToList();
+        return filtered;
     }
 
     private async Task<JsonElement> PersistInsertAsync(
@@ -361,13 +368,13 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
     {
         var objectMap = ToObjectMap(row);
         EnsurePrimaryKey(entity, objectMap);
-        var (client, dialect) = await ResolveConnectionAsync(entity, ResolveEnvironment(runtimeContext), runtimeContext, ct);
-        var columns = objectMap.Keys.Where(key => !IsMetaField(key)).ToArray();
-        var columnSql = string.Join(", ", columns.Select(dialect.QuoteIdentifier));
-        var valueSql = string.Join(", ", columns.Select((_, index) => $"@p{index}"));
-        var parameters = columns.Select((column, index) => new SugarParameter($"@p{index}", objectMap[column] ?? DBNull.Value)).ToArray();
-        var sql = $"INSERT INTO {dialect.QuoteFullName(entity.SchemaName, entity.TableName ?? entity.Name)} ({columnSql}) VALUES ({valueSql})";
-        await client.Ado.ExecuteCommandAsync(sql, parameters);
+        var (client, _) = await ResolveConnectionAsync(entity, ResolveEnvironment(runtimeContext), runtimeContext, ct);
+        var dbPayload = objectMap
+            .Where(item => !IsMetaField(item.Key))
+            .ToDictionary(item => item.Key, item => item.Value ?? DBNull.Value, StringComparer.OrdinalIgnoreCase);
+        await client.Insertable<Dictionary<string, object>>(dbPayload)
+            .AS(ResolveOrmTableName(entity))
+            .ExecuteCommandAsync(ct);
         return Annotate(entity, objectMap, persisted: true);
     }
 
@@ -396,17 +403,14 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
             throw new InvalidOperationException($"Entity {entity.QualifiedName} does not define a primary key.");
         }
 
-        var (client, dialect) = await ResolveConnectionAsync(entity, ResolveEnvironment(runtimeContext), runtimeContext, ct);
-        var updatableColumns = entity.Attributes
-            .Where(attribute => !attribute.PrimaryKey && objectMap.ContainsKey(attribute.ColumnName ?? attribute.Name))
-            .ToArray();
-        var setClauses = updatableColumns.Select((attribute, index) => $"{dialect.QuoteIdentifier(attribute.ColumnName ?? attribute.Name)}=@v{index}").ToArray();
-        var whereClauses = primaryKeys.Select((attribute, index) => $"{dialect.QuoteIdentifier(attribute.ColumnName ?? attribute.Name)}=@k{index}").ToArray();
-        var parameters = new List<SugarParameter>();
-        parameters.AddRange(updatableColumns.Select((attribute, index) => new SugarParameter($"@v{index}", objectMap[attribute.ColumnName ?? attribute.Name] ?? DBNull.Value)));
-        parameters.AddRange(primaryKeys.Select((attribute, index) => new SugarParameter($"@k{index}", objectMap[attribute.ColumnName ?? attribute.Name] ?? DBNull.Value)));
-        var sql = $"UPDATE {dialect.QuoteFullName(entity.SchemaName, entity.TableName ?? entity.Name)} SET {string.Join(", ", setClauses)} WHERE {string.Join(" AND ", whereClauses)}";
-        await client.Ado.ExecuteCommandAsync(sql, parameters.ToArray());
+        var (client, _) = await ResolveConnectionAsync(entity, ResolveEnvironment(runtimeContext), runtimeContext, ct);
+        var updatePayload = objectMap
+            .Where(item => !IsMetaField(item.Key))
+            .ToDictionary(item => item.Key, item => item.Value ?? DBNull.Value, StringComparer.OrdinalIgnoreCase);
+        await client.Updateable<Dictionary<string, object>>(updatePayload)
+            .AS(ResolveOrmTableName(entity))
+            .WhereColumns(primaryKeys.Select(attribute => attribute.ColumnName ?? attribute.Name).ToArray())
+            .ExecuteCommandAsync(ct);
         return Annotate(entity, objectMap, persisted: true);
     }
 
@@ -423,11 +427,18 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
             return false;
         }
 
-        var (client, dialect) = await ResolveConnectionAsync(entity, ResolveEnvironment(runtimeContext), runtimeContext, ct);
-        var whereClauses = primaryKeys.Select((attribute, index) => $"{dialect.QuoteIdentifier(attribute.ColumnName ?? attribute.Name)}=@k{index}").ToArray();
-        var parameters = primaryKeys.Select((attribute, index) => new SugarParameter($"@k{index}", objectMap[attribute.ColumnName ?? attribute.Name] ?? DBNull.Value)).ToArray();
-        var sql = $"DELETE FROM {dialect.QuoteFullName(entity.SchemaName, entity.TableName ?? entity.Name)} WHERE {string.Join(" AND ", whereClauses)}";
-        await client.Ado.ExecuteCommandAsync(sql, parameters);
+        var (client, _) = await ResolveConnectionAsync(entity, ResolveEnvironment(runtimeContext), runtimeContext, ct);
+        var parameters = new List<SugarParameter>();
+        var predicate = string.Join(" AND ", primaryKeys.Select((attribute, index) =>
+        {
+            var columnName = attribute.ColumnName ?? attribute.Name;
+            parameters.Add(new SugarParameter($"@pk{index}", objectMap[columnName] ?? DBNull.Value));
+            return $"{columnName} = @pk{index}";
+        }));
+        await client.Deleteable<object>()
+            .AS(ResolveOrmTableName(entity))
+            .Where(predicate, parameters.ToArray())
+            .ExecuteCommandAsync(ct);
         return true;
     }
 
@@ -605,6 +616,9 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
         return Annotate(entity, map, persisted: true);
     }
 
+    private static JsonElement ToObjectJson(MetadataEntityDto entity, IDictionary<string, object?> row)
+        => Annotate(entity, row, persisted: true);
+
     private static Dictionary<string, object?> ToObjectMap(JsonElement json)
     {
         var map = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
@@ -712,6 +726,232 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
 
     private static bool IsMetaField(string key)
         => key.StartsWith("$", StringComparison.Ordinal);
+
+    private static ISugarQueryable<ExpandoObject> CreateDynamicQuery(SqlSugarClient client, MetadataEntityDto entity)
+    {
+        var tableName = entity.TableName ?? entity.Name;
+        if (!string.IsNullOrWhiteSpace(entity.SchemaName)
+            && !string.Equals(entity.SchemaName, "main", StringComparison.OrdinalIgnoreCase))
+        {
+            return client.Queryable<ExpandoObject>().AS(tableName, entity.SchemaName);
+        }
+
+        return client.Queryable<ExpandoObject>().AS(tableName);
+    }
+
+    private static string ResolveOrmTableName(MetadataEntityDto entity)
+    {
+        var tableName = entity.TableName ?? entity.Name;
+        if (string.IsNullOrWhiteSpace(entity.SchemaName)
+            || string.Equals(entity.SchemaName, "main", StringComparison.OrdinalIgnoreCase))
+        {
+            return tableName;
+        }
+
+        return $"{entity.SchemaName}.{tableName}";
+    }
+
+    private static Dictionary<string, object?> ToDictionary(ExpandoObject row)
+    {
+        var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var source = (IDictionary<string, object>)(object)row;
+        foreach (var item in source)
+        {
+            result[item.Key] = item.Value;
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<QueryFilterCondition> BuildFilterConditions(IReadOnlyDictionary<string, IReadOnlyList<object?>>? filters)
+    {
+        if (filters is null || filters.Count == 0)
+        {
+            return Array.Empty<QueryFilterCondition>();
+        }
+
+        return filters
+            .Where(filter => filter.Value.Count > 0)
+            .Select(filter => new QueryFilterCondition(filter.Key, "IN", filter.Value))
+            .ToArray();
+    }
+
+    private static (IReadOnlyList<QueryFilterCondition> Conditions, bool AllSupported) ParseXPathConditions(
+        JsonElement actionConfig,
+        MetadataEntityDto entity,
+        RuntimeExecutionContext? runtimeContext)
+    {
+        var raw = ReadStringByPath(actionConfig, "retrieveSource", "xPathConstraint", "raw");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return (Array.Empty<QueryFilterCondition>(), true);
+        }
+
+        var expression = raw.Trim();
+        if (expression.StartsWith("[", StringComparison.Ordinal) && expression.EndsWith("]", StringComparison.Ordinal))
+        {
+            expression = expression[1..^1].Trim();
+        }
+
+        if (expression.Contains(" or ", StringComparison.OrdinalIgnoreCase))
+        {
+            return (Array.Empty<QueryFilterCondition>(), false);
+        }
+
+        var segments = expression.Split([" and ", " AND "], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var result = new List<QueryFilterCondition>();
+        foreach (var segment in segments)
+        {
+            if (!TryParseXPathCondition(segment, entity, runtimeContext, out var condition))
+            {
+                return (result, false);
+            }
+
+            result.Add(condition);
+        }
+
+        return (result, true);
+    }
+
+    private static bool TryParseXPathCondition(
+        string segment,
+        MetadataEntityDto entity,
+        RuntimeExecutionContext? runtimeContext,
+        out QueryFilterCondition condition)
+    {
+        condition = default!;
+        var operators = new[] { ">=", "<=", "!=", "=", ">", "<" };
+        foreach (var op in operators)
+        {
+            var index = segment.IndexOf(op, StringComparison.Ordinal);
+            if (index <= 0)
+            {
+                continue;
+            }
+
+            var left = segment[..index].Trim();
+            var right = segment[(index + op.Length)..].Trim();
+            var normalizedLeaf = left.Split(['.', '/'], StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+            var attribute = entity.Attributes.FirstOrDefault(item =>
+                string.Equals(item.Name, normalizedLeaf, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item.ColumnName, normalizedLeaf, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals($"{entity.QualifiedName}.{item.Name}", left, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals($"{entity.QualifiedName}/{item.Name}", left, StringComparison.OrdinalIgnoreCase));
+            if (attribute is null)
+            {
+                return false;
+            }
+
+            var value = EvaluateSimpleValue(right, runtimeContext);
+            condition = new QueryFilterCondition(attribute.ColumnName ?? attribute.Name, op, [value]);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryBuildWhereClause(
+        IDatabaseDialect dialect,
+        IReadOnlyList<QueryFilterCondition> conditions,
+        out string predicate,
+        out List<SugarParameter> parameters)
+    {
+        parameters = [];
+        var segments = new List<string>();
+        var parameterIndex = 0;
+        foreach (var condition in conditions)
+        {
+            if (string.Equals(condition.Operator, "IN", StringComparison.OrdinalIgnoreCase))
+            {
+                if (condition.Values.Count == 0)
+                {
+                    predicate = string.Empty;
+                    return false;
+                }
+
+                var inParameters = new List<string>();
+                foreach (var value in condition.Values)
+                {
+                    var parameterName = $"@p{parameterIndex++}";
+                    parameters.Add(new SugarParameter(parameterName, value ?? DBNull.Value));
+                    inParameters.Add(parameterName);
+                }
+
+                segments.Add($"{dialect.QuoteIdentifier(condition.ColumnName)} IN ({string.Join(", ", inParameters)})");
+                continue;
+            }
+
+            if (condition.Values.Count != 1)
+            {
+                predicate = string.Empty;
+                return false;
+            }
+
+            var parameter = $"@p{parameterIndex++}";
+            parameters.Add(new SugarParameter(parameter, condition.Values[0] ?? DBNull.Value));
+            segments.Add($"{dialect.QuoteIdentifier(condition.ColumnName)} {condition.Operator} {parameter}");
+        }
+
+        predicate = string.Join(" AND ", segments);
+        return segments.Count > 0;
+    }
+
+    private static bool MatchesConditions(JsonElement row, IReadOnlyList<QueryFilterCondition> conditions)
+    {
+        if (conditions.Count == 0 || row.ValueKind != JsonValueKind.Object)
+        {
+            return true;
+        }
+
+        foreach (var condition in conditions)
+        {
+            if (!row.TryGetProperty(condition.ColumnName, out var value))
+            {
+                return false;
+            }
+
+            var current = ToClrValue(value);
+            if (string.Equals(condition.Operator, "IN", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!condition.Values.Any(expected => Equals(expected, current)))
+                {
+                    return false;
+                }
+                continue;
+            }
+
+            if (!CompareValues(current, condition.Values[0], condition.Operator))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool CompareValues(object? left, object? right, string op)
+    {
+        var leftComparable = ToComparableValue(left);
+        var rightComparable = ToComparableValue(right);
+        var comparison = Comparer<IComparable?>.Default.Compare(leftComparable, rightComparable);
+        return op switch
+        {
+            "=" => comparison == 0,
+            "!=" => comparison != 0,
+            ">" => comparison > 0,
+            ">=" => comparison >= 0,
+            "<" => comparison < 0,
+            "<=" => comparison <= 0,
+            _ => false
+        };
+    }
+
+    private static IComparable? ToComparableValue(object? value)
+        => value switch
+        {
+            null => null,
+            IComparable comparable => comparable,
+            _ => value.ToString()
+        };
 
     private static IReadOnlyList<MicroflowRuntimeVariableValueDto> BuildProducedVariables(string? variableName, JsonElement type, JsonElement payload)
     {

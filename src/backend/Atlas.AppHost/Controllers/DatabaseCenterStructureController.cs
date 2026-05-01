@@ -171,6 +171,118 @@ public sealed class DatabaseCenterStructureController : ControllerBase
             return new { request.TableName };
         });
 
+    [HttpPost("tables/{tableName}/columns")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesSchemaWrite)]
+    public async Task<ActionResult<ApiResponse<object>>> AddColumn(
+        string sourceId,
+        string schemaName,
+        string tableName,
+        [FromBody] TableColumnDesignDto request,
+        CancellationToken cancellationToken)
+        => await ExecuteDraftObject(sourceId, async databaseId =>
+        {
+            await _structureService.AddColumnAsync(
+                _tenantProvider.GetTenantId(),
+                databaseId,
+                new AddTableColumnRequest(schemaName, tableName, request),
+                cancellationToken);
+            return new { TableName = tableName, ColumnName = request.Name };
+        });
+
+    [HttpPut("tables/{tableName}/columns/{columnName}")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesSchemaWrite)]
+    public async Task<ActionResult<ApiResponse<object>>> AlterColumn(
+        string sourceId,
+        string schemaName,
+        string tableName,
+        string columnName,
+        [FromBody] TableColumnDesignDto request,
+        CancellationToken cancellationToken)
+        => await ExecuteDraftObject(sourceId, async databaseId =>
+        {
+            await _structureService.AlterColumnAsync(
+                _tenantProvider.GetTenantId(),
+                databaseId,
+                new AlterTableColumnRequest(schemaName, tableName, columnName, request),
+                cancellationToken);
+            return new { TableName = tableName, ColumnName = columnName };
+        });
+
+    [HttpPost("tables/{tableName}/columns/{columnName}/rename")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesSchemaWrite)]
+    public async Task<ActionResult<ApiResponse<object>>> RenameColumn(
+        string sourceId,
+        string schemaName,
+        string tableName,
+        string columnName,
+        [FromBody] RenameTableColumnRequest request,
+        CancellationToken cancellationToken)
+        => await ExecuteDraftObject(sourceId, async databaseId =>
+        {
+            await _structureService.RenameColumnAsync(
+                _tenantProvider.GetTenantId(),
+                databaseId,
+                request with { Schema = schemaName, TableName = tableName, ColumnName = columnName },
+                cancellationToken);
+            return new { TableName = tableName, ColumnName = columnName, request.NewColumnName };
+        });
+
+    [HttpDelete("tables/{tableName}/columns/{columnName}")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesSchemaWrite)]
+    public async Task<ActionResult<ApiResponse<object>>> DropColumn(
+        string sourceId,
+        string schemaName,
+        string tableName,
+        string columnName,
+        [FromBody] DropTableColumnRequest request,
+        CancellationToken cancellationToken)
+        => await ExecuteDraftObject(sourceId, async databaseId =>
+        {
+            await _structureService.DropColumnAsync(
+                _tenantProvider.GetTenantId(),
+                databaseId,
+                request with { Schema = schemaName, TableName = tableName, ColumnName = columnName },
+                cancellationToken);
+            return new { TableName = tableName, ColumnName = columnName };
+        });
+
+    [HttpPost("tables/{tableName}/foreign-keys")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesSchemaWrite)]
+    public async Task<ActionResult<ApiResponse<object>>> CreateForeignKey(
+        string sourceId,
+        string schemaName,
+        string tableName,
+        [FromBody] CreateForeignKeyRequest request,
+        CancellationToken cancellationToken)
+        => await ExecuteDraftObject(sourceId, async databaseId =>
+        {
+            await _structureService.CreateForeignKeyAsync(
+                _tenantProvider.GetTenantId(),
+                databaseId,
+                request with { Schema = schemaName, TableName = tableName },
+                cancellationToken);
+            return new { TableName = tableName, request.ForeignKeyName };
+        });
+
+    [HttpDelete("tables/{tableName}/foreign-keys/{foreignKeyName}")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesSchemaWrite)]
+    public async Task<ActionResult<ApiResponse<object>>> DropForeignKey(
+        string sourceId,
+        string schemaName,
+        string tableName,
+        string foreignKeyName,
+        [FromBody] DropForeignKeyRequest request,
+        CancellationToken cancellationToken)
+        => await ExecuteDraftObject(sourceId, async databaseId =>
+        {
+            await _structureService.DropForeignKeyAsync(
+                _tenantProvider.GetTenantId(),
+                databaseId,
+                request with { Schema = schemaName, TableName = tableName, ForeignKeyName = foreignKeyName },
+                cancellationToken);
+            return new { TableName = tableName, ForeignKeyName = foreignKeyName };
+        });
+
     [HttpPost("tables/sql")]
     [Authorize(Policy = PermissionPolicies.DataSourcesSchemaWrite)]
     public async Task<ActionResult<ApiResponse<object>>> CreateTableBySql(

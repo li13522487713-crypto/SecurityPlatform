@@ -54,6 +54,24 @@ public sealed class SqliteDatabaseDialect : DatabaseDialectBase
             """;
     }
 
+    public override string BuildForeignKeysSql(string tableName, string? schema)
+    {
+        ValidateIdentifier(tableName);
+        var escapedObjectName = tableName.Replace("'", "''", StringComparison.Ordinal);
+        return $"""
+            SELECT
+                CAST(id AS INTEGER) AS fk_id,
+                CAST(seq AS INTEGER) AS fk_seq,
+                CAST("table" AS TEXT) AS referenced_table_name,
+                CAST("from" AS TEXT) AS source_column_name,
+                CAST("to" AS TEXT) AS referenced_column_name,
+                CAST(on_update AS TEXT) AS on_update,
+                CAST(on_delete AS TEXT) AS on_delete
+            FROM pragma_foreign_key_list('{escapedObjectName}')
+            ORDER BY fk_id, fk_seq
+            """;
+    }
+
     public override string BuildDdlSql(string objectName, string? schema, string objectType)
     {
         ValidateIdentifier(objectName);
@@ -67,6 +85,27 @@ public sealed class SqliteDatabaseDialect : DatabaseDialectBase
         var keyword = string.Equals(objectType, "view", StringComparison.OrdinalIgnoreCase) ? "VIEW" : "TABLE";
         return $"DROP {keyword} IF EXISTS {QuoteIdentifier(objectName)}";
     }
+
+    public override string BuildRenameColumnSql(string tableName, string? schema, string columnName, string newColumnName)
+    {
+        ValidateIdentifier(tableName);
+        ValidateIdentifier(columnName);
+        ValidateIdentifier(newColumnName);
+        return $"ALTER TABLE {QuoteFullName(schema, tableName)} RENAME COLUMN {QuoteIdentifier(columnName)} TO {QuoteIdentifier(newColumnName)};";
+    }
+
+    public override string BuildDropColumnSql(string tableName, string? schema, string columnName)
+    {
+        ValidateIdentifier(tableName);
+        ValidateIdentifier(columnName);
+        return $"ALTER TABLE {QuoteFullName(schema, tableName)} DROP COLUMN {QuoteIdentifier(columnName)};";
+    }
+
+    public override string BuildCreateForeignKeySql(CreateForeignKeyRequest request)
+        => throw new InvalidOperationException("SQLite Draft 结构暂不支持通过通用结构服务直接新增外键，请通过重建表结构完成。");
+
+    public override string BuildDropForeignKeySql(DropForeignKeyRequest request)
+        => throw new InvalidOperationException("SQLite Draft 结构暂不支持通过通用结构服务直接删除外键，请通过重建表结构完成。");
 
     public override string BuildCreateTableSql(PreviewCreateTableDdlRequest request)
     {

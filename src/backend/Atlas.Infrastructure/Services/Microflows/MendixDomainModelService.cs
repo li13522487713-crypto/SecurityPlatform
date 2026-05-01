@@ -15,18 +15,21 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Infrastructure.Repositories;
+using Atlas.Infrastructure.Services.DatabaseStructure;
 
 namespace Atlas.Infrastructure.Services.Microflows;
 
 public sealed class MendixDomainModelService : IMendixDomainModelService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly string[] ManagedAuditColumns = ["created_at", "created_by", "updated_at", "updated_by"];
 
     private readonly IMendixDomainModelDocumentRepository _documentRepository;
     private readonly IAppDefinitionRepository _appDefinitionRepository;
     private readonly ILowCodeAppResourceBindingService _bindingService;
     private readonly IDatabaseManagementService _databaseManagementService;
     private readonly IDatabaseStructureService _databaseStructureService;
+    private readonly IDatabaseDialectRegistry _dialectRegistry;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly AiDatabasePhysicalInstanceRepository _instanceRepository;
@@ -37,6 +40,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
         ILowCodeAppResourceBindingService bindingService,
         IDatabaseManagementService databaseManagementService,
         IDatabaseStructureService databaseStructureService,
+        IDatabaseDialectRegistry dialectRegistry,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IIdGeneratorAccessor idGeneratorAccessor,
         AiDatabasePhysicalInstanceRepository instanceRepository)
@@ -46,6 +50,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
         _bindingService = bindingService;
         _databaseManagementService = databaseManagementService;
         _databaseStructureService = databaseStructureService;
+        _dialectRegistry = dialectRegistry;
         _requestContextAccessor = requestContextAccessor;
         _idGeneratorAccessor = idGeneratorAccessor;
         _instanceRepository = instanceRepository;
@@ -233,7 +238,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
                     null,
                     entity.Attributes.Select(attribute => new TableColumnDesignDto(
                         attribute.ColumnName,
-                        ToDatabaseType(attribute.Type),
+                        ToDatabaseType(attribute.Type, binding.DriverCode),
                         Nullable: !attribute.Required,
                         PrimaryKey: attribute.PrimaryKey,
                         DefaultValue: attribute.DefaultValue)).ToArray(),
@@ -258,10 +263,93 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
                     entity.TableName,
                     new TableColumnDesignDto(
                         attribute.ColumnName,
-                        ToDatabaseType(attribute.Type),
+                        ToDatabaseType(attribute.Type, binding.DriverCode),
                         Nullable: !attribute.Required,
                         PrimaryKey: attribute.PrimaryKey,
                         DefaultValue: attribute.DefaultValue)),
+                cancellationToken);
+        }
+
+        foreach (var renameColumn in plan.RenameColumns)
+        {
+            var binding = document.Bindings.First(item => item.BindingId == renameColumn.BindingId);
+            var instance = await ResolveInstanceAsync(binding.SourceId, cancellationToken);
+            await _databaseStructureService.RenameColumnAsync(
+                CurrentTenantId(),
+                instance.AiDatabaseId,
+                new RenameTableColumnRequest(
+                    renameColumn.SchemaName,
+                    renameColumn.TableName,
+                    renameColumn.ColumnName,
+                    renameColumn.NewColumnName),
+                cancellationToken);
+        }
+
+        foreach (var alterColumn in plan.AlterColumns)
+        {
+            var binding = document.Bindings.First(item => item.BindingId == alterColumn.BindingId);
+            var instance = await ResolveInstanceAsync(binding.SourceId, cancellationToken);
+            await _databaseStructureService.AlterColumnAsync(
+                CurrentTenantId(),
+                instance.AiDatabaseId,
+                new AlterTableColumnRequest(
+                    alterColumn.SchemaName,
+                    alterColumn.TableName,
+                    alterColumn.ColumnName,
+                    new TableColumnDesignDto(
+                        alterColumn.ColumnName,
+                        alterColumn.DataType,
+                        Nullable: alterColumn.Nullable,
+                        PrimaryKey: alterColumn.PrimaryKey,
+                        DefaultValue: alterColumn.DefaultValue)),
+                cancellationToken);
+        }
+
+        foreach (var dropForeignKey in plan.DropForeignKeys)
+        {
+            var binding = document.Bindings.First(item => item.BindingId == dropForeignKey.BindingId);
+            var instance = await ResolveInstanceAsync(binding.SourceId, cancellationToken);
+            await _databaseStructureService.DropForeignKeyAsync(
+                CurrentTenantId(),
+                instance.AiDatabaseId,
+                new DropForeignKeyRequest(
+                    dropForeignKey.SchemaName,
+                    dropForeignKey.TableName,
+                    dropForeignKey.ForeignKeyName),
+                cancellationToken);
+        }
+
+        foreach (var dropColumn in plan.DropColumns)
+        {
+            var binding = document.Bindings.First(item => item.BindingId == dropColumn.BindingId);
+            var instance = await ResolveInstanceAsync(binding.SourceId, cancellationToken);
+            await _databaseStructureService.DropColumnAsync(
+                CurrentTenantId(),
+                instance.AiDatabaseId,
+                new DropTableColumnRequest(
+                    dropColumn.SchemaName,
+                    dropColumn.TableName,
+                    dropColumn.ColumnName),
+                cancellationToken);
+        }
+
+        foreach (var createForeignKey in plan.CreateForeignKeys)
+        {
+            var binding = document.Bindings.First(item => item.BindingId == createForeignKey.BindingId);
+            var instance = await ResolveInstanceAsync(binding.SourceId, cancellationToken);
+            await _databaseStructureService.CreateForeignKeyAsync(
+                CurrentTenantId(),
+                instance.AiDatabaseId,
+                new CreateForeignKeyRequest(
+                    createForeignKey.SchemaName,
+                    createForeignKey.TableName,
+                    createForeignKey.ForeignKeyName,
+                    createForeignKey.SourceColumns,
+                    createForeignKey.ReferencedTableName,
+                    createForeignKey.ReferencedSchemaName,
+                    createForeignKey.ReferencedColumns,
+                    createForeignKey.OnDelete,
+                    createForeignKey.OnUpdate),
                 cancellationToken);
         }
 
@@ -281,6 +369,16 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
             Plan = plan,
             Applied = true
         };
+    }
+
+    public async Task<MendixDomainModelMetadataCatalogDto> RefreshMetadataAsync(
+        string appId,
+        string workspaceId,
+        string moduleId,
+        CancellationToken cancellationToken)
+    {
+        return await GetMetadataCatalogAsync(appId, workspaceId, moduleId, cancellationToken)
+            ?? new MendixDomainModelMetadataCatalogDto();
     }
 
     public async Task<IReadOnlyList<MendixDomainModelModuleSummaryDto>> ListModuleSummariesAsync(
@@ -382,11 +480,17 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
     {
         var createTables = new List<MendixDomainModelCreateTablePlanDto>();
         var addColumns = new List<MendixDomainModelAddColumnPlanDto>();
+        var alterColumns = new List<MendixDomainModelAlterColumnPlanDto>();
+        var renameColumns = new List<MendixDomainModelRenameColumnPlanDto>();
+        var dropColumns = new List<MendixDomainModelDropColumnPlanDto>();
+        var createForeignKeys = new List<MendixDomainModelCreateForeignKeyPlanDto>();
+        var dropForeignKeys = new List<MendixDomainModelDropForeignKeyPlanDto>();
         var warnings = new List<string>();
         var errors = new List<string>();
 
         foreach (var binding in document.Bindings.Where(item => item.Enabled))
         {
+            var dialect = _dialectRegistry.Resolve(binding.DriverCode);
             var sourceId = binding.SourceId;
             var bindingEntities = document.Entities.Where(entity => string.Equals(entity.BindingId, binding.BindingId, StringComparison.OrdinalIgnoreCase)).ToArray();
             if (bindingEntities.Length == 0)
@@ -397,6 +501,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
             var schemas = await _databaseManagementService.ListSchemasAsync(CurrentTenantId(), sourceId, cancellationToken);
             var schemaMap = schemas.ToDictionary(schema => schema.Name, StringComparer.OrdinalIgnoreCase);
             var instance = await ResolveInstanceAsync(sourceId, cancellationToken);
+            var desiredForeignKeys = BuildDesiredForeignKeys(document, binding, warnings);
             foreach (var entity in bindingEntities)
             {
                 if (!schemaMap.TryGetValue(entity.SchemaName, out var schema))
@@ -409,6 +514,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
                         TableName = entity.TableName
                     });
                     warnings.Add($"Schema {entity.SchemaName} 当前未出现在 {binding.Alias} 中，将按默认方言直接尝试建表。");
+                    AppendCreateForeignKeysForNewTable(entity, desiredForeignKeys, createForeignKeys);
                     continue;
                 }
 
@@ -424,6 +530,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
                         SchemaName = entity.SchemaName,
                         TableName = entity.TableName
                     });
+                    AppendCreateForeignKeysForNewTable(entity, desiredForeignKeys, createForeignKeys);
                     continue;
                 }
 
@@ -434,25 +541,39 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
                     entity.TableName,
                     entity.SchemaName,
                     cancellationToken);
-                foreach (var attribute in entity.Attributes)
+                AnalyzeColumnDiffs(
+                    binding,
+                    dialect,
+                    entity,
+                    columns,
+                    addColumns,
+                    alterColumns,
+                    renameColumns,
+                    dropColumns,
+                    warnings);
+
+                if (string.Equals(binding.DriverCode, "SQLite", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (columns.All(column => !string.Equals(column.Name, attribute.ColumnName, StringComparison.OrdinalIgnoreCase)))
+                    if (desiredForeignKeys.ContainsKey(BuildTableKey(entity.SchemaName, entity.TableName)))
                     {
-                        addColumns.Add(new MendixDomainModelAddColumnPlanDto
-                        {
-                            BindingId = binding.BindingId,
-                            SchemaName = entity.SchemaName,
-                            TableName = entity.TableName,
-                            ColumnName = attribute.ColumnName
-                        });
+                        warnings.Add($"SQLite 绑定 {binding.Alias} 的关系 {entity.QualifiedName} 需要通过重建表结构维护外键，当前不会自动执行 FK 变更。");
                     }
+                    continue;
                 }
 
-                var extraColumns = columns.Where(column => entity.Attributes.All(attribute => !string.Equals(attribute.ColumnName, column.Name, StringComparison.OrdinalIgnoreCase))).ToArray();
-                if (extraColumns.Length > 0)
-                {
-                    warnings.Add($"{entity.QualifiedName} 存在 {extraColumns.Length} 个数据库额外列；首版不会自动删列。");
-                }
+                var existingForeignKeys = await _databaseStructureService.GetTableForeignKeysAsync(
+                    CurrentTenantId(),
+                    instance.AiDatabaseId,
+                    instance.Environment,
+                    entity.TableName,
+                    entity.SchemaName,
+                    cancellationToken);
+                AnalyzeForeignKeys(
+                    entity,
+                    existingForeignKeys,
+                    desiredForeignKeys.GetValueOrDefault(BuildTableKey(entity.SchemaName, entity.TableName)) ?? [],
+                    createForeignKeys,
+                    dropForeignKeys);
             }
         }
 
@@ -465,10 +586,332 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
         {
             CreateTables = createTables,
             AddColumns = addColumns,
+            AlterColumns = alterColumns,
+            RenameColumns = renameColumns,
+            DropColumns = dropColumns,
+            CreateForeignKeys = createForeignKeys,
+            DropForeignKeys = dropForeignKeys,
             Warnings = warnings,
             Errors = errors
         };
     }
+
+    private IReadOnlyDictionary<string, IReadOnlyList<MendixDomainModelCreateForeignKeyPlanDto>> BuildDesiredForeignKeys(
+        MendixDomainModelDocumentDto document,
+        MendixDomainModelBindingDto binding,
+        ICollection<string> warnings)
+    {
+        var result = new Dictionary<string, List<MendixDomainModelCreateForeignKeyPlanDto>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var association in document.Associations.Where(item => !string.Equals(item.BindingMode, "logicalCrossDb", StringComparison.OrdinalIgnoreCase)))
+        {
+            var sourceEntity = document.Entities.FirstOrDefault(entity => entity.EntityId == association.FromEntityId);
+            var targetEntity = document.Entities.FirstOrDefault(entity => entity.EntityId == association.ToEntityId);
+            if (sourceEntity is null || targetEntity is null)
+            {
+                continue;
+            }
+
+            if (!string.Equals(sourceEntity.BindingId, binding.BindingId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!string.Equals(sourceEntity.BindingId, targetEntity.BindingId, StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add($"关系 {association.Name} 跨越不同数据库绑定，已降级为逻辑关系，不会创建物理外键。");
+                continue;
+            }
+
+            var sourceColumn = association.JoinSpec?.SourceField ?? (association.SourceAttributeId is null ? null : sourceEntity.Attributes.FirstOrDefault(attribute => attribute.AttributeId == association.SourceAttributeId)?.ColumnName);
+            var targetColumn = association.JoinSpec?.TargetField ?? (association.TargetAttributeId is null ? null : targetEntity.Attributes.FirstOrDefault(attribute => attribute.AttributeId == association.TargetAttributeId)?.ColumnName);
+            if (string.IsNullOrWhiteSpace(sourceColumn) || string.IsNullOrWhiteSpace(targetColumn))
+            {
+                warnings.Add($"关系 {association.Name} 缺少源/目标字段映射，无法生成物理外键。");
+                continue;
+            }
+
+            var key = BuildTableKey(sourceEntity.SchemaName, sourceEntity.TableName);
+            if (!result.TryGetValue(key, out var list))
+            {
+                list = [];
+                result[key] = list;
+            }
+
+            list.Add(new MendixDomainModelCreateForeignKeyPlanDto
+            {
+                BindingId = sourceEntity.BindingId,
+                SchemaName = sourceEntity.SchemaName,
+                TableName = sourceEntity.TableName,
+                ForeignKeyName = association.Name,
+                ReferencedTableName = targetEntity.TableName,
+                ReferencedSchemaName = targetEntity.SchemaName,
+                SourceColumns = [sourceColumn],
+                ReferencedColumns = [targetColumn],
+                OnDelete = "NO ACTION",
+                OnUpdate = "NO ACTION"
+            });
+        }
+
+        return result.ToDictionary(item => item.Key, item => (IReadOnlyList<MendixDomainModelCreateForeignKeyPlanDto>)item.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void AppendCreateForeignKeysForNewTable(
+        MendixDomainModelEntityDto entity,
+        IReadOnlyDictionary<string, IReadOnlyList<MendixDomainModelCreateForeignKeyPlanDto>> desiredForeignKeys,
+        ICollection<MendixDomainModelCreateForeignKeyPlanDto> createForeignKeys)
+    {
+        foreach (var foreignKey in desiredForeignKeys.GetValueOrDefault(BuildTableKey(entity.SchemaName, entity.TableName)) ?? [])
+        {
+            createForeignKeys.Add(foreignKey);
+        }
+    }
+
+    private void AnalyzeColumnDiffs(
+        MendixDomainModelBindingDto binding,
+        IDatabaseDialect dialect,
+        MendixDomainModelEntityDto entity,
+        IReadOnlyList<DatabaseColumnDto> existingColumns,
+        ICollection<MendixDomainModelAddColumnPlanDto> addColumns,
+        ICollection<MendixDomainModelAlterColumnPlanDto> alterColumns,
+        ICollection<MendixDomainModelRenameColumnPlanDto> renameColumns,
+        ICollection<MendixDomainModelDropColumnPlanDto> dropColumns,
+        ICollection<string> warnings)
+    {
+        var columnsByName = existingColumns.ToDictionary(column => column.Name, StringComparer.OrdinalIgnoreCase);
+        var matchedExistingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var renamedFromByAttributeId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var attribute in entity.Attributes)
+        {
+            if (columnsByName.ContainsKey(attribute.ColumnName))
+            {
+                continue;
+            }
+
+            var historicalColumnName = TryGetHistoricalColumnName(attribute);
+            if (string.IsNullOrWhiteSpace(historicalColumnName) ||
+                !columnsByName.ContainsKey(historicalColumnName) ||
+                matchedExistingColumns.Contains(historicalColumnName))
+            {
+                continue;
+            }
+
+            renamedFromByAttributeId[attribute.AttributeId] = historicalColumnName;
+            matchedExistingColumns.Add(historicalColumnName);
+            renameColumns.Add(new MendixDomainModelRenameColumnPlanDto
+            {
+                BindingId = binding.BindingId,
+                SchemaName = entity.SchemaName,
+                TableName = entity.TableName,
+                ColumnName = historicalColumnName,
+                NewColumnName = attribute.ColumnName
+            });
+        }
+
+        foreach (var attribute in entity.Attributes)
+        {
+            var desiredColumnName = attribute.ColumnName;
+            DatabaseColumnDto? existingColumn = null;
+            if (columnsByName.TryGetValue(desiredColumnName, out var exactColumn))
+            {
+                existingColumn = exactColumn;
+                matchedExistingColumns.Add(desiredColumnName);
+            }
+            else if (renamedFromByAttributeId.TryGetValue(attribute.AttributeId, out var previousName) &&
+                     columnsByName.TryGetValue(previousName, out var renamedColumn))
+            {
+                existingColumn = renamedColumn;
+            }
+
+            if (existingColumn is null)
+            {
+                addColumns.Add(new MendixDomainModelAddColumnPlanDto
+                {
+                    BindingId = binding.BindingId,
+                    SchemaName = entity.SchemaName,
+                    TableName = entity.TableName,
+                    ColumnName = desiredColumnName
+                });
+                continue;
+            }
+
+            var desiredDataType = ToDatabaseType(attribute.Type, binding.DriverCode);
+            if (!NeedsAlter(existingColumn, desiredDataType, attribute))
+            {
+                continue;
+            }
+
+            if (string.Equals(binding.DriverCode, "SQLite", StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add($"{entity.QualifiedName}.{attribute.ColumnName} 在 SQLite Draft 中存在类型/默认值/必填变更，当前方言不支持自动 ALTER COLUMN。");
+                continue;
+            }
+
+            alterColumns.Add(new MendixDomainModelAlterColumnPlanDto
+            {
+                BindingId = binding.BindingId,
+                SchemaName = entity.SchemaName,
+                TableName = entity.TableName,
+                ColumnName = attribute.ColumnName,
+                DataType = desiredDataType,
+                Nullable = !attribute.Required,
+                PrimaryKey = attribute.PrimaryKey,
+                DefaultValue = attribute.DefaultValue
+            });
+        }
+
+        foreach (var column in existingColumns)
+        {
+            if (matchedExistingColumns.Contains(column.Name) ||
+                columnsByName.ContainsKey(column.Name) && entity.Attributes.Any(attribute => string.Equals(attribute.ColumnName, column.Name, StringComparison.OrdinalIgnoreCase)) ||
+                ManagedAuditColumns.Contains(column.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            dropColumns.Add(new MendixDomainModelDropColumnPlanDto
+            {
+                BindingId = binding.BindingId,
+                SchemaName = entity.SchemaName,
+                TableName = entity.TableName,
+                ColumnName = column.Name
+            });
+            warnings.Add($"{entity.QualifiedName}.{column.Name} 将从 Draft 中删除，请确认没有微流或外部依赖仍在使用该列。");
+        }
+    }
+
+    private static void AnalyzeForeignKeys(
+        MendixDomainModelEntityDto entity,
+        IReadOnlyList<DatabaseForeignKeyDto> existingForeignKeys,
+        IReadOnlyList<MendixDomainModelCreateForeignKeyPlanDto> desiredForeignKeys,
+        ICollection<MendixDomainModelCreateForeignKeyPlanDto> createForeignKeys,
+        ICollection<MendixDomainModelDropForeignKeyPlanDto> dropForeignKeys)
+    {
+        var desiredByName = desiredForeignKeys.ToDictionary(item => item.ForeignKeyName, StringComparer.OrdinalIgnoreCase);
+        var matchedExistingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var desired in desiredForeignKeys)
+        {
+            var existing = existingForeignKeys.FirstOrDefault(item => string.Equals(item.Name, desired.ForeignKeyName, StringComparison.OrdinalIgnoreCase));
+            if (existing is null)
+            {
+                createForeignKeys.Add(desired);
+                continue;
+            }
+
+            matchedExistingNames.Add(existing.Name);
+            if (ForeignKeyEquivalent(existing, desired))
+            {
+                continue;
+            }
+
+            dropForeignKeys.Add(new MendixDomainModelDropForeignKeyPlanDto
+            {
+                BindingId = desired.BindingId,
+                SchemaName = entity.SchemaName,
+                TableName = entity.TableName,
+                ForeignKeyName = desired.ForeignKeyName
+            });
+            createForeignKeys.Add(desired);
+        }
+
+        foreach (var existing in existingForeignKeys)
+        {
+            if (matchedExistingNames.Contains(existing.Name) || desiredByName.ContainsKey(existing.Name))
+            {
+                continue;
+            }
+
+            dropForeignKeys.Add(new MendixDomainModelDropForeignKeyPlanDto
+            {
+                BindingId = entity.BindingId,
+                SchemaName = entity.SchemaName,
+                TableName = entity.TableName,
+                ForeignKeyName = existing.Name
+            });
+        }
+    }
+
+    private static bool ForeignKeyEquivalent(DatabaseForeignKeyDto existing, MendixDomainModelCreateForeignKeyPlanDto desired)
+        => existing.SourceColumns.SequenceEqual(desired.SourceColumns, StringComparer.OrdinalIgnoreCase)
+           && string.Equals(existing.ReferencedTableName, desired.ReferencedTableName, StringComparison.OrdinalIgnoreCase)
+           && string.Equals(existing.ReferencedSchema, desired.ReferencedSchemaName, StringComparison.OrdinalIgnoreCase)
+           && existing.ReferencedColumns.SequenceEqual(desired.ReferencedColumns, StringComparer.OrdinalIgnoreCase)
+           && string.Equals(existing.OnDelete ?? "NO ACTION", desired.OnDelete, StringComparison.OrdinalIgnoreCase)
+           && string.Equals(existing.OnUpdate ?? "NO ACTION", desired.OnUpdate, StringComparison.OrdinalIgnoreCase);
+
+    private static bool NeedsAlter(DatabaseColumnDto existingColumn, string desiredDataType, MendixDomainModelAttributeDto attribute)
+    {
+        if (!AreDataTypesEquivalent(existingColumn, desiredDataType))
+        {
+            return true;
+        }
+
+        if (existingColumn.Nullable == attribute.Required)
+        {
+            return true;
+        }
+
+        if (existingColumn.PrimaryKey != attribute.PrimaryKey)
+        {
+            return true;
+        }
+
+        return !string.Equals(NormalizeDefaultValue(existingColumn.DefaultValue), NormalizeDefaultValue(attribute.DefaultValue), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool AreDataTypesEquivalent(DatabaseColumnDto existingColumn, string desiredDataType)
+    {
+        var existingCandidates = new[]
+        {
+            existingColumn.RawDataType,
+            existingColumn.DataType
+        }.Where(value => !string.IsNullOrWhiteSpace(value)).Select(NormalizeDataTypeForComparison).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var normalizedDesired = NormalizeDataTypeForComparison(desiredDataType);
+        return existingCandidates.Any(candidate => string.Equals(candidate, normalizedDesired, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeDataTypeForComparison(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToUpperInvariant();
+        var parenthesisIndex = normalized.IndexOf('(');
+        if (parenthesisIndex >= 0)
+        {
+            normalized = normalized[..parenthesisIndex];
+        }
+
+        return normalized switch
+        {
+            "INT" => "INTEGER",
+            "BOOL" => "BOOLEAN",
+            "TIMESTAMP WITHOUT TIME ZONE" => "TIMESTAMP",
+            _ => normalized
+        };
+    }
+
+    private static string? NormalizeDefaultValue(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim().Trim('\'', '"').ToUpperInvariant();
+
+    private static string? TryGetHistoricalColumnName(MendixDomainModelAttributeDto attribute)
+    {
+        if (string.IsNullOrWhiteSpace(attribute.AttributeId))
+        {
+            return null;
+        }
+
+        var lastSeparator = attribute.AttributeId.LastIndexOf(':');
+        if (lastSeparator < 0 || lastSeparator == attribute.AttributeId.Length - 1)
+        {
+            return null;
+        }
+
+        var candidate = attribute.AttributeId[(lastSeparator + 1)..];
+        return string.Equals(candidate, attribute.ColumnName, StringComparison.OrdinalIgnoreCase) ? null : candidate;
+    }
+
+    private static string BuildTableKey(string schemaName, string tableName)
+        => $"{schemaName}::{tableName}";
 
     private async Task<AppDefinition> ResolveAppAsync(string appId, string workspaceId, CancellationToken cancellationToken)
     {
@@ -586,14 +1029,14 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
         };
     }
 
-    private static string ToDatabaseType(string logicalType)
+    private static string ToDatabaseType(string logicalType, string? driverCode = null)
         => NormalizeLogicalType(logicalType) switch
         {
-            "integer" => "INTEGER",
+            "integer" => string.Equals(driverCode, "MySql", StringComparison.OrdinalIgnoreCase) ? "INT" : "INTEGER",
             "long" => "BIGINT",
             "decimal" => "DECIMAL",
             "boolean" => "BOOLEAN",
-            "dateTime" => "DATETIME",
+            "dateTime" => string.Equals(driverCode, "PostgreSQL", StringComparison.OrdinalIgnoreCase) ? "TIMESTAMP" : "DATETIME",
             _ => "TEXT"
         };
 

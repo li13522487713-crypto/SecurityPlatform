@@ -57,6 +57,8 @@ public interface IDatabaseDialect
 
     string BuildColumnsSql(string objectName, string? schema);
 
+    string BuildForeignKeysSql(string tableName, string? schema);
+
     string BuildDdlSql(string objectName, string? schema, string objectType);
 
     string BuildCountSql(string objectName, string? schema);
@@ -64,6 +66,16 @@ public interface IDatabaseDialect
     string BuildCreateTableSql(PreviewCreateTableDdlRequest request);
 
     string BuildAddColumnSql(string tableName, string? schema, TableColumnDesignDto column);
+
+    string BuildAlterColumnSql(string tableName, string? schema, string columnName, TableColumnDesignDto column);
+
+    string BuildRenameColumnSql(string tableName, string? schema, string columnName, string newColumnName);
+
+    string BuildDropColumnSql(string tableName, string? schema, string columnName);
+
+    string BuildCreateForeignKeySql(CreateForeignKeyRequest request);
+
+    string BuildDropForeignKeySql(DropForeignKeyRequest request);
 
     string BuildCreateViewSql(CreateViewRequest request);
 
@@ -243,6 +255,9 @@ public abstract class DatabaseDialectBase : IDatabaseDialect
 
     public abstract string BuildColumnsSql(string objectName, string? schema);
 
+    public virtual string BuildForeignKeysSql(string tableName, string? schema)
+        => throw new NotSupportedException($"{DriverCode} does not support listing foreign keys through the generic structure service.");
+
     public abstract string BuildDdlSql(string objectName, string? schema, string objectType);
 
     public virtual string GetTableListSql(string? schema) => BuildListObjectsSql("table");
@@ -303,6 +318,21 @@ public abstract class DatabaseDialectBase : IDatabaseDialect
         ValidateIdentifier(tableName);
         return $"ALTER TABLE {QualifiedName(tableName, schema)} ADD COLUMN {BuildColumnSql(column)};";
     }
+
+    public virtual string BuildAlterColumnSql(string tableName, string? schema, string columnName, TableColumnDesignDto column)
+        => throw new NotSupportedException($"{DriverCode} does not support ALTER COLUMN through the generic structure service.");
+
+    public virtual string BuildRenameColumnSql(string tableName, string? schema, string columnName, string newColumnName)
+        => throw new NotSupportedException($"{DriverCode} does not support RENAME COLUMN through the generic structure service.");
+
+    public virtual string BuildDropColumnSql(string tableName, string? schema, string columnName)
+        => throw new NotSupportedException($"{DriverCode} does not support DROP COLUMN through the generic structure service.");
+
+    public virtual string BuildCreateForeignKeySql(CreateForeignKeyRequest request)
+        => throw new NotSupportedException($"{DriverCode} does not support CREATE FOREIGN KEY through the generic structure service.");
+
+    public virtual string BuildDropForeignKeySql(DropForeignKeyRequest request)
+        => throw new NotSupportedException($"{DriverCode} does not support DROP FOREIGN KEY through the generic structure service.");
 
     public virtual string BuildCreateViewSql(CreateViewRequest request)
     {

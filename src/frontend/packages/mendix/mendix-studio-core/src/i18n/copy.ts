@@ -101,6 +101,8 @@ export interface MendixStudioCopy {
     readonly required: string;
     readonly primaryKey: string;
     readonly addField: string;
+    readonly createEntity: string;
+    readonly createRelation: string;
     readonly previewTitle: string;
     readonly syncState: string;
     readonly lastSync: string;
@@ -112,9 +114,27 @@ export interface MendixStudioCopy {
     readonly bindingLabel: string;
     readonly schemaLabel: string;
     readonly tableLabel: string;
-    readonly saveSuccess: string;
-    readonly bindSuccess: string;
-    readonly importSuccess: string;
+    readonly entityModalTitle: string;
+    readonly relationModalTitle: string;
+    readonly entityNameLabel: string;
+    readonly sourceEntityLabel: string;
+    readonly targetEntityLabel: string;
+    readonly sourceFieldLabel: string;
+    readonly targetFieldLabel: string;
+      readonly relationNameLabel: string;
+      readonly crossDatabaseLabel: string;
+      readonly refreshMetadata: string;
+      readonly fieldAction: string;
+      readonly deleteField: string;
+      readonly deleteRelation: string;
+      readonly relationModeLabel: string;
+      readonly relationModePhysical: string;
+      readonly relationModeLogical: string;
+      readonly cardinalityLabel: string;
+      readonly relationPhysicalHint: string;
+      readonly saveSuccess: string;
+      readonly bindSuccess: string;
+      readonly importSuccess: string;
     readonly syncSuccess: string;
   };
   readonly index: {
@@ -273,6 +293,8 @@ const zhCN: MendixStudioCopy = {
     required: "必填",
     primaryKey: "主键",
     addField: "新增字段",
+    createEntity: "新建实体",
+    createRelation: "新建关系",
     previewTitle: "同步预览",
     syncState: "同步状态",
     lastSync: "上次同步",
@@ -284,7 +306,25 @@ const zhCN: MendixStudioCopy = {
     bindingLabel: "绑定",
     schemaLabel: "Schema",
     tableLabel: "数据表",
-    saveSuccess: "领域模型已保存",
+    entityModalTitle: "新建实体",
+    relationModalTitle: "新建关系",
+    entityNameLabel: "实体名称",
+    sourceEntityLabel: "源实体",
+    targetEntityLabel: "目标实体",
+    sourceFieldLabel: "源字段",
+    targetFieldLabel: "目标字段",
+      relationNameLabel: "关系名称",
+      crossDatabaseLabel: "跨库逻辑关系",
+      refreshMetadata: "刷新 Metadata",
+      fieldAction: "操作",
+      deleteField: "删除字段",
+      deleteRelation: "删除关系",
+      relationModeLabel: "关系类型",
+      relationModePhysical: "物理外键",
+      relationModeLogical: "逻辑跨库关系",
+      cardinalityLabel: "基数",
+      relationPhysicalHint: "物理外键",
+      saveSuccess: "领域模型已保存",
     bindSuccess: "数据库绑定已保存",
     importSuccess: "表已导入到 Domain Model",
     syncSuccess: "Draft 结构同步完成",
@@ -445,6 +485,8 @@ const enUS: MendixStudioCopy = {
     required: "Required",
     primaryKey: "Primary key",
     addField: "Add field",
+    createEntity: "Create entity",
+    createRelation: "Create relation",
     previewTitle: "Sync preview",
     syncState: "Sync state",
     lastSync: "Last sync",
@@ -456,7 +498,25 @@ const enUS: MendixStudioCopy = {
     bindingLabel: "Binding",
     schemaLabel: "Schema",
     tableLabel: "Tables",
-    saveSuccess: "Domain model saved",
+    entityModalTitle: "Create entity",
+    relationModalTitle: "Create relation",
+    entityNameLabel: "Entity name",
+    sourceEntityLabel: "Source entity",
+    targetEntityLabel: "Target entity",
+    sourceFieldLabel: "Source field",
+    targetFieldLabel: "Target field",
+      relationNameLabel: "Relation name",
+      crossDatabaseLabel: "Cross-database logical relation",
+      refreshMetadata: "Refresh metadata",
+      fieldAction: "Action",
+      deleteField: "Delete field",
+      deleteRelation: "Delete relation",
+      relationModeLabel: "Relation type",
+      relationModePhysical: "Physical FK",
+      relationModeLogical: "Logical cross-database relation",
+      cardinalityLabel: "Cardinality",
+      relationPhysicalHint: "Physical FK",
+      saveSuccess: "Domain model saved",
     bindSuccess: "Database bindings saved",
     importSuccess: "Tables imported into the Domain Model",
     syncSuccess: "Draft structure synchronized",

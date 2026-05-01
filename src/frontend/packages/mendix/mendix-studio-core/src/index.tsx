@@ -17,6 +17,7 @@ import { MicroflowStudioBottomPanel } from "./components/microflow-studio-bottom
 import { WorkbenchCommandPalette } from "./components/workbench-command-palette";
 import { ResourceReadonlyWorkbench } from "./components/resource-readonly-workbench";
 import { MendixDomainModelWorkbench } from "./components/mendix-domain-model-workbench";
+import { WorkbenchToolbar } from "./components/workbench-toolbar";
 import { RuntimePreview } from "./components/runtime-preview";
 import { useMendixStudioStore } from "./store";
 import type { OpenWorkbenchResourceInput } from "./store";

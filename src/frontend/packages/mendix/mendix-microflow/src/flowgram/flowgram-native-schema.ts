@@ -9,7 +9,9 @@ import {
   type MicroflowNodeRegistryEntry,
   type MicroflowNodeRegistryItem,
 } from "../node-registry";
+import { microflowActionRegistryByKind } from "../node-registry/action-registry";
 import type {
+  MicroflowAction,
   MicroflowDataType,
   MicroflowDesignSchema,
   MicroflowParameter,
@@ -54,6 +56,21 @@ function nodeSizeForEntry(entry: MicroflowNodeRegistryEntry | undefined): Microf
   };
 }
 
+function createDefaultActionForEntry(entry: MicroflowNodeRegistryEntry | undefined, objectId: string): MicroflowAction | undefined {
+  if (!entry?.actionKind) {
+    return undefined;
+  }
+  const actionEntry = microflowActionRegistryByKind.get(entry.actionKind);
+  if (!actionEntry) {
+    return undefined;
+  }
+  return actionEntry.createAction({
+    id: `action-${objectId}`,
+    config: actionEntry.createDefaultConfig(),
+    caption: actionEntry.defaultCaption,
+  });
+}
+
 function nodeDataForEntry(entry: MicroflowNodeRegistryEntry | undefined, input: {
   id: string;
   objectKind: FlowGramMicroflowNodeData["objectKind"];
@@ -66,6 +83,7 @@ function nodeDataForEntry(entry: MicroflowNodeRegistryEntry | undefined, input: 
     objectKind: input.objectKind,
     collectionId: MICROFLOW_ROOT_COLLECTION_ID,
     actionKind: entry?.actionKind,
+    action: createDefaultActionForEntry(entry, input.id),
     title: input.title,
     subtitle: input.subtitle,
     officialType: input.officialType,

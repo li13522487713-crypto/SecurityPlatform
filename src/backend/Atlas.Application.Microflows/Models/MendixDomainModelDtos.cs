@@ -232,6 +232,21 @@ public sealed record MendixDomainModelSyncPlanDto
     [JsonPropertyName("addColumns")]
     public IReadOnlyList<MendixDomainModelAddColumnPlanDto> AddColumns { get; init; } = Array.Empty<MendixDomainModelAddColumnPlanDto>();
 
+    [JsonPropertyName("alterColumns")]
+    public IReadOnlyList<MendixDomainModelAlterColumnPlanDto> AlterColumns { get; init; } = Array.Empty<MendixDomainModelAlterColumnPlanDto>();
+
+    [JsonPropertyName("renameColumns")]
+    public IReadOnlyList<MendixDomainModelRenameColumnPlanDto> RenameColumns { get; init; } = Array.Empty<MendixDomainModelRenameColumnPlanDto>();
+
+    [JsonPropertyName("dropColumns")]
+    public IReadOnlyList<MendixDomainModelDropColumnPlanDto> DropColumns { get; init; } = Array.Empty<MendixDomainModelDropColumnPlanDto>();
+
+    [JsonPropertyName("createForeignKeys")]
+    public IReadOnlyList<MendixDomainModelCreateForeignKeyPlanDto> CreateForeignKeys { get; init; } = Array.Empty<MendixDomainModelCreateForeignKeyPlanDto>();
+
+    [JsonPropertyName("dropForeignKeys")]
+    public IReadOnlyList<MendixDomainModelDropForeignKeyPlanDto> DropForeignKeys { get; init; } = Array.Empty<MendixDomainModelDropForeignKeyPlanDto>();
+
     [JsonPropertyName("warnings")]
     public IReadOnlyList<string> Warnings { get; init; } = Array.Empty<string>();
 
@@ -267,6 +282,114 @@ public sealed record MendixDomainModelAddColumnPlanDto
 
     [JsonPropertyName("columnName")]
     public string ColumnName { get; init; } = string.Empty;
+}
+
+public sealed record MendixDomainModelAlterColumnPlanDto
+{
+    [JsonPropertyName("bindingId")]
+    public string BindingId { get; init; } = string.Empty;
+
+    [JsonPropertyName("schemaName")]
+    public string SchemaName { get; init; } = string.Empty;
+
+    [JsonPropertyName("tableName")]
+    public string TableName { get; init; } = string.Empty;
+
+    [JsonPropertyName("columnName")]
+    public string ColumnName { get; init; } = string.Empty;
+
+    [JsonPropertyName("dataType")]
+    public string DataType { get; init; } = string.Empty;
+
+    [JsonPropertyName("nullable")]
+    public bool Nullable { get; init; }
+
+    [JsonPropertyName("primaryKey")]
+    public bool PrimaryKey { get; init; }
+
+    [JsonPropertyName("defaultValue")]
+    public string? DefaultValue { get; init; }
+}
+
+public sealed record MendixDomainModelRenameColumnPlanDto
+{
+    [JsonPropertyName("bindingId")]
+    public string BindingId { get; init; } = string.Empty;
+
+    [JsonPropertyName("schemaName")]
+    public string SchemaName { get; init; } = string.Empty;
+
+    [JsonPropertyName("tableName")]
+    public string TableName { get; init; } = string.Empty;
+
+    [JsonPropertyName("columnName")]
+    public string ColumnName { get; init; } = string.Empty;
+
+    [JsonPropertyName("newColumnName")]
+    public string NewColumnName { get; init; } = string.Empty;
+}
+
+public sealed record MendixDomainModelDropColumnPlanDto
+{
+    [JsonPropertyName("bindingId")]
+    public string BindingId { get; init; } = string.Empty;
+
+    [JsonPropertyName("schemaName")]
+    public string SchemaName { get; init; } = string.Empty;
+
+    [JsonPropertyName("tableName")]
+    public string TableName { get; init; } = string.Empty;
+
+    [JsonPropertyName("columnName")]
+    public string ColumnName { get; init; } = string.Empty;
+}
+
+public sealed record MendixDomainModelCreateForeignKeyPlanDto
+{
+    [JsonPropertyName("bindingId")]
+    public string BindingId { get; init; } = string.Empty;
+
+    [JsonPropertyName("schemaName")]
+    public string SchemaName { get; init; } = string.Empty;
+
+    [JsonPropertyName("tableName")]
+    public string TableName { get; init; } = string.Empty;
+
+    [JsonPropertyName("foreignKeyName")]
+    public string ForeignKeyName { get; init; } = string.Empty;
+
+    [JsonPropertyName("referencedTableName")]
+    public string ReferencedTableName { get; init; } = string.Empty;
+
+    [JsonPropertyName("sourceColumns")]
+    public IReadOnlyList<string> SourceColumns { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("referencedSchemaName")]
+    public string? ReferencedSchemaName { get; init; }
+
+    [JsonPropertyName("referencedColumns")]
+    public IReadOnlyList<string> ReferencedColumns { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("onDelete")]
+    public string OnDelete { get; init; } = "NO ACTION";
+
+    [JsonPropertyName("onUpdate")]
+    public string OnUpdate { get; init; } = "NO ACTION";
+}
+
+public sealed record MendixDomainModelDropForeignKeyPlanDto
+{
+    [JsonPropertyName("bindingId")]
+    public string BindingId { get; init; } = string.Empty;
+
+    [JsonPropertyName("schemaName")]
+    public string SchemaName { get; init; } = string.Empty;
+
+    [JsonPropertyName("tableName")]
+    public string TableName { get; init; } = string.Empty;
+
+    [JsonPropertyName("foreignKeyName")]
+    public string ForeignKeyName { get; init; } = string.Empty;
 }
 
 public sealed record MendixDomainModelSyncResultDto

@@ -21,6 +21,14 @@ public interface IDatabaseStructureService
         string? schema,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<DatabaseForeignKeyDto>> GetTableForeignKeysAsync(
+        TenantId tenantId,
+        long databaseId,
+        AiDatabaseRecordEnvironment environment,
+        string tableName,
+        string? schema,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<DatabaseColumnDto>> GetViewColumnsAsync(
         TenantId tenantId,
         long databaseId,
@@ -70,6 +78,16 @@ public interface IDatabaseStructureService
     Task CreateTableBySqlAsync(TenantId tenantId, long databaseId, CreateTableSqlRequest request, CancellationToken cancellationToken);
 
     Task AddColumnAsync(TenantId tenantId, long databaseId, AddTableColumnRequest request, CancellationToken cancellationToken);
+
+    Task AlterColumnAsync(TenantId tenantId, long databaseId, AlterTableColumnRequest request, CancellationToken cancellationToken);
+
+    Task RenameColumnAsync(TenantId tenantId, long databaseId, RenameTableColumnRequest request, CancellationToken cancellationToken);
+
+    Task DropColumnAsync(TenantId tenantId, long databaseId, DropTableColumnRequest request, CancellationToken cancellationToken);
+
+    Task CreateForeignKeyAsync(TenantId tenantId, long databaseId, CreateForeignKeyRequest request, CancellationToken cancellationToken);
+
+    Task DropForeignKeyAsync(TenantId tenantId, long databaseId, DropForeignKeyRequest request, CancellationToken cancellationToken);
 
     Task<PreviewDataResponse> PreviewViewSqlAsync(
         TenantId tenantId,
