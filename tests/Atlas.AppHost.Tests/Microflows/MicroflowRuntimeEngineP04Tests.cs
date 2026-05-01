@@ -124,6 +124,58 @@ public sealed class MicroflowRuntimeEngineP04Tests
     }
 
     [Fact]
+    public async Task Run_ParallelGateway_Executes_All_Branches_Before_Join()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                new { id = "fork", kind = "parallelGateway", caption = "Fork" },
+                Action("left", "createVariable", new { variableName = "leftValue", dataType = new { kind = "string" }, initialValue = "\"L\"" }),
+                Action("right", "createVariable", new { variableName = "rightValue", dataType = new { kind = "string" }, initialValue = "\"R\"" }),
+                new { id = "join", kind = "parallelMerge", caption = "Join" },
+                End(returnValue: "leftValue")),
+            Flows(
+                Flow("f1", "start", "fork"),
+                Flow("f2", "fork", "left"),
+                Flow("f3", "fork", "right"),
+                Flow("f4", "left", "join"),
+                Flow("f5", "right", "join"),
+                Flow("f6", "join", "end")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("success", session.Status);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "left" && frame.Status == "success");
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "right" && frame.Status == "success");
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "join" && frame.Status == "success");
+    }
+
+    [Fact]
+    public async Task Run_ParallelGateway_Fails_On_Variable_Write_Conflict()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                new { id = "fork", kind = "parallelGateway", caption = "Fork" },
+                Action("left", "createVariable", new { variableName = "sharedValue", dataType = new { kind = "string" }, initialValue = "\"L\"" }),
+                Action("right", "createVariable", new { variableName = "sharedValue", dataType = new { kind = "string" }, initialValue = "\"R\"" }),
+                new { id = "join", kind = "parallelMerge", caption = "Join" },
+                End(returnValue: "sharedValue")),
+            Flows(
+                Flow("f1", "start", "fork"),
+                Flow("f2", "fork", "left"),
+                Flow("f3", "fork", "right"),
+                Flow("f4", "left", "join"),
+                Flow("f5", "right", "join"),
+                Flow("f6", "join", "end")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("failed", session.Status);
+        Assert.Equal("PARALLEL_VARIABLE_WRITE_CONFLICT", session.Error?.Code);
+    }
+
+    [Fact]
     public async Task Run_AnnotationNode_DoesNotBlockSuccessfulFlow()
     {
         var schema = Schema(

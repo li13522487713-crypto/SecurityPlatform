@@ -324,7 +324,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
 
         return new MendixDomainModelMetadataCatalogDto
         {
-            Entities = document.Entities.Select(entity => ToMetadataEntity(document.ModuleId, entity)).ToArray(),
+            Entities = document.Entities.Select(entity => ToMetadataEntity(document, entity)).ToArray(),
             Associations = document.Associations.Select(association => ToMetadataAssociation(document, association)).ToArray()
         };
     }
@@ -597,14 +597,22 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
             _ => "TEXT"
         };
 
-    private static MetadataEntityDto ToMetadataEntity(string moduleId, MendixDomainModelEntityDto entity)
-        => new()
+    private static MetadataEntityDto ToMetadataEntity(MendixDomainModelDocumentDto document, MendixDomainModelEntityDto entity)
+    {
+        var binding = document.Bindings.FirstOrDefault(item => string.Equals(item.BindingId, entity.BindingId, StringComparison.OrdinalIgnoreCase));
+        return new MetadataEntityDto
         {
             Id = entity.EntityId,
             Name = entity.Name,
             QualifiedName = entity.QualifiedName,
-            ModuleId = moduleId,
-            ModuleName = moduleId,
+            ModuleId = document.ModuleId,
+            ModuleName = document.ModuleId,
+            BindingId = entity.BindingId,
+            SourceId = binding?.SourceId,
+            AiDatabaseId = binding?.AiDatabaseId,
+            DriverCode = binding?.DriverCode,
+            SchemaName = entity.SchemaName,
+            TableName = entity.TableName,
             Attributes = entity.Attributes.Select(attribute => new MetadataAttributeDto
             {
                 Id = attribute.AttributeId,
@@ -612,11 +620,14 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
                 QualifiedName = $"{entity.QualifiedName}.{attribute.Name}",
                 Type = CreateMetadataType(attribute),
                 Required = attribute.Required,
-                DefaultValue = attribute.DefaultValue
+                PrimaryKey = attribute.PrimaryKey,
+                DefaultValue = attribute.DefaultValue,
+                ColumnName = attribute.ColumnName
             }).ToArray(),
             Associations = Array.Empty<MetadataAssociationRefDto>(),
             IsPersistable = entity.Persistable
         };
+    }
 
     private static MetadataAssociationDto ToMetadataAssociation(MendixDomainModelDocumentDto document, MendixDomainModelAssociationDto association)
     {
@@ -632,7 +643,13 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
             OwnerEntityQualifiedName = source?.QualifiedName,
             Multiplicity = association.Cardinality,
             Direction = "sourceToTarget",
-            Documentation = association.BindingMode
+            Documentation = association.BindingMode,
+            BindingMode = association.BindingMode,
+            SourceBindingId = source?.BindingId,
+            TargetBindingId = target?.BindingId,
+            SourceField = association.JoinSpec?.SourceField ?? (association.SourceAttributeId is null ? null : source?.Attributes.FirstOrDefault(item => item.AttributeId == association.SourceAttributeId)?.ColumnName),
+            TargetField = association.JoinSpec?.TargetField ?? (association.TargetAttributeId is null ? null : target?.Attributes.FirstOrDefault(item => item.AttributeId == association.TargetAttributeId)?.ColumnName),
+            JoinType = association.JoinSpec?.JoinType
         };
     }
 

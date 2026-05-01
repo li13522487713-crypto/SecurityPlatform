@@ -74,6 +74,24 @@ public sealed record MetadataEntityDto
     [JsonPropertyName("documentation")]
     public string? Documentation { get; init; }
 
+    [JsonPropertyName("bindingId")]
+    public string? BindingId { get; init; }
+
+    [JsonPropertyName("sourceId")]
+    public string? SourceId { get; init; }
+
+    [JsonPropertyName("aiDatabaseId")]
+    public string? AiDatabaseId { get; init; }
+
+    [JsonPropertyName("driverCode")]
+    public string? DriverCode { get; init; }
+
+    [JsonPropertyName("schemaName")]
+    public string? SchemaName { get; init; }
+
+    [JsonPropertyName("tableName")]
+    public string? TableName { get; init; }
+
     [JsonPropertyName("attributes")]
     public IReadOnlyList<MetadataAttributeDto> Attributes { get; init; } = Array.Empty<MetadataAttributeDto>();
 
@@ -110,11 +128,17 @@ public sealed record MetadataAttributeDto
     [JsonPropertyName("required")]
     public bool Required { get; init; }
 
+    [JsonPropertyName("primaryKey")]
+    public bool PrimaryKey { get; init; }
+
     [JsonPropertyName("defaultValue")]
     public string? DefaultValue { get; init; }
 
     [JsonPropertyName("documentation")]
     public string? Documentation { get; init; }
+
+    [JsonPropertyName("columnName")]
+    public string? ColumnName { get; init; }
 
     [JsonPropertyName("enumQualifiedName")]
     public string? EnumQualifiedName { get; init; }
@@ -166,6 +190,24 @@ public sealed record MetadataAssociationDto
 
     [JsonPropertyName("documentation")]
     public string? Documentation { get; init; }
+
+    [JsonPropertyName("bindingMode")]
+    public string? BindingMode { get; init; }
+
+    [JsonPropertyName("sourceBindingId")]
+    public string? SourceBindingId { get; init; }
+
+    [JsonPropertyName("targetBindingId")]
+    public string? TargetBindingId { get; init; }
+
+    [JsonPropertyName("sourceField")]
+    public string? SourceField { get; init; }
+
+    [JsonPropertyName("targetField")]
+    public string? TargetField { get; init; }
+
+    [JsonPropertyName("joinType")]
+    public string? JoinType { get; init; }
 }
 
 public sealed record MetadataEnumerationDto

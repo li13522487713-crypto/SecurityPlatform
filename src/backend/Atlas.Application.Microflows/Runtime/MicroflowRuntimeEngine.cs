@@ -6,6 +6,7 @@ using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime.Actions;
+using Atlas.Application.Microflows.Runtime.Branches;
 using Atlas.Application.Microflows.Runtime.Calls;
 using Atlas.Application.Microflows.Runtime.Debug;
 using Atlas.Application.Microflows.Runtime.ErrorHandling;
@@ -43,6 +44,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     private readonly MicroflowEntityAccessOptions _runtimeOptions;
     private readonly IMicroflowTransactionManager? _transactionManager;
     private readonly IMicroflowRuntimeDbSessionFactory? _runtimeDbSessionFactory;
+    private readonly IVariableScopeForker _variableScopeForker;
+    private readonly IBranchMergePolicy _branchMergePolicy;
 
     public MicroflowRuntimeEngine(IMicroflowSchemaReader schemaReader, IMicroflowClock clock)
         : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null, null, null, null)
@@ -82,7 +85,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowRunCancellationRegistry? cancellationRegistry = null,
         MicroflowEntityAccessOptions? runtimeOptions = null,
         IMicroflowTransactionManager? transactionManager = null,
-        IMicroflowRuntimeDbSessionFactory? runtimeDbSessionFactory = null)
+        IMicroflowRuntimeDbSessionFactory? runtimeDbSessionFactory = null,
+        IVariableScopeForker? variableScopeForker = null,
+        IBranchMergePolicy? branchMergePolicy = null)
     {
         _schemaReader = schemaReader;
         _clock = clock;
@@ -98,6 +103,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         _runtimeOptions = runtimeOptions ?? new MicroflowEntityAccessOptions();
         _transactionManager = transactionManager;
         _runtimeDbSessionFactory = runtimeDbSessionFactory;
+        _variableScopeForker = variableScopeForker ?? new DefaultVariableScopeForker();
+        _branchMergePolicy = branchMergePolicy ?? new NoOpBranchMergePolicy();
     }
 
     public Task<MicroflowRunSessionDto> RunAsync(MicroflowExecutionRequest request, CancellationToken cancellationToken)
@@ -386,7 +393,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             "errorEvent" => ExecuteErrorEvent(context, node, incomingFlowId),
             "annotation" => ExecuteAnnotationPassThrough(context, graph, node, incomingFlowId),
             "parallelGateway" or "parallelSplit" or "parallelMerge"
-                => ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "parallel"),
+                => await ExecuteParallelGatewayAsync(context, graph, node, incomingFlowId, state, cancellationToken).ConfigureAwait(false),
             "inclusiveGateway" or "inclusiveSplit" or "inclusiveMerge"
                 => ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "inclusive"),
             _ => UnsupportedNode(context, node, incomingFlowId, $"节点类型 {node.Kind} 不在 runtime 主路径支持的列表中。")
@@ -528,6 +535,116 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             null,
             selectedCase);
         return NodeExecution.Next(selected.DestinationObjectId!, selected.Id);
+    }
+
+    private async Task<NodeExecution> ExecuteParallelGatewayAsync(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        MicroflowObjectModel node,
+        string? incomingFlowId,
+        CallExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        var outgoing = graph.NormalOutgoing(node.Id);
+        if (outgoing.Count <= 1)
+        {
+            return ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "parallel");
+        }
+
+        var joinNodeId = FindParallelJoinNodeId(graph, node.Id, outgoing);
+        if (string.IsNullOrWhiteSpace(joinNodeId))
+        {
+            var error = Error(RuntimeErrorCode.RuntimeFlowNotFound, $"parallel Gateway 未找到可汇聚的 join 节点：{node.Id}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        var scheduler = new ParallelBranchScheduler();
+        var joinStore = new InMemoryGatewayJoinStateStore();
+        var splitInstanceId = SplitInstanceId.New(node.Id).ToString();
+        var branchContexts = new List<(string BranchId, RuntimeContext Context)>(outgoing.Count);
+        var requests = outgoing.Select((flow, index) =>
+        {
+            var branchId = string.IsNullOrWhiteSpace(flow.Id) ? $"branch-{index + 1}" : flow.Id;
+            var branchContext = context.ForkForBranch(branchId, _variableScopeForker);
+            branchContexts.Add((branchId, branchContext));
+            return new MicroflowBranchExecutionRequest
+            {
+                BranchId = branchId,
+                SplitInstanceId = splitInstanceId,
+                ExecuteAsync = async ct =>
+                {
+                    joinStore.MarkArrived(splitInstanceId, branchId);
+                    var result = await ExecuteParallelBranchAsync(branchContext, graph, flow.DestinationObjectId!, joinNodeId!, state, ct).ConfigureAwait(false);
+                    if (result.Success)
+                    {
+                        joinStore.MarkCompleted(splitInstanceId, branchId);
+                    }
+                    else
+                    {
+                        joinStore.MarkFailed(splitInstanceId, branchId);
+                    }
+
+                    return result;
+                }
+            };
+        }).ToArray();
+
+        var results = await scheduler.RunAsync(requests, cancellationToken).ConfigureAwait(false);
+        var conflictCodes = GatewayWriteConflictDetector.Detect(branchContexts.SelectMany(item => item.Context.CollectWriteIntents(item.BranchId)).ToArray());
+        if (conflictCodes.Count > 0)
+        {
+            var conflict = conflictCodes[0];
+            var errorCode = conflict.Split(':', 2)[0];
+            var error = Error(errorCode, $"parallel 分支写入冲突：{conflict}", node.Id, flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        var failed = results.FirstOrDefault(result => !result.Success);
+        if (failed is not null)
+        {
+            var error = Error(
+                failed.ErrorCode ?? RuntimeErrorCode.RuntimeUnknownError,
+                failed.ErrorMessage ?? $"parallel 分支执行失败：{failed.BranchId}",
+                node.Id,
+                flowId: incomingFlowId);
+            context.AddNodeFailure(node, incomingFlowId, error);
+            return NodeExecution.Failed(error);
+        }
+
+        foreach (var branch in branchContexts)
+        {
+            context.MergeFromBranch(branch.Context);
+        }
+
+        _branchMergePolicy.Merge(
+            context.VariableStore,
+            branchContexts.Select(branch => new BranchExecutionContext
+            {
+                BranchId = branch.BranchId,
+                VariableStore = branch.Context.VariableStore
+            }).ToArray());
+
+        context.AddFrame(
+            node,
+            incomingFlowId,
+            outgoing[0].Id,
+            "success",
+            JsonObj(new
+            {
+                node.Kind,
+                gatewayKind = "parallel",
+                outgoingCount = outgoing.Count,
+                splitInstanceId
+            }),
+            JsonObj(new
+            {
+                joinNodeId,
+                completedBranches = results.Select(result => result.BranchId).OrderBy(id => id, StringComparer.Ordinal).ToArray()
+            }),
+            null);
+        return NodeExecution.Next(joinNodeId!, outgoing[0].Id);
     }
 
     private static MicroflowFlowModel SelectGatewayOutgoing(
@@ -1254,6 +1371,105 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         return NodeExecution.Next(selected.Flow.DestinationObjectId!, selected.Flow.Id);
     }
 
+    private async Task<MicroflowBranchExecutionResult> ExecuteParallelBranchAsync(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        string startNodeId,
+        string joinNodeId,
+        CallExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        var currentNodeId = startNodeId;
+        string? incomingFlowId = null;
+        while (!string.IsNullOrWhiteSpace(currentNodeId) && !string.Equals(currentNodeId, joinNodeId, StringComparison.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!context.TryStep(out var stepError))
+            {
+                return new MicroflowBranchExecutionResult
+                {
+                    BranchId = context.BranchId ?? currentNodeId,
+                    Success = false,
+                    ErrorCode = stepError.Code,
+                    ErrorMessage = stepError.Message
+                };
+            }
+
+            if (!graph.Objects.TryGetValue(currentNodeId, out var node))
+            {
+                return new MicroflowBranchExecutionResult
+                {
+                    BranchId = context.BranchId ?? currentNodeId,
+                    Success = false,
+                    ErrorCode = RuntimeErrorCode.RuntimeObjectNotFound,
+                    ErrorMessage = $"parallel 分支节点不存在：{currentNodeId}"
+                };
+            }
+
+            var execution = await ExecuteNodeAsync(context, graph, node, incomingFlowId, state, cancellationToken).ConfigureAwait(false);
+            if (!execution.Success)
+            {
+                return new MicroflowBranchExecutionResult
+                {
+                    BranchId = context.BranchId ?? currentNodeId,
+                    Success = false,
+                    ErrorCode = execution.Error?.Code,
+                    ErrorMessage = execution.Error?.Message
+                };
+            }
+
+            if (execution.Completed)
+            {
+                return new MicroflowBranchExecutionResult
+                {
+                    BranchId = context.BranchId ?? currentNodeId,
+                    Success = false,
+                    ErrorCode = RuntimeErrorCode.RuntimeEndNotReached,
+                    ErrorMessage = $"parallel 分支在 join 前提前结束：{currentNodeId}"
+                };
+            }
+
+            currentNodeId = execution.NextNodeId;
+            incomingFlowId = execution.OutgoingFlowId;
+        }
+
+        return new MicroflowBranchExecutionResult
+        {
+            BranchId = context.BranchId ?? startNodeId,
+            Success = string.Equals(currentNodeId, joinNodeId, StringComparison.Ordinal)
+        };
+    }
+
+    private static string? FindParallelJoinNodeId(
+        MicroflowRuntimeGraph graph,
+        string splitNodeId,
+        IReadOnlyList<MicroflowFlowModel> outgoing)
+    {
+        var distancesPerBranch = outgoing
+            .Where(flow => !string.IsNullOrWhiteSpace(flow.DestinationObjectId))
+            .Select(flow => graph.ComputeDistances(flow.DestinationObjectId!, stopAtNodeId: splitNodeId))
+            .ToArray();
+        if (distancesPerBranch.Length != outgoing.Count)
+        {
+            return null;
+        }
+
+        var candidateIds = distancesPerBranch
+            .Select(map => map.Keys.ToHashSet(StringComparer.Ordinal))
+            .Aggregate((left, right) =>
+            {
+                left.IntersectWith(right);
+                return left;
+            })
+            .Where(candidateId => !string.Equals(candidateId, splitNodeId, StringComparison.Ordinal))
+            .Where(candidateId => graph.Objects.TryGetValue(candidateId, out var candidate)
+                && candidate.Kind is "parallelGateway" or "parallelMerge")
+            .ToArray();
+        return candidateIds
+            .OrderBy(candidateId => distancesPerBranch.Sum(map => map.GetValueOrDefault(candidateId, int.MaxValue)))
+            .FirstOrDefault();
+    }
+
     private static NodeExecution Unsupported(RuntimeContext context, MicroflowObjectModel node, string? incomingFlowId, string? actionKind = null)
     {
         var nodeType = actionKind ?? node.Kind;
@@ -1750,7 +1966,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         private readonly IMicroflowClock _clock;
         private readonly IMicroflowTransactionManager? _transactionManager;
         private readonly IMicroflowRuntimeDbSessionFactory? _runtimeDbSessionFactory;
-        private readonly MicroflowVariableStore _expressionVariableStore = new();
+        private readonly IMicroflowVariableStore _expressionVariableStore;
         private RuntimeExecutionContext? _executionContext;
         private MicroflowExecutionPlan? _executionPlan;
         private MicroflowExecutionPlanQuery? _executionPlanQuery;
@@ -1772,7 +1988,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             int callDepth,
             IReadOnlyList<string> callStackPath,
             string? callerObjectId,
-            string? callerActionId)
+            string? callerActionId,
+            IMicroflowVariableStore? variableStore = null,
+            string? branchId = null)
         {
             _request = request;
             Model = model;
@@ -1789,6 +2007,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             CallStackPath = callStackPath;
             CallerObjectId = callerObjectId;
             CallerActionId = callerActionId;
+            _expressionVariableStore = variableStore ?? new MicroflowVariableStore();
+            BranchId = branchId;
         }
 
         public MicroflowSchemaModel Model { get; }
@@ -1811,6 +2031,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
         public string? CallerActionId { get; }
 
+        public string? BranchId { get; }
+
         public IReadOnlyDictionary<string, JsonElement> Input => _request.Input;
 
         public string ResourceId => _request.ResourceId;
@@ -1824,6 +2046,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         public MicroflowRequestContext RequestContext => _request.RequestContext;
 
         public Dictionary<string, RuntimeVariable> Variables { get; } = new(StringComparer.Ordinal);
+
+        public HashSet<string> ModifiedVariableNames { get; } = new(StringComparer.Ordinal);
 
         public List<MicroflowTraceFrameDto> Frames { get; } = [];
 
@@ -2044,6 +2268,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         public void SetVariable(string name, JsonElement type, JsonElement value, string source)
         {
             Variables[name] = new RuntimeVariable(name, type.Clone(), value.Clone(), source);
+            ModifiedVariableNames.Add(name);
             var rawValueJson = value.GetRawText();
             var definition = new MicroflowVariableDefinition
             {
@@ -2072,6 +2297,92 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             }
 
             _expressionVariableStore.Define(definition);
+        }
+
+        public RuntimeContext ForkForBranch(string branchId, IVariableScopeForker variableScopeForker)
+        {
+            var branchRequest = _request with
+            {
+                ParentRuntimeContext = AsRuntimeExecutionContext(),
+                TransactionBoundary = MicroflowCallTransactionBoundary.SharedTransaction
+            };
+            var branchStore = variableScopeForker.Fork(_expressionVariableStore, branchId);
+            var branchContext = new RuntimeContext(
+                branchRequest,
+                Model,
+                StartedAt,
+                _clock,
+                ExpressionEvaluator,
+                _transactionManager,
+                _runtimeDbSessionFactory,
+                RunId,
+                ParentRunId,
+                RootRunId,
+                CorrelationId,
+                CallDepth,
+                CallStackPath,
+                CallerObjectId,
+                CallerActionId,
+                branchStore,
+                branchId);
+            foreach (var pair in Variables)
+            {
+                branchContext.Variables[pair.Key] = new RuntimeVariable(pair.Value.Name, pair.Value.Type.Clone(), pair.Value.Value.Clone(), pair.Value.Source);
+            }
+
+            branchContext._executionPlan = _executionPlan;
+            branchContext._executionPlanQuery = _executionPlanQuery;
+            return branchContext;
+        }
+
+        public IReadOnlyList<BranchWriteIntent> CollectWriteIntents(string branchId)
+            => ModifiedVariableNames
+                .Select(name => new BranchWriteIntent
+                {
+                    BranchId = branchId,
+                    VariableName = name
+                })
+                .ToArray();
+
+        public void MergeFromBranch(RuntimeContext branchContext)
+        {
+            foreach (var variableName in branchContext.ModifiedVariableNames)
+            {
+                if (!branchContext.VariableStore.TryGet(variableName, out var value) || value is null)
+                {
+                    continue;
+                }
+
+                ApplyVariableValue(variableName, value);
+            }
+
+            Frames.AddRange(branchContext.Frames);
+            Logs.AddRange(branchContext.Logs);
+        }
+
+        private void ApplyVariableValue(string name, MicroflowRuntimeVariableValue value)
+        {
+            if (_expressionVariableStore.Exists(name))
+            {
+                _expressionVariableStore.Set(name, value with { Name = name });
+            }
+            else
+            {
+                _expressionVariableStore.Define(new MicroflowVariableDefinition
+                {
+                    Name = name,
+                    Value = value with { Name = name },
+                    DataTypeJson = value.DataTypeJson,
+                    ScopeKind = value.ScopeKind,
+                    AllowShadowing = true
+                });
+            }
+
+            Variables[name] = new RuntimeVariable(
+                name,
+                MicroflowVariableStore.ToJsonElement(value.DataTypeJson) ?? JsonNull(),
+                MicroflowVariableStore.ToJsonElement(value.RawValueJson) ?? JsonNull(),
+                value.SourceKind);
         }
 
         public JsonElement EvaluateExpression(string expression, string? currentObjectId = null, string? currentActionId = null, string? currentFlowId = null)
@@ -2633,6 +2944,37 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 ?? ReadString(caseValue, "kind")
                 ?? (caseValue.ValueKind == JsonValueKind.String ? caseValue.GetString() : null);
             return string.Equals(value, expected, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public Dictionary<string, int> ComputeDistances(string startNodeId, string? stopAtNodeId = null)
+        {
+            var distances = new Dictionary<string, int>(StringComparer.Ordinal);
+            var queue = new Queue<(string NodeId, int Distance)>();
+            queue.Enqueue((startNodeId, 0));
+            while (queue.Count > 0)
+            {
+                var (nodeId, distance) = queue.Dequeue();
+                if (distances.TryGetValue(nodeId, out var existing) && existing <= distance)
+                {
+                    continue;
+                }
+
+                distances[nodeId] = distance;
+                if (!string.IsNullOrWhiteSpace(stopAtNodeId) && string.Equals(nodeId, stopAtNodeId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                foreach (var flow in NormalOutgoing(nodeId))
+                {
+                    if (!string.IsNullOrWhiteSpace(flow.DestinationObjectId))
+                    {
+                        queue.Enqueue((flow.DestinationObjectId!, distance + 1));
+                    }
+                }
+            }
+
+            return distances;
         }
     }
 

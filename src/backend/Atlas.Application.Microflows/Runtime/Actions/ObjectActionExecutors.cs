@@ -53,6 +53,7 @@ public abstract class ObjectActionExecutorBase : IMicroflowActionExecutor
             Status = MicroflowActionExecutionStatus.Success,
             OutputJson = result.Value ?? JsonSerializer.SerializeToElement(new { items = result.Items }, JsonOptions),
             OutputPreview = result.Message,
+            ProducedVariables = result.ProducedVariables,
             DurationMs = (int)started.ElapsedMilliseconds
         };
     }
@@ -71,6 +72,7 @@ public abstract class ObjectActionExecutorBase : IMicroflowActionExecutor
             TenantId = context.RuntimeExecutionContext.SecurityContext.TenantId,
             Value = ReadValue(context.ActionConfig),
             DryRun = string.Equals(context.Options.Mode, MicroflowRuntimeExecutionMode.TestRun, StringComparison.OrdinalIgnoreCase),
+            ActionConfig = context.ActionConfig,
             RuntimeContext = context.RuntimeExecutionContext
         };
 
@@ -82,6 +84,7 @@ public abstract class ObjectActionExecutorBase : IMicroflowActionExecutor
             WorkspaceId = context.RuntimeExecutionContext.SecurityContext.WorkspaceId,
             TenantId = context.RuntimeExecutionContext.SecurityContext.TenantId,
             Limit = ReadInt(context.ActionConfig, "limit") ?? 100,
+            ActionConfig = context.ActionConfig,
             RuntimeContext = context.RuntimeExecutionContext
         };
 

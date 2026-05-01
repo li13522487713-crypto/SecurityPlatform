@@ -52,7 +52,9 @@ public static class MicroflowApplicationServiceCollectionExtensions
             sp.GetService<IMicroflowRunCancellationRegistry>(),
             sp.GetService<MicroflowEntityAccessOptions>(),
             sp.GetService<IMicroflowTransactionManager>(),
-            sp.GetService<IMicroflowRuntimeDbSessionFactory>()));
+            sp.GetService<IMicroflowRuntimeDbSessionFactory>(),
+            sp.GetService<IVariableScopeForker>(),
+            sp.GetService<IBranchMergePolicy>()));
         services.TryAddScoped<IMicroflowVariableStore, MicroflowVariableStore>();
         services.TryAddSingleton<IMicroflowExecutionPlanCache, MicroflowExecutionPlanCache>();
         services.TryAddScoped<IMicroflowExpressionEvaluator, MicroflowExpressionEvaluator>();

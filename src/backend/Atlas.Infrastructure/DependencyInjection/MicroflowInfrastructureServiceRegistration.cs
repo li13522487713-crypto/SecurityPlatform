@@ -27,6 +27,7 @@ public static class MicroflowInfrastructureServiceRegistration
         services.AddScoped<IMicroflowStorageTransaction, MicroflowStorageTransaction>();
         services.AddScoped<IMicroflowRuntimeDbSessionFactory, SqlSugarMicroflowRuntimeDbSessionFactory>();
         services.AddScoped<IDatabaseBackedMicroflowRuntimeObjectStore, SqlSugarMicroflowRuntimeObjectStore>();
+        services.AddScoped<IMicroflowRuntimeObjectStore, DomainModelRuntimeObjectStore>();
         services.AddScoped<IMicroflowDatabaseUnitOfWork>(sp =>
         {
             var sessionFactory = sp.GetRequiredService<IMicroflowRuntimeDbSessionFactory>();
