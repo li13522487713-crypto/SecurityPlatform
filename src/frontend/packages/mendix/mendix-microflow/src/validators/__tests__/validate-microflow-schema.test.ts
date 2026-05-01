@@ -130,7 +130,15 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     ]));
 
     expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_DECISION_DUPLICATE_CASE", severity: "error" })]));
-    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_DECISION_BOOLEAN_FALSE_MISSING", severity: "warning" })]));
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_DECISION_BOOLEAN_FALSE_MISSING",
+      severity: "warning",
+      objectId: "decision",
+      fieldPath: "splitCondition",
+      relatedFlowIds: expect.arrayContaining([first.id, second.id]),
+      quickFixAvailable: true,
+      quickFixes: expect.arrayContaining([expect.objectContaining({ kind: "createMissingFlow" })]),
+    })]));
   });
 
   it("reports Call Microflow missing and stale targets", () => {

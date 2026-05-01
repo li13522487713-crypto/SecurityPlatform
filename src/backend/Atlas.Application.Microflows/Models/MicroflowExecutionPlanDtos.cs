@@ -158,6 +158,9 @@ public sealed record MicroflowExecutionPlan
     [JsonPropertyName("loopCollections")]
     public IReadOnlyList<MicroflowExecutionLoopCollection> LoopCollections { get; init; } = Array.Empty<MicroflowExecutionLoopCollection>();
 
+    [JsonPropertyName("gateways")]
+    public IReadOnlyList<MicroflowExecutionGateway> Gateways { get; init; } = Array.Empty<MicroflowExecutionGateway>();
+
     [JsonPropertyName("variableDeclarations")]
     public IReadOnlyList<MicroflowExecutionVariableDeclaration> VariableDeclarations { get; init; } = Array.Empty<MicroflowExecutionVariableDeclaration>();
 
@@ -292,6 +295,30 @@ public sealed record MicroflowExecutionLoopCollection
 
     [JsonPropertyName("terminalNodeIds")]
     public IReadOnlyList<string> TerminalNodeIds { get; init; } = Array.Empty<string>();
+}
+
+public sealed record MicroflowExecutionGateway
+{
+    [JsonPropertyName("objectId")]
+    public string ObjectId { get; init; } = string.Empty;
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; init; } = string.Empty;
+
+    [JsonPropertyName("collectionId")]
+    public string? CollectionId { get; init; }
+
+    [JsonPropertyName("role")]
+    public string Role { get; init; } = "passThrough";
+
+    [JsonPropertyName("incomingFlowIds")]
+    public IReadOnlyList<string> IncomingFlowIds { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("outgoingFlowIds")]
+    public IReadOnlyList<string> OutgoingFlowIds { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("branchFlowIds")]
+    public IReadOnlyList<string> BranchFlowIds { get; init; } = Array.Empty<string>();
 }
 
 public sealed record MicroflowExecutionParameter

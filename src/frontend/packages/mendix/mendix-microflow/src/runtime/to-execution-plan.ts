@@ -15,6 +15,7 @@ import { resolveActionRuntimeSupportLevel } from "./runtime-action-support";
 import type { MicroflowRuntimeSupportLevel, MicroflowUnsupportedActionReason } from "./runtime-action-support";
 import type {
   MicroflowExecutionFlow,
+  MicroflowExecutionGateway,
   MicroflowExecutionLoopCollection,
   MicroflowExecutionNode,
   MicroflowExecutionParameter,
@@ -334,6 +335,43 @@ function toLoopCollections(nodes: MicroflowWorkflowNodeJSON[], flows: MicroflowE
     });
 }
 
+function gatewayRole(incomingCount: number, outgoingCount: number): MicroflowExecutionGateway["role"] {
+  const isSplit = outgoingCount > 1;
+  const isMerge = incomingCount > 1;
+  if (isSplit && isMerge) {
+    return "splitMerge";
+  }
+  if (isSplit) {
+    return "split";
+  }
+  if (isMerge) {
+    return "merge";
+  }
+  return "passThrough";
+}
+
+function toGateways(nodes: MicroflowExecutionNode[], flows: MicroflowExecutionFlow[]): MicroflowExecutionGateway[] {
+  return nodes
+    .filter(node => node.kind === "parallelGateway" || node.kind === "inclusiveGateway")
+    .map(node => {
+      const incoming = flows
+        .filter(flow => flow.destinationObjectId === node.objectId)
+        .sort((left, right) => left.flowId.localeCompare(right.flowId));
+      const outgoing = flows
+        .filter(flow => flow.originObjectId === node.objectId)
+        .sort((left, right) => (left.branchOrder ?? Number.MAX_SAFE_INTEGER) - (right.branchOrder ?? Number.MAX_SAFE_INTEGER) || left.flowId.localeCompare(right.flowId));
+      return {
+        objectId: node.objectId,
+        kind: node.kind,
+        collectionId: node.collectionId,
+        role: gatewayRole(incoming.length, outgoing.length),
+        incomingFlowIds: incoming.map(flow => flow.flowId),
+        outgoingFlowIds: outgoing.map(flow => flow.flowId),
+        branchFlowIds: outgoing.map(flow => flow.flowId),
+      };
+    });
+}
+
 export function toExecutionPlan(schema: MicroflowDesignSchema, options?: { resourceId?: string; version?: string }): MicroflowExecutionPlan {
   assertDesignSchema(schema);
   const nodesById = new Map(schema.workflow.nodes.map(node => [node.id, node]));
@@ -344,7 +382,8 @@ export function toExecutionPlan(schema: MicroflowDesignSchema, options?: { resou
     .map(edge => toExecutionFlow(edge, nodesById))
     .filter(flow => !flow.runtimeIgnored);
   const normalFlows = flows.filter(flow => flow.controlFlow === "normal");
-  const decisionFlows = flows.filter(flow => flow.controlFlow === "decision" || flow.controlFlow === "objectType");
+  const decisionFlows = flows.filter(flow => flow.controlFlow === "decision");
+  const objectTypeFlows = flows.filter(flow => flow.controlFlow === "objectType");
   const errorHandlerFlows = flows.filter(flow => flow.controlFlow === "errorHandler");
   const start = schema.workflow.nodes.find(node => nodeKind(node) === "startEvent")
     ?? schema.workflow.nodes.find(node => !["annotation", "parameterObject"].includes(nodeKind(node)));
@@ -368,8 +407,10 @@ export function toExecutionPlan(schema: MicroflowDesignSchema, options?: { resou
     flows,
     normalFlows,
     decisionFlows,
+    objectTypeFlows,
     errorHandlerFlows,
     loopCollections: toLoopCollections(schema.workflow.nodes, flows),
+    gateways: toGateways(nodes, flows),
     startNodeId: start ? nodeObjectId(start) : "missing-start",
     endNodeIds,
     metadataRefs,

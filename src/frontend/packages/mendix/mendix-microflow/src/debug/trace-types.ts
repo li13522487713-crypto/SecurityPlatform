@@ -72,6 +72,42 @@ export interface MicroflowRuntimeTransactionSummary {
   diagnosticsCount: number;
 }
 
+export type MicroflowGatewayBranchTraceStatus = "executed" | "completed" | "failed" | "skipped";
+
+export interface MicroflowGatewayBranchTrace {
+  flowId: string;
+  branchId: string;
+  targetObjectId?: string;
+  selected: boolean;
+  status: MicroflowGatewayBranchTraceStatus;
+}
+
+export function extractGatewayBranchTrace(frame: Pick<MicroflowTraceFrame, "output">): MicroflowGatewayBranchTrace[] {
+  const branchTrace = frame.output?.branchTrace;
+  if (!Array.isArray(branchTrace)) {
+    return [];
+  }
+  return branchTrace.flatMap(item => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+    const candidate = item as Record<string, unknown>;
+    const flowId = typeof candidate.flowId === "string" ? candidate.flowId : undefined;
+    const branchId = typeof candidate.branchId === "string" ? candidate.branchId : flowId;
+    const status = typeof candidate.status === "string" ? candidate.status : undefined;
+    if (!flowId || !branchId || !["executed", "completed", "failed", "skipped"].includes(status ?? "")) {
+      return [];
+    }
+    return [{
+      flowId,
+      branchId,
+      targetObjectId: typeof candidate.targetObjectId === "string" ? candidate.targetObjectId : undefined,
+      selected: candidate.selected === true,
+      status: status as MicroflowGatewayBranchTraceStatus,
+    }];
+  });
+}
+
 export interface MicroflowTraceFrame {
   id: string;
   frameId?: string;
@@ -112,7 +148,7 @@ export interface MicroflowTraceFrame {
   inputVariables?: Record<string, MicroflowRuntimeVariableValue>;
   actionInput?: Record<string, unknown>;
   evaluatedExpressions?: unknown[];
-  output?: Record<string, unknown>;
+  output?: Record<string, unknown> & { branchTrace?: MicroflowGatewayBranchTrace[] };
   outputVariables?: Record<string, MicroflowRuntimeVariableValue>;
   variableDelta?: {
     added?: string[];

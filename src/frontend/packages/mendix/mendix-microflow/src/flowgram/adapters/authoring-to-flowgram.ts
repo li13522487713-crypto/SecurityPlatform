@@ -1,6 +1,7 @@
 import type { WorkflowEdgeJSON, WorkflowJSON, WorkflowNodeJSON } from "@flowgram-adapter/free-layout-editor";
 
 import { flattenObjectCollection, toEditorGraph } from "../../adapters/microflow-adapters";
+import { extractGatewayBranchTrace } from "../../debug/trace-types";
 import type { MicroflowTraceFrame } from "../../debug/trace-types";
 import type {
   MicroflowAuthoringPersistedTraceFrame,
@@ -160,6 +161,19 @@ function runtimeStateForObject(
 function runtimeStateForFlow(flow: MicroflowFlow | undefined, trace: MicroflowFlowGramTraceRow[] = []): FlowGramMicroflowEdgeData["runtimeState"] {
   if (!flow) {
     return "idle";
+  }
+  for (const frame of trace) {
+    const branch = extractGatewayBranchTrace(frame).find(item => item.flowId === flow.id);
+    if (!branch) {
+      continue;
+    }
+    if (branch.status === "skipped") {
+      return "skipped";
+    }
+    if (branch.selected && frame.input && "gatewayKind" in frame.input && frame.input.gatewayKind === "inclusive") {
+      return "selectedCase";
+    }
+    return "visited";
   }
   const visitedFrame = trace.find(item => item.incomingFlowId === flow.id || item.outgoingFlowId === flow.id);
   if (visitedFrame?.error && visitedFrame.outgoingFlowId === flow.id) {

@@ -236,6 +236,8 @@ public sealed class MicroflowRuntimeEngineP04Tests
         Assert.Contains(session.Trace, frame => frame.ObjectId == "left" && frame.Status == "success");
         Assert.Contains(session.Trace, frame => frame.ObjectId == "right" && frame.Status == "success");
         Assert.Contains(session.Trace, frame => frame.ObjectId == "join" && frame.Status == "success");
+        AssertBranchTrace(session, "fork", "f2", selected: true, "completed");
+        AssertBranchTrace(session, "fork", "f3", selected: true, "completed");
     }
 
     [Fact]
@@ -273,6 +275,7 @@ public sealed class MicroflowRuntimeEngineP04Tests
                 new { id = "fork", kind = "inclusiveGateway", caption = "Inclusive Fork" },
                 Action("left", "createVariable", new { variableName = "inclusiveA", dataType = new { kind = "integer" }, initialValue = "5" }),
                 Action("right", "createVariable", new { variableName = "inclusiveB", dataType = new { kind = "integer" }, initialValue = "7" }),
+                Action("skipped", "createVariable", new { variableName = "inclusiveSkipped", dataType = new { kind = "integer" }, initialValue = "-99" }),
                 new { id = "join", kind = "inclusiveGateway", caption = "Inclusive Join" },
                 Action("sum", "changeVariable", new { targetVariableName = "gate", newValueExpression = "$gate + $inclusiveA + $inclusiveB" }),
                 End(returnValue: "$gate")),
@@ -281,8 +284,10 @@ public sealed class MicroflowRuntimeEngineP04Tests
                 Flow("f2", "seed", "fork"),
                 ConditionFlow("f3", "fork", "left", "1 = 1"),
                 ConditionFlow("f4", "fork", "right", "2 = 2"),
+                ConditionFlow("f4-skip", "fork", "skipped", "1 = 2"),
                 Flow("f5", "left", "join"),
                 Flow("f6", "right", "join"),
+                Flow("f6-skip", "skipped", "join"),
                 Flow("f7", "join", "sum"),
                 Flow("f8", "sum", "end")));
 
@@ -294,7 +299,11 @@ public sealed class MicroflowRuntimeEngineP04Tests
         Assert.Equal("12", session.Output?.GetRawText());
         Assert.Contains(session.Trace, frame => frame.ObjectId == "left" && frame.Status == "success");
         Assert.Contains(session.Trace, frame => frame.ObjectId == "right" && frame.Status == "success");
+        Assert.DoesNotContain(session.Trace, frame => frame.ObjectId == "skipped" && frame.Status == "success");
         Assert.Contains(session.Trace, frame => frame.ObjectId == "join" && frame.Status == "success");
+        AssertBranchTrace(session, "fork", "f3", selected: true, "completed");
+        AssertBranchTrace(session, "fork", "f4", selected: true, "completed");
+        AssertBranchTrace(session, "fork", "f4-skip", selected: false, "skipped");
     }
 
     [Fact]
@@ -542,6 +551,11 @@ public sealed class MicroflowRuntimeEngineP04Tests
         Assert.Contains(session.Trace, frame => frame.ObjectId == "has-five-decision" && frame.SelectedCaseValue.HasValue);
         Assert.Contains(session.Trace, frame => frame.ObjectId == "student-type" && frame.SelectedCaseValue.HasValue);
         AssertFrameVariableRaw(session, "final-total", "loopScore", "4");
+        AssertBranchTrace(session, "parallel-fork", "f-parallel-a", selected: true, "completed");
+        AssertBranchTrace(session, "parallel-fork", "f-parallel-b", selected: true, "completed");
+        AssertBranchTrace(session, "inclusive-fork", "f-inclusive-a", selected: true, "completed");
+        AssertBranchTrace(session, "inclusive-fork", "f-inclusive-b", selected: true, "completed");
+        AssertBranchTrace(session, "inclusive-fork", "f-inclusive-fallback", selected: false, "skipped");
 
         var emptyInputSession = await RunAsync(schema, new Dictionary<string, object?> { ["numbers"] = Array.Empty<int>() }, Catalog());
 
@@ -663,6 +677,65 @@ public sealed class MicroflowRuntimeEngineP04Tests
 
         Assert.Equal("success", session.Status);
         Assert.Contains(session.Trace, frame => frame.ObjectId == "metric" && frame.Status == "success");
+    }
+
+    [Fact]
+    public async Task Run_LargeNodeOutput_Summarizes_Output_Even_In_TestRun_FullTrace()
+    {
+        var largeLiteral = JsonSerializer.Serialize(new string('x', 1_100_000), JsonOptions);
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("large-output", "createVariable", new
+                {
+                    variableName = "largePayload",
+                    dataType = new { kind = "string" },
+                    initialValue = largeLiteral
+                }),
+                End(returnValue: "$largePayload")),
+            Flows(
+                Flow("f1", "start", "large-output"),
+                Flow("f2", "large-output", "end")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("success", session.Status);
+        var frame = Assert.Single(session.Trace, frame => frame.ObjectId == "large-output");
+        Assert.True(frame.Output.HasValue, "large-output should expose summarized output.");
+        Assert.True(frame.Output.Value.TryGetProperty("summary", out var summary), frame.Output.Value.GetRawText());
+        Assert.True(summary.GetBoolean());
+        Assert.True(frame.Output.Value.GetProperty("sizeBytes").GetInt64() > 1024 * 1024);
+    }
+
+    [Fact]
+    public async Task Run_ActionFrame_Exposes_Sanitized_ActionInput_And_Nested_Expressions()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("create-score", "createVariable", new
+                {
+                    variableName = "score",
+                    dataType = new { kind = "integer" },
+                    initialValueExpression = "40 + 2",
+                    apiToken = "secret-token"
+                }),
+                End(returnValue: "$score")),
+            Flows(
+                Flow("f1", "start", "create-score"),
+                Flow("f2", "create-score", "end")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("success", session.Status);
+        var frame = Assert.Single(session.Trace, frame => frame.ObjectId == "create-score");
+        Assert.True(frame.ActionInput.HasValue, "action frame should expose actionInput.");
+        Assert.Equal("createVariable", frame.ActionInput.Value.GetProperty("actionKind").GetString());
+        var actionConfig = frame.ActionInput.Value.GetProperty("actionConfig");
+        Assert.Equal("score", actionConfig.GetProperty("variableName").GetString());
+        Assert.Equal("***", actionConfig.GetProperty("apiToken").GetString());
+        Assert.True(frame.EvaluatedExpressions.HasValue, "action frame should expose evaluatedExpressions.");
+        Assert.Contains("actionConfig.initialValueExpression", frame.EvaluatedExpressions.Value.GetRawText(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -880,6 +953,16 @@ public sealed class MicroflowRuntimeEngineP04Tests
         Assert.True(frame.InputVariables.Value.TryGetProperty(variableName, out var variable), $"{objectId} should expose {variableName}.");
         Assert.True(variable.TryGetProperty("rawValue", out var rawValue), $"{variableName} should expose rawValue.");
         Assert.Equal(expectedRawValue, rawValue.GetRawText());
+    }
+
+    private static void AssertBranchTrace(MicroflowRunSessionDto session, string objectId, string flowId, bool selected, string status)
+    {
+        var frame = Assert.Single(session.Trace.Where(frame => frame.ObjectId == objectId && frame.Status == "success").Take(1));
+        Assert.True(frame.Output.HasValue, $"{objectId} should expose output.");
+        Assert.True(frame.Output.Value.TryGetProperty("branchTrace", out var branchTrace), $"{objectId} should expose branchTrace.");
+        var branch = branchTrace.EnumerateArray().Single(item => item.GetProperty("flowId").GetString() == flowId);
+        Assert.Equal(selected, branch.GetProperty("selected").GetBoolean());
+        Assert.Equal(status, branch.GetProperty("status").GetString());
     }
 
     private sealed class FixedClock : IMicroflowClock

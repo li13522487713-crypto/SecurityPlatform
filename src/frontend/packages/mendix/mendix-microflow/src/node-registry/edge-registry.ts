@@ -306,6 +306,9 @@ export function inferEdgeKindFromPorts(sourceObject: MicroflowObject, targetObje
   if (sourcePort.kind === "errorOut") {
     return "errorHandler";
   }
+  if (sourceObject.kind === "loopedActivity" && sourcePort.kind === "loopBodyIn") {
+    return "loopBody";
+  }
   if (sourceObject.kind === "exclusiveSplit" || sourcePort.kind === "decisionOut") {
     return "decisionCondition";
   }
@@ -373,6 +376,13 @@ export function canConnectPortsV2(input: MicroflowCanConnectPortsInput, sourcePo
   const targetLocation = locations.get(target.id);
   const isLoopBodyEntry = source.kind === "loopedActivity" && sourcePort.kind === "loopBodyIn" && targetLocation?.parentLoopObjectId === source.id;
   const isLoopBodyReturn = target.kind === "loopedActivity" && targetPort.kind === "loopBodyOut" && sourceLocation?.parentLoopObjectId === target.id;
+  if (isLoopBodyReturn) {
+    return fail(
+      "MF_CONNECT_LOOP_BODY_RETURN_UNSUPPORTED",
+      "Loop body must exit through Break or Continue semantics, not a cross-collection flow.",
+      edgeKind
+    );
+  }
   if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId && !isLoopBodyEntry && !isLoopBodyReturn) {
     return fail(
       "MF_CONNECT_LOOP_BOUNDARY",

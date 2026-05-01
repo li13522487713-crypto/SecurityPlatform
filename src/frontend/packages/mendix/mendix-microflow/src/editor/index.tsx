@@ -70,6 +70,7 @@ import {
 import { validateMicroflowSchema } from "../schema/validator";
 import { normalizeMicroflowAuthoringSchemaForRuntime } from "../schema/normalizer";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
+import { canApplyBooleanBranchQuickFix, createMissingBooleanBranch } from "./problem-quick-fixes";
 import {
   MicroflowRunHistoryPanel,
   MicroflowStepDebugPanel,
@@ -405,6 +406,9 @@ export interface MicroflowEditorLabels {
   properties: string;
   problems: string;
   debug: string;
+  quickFix: string;
+  quickFixUnavailable: string;
+  missingDecisionBranchCreated: string;
 }
 
 const defaultLabels: MicroflowEditorLabels = {
@@ -421,7 +425,10 @@ const defaultLabels: MicroflowEditorLabels = {
   nodePanel: "Nodes",
   properties: "Properties",
   problems: "Problems",
-  debug: "Debug"
+  debug: "Debug",
+  quickFix: "Quick fix",
+  quickFixUnavailable: "Quick fix is not available for this issue.",
+  missingDecisionBranchCreated: "Missing Decision branch created."
 };
 
 function createValidationServiceIssue(error: unknown, mode: MicroflowValidationMode, microflowId: string): MicroflowValidationIssue {
@@ -436,6 +443,26 @@ function createValidationServiceIssue(error: unknown, mode: MicroflowValidationM
     blockSave: mode !== "edit",
     blockPublish: mode !== "edit",
   };
+}
+
+function createNormalizerIssues(
+  microflowId: string,
+  blockingIssues: ReturnType<typeof normalizeMicroflowAuthoringSchemaForRuntime>["report"]["blockingIssues"],
+): MicroflowValidationIssue[] {
+  return blockingIssues.map(item => ({
+    id: `${microflowId}:normalizer:${item.code}:${item.flowId ?? item.objectId ?? "schema"}`,
+    microflowId,
+    code: item.code,
+    severity: item.severity,
+    source: "schema",
+    message: item.message,
+    objectId: item.objectId,
+    flowId: item.flowId,
+    edgeId: item.flowId,
+    fieldPath: item.flowId ? `flows.${item.flowId}` : "objectCollection",
+    blockSave: true,
+    blockPublish: true,
+  }));
 }
 
 function createMissingMicroflowApiClient(): MicroflowApiClient {
@@ -1283,14 +1310,18 @@ function ProblemPanel({
   lastValidatedAt,
   lastError,
   onSelect,
+  onApplyQuickFix,
   onRetry,
+  quickFixLabel,
 }: {
   issues: MicroflowValidationIssue[];
   status?: string;
   lastValidatedAt?: Date;
   lastError?: unknown;
   onSelect: (issue: MicroflowValidationIssue) => void;
+  onApplyQuickFix?: (issue: MicroflowValidationIssue) => void;
   onRetry: () => void;
+  quickFixLabel: string;
 }) {
   const [severityFilter, setSeverityFilter] = useState<"all" | MicroflowValidationIssue["severity"]>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
@@ -1400,9 +1431,23 @@ function ProblemPanel({
                         {[issue.objectId ?? issue.flowId ?? issue.actionId ?? issue.parameterId, issue.fieldPath].filter(Boolean).join(" · ") || "Global"}
                       </Text>
                     </div>
-                    <Tag color={issue.flowId || issue.edgeId ? "purple" : issue.objectId || issue.nodeId ? "blue" : "grey"}>
-                      {issue.flowId || issue.edgeId ? "flow" : issue.objectId || issue.nodeId ? "node" : "global"}
-                    </Tag>
+                    <Space vertical align="end" spacing={6}>
+                      <Tag color={issue.flowId || issue.edgeId ? "purple" : issue.objectId || issue.nodeId ? "blue" : "grey"}>
+                        {issue.flowId || issue.edgeId ? "flow" : issue.objectId || issue.nodeId ? "node" : "global"}
+                      </Tag>
+                      {onApplyQuickFix && canApplyBooleanBranchQuickFix(issue) ? (
+                        <Button
+                          size="small"
+                          theme="borderless"
+                          onClick={event => {
+                            event.stopPropagation();
+                            onApplyQuickFix(issue);
+                          }}
+                        >
+                          {quickFixLabel}
+                        </Button>
+                      ) : null}
+                    </Space>
                   </Space>
                 </Card>
               </div>
@@ -1743,15 +1788,21 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const validateForMode = useCallback(async (targetSchema: MicroflowSchema, mode: MicroflowValidationMode) => {
     const normalized = normalizeMicroflowAuthoringSchemaForRuntime(targetSchema);
     const schemaForValidation = normalized.schema;
+    const normalizerIssues = createNormalizerIssues(schemaForValidation.id, normalized.report.blockingIssues);
     try {
       const localResult = validateMicroflowSchema({
         schema: schemaForValidation,
         metadata: loadedMetadata,
         options: { mode, includeWarnings: true, includeInfo: true },
       });
-      setIssues(localResult.issues);
+      const localIssues = [...normalizerIssues, ...localResult.issues];
+      setIssues(localIssues);
       if (!props.validationAdapter) {
-        return localResult;
+        return {
+          ...localResult,
+          issues: localIssues,
+          summary: summarizeValidationIssues(localIssues),
+        };
       }
       const serverResult = await props.validationAdapter.validate({
         resourceId: schemaForValidation.id,
@@ -1767,7 +1818,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         blockSave: issue.blockSave ?? issue.severity === "error",
         blockPublish: issue.blockPublish ?? issue.severity === "error",
       }));
-      const issues = [...localResult.issues, ...serverIssues];
+      const issues = [...normalizerIssues, ...localResult.issues, ...serverIssues];
       const summary = summarizeValidationIssues(issues);
       setIssues(issues);
       return {
@@ -2608,6 +2659,21 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     const objectId = issue.objectId ?? issue.nodeId;
     return viewportCenteredOn(graph.nodes.find(item => item.objectId === objectId)?.position);
+  };
+
+  const handleApplyProblemQuickFix = (issue: MicroflowValidationIssue) => {
+    if (props.readonly) {
+      return;
+    }
+    const nextSchema = createMissingBooleanBranch(schema, issue);
+    if (!nextSchema) {
+      Toast.warning(labels.quickFixUnavailable);
+      return;
+    }
+    commitSchema(nextSchema, "addNode", { historyLabel: "Create missing Decision branch", source: "propertyPanel" });
+    setBottomDockMode("peek");
+    setBottomTab("problems");
+    Toast.success(labels.missingDecisionBranchCreated);
   };
 
   const handleUndo = () => {
@@ -3541,6 +3607,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   lastValidatedAt={lastValidatedAt}
                   lastError={lastError}
                   onRetry={() => void runValidationNow(schema)}
+                  onApplyQuickFix={handleApplyProblemQuickFix}
+                  quickFixLabel={labels.quickFix}
                   onSelect={issue => {
                     const selectedFlowId = issue.flowId ?? issue.edgeId;
                     const selectedObjectId = selectedFlowId ? undefined : issue.objectId ?? issue.nodeId;

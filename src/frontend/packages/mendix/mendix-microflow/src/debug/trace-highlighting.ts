@@ -1,4 +1,4 @@
-import type { MicroflowRunSession, MicroflowTraceFrameStatus } from "./trace-types";
+import { extractGatewayBranchTrace, type MicroflowRunSession, type MicroflowTraceFrameStatus } from "./trace-types";
 
 export interface MicroflowRuntimeHighlightState {
   nodes: Record<string, {
@@ -46,6 +46,15 @@ export function buildRuntimeHighlightState(runSession?: MicroflowRunSession, act
       const sourceVisited = visitedBranchSources.get(frame.objectId) ?? new Set<string>();
       sourceVisited.add(frame.outgoingFlowId);
       visitedBranchSources.set(frame.objectId, sourceVisited);
+    }
+    for (const branch of extractGatewayBranchTrace(frame)) {
+      const flowState = state.flows[branch.flowId] ?? { visited: false };
+      state.flows[branch.flowId] = {
+        ...flowState,
+        visited: branch.status !== "skipped" || flowState.visited,
+        skipped: branch.status === "skipped" || flowState.skipped,
+        selectedCase: branch.selected || flowState.selectedCase,
+      };
     }
   }
   for (const frame of runSession.trace) {

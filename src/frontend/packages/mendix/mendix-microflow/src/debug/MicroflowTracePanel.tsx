@@ -1,6 +1,6 @@
 import { Button, Card, Empty, Space, Tabs, Tag, Typography } from "@douyinfe/semi-ui";
 
-import type { MicroflowRunSession, MicroflowRuntimeError, MicroflowTraceFrame } from "./trace-types";
+import { extractGatewayBranchTrace, type MicroflowRunSession, type MicroflowRuntimeError, type MicroflowTraceFrame } from "./trace-types";
 import { buildExecutionPath } from "./trace-history-utils";
 
 const { Text } = Typography;
@@ -55,6 +55,19 @@ function JsonBlock({ value }: { value: unknown }) {
   return <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(value ?? null, null, 2)}</pre>;
 }
 
+function branchStatusColor(status: string): "green" | "red" | "blue" | "grey" {
+  if (status === "completed") {
+    return "green";
+  }
+  if (status === "failed") {
+    return "red";
+  }
+  if (status === "executed") {
+    return "blue";
+  }
+  return "grey";
+}
+
 export function MicroflowTracePanel({
   microflowId,
   microflowName,
@@ -70,6 +83,7 @@ export function MicroflowTracePanel({
   const executionPath = buildExecutionPath(session);
   const activeFrame = activeFrameId ? executionPath.find(item => item.frame.id === activeFrameId)?.frame : executionPath[0]?.frame;
   const errors = collectErrors(session);
+  const activeBranchTrace = activeFrame ? extractGatewayBranchTrace(activeFrame) : [];
 
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -107,6 +121,14 @@ export function MicroflowTracePanel({
                     <Text size="small" type="tertiary">
                       {item.frame.nodeKind || item.frame.nodeType || item.frame.actionKind || item.frame.actionId || "node"} · {item.frame.objectId} · {item.frame.durationMs}ms · depth {item.callDepth}
                     </Text>
+                    {extractGatewayBranchTrace(item.frame).length ? (
+                      <>
+                        <br />
+                        <Text size="small" type="tertiary">
+                          branches {extractGatewayBranchTrace(item.frame).filter(branch => branch.selected).length}/{extractGatewayBranchTrace(item.frame).length}
+                        </Text>
+                      </>
+                    ) : null}
                     {item.frame.error?.message ? <><br /><Text size="small" type="danger">{item.frame.error.message}</Text></> : null}
                   </button>
                   <Space>
@@ -132,6 +154,7 @@ export function MicroflowTracePanel({
             outputSnapshot: item.frame.output,
             outputVariables: item.frame.outputVariables,
             variableDelta: item.frame.variableDelta,
+            branchTrace: extractGatewayBranchTrace(item.frame),
             selectedCaseValue: item.frame.selectedCaseValue,
             handoffPayload: item.frame.handoffPayload,
             transactionEffect: item.frame.transactionEffect,
@@ -168,8 +191,26 @@ export function MicroflowTracePanel({
                     selectedCaseValue: activeFrame.selectedCaseValue,
                     loopIteration: activeFrame.loopIteration,
                     handoffPayload: activeFrame.handoffPayload,
+                    branchTrace: activeBranchTrace,
                   }} />
                 </Tabs.TabPane>
+                {activeBranchTrace.length ? (
+                  <Tabs.TabPane tab="Branches" itemKey="branches">
+                    <Space vertical align="start" style={{ width: "100%" }}>
+                      {activeBranchTrace.map(branch => (
+                        <Card key={`${branch.flowId}:${branch.branchId}`} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+                          <Space wrap>
+                            <Tag color={branchStatusColor(branch.status)}>{branch.status}</Tag>
+                            <Tag>{branch.selected ? "selected" : "skipped"}</Tag>
+                            <Tag onClick={() => onSelectFlow(branch.flowId)}>flow {branch.flowId}</Tag>
+                            <Tag>branch {branch.branchId}</Tag>
+                            {branch.targetObjectId ? <Tag>target {branch.targetObjectId}</Tag> : null}
+                          </Space>
+                        </Card>
+                      ))}
+                    </Space>
+                  </Tabs.TabPane>
+                ) : null}
                 <Tabs.TabPane tab="Runtime" itemKey="runtime">
                   <JsonBlock value={{
                     evaluatedExpressions: activeFrame.evaluatedExpressions,

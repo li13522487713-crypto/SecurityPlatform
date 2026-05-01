@@ -6,11 +6,11 @@ import { caseValueKey, getAllowedSpecializations } from "../flowgram/adapters/fl
 import type { MicroflowValidatorContext } from "./validator-types";
 import { getDefaultSourcePortForEdgeKind, getDefaultTargetPortForEdgeKind, portsForObject } from "../schema/utils/port-utils";
 
-function flowEdgeKind(flow: { kind: string; isErrorHandler?: boolean; editor: { edgeKind?: string } }): "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler" | "annotation" {
+function flowEdgeKind(flow: { kind: string; isErrorHandler?: boolean; editor: { edgeKind?: string } }): "sequence" | "decisionCondition" | "objectTypeCondition" | "loopBody" | "errorHandler" | "annotation" {
   if (flow.kind === "annotation") {
     return "annotation";
   }
-  return flow.isErrorHandler ? "errorHandler" : (flow.editor.edgeKind as "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler");
+  return flow.isErrorHandler ? "errorHandler" : (flow.editor.edgeKind as "sequence" | "decisionCondition" | "objectTypeCondition" | "loopBody" | "errorHandler");
 }
 
 export function validateFlows(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
@@ -76,7 +76,7 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
     if (flow.isErrorHandler && flow.editor.edgeKind !== "errorHandler") {
       issues.push(issue("MF_FLOW_ERROR_KIND_MISMATCH", "isErrorHandler=true requires editor.edgeKind=errorHandler.", { flowId: flow.id, fieldPath: "isErrorHandler", collectionId: flowCollectionId }));
     }
-    if (edgeKind === "sequence" && flow.caseValues.length > 0) {
+    if ((edgeKind === "sequence" || edgeKind === "loopBody") && flow.caseValues.length > 0) {
       issues.push(issue("MF_FLOW_SEQUENCE_CASE_VALUES", "Plain sequence flow must not define caseValues.", { flowId: flow.id, fieldPath: "caseValues", collectionId: flowCollectionId }));
     }
     if (edgeKind === "errorHandler" && flow.caseValues.length > 0) {
@@ -104,11 +104,21 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
     if (edgeKind === "objectTypeCondition" && source?.kind !== "inheritanceSplit") {
       issues.push(issue("MF_OBJECT_TYPE_FLOW_SOURCE", "objectTypeCondition flow must start from InheritanceSplit.", { flowId: flow.id, fieldPath: "editor.edgeKind", collectionId: flowCollectionId }));
     }
-    if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId) {
+    const isLoopBodyEntry = edgeKind === "loopBody"
+      && source?.kind === "loopedActivity"
+      && targetLocation?.parentLoopObjectId === source.id
+      && flow.originConnectionIndex === 2;
+    if (edgeKind === "loopBody" && !isLoopBodyEntry) {
+      issues.push(issue("MF_FLOW_LOOP_BODY_INVALID", "loopBody flow must start from a LoopedActivity Body In port and target a node inside its own loop objectCollection.", { flowId: flow.id, fieldPath: "editor.edgeKind", collectionId: flowCollectionId }));
+    }
+    if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId && !isLoopBodyEntry) {
       issues.push(issue("MF_FLOW_LOOP_BOUNDARY", "SequenceFlow cannot directly cross Loop objectCollection boundaries.", { flowId: flow.id, collectionId: flowCollectionId }));
     }
     if (flowCollectionId && sourceLocation && targetLocation && sourceLocation.collectionId === targetLocation.collectionId && flowCollectionId !== sourceLocation.collectionId) {
       issues.push(issue("MF_FLOW_COLLECTION_MISMATCH", "Flow must be stored in the same objectCollection as its endpoints.", { flowId: flow.id, collectionId: flowCollectionId }));
+    }
+    if (isLoopBodyEntry && flowCollectionId && targetLocation && flowCollectionId !== targetLocation.collectionId) {
+      issues.push(issue("MF_FLOW_COLLECTION_MISMATCH", "Loop body entry flow must be stored in the target loop objectCollection.", { flowId: flow.id, collectionId: flowCollectionId }));
     }
     if (source?.kind === "startEvent" && flow.isErrorHandler) {
       issues.push(issue("MF_START_ERROR_HANDLER", "StartEvent cannot create an error handler flow.", { flowId: flow.id, objectId: source.id }));

@@ -68,6 +68,149 @@ public sealed class MicroflowValidationCompatibilityTests
         Assert.DoesNotContain(result.Issues, issue => issue.Code == MicroflowValidationCodes.DecisionBooleanFalseMissing);
     }
 
+    [Fact]
+    public async Task ValidateAsync_BooleanDecisionMissingBranch_Returns_Node_FieldPath_And_RelatedFlows()
+    {
+        var schema = JsonSerializer.SerializeToElement(new JsonObject
+        {
+            ["schemaVersion"] = "flowgram.microflow.v1",
+            ["id"] = "mf-decision-diagnostics",
+            ["name"] = "mf-decision-diagnostics",
+            ["displayName"] = "mf-decision-diagnostics",
+            ["moduleId"] = "Sales",
+            ["parameters"] = new JsonArray(),
+            ["returnType"] = new JsonObject { ["kind"] = "void" },
+            ["workflow"] = new JsonObject
+            {
+                ["nodes"] = new JsonArray
+                {
+                    Node("start", "startEvent", "root-collection"),
+                    Node("decision", "exclusiveSplit", "root-collection", new JsonObject
+                    {
+                        ["splitCondition"] = new JsonObject { ["expression"] = "true", ["resultType"] = "boolean" }
+                    }),
+                    Node("end", "endEvent", "root-collection")
+                },
+                ["edges"] = new JsonArray
+                {
+                    Edge("f-start-decision", "start", "decision"),
+                    Edge("f-true", "decision", "end", "decisionCondition", topLevelCaseValues: true, value: true)
+                }
+            },
+            ["editor"] = new JsonObject(),
+            ["audit"] = new JsonObject()
+        }, JsonOptions);
+        var service = CreateValidationService();
+
+        var result = await service.ValidateAsync(
+            "mf-decision-diagnostics",
+            new ValidateMicroflowRequestDto { Schema = schema, Mode = "testRun", IncludeWarnings = true },
+            CancellationToken.None);
+
+        var issue = Assert.Single(result.Issues, issue => issue.Code == MicroflowValidationCodes.DecisionBooleanFalseMissing);
+        Assert.Equal("decision", issue.ObjectId);
+        Assert.Null(issue.FlowId);
+        Assert.Contains("splitCondition", issue.FieldPath);
+        Assert.Contains("f-true", issue.RelatedFlowIds);
+        var quickFix = Assert.Single(issue.QuickFixes);
+        Assert.Equal("Create false branch", quickFix.Title);
+        Assert.Contains("\"createMissingFlow\"", quickFix.Patch);
+        Assert.Contains("\"value\":false", quickFix.Patch);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_CrossCollectionFlow_Returns_Origin_FieldPath_And_RelatedFlow()
+    {
+        var schema = JsonSerializer.SerializeToElement(new JsonObject
+        {
+            ["schemaVersion"] = "flowgram.microflow.v1",
+            ["id"] = "mf-cross-collection-diagnostics",
+            ["name"] = "mf-cross-collection-diagnostics",
+            ["displayName"] = "mf-cross-collection-diagnostics",
+            ["moduleId"] = "Sales",
+            ["parameters"] = new JsonArray(),
+            ["returnType"] = new JsonObject { ["kind"] = "void" },
+            ["workflow"] = new JsonObject
+            {
+                ["nodes"] = new JsonArray
+                {
+                    Node("start", "startEvent", "root-collection"),
+                    Node("loop", "loopedActivity", "root-collection", new JsonObject
+                    {
+                        ["bodyCollectionId"] = "loop-body",
+                        ["loopSource"] = new JsonObject { ["kind"] = "whileCondition", ["expression"] = "false" }
+                    }),
+                    Node("continue", "continueEvent", "loop-body")
+                },
+                ["edges"] = new JsonArray
+                {
+                    Edge("f-cross", "start", "continue", collectionId: "root-collection")
+                }
+            },
+            ["editor"] = new JsonObject(),
+            ["audit"] = new JsonObject()
+        }, JsonOptions);
+        var service = CreateValidationService();
+
+        var result = await service.ValidateAsync(
+            "mf-cross-collection-diagnostics",
+            new ValidateMicroflowRequestDto { Schema = schema, Mode = "testRun", IncludeWarnings = true },
+            CancellationToken.None);
+
+        var issue = Assert.Single(result.Issues, issue => issue.Code == MicroflowValidationCodes.FlowInvalidTarget);
+        Assert.Equal("start", issue.ObjectId);
+        Assert.Equal("f-cross", issue.FlowId);
+        Assert.Equal("root-collection", issue.CollectionId);
+        Assert.Contains("f-cross", issue.RelatedFlowIds);
+        Assert.Contains("start", issue.RelatedObjectIds);
+        Assert.Contains("continue", issue.RelatedObjectIds);
+        Assert.NotNull(issue.FieldPath);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_LoopBody_Return_Flow_Is_Rejected_As_CrossCollection()
+    {
+        var schema = JsonSerializer.SerializeToElement(new JsonObject
+        {
+            ["schemaVersion"] = "flowgram.microflow.v1",
+            ["id"] = "mf-loop-return-diagnostics",
+            ["name"] = "mf-loop-return-diagnostics",
+            ["displayName"] = "mf-loop-return-diagnostics",
+            ["moduleId"] = "Sales",
+            ["parameters"] = new JsonArray(),
+            ["returnType"] = new JsonObject { ["kind"] = "void" },
+            ["workflow"] = new JsonObject
+            {
+                ["nodes"] = new JsonArray
+                {
+                    Node("loop", "loopedActivity", "root-collection", new JsonObject
+                    {
+                        ["bodyCollectionId"] = "loop-body",
+                        ["loopSource"] = new JsonObject { ["kind"] = "whileCondition", ["expression"] = "false" }
+                    }),
+                    Node("continue", "continueEvent", "loop-body")
+                },
+                ["edges"] = new JsonArray
+                {
+                    Edge("f-return", "continue", "loop", "loopBody", "loop-body")
+                }
+            },
+            ["editor"] = new JsonObject(),
+            ["audit"] = new JsonObject()
+        }, JsonOptions);
+        var service = CreateValidationService();
+
+        var result = await service.ValidateAsync(
+            "mf-loop-return-diagnostics",
+            new ValidateMicroflowRequestDto { Schema = schema, Mode = "testRun", IncludeWarnings = true },
+            CancellationToken.None);
+
+        var issue = Assert.Single(result.Issues, issue => issue.Code == MicroflowValidationCodes.FlowInvalidTarget);
+        Assert.Equal("continue", issue.ObjectId);
+        Assert.Equal("f-return", issue.FlowId);
+        Assert.Contains("loop", issue.RelatedObjectIds);
+    }
+
     private static MicroflowValidationService CreateValidationService()
     {
         var metadata = Substitute.For<IMicroflowMetadataService>();

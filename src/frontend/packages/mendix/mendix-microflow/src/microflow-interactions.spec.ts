@@ -340,6 +340,34 @@ describe("microflow editor interactions", () => {
     expect(flow?.kind === "sequence" ? flow.caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: true, persistedValue: "true" });
   });
 
+  it("maps gateway branch trace to FlowGram edge runtime state", () => {
+    const gateway = createObjectFromRegistry(registry("inclusiveGateway"), { x: 0, y: 0 }, "gateway");
+    const selectedTarget = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "selected");
+    const skippedTarget = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 80 }, "skipped");
+    const selectedFlow = createSequenceFlow({ id: "flow-selected", originObjectId: gateway.id, destinationObjectId: selectedTarget.id });
+    const skippedFlow = createSequenceFlow({ id: "flow-skipped", originObjectId: gateway.id, destinationObjectId: skippedTarget.id });
+    const flowGram = authoringToFlowGram(schemaWith([gateway, selectedTarget, skippedTarget], [selectedFlow, skippedFlow]), [], [
+      {
+        id: "frame-gateway",
+        runId: "run-1",
+        objectId: gateway.id,
+        status: "success",
+        startedAt: "2026-05-02T00:00:00Z",
+        durationMs: 1,
+        input: { gatewayKind: "inclusive" },
+        output: {
+          branchTrace: [
+            { flowId: selectedFlow.id, branchId: selectedFlow.id, targetObjectId: selectedTarget.id, selected: true, status: "completed" },
+            { flowId: skippedFlow.id, branchId: skippedFlow.id, targetObjectId: skippedTarget.id, selected: false, status: "skipped" },
+          ],
+        },
+      },
+    ]);
+
+    expect((flowGram.edges.find(edge => (edge as { id?: string }).id === selectedFlow.id) as { data?: { runtimeState?: string } })?.data?.runtimeState).toBe("selectedCase");
+    expect((flowGram.edges.find(edge => (edge as { id?: string }).id === skippedFlow.id) as { data?: { runtimeState?: string } })?.data?.runtimeState).toBe("skipped");
+  });
+
   it("persists a Start to End FlowGram edge as a valid authoring sequence flow", () => {
     const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "minimal-start");
     const end = createObjectFromRegistry(registry("endEvent"), { x: 240, y: 0 }, "minimal-end");
@@ -959,6 +987,41 @@ describe("microflow editor interactions", () => {
     expect(collectFlowsRecursive(next).some(item => item.id === flow.id && item.originObjectId === first.id && item.destinationObjectId === second.id)).toBe(true);
     expect(next.editor.selection.flowId).toBe(flow.id);
     expect(validateMicroflowSchema({ schema: next, metadata: mockMeta }).issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(false);
+  });
+
+  it("creates Loop Body entry flows with loopBody edge kind and rejects Loop Body return flows", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "body-entry-loop");
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 180, y: 180 }, "body-entry-first");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loopedActivity.");
+    }
+    const schema = schemaWith([{ ...loop, objectCollection: { ...loop.objectCollection, objects: [first] } }]);
+    const graph = toEditorGraph(schema);
+    const loopBodyIn = graph.nodes.find(node => node.objectId === loop.id)?.ports.find(port => port.kind === "loopBodyIn");
+    const loopBodyOut = graph.nodes.find(node => node.objectId === loop.id)?.ports.find(port => port.kind === "loopBodyOut");
+    const childIn = graph.nodes.find(node => node.objectId === first.id)?.ports.find(port => port.kind === "sequenceIn");
+    const childOut = graph.nodes.find(node => node.objectId === first.id)?.ports.find(port => port.kind === "sequenceOut");
+    if (!loopBodyIn || !loopBodyOut || !childIn || !childOut) {
+      throw new Error("Expected loop body ports.");
+    }
+
+    expect(canConnectPorts(schema, loopBodyIn, childIn)).toMatchObject({ allowed: true, suggestedEdgeKind: "loopBody" });
+    const entryFlow = createMicroflowFlowFromPorts(schema, loopBodyIn, childIn);
+    expect(entryFlow.kind === "sequence" ? entryFlow.editor.edgeKind : undefined).toBe("loopBody");
+    const next = addFlow(schema, entryFlow);
+    const updatedLoop = next.objectCollection.objects.find(object => object.id === loop.id);
+    const loopFlows = updatedLoop?.kind === "loopedActivity" ? updatedLoop.objectCollection.flows ?? [] : [];
+    expect(next.flows.some(flow => flow.id === entryFlow.id)).toBe(false);
+    expect(loopFlows.some(flow => flow.id === entryFlow.id)).toBe(true);
+    expect(validateMicroflowSchema({ schema: next, metadata: mockMeta }).issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY" || issue.code === "MF_FLOW_LOOP_BODY_INVALID")).toBe(false);
+
+    expect(canConnectPorts(schema, childOut, loopBodyOut)).toMatchObject({ allowed: false, reasonCode: "MF_CONNECT_LOOP_BODY_RETURN_UNSUPPORTED" });
+    const returnFlow = createSequenceFlow({
+      originObjectId: first.id,
+      destinationObjectId: loop.id,
+      destinationConnectionIndex: loopBodyOut.connectionIndex,
+    });
+    expect(collectFlowsRecursive(addFlow(schema, returnFlow)).some(flow => flow.id === returnFlow.id)).toBe(false);
   });
 
   it("splits nested loop flows inside the original loop collection", () => {

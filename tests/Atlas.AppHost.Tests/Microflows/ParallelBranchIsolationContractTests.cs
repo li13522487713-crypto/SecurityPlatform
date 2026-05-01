@@ -38,4 +38,68 @@ public sealed class ParallelBranchIsolationContractTests
         Assert.Equal("\"root\"", store.Get("value").RawValueJson);
         Assert.Equal("\"branch\"", forked.Get("value").RawValueJson);
     }
+
+    [Fact]
+    public void DefaultBranchMergePolicy_Merges_Only_Written_Branch_Variables()
+    {
+        var target = new MicroflowVariableStore();
+        target.Define(new MicroflowVariableDefinition
+        {
+            Name = "shared",
+            DataTypeJson = """{"kind":"integer"}""",
+            RawValueJson = "1",
+            ValuePreview = "1",
+            ScopeKind = MicroflowVariableScopeKind.Global
+        });
+        target.Define(new MicroflowVariableDefinition
+        {
+            Name = "readOnlyCopy",
+            DataTypeJson = """{"kind":"string"}""",
+            RawValueJson = "\"root\"",
+            ValuePreview = "root",
+            ScopeKind = MicroflowVariableScopeKind.Global
+        });
+
+        var branchStore = new MicroflowVariableStore();
+        branchStore.Define(new MicroflowVariableDefinition
+        {
+            Name = "shared",
+            DataTypeJson = """{"kind":"integer"}""",
+            RawValueJson = "7",
+            ValuePreview = "7",
+            ScopeKind = MicroflowVariableScopeKind.ParallelBranch
+        });
+        branchStore.Define(new MicroflowVariableDefinition
+        {
+            Name = "readOnlyCopy",
+            DataTypeJson = """{"kind":"string"}""",
+            RawValueJson = "\"branch\"",
+            ValuePreview = "branch",
+            ScopeKind = MicroflowVariableScopeKind.ParallelBranch
+        });
+        branchStore.Define(new MicroflowVariableDefinition
+        {
+            Name = "branchOutput",
+            DataTypeJson = """{"kind":"string"}""",
+            RawValueJson = "\"created\"",
+            ValuePreview = "created",
+            ScopeKind = MicroflowVariableScopeKind.ParallelBranch
+        });
+
+        IBranchMergePolicy policy = new DefaultBranchMergePolicy();
+        var result = policy.Merge(target, [
+            new BranchExecutionContext
+            {
+                BranchId = "branch-a",
+                VariableStore = branchStore,
+                WrittenVariableNames = new HashSet<string>(["shared", "branchOutput"], StringComparer.Ordinal)
+            }
+        ]);
+
+        Assert.Equal("7", target.Get("shared").RawValueJson);
+        Assert.Equal("\"root\"", target.Get("readOnlyCopy").RawValueJson);
+        Assert.Equal("\"created\"", target.Get("branchOutput").RawValueJson);
+        Assert.Equal(MicroflowVariableScopeKind.BranchMerge, result.Variables.Single(item => item.VariableName == "branchOutput").Value.ScopeKind);
+        Assert.DoesNotContain(result.Variables, item => item.VariableName == "readOnlyCopy");
+    }
 }

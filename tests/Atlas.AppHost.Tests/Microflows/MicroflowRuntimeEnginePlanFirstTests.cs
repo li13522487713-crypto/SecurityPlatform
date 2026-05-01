@@ -172,8 +172,103 @@ public sealed class MicroflowRuntimeEnginePlanFirstTests
         Assert.Contains(session.Trace, frame => frame.ObjectId == "decision" && frame.OutgoingFlowId == "decision-true");
     }
 
+    [Fact]
+    public async Task RunAsync_Uses_Plan_Gateway_Merge_Before_Distance_Based_Graph_Fallback()
+    {
+        var schema = MicroflowDesignSchemaTestFactory.Schema(
+            objects:
+            [
+                new { id = "start", kind = "startEvent", caption = "Start" },
+                new { id = "fork", kind = "parallelGateway", caption = "Fork" },
+                new { id = "left", kind = "actionActivity", caption = "Left", action = new { id = "left-action", kind = "createVariable", variableName = "leftValue", dataType = new { kind = "integer" }, initialValue = "1" } },
+                new { id = "right", kind = "actionActivity", caption = "Right", action = new { id = "right-action", kind = "createVariable", variableName = "rightValue", dataType = new { kind = "integer" }, initialValue = "2" } },
+                new { id = "nearest-join", kind = "parallelGateway", caption = "Nearest graph join" },
+                new { id = "planned-join", kind = "parallelGateway", caption = "Planned join" },
+                new { id = "end", kind = "endEvent", caption = "End" }
+            ],
+            flows: Array.Empty<object>(),
+            parameters: null,
+            id: "mf-plan-gateway",
+            options: JsonOptions);
+        var flows = new[]
+        {
+            PlanFlow("f1", "start", "fork"),
+            PlanFlow("f2", "fork", "left"),
+            PlanFlow("f3", "fork", "right"),
+            PlanFlow("f4", "left", "nearest-join"),
+            PlanFlow("f5", "right", "nearest-join"),
+            PlanFlow("f6", "nearest-join", "planned-join"),
+            PlanFlow("f7", "planned-join", "end")
+        };
+        var plan = new MicroflowExecutionPlan
+        {
+            Id = "plan-mf-plan-gateway",
+            ResourceId = "mf-plan-gateway",
+            SchemaId = "mf-plan-gateway",
+            Version = "v1",
+            StartNodeId = "start",
+            EndNodeIds = ["end"],
+            Nodes =
+            [
+                new MicroflowExecutionNode { ObjectId = "start", Kind = "startEvent", RuntimeBehavior = "executable" },
+                new MicroflowExecutionNode { ObjectId = "fork", Kind = "parallelGateway", RuntimeBehavior = "executable" },
+                new MicroflowExecutionNode { ObjectId = "left", Kind = "actionActivity", ActionKind = "createVariable", RuntimeBehavior = "executable", ConfigJson = ActionConfig("leftValue", "1") },
+                new MicroflowExecutionNode { ObjectId = "right", Kind = "actionActivity", ActionKind = "createVariable", RuntimeBehavior = "executable", ConfigJson = ActionConfig("rightValue", "2") },
+                new MicroflowExecutionNode { ObjectId = "nearest-join", Kind = "parallelGateway", RuntimeBehavior = "executable" },
+                new MicroflowExecutionNode { ObjectId = "planned-join", Kind = "parallelGateway", RuntimeBehavior = "executable" },
+                new MicroflowExecutionNode { ObjectId = "end", Kind = "endEvent", RuntimeBehavior = "executable" }
+            ],
+            Flows = flows,
+            NormalFlows = flows,
+            Gateways =
+            [
+                new MicroflowExecutionGateway { ObjectId = "fork", Kind = "parallelGateway", Role = "split", IncomingFlowIds = ["f1"], OutgoingFlowIds = ["f2", "f3"], BranchFlowIds = ["f2", "f3"] },
+                new MicroflowExecutionGateway { ObjectId = "nearest-join", Kind = "parallelGateway", Role = "passThrough", IncomingFlowIds = ["f4", "f5"], OutgoingFlowIds = ["f6"] },
+                new MicroflowExecutionGateway { ObjectId = "planned-join", Kind = "parallelGateway", Role = "merge", IncomingFlowIds = ["f6"], OutgoingFlowIds = ["f7"] }
+            ]
+        };
+        var engine = new MicroflowRuntimeEngine(new MicroflowSchemaReader(), new TestClock());
+
+        var session = await engine.RunAsync(
+            new MicroflowExecutionRequest
+            {
+                ResourceId = "mf-plan-gateway",
+                SchemaId = "schema-plan-gateway",
+                Version = "v1",
+                Schema = schema,
+                ExecutionPlan = plan,
+                ExecutionMode = MicroflowRuntimeExecutionMode.TestRun,
+                RequestContext = new MicroflowRequestContext { TraceId = "trace-plan-gateway" }
+            },
+            CancellationToken.None);
+
+        Assert.Equal("success", session.Status);
+        var forkFrame = Assert.Single(session.Trace, frame => frame.ObjectId == "fork");
+        Assert.True(forkFrame.Output.HasValue);
+        Assert.Equal("planned-join", forkFrame.Output.Value.GetProperty("joinNodeId").GetString());
+    }
+
     private static JsonElement Case(object value)
         => JsonSerializer.SerializeToElement(value, JsonOptions);
+
+    private static MicroflowExecutionFlow PlanFlow(string id, string source, string target)
+        => new()
+        {
+            FlowId = id,
+            ControlFlow = "normal",
+            OriginObjectId = source,
+            DestinationObjectId = target
+        };
+
+    private static JsonElement ActionConfig(string variableName, string initialValue)
+        => JsonSerializer.SerializeToElement(new
+        {
+            id = $"{variableName}-action",
+            kind = "createVariable",
+            variableName,
+            dataType = new { kind = "integer" },
+            initialValue
+        }, JsonOptions);
 
     private sealed class TestClock : IMicroflowClock
     {

@@ -127,6 +127,7 @@ export type MicroflowEdgeKind =
   | "sequence"
   | "decisionCondition"
   | "objectTypeCondition"
+  | "loopBody"
   | "errorHandler"
   | "annotation";
 export type MicroflowEdgeType = MicroflowEdgeKind;
@@ -1254,7 +1255,7 @@ export interface MicroflowSequenceFlow {
   isErrorHandler: boolean;
   line: MicroflowLine;
   editor: {
-    edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler";
+    edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "loopBody" | "errorHandler";
     label?: string;
     description?: string;
     branchOrder?: number;
@@ -1408,7 +1409,7 @@ export interface MicroflowVariableSymbol {
 export interface MicroflowVariableGraphAnalysis {
   collectionIds: string[];
   objectIds: string[];
-  normalEdges: Array<{ flowId: string; fromObjectId: string; toObjectId: string; collectionId: string; edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "loopEntry" }>;
+  normalEdges: Array<{ flowId: string; fromObjectId: string; toObjectId: string; collectionId: string; edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "loopBody" | "loopEntry" }>;
   errorHandlerEdges: Array<{ flowId: string; fromObjectId: string; toObjectId: string; collectionId: string }>;
   annotationFlowIds: string[];
   startObjectIdsByCollection: Record<string, string[]>;

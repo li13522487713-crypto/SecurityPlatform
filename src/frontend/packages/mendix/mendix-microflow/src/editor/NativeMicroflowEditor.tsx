@@ -94,6 +94,9 @@ const defaultLabels: Partial<MicroflowEditorLabels> = {
   properties: "Properties",
   problems: "Problems",
   debug: "Debug",
+  quickFix: "Quick fix",
+  quickFixUnavailable: "Quick fix is not available for this issue.",
+  missingDecisionBranchCreated: "Missing Decision branch created.",
   format: "Auto",
 };
 

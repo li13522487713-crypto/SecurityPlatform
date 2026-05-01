@@ -73,7 +73,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowErrorHandlingService, MicroflowErrorHandlingService>();
         services.TryAddTransient<IMicroflowUnitOfWork, MicroflowUnitOfWork>();
         services.TryAddScoped<IVariableScopeForker, DefaultVariableScopeForker>();
-        services.TryAddSingleton<IBranchMergePolicy, NoOpBranchMergePolicy>();
+        services.TryAddSingleton<IBranchMergePolicy, DefaultBranchMergePolicy>();
         services.TryAddScoped<IMicroflowActionExecutorRegistry>(sp => new MicroflowActionExecutorRegistry(sp));
         services.TryAddScoped<CreateVariableActionExecutor>();
         services.TryAddScoped<ChangeVariableActionExecutor>();

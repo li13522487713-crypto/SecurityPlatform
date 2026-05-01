@@ -314,7 +314,17 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                     || string.Equals(destination.CollectionId, MicroflowSchemaReader.ReadStringByPath(origin.Raw, "bodyCollectionId"), StringComparison.Ordinal));
             if (!string.Equals(origin.CollectionId, destination.CollectionId, StringComparison.Ordinal) && !isLoopBodyEntry)
             {
-                Add(context, MicroflowValidationCodes.FlowInvalidTarget, "Flow 不允许跨 root / loop collection 连接。", "flow", flow.FieldPath, flowId: flow.Id, relatedObjectIds: [origin.Id, destination.Id]);
+                Add(
+                    context,
+                    MicroflowValidationCodes.FlowInvalidTarget,
+                    "Flow 不允许跨 root / loop collection 连接。",
+                    "flow",
+                    flow.FieldPath,
+                    objectId: origin.Id,
+                    flowId: flow.Id,
+                    collectionId: origin.CollectionId,
+                    relatedObjectIds: [origin.Id, destination.Id],
+                    relatedFlowIds: [flow.Id]);
             }
 
             if ((flow.EdgeKind?.Equals("decisionCondition", StringComparison.OrdinalIgnoreCase) ?? false) && !IsKind(origin, "exclusiveSplit"))
@@ -449,14 +459,33 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             if (string.Equals(resultType, "boolean", StringComparison.OrdinalIgnoreCase))
             {
                 var cases = outgoing.SelectMany(ReadCaseValues).ToArray();
+                var relatedFlowIds = outgoing.Select(static flow => flow.Id).ToArray();
                 if (!cases.Contains("true", StringComparer.OrdinalIgnoreCase))
                 {
-                    Add(context, MicroflowValidationCodes.DecisionBooleanTrueMissing, "Boolean Decision 缺少 true 分支。", "decision", "caseValues", objectId: decision.Id, severity: ModeSeverity(context, warningInEdit: true));
+                    Add(
+                        context,
+                        MicroflowValidationCodes.DecisionBooleanTrueMissing,
+                        "Boolean Decision 缺少 true 分支。",
+                        "decision",
+                        $"{decision.FieldPath}.splitCondition",
+                        objectId: decision.Id,
+                        severity: ModeSeverity(context, warningInEdit: true),
+                        relatedFlowIds: relatedFlowIds,
+                        quickFixes: [CreateBooleanBranchQuickFix(true)]);
                 }
 
                 if (!cases.Contains("false", StringComparer.OrdinalIgnoreCase))
                 {
-                    Add(context, MicroflowValidationCodes.DecisionBooleanFalseMissing, "Boolean Decision 缺少 false 分支。", "decision", "caseValues", objectId: decision.Id, severity: ModeSeverity(context, warningInEdit: true));
+                    Add(
+                        context,
+                        MicroflowValidationCodes.DecisionBooleanFalseMissing,
+                        "Boolean Decision 缺少 false 分支。",
+                        "decision",
+                        $"{decision.FieldPath}.splitCondition",
+                        objectId: decision.Id,
+                        severity: ModeSeverity(context, warningInEdit: true),
+                        relatedFlowIds: relatedFlowIds,
+                        quickFixes: [CreateBooleanBranchQuickFix(false)]);
                 }
             }
 
@@ -1498,6 +1527,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         string? collectionId = null,
         IReadOnlyList<string>? relatedObjectIds = null,
         IReadOnlyList<string>? relatedFlowIds = null,
+        IReadOnlyList<MicroflowValidationQuickFixDto>? quickFixes = null,
         string? details = null)
     {
         context.Issues.Add(new MicroflowValidationIssueDto
@@ -1514,6 +1544,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             CollectionId = collectionId,
             FieldPath = fieldPath,
             Source = source,
+            QuickFixes = quickFixes ?? Array.Empty<MicroflowValidationQuickFixDto>(),
             RelatedObjectIds = relatedObjectIds ?? Array.Empty<string>(),
             RelatedFlowIds = relatedFlowIds ?? Array.Empty<string>(),
             Details = details,
@@ -1521,6 +1552,13 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             BlockPublish = severity == "error"
         });
     }
+
+    private static MicroflowValidationQuickFixDto CreateBooleanBranchQuickFix(bool value)
+        => new()
+        {
+            Title = value ? "Create true branch" : "Create false branch",
+            Patch = $$"""{"kind":"createMissingFlow","caseKind":"boolean","value":{{value.ToString().ToLowerInvariant()}}}"""
+        };
 
     private static string StableId(params string?[] parts)
     {

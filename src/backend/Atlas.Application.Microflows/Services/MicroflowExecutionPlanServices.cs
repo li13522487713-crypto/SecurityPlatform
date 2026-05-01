@@ -675,6 +675,7 @@ public sealed class MicroflowExecutionPlanBuilder : IMicroflowExecutionPlanBuild
         var objectTypeFlows = runtimeDto.Flows.Where(flow => flow.ControlFlow == "objectType").ToArray();
         var errorHandlerFlows = runtimeDto.Flows.Where(flow => flow.ControlFlow == "errorHandler").ToArray();
         var ignoredFlows = runtimeDto.Flows.Where(flow => flow.ControlFlow == "ignored").ToArray();
+        var gateways = BuildGateways(runtimeDto.Nodes, runtimeDto.Flows);
         var preliminary = new MicroflowExecutionPlan
         {
             Id = StableId(runtimeDto, options),
@@ -693,6 +694,7 @@ public sealed class MicroflowExecutionPlanBuilder : IMicroflowExecutionPlanBuild
             ErrorHandlerFlows = errorHandlerFlows,
             IgnoredFlows = ignoredFlows,
             LoopCollections = runtimeDto.LoopCollections,
+            Gateways = gateways,
             VariableDeclarations = runtimeDto.Variables,
             MetadataRefs = runtimeDto.MetadataRefs,
             UnsupportedActions = runtimeDto.UnsupportedActions,
@@ -707,6 +709,64 @@ public sealed class MicroflowExecutionPlanBuilder : IMicroflowExecutionPlanBuild
                 : Array.Empty<MicroflowExecutionDiagnosticDto>(),
             Validation = validation
         };
+    }
+
+    private static IReadOnlyList<MicroflowExecutionGateway> BuildGateways(
+        IReadOnlyList<MicroflowExecutionNode> nodes,
+        IReadOnlyList<MicroflowExecutionFlow> flows)
+    {
+        var activeFlows = flows
+            .Where(flow => !string.Equals(flow.ControlFlow, "ignored", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        return nodes
+            .Where(node => string.Equals(node.Kind, "parallelGateway", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.Kind, "inclusiveGateway", StringComparison.OrdinalIgnoreCase))
+            .Select(node =>
+            {
+                var incoming = activeFlows
+                    .Where(flow => string.Equals(flow.DestinationObjectId, node.ObjectId, StringComparison.Ordinal))
+                    .OrderBy(flow => flow.FlowId, StringComparer.Ordinal)
+                    .ToArray();
+                var outgoing = activeFlows
+                    .Where(flow => string.Equals(flow.OriginObjectId, node.ObjectId, StringComparison.Ordinal))
+                    .OrderBy(flow => flow.BranchOrder ?? int.MaxValue)
+                    .ThenBy(flow => flow.FlowId, StringComparer.Ordinal)
+                    .ToArray();
+
+                return new MicroflowExecutionGateway
+                {
+                    ObjectId = node.ObjectId,
+                    Kind = node.Kind,
+                    CollectionId = node.CollectionId,
+                    Role = GatewayRole(incoming.Length, outgoing.Length),
+                    IncomingFlowIds = incoming.Select(flow => flow.FlowId).ToArray(),
+                    OutgoingFlowIds = outgoing.Select(flow => flow.FlowId).ToArray(),
+                    BranchFlowIds = outgoing.Select(flow => flow.FlowId).ToArray()
+                };
+            })
+            .ToArray();
+    }
+
+    private static string GatewayRole(int incomingCount, int outgoingCount)
+    {
+        var isSplit = outgoingCount > 1;
+        var isMerge = incomingCount > 1;
+        if (isSplit && isMerge)
+        {
+            return "splitMerge";
+        }
+
+        if (isSplit)
+        {
+            return "split";
+        }
+
+        if (isMerge)
+        {
+            return "merge";
+        }
+
+        return "passThrough";
     }
 
     private static string StableId(MicroflowRuntimeDto runtimeDto, MicroflowExecutionPlanLoadOptions options)
@@ -769,9 +829,9 @@ public sealed class MicroflowExecutionPlanValidator : IMicroflowExecutionPlanVal
             {
                 diagnostics.Add(Diagnostic("RUNTIME_ANNOTATION_FLOW_IN_CONTROL", "error", "AnnotationFlow must not participate in control flow.", flowId: flow.FlowId, collectionId: flow.CollectionId));
             }
-            if (flow.ControlFlow == "decision" && (!nodes.TryGetValue(flow.OriginObjectId ?? string.Empty, out var decisionSource) || !string.Equals(decisionSource.Kind, "exclusiveSplit", StringComparison.OrdinalIgnoreCase)))
+            if (flow.ControlFlow == "decision" && (!nodes.TryGetValue(flow.OriginObjectId ?? string.Empty, out var decisionSource) || !IsDecisionFlowSource(decisionSource)))
             {
-                diagnostics.Add(Diagnostic("RUNTIME_DECISION_FLOW_SOURCE_INVALID", "error", "Decision flow source must be ExclusiveSplit.", flowId: flow.FlowId, objectId: flow.OriginObjectId, collectionId: flow.CollectionId));
+                diagnostics.Add(Diagnostic("RUNTIME_DECISION_FLOW_SOURCE_INVALID", "error", "Decision flow source must be ExclusiveSplit or InclusiveGateway.", flowId: flow.FlowId, objectId: flow.OriginObjectId, collectionId: flow.CollectionId));
             }
             if (flow.ControlFlow == "objectType" && (!nodes.TryGetValue(flow.OriginObjectId ?? string.Empty, out var objectTypeSource) || !string.Equals(objectTypeSource.Kind, "inheritanceSplit", StringComparison.OrdinalIgnoreCase)))
             {
@@ -789,6 +849,11 @@ public sealed class MicroflowExecutionPlanValidator : IMicroflowExecutionPlanVal
 
         foreach (var node in plan.Nodes)
         {
+            var executableOutgoing = plan.Flows
+                .Where(flow => string.Equals(flow.OriginObjectId, node.ObjectId, StringComparison.Ordinal)
+                    && !string.Equals(flow.ControlFlow, "ignored", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(flow.ControlFlow, "errorHandler", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
             var normalOutgoing = plan.NormalFlows.Where(flow => string.Equals(flow.OriginObjectId, node.ObjectId, StringComparison.Ordinal)).ToArray();
             if (string.Equals(node.Kind, "actionActivity", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(node.Kind, "exclusiveMerge", StringComparison.OrdinalIgnoreCase)
@@ -796,7 +861,8 @@ public sealed class MicroflowExecutionPlanValidator : IMicroflowExecutionPlanVal
                 || string.Equals(node.Kind, "inclusiveGateway", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(node.Kind, "loopedActivity", StringComparison.OrdinalIgnoreCase))
             {
-                if (normalOutgoing.Length == 0 && !plan.EndNodeIds.Contains(node.ObjectId, StringComparer.Ordinal))
+                var outgoing = IsGatewayNode(node) ? executableOutgoing : normalOutgoing;
+                if (outgoing.Length == 0 && !plan.EndNodeIds.Contains(node.ObjectId, StringComparer.Ordinal))
                 {
                     diagnostics.Add(Diagnostic("RUNTIME_NODE_DEAD_END", "error", "ExecutionPlan node has no normal outgoing flow.", objectId: node.ObjectId, actionId: node.ActionId));
                 }
@@ -829,6 +895,39 @@ public sealed class MicroflowExecutionPlanValidator : IMicroflowExecutionPlanVal
             if (node.ActionKind is not null && node.SupportLevel == MicroflowRuntimeSupportLevel.Supported && node.ConfigJson is null)
             {
                 diagnostics.Add(Diagnostic("RUNTIME_P0_CONFIG_MISSING", "error", "Supported P0 action is missing config.", objectId: node.ObjectId, actionId: node.ActionId, collectionId: node.CollectionId));
+            }
+        }
+
+        var flowIds = plan.Flows.Select(flow => flow.FlowId).Where(id => !string.IsNullOrWhiteSpace(id)).ToHashSet(StringComparer.Ordinal);
+        foreach (var gateway in plan.Gateways)
+        {
+            if (string.IsNullOrWhiteSpace(gateway.ObjectId) || !nodes.TryGetValue(gateway.ObjectId, out var gatewayNode))
+            {
+                diagnostics.Add(Diagnostic("RUNTIME_GATEWAY_NODE_NOT_FOUND", "error", "ExecutionPlan gateway objectId does not reference a node.", objectId: gateway.ObjectId, collectionId: gateway.CollectionId));
+                continue;
+            }
+
+            if (!IsGatewayNode(gatewayNode))
+            {
+                diagnostics.Add(Diagnostic("RUNTIME_GATEWAY_KIND_INVALID", "error", "ExecutionPlan gateway must reference a Parallel or Inclusive gateway node.", objectId: gateway.ObjectId, collectionId: gateway.CollectionId));
+            }
+
+            foreach (var flowId in gateway.IncomingFlowIds.Concat(gateway.OutgoingFlowIds).Concat(gateway.BranchFlowIds).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal))
+            {
+                if (!flowIds.Contains(flowId))
+                {
+                    diagnostics.Add(Diagnostic("RUNTIME_GATEWAY_FLOW_NOT_FOUND", "error", "ExecutionPlan gateway references an unknown flow.", objectId: gateway.ObjectId, flowId: flowId, collectionId: gateway.CollectionId));
+                }
+            }
+
+            if (GatewayRoleIsSplit(gateway) && gateway.BranchFlowIds.Count < 2)
+            {
+                diagnostics.Add(Diagnostic("RUNTIME_GATEWAY_SPLIT_BRANCH_MISSING", "error", "ExecutionPlan gateway split must expose at least two branch flows.", objectId: gateway.ObjectId, collectionId: gateway.CollectionId));
+            }
+
+            if (GatewayRoleIsMerge(gateway) && gateway.IncomingFlowIds.Count == 0)
+            {
+                diagnostics.Add(Diagnostic("RUNTIME_GATEWAY_MERGE_INCOMING_MISSING", "error", "ExecutionPlan gateway merge must expose incoming flows.", objectId: gateway.ObjectId, collectionId: gateway.CollectionId));
             }
         }
 
@@ -917,6 +1016,22 @@ public sealed class MicroflowExecutionPlanValidator : IMicroflowExecutionPlanVal
             CollectionId = collectionId,
             FieldPath = fieldPath
         };
+
+    private static bool IsDecisionFlowSource(MicroflowExecutionNode node)
+        => string.Equals(node.Kind, "exclusiveSplit", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(node.Kind, "inclusiveGateway", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsGatewayNode(MicroflowExecutionNode node)
+        => string.Equals(node.Kind, "parallelGateway", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(node.Kind, "inclusiveGateway", StringComparison.OrdinalIgnoreCase);
+
+    private static bool GatewayRoleIsSplit(MicroflowExecutionGateway gateway)
+        => string.Equals(gateway.Role, "split", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(gateway.Role, "splitMerge", StringComparison.OrdinalIgnoreCase);
+
+    private static bool GatewayRoleIsMerge(MicroflowExecutionGateway gateway)
+        => string.Equals(gateway.Role, "merge", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(gateway.Role, "splitMerge", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader

@@ -56,11 +56,34 @@ export function validateDecisions(schema: MicroflowSchema, context: MicroflowVal
           }
         }
         const bools = new Set(outgoing.flatMap(flow => flow.kind === "sequence" ? (flow.caseValues ?? []) : []).filter((item): item is Extract<MicroflowCaseValue, { kind: "boolean" }> => item !== undefined && item.kind === "boolean").map(item => item.value));
+        const relatedFlowIds = outgoing.map(flow => flow.id);
         if (!bools.has(true)) {
-          issues.push(issue("MF_DECISION_BOOLEAN_TRUE_MISSING", "Boolean ExclusiveSplit should have a true case.", { objectId: object.id }, "warning"));
+          issues.push(issue("MF_DECISION_BOOLEAN_TRUE_MISSING", "Boolean ExclusiveSplit should have a true case.", {
+            objectId: object.id,
+            fieldPath: "splitCondition",
+            relatedFlowIds,
+            quickFixAvailable: true,
+            quickFixes: [{
+              id: `${object.id}:create-true-branch`,
+              title: "Create true branch",
+              kind: "createMissingFlow",
+              payload: { caseKind: "boolean", value: true },
+            }],
+          }, "warning"));
         }
         if (!bools.has(false)) {
-          issues.push(issue("MF_DECISION_BOOLEAN_FALSE_MISSING", "Boolean ExclusiveSplit should have a false case.", { objectId: object.id }, "warning"));
+          issues.push(issue("MF_DECISION_BOOLEAN_FALSE_MISSING", "Boolean ExclusiveSplit should have a false case.", {
+            objectId: object.id,
+            fieldPath: "splitCondition",
+            relatedFlowIds,
+            quickFixAvailable: true,
+            quickFixes: [{
+              id: `${object.id}:create-false-branch`,
+              title: "Create false branch",
+              kind: "createMissingFlow",
+              payload: { caseKind: "boolean", value: false },
+            }],
+          }, "warning"));
         }
       }
       if (object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression" && object.splitCondition.resultType === "enumeration") {

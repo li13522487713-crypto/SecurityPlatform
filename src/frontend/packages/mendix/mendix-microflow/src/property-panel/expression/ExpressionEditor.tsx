@@ -1,4 +1,4 @@
-import { Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../../schema";
@@ -9,6 +9,7 @@ import {
   validateMicroflowExpressionForEditor,
 } from "../../expression-editor/codemirror-microflow-expression";
 import { ExpressionDiagnostics } from "./ExpressionDiagnostics";
+import { compositeConditionTokens, insertExpressionToken } from "./expression-token-insert";
 
 const { Text } = Typography;
 
@@ -21,13 +22,6 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   }, [delayMs, value]);
 
   return debounced;
-}
-
-function appendToken(raw: string, token: string): string {
-  if (!raw.trim()) {
-    return token;
-  }
-  return `${raw}${raw.endsWith(" ") ? "" : " "}${token}`;
 }
 
 const LazyCodemirrorExpression = lazy(async () => import("../../expression-editor/codemirror-microflow-expression"));
@@ -134,10 +128,23 @@ export function ExpressionEditor({
         optionList={insertOptions}
         onChange={token => {
           if (token) {
-            nextExpression(appendToken(raw, String(token)));
+            nextExpression(insertExpressionToken(raw, String(token)));
           }
         }}
       />
+      <Space wrap spacing={4}>
+        {compositeConditionTokens.map(token => (
+          <Button
+            key={token}
+            size="small"
+            disabled={readonly}
+            aria-label={`insert expression token ${token}`}
+            onClick={() => nextExpression(insertExpressionToken(raw, token))}
+          >
+            {token}
+          </Button>
+        ))}
+      </Space>
       {variables.length ? (
         <Text size="small" type="tertiary">
           Available variables: {variables.map(variable => `$${variable.name} (${expressionTypeLabel(variable.dataType)}, ${variableSourceLabel(variable)})`).join(", ")}

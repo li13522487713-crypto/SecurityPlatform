@@ -542,21 +542,16 @@ export function addFlow(schema: MicroflowSchema, flow: MicroflowFlow): Microflow
   const isLoopBodyEntry = flow.kind === "sequence"
     && sourceLocation.object.kind === "loopedActivity"
     && targetLocation.parentLoopObjectId === sourceLocation.object.id
+    && flow.editor.edgeKind === "loopBody"
     && (flow.originConnectionIndex ?? 0) === 2;
-  const isLoopBodyReturn = flow.kind === "sequence"
-    && targetLocation.object.kind === "loopedActivity"
-    && sourceLocation.parentLoopObjectId === targetLocation.object.id
-    && (flow.destinationConnectionIndex ?? 0) === 3;
-  if (!isAnnotationFlow && !isSameCollection && !isLoopBodyEntry && !isLoopBodyReturn) {
+  if (!isAnnotationFlow && !isSameCollection && !isLoopBodyEntry) {
     return schema;
   }
   const collectionId = isSameCollection
     ? sourceLocation.collectionId
     : isLoopBodyEntry
       ? targetLocation.collectionId
-      : isLoopBodyReturn
-        ? sourceLocation.collectionId
-        : schema.objectCollection.id;
+      : schema.objectCollection.id;
   return refreshDerivedState(addFlowToCollection(schema, collectionId, flow));
 }
 

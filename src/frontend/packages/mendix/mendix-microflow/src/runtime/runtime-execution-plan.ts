@@ -36,8 +36,10 @@ export interface MicroflowExecutionPlan {
   flows: MicroflowExecutionFlow[];
   normalFlows: MicroflowExecutionFlow[];
   decisionFlows: MicroflowExecutionFlow[];
+  objectTypeFlows: MicroflowExecutionFlow[];
   errorHandlerFlows: MicroflowExecutionFlow[];
   loopCollections: MicroflowExecutionLoopCollection[];
+  gateways: MicroflowExecutionGateway[];
   startNodeId: string;
   endNodeIds: string[];
   metadataRefs: MicroflowRuntimeMetadataRefDto[];
@@ -129,6 +131,18 @@ export interface MicroflowExecutionLoopCollection {
   flowIds: string[];
 }
 
+export type MicroflowExecutionGatewayRole = "split" | "merge" | "splitMerge" | "passThrough";
+
+export interface MicroflowExecutionGateway {
+  objectId: string;
+  kind: "parallelGateway" | "inclusiveGateway" | string;
+  collectionId?: string;
+  role: MicroflowExecutionGatewayRole;
+  incomingFlowIds: string[];
+  outgoingFlowIds: string[];
+  branchFlowIds: string[];
+}
+
 export interface MicroflowUnsupportedActionDescriptor {
   objectId: string;
   actionId: string;
@@ -183,6 +197,8 @@ export function flowControlFlow(edgeKind: MicroflowExecutionFlowEdgeKind, isErro
 export function validateExecutionPlan(plan: MicroflowExecutionPlan): MicroflowExecutionPlanValidationResult {
   const issues: MicroflowExecutionPlanValidationIssue[] = [];
   const nodeIds = new Set(plan.nodes.map(node => node.objectId));
+  const nodesById = new Map(plan.nodes.map(node => [node.objectId, node]));
+  const flowIds = new Set(plan.flows.map(flow => flow.flowId));
   if (!nodeIds.has(plan.startNodeId)) {
     issues.push({ code: "RUNTIME_START_NOT_FOUND", message: "ExecutionPlan startNodeId does not reference a node.", objectId: plan.startNodeId, severity: "error" });
   }
@@ -196,10 +212,37 @@ export function validateExecutionPlan(plan: MicroflowExecutionPlan): MicroflowEx
     if (flow.edgeKind === "annotation" || flow.runtimeIgnored) {
       issues.push({ code: "RUNTIME_IGNORED_FLOW_IN_CONTROL_PLAN", message: "Annotation/ignored flow should not be present in control-flow plan.", flowId: flow.flowId, severity: "error" });
     }
+    if (flow.controlFlow === "decision") {
+      const source = nodesById.get(flow.originObjectId);
+      if (!source || !["exclusiveSplit", "inclusiveGateway"].includes(source.kind)) {
+        issues.push({ code: "RUNTIME_DECISION_FLOW_SOURCE_INVALID", message: "Decision flow source must be ExclusiveSplit or InclusiveGateway.", flowId: flow.flowId, objectId: flow.originObjectId, severity: "error" });
+      }
+    }
   }
   for (const node of plan.nodes) {
     if (node.actionKind && node.supportLevel === "supported" && !node.p0ActionRuntime) {
       issues.push({ code: "RUNTIME_P0_CONFIG_MISSING", message: "Supported action node is missing p0ActionRuntime.", objectId: node.objectId, severity: "error" });
+    }
+  }
+  for (const gateway of plan.gateways ?? []) {
+    const node = nodesById.get(gateway.objectId);
+    if (!node) {
+      issues.push({ code: "RUNTIME_GATEWAY_NODE_NOT_FOUND", message: "ExecutionPlan gateway objectId does not reference a node.", objectId: gateway.objectId, severity: "error" });
+      continue;
+    }
+    if (!["parallelGateway", "inclusiveGateway"].includes(node.kind)) {
+      issues.push({ code: "RUNTIME_GATEWAY_KIND_INVALID", message: "ExecutionPlan gateway must reference a Parallel or Inclusive gateway node.", objectId: gateway.objectId, severity: "error" });
+    }
+    for (const flowId of new Set([...gateway.incomingFlowIds, ...gateway.outgoingFlowIds, ...gateway.branchFlowIds])) {
+      if (!flowIds.has(flowId)) {
+        issues.push({ code: "RUNTIME_GATEWAY_FLOW_NOT_FOUND", message: "ExecutionPlan gateway references an unknown flow.", objectId: gateway.objectId, flowId, severity: "error" });
+      }
+    }
+    if ((gateway.role === "split" || gateway.role === "splitMerge") && gateway.branchFlowIds.length < 2) {
+      issues.push({ code: "RUNTIME_GATEWAY_SPLIT_BRANCH_MISSING", message: "ExecutionPlan gateway split must expose at least two branch flows.", objectId: gateway.objectId, severity: "error" });
+    }
+    if ((gateway.role === "merge" || gateway.role === "splitMerge") && gateway.incomingFlowIds.length === 0) {
+      issues.push({ code: "RUNTIME_GATEWAY_MERGE_INCOMING_MISSING", message: "ExecutionPlan gateway merge must expose incoming flows.", objectId: gateway.objectId, severity: "error" });
     }
   }
   return { valid: issues.every(issue => issue.severity !== "error"), issues };
