@@ -346,7 +346,7 @@ export interface MicroflowEditorHandle {
   openBottomTab: (tab: MicroflowWorkbenchBottomTab) => void;
   setBottomDockMode: (mode: BottomDockMode) => void;
   getLayoutState: () => MicroflowWorkbenchLayoutState;
-  configureAllNodeAcceptance120?: () => void;
+  configureAllNodeAcceptance120?: () => void | Promise<void>;
 }
 
 /** 外置 Toolbar 渲染按钮 disabled / loading 等状态的依赖快照。 */

@@ -362,7 +362,9 @@ function buildAcceptance120Schema(schema: MicroflowDesignSchema): MicroflowDesig
   ];
   return {
     ...schema,
-    displayName: "MF_AllNodeComplexComputation_Test",
+    displayName: schema.displayName === "MF_AllNodeComplexComputation_Test" && schema.name !== "MF_AllNodeComplexComputation_Test"
+      ? schema.name
+      : schema.displayName,
     documentation: "All screenshot node families acceptance fixture. Expected output: 120.",
     workflow: { nodes, edges },
     parameters: [{ id: "numbers", stableId: "numbers", name: "numbers", dataType: intListType, type: { kind: "list", name: "List<Integer>", itemType: { kind: "primitive", name: "Integer" } }, required: true }],
@@ -925,12 +927,13 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     },
     setBottomDockMode,
     getLayoutState: () => layoutState,
-    configureAllNodeAcceptance120: () => {
+    configureAllNodeAcceptance120: async () => {
       const next = buildAcceptance120Schema(latestSchemaRef.current);
       commitSchema(next, "workflow");
       setRightOpen(false);
       setLeftOpen(false);
-      Toast.success("已配置全节点验收计算图，期望输出 120。");
+      const saved = await handleSave();
+      Toast[saved ? "success" : "warning"](saved ? "已配置并保存全节点验收计算图，期望输出 120。" : "已配置全节点验收计算图，但保存未完成，请查看 Problems。");
     },
   }), [commitSchema, handleAutoLayout, handlePublish, handleRedo, handleSave, handleTestRun, handleUndo, layoutState, runValidation, schema, workbenchStatus]);
 

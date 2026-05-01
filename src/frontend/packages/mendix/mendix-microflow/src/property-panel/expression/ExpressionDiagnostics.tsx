@@ -9,9 +9,9 @@ export function ExpressionDiagnostics({ diagnostics, onDiagnosticClick }: { diag
   }
   return (
     <Space vertical align="start" spacing={2}>
-      {diagnostics.map(diagnostic => (
+      {diagnostics.map((diagnostic, index) => (
         <Text
-          key={diagnostic.id}
+          key={`${diagnostic.id}:${diagnostic.range?.end ?? ""}:${index}`}
           size="small"
           type={diagnostic.severity === "error" ? "danger" : diagnostic.severity === "warning" ? "warning" : "tertiary"}
           onClick={() => onDiagnosticClick?.(diagnostic)}
