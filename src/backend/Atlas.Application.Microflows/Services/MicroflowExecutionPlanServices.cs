@@ -772,6 +772,7 @@ public sealed class MicroflowExecutionPlanBuilder : IMicroflowExecutionPlanBuild
     private static string StableId(MicroflowRuntimeDto runtimeDto, MicroflowExecutionPlanLoadOptions options)
     {
         var connectorHash = ComputeConnectorCapabilitiesHash(options.ConnectorCapabilities);
+        var actionExecutorHash = ComputeActionExecutorCapabilitiesHash();
         var raw = string.Join(
             "|",
             runtimeDto.ResourceId ?? options.ResourceId ?? string.Empty,
@@ -780,7 +781,8 @@ public sealed class MicroflowExecutionPlanBuilder : IMicroflowExecutionPlanBuild
             runtimeDto.SchemaVersion ?? string.Empty,
             options.Mode,
             options.MetadataVersion ?? string.Empty,
-            connectorHash);
+            connectorHash,
+            actionExecutorHash);
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         var hash = Convert.ToHexString(bytes).ToLowerInvariant();
         return $"plan-{runtimeDto.SchemaId}-{hash[..16]}";
@@ -789,6 +791,36 @@ public sealed class MicroflowExecutionPlanBuilder : IMicroflowExecutionPlanBuild
     internal static string ComputeConnectorCapabilitiesHash(IReadOnlyList<string> capabilities)
     {
         var normalized = string.Join("|", capabilities.OrderBy(static item => item, StringComparer.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "none";
+        }
+
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(bytes).ToLowerInvariant()[..16];
+    }
+
+    internal static string ComputeActionExecutorCapabilitiesHash()
+    {
+        var normalized = string.Join(
+            "|",
+            MicroflowActionExecutorRegistry.BuiltInDescriptors()
+                .OrderBy(static descriptor => descriptor.ActionKind, StringComparer.OrdinalIgnoreCase)
+                .Select(static descriptor => string.Join(
+                    ":",
+                    descriptor.ActionKind,
+                    descriptor.SchemaType,
+                    descriptor.RegistryCategory,
+                    descriptor.RuntimeCategory,
+                    descriptor.SupportLevel,
+                    descriptor.Executor,
+                    descriptor.ConnectorCapability ?? string.Empty,
+                    descriptor.ErrorCode ?? string.Empty,
+                    descriptor.RealExecution,
+                    descriptor.ProducesVariables,
+                    descriptor.ProducesTransaction,
+                    descriptor.ProducesRuntimeCommand,
+                    descriptor.VerifyCovered)));
         if (string.IsNullOrWhiteSpace(normalized))
         {
             return "none";
@@ -1187,7 +1219,8 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
             runtimeDto.SchemaVersion,
             options.Mode,
             options.MetadataVersion,
-            MicroflowExecutionPlanBuilder.ComputeConnectorCapabilitiesHash(options.ConnectorCapabilities));
+            MicroflowExecutionPlanBuilder.ComputeConnectorCapabilitiesHash(options.ConnectorCapabilities),
+            MicroflowExecutionPlanBuilder.ComputeActionExecutorCapabilitiesHash());
 
     private static string StablePlanId(MicroflowExecutionPlanCacheKey key)
     {

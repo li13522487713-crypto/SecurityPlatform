@@ -17,10 +17,11 @@ export interface MicroflowSchemaNormalizeChange {
 }
 
 export interface MicroflowSchemaNormalizeIssue {
-  code: "MF_FLOW_INVALID_TARGET" | "MF_FLOW_ENDPOINT_MISSING";
+  code: "MF_FLOW_INVALID_TARGET" | "MF_FLOW_ENDPOINT_MISSING" | "MF_OBJECT_ID_DUPLICATED" | "MF_FLOW_ID_DUPLICATED";
   severity: "error";
   objectId?: string;
   flowId?: string;
+  fieldPath?: string;
   message: string;
 }
 
@@ -78,11 +79,33 @@ function collectLocations(collection: MicroflowObjectCollection, parentLoopObjec
   return locations;
 }
 
+function collectObjectLocations(collection: MicroflowObjectCollection, parentLoopObjectId?: string): ObjectLocation[] {
+  return [
+    ...collection.objects.map(object => ({ object, collectionId: collection.id, parentLoopObjectId })),
+    ...collection.objects.flatMap(object => object.kind === "loopedActivity"
+      ? collectObjectLocations(object.objectCollection, object.id)
+      : []),
+  ];
+}
+
 function collectFlows(collection: MicroflowObjectCollection, rootFlows: MicroflowFlow[]): FlowLocation[] {
   return [
     ...rootFlows.map(flow => ({ flow, collectionId: collection.id })),
     ...collectNestedFlows(collection),
   ];
+}
+
+function collectDuplicateIds<T>(items: T[], idOf: (item: T) => string): Set<string> {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const item of items) {
+    const id = idOf(item);
+    if (seen.has(id)) {
+      duplicates.add(id);
+    }
+    seen.add(id);
+  }
+  return duplicates;
 }
 
 function collectNestedFlows(collection: MicroflowObjectCollection): FlowLocation[] {
@@ -258,13 +281,34 @@ export function normalizeMicroflowAuthoringSchemaForRuntime(input: MicroflowSche
   };
 
   const objectLocations = collectLocations(schema.objectCollection);
+  const allObjectLocations = collectObjectLocations(schema.objectCollection);
   const originalFlows = collectFlows(schema.objectCollection, schema.flows);
+  const duplicateObjectIds = collectDuplicateIds(allObjectLocations, location => location.object.id);
+  const duplicateFlowIds = collectDuplicateIds(originalFlows, location => location.flow.id);
+  for (const objectId of duplicateObjectIds) {
+    blockingIssues.push({
+      code: "MF_OBJECT_ID_DUPLICATED",
+      severity: "error",
+      objectId,
+      fieldPath: `objectCollection.objects.${objectId}.id`,
+      message: `Object id ${objectId} is duplicated in the microflow schema.`,
+    });
+  }
+  for (const flowId of duplicateFlowIds) {
+    blockingIssues.push({
+      code: "MF_FLOW_ID_DUPLICATED",
+      severity: "error",
+      flowId,
+      fieldPath: `flows.${flowId}.id`,
+      message: `Flow id ${flowId} is duplicated in the microflow schema.`,
+    });
+  }
   const repairedFlows = repairDecisionFlows(originalFlows, objectLocations, changes);
   let rebuiltCollection = emptyCollectionFlows(schema.objectCollection);
   const rootFlows: MicroflowFlow[] = [];
 
   for (const location of originalFlows) {
-    const flow = repairedFlows.get(location.flow.id) ?? location.flow;
+    const flow = duplicateFlowIds.has(location.flow.id) ? location.flow : repairedFlows.get(location.flow.id) ?? location.flow;
     const source = objectLocations.get(flow.originObjectId);
     const target = objectLocations.get(flow.destinationObjectId);
     if (!source || !target) {
@@ -272,6 +316,7 @@ export function normalizeMicroflowAuthoringSchemaForRuntime(input: MicroflowSche
         code: "MF_FLOW_ENDPOINT_MISSING",
         severity: "error",
         flowId: flow.id,
+        fieldPath: `flows.${flow.id}`,
         message: `Flow ${flow.id} has missing source or target object.`,
       });
       if (location.collectionId === rootCollectionId) {
@@ -289,6 +334,7 @@ export function normalizeMicroflowAuthoringSchemaForRuntime(input: MicroflowSche
         severity: "error",
         objectId: flow.originObjectId,
         flowId: flow.id,
+        fieldPath: `flows.${flow.id}`,
         message: `Flow ${flow.id} crosses object collection boundary from ${source.collectionId} to ${target.collectionId}.`,
       });
       const fallbackCollectionId = location.collectionId || rootCollectionId;

@@ -27,7 +27,7 @@ public static class MicroflowValidationCodes
     public const string FlowDestinationMissing = "MF_FLOW_DESTINATION_MISSING";
     public const string FlowInvalidSource = "MF_FLOW_INVALID_SOURCE";
     public const string FlowInvalidTarget = "MF_FLOW_INVALID_TARGET";
-    public const string FlowDuplicated = "MF_FLOW_DUPLICATED";
+    public const string FlowDuplicated = "MF_FLOW_ID_DUPLICATED";
     public const string FlowPortInvalid = "MF_FLOW_PORT_INVALID";
     public const string SequenceConnectsParameter = "MF_SEQUENCE_CONNECTS_PARAMETER";
     public const string SequenceConnectsAnnotation = "MF_SEQUENCE_CONNECTS_ANNOTATION";

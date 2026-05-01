@@ -92,7 +92,57 @@ describe("microflow schema runtime normalizer", () => {
 
     const result = normalizeMicroflowAuthoringSchemaForRuntime(schema);
 
-    expect(result.report.blockingIssues).toContainEqual(expect.objectContaining({ code: "MF_FLOW_INVALID_TARGET", flowId: invalid.id }));
+    expect(result.report.blockingIssues).toContainEqual(expect.objectContaining({
+      code: "MF_FLOW_INVALID_TARGET",
+      flowId: invalid.id,
+      fieldPath: `flows.${invalid.id}`,
+    }));
     expect(collectFlowsRecursive(result.schema).some(flow => flow.id === invalid.id)).toBe(true);
+  });
+
+  it("reports duplicate object ids as blocking issues", () => {
+    const first = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 0, y: 0 }, "duplicate-node");
+    const second = createObjectFromRegistry(registry("activity:objectChange"), { x: 240, y: 0 }, "duplicate-node");
+
+    const result = normalizeMicroflowAuthoringSchemaForRuntime(schemaWith([first, second]));
+
+    expect(result.report.blockingIssues).toContainEqual(expect.objectContaining({
+      code: "MF_OBJECT_ID_DUPLICATED",
+      objectId: "duplicate-node",
+      fieldPath: "objectCollection.objects.duplicate-node.id",
+    }));
+  });
+
+  it("reports duplicate flow ids without letting repair overwrite either flow", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "decision");
+    const firstTarget = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "first-target");
+    const secondTarget = createObjectFromRegistry(registry("activity:logMessage"), { x: 200, y: 80 }, "second-target");
+    const first = createSequenceFlow({
+      id: "duplicate-flow",
+      originObjectId: decision.id,
+      destinationObjectId: firstTarget.id,
+      edgeKind: "sequence",
+      originConnectionIndex: 1,
+      caseValues: [],
+    });
+    const second = createSequenceFlow({
+      id: "duplicate-flow",
+      originObjectId: decision.id,
+      destinationObjectId: secondTarget.id,
+      edgeKind: "sequence",
+      originConnectionIndex: 2,
+      caseValues: [],
+    });
+
+    const result = normalizeMicroflowAuthoringSchemaForRuntime(schemaWith([decision, firstTarget, secondTarget], [first, second]));
+
+    expect(result.report.blockingIssues).toContainEqual(expect.objectContaining({
+      code: "MF_FLOW_ID_DUPLICATED",
+      flowId: "duplicate-flow",
+      fieldPath: "flows.duplicate-flow.id",
+    }));
+    expect(result.schema.flows).toHaveLength(2);
+    expect(result.schema.flows.map(flow => flow.destinationObjectId)).toEqual(["first-target", "second-target"]);
+    expect(result.schema.flows.every(flow => flow.kind === "sequence" && flow.caseValues.length === 0)).toBe(true);
   });
 });

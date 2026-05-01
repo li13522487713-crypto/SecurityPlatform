@@ -211,6 +211,85 @@ public sealed class MicroflowValidationCompatibilityTests
         Assert.Contains("loop", issue.RelatedObjectIds);
     }
 
+    [Fact]
+    public async Task ValidateAsync_DuplicateObjectId_Returns_ObjectId_And_FieldPath()
+    {
+        var schema = JsonSerializer.SerializeToElement(new JsonObject
+        {
+            ["schemaVersion"] = "flowgram.microflow.v1",
+            ["id"] = "mf-duplicate-object-diagnostics",
+            ["name"] = "mf-duplicate-object-diagnostics",
+            ["displayName"] = "mf-duplicate-object-diagnostics",
+            ["moduleId"] = "Sales",
+            ["parameters"] = new JsonArray(),
+            ["returnType"] = new JsonObject { ["kind"] = "void" },
+            ["workflow"] = new JsonObject
+            {
+                ["nodes"] = new JsonArray
+                {
+                    Node("duplicate-node", "startEvent", "root-collection"),
+                    Node("duplicate-node", "endEvent", "root-collection")
+                },
+                ["edges"] = new JsonArray()
+            },
+            ["editor"] = new JsonObject(),
+            ["audit"] = new JsonObject()
+        }, JsonOptions);
+        var service = CreateValidationService();
+
+        var result = await service.ValidateAsync(
+            "mf-duplicate-object-diagnostics",
+            new ValidateMicroflowRequestDto { Schema = schema, Mode = "testRun", IncludeWarnings = true },
+            CancellationToken.None);
+
+        var issue = Assert.Single(result.Issues, issue => issue.Code == MicroflowValidationCodes.ObjectIdDuplicated);
+        Assert.Equal("duplicate-node", issue.ObjectId);
+        Assert.Null(issue.FlowId);
+        Assert.Contains("workflow.nodes", issue.FieldPath);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_DuplicateFlowId_Returns_FlowId_And_FieldPath()
+    {
+        var schema = JsonSerializer.SerializeToElement(new JsonObject
+        {
+            ["schemaVersion"] = "flowgram.microflow.v1",
+            ["id"] = "mf-duplicate-flow-diagnostics",
+            ["name"] = "mf-duplicate-flow-diagnostics",
+            ["displayName"] = "mf-duplicate-flow-diagnostics",
+            ["moduleId"] = "Sales",
+            ["parameters"] = new JsonArray(),
+            ["returnType"] = new JsonObject { ["kind"] = "void" },
+            ["workflow"] = new JsonObject
+            {
+                ["nodes"] = new JsonArray
+                {
+                    Node("start", "startEvent", "root-collection"),
+                    Node("end-a", "endEvent", "root-collection"),
+                    Node("end-b", "endEvent", "root-collection")
+                },
+                ["edges"] = new JsonArray
+                {
+                    Edge("duplicate-flow", "start", "end-a"),
+                    Edge("duplicate-flow", "start", "end-b")
+                }
+            },
+            ["editor"] = new JsonObject(),
+            ["audit"] = new JsonObject()
+        }, JsonOptions);
+        var service = CreateValidationService();
+
+        var result = await service.ValidateAsync(
+            "mf-duplicate-flow-diagnostics",
+            new ValidateMicroflowRequestDto { Schema = schema, Mode = "testRun", IncludeWarnings = true },
+            CancellationToken.None);
+
+        var issue = Assert.Single(result.Issues, issue => issue.Code == MicroflowValidationCodes.FlowDuplicated);
+        Assert.Equal("duplicate-flow", issue.FlowId);
+        Assert.Null(issue.ObjectId);
+        Assert.Contains("workflow.edges", issue.FieldPath);
+    }
+
     private static MicroflowValidationService CreateValidationService()
     {
         var metadata = Substitute.For<IMicroflowMetadataService>();

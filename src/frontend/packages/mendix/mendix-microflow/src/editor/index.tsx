@@ -459,7 +459,7 @@ function createNormalizerIssues(
     objectId: item.objectId,
     flowId: item.flowId,
     edgeId: item.flowId,
-    fieldPath: item.flowId ? `flows.${item.flowId}` : "objectCollection",
+    fieldPath: item.fieldPath ?? (item.flowId ? `flows.${item.flowId}` : "objectCollection"),
     blockSave: true,
     blockPublish: true,
   }));

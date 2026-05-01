@@ -257,7 +257,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
     private static void ValidateFlows(MicroflowValidationContext context)
     {
-        var objects = context.SchemaModel.Objects.ToDictionary(o => o.Id, StringComparer.Ordinal);
+        var objects = BuildObjectIndex(context);
         foreach (var group in context.SchemaModel.Flows.Where(f => !string.IsNullOrWhiteSpace(f.Id)).GroupBy(f => f.Id, StringComparer.Ordinal))
         {
             if (group.Count() > 1)
@@ -835,7 +835,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
     private static void ValidateErrorHandling(MicroflowValidationContext context)
     {
-        var objects = context.SchemaModel.Objects.ToDictionary(obj => obj.Id, StringComparer.Ordinal);
+        var objects = BuildObjectIndex(context);
         foreach (var obj in context.SchemaModel.Objects.Where(o => o.Action is not null))
         {
             var action = obj.Action!;
@@ -970,6 +970,12 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
         return variables;
     }
+
+    private static Dictionary<string, MicroflowObjectModel> BuildObjectIndex(MicroflowValidationContext context)
+        => context.SchemaModel.Objects
+            .Where(static o => !string.IsNullOrWhiteSpace(o.Id))
+            .GroupBy(static o => o.Id, StringComparer.Ordinal)
+            .ToDictionary(static group => group.Key, static group => group.First(), StringComparer.Ordinal);
 
     private static IEnumerable<string?> OutputVariableNames(MicroflowActionModel action)
     {

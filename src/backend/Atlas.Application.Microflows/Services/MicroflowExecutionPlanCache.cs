@@ -6,7 +6,7 @@ namespace Atlas.Application.Microflows.Services;
 
 public sealed class MicroflowExecutionPlanCache : IMicroflowExecutionPlanCache
 {
-    private readonly ConcurrentDictionary<string, Lazy<Task<MicroflowExecutionPlan>>> _entries = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, CacheEntry> _entries = new(StringComparer.Ordinal);
 
     public async ValueTask<MicroflowExecutionPlan> GetOrCreateAsync(
         MicroflowExecutionPlanCacheKey key,
@@ -16,13 +16,15 @@ public sealed class MicroflowExecutionPlanCache : IMicroflowExecutionPlanCache
         cancellationToken.ThrowIfCancellationRequested();
         var entry = _entries.GetOrAdd(
             key.StableKey,
-            _ => new Lazy<Task<MicroflowExecutionPlan>>(
-                () => factory(cancellationToken),
-                LazyThreadSafetyMode.ExecutionAndPublication));
+            _ => new CacheEntry(
+                key,
+                new Lazy<Task<MicroflowExecutionPlan>>(
+                    () => factory(cancellationToken),
+                    LazyThreadSafetyMode.ExecutionAndPublication)));
 
         try
         {
-            return await entry.Value.ConfigureAwait(false);
+            return await entry.Plan.Value.ConfigureAwait(false);
         }
         catch
         {
@@ -33,19 +35,23 @@ public sealed class MicroflowExecutionPlanCache : IMicroflowExecutionPlanCache
 
     public void Invalidate(string resourceId, string? version)
     {
-        foreach (var key in _entries.Keys)
+        foreach (var (stableKey, entry) in _entries)
         {
-            if (!key.Contains(resourceId, StringComparison.Ordinal))
+            if (!string.Equals(entry.Key.ResourceId, resourceId, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(version) && !key.Contains(version, StringComparison.Ordinal))
+            if (!string.IsNullOrWhiteSpace(version) && !string.Equals(entry.Key.Version, version, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            _entries.TryRemove(key, out _);
+            _entries.TryRemove(stableKey, out _);
         }
     }
+
+    private sealed record CacheEntry(
+        MicroflowExecutionPlanCacheKey Key,
+        Lazy<Task<MicroflowExecutionPlan>> Plan);
 }

@@ -8,7 +8,8 @@ public sealed record MicroflowExecutionPlanCacheKey(
     string? SchemaVersion,
     string Mode,
     string? MetadataVersion,
-    string ConnectorCapabilitiesHash)
+    string ConnectorCapabilitiesHash,
+    string ActionExecutorCapabilitiesHash)
 {
     public string StableKey => string.Join(
         "|",
@@ -19,5 +20,6 @@ public sealed record MicroflowExecutionPlanCacheKey(
         SchemaVersion ?? string.Empty,
         Mode,
         MetadataVersion ?? string.Empty,
-        ConnectorCapabilitiesHash);
+        ConnectorCapabilitiesHash,
+        ActionExecutorCapabilitiesHash);
 }
