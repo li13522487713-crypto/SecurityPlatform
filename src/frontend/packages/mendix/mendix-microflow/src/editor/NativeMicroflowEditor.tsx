@@ -419,9 +419,9 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     }
   }, [props]);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (): Promise<boolean> => {
     if (props.readonly || saving) {
-      return;
+      return false;
     }
     setSaving(true);
     try {
@@ -431,7 +431,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         setBottomDockMode("peek");
         setBottomTab("problems");
         Toast.error(`保存被 ${blockers.length || validation.summary.errorCount} 个校验错误阻止。`);
-        return;
+        return false;
       }
       const response = await props.apiClient?.saveMicroflow({ schema: latestSchemaRef.current });
       savedSchemaSignatureRef.current = schemaWorkflowSignature(latestSchemaRef.current);
@@ -440,6 +440,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         props.onSaveComplete?.(response);
       }
       Toast.success("保存成功");
+      return true;
     } finally {
       setSaving(false);
     }
@@ -469,13 +470,15 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     setRuntimeServiceError(undefined);
     try {
       if (dirty) {
-        await handleSave();
+        const saved = await handleSave();
+        if (!saved) {
+          return;
+        }
       }
       const response = await props.apiClient.testRunMicroflow({
         microflowId: latestSchemaRef.current.id,
         input: input.parameters,
         options: input.options,
-        schema: latestSchemaRef.current,
       });
       setLastRunSession(response.session);
       setBottomDockMode("peek");
