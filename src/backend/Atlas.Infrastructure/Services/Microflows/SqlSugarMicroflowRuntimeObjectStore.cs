@@ -62,13 +62,17 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
         var payload = rangeKind == "first"
             ? items.FirstOrDefault()
             : JsonSerializer.SerializeToElement(items, JsonOptions);
-        return Success(
-            payload,
-            BuildProducedVariables(
+        return new MicroflowRuntimeObjectStoreResult
+        {
+            Success = true,
+            Value = payload,
+            Items = items,
+            ProducedVariables = BuildProducedVariables(
                 ReadString(query.ActionConfig, "outputVariableName"),
                 rangeKind == "first" ? ToObjectType(entity) : ToListType(entity),
                 payload),
-            $"Retrieved {items.Count} row(s) from {entity.TableName}.");
+            Message = $"Retrieved {items.Count} row(s) from {entity.TableName}."
+        };
     }
 
     public async Task<MicroflowRuntimeObjectStoreResult> CreateAsync(MicroflowRuntimeObjectMutation mutation, CancellationToken ct)
@@ -288,10 +292,14 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
             query.RuntimeContext,
             ct);
         var payload = JsonSerializer.SerializeToElement(items, JsonOptions);
-        return Success(
-            payload,
-            BuildProducedVariables(ReadString(query.ActionConfig, "outputVariableName"), ToListType(targetEntity), payload),
-            $"Retrieved {items.Count} associated row(s).");
+        return new MicroflowRuntimeObjectStoreResult
+        {
+            Success = true,
+            Value = payload,
+            Items = items,
+            ProducedVariables = BuildProducedVariables(ReadString(query.ActionConfig, "outputVariableName"), ToListType(targetEntity), payload),
+            Message = $"Retrieved {items.Count} associated row(s)."
+        };
     }
 
     private async Task<List<JsonElement>> QueryEntityRowsAsync(
@@ -474,10 +482,15 @@ public sealed class SqlSugarMicroflowRuntimeObjectStore : IDatabaseBackedMicrofl
             return false;
         }
 
+        var normalizedLeaf = memberQualifiedName
+            .Split(['.', '/'], StringSplitOptions.RemoveEmptyEntries)
+            .LastOrDefault();
         var attribute = entity.Attributes.FirstOrDefault(item =>
             string.Equals($"{entity.QualifiedName}.{item.Name}", memberQualifiedName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals($"{entity.QualifiedName}/{item.Name}", memberQualifiedName, StringComparison.OrdinalIgnoreCase)
             || string.Equals(item.ColumnName, memberQualifiedName, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(item.Name, memberQualifiedName.Split('.').LastOrDefault(), StringComparison.OrdinalIgnoreCase));
+            || string.Equals(item.Name, normalizedLeaf, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.ColumnName, normalizedLeaf, StringComparison.OrdinalIgnoreCase));
         if (attribute is null)
         {
             return false;

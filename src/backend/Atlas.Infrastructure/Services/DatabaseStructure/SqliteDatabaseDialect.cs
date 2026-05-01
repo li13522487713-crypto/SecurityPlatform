@@ -19,6 +19,11 @@ public sealed class SqliteDatabaseDialect : DatabaseDialectBase
         "BOOLEAN"
     };
 
+    public override string QuoteFullName(string? schema, string name)
+        => string.IsNullOrWhiteSpace(schema) || string.Equals(schema, "main", StringComparison.OrdinalIgnoreCase)
+            ? QuoteIdentifier(name)
+            : base.QuoteFullName(schema, name);
+
     public override string BuildListObjectsSql(string objectType)
     {
         var type = NormalizeObjectType(objectType);

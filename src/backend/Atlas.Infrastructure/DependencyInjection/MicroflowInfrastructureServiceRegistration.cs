@@ -1,6 +1,7 @@
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Repositories;
+using Atlas.Application.Microflows.Runtime.Connectors;
 using Atlas.Application.Microflows.Runtime.Objects;
 using Atlas.Application.Microflows.Runtime.Transactions;
 using Atlas.Infrastructure.Repositories.LowCode;
@@ -28,6 +29,7 @@ public static class MicroflowInfrastructureServiceRegistration
         services.AddScoped<IMicroflowRuntimeDbSessionFactory, SqlSugarMicroflowRuntimeDbSessionFactory>();
         services.AddScoped<IDatabaseBackedMicroflowRuntimeObjectStore, SqlSugarMicroflowRuntimeObjectStore>();
         services.AddScoped<IMicroflowRuntimeObjectStore, DomainModelRuntimeObjectStore>();
+        services.AddScoped<IWorkflowRuntimeClient, WorkflowRuntimeClientAdapter>();
         services.AddScoped<IMicroflowDatabaseUnitOfWork>(sp =>
         {
             var sessionFactory = sp.GetRequiredService<IMicroflowRuntimeDbSessionFactory>();

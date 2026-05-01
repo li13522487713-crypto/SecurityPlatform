@@ -220,6 +220,18 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             }
         }
 
+        if (string.Equals(actionKind, "callWorkflow", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "changeWorkflowState", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "completeUserTask", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<WorkflowActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (string.Equals(actionKind, "throwException", StringComparison.OrdinalIgnoreCase))
         {
             var specialized = _serviceProvider?.GetService<ThrowExceptionActionExecutor>();
