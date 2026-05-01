@@ -529,6 +529,44 @@ public sealed class MicroflowRuntimeEngineP04Tests
     }
 
     [Fact]
+    public async Task Run_LoopBody_ActionWithoutOutgoing_CompletesIteration()
+    {
+        const string loopCollectionId = "loop-body";
+        var schema = MicroflowDesignSchemaTestFactory.Schema(
+            Objects(
+                Start(),
+                Action("create-score", "createVariable", new { variableName = "loopScore", dataType = new { kind = "integer" }, initialValue = "0" }),
+                new
+                {
+                    id = "loop",
+                    kind = "loopedActivity",
+                    caption = "Loop",
+                    loopSource = new
+                    {
+                        kind = "iterableList",
+                        listVariableName = "numbers",
+                        iteratorVariableName = "currentNumber"
+                    }
+                },
+                ActionIn("add-score", "changeVariable", loopCollectionId, "loop", new { targetVariableName = "loopScore", newValueExpression = "$loopScore + $currentNumber" }),
+                End(returnValue: "$loopScore")),
+            Flows(
+                Flow("f-start-create", "start", "create-score"),
+                Flow("f-create-loop", "create-score", "loop"),
+                Flow("f-loop-end", "loop", "end"),
+                Flow("f-loop-body", "loop", "add-score", loopCollectionId)),
+            Parameters(new { id = "numbers", name = "numbers", dataType = "Integer", type = new { kind = "list", itemType = new { kind = "integer" } }, required = true }),
+            "mf-loop-body-action-terminal",
+            JsonOptions);
+
+        var session = await RunAsync(schema, new Dictionary<string, object?> { ["numbers"] = new[] { 1, 3 } });
+
+        Assert.Equal("success", session.Status);
+        Assert.Equal("4", session.Output?.GetRawText());
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "add-score" && frame.Status == "success" && frame.OutgoingFlowId is null);
+    }
+
+    [Fact]
     public async Task Run_AnnotationNode_DoesNotBlockSuccessfulFlow()
     {
         var schema = Schema(

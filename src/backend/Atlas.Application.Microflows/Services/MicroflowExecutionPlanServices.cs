@@ -500,6 +500,10 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
         {
             return "objectTypeCondition";
         }
+        if (string.Equals(flow.EdgeKind, "loopBody", StringComparison.OrdinalIgnoreCase))
+        {
+            return "loopBody";
+        }
         return "sequence";
     }
 
@@ -508,6 +512,7 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
         {
             "annotation" => "ignored",
             "errorHandler" => "errorHandler",
+            "loopBody" => "ignored",
             "decisionCondition" => "decision",
             "objectTypeCondition" => "objectType",
             _ => "normal"

@@ -6,6 +6,19 @@ namespace Atlas.AppHost.Tests.Microflows;
 public sealed class MicroflowEntityAccessServiceTests
 {
     [Fact]
+    public async Task CanCreateAsync_Allows_WhenAllowAllModeHasNoRolePolicies()
+    {
+        var sut = CreateService(options => options.EntityAccessMode = MicroflowEntityAccessMode.AllowAll);
+        var security = CreateSecurity(roles: ["Admin"], tenantId: "t1", workspaceId: "w1");
+        var entity = new MicroflowResolvedEntity { Found = true, QualifiedName = "Sales.Student" };
+
+        var decision = await sut.CanCreateAsync(security, entity, CancellationToken.None);
+
+        Assert.True(decision.Allowed);
+        Assert.Equal(MicroflowEntityAccessDecisionSource.AllowAll, decision.Source);
+    }
+
+    [Fact]
     public async Task CanReadAsync_Allows_WhenRoleMatchesOperationPolicy()
     {
         var sut = CreateService(options => options.EntityRequiredRoles["Sales.Order:read"] = ["OrderReader"]);

@@ -1557,6 +1557,12 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     private static NodeExecution ContinueAfterAction(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId, JsonElement output)
     {
         var outgoing = graph.NormalOutgoing(node.Id);
+        if (outgoing.Count == 0 && node.InsideLoop)
+        {
+            context.AddFrame(node, incomingFlowId, null, "success", JsonObj(new { actionKind = node.Action?.Kind, loopBodyTerminal = true }), output, null);
+            return NodeExecution.Done(output);
+        }
+
         if (outgoing.Count != 1)
         {
             var error = Error(RuntimeErrorCode.RuntimeFlowNotFound, $"Action 节点必须有且仅有一条 normal outgoing flow：{node.Id}", node.Id, node.Action?.Id, incomingFlowId);
@@ -2733,6 +2739,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     || string.Equals(flow.EdgeKind, "errorHandler", StringComparison.OrdinalIgnoreCase)
                         ? "errorHandler"
                         : string.Equals(flow.EdgeKind, "annotation", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(flow.EdgeKind, "loopBody", StringComparison.OrdinalIgnoreCase)
                             ? "ignored"
                             : "normal",
                 OriginObjectId = flow.OriginObjectId,
@@ -3412,6 +3419,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 .ToDictionary(
                     node => node.ObjectId,
                     node => (IReadOnlyList<MicroflowFlowModel>)query.GetNormalOutgoingFlows(plan, node.ObjectId, node.CollectionId)
+                        .Concat(query.GetDecisionOutgoingFlows(plan, node.ObjectId, node.CollectionId))
+                        .Concat(query.GetObjectTypeOutgoingFlows(plan, node.ObjectId, node.CollectionId))
                         .Select(flow => flows[flow.FlowId])
                         .ToArray(),
                     StringComparer.Ordinal);
@@ -3450,7 +3459,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 .Where(flow => string.Equals(flow.OriginObjectId, objectId, StringComparison.Ordinal)
                     && !flow.IsErrorHandler
                     && !string.Equals(flow.Kind, "annotation", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(flow.EdgeKind, "annotation", StringComparison.OrdinalIgnoreCase))
+                    && !string.Equals(flow.EdgeKind, "annotation", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(flow.EdgeKind, "loopBody", StringComparison.OrdinalIgnoreCase))
                 .ToArray();
 
         /// <summary>

@@ -75,6 +75,12 @@ public sealed class MicroflowEntityAccessService : IMicroflowEntityAccessService
             return bypassDecision;
         }
 
+        if (string.Equals(_options.ResolveMode(), MicroflowEntityAccessMode.AllowAll, StringComparison.OrdinalIgnoreCase)
+            && _options.EntityRequiredRoles.Count == 0)
+        {
+            return Allow(security, operation, entity.QualifiedName, null, "AllowAll mode allowed.", MicroflowEntityAccessDecisionSource.AllowAll);
+        }
+
         if (!entity.Found)
         {
             return Deny(security, operation, entity.QualifiedName, null, "Entity metadata is unknown.", MicroflowEntityAccessDecisionSource.DenyUnknownEntity);

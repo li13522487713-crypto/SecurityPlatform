@@ -9,7 +9,7 @@ interface MicroflowToolbarViewport {
 }
 
 interface FlowGramZoomConfig {
-  zoom?: (zoom: number) => void;
+  zoom?: number | ((zoom: number) => void);
   updateConfig?: (config: { zoom?: number }) => void;
 }
 
@@ -40,8 +40,10 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
   };
   const setZoom = (zoom: number) => {
     const normalizedZoom = Math.max(0.2, Math.min(2, zoom));
-    const config = playground.config as typeof playground.config & FlowGramZoomConfig;
-    config.zoom?.(normalizedZoom);
+    const config = playground.config as unknown as FlowGramZoomConfig;
+    if (typeof config.zoom === "function") {
+      config.zoom(normalizedZoom);
+    }
     config.updateConfig?.({ zoom: normalizedZoom });
     props.onViewportChange({ ...props.viewport, zoom: normalizedZoom });
   };
@@ -78,4 +80,3 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
     </div>
   );
 }
-
