@@ -72,11 +72,11 @@ describe("microflow toolbox cleanliness", () => {
     }
   });
 
-  it("ships parallel/inclusive gateway and tryCatch / errorHandler nodes as modeling-only", () => {
+  it("ships parallel/inclusive gateway and tryCatch / errorHandler nodes with runtime matrix coverage", () => {
     const expected: Array<{ key: string; level: "partial" | "unsupported" }> = [
-      { key: "parallelGateway", level: "unsupported" },
-      { key: "inclusiveGateway", level: "unsupported" },
-      { key: "tryCatch", level: "unsupported" },
+      { key: "parallelGateway", level: "partial" },
+      { key: "inclusiveGateway", level: "partial" },
+      { key: "tryCatch", level: "partial" },
       { key: "errorHandler", level: "partial" }
     ];
     for (const expectation of expected) {

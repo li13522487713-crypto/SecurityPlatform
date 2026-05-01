@@ -169,7 +169,9 @@ describe("design protocol property panel adapter", () => {
     const createVariable = defaultMicroflowNodePanelRegistry.find(item => item.actionKind === "createVariable")!;
 
     const node = createWorkflowNodeFromPanelItem(createVariable, { x: 120, y: 80 }, []);
+    const portIds = node.meta?.defaultPorts?.map(port => port.portID);
 
+    expect(node.type).toBe("actionActivity");
     expect(node.data).toMatchObject({
       objectKind: "actionActivity",
       actionKind: "createVariable",
@@ -179,6 +181,19 @@ describe("design protocol property panel adapter", () => {
         variableName: "newVariable",
       },
     });
+    expect(portIds).toEqual(["in", "out"]);
+    expect(portIds).not.toContain("error");
+  });
+
+  it("creates native action nodes with error ports only when the action supports them", () => {
+    const retrieve = defaultMicroflowNodePanelRegistry.find(item => item.actionKind === "retrieve")!;
+    const logMessage = defaultMicroflowNodePanelRegistry.find(item => item.actionKind === "logMessage")!;
+
+    const retrieveNode = createWorkflowNodeFromPanelItem(retrieve, { x: 120, y: 80 }, []);
+    const logNode = createWorkflowNodeFromPanelItem(logMessage, { x: 240, y: 80 }, [retrieveNode.id]);
+
+    expect(retrieveNode.meta?.defaultPorts?.map(port => port.portID)).toEqual(["in", "out", "error"]);
+    expect(logNode.meta?.defaultPorts?.map(port => port.portID)).toEqual(["in", "out"]);
   });
 
   it("hydrates malformed native action nodes instead of crashing property model", () => {

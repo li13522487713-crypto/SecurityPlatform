@@ -18,7 +18,8 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
     private static readonly HashSet<string> KnownObjectKinds = new(StringComparer.OrdinalIgnoreCase)
     {
         "startEvent", "endEvent", "errorEvent", "breakEvent", "continueEvent", "exclusiveSplit", "inheritanceSplit",
-        "exclusiveMerge", "actionActivity", "loopedActivity", "parameterObject", "annotation"
+        "exclusiveMerge", "parallelGateway", "inclusiveGateway", "tryCatch", "errorHandler",
+        "actionActivity", "loopedActivity", "parameterObject", "annotation"
     };
 
     private static readonly HashSet<string> SaveBlockerCodes = new(StringComparer.Ordinal)

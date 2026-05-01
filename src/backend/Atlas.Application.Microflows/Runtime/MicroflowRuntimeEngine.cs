@@ -396,6 +396,10 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 => await ExecuteParallelGatewayAsync(context, graph, node, incomingFlowId, state, cancellationToken).ConfigureAwait(false),
             "inclusiveGateway" or "inclusiveSplit" or "inclusiveMerge"
                 => ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "inclusive"),
+            "tryCatch"
+                => ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "tryCatch"),
+            "errorHandler"
+                => ExecuteGatewayPassThrough(context, graph, node, incomingFlowId, "errorHandler"),
             _ => UnsupportedNode(context, node, incomingFlowId, $"节点类型 {node.Kind} 不在 runtime 主路径支持的列表中。")
         };
     }
@@ -769,8 +773,12 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
         // Registry path (DI-only): retrieve / createObject / restCall / logMessage /
         // createList / changeList / aggregateList / break / continue / callMicroflow / etc.
-        if (_actionExecutorRegistry is not null && _actionExecutorRegistry.TryGet(action.Kind, out var executor))
+        // Use the registry fallback for every non-inline action so known modeled
+        // actions produce either real execution, runtimeCommands, or configured
+        // connector-required failures instead of bypassing into an ad hoc branch.
+        if (_actionExecutorRegistry is not null)
         {
+            var executor = _actionExecutorRegistry.GetOrFallback(action.Kind);
             return await ExecuteActionViaRegistryAsync(
                 context,
                 graph,

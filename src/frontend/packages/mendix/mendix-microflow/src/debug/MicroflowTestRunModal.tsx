@@ -64,6 +64,7 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
       footer={null}
       width={860}
       maskClosable={!props.running}
+      data-testid="microflow-test-run-modal"
     >
       <Space vertical align="start" spacing={14} style={{ width: "100%" }}>
         <Space wrap>
@@ -109,8 +110,8 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
         </div>
         <RunResultPreview session={props.lastSession} serviceError={props.serviceError} />
         <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-          <Button onClick={props.onCancel} disabled={props.running}>{copy.testRun.cancel}</Button>
-          <Button type="primary" loading={props.running} onClick={run}>{props.dirty ? copy.testRun.saveAndRun : copy.testRun.run}</Button>
+          <Button data-testid="microflow-test-run-cancel" onClick={props.onCancel} disabled={props.running}>{copy.testRun.cancel}</Button>
+          <Button data-testid="microflow-test-run-submit" type="primary" loading={props.running} onClick={run}>{props.dirty ? copy.testRun.saveAndRun : copy.testRun.run}</Button>
         </Space>
       </Space>
     </Modal>

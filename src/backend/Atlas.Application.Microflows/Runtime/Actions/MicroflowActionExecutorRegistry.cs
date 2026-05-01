@@ -372,8 +372,8 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
 
             Server("callMicroflow", "CallMicroflowAction", "call", "CallMicroflowActionExecutor", producesVariables: true, producesTransaction: false, reason: "Local call semantics are represented in testRun with recursion guard and return variable preview."),
             Connector("callJavaAction", "CallJavaAction", "call", "JavaActionExecutor", MicroflowRuntimeConnectorCapability.JavaAction, "Java action requires a plugin host connector."),
-            Unsupported("callJavaScriptAction", "CallJavaScriptAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Nanoflow JavaScript actions must run on the client."),
-            Unsupported("callNanoflow", "CallNanoflowAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Nanoflow calls cannot execute inside server Microflow runtime."),
+            Command("callJavaScriptAction", "CallJavaScriptAction", "call", "CallJavaScriptActionExecutor", "callJavaScriptAction"),
+            Command("callNanoflow", "CallNanoflowAction", "call", "CallNanoflowActionExecutor", "callNanoflow"),
 
             Server("restCall", "RestCallAction", "integration", "RestCallActionExecutor", producesVariables: true, producesTransaction: false, reason: "Runtime can build REST requests, enforce HTTP policy, block external calls by default, and use real HTTP when allowRealHttp is enabled."),
             // P1-2: 这些 Connector 描述符的 Executor 字段保留 connector 实现规划名，
@@ -384,6 +384,7 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Connector("exportXml", "ExportXmlAction", "integration", "ConnectorBackedActionExecutor:exportXml", MicroflowRuntimeConnectorCapability.XmlExportMapping, "XML export mapping requires mapping connector."),
             Connector("callExternalAction", "CallExternalAction", "integration", "ConnectorBackedActionExecutor:callExternalAction", "external.action", "External action requires connector capability."),
             Connector("restOperationCall", "RestOperationCallAction", "integration", "ConnectorBackedActionExecutor:restOperationCall", MicroflowRuntimeConnectorCapability.RestRealHttp, "REST operation calls require real HTTP connector capability."),
+            Connector("queryExternalDatabase", "QueryExternalDatabaseAction", "integration", "ConnectorBackedActionExecutor:queryExternalDatabase", "externalDatabase.query", "External database query requires external database connector capability."),
 
             Command("showPage", "ShowPageAction", "client", "ShowPageActionExecutor", "showPage"),
             Command("showHomePage", "ShowHomePageAction", "client", "ShowHomePageActionExecutor", "showHomePage"),
@@ -391,7 +392,7 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Command("closePage", "ClosePageAction", "client", "ClosePageActionExecutor", "closePage"),
             Command("validationFeedback", "ValidationFeedbackAction", "client", "ValidationFeedbackActionExecutor", "validationFeedback"),
             Command("downloadFile", "DownloadFileAction", "client", "DownloadFileActionExecutor", "downloadFile"),
-            Unsupported("synchronize", "SynchronizeAction", "client", MicroflowActionSupportLevel.NanoflowOnly, "Synchronize is nanoflow/client-device only."),
+            Command("synchronize", "SynchronizeAction", "client", "SynchronizeActionExecutor", "synchronize"),
 
             Server("logMessage", "LogMessageAction", "logging", "LogMessageActionExecutor", producesVariables: false, producesTransaction: false),
             Server("throwException", "ThrowExceptionAction", "errorHandling", "ThrowExceptionActionExecutor", producesVariables: false, producesTransaction: false, reason: "Server-side throwException stops the run with a structured RuntimeError."),
@@ -440,10 +441,11 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Connector("importFileDocument", "ImportFileDocumentAction", "fileDocument", "FileDocumentActionExecutor", MicroflowRuntimeConnectorCapability.FileDocumentWrite, "File document import requires file storage connector capability."),
             Connector("createExternalObject", "CreateExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object creation requires external object CRUD connector capability."),
             Connector("changeExternalObject", "ChangeExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object update requires external object CRUD connector capability."),
-            Unsupported("javascriptAction", "MicroflowGenericAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Legacy JavaScript action is nanoflow-only."),
-            Unsupported("nanoflowCall", "MicroflowGenericAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Legacy nanoflowCall is nanoflow-only."),
-            Unsupported("nanoflowCallAction", "MicroflowGenericAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Legacy nanoflowCallAction is nanoflow-only."),
-            Unsupported("nanoflowOnlySynchronize", "MicroflowGenericAction", "client", MicroflowActionSupportLevel.NanoflowOnly, "Legacy synchronize is nanoflow-only.")
+            Command("javascriptAction", "MicroflowGenericAction", "call", "CallJavaScriptActionExecutor", "callJavaScriptAction"),
+            Command("nanoflowCall", "MicroflowGenericAction", "call", "CallNanoflowActionExecutor", "callNanoflow"),
+            Command("nanoflowCallAction", "MicroflowGenericAction", "call", "CallNanoflowActionExecutor", "callNanoflow"),
+            Command("nanoflowOnlySynchronize", "MicroflowGenericAction", "client", "SynchronizeActionExecutor", "synchronize"),
+            Command("synchronizeToDevice", "MicroflowGenericAction", "client", "SynchronizeActionExecutor", "synchronize")
         ];
 
     private static MicroflowActionExecutorDescriptor Server(

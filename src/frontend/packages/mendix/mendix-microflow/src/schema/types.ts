@@ -1457,6 +1457,7 @@ export type MicroflowValidationSource =
   | "metadata"
   | "reference"
   | "server"
+  | "runtimeCommand"
   | "domainModel"
   | "root"
   | "objectCollection"

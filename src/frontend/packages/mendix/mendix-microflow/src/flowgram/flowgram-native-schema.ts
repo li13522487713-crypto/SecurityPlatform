@@ -111,6 +111,8 @@ export function createMicroflowWorkflowNode(input: {
   const officialType = input.officialType ?? (entry ? officialTypeFromRegistryItem(entry) : objectKind);
   const title = input.title ?? entry?.titleZh ?? entry?.title ?? objectKind;
   const size = nodeSizeForEntry(entry);
+  const actionKind = entry?.actionKind ?? input.data?.actionKind;
+  const action = input.data?.action ?? createDefaultActionForEntry(entry, input.id);
   const data: FlowGramMicroflowNodeData = {
     ...nodeDataForEntry(entry, {
       id: input.id,
@@ -122,6 +124,8 @@ export function createMicroflowWorkflowNode(input: {
     ...input.data,
     objectId: input.id,
     objectKind,
+    actionKind,
+    action,
     collectionId: input.data?.collectionId ?? MICROFLOW_ROOT_COLLECTION_ID,
   };
   return {
@@ -133,7 +137,7 @@ export function createMicroflowWorkflowNode(input: {
       size,
       nodeDTOType: objectKind,
       useDynamicPort: true,
-      defaultPorts: flowGramPortsForObjectKind(objectKind),
+      defaultPorts: flowGramPortsForObjectKind(objectKind, actionKind),
       collectionId: data.collectionId,
     },
   };

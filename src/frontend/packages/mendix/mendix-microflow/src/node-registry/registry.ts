@@ -318,7 +318,7 @@ function createEntry<TConfig extends object>(entry: Omit<MicroflowNodeRegistryEn
 
 function featureStatusFromAvailability(availability: MicroflowNodeAvailability): MicroflowNodeRegistryEntry["featureStatus"] {
   if (availability === "requiresConnector" || availability === "nanoflowOnlyDisabled") {
-    return "unsupported";
+    return "preview";
   }
   if (availability === "beta") {
     return "preview";
@@ -338,7 +338,7 @@ function featureStatusFromAvailability(availability: MicroflowNodeAvailability):
  *   createVariable / changeVariable / callMicroflow / restCall（默认安全策略阻断
  *   走 partial）/ logMessage / break / continue / throwException
  * - partial: requiresConnector / beta / deprecated（运行时需 connector 才能成功）
- * - unsupported: nanoflowOnly / 默认其它仅在画布建模、引擎尚未实现的动作
+ * - unsupported: 未登记到后端执行矩阵的未知动作
  */
 const SUPPORTED_ACTION_KINDS = new Set<string>([
   "retrieve",
@@ -358,13 +358,17 @@ const SUPPORTED_ACTION_KINDS = new Set<string>([
   "callMicroflow",
   "logMessage",
   "throwException",
+  "restCall",
+  "callJavaScriptAction",
+  "callNanoflow",
+  "synchronize",
+  "counter",
+  "incrementCounter",
+  "gauge",
   "break",
   "continue"
 ]);
 const PARTIAL_ACTION_KINDS = new Set<string>([
-  // RestCall 只有 allowRealHttp=true 且经过安全策略后才真实执行；
-  // 默认 testRun 中会被 RUNTIME_REST_BLOCKED_BY_SECURITY 阻断。
-  "restCall",
   // 需要 connector 配置才能落地真实执行。
   "callJavaAction",
   "webServiceCall",
@@ -372,6 +376,7 @@ const PARTIAL_ACTION_KINDS = new Set<string>([
   "exportXml",
   "callExternalAction",
   "restOperationCall",
+  "queryExternalDatabase",
   "generateDocument",
   "deleteExternalObject",
   "sendExternalObject",
@@ -388,15 +393,12 @@ const PARTIAL_ACTION_KINDS = new Set<string>([
   "showWorkflowAdminPage",
   "lockWorkflow",
   "unlockWorkflow",
-  "notifyWorkflow",
-  "counter",
-  "incrementCounter",
-  "gauge"
+  "notifyWorkflow"
 ]);
 
 export function engineSupportFromAction(actionKind: MicroflowActionKind | string | undefined, availability: MicroflowNodeAvailability): MicroflowEngineSupport {
   if (availability === "nanoflowOnlyDisabled") {
-    return { level: "unsupported", reason: "Nanoflow-only action cannot run in Microflow runtime." };
+    return { level: "supported", reason: "Runtime emits runtimeCommands for client handling." };
   }
   if (availability === "deprecated") {
     return { level: "partial", reason: "兼容历史模型保留，新模型不建议继续使用。" };
@@ -416,7 +418,7 @@ export function engineSupportFromAction(actionKind: MicroflowActionKind | string
   if (PARTIAL_ACTION_KINDS.has(actionKind)) {
     return { level: "partial", reason: "Runtime 默认通过 ConfiguredMicroflowActionExecutor 占位执行；如需真实执行请确保 connector / allowRealHttp 已启用。" };
   }
-  return { level: "unsupported", reason: "Runtime 引擎尚未对该动作提供具体 executor，testRun 会返回 RUNTIME_UNSUPPORTED_ACTION。" };
+  return { level: "unsupported", reason: "Runtime 引擎未登记该动作；保存前 schema strict check 会阻止未知 actionKind。" };
 }
 
 function engineSupportForNodeKind(kind: string, availability: MicroflowNodeAvailability): MicroflowEngineSupport {
@@ -442,13 +444,13 @@ function engineSupportForNodeKind(kind: string, availability: MicroflowNodeAvail
     return { level: "partial", reason: "对象类型决策需要 metadata 解析；未提供完整 entity 元数据时 testRun 可能返回 RUNTIME_UNSUPPORTED_ACTION。" };
   }
   if (kind === "tryCatch" || kind === "errorHandler") {
-    return { level: "unsupported", reason: "Try/Catch 与显式 ErrorHandler 节点暂不参与 testRun 主路径。" };
+    return { level: "partial", reason: "Runtime 将该节点作为错误处理结构节点通过 normal flow 执行；完整分支语义继续由 Activity errorHandling 承载。" };
   }
   if (kind === "gateway") {
-    return { level: "unsupported", reason: "Parallel/Inclusive Gateway 暂不在 runtime 引擎主路径执行。" };
+    return { level: "partial", reason: "Parallel/Inclusive Gateway 已进入 runtime 主路径；多分支汇聚按当前执行器能力降级处理。" };
   }
   if (availability === "nanoflowOnlyDisabled") {
-    return { level: "unsupported", reason: "Nanoflow-only node cannot run in Microflow runtime." };
+    return { level: "supported", reason: "Runtime emits runtimeCommands for client handling." };
   }
   return { level: "supported" };
 }
@@ -703,7 +705,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     render: { iconKey: "parallelGateway", shape: "diamond", tone: "warning", width: 152, height: 104 },
     propertyForm: { formKey: "parallelGateway", sections: ["General", "Output"] },
     supportsErrorHandling: false,
-    engineSupport: { level: "unsupported", reason: "Parallel Gateway 暂不在 runtime 引擎主路径执行；仅作为建模占位。" }
+    engineSupport: { level: "partial", reason: "Parallel Gateway 已进入 runtime 主路径；复杂多分支按当前执行器能力降级处理。" }
   }),
   createEntry({
     type: "inclusiveGateway",
@@ -722,7 +724,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     render: { iconKey: "inclusiveGateway", shape: "diamond", tone: "warning", width: 152, height: 104 },
     propertyForm: { formKey: "inclusiveGateway", sections: ["General", "Output"] },
     supportsErrorHandling: false,
-    engineSupport: { level: "unsupported", reason: "Inclusive Gateway 暂不在 runtime 引擎主路径执行；仅作为建模占位。" }
+    engineSupport: { level: "partial", reason: "Inclusive Gateway 已进入 runtime 主路径；按条件选择可执行分支。" }
   }),
   createEntry({
     type: "tryCatch",
@@ -742,7 +744,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     propertyForm: { formKey: "tryCatch", sections: ["General", "Error Handling"] },
     supportsErrorHandling: true,
     supportedErrorHandlingTypes: ["customWithRollback", "customWithoutRollback"],
-    engineSupport: { level: "unsupported", reason: "Try/Catch 节点暂不参与 testRun 主路径；可通过 Activity 上的 errorHandling 字段实现简化错误处理。" }
+    engineSupport: { level: "partial", reason: "Try/Catch 节点进入 runtime 主路径；完整错误策略仍由 Activity errorHandling 字段承载。" }
   }),
   createEntry({
     type: "errorHandler",
@@ -787,8 +789,10 @@ function nodePanelEntryFromActionRegistry(actionItem: MicroflowActionRegistryIte
     metadataRequirements: metadataRequirementsForActionKind(actionItem.actionKind),
     featureStatus: actionItem.runtimeSupportLevel === "supported"
       ? "stable"
-      : actionItem.runtimeSupportLevel === "unsupported" || actionItem.runtimeSupportLevel === "requiresConnector" || actionItem.runtimeSupportLevel === "nanoflowOnly"
+      : actionItem.runtimeSupportLevel === "unsupported"
         ? "unsupported"
+        : actionItem.runtimeSupportLevel === "requiresConnector" || actionItem.runtimeSupportLevel === "nanoflowOnly"
+          ? "preview"
         : actionItem.runtimeSupportLevel === "deprecated"
           ? "experimental"
           : "preview",
@@ -805,7 +809,7 @@ function nodePanelEntryFromActionRegistry(actionItem: MicroflowActionRegistryIte
         kind: "nodePanelAction",
         actionKind: actionItem.actionKind,
         officialType: actionItem.officialType,
-        unsupported: true
+        runtimeSupportLevel: actionItem.runtimeSupportLevel
       }
     })
   };

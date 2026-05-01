@@ -47,6 +47,7 @@ import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { createPortId } from "../schema/utils/port-utils";
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { buildVariableIndex as buildVariableIndexV2 } from "../variables/variable-index";
+import { microflowActionRegistryByKind } from "../node-registry/action-registry";
 
 const defaultLineStyle: MicroflowLine["style"] = {
   strokeType: "solid",
@@ -903,7 +904,11 @@ function portsForObject(object: MicroflowObject): MicroflowPort[] {
   if (object.kind === "loopedActivity") {
     return [input, output, loopBodyIn, loopBodyOut, error];
   }
-  return object.kind === "actionActivity" ? [input, output, error] : [input, output];
+  if (object.kind === "actionActivity") {
+    const supportsErrorHandling = microflowActionRegistryByKind.get(object.action.kind)?.supportsErrorHandling ?? true;
+    return supportsErrorHandling ? [input, output, error] : [input, output];
+  }
+  return [input, output];
 }
 
 export function toMendixCompatDataType(type: MicroflowDataType): MendixCompatDataType {

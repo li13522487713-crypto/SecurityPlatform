@@ -1,5 +1,6 @@
 import { defaultMicroflowObjectNodeRegistry, objectKindFromRegistryItem } from "../../node-registry";
-import type { MicroflowEditorPort, MicroflowObjectKind, MicroflowPort } from "../../schema";
+import { microflowActionRegistryByKind } from "../../node-registry/action-registry";
+import type { MicroflowActionKind, MicroflowEditorPort, MicroflowObjectKind, MicroflowPort } from "../../schema";
 import { getConnectionIndexFromPortId } from "../../schema/utils/port-utils";
 
 export interface FlowGramPortDescriptor {
@@ -32,7 +33,32 @@ export function registryPortsToFlowGramPorts(ports: MicroflowPort[]): FlowGramPo
   return ports.map(registryPortToFlowGramPort);
 }
 
-export function flowGramPortsForObjectKind(kind: MicroflowObjectKind): FlowGramPortDescriptor[] {
+const actionSequencePorts: MicroflowPort[] = [
+  { id: "in", label: "In", direction: "input", kind: "sequenceIn", cardinality: "one", edgeTypes: ["sequence", "decisionCondition", "objectTypeCondition", "errorHandler"] },
+  { id: "out", label: "Out", direction: "output", kind: "sequenceOut", cardinality: "one", edgeTypes: ["sequence"] },
+];
+
+const actionErrorPort: MicroflowPort = {
+  id: "error",
+  label: "Error",
+  direction: "output",
+  kind: "errorOut",
+  cardinality: "zeroOrOne",
+  edgeTypes: ["errorHandler"],
+};
+
+export function flowGramPortsForActionKind(actionKind?: MicroflowActionKind): FlowGramPortDescriptor[] {
+  const registryItem = actionKind ? microflowActionRegistryByKind.get(actionKind) : undefined;
+  const supportsErrorHandling = registryItem?.supportsErrorHandling ?? true;
+  return registryPortsToFlowGramPorts(supportsErrorHandling
+    ? [...actionSequencePorts, actionErrorPort]
+    : actionSequencePorts);
+}
+
+export function flowGramPortsForObjectKind(kind: MicroflowObjectKind, actionKind?: MicroflowActionKind): FlowGramPortDescriptor[] {
+  if (kind === "actionActivity") {
+    return flowGramPortsForActionKind(actionKind);
+  }
   const registryItem = defaultMicroflowObjectNodeRegistry.find(item => objectKindFromRegistryItem(item) === kind);
   return registryItem ? registryPortsToFlowGramPorts(registryItem.ports) : [];
 }

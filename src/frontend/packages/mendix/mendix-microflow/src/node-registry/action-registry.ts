@@ -108,21 +108,41 @@ type GenericActionConfig = Record<string, unknown>;
 
 const unknownType: MicroflowDataType = { kind: "unknown", reason: "registry default" };
 
-const P0_ACTION_KINDS = new Set<MicroflowActionKind>([
+const SERVER_EXECUTABLE_ACTION_KINDS = new Set<MicroflowActionKind>([
   "retrieve",
   "createObject",
   "changeMembers",
   "commit",
   "delete",
   "rollback",
+  "cast",
+  "createList",
+  "changeList",
+  "aggregateList",
+  "listOperation",
+  "filterList",
+  "sortList",
   "createVariable",
   "changeVariable",
   "callMicroflow",
   "restCall",
   "logMessage",
   "throwException",
-  "filterList",
-  "sortList"
+  "counter",
+  "incrementCounter",
+  "gauge",
+]);
+
+const RUNTIME_COMMAND_ACTION_KINDS = new Set<MicroflowActionKind>([
+  "showPage",
+  "showHomePage",
+  "showMessage",
+  "closePage",
+  "validationFeedback",
+  "downloadFile",
+  "callJavaScriptAction",
+  "callNanoflow",
+  "synchronize",
 ]);
 
 export type MicroflowActionRuntimeSupportLevel =
@@ -664,19 +684,20 @@ function action(input: {
 }): MicroflowActionRegistryItem {
   const availability = input.availability ?? "supported";
   const supportsErrorHandling = input.supportsErrorHandling ?? !["client", "logging", "metrics", "variable"].includes(input.category);
-  const runtimeSupportLevel: MicroflowActionRuntimeSupportLevel = P0_ACTION_KINDS.has(input.key)
-    ? "supported"
-    : availability === "hidden"
-      ? "modeledOnly"
-      : availability === "nanoflowOnlyDisabled"
-        ? "nanoflowOnly"
-        : availability === "requiresConnector"
-          ? "requiresConnector"
-          : availability === "deprecated"
-            ? "deprecated"
-            : availability === "beta"
-              ? "modeledOnly"
-              : "modeledOnly";
+  const runtimeSupportLevel: MicroflowActionRuntimeSupportLevel =
+    SERVER_EXECUTABLE_ACTION_KINDS.has(input.key) || RUNTIME_COMMAND_ACTION_KINDS.has(input.key)
+      ? "supported"
+      : availability === "hidden"
+        ? "modeledOnly"
+        : availability === "nanoflowOnlyDisabled"
+          ? "supported"
+          : availability === "requiresConnector"
+            ? "requiresConnector"
+            : availability === "deprecated"
+              ? "deprecated"
+              : availability === "beta"
+                ? "requiresConnector"
+                : "requiresConnector";
   const createDefaultConfig = () => ({
     activityType: input.legacyActivityType,
     activityCategory: input.category,
@@ -723,7 +744,7 @@ function action(input: {
         actionKind: createdAction.kind,
         officialType: createdAction.officialType,
         availability,
-        unsupported: availability === "requiresConnector" || availability === "nanoflowOnlyDisabled",
+        runtimeSupportLevel,
         deprecated: availability === "deprecated",
         authoringAction: createdAction
       }
@@ -746,8 +767,8 @@ export const defaultMicroflowActionRegistry: MicroflowActionRegistryItem[] = [
   action({ key: "listOperation", legacyActivityType: "listOperation", officialType: "Microflows$ListOperationAction", title: "List Operation", titleZh: "列表操作", description: "Filters, sorts, combines, or selects list items.", category: "list", defaultConfig: createDefaultActionConfig("listOperation") }),
   action({ key: "callMicroflow", legacyActivityType: "callMicroflow", officialType: "Microflows$MicroflowCallAction", title: "Call Microflow", titleZh: "调用微流", description: "Calls another microflow with parameter mapping.", category: "call", defaultConfig: createDefaultActionConfig("callMicroflow") }),
   action({ key: "callJavaAction", legacyActivityType: "callJavaAction", officialType: "Microflows$JavaActionCallAction", title: "Call Java Action", titleZh: "调用 Java 动作", description: "Calls a server-side Java action.", category: "call" }),
-  action({ key: "callJavaScriptAction", legacyActivityType: "callJavaScriptAction", officialType: "Microflows$JavaScriptActionCallAction", title: "Call JavaScript Action", titleZh: "调用 JavaScript 动作", description: "Nanoflow-only JavaScript action, disabled in Microflow.", category: "call", availability: "nanoflowOnlyDisabled" }),
-  action({ key: "callNanoflow", legacyActivityType: "callNanoflow", officialType: "Microflows$NanoflowCallAction", title: "Call Nanoflow", titleZh: "调用纳流", description: "Nanoflow-only call node, disabled in Microflow.", category: "call", availability: "nanoflowOnlyDisabled", supportsErrorHandling: false }),
+  action({ key: "callJavaScriptAction", legacyActivityType: "callJavaScriptAction", officialType: "Microflows$JavaScriptActionCallAction", title: "Call JavaScript Action", titleZh: "调用 JavaScript 动作", description: "Client-side JavaScript action; runtime emits a client command.", category: "call" }),
+  action({ key: "callNanoflow", legacyActivityType: "callNanoflow", officialType: "Microflows$NanoflowCallAction", title: "Call Nanoflow", titleZh: "调用纳流", description: "Client-side nanoflow call; runtime emits a client command.", category: "call", supportsErrorHandling: false }),
   action({ key: "createVariable", legacyActivityType: "variableCreate", officialType: "Microflows$CreateVariableAction", title: "Create Variable", titleZh: "创建变量", description: "Creates a local microflow variable.", category: "variable", defaultConfig: createDefaultActionConfig("createVariable"), supportsErrorHandling: false }),
   action({ key: "changeVariable", legacyActivityType: "variableChange", officialType: "Microflows$ChangeVariableAction", title: "Change Variable", titleZh: "修改变量", description: "Changes the value of an existing variable.", category: "variable", defaultConfig: createDefaultActionConfig("changeVariable"), supportsErrorHandling: false }),
   action({ key: "closePage", legacyActivityType: "closePage", officialType: "Microflows$ClosePageAction", title: "Close Page", titleZh: "关闭页面", description: "Closes the current or last opened page.", category: "client", supportsErrorHandling: false }),
@@ -756,7 +777,7 @@ export const defaultMicroflowActionRegistry: MicroflowActionRegistryItem[] = [
   action({ key: "showMessage", legacyActivityType: "showMessage", officialType: "Microflows$ShowMessageAction", title: "Show Message", titleZh: "显示消息", description: "Displays a blocking or non-blocking message.", category: "client", supportsErrorHandling: false }),
   action({ key: "showPage", legacyActivityType: "showPage", officialType: "Microflows$ShowPageAction", title: "Show Page", titleZh: "显示页面", description: "Opens a page for the current user.", category: "client", supportsErrorHandling: false }),
   action({ key: "validationFeedback", legacyActivityType: "validationFeedback", officialType: "Microflows$ValidationFeedbackAction", title: "Validation Feedback", titleZh: "验证反馈", description: "Shows validation feedback under a page field.", category: "client", supportsErrorHandling: false }),
-  action({ key: "synchronize", legacyActivityType: "synchronize", officialType: "Microflows$SynchronizeAction", title: "Synchronize", titleZh: "同步", description: "Nanoflow-only synchronize action, disabled in Microflow.", category: "client", availability: "nanoflowOnlyDisabled", supportsErrorHandling: false }),
+  action({ key: "synchronize", legacyActivityType: "synchronize", officialType: "Microflows$SynchronizeAction", title: "Synchronize", titleZh: "同步", description: "Client-device synchronize request; runtime emits a client command.", category: "client", supportsErrorHandling: false }),
   action({ key: "restCall", legacyActivityType: "callRest", officialType: "Microflows$RestCallAction", title: "Call REST Service", titleZh: "调用 REST 服务", description: "Calls a REST endpoint with request and response mapping.", category: "integration", defaultConfig: createDefaultActionConfig("restCall") }),
   action({ key: "webServiceCall", legacyActivityType: "callWebService", officialType: "Microflows$WebServiceCallAction", title: "Call Web Service", titleZh: "调用 Web Service", description: "Calls an imported SOAP/Web Service.", category: "integration" }),
   action({ key: "importXml", legacyActivityType: "importWithMapping", officialType: "Microflows$ImportXmlAction", title: "Import Mapping", titleZh: "导入映射", description: "Imports XML or JSON through an import mapping.", category: "integration" }),

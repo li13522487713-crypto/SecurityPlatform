@@ -15,7 +15,7 @@ import { defaultMicroflowObjectNodeRegistry, objectKindFromRegistryItem } from "
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 
 export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] {
-  return defaultMicroflowObjectNodeRegistry.map(item => {
+  const registries = defaultMicroflowObjectNodeRegistry.map(item => {
     const kind = objectKindFromRegistryItem(item);
     const isEndLike = ["endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(kind);
     return ({
@@ -38,6 +38,26 @@ export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] 
       },
     } as unknown as WorkflowNodeRegistry);
   });
+  if (!registries.some(registry => registry.type === "actionActivity")) {
+    registries.push({
+      type: "actionActivity",
+      meta: {
+        isStart: false,
+        isNodeEnd: false,
+        isContainer: false,
+        nodeDTOType: "actionActivity",
+        size: { width: 178, height: 76 },
+        deleteDisable: false,
+        copyDisable: false,
+        useDynamicPort: true,
+        defaultPorts: flowGramPortsForObjectKind("actionActivity"),
+      },
+      formMeta: {
+        render: () => null,
+      },
+    } as unknown as WorkflowNodeRegistry);
+  }
+  return registries;
 }
 
 @injectable()

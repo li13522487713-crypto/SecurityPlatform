@@ -353,12 +353,6 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     }
     const nextIssues = validateNativeSchema(normalized);
     setIssues(nextIssues);
-    props.onValidationStateChange?.({
-      microflowId: normalized.id,
-      issues: nextIssues,
-      status: nextIssues.some(item => item.severity === "error") ? "invalid" : "valid",
-      lastValidatedAt: new Date(),
-    });
   }, [props]);
 
   const handleUndo = useCallback(() => {
@@ -426,6 +420,14 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     }
     setSaving(true);
     try {
+      const validation = await runValidation("save");
+      const blockers = validation.issues.filter(item => item.blockSave && item.severity === "error");
+      if (blockers.length > 0 || validation.summary.errorCount > 0) {
+        setBottomDockMode("peek");
+        setBottomTab("problems");
+        Toast.error(`保存被 ${blockers.length || validation.summary.errorCount} 个校验错误阻止。`);
+        return;
+      }
       const response = await props.apiClient?.saveMicroflow({ schema: latestSchemaRef.current });
       savedSchemaSignatureRef.current = schemaWorkflowSignature(latestSchemaRef.current);
       setDirty(false);
@@ -436,7 +438,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     } finally {
       setSaving(false);
     }
-  }, [props, saving]);
+  }, [props, runValidation, saving]);
 
   const handleTestRun = useCallback(async () => {
     setRunning(true);
@@ -724,9 +726,9 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
           <Space>
             <Tooltip content={labels.undo}><Button icon={<IconUndo />} disabled={historyPast.length === 0} onClick={handleUndo} /></Tooltip>
             <Tooltip content={labels.redo}><Button icon={<IconRedo />} disabled={historyFuture.length === 0} onClick={handleRedo} /></Tooltip>
-            <Button icon={<IconRefresh />} loading={validationStatus === "validating"} onClick={() => void runValidation("save")}>{labels.validate}</Button>
-            <Button icon={<IconPlay />} loading={running} disabled={saving || props.readonly} onClick={() => void handleTestRun()}>{labels.testRun}</Button>
-            <Button icon={<IconSave />} type="primary" loading={saving} disabled={saving || props.readonly || !dirty} onClick={() => void handleSave()}>{labels.save}</Button>
+            <Button data-testid="microflow-editor-validate" icon={<IconRefresh />} loading={validationStatus === "validating"} onClick={() => void runValidation("save")}>{labels.validate}</Button>
+            <Button data-testid="microflow-editor-run" icon={<IconPlay />} loading={running} disabled={saving || props.readonly} onClick={() => void handleTestRun()}>{labels.testRun}</Button>
+            <Button data-testid="microflow-editor-save" icon={<IconSave />} type="primary" loading={saving} disabled={saving || props.readonly || !dirty} onClick={() => void handleSave()}>{labels.save}</Button>
             {props.toolbarSuffix}
           </Space>
         </div>

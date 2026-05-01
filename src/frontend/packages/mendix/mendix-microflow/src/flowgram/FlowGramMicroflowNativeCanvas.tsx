@@ -42,6 +42,7 @@ import {
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
 import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
 import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
+import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import "@flowgram-adapter/free-layout-editor/css-load";
 import "./styles/flowgram-microflow-canvas.css";
@@ -156,6 +157,7 @@ function workflowRenderStructureKey(workflow: WorkflowJSON | MicroflowWorkflowJS
 function ensureNodeData(node: MicroflowWorkflowNodeJSON): MicroflowWorkflowNodeJSON {
   const objectKind = String((node.data as Partial<FlowGramMicroflowNodeData> | undefined)?.objectKind ?? node.type);
   const data = node.data as Partial<FlowGramMicroflowNodeData> | undefined;
+  const actionKind = data?.actionKind;
   return {
     ...node,
     type: objectKind,
@@ -179,6 +181,11 @@ function ensureNodeData(node: MicroflowWorkflowNodeJSON): MicroflowWorkflowNodeJ
         y: Number(node.meta?.position?.y ?? 0),
       },
       collectionId: node.meta?.collectionId ?? data?.collectionId ?? MICROFLOW_ROOT_COLLECTION_ID,
+      nodeDTOType: objectKind,
+      useDynamicPort: true,
+      defaultPorts: node.meta?.defaultPorts?.length
+        ? node.meta.defaultPorts
+        : flowGramPortsForObjectKind(objectKind as FlowGramMicroflowNodeData["objectKind"], actionKind),
     },
   };
 }

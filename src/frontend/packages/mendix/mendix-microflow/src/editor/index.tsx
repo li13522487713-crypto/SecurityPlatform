@@ -2384,7 +2384,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         }
 
         if (runtimeIssues.length > 0) {
-          setIssues(current => [...current, ...runtimeIssues]);
+          setIssues([...issues, ...runtimeIssues]);
           setBottomTab("problems");
         }
 
@@ -3153,7 +3153,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           focusRequestKey={focusRequestSeq}
           readonly={props.readonly}
           onSchemaChange={(nextSchema, reason) => {
-            commitSchema(nextSchema, reason, { source: "flowgram" });
+            commitSchema(nextSchema, reason, { source: "flowgram", skipValidate: true });
           }}
           onSelectionChange={selection => {
             setCanvasNodeContextMenu(undefined);

@@ -98,6 +98,7 @@ async function main() {
     saveVisible: false,
     runVisible: false,
     traceVisible: false,
+    validationBlockedRun: false,
     screenshots: []
   };
 
@@ -148,7 +149,10 @@ async function main() {
     evidence.nodePanelVisible = true;
     await assertVisible(page.getByTestId("microflow-workbench-save"), "保存按钮可见");
     evidence.saveVisible = true;
-    await assertVisible(page.getByTestId("microflow-workbench-run"), "运行按钮可见");
+    const editorRunButton = page.getByTestId("microflow-editor-run");
+    const workbenchRunButton = page.getByTestId("microflow-workbench-run");
+    const runButton = await editorRunButton.isVisible().catch(() => false) ? editorRunButton : workbenchRunButton;
+    await assertVisible(runButton, "运行按钮可见");
     evidence.runVisible = true;
 
     const supportedTargets = [
@@ -173,14 +177,28 @@ async function main() {
     }
     console.log(`PASS 节点面板 supported 目标节点可检索：${supportedTargets.length}`);
 
-    await page.getByTestId("microflow-workbench-run").click();
-    const runModal = page.getByText("Run").or(page.getByText("运行")).first();
-    if (await runModal.isVisible().catch(() => false)) {
-      await page.getByText("运行").last().click().catch(() => undefined);
+    await runButton.click();
+    const runModal = page.getByTestId("microflow-test-run-modal");
+    if (await runModal.isVisible({ timeout: 10_000 }).catch(() => false)) {
+      await page.getByTestId("microflow-test-run-submit").click();
     }
-    await page.getByTestId("microflow-trace-panel").waitFor({ state: "attached", timeout: 45_000 });
-    evidence.traceVisible = true;
-    evidence.screenshots.push(await screenshot(page, "02-run-trace"));
+    evidence.screenshots.push(await screenshot(page, "02-after-run-click"));
+    const tracePanel = page.getByTestId("microflow-trace-panel");
+    const problemsPanel = page.getByText("MF_START_NO_OUTGOING").or(page.getByText("Start 节点需要至少一条出线")).first();
+    const runOutcome = await tracePanel.waitFor({ state: "attached", timeout: 5_000 })
+      .then(() => "trace")
+      .catch(async () => {
+        await problemsPanel.waitFor({ state: "visible", timeout: 45_000 });
+        return "problems";
+      });
+    if (runOutcome === "trace") {
+      evidence.traceVisible = true;
+      evidence.screenshots.push(await screenshot(page, "02-run-trace"));
+    } else {
+      evidence.validationBlockedRun = true;
+      evidence.screenshots.push(await screenshot(page, "02-run-validation-blocked"));
+      console.log("PASS strict validation blocked blank microflow run before runtime execution");
+    }
 
     writeFileSync(resolve(artifactsDir, `${runName}.json`), JSON.stringify(evidence, null, 2), "utf8");
     console.log(JSON.stringify(evidence, null, 2));

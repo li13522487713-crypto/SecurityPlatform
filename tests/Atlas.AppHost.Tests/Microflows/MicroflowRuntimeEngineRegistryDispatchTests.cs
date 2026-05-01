@@ -158,7 +158,7 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
     }
 
     [Fact]
-    public async Task Run_NanoflowOnlyAction_FailsWithUnsupported()
+    public async Task Run_NanoflowOnlyAction_ProducesRuntimeCommandAndContinues()
     {
         var schema = Schema(
             Objects(
@@ -171,8 +171,12 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
 
         var session = await RunWithRegistryAsync(schema);
 
-        Assert.Equal("failed", session.Status);
-        Assert.Equal(RuntimeErrorCode.RuntimeUnsupportedAction, session.Error?.Code);
+        Assert.Equal("success", session.Status);
+        Assert.Null(session.Error);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "nf" && frame.Status == "success");
+        var nanoflowFrame = Assert.Single(session.Trace, frame => frame.ObjectId == "nf");
+        Assert.Contains("runtimeCommands", nanoflowFrame.Output?.GetRawText() ?? string.Empty);
+        Assert.Contains("callNanoflow", nanoflowFrame.Output?.GetRawText() ?? string.Empty);
     }
 
     [Fact]

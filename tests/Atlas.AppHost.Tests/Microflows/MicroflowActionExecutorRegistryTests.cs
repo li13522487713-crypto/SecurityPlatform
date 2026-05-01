@@ -11,12 +11,12 @@ public sealed class MicroflowActionExecutorRegistryTests
     private static readonly string[] FrontendActionKinds =
     [
         "retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "cast",
-        "aggregateList", "createList", "changeList", "listOperation",
+        "aggregateList", "createList", "changeList", "listOperation", "filterList", "sortList",
         "createVariable", "changeVariable",
         "callMicroflow", "callJavaAction", "callJavaScriptAction", "callNanoflow",
-        "restCall", "webServiceCall", "importXml", "exportXml", "callExternalAction", "restOperationCall",
+        "restCall", "webServiceCall", "importXml", "exportXml", "callExternalAction", "restOperationCall", "queryExternalDatabase",
         "closePage", "downloadFile", "showHomePage", "showMessage", "showPage", "validationFeedback", "synchronize",
-        "logMessage",
+        "logMessage", "throwException",
         "generateDocument",
         "counter", "incrementCounter", "gauge",
         "mlModelCall",
@@ -62,6 +62,9 @@ public sealed class MicroflowActionExecutorRegistryTests
     [InlineData("closePage")]
     [InlineData("validationFeedback")]
     [InlineData("downloadFile")]
+    [InlineData("callJavaScriptAction")]
+    [InlineData("callNanoflow")]
+    [InlineData("synchronize")]
     public async Task RuntimeCommandFamily_ProducesClientCommand(string actionKind)
     {
         var registry = new MicroflowActionExecutorRegistry();

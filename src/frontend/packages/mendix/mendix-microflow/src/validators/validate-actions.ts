@@ -1,5 +1,6 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { getMicroflowById } from "../metadata";
+import { microflowActionRegistryByKind } from "../node-registry/action-registry";
 import { isMicroflowP0ActionStronglyTyped, isP0ActionKind } from "../schema/authoring/p0-action-guards";
 import { flattenObjects, issue } from "./shared";
 import type { MicroflowValidatorContext } from "./validator-types";
@@ -45,6 +46,7 @@ export function validateActions(schema: MicroflowSchema, context: MicroflowValid
     if (isP0ActionKind(action.kind) && !isMicroflowP0ActionStronglyTyped(action)) {
       issues.push(issue("MF_ACTION_P0_MUST_BE_STRONGLY_TYPED", "P0 动作必须满足强类型结构（非 GenericAction/松散 JSON）。", { objectId: object.id, actionId: action.id, fieldPath: "action" }));
     }
+    const runtimeSupportLevel = microflowActionRegistryByKind.get(action.kind)?.runtimeSupportLevel;
     if (action.kind === "retrieve") {
       if (!action.outputVariableName.trim()) {
         issues.push(issue("MF_RETRIEVE_OUTPUT_MISSING", "RetrieveAction.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.outputVariableName" }));
@@ -67,14 +69,14 @@ export function validateActions(schema: MicroflowSchema, context: MicroflowValid
         issues.push(issue("MF_CREATE_OBJECT_OUTPUT_MISSING", "CreateObjectAction.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.outputVariableName" }));
       }
     }
-    if (action.editor.availability === "nanoflowOnlyDisabled") {
+    if (action.editor.availability === "nanoflowOnlyDisabled" && runtimeSupportLevel !== "supported") {
       issues.push(issue("MF_ACTION_NANOFLOW_ONLY", `${action.officialType} is Nanoflow-only and cannot be used in a Microflow.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "edit" ? "warning" : "error"));
     }
     if (action.editor.availability === "requiresConnector") {
       issues.push(issue("MF_ACTION_REQUIRES_CONNECTOR", `${action.officialType} requires connector runtime support.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "publish" || context.mode === "testRun" ? "error" : "warning"));
     }
-    if (!isP0ActionKind(action.kind)) {
-      issues.push(issue("MF_ACTION_MODELED_ONLY", `${action.officialType} is modeled-only for the P0 runtime contract.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "testRun" ? "error" : "warning"));
+    if (runtimeSupportLevel === "modeledOnly" || runtimeSupportLevel === "unsupported") {
+      issues.push(issue("MF_ACTION_MODELED_ONLY", `${action.officialType} is not executable by the Microflow runtime yet.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, context.mode === "testRun" ? "error" : "warning"));
     }
     if (action.editor.availability === "deprecated") {
       issues.push(issue("MF_ACTION_DEPRECATED", `${action.officialType} is deprecated.`, { objectId: object.id, actionId: action.id, fieldPath: "action.kind" }, "warning"));
