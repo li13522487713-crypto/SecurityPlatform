@@ -150,6 +150,27 @@ describe("microflow variable foundation", () => {
     expect(names.some(name => name !== "approvalLevel" && name.startsWith("approvalLevel"))).toBe(true);
   });
 
+  it("ignores partially configured action expressions when finding variable references", () => {
+    const partiallyConfiguredChange = activity("obj-partial-change", {
+      ...baseAction("changeVariable", "action-partial-change"),
+      officialType: "Microflows$ChangeVariableAction",
+      kind: "changeVariable",
+      targetVariableName: "approvalLevel",
+      newValueExpression: undefined as unknown as MicroflowExpression,
+    });
+    const partiallyConfiguredCreate = activity("obj-partial-create", {
+      ...baseAction("createVariable", "action-partial-create"),
+      officialType: "Microflows$CreateVariableAction",
+      kind: "createVariable",
+      variableName: "routeName",
+      dataType: { kind: "string" },
+      initialValue: { raw: undefined } as unknown as MicroflowExpression,
+      readonly: false,
+    });
+
+    expect(() => findVariableTextReferences(schema([createVariable(), partiallyConfiguredChange, partiallyConfiguredCreate]), "approvalLevel")).not.toThrow();
+  });
+
   it("does not mutate a different microflow schema when one schema changes", () => {
     const a = schema();
     const b = { ...schema([createVariable("b1", "riskLevel")]), id: "mf-b", stableId: "mf-b", name: "MF_B", displayName: "MF_B" };

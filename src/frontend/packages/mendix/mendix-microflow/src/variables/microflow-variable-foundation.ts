@@ -53,6 +53,17 @@ function normalizeName(name: string): string {
   return name.trim().toLocaleLowerCase();
 }
 
+function hasExpressionText(expression: unknown): expression is MicroflowExpression {
+  return typeof (expression as MicroflowExpression | undefined)?.raw === "string";
+}
+
+function expressionReferencesVariable(expression: unknown, variableName: string): boolean {
+  if (!hasExpressionText(expression)) {
+    return false;
+  }
+  return expression.raw.includes(variableName) || expression.raw.includes(`$${variableName}`);
+}
+
 function updateCreateVariableAction(
   schema: MicroflowAuthoringSchema,
   variableId: string,
@@ -250,7 +261,7 @@ export function getVariableReferences(schema: MicroflowAuthoringSchema, variable
         visit(object.objectCollection);
       }
       for (const [fieldPath, expression] of expressionsForObject(object)) {
-        if (expression.raw.includes(variableName) || expression.raw.includes(`$${variableName}`)) {
+        if (expressionReferencesVariable(expression, variableName)) {
           references.push({ objectId: object.id, fieldPath });
         }
       }
@@ -261,7 +272,7 @@ export function getVariableReferences(schema: MicroflowAuthoringSchema, variable
         references.push({ objectId: object.id, actionId: object.action.id, fieldPath: "action.targetVariableName" });
       }
       for (const [fieldPath, expression] of expressionsForAction(object.action)) {
-        if (expression.raw.includes(variableName) || expression.raw.includes(`$${variableName}`)) {
+        if (expressionReferencesVariable(expression, variableName)) {
           references.push({ objectId: object.id, actionId: object.action.id, fieldPath });
         }
       }
