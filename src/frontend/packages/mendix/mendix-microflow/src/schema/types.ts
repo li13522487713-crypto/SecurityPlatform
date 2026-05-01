@@ -1238,6 +1238,7 @@ export type MicroflowCaseValue =
   | { kind: "boolean"; officialType: "Microflows$EnumerationCase"; value: true | false; persistedValue: "true" | "false" }
   | { kind: "enumeration"; officialType: "Microflows$EnumerationCase"; enumerationQualifiedName: string; value: string }
   | { kind: "inheritance"; officialType: "Microflows$InheritanceCase"; entityQualifiedName: string }
+  | { kind: "expression"; officialType?: "Microflows$ExpressionCase"; condition?: string; expression?: string }
   | { kind: "empty"; officialType: "Microflows$NoCase" }
   | { kind: "fallback"; officialType: "Microflows$NoCase" }
   | { kind: "noCase"; officialType: "Microflows$NoCase" };

@@ -76,8 +76,21 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
     if (flow.isErrorHandler && flow.editor.edgeKind !== "errorHandler") {
       issues.push(issue("MF_FLOW_ERROR_KIND_MISMATCH", "isErrorHandler=true requires editor.edgeKind=errorHandler.", { flowId: flow.id, fieldPath: "isErrorHandler", collectionId: flowCollectionId }));
     }
-    if ((edgeKind === "sequence" || edgeKind === "loopBody") && flow.caseValues.length > 0) {
+    const isInclusiveGatewayConditionFlow = edgeKind === "sequence"
+      && source?.kind === "inclusiveGateway"
+      && flow.caseValues.length > 0;
+    if ((edgeKind === "sequence" || edgeKind === "loopBody") && flow.caseValues.length > 0 && !isInclusiveGatewayConditionFlow) {
       issues.push(issue("MF_FLOW_SEQUENCE_CASE_VALUES", "Plain sequence flow must not define caseValues.", { flowId: flow.id, fieldPath: "caseValues", collectionId: flowCollectionId }));
+    }
+    if (isInclusiveGatewayConditionFlow) {
+      for (const caseValue of flow.caseValues) {
+        if (caseValue.kind !== "expression" && caseValue.kind !== "fallback" && caseValue.kind !== "empty" && caseValue.kind !== "noCase") {
+          issues.push(issue("MF_INCLUSIVE_GATEWAY_CASE_KIND", "Inclusive Gateway condition flow only supports expression or fallback case values.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues", collectionId: flowCollectionId }));
+        }
+        if (caseValue.kind === "expression" && !(caseValue.condition ?? caseValue.expression)?.trim()) {
+          issues.push(issue("MF_INCLUSIVE_GATEWAY_EXPRESSION_MISSING", "Inclusive Gateway expression case must define a condition expression.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues", collectionId: flowCollectionId }));
+        }
+      }
     }
     if (edgeKind === "errorHandler" && flow.caseValues.length > 0) {
       issues.push(issue("MF_FLOW_ERROR_CASE_VALUES", "Error handler flow must not define caseValues.", { flowId: flow.id, fieldPath: "caseValues", collectionId: flowCollectionId }));

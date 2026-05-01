@@ -62,6 +62,16 @@ export function tryMapP0ActionToDiscriminatedDto(action: MicroflowAction): Micro
         objectOrListVariableName: record.objectOrListVariableName,
         refreshInClient: record.refreshInClient,
       });
+    case "cast":
+      return dto(action, "cast", {
+        sourceVariable: record.sourceVariable ?? record.sourceObjectVariableName,
+        sourceObjectVariableName: record.sourceObjectVariableName ?? record.sourceVariable,
+        targetEntity: record.targetEntity ?? record.targetEntityQualifiedName,
+        targetEntityQualifiedName: record.targetEntityQualifiedName ?? record.targetEntity,
+        outputVariable: record.outputVariable ?? record.outputVariableName,
+        outputVariableName: record.outputVariableName ?? record.outputVariable,
+        castMode: record.castMode,
+      });
     case "createList":
       return dto(action, "createList", {
         outputListVariableName: record.outputListVariableName ?? record.outputVariableName ?? record.listVariableName,
@@ -94,6 +104,25 @@ export function tryMapP0ActionToDiscriminatedDto(action: MicroflowAction): Micro
         resultVariableName: record.resultVariableName,
         resultType: record.resultType,
         emptyListBehavior: record.emptyListBehavior,
+      });
+    case "filterList":
+      return dto(action, "filterList", {
+        sourceListVariableName: record.sourceListVariableName ?? record.listVariableName,
+        outputVariableName: record.outputVariableName ?? record.outputListVariableName,
+        outputListVariableName: record.outputListVariableName ?? record.outputVariableName,
+        itemVariableName: record.itemVariableName,
+        conditionExpression: record.conditionExpression ?? record.filterExpression,
+        filterExpression: record.filterExpression ?? record.conditionExpression,
+        itemType: record.itemType,
+      });
+    case "sortList":
+      return dto(action, "sortList", {
+        sourceListVariableName: record.sourceListVariableName ?? record.listVariableName,
+        outputVariableName: record.outputVariableName ?? record.outputListVariableName,
+        outputListVariableName: record.outputListVariableName ?? record.outputVariableName,
+        direction: record.direction,
+        sortExpression: record.sortExpression,
+        sortKeys: record.sortKeys,
       });
     case "listOperation":
       return dto(action, "listOperation", {

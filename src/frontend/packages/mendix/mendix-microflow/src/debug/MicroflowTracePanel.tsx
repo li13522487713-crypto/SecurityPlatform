@@ -2,6 +2,7 @@ import { Button, Card, Empty, Space, Tabs, Tag, Typography } from "@douyinfe/sem
 
 import { extractGatewayBranchTrace, type MicroflowRunSession, type MicroflowRuntimeError, type MicroflowTraceFrame } from "./trace-types";
 import { buildExecutionPath } from "./trace-history-utils";
+import { buildMicroflowNodeIoViewModel } from "./node-io-view-model";
 
 const { Text } = Typography;
 
@@ -83,7 +84,8 @@ export function MicroflowTracePanel({
   const executionPath = buildExecutionPath(session);
   const activeFrame = activeFrameId ? executionPath.find(item => item.frame.id === activeFrameId)?.frame : executionPath[0]?.frame;
   const errors = collectErrors(session);
-  const activeBranchTrace = activeFrame ? extractGatewayBranchTrace(activeFrame) : [];
+  const activeNodeIo = activeFrame ? buildMicroflowNodeIoViewModel(activeFrame) : undefined;
+  const activeBranchTrace = activeNodeIo?.flow.branchTrace ?? [];
 
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -171,28 +173,21 @@ export function MicroflowTracePanel({
               <Card style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
                 <Space wrap>
                   <Tag>{activeFrame.objectId}</Tag>
-                  <Tag>{activeFrame.nodeKind ?? activeFrame.nodeType ?? "node"}</Tag>
-                  {activeFrame.actionKind || activeFrame.actionId ? <Tag>{activeFrame.actionKind ?? activeFrame.actionId}</Tag> : null}
-                  <Tag color={statusColor(activeFrame.status)}>{activeFrame.status}</Tag>
-                  <Tag>{activeFrame.durationMs}ms</Tag>
+                  <Tag>{activeNodeIo?.summary.nodeKind}</Tag>
+                  {activeNodeIo?.summary.actionKind ? <Tag>{activeNodeIo.summary.actionKind}</Tag> : null}
+                  <Tag color={statusColor(activeFrame.status)}>{activeNodeIo?.summary.status}</Tag>
+                  <Tag>{activeNodeIo?.summary.durationMs}ms</Tag>
                 </Space>
               </Card>
               <Tabs type="card" style={{ width: "100%" }}>
                 <Tabs.TabPane tab="Input" itemKey="input">
-                  <JsonBlock value={{ input: activeFrame.input, actionInput: activeFrame.actionInput, inputVariables: activeFrame.inputVariables }} />
+                  <JsonBlock value={activeNodeIo?.input} />
                 </Tabs.TabPane>
                 <Tabs.TabPane tab="Output" itemKey="output">
-                  <JsonBlock value={{ output: activeFrame.output, outputVariables: activeFrame.outputVariables, variableDelta: activeFrame.variableDelta }} />
+                  <JsonBlock value={activeNodeIo?.output} />
                 </Tabs.TabPane>
                 <Tabs.TabPane tab="Flow" itemKey="flow">
-                  <JsonBlock value={{
-                    incomingFlowId: activeFrame.incomingFlowId,
-                    outgoingFlowId: activeFrame.outgoingFlowId,
-                    selectedCaseValue: activeFrame.selectedCaseValue,
-                    loopIteration: activeFrame.loopIteration,
-                    handoffPayload: activeFrame.handoffPayload,
-                    branchTrace: activeBranchTrace,
-                  }} />
+                  <JsonBlock value={activeNodeIo?.flow} />
                 </Tabs.TabPane>
                 {activeBranchTrace.length ? (
                   <Tabs.TabPane tab="Branches" itemKey="branches">
@@ -212,11 +207,7 @@ export function MicroflowTracePanel({
                   </Tabs.TabPane>
                 ) : null}
                 <Tabs.TabPane tab="Runtime" itemKey="runtime">
-                  <JsonBlock value={{
-                    evaluatedExpressions: activeFrame.evaluatedExpressions,
-                    transactionEffect: activeFrame.transactionEffect,
-                    error: activeFrame.error,
-                  }} />
+                  <JsonBlock value={activeNodeIo?.runtime} />
                 </Tabs.TabPane>
               </Tabs>
             </Space>

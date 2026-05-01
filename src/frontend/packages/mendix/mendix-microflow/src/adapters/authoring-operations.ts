@@ -688,6 +688,26 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
       mergeBehavior: { strategy: "firstArrived" }
     };
   }
+  if (entry.type === "parallelGateway") {
+    return {
+      ...base,
+      kind: "parallelGateway",
+      officialType: "Microflows$ParallelGateway",
+      gatewayMode: "auto",
+      branches: [],
+      joinPolicy: "waitAll"
+    };
+  }
+  if (entry.type === "inclusiveGateway") {
+    return {
+      ...base,
+      kind: "inclusiveGateway",
+      officialType: "Microflows$InclusiveGateway",
+      branches: [],
+      defaultBranch: null,
+      mergePolicy: "waitAll"
+    };
+  }
   if (entry.type === "loop") {
     return {
       ...base,

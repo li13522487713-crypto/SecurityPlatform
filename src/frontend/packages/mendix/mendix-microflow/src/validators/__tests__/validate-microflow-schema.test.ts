@@ -141,6 +141,33 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     })]));
   });
 
+  it("allows Inclusive Gateway expression case values on outgoing sequence flows", () => {
+    const start = objectFrom("startEvent", "start");
+    const gateway = objectFrom("inclusiveGateway", "inclusive");
+    const a = actionObject("activity:variableCreate", "branch-a");
+    const b = actionObject("activity:variableCreate", "branch-b");
+    const flowA = createSequenceFlow({
+      originObjectId: gateway.id,
+      destinationObjectId: a.id,
+      caseValues: [{ kind: "expression", condition: "$hasFive = true", expression: "$hasFive = true" }],
+    });
+    const flowB = createSequenceFlow({
+      originObjectId: gateway.id,
+      destinationObjectId: b.id,
+      caseValues: [{ kind: "expression", condition: "$listScore = 18", expression: "$listScore = 18" }],
+      originConnectionIndex: 1,
+    });
+    const issues = validate(schemaWith([start, gateway, a, b], [
+      createSequenceFlow({ originObjectId: start.id, destinationObjectId: gateway.id }),
+      flowA,
+      flowB,
+    ]));
+
+    expect(issues.some(issue => issue.code === "MF_FLOW_SEQUENCE_CASE_VALUES")).toBe(false);
+    expect(issues.some(issue => issue.code === "MF_INCLUSIVE_GATEWAY_CASE_KIND")).toBe(false);
+    expect(issues.some(issue => issue.code === "MF_INCLUSIVE_GATEWAY_EXPRESSION_MISSING")).toBe(false);
+  });
+
   it("reports Call Microflow missing and stale targets", () => {
     const call = actionObject("activity:callMicroflow", "call-microflow");
     const missingIssues = validate(schemaWith([objectFrom("startEvent", "start"), call, objectFrom("endEvent", "end")]));

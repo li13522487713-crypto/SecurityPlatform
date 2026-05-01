@@ -91,7 +91,7 @@ function edgeFlowId(edge: MicroflowWorkflowEdgeJSON): string {
 
 function edgeKind(edge: MicroflowWorkflowEdgeJSON): MicroflowExecutionFlow["edgeKind"] {
   const raw = readString(edgeData(edge).edgeKind);
-  if (raw === "decisionCondition" || raw === "objectTypeCondition" || raw === "errorHandler" || raw === "annotation") {
+  if (raw === "decisionCondition" || raw === "objectTypeCondition" || raw === "loopBody" || raw === "errorHandler" || raw === "annotation") {
     return raw;
   }
   return "sequence";
@@ -379,12 +379,12 @@ export function toExecutionPlan(schema: MicroflowDesignSchema, options?: { resou
   const metadataRefs: MicroflowRuntimeMetadataRefDto[] = [];
   const nodes = schema.workflow.nodes.map(node => toExecutionNode(node, unsupportedActions, metadataRefs));
   const flows = schema.workflow.edges
-    .map(edge => toExecutionFlow(edge, nodesById))
-    .filter(flow => !flow.runtimeIgnored);
+    .map(edge => toExecutionFlow(edge, nodesById));
   const normalFlows = flows.filter(flow => flow.controlFlow === "normal");
   const decisionFlows = flows.filter(flow => flow.controlFlow === "decision");
   const objectTypeFlows = flows.filter(flow => flow.controlFlow === "objectType");
   const errorHandlerFlows = flows.filter(flow => flow.controlFlow === "errorHandler");
+  const ignoredFlows = flows.filter(flow => flow.controlFlow === "ignored");
   const start = schema.workflow.nodes.find(node => nodeKind(node) === "startEvent")
     ?? schema.workflow.nodes.find(node => !["annotation", "parameterObject"].includes(nodeKind(node)));
   const endNodeIds = schema.workflow.nodes.filter(node => nodeKind(node) === "endEvent").map(nodeObjectId);
@@ -409,6 +409,7 @@ export function toExecutionPlan(schema: MicroflowDesignSchema, options?: { resou
     decisionFlows,
     objectTypeFlows,
     errorHandlerFlows,
+    ignoredFlows,
     loopCollections: toLoopCollections(schema.workflow.nodes, flows),
     gateways: toGateways(nodes, flows),
     startNodeId: start ? nodeObjectId(start) : "missing-start",

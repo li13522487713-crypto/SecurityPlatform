@@ -72,6 +72,9 @@ export function caseValueKey(caseValue: MicroflowCaseValue): string {
   if (caseValue.kind === "inheritance") {
     return `inheritance:${caseValue.entityQualifiedName}`;
   }
+  if (caseValue.kind === "expression") {
+    return `expression:${caseValue.condition ?? caseValue.expression ?? ""}`;
+  }
   return caseValue.kind;
 }
 
@@ -90,6 +93,9 @@ export function caseValueLabel(caseValue: MicroflowCaseValue): string {
   }
   if (caseValue.kind === "fallback") {
     return "fallback";
+  }
+  if (caseValue.kind === "expression") {
+    return caseValue.condition ?? caseValue.expression ?? "condition";
   }
   return "未配置条件";
 }

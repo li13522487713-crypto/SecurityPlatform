@@ -38,6 +38,7 @@ export interface MicroflowExecutionPlan {
   decisionFlows: MicroflowExecutionFlow[];
   objectTypeFlows: MicroflowExecutionFlow[];
   errorHandlerFlows: MicroflowExecutionFlow[];
+  ignoredFlows: MicroflowExecutionFlow[];
   loopCollections: MicroflowExecutionLoopCollection[];
   gateways: MicroflowExecutionGateway[];
   startNodeId: string;
@@ -101,6 +102,7 @@ export type MicroflowExecutionFlowEdgeKind =
   | "sequence"
   | "decisionCondition"
   | "objectTypeCondition"
+  | "loopBody"
   | "errorHandler"
   | "annotation";
 
@@ -185,6 +187,9 @@ export function flowControlFlow(edgeKind: MicroflowExecutionFlowEdgeKind, isErro
   if (isErrorHandler || edgeKind === "errorHandler") {
     return "errorHandler";
   }
+  if (edgeKind === "loopBody") {
+    return "ignored";
+  }
   if (edgeKind === "decisionCondition") {
     return "decision";
   }
@@ -209,8 +214,8 @@ export function validateExecutionPlan(plan: MicroflowExecutionPlan): MicroflowEx
     if (!nodeIds.has(flow.destinationObjectId)) {
       issues.push({ code: "RUNTIME_FLOW_DESTINATION_NOT_FOUND", message: "Execution flow destinationObjectId does not reference a node.", flowId: flow.flowId, objectId: flow.destinationObjectId, severity: "error" });
     }
-    if (flow.edgeKind === "annotation" || flow.runtimeIgnored) {
-      issues.push({ code: "RUNTIME_IGNORED_FLOW_IN_CONTROL_PLAN", message: "Annotation/ignored flow should not be present in control-flow plan.", flowId: flow.flowId, severity: "error" });
+    if ((flow.edgeKind === "annotation" || flow.runtimeIgnored) && flow.controlFlow !== "ignored") {
+      issues.push({ code: "RUNTIME_IGNORED_FLOW_IN_CONTROL_PLAN", message: "Annotation/ignored flow must be marked as ignored control flow.", flowId: flow.flowId, severity: "error" });
     }
     if (flow.controlFlow === "decision") {
       const source = nodesById.get(flow.originObjectId);

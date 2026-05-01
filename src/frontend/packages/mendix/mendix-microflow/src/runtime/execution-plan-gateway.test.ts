@@ -62,6 +62,7 @@ describe("microflow execution plan gateway semantics", () => {
       decisionFlows: [],
       objectTypeFlows: [],
       errorHandlerFlows: [],
+      ignoredFlows: [],
       loopCollections: [],
       gateways: [
         { objectId: "fork", kind: "parallelGateway", role: "split", incomingFlowIds: ["f1"], outgoingFlowIds: ["f2", "missing-flow"], branchFlowIds: ["f2"] },
@@ -79,6 +80,53 @@ describe("microflow execution plan gateway semantics", () => {
       expect.objectContaining({ code: "RUNTIME_GATEWAY_SPLIT_BRANCH_MISSING", objectId: "fork" }),
       expect.objectContaining({ code: "RUNTIME_GATEWAY_NODE_NOT_FOUND", objectId: "missing-gateway" }),
     ]));
+  });
+
+  it("keeps Loop Body entry flows out of root control navigation", () => {
+    const plan = toExecutionPlan(schema([
+      node("start", "startEvent"),
+      node("loop", "loopedActivity", { bodyCollectionId: "loop-body" }),
+      node("body-action", "actionActivity", { collectionId: "loop-body", parentObjectId: "loop" }),
+      node("end", "endEvent"),
+    ], [
+      flow("f1", "start", "loop"),
+      loopBodyFlow("f-body", "loop", "body-action", "loop-body"),
+      flow("f2", "loop", "end"),
+    ]));
+
+    expect(plan.flows.find(item => item.flowId === "f-body")).toMatchObject({
+      edgeKind: "loopBody",
+      controlFlow: "ignored",
+      collectionId: "loop-body",
+    });
+    expect(plan.normalFlows.map(item => item.flowId)).toEqual(["f1", "f2"]);
+    expect(plan.ignoredFlows.map(item => item.flowId)).toEqual(["f-body"]);
+    expect(plan.loopCollections.find(item => item.loopObjectId === "loop")).toMatchObject({
+      collectionId: "loop-body",
+      flowIds: ["f-body"],
+      nodeIds: ["body-action"],
+    });
+  });
+
+  it("keeps AnnotationFlow in ignoredFlows without joining control buckets", () => {
+    const plan = toExecutionPlan(schema([
+      node("start", "startEvent"),
+      node("note", "annotation"),
+      node("end", "endEvent"),
+    ], [
+      flow("f1", "start", "end"),
+      annotationFlow("f-note", "note", "start"),
+    ]));
+
+    expect(plan.flows.find(item => item.flowId === "f-note")).toMatchObject({
+      kind: "annotation",
+      edgeKind: "annotation",
+      controlFlow: "ignored",
+      runtimeIgnored: true,
+    });
+    expect(plan.ignoredFlows.map(item => item.flowId)).toEqual(["f-note"]);
+    expect(plan.normalFlows.map(item => item.flowId)).toEqual(["f1"]);
+    expect(validateExecutionPlan(plan).issues).not.toContainEqual(expect.objectContaining({ code: "RUNTIME_IGNORED_FLOW_IN_CONTROL_PLAN" }));
   });
 });
 
@@ -99,7 +147,7 @@ function schema(nodes: MicroflowDesignSchema["workflow"]["nodes"], edges: Microf
   };
 }
 
-function node(id: string, kind: string): MicroflowDesignSchema["workflow"]["nodes"][number] {
+function node(id: string, kind: string, extraData: Record<string, unknown> = {}): MicroflowDesignSchema["workflow"]["nodes"][number] {
   return {
     id,
     type: kind,
@@ -107,9 +155,38 @@ function node(id: string, kind: string): MicroflowDesignSchema["workflow"]["node
       objectId: id,
       objectKind: kind,
       officialType: `Microflows$${kind}`,
+      ...extraData,
       action: kind === "actionActivity"
         ? { id: `${id}-action`, kind: "createVariable", variableName: `${id}Value`, dataType: { kind: "integer" }, initialValue: "1" }
         : undefined,
+    },
+  };
+}
+
+function loopBodyFlow(id: string, source: string, target: string, collectionId: string): MicroflowDesignSchema["workflow"]["edges"][number] {
+  return {
+    id,
+    sourceNodeID: source,
+    targetNodeID: target,
+    data: {
+      flowId: id,
+      edgeKind: "loopBody",
+      collectionId,
+      caseValues: [],
+    },
+  };
+}
+
+function annotationFlow(id: string, source: string, target: string): MicroflowDesignSchema["workflow"]["edges"][number] {
+  return {
+    id,
+    sourceNodeID: source,
+    targetNodeID: target,
+    data: {
+      flowId: id,
+      flowKind: "annotation",
+      edgeKind: "annotation",
+      caseValues: [],
     },
   };
 }

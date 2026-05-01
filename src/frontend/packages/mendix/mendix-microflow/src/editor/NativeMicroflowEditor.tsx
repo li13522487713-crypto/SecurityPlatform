@@ -40,6 +40,7 @@ import type {
   MicroflowWorkbenchLayoutState,
   MicroflowWorkbenchStatus,
 } from "./index";
+import { buildAcceptance120Schema as buildAcceptance120SchemaFixture } from "./acceptance-120-fixture";
 
 const { Text, Title } = Typography;
 
@@ -329,7 +330,7 @@ function buildAcceptance120Schema(schema: MicroflowDesignSchema): MicroflowDesig
     edge("f-decision-false-merge", "fallback-list-score", "merge"),
     edge("f-merge-loop", "merge", "loop-numbers"),
     edge("f-loop-create-object", "loop-numbers", "create-object"),
-    edge("f-loop-body-break-decision", "loop-numbers", "break-check", { edgeKind: "loopBody" }),
+    edge("f-loop-body-break-decision", "loop-numbers", "break-check", { edgeKind: "loopBody", collectionId: loopBody }),
     loopEdge("f-break-true", "break-check", "break-event", { edgeKind: "decisionCondition", caseValues: boolCase(true) }),
     loopEdge("f-break-false", "break-check", "continue-check", { edgeKind: "decisionCondition", caseValues: boolCase(false) }),
     loopEdge("f-continue-true", "continue-check", "continue-event", { edgeKind: "decisionCondition", caseValues: boolCase(true) }),
@@ -975,7 +976,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     setBottomDockMode,
     getLayoutState: () => layoutState,
     configureAllNodeAcceptance120: async () => {
-      const next = buildAcceptance120Schema(latestSchemaRef.current);
+      const next = buildAcceptance120SchemaFixture(latestSchemaRef.current);
       commitSchema(next, "workflow");
       setRightOpen(false);
       setLeftOpen(false);

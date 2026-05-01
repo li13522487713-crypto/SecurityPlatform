@@ -881,7 +881,7 @@ function portsForObject(object: MicroflowObject): MicroflowPort[] {
   const input: MicroflowPort = { id: "in", label: "In", direction: "input", kind: "sequenceIn", cardinality: "one", edgeTypes: ["sequence", "decisionCondition", "objectTypeCondition", "errorHandler"] };
   const output: MicroflowPort = { id: "out", label: "Out", direction: "output", kind: "sequenceOut", cardinality: "one", edgeTypes: ["sequence"] };
   const error: MicroflowPort = { id: "error", label: "Error", direction: "output", kind: "errorOut", cardinality: "zeroOrOne", edgeTypes: ["errorHandler"] };
-  const loopBodyIn: MicroflowPort = { id: "bodyIn", label: "Body In", direction: "output", kind: "loopBodyIn", cardinality: "one", edgeTypes: ["sequence"] };
+  const loopBodyIn: MicroflowPort = { id: "bodyIn", label: "Body In", direction: "output", kind: "loopBodyIn", cardinality: "one", edgeTypes: ["loopBody"] };
   const loopBodyOut: MicroflowPort = { id: "bodyOut", label: "Body Out", direction: "input", kind: "loopBodyOut", cardinality: "zeroOrMore", edgeTypes: ["sequence"] };
   if (object.kind === "startEvent") {
     return [output];
