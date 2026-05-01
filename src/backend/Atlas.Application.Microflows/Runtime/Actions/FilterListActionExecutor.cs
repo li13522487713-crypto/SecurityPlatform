@@ -89,7 +89,7 @@ public sealed class FilterListActionExecutor : ListActionExecutorBase
         SetListVariable(context, outputName, output, MicroflowVariableSourceKind.ActionOutput);
         started.Stop();
 
-        var producedDataType = JsonSerializer.SerializeToElement(new { kind = "list" }, JsonOptions);
+        var producedDataType = ResolveProducedListType(context.ActionConfig);
         var rawValueJson = output.GetRawText();
         return Task.FromResult(new MicroflowActionExecutionResult
         {
@@ -111,5 +111,35 @@ public sealed class FilterListActionExecutor : ListActionExecutorBase
             ],
             DurationMs = (int)started.ElapsedMilliseconds
         });
+    }
+
+    private static JsonElement ResolveProducedListType(JsonElement config)
+    {
+        if (config.ValueKind == JsonValueKind.Object)
+        {
+            if (config.TryGetProperty("dataType", out var dataType)
+                && dataType.ValueKind == JsonValueKind.Object
+                && string.Equals(ReadString(dataType, "kind"), "list", StringComparison.OrdinalIgnoreCase))
+            {
+                return dataType.Clone();
+            }
+
+            if (config.TryGetProperty("outputElementType", out var outputElementType))
+            {
+                return JsonSerializer.SerializeToElement(new { kind = "list", itemType = outputElementType.Clone() }, JsonOptions);
+            }
+
+            if (config.TryGetProperty("itemType", out var itemType))
+            {
+                return JsonSerializer.SerializeToElement(new { kind = "list", itemType = itemType.Clone() }, JsonOptions);
+            }
+
+            if (config.TryGetProperty("elementType", out var elementType))
+            {
+                return JsonSerializer.SerializeToElement(new { kind = "list", itemType = elementType.Clone() }, JsonOptions);
+            }
+        }
+
+        return JsonSerializer.SerializeToElement(new { kind = "list" }, JsonOptions);
     }
 }

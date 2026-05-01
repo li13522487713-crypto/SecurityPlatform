@@ -68,7 +68,9 @@ public sealed class MicroflowRuntimeEngineP04Tests
 
         var session = await RunAsync(schema);
 
-        Assert.Equal("success", session.Status);
+        Assert.True(
+            string.Equals("success", session.Status, StringComparison.OrdinalIgnoreCase),
+            JsonSerializer.Serialize(session.Error, JsonOptions));
         Assert.Contains(session.Trace, frame => frame.ObjectId == "handler");
     }
 
@@ -86,7 +88,87 @@ public sealed class MicroflowRuntimeEngineP04Tests
 
         var session = await RunAsync(schema);
 
-        Assert.Equal("success", session.Status);
+        Assert.True(
+            string.Equals("success", session.Status, StringComparison.OrdinalIgnoreCase),
+            JsonSerializer.Serialize(new { session.Error, Trace = session.Trace.Select(frame => new { frame.ObjectId, frame.Status, frame.Output, frame.VariablesSnapshot }) }, JsonOptions));
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "end" && frame.Status == "success");
+    }
+
+    [Fact]
+    public async Task Run_LoopedActivity_With_Filter_Decision_And_ChangeVariable_Returns_Sum()
+    {
+        const string loopCollectionId = "loop-sum-body";
+        var schema = MicroflowDesignSchemaTestFactory.Schema(
+            Objects(
+                Start(),
+                Action("create-total", "createVariable", new { variableName = "total", dataType = new { kind = "integer" }, initialValue = "0" }),
+                Action("filter-positive", "filterList", new
+                {
+                    sourceListVariableName = "numbers",
+                    outputVariableName = "positiveNumbers",
+                    itemVariableName = "$item",
+                    conditionExpression = "$item > 0",
+                    itemType = new { kind = "integer" }
+                }),
+                new
+                {
+                    id = "loop-sum",
+                    kind = "loopedActivity",
+                    caption = "Loop positiveNumbers",
+                    loopSource = new
+                    {
+                        kind = "iterableList",
+                        listVariableName = "positiveNumbers",
+                        iteratorVariableName = "currentNumber"
+                    }
+                },
+                new
+                {
+                    id = "decision-positive",
+                    kind = "exclusiveSplit",
+                    caption = "currentNumber > 0",
+                    collectionId = loopCollectionId,
+                    parentObjectId = "loop-sum",
+                    splitCondition = new { expression = "$currentNumber > 0", resultType = "boolean" }
+                },
+                new
+                {
+                    id = "change-total",
+                    kind = "actionActivity",
+                    caption = "change-total",
+                    collectionId = loopCollectionId,
+                    parentObjectId = "loop-sum",
+                    action = MergeAction("change-total", "changeVariable", new
+                    {
+                        targetVariableName = "total",
+                        newValueExpression = "$total + $currentNumber"
+                    })
+                },
+                new { id = "loop-body-end", kind = "endEvent", caption = "Body return", collectionId = loopCollectionId, parentObjectId = "loop-sum" },
+                new { id = "continue-loop", kind = "continueEvent", caption = "Continue", collectionId = loopCollectionId, parentObjectId = "loop-sum" },
+                End(returnValue: "$total")),
+            Flows(
+                Flow("f-start-create", "start", "create-total"),
+                Flow("f-create-filter", "create-total", "filter-positive"),
+                Flow("f-filter-loop", "filter-positive", "loop-sum"),
+                Flow("f-loop-end", "loop-sum", "end"),
+                Flow("f-body-decision", "loop-sum", "decision-positive", loopCollectionId),
+                BooleanFlow("f-decision-change", "decision-positive", "change-total", true, loopCollectionId),
+                BooleanFlow("f-decision-continue", "decision-positive", "continue-loop", false, loopCollectionId),
+                Flow("f-change-body-end", "change-total", "loop-body-end", loopCollectionId)),
+            Parameters(new { id = "numbers", name = "numbers", dataType = "Integer", type = new { kind = "list", itemType = new { kind = "integer" } }, required = true }),
+            "mf-list-loop-sum-test",
+            JsonOptions);
+
+        var session = await RunAsync(schema, new Dictionary<string, object?> { ["numbers"] = new[] { 1, 2, 3, 4, 5, 6 } });
+
+        Assert.True(
+            string.Equals("success", session.Status, StringComparison.OrdinalIgnoreCase),
+            JsonSerializer.Serialize(new { session.Error, Trace = session.Trace.Select(frame => new { frame.ObjectId, frame.Status, frame.Output, frame.VariablesSnapshot }) }, JsonOptions));
+        Assert.Equal("21", session.Output?.GetRawText());
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "filter-positive" && frame.Status == "success");
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "loop-sum" && frame.Status == "success");
+        Assert.Equal(6, session.Trace.Count(frame => frame.ObjectId == "change-total" && frame.Status == "success"));
         Assert.Contains(session.Trace, frame => frame.ObjectId == "end" && frame.Status == "success");
     }
 
@@ -312,6 +394,8 @@ public sealed class MicroflowRuntimeEngineP04Tests
 
     private static IReadOnlyList<object> Flows(params object[] flows) => flows;
 
+    private static IReadOnlyList<object> Parameters(params object[] parameters) => parameters;
+
     private static object Start(string id = "start") => new { id, kind = "startEvent", caption = "Start" };
 
     private static object End(string id = "end", string? returnValue = null)
@@ -349,6 +433,32 @@ public sealed class MicroflowRuntimeEngineP04Tests
             caseValues = Array.Empty<object>(),
             isErrorHandler = false,
             editor = new { edgeKind = "sequence" }
+        };
+
+    private static object Flow(string id, string source, string target, string collectionId)
+        => new
+        {
+            id,
+            kind = "sequence",
+            originObjectId = source,
+            destinationObjectId = target,
+            collectionId,
+            caseValues = Array.Empty<object>(),
+            isErrorHandler = false,
+            editor = new { edgeKind = "sequence" }
+        };
+
+    private static object BooleanFlow(string id, string source, string target, bool value, string collectionId)
+        => new
+        {
+            id,
+            kind = "sequence",
+            originObjectId = source,
+            destinationObjectId = target,
+            collectionId,
+            caseValues = new[] { new { kind = "boolean", value, persistedValue = value ? "true" : "false" } },
+            isErrorHandler = false,
+            editor = new { edgeKind = "decisionCondition" }
         };
 
     private static object ErrorFlow(string id, string source, string target)

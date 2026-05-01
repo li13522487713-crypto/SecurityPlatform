@@ -246,7 +246,9 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                 Add(context, MicroflowValidationCodes.LoopContainsStart, "Loop 内不允许 StartEvent。", "loop", obj.FieldPath, objectId: obj.Id);
             }
 
-            if (obj.InsideLoop && obj.Kind.Equals("endEvent", StringComparison.OrdinalIgnoreCase))
+            if (obj.InsideLoop
+                && obj.Kind.Equals("endEvent", StringComparison.OrdinalIgnoreCase)
+                && !IsLoopBodyReturn(obj))
             {
                 Add(context, MicroflowValidationCodes.LoopContainsEnd, "Loop 内不允许 EndEvent。", "loop", obj.FieldPath, objectId: obj.Id);
             }
@@ -306,7 +308,10 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                 Add(context, MicroflowValidationCodes.AnnotationFlowRequiresAnnotation, "AnnotationFlow 至少一端必须是 Annotation。", "flow", flow.FieldPath, flowId: flow.Id);
             }
 
-            if (!string.Equals(origin.CollectionId, destination.CollectionId, StringComparison.Ordinal))
+            var isLoopBodyEntry = IsKind(origin, "loopedActivity")
+                && string.Equals(destination.ParentLoopObjectId, origin.Id, StringComparison.Ordinal)
+                && string.Equals(flow.EdgeKind, "loopBody", StringComparison.OrdinalIgnoreCase);
+            if (!string.Equals(origin.CollectionId, destination.CollectionId, StringComparison.Ordinal) && !isLoopBodyEntry)
             {
                 Add(context, MicroflowValidationCodes.FlowInvalidTarget, "Flow 不允许跨 root / loop collection 连接。", "flow", flow.FieldPath, flowId: flow.Id, relatedObjectIds: [origin.Id, destination.Id]);
             }
@@ -379,7 +384,10 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                     Add(context, MicroflowValidationCodes.EndHasOutgoing, "EndEvent 不允许 outgoing flow。", "event", obj.FieldPath, objectId: obj.Id, relatedFlowIds: outgoing.Select(f => f.Id).ToArray());
                 }
 
-                ValidateEndReturn(context, obj);
+                if (!obj.InsideLoop || !IsLoopBodyReturn(obj))
+                {
+                    ValidateEndReturn(context, obj);
+                }
             }
 
             if (IsKind(obj, "breakEvent") || IsKind(obj, "continueEvent"))
@@ -415,6 +423,10 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             Add(context, MicroflowValidationCodes.EndReturnValueRequired, "非 void 返回类型必须提供 EndEvent.returnValue。", "event", $"{obj.FieldPath}.returnValue", objectId: obj.Id);
         }
     }
+
+    private static bool IsLoopBodyReturn(MicroflowObjectModel obj)
+        => obj.Raw.TryGetProperty("isLoopBodyReturn", out var value)
+            && value.ValueKind == JsonValueKind.True;
 
     private static void ValidateDecisions(MicroflowValidationContext context)
     {
@@ -900,6 +912,32 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             }
         }
 
+        foreach (var loop in context.SchemaModel.Objects.Where(o => IsKind(o, "loopedActivity")))
+        {
+            if (!loop.Raw.TryGetProperty("loopSource", out var source) || source.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var iterator = MicroflowSchemaReader.ReadString(source, "iteratorVariableName");
+            if (string.IsNullOrWhiteSpace(iterator))
+            {
+                continue;
+            }
+
+            var listVariable = MicroflowSchemaReader.ReadString(source, "listVariableName");
+            var iteratorType = MicroflowSeedMetadataCatalog.UnknownType("loop iterator type unknown");
+            if (!string.IsNullOrWhiteSpace(listVariable)
+                && variables.TryGetValue(listVariable!, out var listInfo)
+                && listInfo.Type.ValueKind == JsonValueKind.Object
+                && listInfo.Type.TryGetProperty("itemType", out var itemType))
+            {
+                iteratorType = itemType.Clone();
+            }
+
+            variables[iterator!] = new VariableInfo(iterator!, iteratorType, $"{loop.FieldPath}.loopSource.iteratorVariableName", loop.Id, null, false);
+        }
+
         return variables;
     }
 
@@ -919,7 +957,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
     {
         if (action.Kind == "createVariable" && action.Raw.TryGetProperty("dataType", out var dataType))
         {
-            return dataType.Clone();
+            return NormalizeDataType(dataType);
         }
 
         if (action.Kind == "createObject")
@@ -936,10 +974,80 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             return microflow?.ReturnType ?? MicroflowSeedMetadataCatalog.UnknownType("call microflow return type unknown");
         }
 
+        if (action.Kind is "createList" or "filterList" or "listOperation" or "sortList")
+        {
+            if (action.Raw.TryGetProperty("dataType", out var listDataType))
+            {
+                return NormalizeDataType(listDataType);
+            }
+
+            if (action.Raw.TryGetProperty("outputElementType", out var outputElementType))
+            {
+                return JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "list", ["itemType"] = outputElementType.Clone() }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            }
+
+            if (action.Raw.TryGetProperty("itemType", out var itemType))
+            {
+                return JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "list", ["itemType"] = itemType.Clone() }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            }
+
+            if (action.Raw.TryGetProperty("elementType", out var elementType))
+            {
+                return JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "list", ["itemType"] = elementType.Clone() }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            }
+
+            return JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "list" }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+
         return action.Kind == "retrieve"
             ? JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "list", ["itemType"] = new { kind = "object" } }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
             : MicroflowSeedMetadataCatalog.UnknownType("action output type unknown");
     }
+
+    private static JsonElement NormalizeDataType(JsonElement dataType)
+    {
+        if (dataType.ValueKind == JsonValueKind.Object)
+        {
+            return dataType.Clone();
+        }
+
+        if (dataType.ValueKind != JsonValueKind.String)
+        {
+            return MicroflowSeedMetadataCatalog.UnknownType("unsupported data type");
+        }
+
+        var raw = dataType.GetString();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return MicroflowSeedMetadataCatalog.UnknownType("empty data type");
+        }
+
+        if (raw.StartsWith("List<", StringComparison.OrdinalIgnoreCase) && raw.EndsWith('>'))
+        {
+            var item = raw[5..^1];
+            return JsonSerializer.SerializeToElement(
+                new Dictionary<string, object?>
+                {
+                    ["kind"] = "list",
+                    ["itemType"] = NormalizeSimpleType(item)
+                },
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+
+        return NormalizeSimpleType(raw);
+    }
+
+    private static JsonElement NormalizeSimpleType(string raw)
+        => raw.Trim() switch
+        {
+            "Integer" or "integer" or "Int" or "int" => MicroflowSeedMetadataCatalog.Type("integer"),
+            "Long" or "long" => MicroflowSeedMetadataCatalog.Type("long"),
+            "Decimal" or "decimal" or "Number" or "number" => MicroflowSeedMetadataCatalog.Type("decimal"),
+            "Boolean" or "boolean" or "Bool" or "bool" => MicroflowSeedMetadataCatalog.Type("boolean"),
+            "String" or "string" => MicroflowSeedMetadataCatalog.Type("string"),
+            "DateTime" or "dateTime" or "datetime" => MicroflowSeedMetadataCatalog.Type("dateTime"),
+            _ => MicroflowSeedMetadataCatalog.UnknownType($"unsupported dataType: {raw}")
+        };
 
     private static void ValidateMemberChanges(MicroflowValidationContext context, MicroflowObjectModel obj, MicroflowActionModel action, bool requireAny = false)
     {

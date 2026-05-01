@@ -155,9 +155,10 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         try
         {
             effectiveToken.ThrowIfCancellationRequested();
-            var graph = request.ExecutionPlan is null
-                ? MicroflowRuntimeGraph.Build(context.Model)
-                : MicroflowRuntimeGraph.Build(context.Model, context.ResolveExecutionPlan(), context.ResolveExecutionPlanQuery());
+            var graph = MicroflowRuntimeGraph.Build(
+                context.Model,
+                context.ResolveExecutionPlan(),
+                context.ResolveExecutionPlanQuery());
             var bindingError = BindParameters(context);
             if (bindingError is not null)
             {
@@ -436,7 +437,24 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             CollectionId = node.CollectionId,
             VariableStore = context.VariableStore,
             ExpressionEvaluator = _expressionEvaluator,
-            TransactionManager = context.AsRuntimeExecutionContext().TransactionManager
+            TransactionManager = context.AsRuntimeExecutionContext().TransactionManager,
+            ConnectorRegistry = _connectorRegistry ?? new MicroflowRuntimeConnectorRegistry(),
+            RuntimeSecurityContext = MicroflowRuntimeSecurityContext.FromRequestContext(context.RequestContext, applyEntityAccess: true),
+            Options = new MicroflowActionExecutionOptions
+            {
+                Mode = context.AsRuntimeExecutionContext().Mode,
+                AllowRealHttp = context.Options.AllowRealHttp ?? false,
+                SimulateRestError = context.Options.SimulateRestError ?? false,
+                StopOnUnsupported = true,
+                MaxCallDepth = context.MaxCallDepth
+            },
+            LoopExecutionOptions = new MicroflowLoopExecutionOptions
+            {
+                MaxIterations = context.Options.LoopIterations is > 0 ? context.Options.LoopIterations.Value : 1000,
+                LoopIterationsOverride = context.Options.LoopIterations,
+                StopOnActionError = true
+            },
+            LoopBodyExecutor = (iteration, ct) => ExecuteLoopBodyAsync(context, graph, node, iteration, ct)
         };
 
         var loopResult = await _loopExecutor.ExecuteLoopAsync(actionContext, actionContext.ExecutionNode, cancellationToken).ConfigureAwait(false);
@@ -470,6 +488,92 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             incomingFlowId,
             loopResult.OutputPreview ?? JsonObj(new { status = loopResult.Status, iterations = loopResult.IterationCount }));
     }
+
+    private async Task<MicroflowLoopBodyExecutionResult> ExecuteLoopBodyAsync(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        MicroflowObjectModel loopNode,
+        MicroflowLoopIterationContext iteration,
+        CancellationToken cancellationToken)
+    {
+        var plan = context.ResolveExecutionPlan();
+        var query = context.ResolveExecutionPlanQuery();
+        var loopCollection = query.GetLoopCollection(plan, loopNode.Id);
+        if (loopCollection is null)
+        {
+            return LoopBodyFailed(Error(RuntimeErrorCode.RuntimeLoopBodyNotFound, "Loop collection is missing.", loopNode.Id));
+        }
+
+        var entryNodeId = query.FindLoopEntryNodeId(plan, loopCollection);
+        if (string.IsNullOrWhiteSpace(entryNodeId))
+        {
+            return LoopBodyFailed(Error(RuntimeErrorCode.RuntimeLoopBodyNotFound, "Loop body entry node is missing.", loopNode.Id));
+        }
+
+        var currentNodeId = entryNodeId;
+        string? incomingFlowId = null;
+        while (!string.IsNullOrWhiteSpace(currentNodeId))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!context.TryStep(out var stepError))
+            {
+                return new MicroflowLoopBodyExecutionResult
+                {
+                    Status = MicroflowLoopBodyExecutionStatus.MaxStepsExceeded,
+                    Error = stepError
+                };
+            }
+
+            if (!graph.Objects.TryGetValue(currentNodeId, out var node))
+            {
+                return LoopBodyFailed(Error(RuntimeErrorCode.RuntimeObjectNotFound, $"Loop body 运行对象不存在：{currentNodeId}", currentNodeId, flowId: incomingFlowId));
+            }
+
+            if (!string.Equals(node.CollectionId, loopCollection.CollectionId, StringComparison.Ordinal))
+            {
+                return LoopBodyFailed(Error(RuntimeErrorCode.RuntimeLoopDeadEnd, $"Loop body 节点不在当前 collection：{node.Id}", node.Id, flowId: incomingFlowId));
+            }
+
+            if (node.Kind == "breakEvent")
+            {
+                context.AddFrame(node, incomingFlowId, null, "success", JsonObj(new { node.Kind, signal = "break" }), iteration.LoopIterationJson, null, "Break current loop iteration.");
+                return new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Break };
+            }
+
+            if (node.Kind == "continueEvent")
+            {
+                context.AddFrame(node, incomingFlowId, null, "success", JsonObj(new { node.Kind, signal = "continue" }), iteration.LoopIterationJson, null, "Continue current loop iteration.");
+                return new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Continue };
+            }
+
+            var execution = await ExecuteNodeAsync(context, graph, node, incomingFlowId, new CallExecutionState(), cancellationToken).ConfigureAwait(false);
+            if (!execution.Success)
+            {
+                return LoopBodyFailed(execution.Error ?? Error(RuntimeErrorCode.RuntimeLoopDeadEnd, "Loop body failed.", node.Id, flowId: incomingFlowId));
+            }
+
+            if (execution.Completed)
+            {
+                return new MicroflowLoopBodyExecutionResult
+                {
+                    Status = MicroflowLoopBodyExecutionStatus.Success,
+                    Output = execution.Output
+                };
+            }
+
+            currentNodeId = execution.NextNodeId;
+            incomingFlowId = execution.OutgoingFlowId;
+        }
+
+        return LoopBodyFailed(Error(RuntimeErrorCode.RuntimeLoopDeadEnd, "Loop body did not reach a terminal node.", loopNode.Id));
+    }
+
+    private static MicroflowLoopBodyExecutionResult LoopBodyFailed(MicroflowRuntimeErrorDto error)
+        => new()
+        {
+            Status = MicroflowLoopBodyExecutionStatus.Failed,
+            Error = error
+        };
 
     private static NodeExecution ExecuteErrorEvent(RuntimeContext context, MicroflowObjectModel node, string? incomingFlowId)
     {
@@ -2232,6 +2336,33 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 IsErrorHandler = flow.IsErrorHandler,
                 BranchOrder = null
             }).ToArray();
+            var loopCollections = Model.Objects
+                .Where(obj => string.Equals(obj.Kind, "loopedActivity", StringComparison.OrdinalIgnoreCase))
+                .Select(loop =>
+                {
+                    var bodyNodes = Model.Objects.Where(obj => string.Equals(obj.ParentLoopObjectId, loop.Id, StringComparison.Ordinal)).ToArray();
+                    var collectionId = bodyNodes.FirstOrDefault()?.CollectionId ?? loop.Id;
+                    var bodyFlows = Model.Flows.Where(flow => string.Equals(flow.CollectionId, collectionId, StringComparison.Ordinal)).ToArray();
+                    return new MicroflowExecutionLoopCollection
+                    {
+                        LoopObjectId = loop.Id,
+                        CollectionId = collectionId,
+                        ParentCollectionId = loop.CollectionId,
+                        Nodes = bodyNodes.Select(node => node.Id).ToArray(),
+                        Flows = bodyFlows.Select(flow => flow.Id).ToArray(),
+                        StartLikeNodeIds = bodyNodes
+                            .Where(node => !string.Equals(node.Kind, "annotation", StringComparison.OrdinalIgnoreCase)
+                                && !string.Equals(node.Kind, "parameterObject", StringComparison.OrdinalIgnoreCase))
+                            .Select(node => node.Id)
+                            .Take(1)
+                            .ToArray(),
+                        TerminalNodeIds = bodyNodes
+                            .Where(node => node.Kind is "endEvent" or "errorEvent" or "breakEvent" or "continueEvent")
+                            .Select(node => node.Id)
+                            .ToArray()
+                    };
+                })
+                .ToArray();
 
             return new MicroflowExecutionPlan
             {
@@ -2247,6 +2378,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 NormalFlows = flows.Where(flow => string.Equals(flow.ControlFlow, "normal", StringComparison.OrdinalIgnoreCase)).ToArray(),
                 ErrorHandlerFlows = flows.Where(flow => string.Equals(flow.ControlFlow, "errorHandler", StringComparison.OrdinalIgnoreCase)).ToArray(),
                 IgnoredFlows = flows.Where(flow => string.Equals(flow.ControlFlow, "ignored", StringComparison.OrdinalIgnoreCase)).ToArray(),
+                LoopCollections = loopCollections,
                 Parameters = Model.Parameters
                     .Select(parameter => new MicroflowExecutionParameter
                     {
@@ -2855,6 +2987,19 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     CollectionId = planFlow.CollectionId ?? string.Empty,
                     Raw = JsonNull()
                 };
+            }
+
+            foreach (var flow in flows.Values)
+            {
+                if (string.IsNullOrWhiteSpace(flow.OriginObjectId) || !objects.ContainsKey(flow.OriginObjectId))
+                {
+                    throw new RuntimeExpressionException(Error(RuntimeErrorCode.RuntimeFlowNotFound, $"Sequence flow source 不存在：{flow.Id}", flowId: flow.Id));
+                }
+
+                if (string.IsNullOrWhiteSpace(flow.DestinationObjectId) || !objects.ContainsKey(flow.DestinationObjectId))
+                {
+                    throw new RuntimeExpressionException(Error(RuntimeErrorCode.RuntimeFlowNotFound, $"Sequence flow target 不存在：{flow.Id}", flow.OriginObjectId, flowId: flow.Id));
+                }
             }
 
             var normalOutgoing = plan.Nodes
