@@ -18,6 +18,7 @@ import {
 import { createActionActivityFromActionRegistry, createObjectFromNodeRegistry } from "./factories";
 
 export const MICROFLOW_NODE_DND_TYPE = "application/x-atlas-microflow-node";
+const MICROFLOW_POINTER_DRAG_KEY = "__atlasMicroflowNodePointerDrag";
 
 export interface AddMicroflowObjectFromDragPayloadInput {
   schema: MicroflowSchema;
@@ -67,6 +68,23 @@ export function readMicroflowNodeDragPayload(dataTransfer: DataTransfer): Microf
   } catch {
     return undefined;
   }
+}
+
+export function beginMicroflowNodePointerDrag(payload: MicroflowNodeDragPayload): void {
+  (globalThis as unknown as Record<string, unknown>)[MICROFLOW_POINTER_DRAG_KEY] = {
+    payload,
+    startedAt: Date.now(),
+  };
+}
+
+export function takeMicroflowNodePointerDrag(): MicroflowNodeDragPayload | undefined {
+  const host = globalThis as unknown as Record<string, unknown>;
+  const value = host[MICROFLOW_POINTER_DRAG_KEY] as { payload?: MicroflowNodeDragPayload; startedAt?: number } | undefined;
+  delete host[MICROFLOW_POINTER_DRAG_KEY];
+  if (!value?.payload || typeof value.startedAt !== "number") {
+    return undefined;
+  }
+  return Date.now() - value.startedAt < 15000 ? value.payload : undefined;
 }
 
 function nextParameterName(schema: MicroflowSchema): string {

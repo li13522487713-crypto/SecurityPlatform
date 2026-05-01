@@ -194,6 +194,18 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
             校验
           </Button>
         </Tooltip>
+        {editorRef.current?.configureAllNodeAcceptance120 ? (
+          <Tooltip content="将当前微流配置为全节点验收计算图，输出 120。">
+            <Button
+              data-testid="microflow-workbench-acceptance-120"
+              size="small"
+              disabled={disabled}
+              onClick={() => callHandle("configureAllNodeAcceptance120")}
+            >
+              验收120
+            </Button>
+          </Tooltip>
+        ) : null}
         <Tooltip content={errorCount > 0 ? "存在错误，无法发布" : "发布"}>
           <Button
             data-testid="microflow-workbench-publish"

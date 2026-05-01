@@ -22,12 +22,14 @@ export function MicroflowResourceTab() {
     };
   }, [auth.profile]);
   const adapterConfig = useMemo(() => {
-    const accessToken = getAccessToken();
     return createAppMicroflowAdapterConfig({
       workspaceId: workspace.id,
       tenantId: workspace.orgId,
       currentUser,
-      requestHeaders: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      requestHeaders: () => {
+        const accessToken = getAccessToken();
+        return accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
+      },
     });
   }, [currentUser, workspace.id, workspace.orgId]);
 

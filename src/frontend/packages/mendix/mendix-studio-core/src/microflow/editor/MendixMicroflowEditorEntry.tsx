@@ -369,10 +369,24 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
 
   const apiClient = useMemo(() => createMicroflowEditorApiClient(adapter, currentResource, runtimeAdapter, {
     saveMicroflow: async (request: SaveMicroflowRequest) => {
+      const activeResource = currentResourceRef.current;
       latestSchemaRef.current = request.schema;
+      markMicroflowDirty(activeResource.id, true);
+      updateMicroflowSaveState(activeResource.id, {
+        tabId: `microflow:${activeResource.id}`,
+        status: inFlightSaveRef.current ? "queued" : "dirty",
+        dirty: true,
+        saving: Boolean(inFlightSaveRef.current),
+        queued: Boolean(inFlightSaveRef.current),
+        schemaId: activeResource.schemaId,
+        baseVersion: activeResource.schemaId || activeResource.version,
+        localVersion: activeResource.version,
+        lastError: undefined
+      });
+      onDirtyChangeRef.current?.(true);
       return saveLatestSchema("manual");
     }
-  }), [adapter, currentResource, runtimeAdapter, saveLatestSchema]);
+  }), [adapter, currentResource, markMicroflowDirty, runtimeAdapter, saveLatestSchema, updateMicroflowSaveState]);
 
   const scheduleAutosave = useCallback(() => {
     clearAutosaveTimer();

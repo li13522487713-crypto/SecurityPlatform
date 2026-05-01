@@ -157,7 +157,7 @@ export function buildRunRequest(
   return {
     microflowId: schema.id,
     input: values,
-    schema: includeDraftSchema && isDesignSchema(schema) ? schema : undefined,
+    schema: includeDraftSchema ? schema as unknown as MicroflowDesignSchema : undefined,
     schemaId: undefined,
     version: undefined,
     debug: true,

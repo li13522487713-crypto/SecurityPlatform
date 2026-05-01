@@ -346,6 +346,7 @@ export interface MicroflowEditorHandle {
   openBottomTab: (tab: MicroflowWorkbenchBottomTab) => void;
   setBottomDockMode: (mode: BottomDockMode) => void;
   getLayoutState: () => MicroflowWorkbenchLayoutState;
+  configureAllNodeAcceptance120?: () => void;
 }
 
 /** 外置 Toolbar 渲染按钮 disabled / loading 等状态的依赖快照。 */
@@ -2291,7 +2292,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setFocusObjectId(undefined);
     try {
       const debugSessionId = pendingDebugSessionId;
-      const response = await apiClient.testRunMicroflow(buildRunRequest(schema, input.parameters, input.options, false, debugSessionId));
+      const response = await apiClient.testRunMicroflow(buildRunRequest(schema, input.parameters, input.options, true, debugSessionId));
       const session = response.session;
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));

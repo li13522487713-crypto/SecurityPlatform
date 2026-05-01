@@ -1,4 +1,5 @@
 import { parseMicroflowAdapterMode, type MicroflowAdapterFactoryConfig } from "@atlas/mendix-studio-core";
+import { clearAuthStorage } from "@atlas/shared-react-core/utils";
 
 function assertProductionMicroflowAdapterMode(mode: string | undefined): void {
   if (!import.meta.env.PROD) {
@@ -36,7 +37,7 @@ export function createAppMicroflowAdapterConfig(input: {
   workspaceId?: string;
   tenantId?: string;
   currentUser?: MicroflowAdapterFactoryConfig["currentUser"];
-  requestHeaders?: Record<string, string>;
+  requestHeaders?: MicroflowAdapterFactoryConfig["requestHeaders"];
 }): MicroflowAdapterFactoryConfig {
   const configuredModeRaw = import.meta.env.VITE_MICROFLOW_ADAPTER_MODE ?? import.meta.env.MICROFLOW_ADAPTER_MODE;
   assertProductionMicroflowAdapterMode(configuredModeRaw);
@@ -50,7 +51,10 @@ export function createAppMicroflowAdapterConfig(input: {
     tenantId: input.tenantId,
     currentUser: input.currentUser,
     requestHeaders: input.requestHeaders,
-    onUnauthorized: () => window.dispatchEvent(new CustomEvent("atlas:microflow-unauthorized")),
+    onUnauthorized: () => {
+      clearAuthStorage();
+      window.dispatchEvent(new CustomEvent("atlas:microflow-unauthorized"));
+    },
     onForbidden: () => window.dispatchEvent(new CustomEvent("atlas:microflow-forbidden")),
     onApiError: error => window.dispatchEvent(new CustomEvent("atlas:microflow-api-error", { detail: error })),
   };

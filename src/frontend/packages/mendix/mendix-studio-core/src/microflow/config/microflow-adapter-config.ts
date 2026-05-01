@@ -29,7 +29,7 @@ export interface MicroflowAdapterFactoryConfig {
   enableMockFallback?: boolean;
   validationMode?: MicroflowValidationAdapterMode;
   runtimeEnvironment?: MicroflowRuntimeEnvironment;
-  requestHeaders?: Record<string, string>;
+  requestHeaders?: Record<string, string> | (() => Record<string, string> | undefined);
   onUnauthorized?: () => void;
   onForbidden?: () => void;
   onApiError?: (error: MicroflowApiError) => void;

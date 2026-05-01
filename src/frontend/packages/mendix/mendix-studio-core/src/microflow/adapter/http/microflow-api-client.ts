@@ -15,7 +15,7 @@ export interface MicroflowApiClientOptions {
     name: string;
     roles?: string[];
   };
-  requestHeaders?: Record<string, string>;
+  requestHeaders?: Record<string, string> | (() => Record<string, string> | undefined);
   fetchImpl?: typeof fetch;
   onUnauthorized?: () => void;
   onForbidden?: () => void;
@@ -228,9 +228,12 @@ export class MicroflowApiClient {
   }
 
   private createHeaders(hasBody: boolean): HeadersInit {
+    const requestHeaders = typeof this.options.requestHeaders === "function"
+      ? this.options.requestHeaders() ?? {}
+      : this.options.requestHeaders ?? {};
     const headers: Record<string, string> = {
       Accept: "application/json",
-      ...this.options.requestHeaders,
+      ...requestHeaders,
     };
     if (hasBody) {
       headers["Content-Type"] = "application/json";

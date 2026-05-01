@@ -18,6 +18,7 @@ import {
   canDragRegistryItem,
   canCreateRegistryItem,
   createDragPayloadFromRegistryItem,
+  beginMicroflowNodePointerDrag,
   getMicroflowNodeDisabledReason,
   getMicroflowNodeRegistryKey,
   groupMicroflowNodesByCategory,
@@ -453,6 +454,12 @@ export function MicroflowNodeCard({
       onMouseLeave={() => setActive(false)}
       onFocus={() => setKeyboardFocus(true)}
       onBlur={() => setKeyboardFocus(false)}
+      onMouseDown={event => {
+        if (disabled || event.button !== 0) {
+          return;
+        }
+        beginMicroflowNodePointerDrag(createDragPayloadFromRegistryItem(item));
+      }}
       onClick={event => {
         if (draggingRef.current) {
           event.preventDefault();

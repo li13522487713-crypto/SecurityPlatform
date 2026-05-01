@@ -33,12 +33,14 @@ export function MendixStudioAppRoute() {
   }, [auth.profile]);
   const adapterConfig = useMemo(
     () => {
-      const accessToken = getAccessToken();
       return createAppMicroflowAdapterConfig({
         workspaceId: workspace.id,
         tenantId: workspace.orgId,
         currentUser,
-        requestHeaders: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        requestHeaders: () => {
+          const latestAccessToken = getAccessToken();
+          return latestAccessToken ? { Authorization: `Bearer ${latestAccessToken}` } : undefined;
+        },
       });
     },
     [currentUser, workspace.id, workspace.orgId]

@@ -90,10 +90,18 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
         if (validation.Summary.ErrorCount > 0)
         {
+            var details = string.Join(
+                Environment.NewLine,
+                validation.Issues
+                    .Where(issue => string.Equals(issue.Severity, "error", StringComparison.OrdinalIgnoreCase))
+                    .Select(issue => $"{issue.Code}: {issue.Message} ({issue.FieldPath ?? issue.ObjectId ?? issue.FlowId ?? issue.Id})"));
             throw new MicroflowApiException(
                 MicroflowApiErrorCode.MicroflowValidationFailed,
-                "微流试运行被后端校验阻止。",
+                string.IsNullOrWhiteSpace(details)
+                    ? "微流试运行被后端校验阻止。"
+                    : $"微流试运行被后端校验阻止。{details}",
                 422,
+                details: details,
                 validationIssues: validation.Issues);
         }
 

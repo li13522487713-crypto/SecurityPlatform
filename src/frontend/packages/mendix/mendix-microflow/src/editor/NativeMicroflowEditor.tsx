@@ -15,6 +15,8 @@ import {
   FlowGramMicroflowNativeCanvas,
 } from "../flowgram/FlowGramMicroflowNativeCanvas";
 import {
+  createMicroflowWorkflowEdge,
+  createMicroflowWorkflowNode,
   createWorkflowNodeFromPanelItem,
   workflowEdgeById,
   workflowEdgeCount,
@@ -174,6 +176,153 @@ function validateNativeSchema(schema: MicroflowDesignSchema, mode: MicroflowVali
     issues.push(issue(`${schema.id}:start-no-outgoing`, "Start 节点需要至少一条出线。", "MF_START_NO_OUTGOING", "error", { objectId: starts[0].id }));
   }
   return issues;
+}
+
+function buildAcceptance120Schema(schema: MicroflowDesignSchema): MicroflowDesignSchema {
+  const intType = { kind: "integer" as const };
+  const intListType = { kind: "list" as const, itemType: intType };
+  const action = (id: string, kind: string, config: Record<string, unknown>) => ({
+    id: `action-${id}`,
+    kind,
+    officialType: `Microflows$${kind}`,
+    ...config,
+  });
+  const node = (
+    id: string,
+    objectKind: FlowGramMicroflowNodeData["objectKind"],
+    title: string,
+    x: number,
+    y: number,
+    data: Record<string, unknown> = {},
+  ): MicroflowWorkflowNodeJSON => createMicroflowWorkflowNode({
+    id,
+    objectKind,
+    position: { x, y },
+    title,
+    officialType: `Microflows$${objectKind}`,
+    data: {
+      title,
+      ...data,
+    },
+  }) as MicroflowWorkflowNodeJSON;
+  const actionNode = (id: string, title: string, x: number, y: number, actionKind: string, config: Record<string, unknown>) =>
+    node(id, "actionActivity", title, x, y, {
+      actionKind,
+      action: action(id, actionKind, config),
+    });
+  const loopBody = "loop-numbers-body";
+  const loopChild = (id: string, objectKind: FlowGramMicroflowNodeData["objectKind"], title: string, x: number, y: number, data: Record<string, unknown> = {}) =>
+    node(id, objectKind, title, x, y, { collectionId: loopBody, parentObjectId: "loop-numbers", ...data });
+  const loopAction = (id: string, title: string, x: number, y: number, actionKind: string, config: Record<string, unknown>) =>
+    loopChild(id, "actionActivity", title, x, y, {
+      actionKind,
+      action: action(id, actionKind, config),
+    });
+  const edge = (id: string, source: string, target: string, data: Record<string, unknown> = {}) => createMicroflowWorkflowEdge({
+    id,
+    sourceNodeID: source,
+    targetNodeID: target,
+    data,
+  }) as MicroflowWorkflowEdgeJSON;
+  const boolCase = (value: boolean) => [{ kind: "boolean", value, persistedValue: value ? "true" : "false" }];
+  const exprCase = (expression: string) => [{ kind: "expression", condition: expression, expression }];
+  const objectCase = (value: string) => [{ kind: "objectType", value, entityQualifiedName: value, persistedValue: value }];
+  const nodes: MicroflowWorkflowNodeJSON[] = [
+    node("start", "startEvent", "Start", 80, 240),
+    actionNode("create-total", "创建变量", 280, 240, "createVariable", { variableName: "total", dataType: intType, initialValue: "0" }),
+    actionNode("create-list", "创建列表", 480, 240, "createList", { outputListVariableName: "workList", elementType: intType, initialItemsExpression: "[6,1,3,2,5,4]" }),
+    actionNode("change-list", "修改列表", 680, 240, "changeList", { targetListVariableName: "workList", operation: "appendMany", itemsExpression: "[]" }),
+    actionNode("sort-list", "排序列表", 880, 240, "listOperation", { sourceListVariableName: "workList", operation: "sort", sortExpression: "$item", outputVariableName: "sortedNumbers", outputElementType: intType }),
+    actionNode("filter-list", "过滤列表", 1080, 240, "listOperation", { sourceListVariableName: "sortedNumbers", operation: "filter", filterExpression: "$item > 2", outputVariableName: "positiveNumbers", outputElementType: intType }),
+    actionNode("aggregate-list", "列表聚合", 1280, 240, "aggregateList", { sourceListVariableName: "positiveNumbers", aggregateFunction: "sum", outputVariableName: "listScore", resultType: intType }),
+    actionNode("list-operation", "列表操作", 1480, 240, "listOperation", { sourceListVariableName: "positiveNumbers", operation: "contains", objectVariableName: "5", outputVariableName: "hasFive" }),
+    node("decision", "exclusiveSplit", "决策", 1680, 240, { splitCondition: { expression: "$hasFive = true", resultType: "boolean" } }),
+    actionNode("decision-true-touch", "决策 True", 1780, 160, "changeVariable", { targetVariableName: "total", newValueExpression: "$total" }),
+    actionNode("decision-false-touch", "决策 False", 1780, 320, "changeVariable", { targetVariableName: "total", newValueExpression: "$total" }),
+    node("merge", "exclusiveMerge", "合并", 1880, 240),
+    node("loop-numbers", "loopedActivity", "循环", 2080, 240, { bodyCollectionId: loopBody, loopSource: { kind: "iterableList", listVariableName: "numbers", iteratorVariableName: "currentNumber", iteratorVariableDataType: intType } }),
+    loopChild("continue-check", "exclusiveSplit", "currentNumber = 2", 2080, 380, { splitCondition: { expression: "$currentNumber = 2", resultType: "boolean" } }),
+    loopChild("continue-event", "continueEvent", "继续事件", 1880, 520),
+    loopChild("break-check", "exclusiveSplit", "currentNumber = 4", 2280, 380, { splitCondition: { expression: "$currentNumber = 4", resultType: "boolean" } }),
+    loopChild("break-event", "breakEvent", "中断事件", 2480, 520),
+    loopAction("loop-touch", "修改变量", 2280, 520, "changeVariable", { targetVariableName: "total", newValueExpression: "$total" }),
+    loopChild("loop-body-end", "endEvent", "End loop body", 2080, 660),
+    actionNode("create-object", "创建对象", 2280, 240, "createObject", { entityQualifiedName: "Sales.Student", outputVariableName: "student", memberChanges: [] }),
+    actionNode("change-object", "修改对象", 2480, 240, "changeMembers", { changeVariableName: "student", memberChanges: [] }),
+    actionNode("cast-object", "转换对象", 2680, 240, "cast", { sourceVariable: "student", targetEntity: "Sales.Member", outputVariable: "member" }),
+    node("object-type", "inheritanceSplit", "对象类型决策", 2880, 240, { inputObjectVariableName: "member", generalizedEntityQualifiedName: "Sales.Member" }),
+    actionNode("object-type-student-touch", "对象类型 Student", 2980, 160, "changeVariable", { targetVariableName: "total", newValueExpression: "$total" }),
+    actionNode("object-type-fallback-touch", "对象类型 Fallback", 2980, 320, "changeVariable", { targetVariableName: "total", newValueExpression: "$total" }),
+    actionNode("commit-object", "提交对象", 3080, 240, "commit", { objectOrListVariableName: "student", withEvents: false }),
+    actionNode("retrieve-object", "检索对象", 3280, 240, "retrieve", { outputVariableName: "students", retrieveSource: { kind: "database", entityQualifiedName: "Sales.Student", range: { kind: "list" } } }),
+    actionNode("rollback-object", "回滚对象", 3480, 240, "rollback", { objectOrListVariableName: "student", refreshInClient: false }),
+    actionNode("delete-object", "删除对象", 3680, 240, "delete", { objectOrListVariableName: "student", withEvents: false }),
+    node("parallel-fork", "parallelGateway", "并行网关", 3880, 240),
+    actionNode("parallel-a", "并行分支 A", 4080, 160, "createVariable", { variableName: "parallelA", dataType: intType, initialValue: "7" }),
+    actionNode("parallel-b", "并行分支 B", 4080, 320, "createVariable", { variableName: "parallelB", dataType: intType, initialValue: "11" }),
+    node("parallel-join", "parallelGateway", "并行合并", 4080, 240),
+    node("inclusive-fork", "inclusiveGateway", "包含网关", 4280, 240),
+    actionNode("inclusive-a", "包含分支 A", 4480, 160, "createVariable", { variableName: "inclusiveA", dataType: intType, initialValue: "5" }),
+    actionNode("inclusive-b", "包含分支 B", 4480, 320, "createVariable", { variableName: "inclusiveB", dataType: intType, initialValue: "7" }),
+    node("inclusive-join", "inclusiveGateway", "包含合并", 4480, 240),
+    actionNode("final-total", "修改变量", 4680, 240, "changeVariable", { targetVariableName: "total", newValueExpression: "$listScore + 102" }),
+    node("end", "endEvent", "End", 4880, 240, { returnValue: { raw: "$total" } }),
+  ];
+  const edges: MicroflowWorkflowEdgeJSON[] = [
+    edge("f-start-total", "start", "create-total"),
+    edge("f-total-create-list", "create-total", "create-list"),
+    edge("f-create-change-list", "create-list", "change-list"),
+    edge("f-change-sort", "change-list", "sort-list"),
+    edge("f-sort-filter", "sort-list", "filter-list"),
+    edge("f-filter-aggregate", "filter-list", "aggregate-list"),
+    edge("f-aggregate-operation", "aggregate-list", "list-operation"),
+    edge("f-operation-decision", "list-operation", "decision"),
+    edge("f-decision-true", "decision", "decision-true-touch", { edgeKind: "decisionCondition", caseValues: boolCase(true) }),
+    edge("f-decision-false", "decision", "decision-false-touch", { edgeKind: "decisionCondition", caseValues: boolCase(false) }),
+    edge("f-decision-true-merge", "decision-true-touch", "merge"),
+    edge("f-decision-false-merge", "decision-false-touch", "merge"),
+    edge("f-merge-loop", "merge", "loop-numbers"),
+    edge("f-loop-create-object", "loop-numbers", "create-object"),
+    edge("f-loop-continue-check", "loop-numbers", "continue-check"),
+    edge("f-continue-true", "continue-check", "continue-event", { edgeKind: "decisionCondition", caseValues: boolCase(true) }),
+    edge("f-continue-false", "continue-check", "break-check", { edgeKind: "decisionCondition", caseValues: boolCase(false) }),
+    edge("f-break-true", "break-check", "break-event", { edgeKind: "decisionCondition", caseValues: boolCase(true) }),
+    edge("f-break-false", "break-check", "loop-touch", { edgeKind: "decisionCondition", caseValues: boolCase(false) }),
+    edge("f-loop-touch-end", "loop-touch", "loop-body-end"),
+    edge("f-create-change-object", "create-object", "change-object"),
+    edge("f-change-cast", "change-object", "cast-object"),
+    edge("f-cast-object-type", "cast-object", "object-type"),
+    edge("f-object-student", "object-type", "object-type-student-touch", { edgeKind: "objectTypeCondition", caseValues: objectCase("Sales.Student") }),
+    edge("f-object-fallback", "object-type", "object-type-fallback-touch", { edgeKind: "objectTypeCondition", caseValues: objectCase("fallback") }),
+    edge("f-object-student-commit", "object-type-student-touch", "commit-object"),
+    edge("f-object-fallback-commit", "object-type-fallback-touch", "commit-object"),
+    edge("f-commit-retrieve", "commit-object", "retrieve-object"),
+    edge("f-retrieve-rollback", "retrieve-object", "rollback-object"),
+    edge("f-rollback-delete", "rollback-object", "delete-object"),
+    edge("f-delete-parallel", "delete-object", "parallel-fork"),
+    edge("f-parallel-a", "parallel-fork", "parallel-a"),
+    edge("f-parallel-b", "parallel-fork", "parallel-b"),
+    edge("f-parallel-a-join", "parallel-a", "parallel-join"),
+    edge("f-parallel-b-join", "parallel-b", "parallel-join"),
+    edge("f-parallel-inclusive", "parallel-join", "inclusive-fork"),
+    edge("f-inclusive-a", "inclusive-fork", "inclusive-a", { edgeKind: "decisionCondition", caseValues: exprCase("$hasFive = true") }),
+    edge("f-inclusive-b", "inclusive-fork", "inclusive-b", { edgeKind: "decisionCondition", caseValues: exprCase("$listScore = 18") }),
+    edge("f-inclusive-a-join", "inclusive-a", "inclusive-join"),
+    edge("f-inclusive-b-join", "inclusive-b", "inclusive-join"),
+    edge("f-inclusive-final", "inclusive-join", "final-total"),
+    edge("f-final-end", "final-total", "end"),
+  ];
+  return {
+    ...schema,
+    displayName: "MF_AllNodeComplexComputation_Test",
+    documentation: "All screenshot node families acceptance fixture. Expected output: 120.",
+    workflow: { nodes, edges },
+    parameters: [{ id: "numbers", stableId: "numbers", name: "numbers", dataType: intListType, type: { kind: "list", name: "List<Integer>", itemType: { kind: "primitive", name: "Integer" } }, required: true }],
+    returnType: intType,
+    returnVariableName: "total",
+    editor: { ...schema.editor, viewport: { x: 0, y: 0, zoom: 0.35 }, selection: {} },
+    audit: { ...schema.audit, updatedAt: new Date().toISOString() },
+  };
 }
 
 function summarizeIssues(issues: MicroflowValidationIssue[]) {
@@ -474,6 +623,10 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     if (saving || running || props.readonly || !latestSchemaRef.current.id) {
       return;
     }
+    const saved = await handleSave();
+    if (!saved) {
+      return;
+    }
     const validation = await runValidation("testRun");
     if (validation.summary.errorCount > 0) {
       setBottomDockMode("peek");
@@ -483,7 +636,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     }
     setRuntimeServiceError(undefined);
     setTestRunModalOpen(true);
-  }, [props.readonly, runValidation, running, saving]);
+  }, [handleSave, props.readonly, runValidation, running, saving]);
 
   const executeTestRun = useCallback(async (input: MicroflowTestRunInput) => {
     if (!props.apiClient) {
@@ -502,6 +655,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       const response = await props.apiClient.testRunMicroflow({
         microflowId: latestSchemaRef.current.id,
         input: input.parameters,
+        schema: latestSchemaRef.current,
         options: input.options,
       });
       setLastRunSession(response.session);
@@ -723,6 +877,13 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     },
     setBottomDockMode,
     getLayoutState: () => layoutState,
+    configureAllNodeAcceptance120: () => {
+      const next = buildAcceptance120Schema(latestSchemaRef.current);
+      commitSchema(next, "workflow");
+      setRightOpen(false);
+      setLeftOpen(false);
+      Toast.success("已配置全节点验收计算图，期望输出 120。");
+    },
   }), [commitSchema, handleAutoLayout, handlePublish, handleRedo, handleSave, handleTestRun, handleUndo, layoutState, runValidation, schema, workbenchStatus]);
 
   const shellStyle: CSSProperties = {

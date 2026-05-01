@@ -23,6 +23,7 @@ import {
   hasMicroflowNodeDragType,
   microflowNodeRegistryByKey,
   readMicroflowNodeDragPayload,
+  takeMicroflowNodePointerDrag,
   type MicroflowNodeDragPayload,
   type MicroflowNodeRegistryItem,
 } from "../node-registry";
@@ -551,16 +552,18 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     return () => disposable.dispose();
   }, [selectService]);
 
-  const dropPointFromEvent = (event: DragEvent<HTMLDivElement>): MicroflowPoint => {
+  const dropPointFromClient = (clientX: number, clientY: number, nativeEvent?: globalThis.MouseEvent): MicroflowPoint => {
     const rect = containerRef.current?.getBoundingClientRect();
     const viewport = props.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
-    const localX = rect ? event.clientX - rect.left : event.clientX;
-    const localY = rect ? event.clientY - rect.top : event.clientY;
+    const localX = rect ? clientX - rect.left : clientX;
+    const localY = rect ? clientY - rect.top : clientY;
     const fallback = {
       x: (localX - viewport.x) / Math.max(0.2, viewport.zoom),
       y: (localY - viewport.y) / Math.max(0.2, viewport.zoom),
     };
-    const dragPosition = playground.config.getPosFromMouseEvent?.(event.nativeEvent) as MicroflowPoint | undefined;
+    const dragPosition = nativeEvent
+      ? playground.config.getPosFromMouseEvent?.(nativeEvent) as MicroflowPoint | undefined
+      : undefined;
     const position = dragPosition ?? fallback;
     return gridEnabled
       ? {
@@ -569,6 +572,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         }
       : position;
   };
+
+  const dropPointFromEvent = (event: DragEvent<HTMLDivElement>): MicroflowPoint =>
+    dropPointFromClient(event.clientX, event.clientY, event.nativeEvent);
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {
@@ -606,6 +612,32 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       return;
     }
     props.onDropRegistryItem?.(item, dropPointFromEvent(event), payload);
+  };
+
+  const handlePointerFallbackDrop = (event: MouseEvent<HTMLDivElement>) => {
+    if (props.readonly) {
+      return;
+    }
+    const payload = takeMicroflowNodePointerDrag();
+    if (!payload) {
+      return;
+    }
+    const item = microflowNodeRegistryByKey.get(payload.registryKey);
+    if (!item) {
+      Toast.warning("未找到对应的微流节点定义。");
+      return;
+    }
+    if (!canDragRegistryItem(item)) {
+      Toast.warning(getDisabledDragReason(item) ?? "This node cannot be added to Microflow.");
+      return;
+    }
+    if (!canCreateRegistryItem(item, { microflowId: props.schema.id, schemaLoaded: true, readonly: props.readonly })) {
+      Toast.warning("该节点当前不可拖拽创建。");
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    props.onDropRegistryItem?.(item, dropPointFromClient(event.clientX, event.clientY, event.nativeEvent), payload);
   };
 
   const openContextMenuFromTarget = (target: HTMLElement | undefined, point: { x: number; y: number }): boolean => {
@@ -718,6 +750,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       }}
       onDropCapture={handleDrop}
       onMouseDownCapture={handleMouseDown}
+      onMouseUpCapture={handlePointerFallbackDrop}
       onContextMenuCapture={handleContextMenu}
       onPointerDownCapture={handlePointerDown}
     >
