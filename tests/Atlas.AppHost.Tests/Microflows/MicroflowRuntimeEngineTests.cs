@@ -77,6 +77,40 @@ public sealed class MicroflowRuntimeEngineTests
         Assert.Contains(result.Trace, frame => frame.ObjectId == "change" && frame.Status == "success");
     }
 
+    [Fact]
+    public async Task Run_TraceFrame_ExposesNodeIoAndVariableDelta()
+    {
+        var result = await RunAsync(Schema(
+            Objects(
+                Start(),
+                Action("create", "createVariable", new { variableName = "approvalLevel", dataType = Type("string"), initialValue = "\"L1\"" }),
+                Action("change", "changeVariable", new { targetVariableName = "approvalLevel", newValueExpression = "\"L2\"" }),
+                End(returnValue: "approvalLevel")),
+            Flows(
+                Flow("f1", "start", "create"),
+                Flow("f2", "create", "change"),
+                Flow("f3", "change", "end"))));
+
+        Assert.Equal("success", result.Status);
+        var createFrame = Assert.Single(result.Trace, frame => frame.ObjectId == "create");
+        Assert.Equal("actionActivity", createFrame.NodeKind);
+        Assert.Equal("createVariable", createFrame.ActionKind);
+        Assert.NotNull(createFrame.InputVariables);
+        Assert.NotNull(createFrame.ActionInput);
+        Assert.NotNull(createFrame.OutputVariables);
+        Assert.NotNull(createFrame.HandoffPayload);
+        Assert.NotNull(createFrame.TransactionEffect);
+
+        Assert.True(createFrame.VariableDelta.HasValue);
+        var createDelta = createFrame.VariableDelta.Value;
+        Assert.Contains("approvalLevel", createDelta.GetProperty("added").EnumerateArray().Select(item => item.GetString()));
+
+        var changeFrame = Assert.Single(result.Trace, frame => frame.ObjectId == "change");
+        Assert.True(changeFrame.VariableDelta.HasValue);
+        var changeDelta = changeFrame.VariableDelta.Value;
+        Assert.Contains("approvalLevel", changeDelta.GetProperty("changed").EnumerateArray().Select(item => item.GetString()));
+    }
+
     [Theory]
     [InlineData(150, true)]
     [InlineData(50, false)]

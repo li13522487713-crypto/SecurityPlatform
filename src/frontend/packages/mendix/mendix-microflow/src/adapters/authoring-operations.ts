@@ -534,9 +534,29 @@ export function addFlow(schema: MicroflowSchema, flow: MicroflowFlow): Microflow
   }
   const sourceLocation = findObjectWithCollection(schema, flow.originObjectId);
   const targetLocation = findObjectWithCollection(schema, flow.destinationObjectId);
-  const collectionId = sourceLocation && targetLocation && sourceLocation.collectionId === targetLocation.collectionId
+  if (!sourceLocation || !targetLocation) {
+    return schema;
+  }
+  const isAnnotationFlow = flow.kind === "annotation";
+  const isSameCollection = sourceLocation.collectionId === targetLocation.collectionId;
+  const isLoopBodyEntry = flow.kind === "sequence"
+    && sourceLocation.object.kind === "loopedActivity"
+    && targetLocation.parentLoopObjectId === sourceLocation.object.id
+    && (flow.originConnectionIndex ?? 0) === 2;
+  const isLoopBodyReturn = flow.kind === "sequence"
+    && targetLocation.object.kind === "loopedActivity"
+    && sourceLocation.parentLoopObjectId === targetLocation.object.id
+    && (flow.destinationConnectionIndex ?? 0) === 3;
+  if (!isAnnotationFlow && !isSameCollection && !isLoopBodyEntry && !isLoopBodyReturn) {
+    return schema;
+  }
+  const collectionId = isSameCollection
     ? sourceLocation.collectionId
-    : schema.objectCollection.id;
+    : isLoopBodyEntry
+      ? targetLocation.collectionId
+      : isLoopBodyReturn
+        ? sourceLocation.collectionId
+        : schema.objectCollection.id;
   return refreshDerivedState(addFlowToCollection(schema, collectionId, flow));
 }
 
@@ -583,7 +603,8 @@ export function deleteFlow(schema: MicroflowSchema, flowId: string): MicroflowSc
 }
 
 export function splitFlowWithObject(schema: MicroflowSchema, flowId: string, object: MicroflowObject): MicroflowSchema {
-  const flow = collectFlowsRecursive(schema).find(item => item.id === flowId);
+  const located = findFlowWithCollection(schema, flowId);
+  const flow = located?.flow;
   if (!flow || flow.kind !== "sequence") {
     return addObject(schema, object);
   }
@@ -601,10 +622,9 @@ export function splitFlowWithObject(schema: MicroflowSchema, flowId: string, obj
     edgeKind: "sequence",
     label: flow.isErrorHandler ? "error scope" : undefined
   });
-  return refreshDerivedState({
-    ...addObject(schema, object),
-    flows: schema.flows.filter(item => item.id !== flowId).concat(first, second)
-  });
+  const withObject = addObject(schema, object, located.parentLoopObjectId);
+  const withoutOriginal = removeFlowFromCollection(withObject, located.collectionId, flowId);
+  return refreshDerivedState(addFlowToCollection(addFlowToCollection(withoutOriginal, located.collectionId, first), located.collectionId, second));
 }
 
 export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, position: MicroflowPoint, id = createStableId(getMicroflowNodeRegistryKey(entry).replace(":", "-"))): MicroflowObject {

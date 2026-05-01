@@ -68,6 +68,9 @@ public sealed record MicroflowTestRunOptionsDto
     [JsonPropertyName("maxSteps")]
     public int? MaxSteps { get; init; }
 
+    [JsonPropertyName("connectorCapabilities")]
+    public IReadOnlyList<string> ConnectorCapabilities { get; init; } = Array.Empty<string>();
+
     [JsonPropertyName("disableExpressionEvaluation")]
     public bool DisableExpressionEvaluation { get; init; }
 }
@@ -247,6 +250,12 @@ public sealed record MicroflowTraceFrameDto
     [JsonPropertyName("actionId")]
     public string? ActionId { get; init; }
 
+    [JsonPropertyName("nodeKind")]
+    public string? NodeKind { get; init; }
+
+    [JsonPropertyName("actionKind")]
+    public string? ActionKind { get; init; }
+
     [JsonPropertyName("collectionId")]
     public string? CollectionId { get; init; }
 
@@ -277,8 +286,29 @@ public sealed record MicroflowTraceFrameDto
     [JsonPropertyName("input")]
     public JsonElement? Input { get; init; }
 
+    [JsonPropertyName("inputVariables")]
+    public JsonElement? InputVariables { get; init; }
+
+    [JsonPropertyName("actionInput")]
+    public JsonElement? ActionInput { get; init; }
+
+    [JsonPropertyName("evaluatedExpressions")]
+    public JsonElement? EvaluatedExpressions { get; init; }
+
     [JsonPropertyName("output")]
     public JsonElement? Output { get; init; }
+
+    [JsonPropertyName("outputVariables")]
+    public JsonElement? OutputVariables { get; init; }
+
+    [JsonPropertyName("variableDelta")]
+    public JsonElement? VariableDelta { get; init; }
+
+    [JsonPropertyName("handoffPayload")]
+    public JsonElement? HandoffPayload { get; init; }
+
+    [JsonPropertyName("transactionEffect")]
+    public JsonElement? TransactionEffect { get; init; }
 
     [JsonPropertyName("error")]
     public MicroflowRuntimeErrorDto? Error { get; init; }

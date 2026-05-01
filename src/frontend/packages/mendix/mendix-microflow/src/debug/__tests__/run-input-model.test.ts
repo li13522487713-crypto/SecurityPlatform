@@ -60,7 +60,11 @@ describe("Microflow Stage 21 run input model", () => {
 
   it("builds real run request DTO with active microflow id and inputs", () => {
     const schema = schemaWithParameters("MF_ACTIVE");
-    const request = buildRunRequest(schema, { amount: 100, userName: "alice" }, { maxSteps: 10 });
+    const request = buildRunRequest(
+      schema,
+      { amount: 100, userName: "alice" },
+      { maxSteps: 10, connectorCapabilities: ["rest", "soap"] },
+    );
 
     expect(request.microflowId).toBe("MF_ACTIVE");
     expect(request.schema).toBeUndefined();
@@ -68,6 +72,7 @@ describe("Microflow Stage 21 run input model", () => {
     expect(request.correlationId).toContain("mf-run-MF_ACTIVE-");
     expect(request.input).toEqual({ amount: 100, userName: "alice" });
     expect(request.options?.maxSteps).toBe(10);
+    expect(request.options?.connectorCapabilities).toEqual(["rest", "soap"]);
   });
 
   it("blocks run for validation errors or input errors", () => {

@@ -68,6 +68,7 @@ import {
   type MicroflowMetadataCatalog,
 } from "../metadata";
 import { validateMicroflowSchema } from "../schema/validator";
+import { normalizeMicroflowAuthoringSchemaForRuntime } from "../schema/normalizer";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
 import {
   MicroflowRunHistoryPanel,
@@ -78,14 +79,18 @@ import {
   buildRunHistoryItemFromSession,
   buildRunRequest,
   filterNodeResultsByMicroflowId,
+  readStoredTestRunSamples,
   shouldBlockRun,
+  writeStoredTestRunSamples,
   type MicroflowDebugCommand,
   type MicroflowDebugTraceEventDto,
   type MicroflowDebugSessionDto,
   type MicroflowDebugVariableSnapshotDto,
   type MicroflowDebugWatchExpressionDto,
   type MicroflowRunSession,
-  type MicroflowTestRunInput
+  type MicroflowTestRunInput,
+  type MicroflowTestRunSamplesByMicroflowId,
+  type MicroflowTestRunSample
 } from "../debug";
 import { createMicroflowGraphIndex, useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
 import { useMicroflowShortcuts } from "./shortcuts";
@@ -1666,6 +1671,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [debugWatchesBySessionId, setDebugWatchesBySessionId] = useState<Record<string, MicroflowDebugWatchExpressionDto[]>>({});
   const [testRunModalOpen, setTestRunModalOpen] = useState(false);
   const [runInputsByMicroflowId, setRunInputsByMicroflowId] = useState<Record<string, Record<string, unknown>>>({});
+  const [testRunSamplesByMicroflowId, setTestRunSamplesByMicroflowId] = useState<MicroflowTestRunSamplesByMicroflowId>(() => readStoredTestRunSamples());
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -1730,10 +1736,16 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     onSchemaChangeRef.current = props.onSchemaChange;
   }, [props.onSchemaChange]);
 
+  useEffect(() => {
+    writeStoredTestRunSamples(testRunSamplesByMicroflowId);
+  }, [testRunSamplesByMicroflowId]);
+
   const validateForMode = useCallback(async (targetSchema: MicroflowSchema, mode: MicroflowValidationMode) => {
+    const normalized = normalizeMicroflowAuthoringSchemaForRuntime(targetSchema);
+    const schemaForValidation = normalized.schema;
     try {
       const localResult = validateMicroflowSchema({
-        schema: targetSchema,
+        schema: schemaForValidation,
         metadata: loadedMetadata,
         options: { mode, includeWarnings: true, includeInfo: true },
       });
@@ -1742,8 +1754,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         return localResult;
       }
       const serverResult = await props.validationAdapter.validate({
-        resourceId: targetSchema.id,
-        schema: targetSchema,
+        resourceId: schemaForValidation.id,
+        schema: schemaForValidation,
         metadata: loadedMetadata,
         mode,
         includeWarnings: true,
@@ -1751,7 +1763,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       });
       const serverIssues = serverResult.issues.map(issue => ({
         ...asServerValidationIssue(issue),
-        microflowId: targetSchema.id,
+        microflowId: schemaForValidation.id,
         blockSave: issue.blockSave ?? issue.severity === "error",
         blockPublish: issue.blockPublish ?? issue.severity === "error",
       }));
@@ -1764,7 +1776,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         summary,
       };
     } catch (error) {
-      const issue = createValidationServiceIssue(error, mode, targetSchema.id);
+      const issue = createValidationServiceIssue(error, mode, schemaForValidation.id);
       setIssues([issue]);
       return {
         issues: [issue],
@@ -2088,8 +2100,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast.info("Already saved.");
       return true;
     }
+    const normalized = normalizeMicroflowAuthoringSchemaForRuntime(schema);
+    const schemaToSave = normalized.schema;
+    if (normalized.report.repaired && !microflowSchemasEqual(schemaToSave, schema)) {
+      commitSchema(schemaToSave, "bulkUpdate", { pushHistory: false, skipValidate: true });
+    }
     const saveRevision = schemaRevisionRef.current;
-    const schemaToSave = schema;
     if (!isDesignSchema(schemaToSave)) {
       Toast.error("旧版 Authoring 编辑器不再支持保存，请使用新版 FlowGram Studio。");
       return false;
@@ -2292,7 +2308,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setFocusObjectId(undefined);
     try {
       const debugSessionId = pendingDebugSessionId;
-      const response = await apiClient.testRunMicroflow(buildRunRequest(schema, input.parameters, input.options, true, debugSessionId));
+      const normalized = normalizeMicroflowAuthoringSchemaForRuntime(schema);
+      const response = await apiClient.testRunMicroflow(buildRunRequest(normalized.schema, input.parameters, input.options, true, debugSessionId));
       const session = response.session;
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
@@ -2304,6 +2321,22 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           ...(current[microflowId] ?? []).filter(item => item.runId !== session.id),
         ].slice(0, 20) as MicroflowRunHistoryItem[],
       }));
+      if (input.sampleId) {
+        setTestRunSamplesByMicroflowId(current => ({
+          ...current,
+          [microflowId]: (current[microflowId] ?? []).map(sample => sample.id === input.sampleId
+            ? {
+              ...sample,
+              previousResult: sample.lastResult,
+              lastResult: session.output,
+              lastStatus: session.status,
+              lastRunId: session.id,
+              lastRunAt: session.endedAt ?? session.startedAt,
+              updatedAt: new Date().toISOString(),
+            }
+            : sample),
+        }));
+      }
       setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
       setActiveTraceFrameId(response.frames[0]?.id);
       setTestRunModalOpen(false);
@@ -2413,6 +2446,37 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast.error(getEditorApiErrorMessage(error));
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleSaveTestRunSample = (sample: Omit<MicroflowTestRunSample, "id" | "updatedAt"> & { id?: string }) => {
+    const microflowId = schema.id;
+    const now = new Date().toISOString();
+    setTestRunSamplesByMicroflowId(current => {
+      const samples = current[microflowId] ?? [];
+      const id = sample.id ?? `sample-${Date.now()}`;
+      const nextSample: MicroflowTestRunSample = {
+        id,
+        name: sample.name,
+        parameters: sample.parameters,
+        expectedResult: sample.expectedResult,
+        lastResult: sample.lastResult,
+        lastStatus: sample.lastStatus,
+        lastRunId: sample.lastRunId,
+        lastRunAt: sample.lastRunAt,
+        previousResult: sample.previousResult,
+        updatedAt: now,
+      };
+      return {
+        ...current,
+        [microflowId]: [nextSample, ...samples.filter(item => item.id !== id)].slice(0, 20),
+      };
+    });
+  };
+
+  const handleRunAllTestSamples = async (samples: MicroflowTestRunSample[], options?: MicroflowTestRunInput["options"]) => {
+    for (const sample of samples) {
+      await handleExecuteTestRun({ parameters: sample.parameters, options, sampleId: sample.id });
     }
   };
 
@@ -3639,8 +3703,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         values={runInputsByMicroflowId[schema.id]}
         lastSession={runSession}
         serviceError={runtimeServiceError}
+        samples={testRunSamplesByMicroflowId[schema.id] ?? []}
         onCancel={() => setTestRunModalOpen(false)}
         onValuesChange={values => setRunInputsByMicroflowId(current => ({ ...current, [schema.id]: values }))}
+        onSaveSample={handleSaveTestRunSample}
+        onRunAllSamples={handleRunAllTestSamples}
         onRun={handleExecuteTestRun}
       />
     </div>

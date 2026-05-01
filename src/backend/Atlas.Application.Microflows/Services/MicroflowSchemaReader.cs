@@ -148,8 +148,11 @@ public sealed class MicroflowSchemaReader : IMicroflowSchemaReader
             collectionId = sourceNode.CollectionId;
         }
 
-        var edgeKind = ReadString(data, "edgeKind");
-        var caseValues = data.ValueKind == JsonValueKind.Object && data.TryGetProperty("caseValues", out var values) && values.ValueKind == JsonValueKind.Array
+        var edgeKind = ReadString(data, "edgeKind") ?? ReadString(edge, "edgeKind");
+        var caseValueOwner = data.ValueKind == JsonValueKind.Object && data.TryGetProperty("caseValues", out _)
+            ? data
+            : edge;
+        var caseValues = caseValueOwner.ValueKind == JsonValueKind.Object && caseValueOwner.TryGetProperty("caseValues", out var values) && values.ValueKind == JsonValueKind.Array
             ? values.EnumerateArray().Select(value => value.Clone()).ToArray()
             : Array.Empty<JsonElement>();
         return new MicroflowFlowModel

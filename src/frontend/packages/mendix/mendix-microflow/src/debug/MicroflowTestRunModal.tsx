@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Input, Modal, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Card, Input, Modal, Select, Space, Switch, Tag, TextArea, Toast, Typography } from "@douyinfe/semi-ui";
 
 import type { MicroflowDataType, MicroflowDesignSchema, MicroflowSchema } from "../schema";
 import { buildDefaultRunInputValues, buildRunInputModel, validateRunInputs, type MicroflowRunInputField } from "./run-input-model";
-import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTestRunOptions } from "./trace-types";
+import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTestRunOptions, MicroflowTestRunSample } from "./trace-types";
 import { formatMendixMicroflowTemplate, getMendixMicroflowCopy } from "../i18n/copy";
 
 const { Text } = Typography;
@@ -17,9 +17,12 @@ export interface MicroflowTestRunModalProps {
   values?: Record<string, unknown>;
   lastSession?: MicroflowRunSession;
   serviceError?: string;
+  samples?: MicroflowTestRunSample[];
   onCancel: () => void;
   onValuesChange?: (values: Record<string, unknown>) => void;
-  onRun: (input: MicroflowTestRunInput) => void;
+  onSaveSample?: (sample: Omit<MicroflowTestRunSample, "id" | "updatedAt"> & { id?: string }) => void;
+  onRunAllSamples?: (samples: MicroflowTestRunSample[], options?: MicroflowTestRunOptions) => void | Promise<void>;
+  onRun: (input: MicroflowTestRunInput) => void | Promise<void>;
 }
 
 export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
@@ -29,6 +32,8 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
   const parameters = props.values ?? defaults;
   const [options, setOptions] = useState<MicroflowTestRunOptions>({ maxSteps: 200 });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [sampleName, setSampleName] = useState("");
+  const [expectedResultJson, setExpectedResultJson] = useState("");
 
   useEffect(() => {
     if (props.visible) {
@@ -54,6 +59,46 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
 
   const updateParameter = (name: string, value: unknown) => {
     props.onValuesChange?.({ ...parameters, [name]: value });
+  };
+
+  const saveSample = () => {
+    const validation = validateRunInputs(model, parameters);
+    setErrors(validation.errors);
+    if (!validation.valid) {
+      return;
+    }
+    const expected = parseOptionalJson(expectedResultJson);
+    if (!expected.ok) {
+      Toast.error(copy.testRun.invalidExpectedResult);
+      return;
+    }
+    props.onSaveSample?.({
+      name: sampleName.trim() || `${model.microflowId} sample ${(props.samples?.length ?? 0) + 1}`,
+      parameters: validation.values,
+      expectedResult: expected.value,
+    });
+    setSampleName("");
+  };
+
+  const loadSample = (sample: MicroflowTestRunSample) => {
+    props.onValuesChange?.(sample.parameters);
+    setSampleName(sample.name);
+    setExpectedResultJson(sample.expectedResult === undefined ? "" : JSON.stringify(sample.expectedResult, null, 2));
+  };
+
+  const runSample = (sample: MicroflowTestRunSample) => {
+    props.onValuesChange?.(sample.parameters);
+    void props.onRun({ parameters: sample.parameters, options, sampleId: sample.id });
+  };
+
+  const copyTrace = () => {
+    if (!props.lastSession) {
+      return;
+    }
+    const payload = JSON.stringify(props.lastSession.trace, null, 2);
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(payload).then(() => Toast.success(copy.testRun.traceCopied));
+    }
   };
 
   return (
@@ -94,6 +139,18 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
             onChange={value => updateParameter(field.parameter.name, value)}
           />
         ))}
+        <TestSamplesPanel
+          samples={props.samples ?? []}
+          expectedResultJson={expectedResultJson}
+          sampleName={sampleName}
+          running={props.running}
+          onExpectedResultJsonChange={setExpectedResultJson}
+          onSampleNameChange={setSampleName}
+          onSave={saveSample}
+          onLoad={loadSample}
+          onRun={runSample}
+          onRunAll={() => void props.onRunAllSamples?.(props.samples ?? [], options)}
+        />
         <div style={{ width: "100%", borderTop: "1px solid var(--semi-color-border)", paddingTop: 12 }}>
           <Text strong>{copy.testRun.runtimeOptions}</Text>
           <Space vertical align="start" spacing={10} style={{ width: "100%", marginTop: 10 }}>
@@ -110,11 +167,84 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
         </div>
         <RunResultPreview session={props.lastSession} serviceError={props.serviceError} />
         <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+          <Button onClick={copyTrace} disabled={!props.lastSession}>{copy.testRun.copyTrace}</Button>
           <Button data-testid="microflow-test-run-cancel" onClick={props.onCancel} disabled={props.running}>{copy.testRun.cancel}</Button>
           <Button data-testid="microflow-test-run-submit" type="primary" loading={props.running} onClick={run}>{props.dirty ? copy.testRun.saveAndRun : copy.testRun.run}</Button>
         </Space>
       </Space>
     </Modal>
+  );
+}
+
+function TestSamplesPanel(props: {
+  samples: MicroflowTestRunSample[];
+  sampleName: string;
+  expectedResultJson: string;
+  running?: boolean;
+  onSampleNameChange: (value: string) => void;
+  onExpectedResultJsonChange: (value: string) => void;
+  onSave: () => void;
+  onLoad: (sample: MicroflowTestRunSample) => void;
+  onRun: (sample: MicroflowTestRunSample) => void;
+  onRunAll: () => void;
+}) {
+  const copy = getMendixMicroflowCopy();
+  return (
+    <div style={{ width: "100%", borderTop: "1px solid var(--semi-color-border)", paddingTop: 12 }}>
+      <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
+        <Space style={{ width: "100%", justifyContent: "space-between" }} align="center">
+          <Text strong>{copy.testRun.samplesTitle}</Text>
+          <Button size="small" disabled={props.running || props.samples.length === 0} onClick={props.onRunAll}>{copy.testRun.runAllSamples}</Button>
+        </Space>
+        <Space align="start" style={{ width: "100%" }}>
+          <Input
+            value={props.sampleName}
+            placeholder={copy.testRun.sampleNamePlaceholder}
+            onChange={props.onSampleNameChange}
+            style={{ width: 180 }}
+          />
+          <TextArea
+            autosize
+            value={props.expectedResultJson}
+            placeholder={copy.testRun.expectedResultPlaceholder}
+            onChange={props.onExpectedResultJsonChange}
+            style={{ flex: 1 }}
+          />
+          <Button type="secondary" disabled={props.running} onClick={props.onSave}>{copy.testRun.saveSample}</Button>
+        </Space>
+        {props.samples.length === 0 ? <Text type="tertiary">{copy.testRun.noSamples}</Text> : null}
+        {props.samples.map(sample => (
+          <Card key={sample.id} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+            <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
+              <Space style={{ width: "100%", justifyContent: "space-between" }} align="center">
+                <Space wrap>
+                  <Text strong>{sample.name}</Text>
+                  {sample.lastStatus ? <Tag color={sample.lastStatus === "success" ? "green" : "red"}>{sample.lastStatus}</Tag> : null}
+                  {sample.lastResult !== undefined && sample.expectedResult !== undefined
+                    ? <Tag color={stableJson(sample.lastResult) === stableJson(sample.expectedResult) ? "green" : "red"}>
+                      {stableJson(sample.lastResult) === stableJson(sample.expectedResult) ? copy.testRun.matchTag : copy.testRun.mismatchTag}
+                    </Tag>
+                    : null}
+                  {sample.lastRunId ? <Tag>{sample.lastRunId}</Tag> : null}
+                </Space>
+                <Space>
+                  <Button size="small" onClick={() => props.onLoad(sample)}>{copy.testRun.loadSample}</Button>
+                  <Button size="small" type="primary" loading={props.running} onClick={() => props.onRun(sample)}>{copy.testRun.runSample}</Button>
+                </Space>
+              </Space>
+              <pre style={{ whiteSpace: "pre-wrap", margin: 0, width: "100%", maxHeight: 120, overflow: "auto" }}>
+                {JSON.stringify({
+                  parameters: sample.parameters,
+                  [copy.testRun.expectedLabel]: sample.expectedResult,
+                  [copy.testRun.actualLabel]: sample.lastResult,
+                  [copy.testRun.previousLabel]: sample.previousResult,
+                }, null, 2)}
+              </pre>
+            </Space>
+          </Card>
+        ))}
+      </Space>
+    </div>
   );
 }
 
@@ -225,4 +355,30 @@ function RunResultPreview({ session, serviceError }: { session?: MicroflowRunSes
       </Space>
     </Card>
   );
+}
+
+function parseOptionalJson(value: string): { ok: true; value?: unknown } | { ok: false } {
+  if (!value.trim()) {
+    return { ok: true };
+  }
+  try {
+    return { ok: true, value: JSON.parse(value) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, Object.keys(flattenKeys(value)).sort());
+}
+
+function flattenKeys(value: unknown, keys: Record<string, true> = {}): Record<string, true> {
+  if (!value || typeof value !== "object") {
+    return keys;
+  }
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    keys[key] = true;
+    flattenKeys((value as Record<string, unknown>)[key], keys);
+  }
+  return keys;
 }

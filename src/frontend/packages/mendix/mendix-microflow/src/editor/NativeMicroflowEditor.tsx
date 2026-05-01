@@ -7,7 +7,8 @@ import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel
 import { MicroflowPropertyPanel } from "../property-panel";
 import type { MicroflowApiClient, SaveMicroflowResponse, TestRunMicroflowResponse, ValidateMicroflowResponse } from "../runtime-adapter";
 import { MicroflowTestRunModal } from "../debug/MicroflowTestRunModal";
-import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTraceFrame } from "../debug/trace-types";
+import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTestRunSample, MicroflowTraceFrame } from "../debug/trace-types";
+import { readStoredTestRunSamples, writeStoredTestRunSamples } from "../debug/test-run-samples-store";
 import type { MicroflowValidationAdapterLike, MicroflowValidationMode } from "../performance";
 import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "../metadata";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "../flowgram/FlowGramMicroflowTypes";
@@ -532,6 +533,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   const [running, setRunning] = useState(false);
   const [testRunModalOpen, setTestRunModalOpen] = useState(false);
   const [testRunValues, setTestRunValues] = useState<Record<string, unknown>>();
+  const [testRunSamples, setTestRunSamples] = useState<MicroflowTestRunSample[]>(() => readStoredTestRunSamples()[props.schema.id] ?? []);
   const [lastRunSession, setLastRunSession] = useState<MicroflowRunSession>();
   const [runtimeServiceError, setRuntimeServiceError] = useState<string>();
   const [leftOpen, setLeftOpen] = useState(true);
@@ -561,7 +563,13 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     setHistoryPast([]);
     setHistoryFuture([]);
     setIssues(validateNativeSchema(next));
+    setTestRunSamples(readStoredTestRunSamples()[next.id] ?? []);
   }, [props.schema]);
+
+  useEffect(() => {
+    const stored = readStoredTestRunSamples();
+    writeStoredTestRunSamples({ ...stored, [schema.id]: testRunSamples });
+  }, [schema.id, testRunSamples]);
 
   const commitSchema = useCallback((next: MicroflowDesignSchema, reason: NativeHistoryReason, options: { pushHistory?: boolean; dirty?: boolean } = {}) => {
     const shouldPushHistory = options.pushHistory !== false && reason !== "selection" && reason !== "runtime";
@@ -709,6 +717,19 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         options: input.options,
       });
       setLastRunSession(response.session);
+      if (input.sampleId) {
+        setTestRunSamples(current => current.map(sample => sample.id === input.sampleId
+          ? {
+            ...sample,
+            previousResult: sample.lastResult,
+            lastResult: response.session.output,
+            lastStatus: response.session.status,
+            lastRunId: response.session.id,
+            lastRunAt: response.session.endedAt ?? response.session.startedAt,
+            updatedAt: new Date().toISOString(),
+          }
+          : sample));
+      }
       setBottomDockMode("peek");
       setBottomTab("debug");
       props.onTestRunComplete?.(response);
@@ -723,6 +744,29 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       setRunning(false);
     }
   }, [dirty, handleSave, props]);
+
+  const saveTestRunSample = useCallback((sample: Omit<MicroflowTestRunSample, "id" | "updatedAt"> & { id?: string }) => {
+    const id = sample.id ?? `sample-${Date.now()}`;
+    const now = new Date().toISOString();
+    setTestRunSamples(current => [{
+      id,
+      name: sample.name,
+      parameters: sample.parameters,
+      expectedResult: sample.expectedResult,
+      lastResult: sample.lastResult,
+      lastStatus: sample.lastStatus,
+      lastRunId: sample.lastRunId,
+      lastRunAt: sample.lastRunAt,
+      previousResult: sample.previousResult,
+      updatedAt: now,
+    }, ...current.filter(item => item.id !== id)].slice(0, 20));
+  }, []);
+
+  const runAllTestRunSamples = useCallback(async (samples: MicroflowTestRunSample[], options?: MicroflowTestRunInput["options"]) => {
+    for (const sample of samples) {
+      await executeTestRun({ parameters: sample.parameters, options, sampleId: sample.id });
+    }
+  }, [executeTestRun]);
 
   const handlePublish = useCallback(async () => {
     if (!props.onPublish) {
@@ -1274,8 +1318,11 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         values={testRunValues}
         lastSession={lastRunSession}
         serviceError={runtimeServiceError}
+        samples={testRunSamples}
         onCancel={() => setTestRunModalOpen(false)}
         onValuesChange={setTestRunValues}
+        onSaveSample={saveTestRunSample}
+        onRunAllSamples={runAllTestRunSamples}
         onRun={executeTestRun}
       />
     </div>

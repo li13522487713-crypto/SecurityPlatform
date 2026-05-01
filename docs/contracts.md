@@ -2386,9 +2386,13 @@ export function formatStudioTemplate(template: string, params: Record<string, st
 - Microflow Step Debug 新增 RestCall 内部安全点：`beforeRestRequest`、`afterRestResponse`、`afterRestHandled`，并在 `MicroflowDebugSession.currentSafePoint` 暴露 `phase/callDepth/semanticKind`。`stepInto` 会进入子微流与 RestCall 内部相位；`stepOver` 跳过更深 callDepth 与 RestCall 内部相位，停在同层下一可见安全点；`stepOut` 停在返回父级 callDepth 的第一个后续安全点。未传 `debugSessionId` 的普通 test-run 不触发暂停。
 - Microflow Workbench P0/P1 运行/调试闭环约束：
   - `POST /api/v1/microflows/{id}/test-run` 仍是唯一设计态执行入口，不新增并行 `/run` API。
+  - 前端 AuthoringSchema 在保存、服务端校验和试运行前统一执行 `normalizeMicroflowAuthoringSchemaForRuntime`：补齐 schemaVersion / loop collection id，修复 Boolean Decision 空 `caseValues`，把同一 loop body 内误落 root 的 flow 归回 loop collection，并对非法跨 collection sequence flow 输出 blocking issue；后端 Validator 仍保持严格拒绝非法 flow，不做兼容放宽。
   - 前端收到 bootstrap `session` 后，必须基于同一 `runId` 继续回读 `GET /api/v1/microflows/runs/{runId}` 与 `GET /api/v1/microflows/runs/{runId}/trace` 形成 durable run view；若请求里携带 `debugSessionId`，还需继续回读 `GET /api/v1/microflows/debug-sessions/{id}`、`/variables`、`/trace`。
   - `MicroflowRunSessionDto` 新增 `persistedAt`、`finalized`、`traceFrameCount`、`hasHydratedTrace`，用于工作台判断运行会话是否已完成持久化与 trace hydration。
+  - `MicroflowTraceFrameDto` / 前端 `MicroflowTraceFrame` 统一 Node I/O 字段：`nodeKind`、`actionKind`、`inputVariables`、`actionInput`、`evaluatedExpressions`、`outputVariables`、`variableDelta`、`handoffPayload`、`transactionEffect`。这些字段通过 `GET /api/v1/microflows/runs/{runId}/trace` 回读，允许前端 Debug 面板按节点展示输入、输出、变量 delta、selected case、loop iteration、handoff 与事务摘要；大对象仍按 runtime trace 摘要化策略处理。
+  - `POST /api/v1/microflows/{id}/test-run` 的 `options.connectorCapabilities[]` 会进入顶层 `ExecutionPlan` 预热 cache key，并继续传递到 Action executor / CallMicroflow 子微流加载链路；connector capability、schema hash、metadata version 任一变化都必须形成独立 plan cache 边界。
   - `MicroflowDebugSession` / 前端 `MicroflowDebugSessionDto` 额外暴露 `state`、`availableCommands`、`lastUpdatedAt`，供 step-debug 面板与外置工作台统一消费。
+  - 前端测试样例管理先采用工作区浏览器本地持久化，`localStorage` key 为 `atlas_mendix_microflow_test_run_samples`，按 `microflowId` 保存最多 20 个 `MicroflowTestRunSample { id, name, parameters, expectedResult?, lastResult?, lastStatus?, lastRunId?, lastRunAt?, previousResult?, updatedAt }`。样例运行仍复用唯一 `POST /api/v1/microflows/{id}/test-run` 入口，不新增服务端样例 API。
   - `GET /api/v1/microflows/runs/{runId}`、`GET /api/v1/microflows/runs/{runId}/trace`、`GET /api/v1/microflows/debug-sessions/{sessionId}` 必须继续执行 workspace / tenant / user ownership 校验，禁止仅按主键直读。
 - Microflow App Explorer P1 资源摘要契约：
   - `GET /api/v1/microflow-apps/{appId}` 与 `GET /api/v1/microflow-apps/{appId}/modules` 的 `modules[]` 除 `moduleId/name/qualifiedName/description` 外，新增只读摘要字段 `pages[]`、`workflows[]`、`entities[]`、`security`。

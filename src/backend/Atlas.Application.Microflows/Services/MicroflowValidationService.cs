@@ -309,8 +309,9 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             }
 
             var isLoopBodyEntry = IsKind(origin, "loopedActivity")
-                && string.Equals(destination.ParentLoopObjectId, origin.Id, StringComparison.Ordinal)
-                && string.Equals(flow.EdgeKind, "loopBody", StringComparison.OrdinalIgnoreCase);
+                && string.Equals(flow.EdgeKind, "loopBody", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(destination.ParentLoopObjectId, origin.Id, StringComparison.Ordinal)
+                    || string.Equals(destination.CollectionId, MicroflowSchemaReader.ReadStringByPath(origin.Raw, "bodyCollectionId"), StringComparison.Ordinal));
             if (!string.Equals(origin.CollectionId, destination.CollectionId, StringComparison.Ordinal) && !isLoopBodyEntry)
             {
                 Add(context, MicroflowValidationCodes.FlowInvalidTarget, "Flow 不允许跨 root / loop collection 连接。", "flow", flow.FieldPath, flowId: flow.Id, relatedObjectIds: [origin.Id, destination.Id]);
@@ -1329,7 +1330,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
     {
         foreach (var caseValue in flow.CaseValues)
         {
-            var value = MicroflowSchemaReader.ReadString(caseValue, "value")
+            var value = ReadCaseValue(caseValue, "value")
                 ?? MicroflowSchemaReader.ReadString(caseValue, "persistedValue")
                 ?? MicroflowSchemaReader.ReadString(caseValue, "entityQualifiedName")
                 ?? MicroflowSchemaReader.ReadString(caseValue, "kind");
@@ -1338,6 +1339,23 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                 yield return value;
             }
         }
+    }
+
+    private static string? ReadCaseValue(JsonElement caseValue, string propertyName)
+    {
+        if (caseValue.ValueKind != JsonValueKind.Object || !caseValue.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Number => value.GetRawText(),
+            _ => null
+        };
     }
 
     private static bool HasExpression(JsonElement element, string propertyName)

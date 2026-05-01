@@ -105,7 +105,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 validationIssues: validation.Issues);
         }
 
-        var executionPlan = await TryPreloadExecutionPlanAsync(resource, schema, request.Mode, cancellationToken);
+        var executionPlan = await TryPreloadExecutionPlanAsync(resource, schema, request.Mode, options, cancellationToken);
 
         var metadata = await _metadataService.GetCatalogAsync(
             new GetMicroflowMetadataRequestDto
@@ -353,7 +353,12 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         };
     }
 
-    private async Task<MicroflowExecutionPlan?> TryPreloadExecutionPlanAsync(MicroflowResourceEntity resource, JsonElement schema, string? executionMode, CancellationToken cancellationToken)
+    private async Task<MicroflowExecutionPlan?> TryPreloadExecutionPlanAsync(
+        MicroflowResourceEntity resource,
+        JsonElement schema,
+        string? executionMode,
+        MicroflowTestRunOptionsDto options,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -374,7 +379,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                     WorkspaceId = resource.WorkspaceId,
                     TenantId = _requestContextAccessor.Current.TenantId,
                     UserId = _requestContextAccessor.Current.UserId,
-                    MetadataVersion = resource.CurrentSchemaSnapshotId ?? resource.SchemaId
+                    MetadataVersion = resource.CurrentSchemaSnapshotId ?? resource.SchemaId,
+                    ConnectorCapabilities = options.ConnectorCapabilities
                 },
                 cancellationToken);
         }
@@ -537,7 +543,16 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 CallDepth = frame.CallDepth,
                 CallerObjectId = frame.CallerObjectId,
                 CallerActionId = frame.CallerActionId,
-                MicroflowId = frame.MicroflowId
+                MicroflowId = frame.MicroflowId,
+                NodeKind = frame.NodeKind,
+                ActionKind = frame.ActionKind,
+                InputVariables = frame.InputVariables,
+                ActionInput = frame.ActionInput,
+                EvaluatedExpressions = frame.EvaluatedExpressions,
+                OutputVariables = frame.OutputVariables,
+                VariableDelta = frame.VariableDelta,
+                HandoffPayload = frame.HandoffPayload,
+                TransactionEffect = frame.TransactionEffect
             }, JsonOptions)
         }).ToArray();
 
@@ -732,13 +747,17 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     }
 
     private static MicroflowTraceFrameDto ToFrameDto(MicroflowRunTraceFrameEntity frame)
-        => new()
+    {
+        var extra = ReadTraceFrameExtra(frame.ExtraJson);
+        return new()
         {
             Id = frame.Id,
             RunId = frame.RunId,
-            MicroflowId = ReadTraceFrameExtra(frame.ExtraJson).MicroflowId,
+            MicroflowId = extra.MicroflowId,
             ObjectId = frame.ObjectId,
             ActionId = frame.ActionId,
+            NodeKind = extra.NodeKind,
+            ActionKind = extra.ActionKind,
             CollectionId = frame.CollectionId,
             IncomingFlowId = frame.IncomingFlowId,
             OutgoingFlowId = frame.OutgoingFlowId,
@@ -749,20 +768,28 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             EndedAt = frame.EndedAt,
             DurationMs = frame.DurationMs,
             Input = ParseOptional(frame.InputJson),
+            InputVariables = extra.InputVariables,
+            ActionInput = extra.ActionInput,
+            EvaluatedExpressions = extra.EvaluatedExpressions,
             Output = ParseOptional(frame.OutputJson),
+            OutputVariables = extra.OutputVariables,
+            VariableDelta = extra.VariableDelta,
+            HandoffPayload = extra.HandoffPayload,
+            TransactionEffect = extra.TransactionEffect,
             Error = string.IsNullOrWhiteSpace(frame.ErrorJson) ? null : Deserialize<MicroflowRuntimeErrorDto>(frame.ErrorJson),
             VariablesSnapshot = string.IsNullOrWhiteSpace(frame.VariablesSnapshotJson)
                 ? null
                 : Deserialize<Dictionary<string, MicroflowRuntimeVariableValueDto>>(frame.VariablesSnapshotJson),
             Message = frame.Message,
-            ErrorHandlerVisited = ReadTraceFrameExtra(frame.ExtraJson).ErrorHandlerVisited,
-            ParentRunId = ReadTraceFrameExtra(frame.ExtraJson).ParentRunId,
-            RootRunId = ReadTraceFrameExtra(frame.ExtraJson).RootRunId,
-            CallFrameId = ReadTraceFrameExtra(frame.ExtraJson).CallFrameId,
-            CallDepth = ReadTraceFrameExtra(frame.ExtraJson).CallDepth,
-            CallerObjectId = ReadTraceFrameExtra(frame.ExtraJson).CallerObjectId,
-            CallerActionId = ReadTraceFrameExtra(frame.ExtraJson).CallerActionId
+            ErrorHandlerVisited = extra.ErrorHandlerVisited,
+            ParentRunId = extra.ParentRunId,
+            RootRunId = extra.RootRunId,
+            CallFrameId = extra.CallFrameId,
+            CallDepth = extra.CallDepth,
+            CallerObjectId = extra.CallerObjectId,
+            CallerActionId = extra.CallerActionId
         };
+    }
 
     private static MicroflowRuntimeLogDto ToLogDto(MicroflowRunLogEntity log)
     {
@@ -903,5 +930,23 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         public string? CallerActionId { get; init; }
 
         public string? MicroflowId { get; init; }
+
+        public string? NodeKind { get; init; }
+
+        public string? ActionKind { get; init; }
+
+        public JsonElement? InputVariables { get; init; }
+
+        public JsonElement? ActionInput { get; init; }
+
+        public JsonElement? EvaluatedExpressions { get; init; }
+
+        public JsonElement? OutputVariables { get; init; }
+
+        public JsonElement? VariableDelta { get; init; }
+
+        public JsonElement? HandoffPayload { get; init; }
+
+        public JsonElement? TransactionEffect { get; init; }
     }
 }

@@ -447,7 +447,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 AllowRealHttp = context.Options.AllowRealHttp ?? false,
                 SimulateRestError = context.Options.SimulateRestError ?? false,
                 StopOnUnsupported = true,
-                MaxCallDepth = context.MaxCallDepth
+                MaxCallDepth = context.MaxCallDepth,
+                ConnectorCapabilities = context.Options.ConnectorCapabilities
             },
             LoopExecutionOptions = new MicroflowLoopExecutionOptions
             {
@@ -1150,7 +1151,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 AllowRealHttp = context.Options.AllowRealHttp ?? false,
                 SimulateRestError = context.Options.SimulateRestError ?? false,
                 StopOnUnsupported = true,
-                MaxCallDepth = context.MaxCallDepth
+                MaxCallDepth = context.MaxCallDepth,
+                ConnectorCapabilities = context.Options.ConnectorCapabilities
             }
         };
 
@@ -2495,6 +2497,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         private MicroflowExecutionPlanQuery? _executionPlanQuery;
         private int _steps;
         private bool _sessionFinalized;
+        private Dictionary<string, MicroflowRuntimeVariableValueDto>? _lastTraceVariablesSnapshot;
 
         public RuntimeContext(
             MicroflowExecutionRequest request,
@@ -3035,7 +3038,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             JsonElement? output,
             MicroflowRuntimeErrorDto? error,
             string? message = null)
-            => AddFrame(node.Id, node.Caption ?? node.Id, node.Kind, node.Action?.Id, incomingFlowId, outgoingFlowId, status, input, output, error, message: message);
+            => AddFrame(node.Id, node.Caption ?? node.Id, node.Kind, node.Action?.Id, node.Action?.Kind, incomingFlowId, outgoingFlowId, status, input, output, error, message: message);
 
         public void AddFrame(
             MicroflowObjectModel node,
@@ -3046,7 +3049,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             JsonElement? output,
             MicroflowRuntimeErrorDto? error,
             JsonElement? selectedCaseValue)
-            => AddFrame(node.Id, node.Caption ?? node.Id, node.Kind, node.Action?.Id, incomingFlowId, outgoingFlowId, status, input, output, error, selectedCaseValue);
+            => AddFrame(node.Id, node.Caption ?? node.Id, node.Kind, node.Action?.Id, node.Action?.Kind, incomingFlowId, outgoingFlowId, status, input, output, error, selectedCaseValue);
 
         public void AddFrame(
             string objectId,
@@ -3061,11 +3064,33 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             MicroflowRuntimeErrorDto? error,
             JsonElement? selectedCaseValue = null,
             string? message = null)
+            => AddFrame(objectId, objectTitle, kind, actionId, actionKind: null, incomingFlowId, outgoingFlowId, status, input, output, error, selectedCaseValue, message);
+
+        public void AddFrame(
+            string objectId,
+            string objectTitle,
+            string kind,
+            string? actionId,
+            string? actionKind,
+            string? incomingFlowId,
+            string? outgoingFlowId,
+            string status,
+            JsonElement? input,
+            JsonElement? output,
+            MicroflowRuntimeErrorDto? error,
+            JsonElement? selectedCaseValue = null,
+            string? message = null)
         {
             var started = _clock.UtcNow;
             var ended = _clock.UtcNow;
             var preparedInput = PrepareTracePayload(input);
             var preparedOutput = PrepareTracePayload(output);
+            var previousVariables = _lastTraceVariablesSnapshot;
+            var currentVariables = SnapshotVariables();
+            var inputVariables = VariablesToJson(previousVariables ?? currentVariables);
+            var outputVariables = VariablesToJson(currentVariables);
+            var variableDelta = BuildVariableDelta(previousVariables, currentVariables);
+            var transactionEffect = BuildTransactionEffect();
             Frames.Add(new MicroflowTraceFrameDto
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -3078,6 +3103,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 CallerActionId = CallerActionId,
                 ObjectId = objectId,
                 ActionId = actionId,
+                NodeKind = kind,
+                ActionKind = actionKind,
                 IncomingFlowId = incomingFlowId,
                 OutgoingFlowId = outgoingFlowId,
                 SelectedCaseValue = selectedCaseValue,
@@ -3086,11 +3113,19 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 EndedAt = ended,
                 DurationMs = Math.Max(0, (int)(ended - started).TotalMilliseconds),
                 Input = preparedInput,
+                InputVariables = inputVariables,
+                ActionInput = preparedInput,
+                EvaluatedExpressions = ExtractEvaluatedExpressions(input, output),
                 Output = preparedOutput,
+                OutputVariables = outputVariables,
+                VariableDelta = variableDelta,
+                HandoffPayload = BuildHandoffPayload(outgoingFlowId, preparedOutput),
+                TransactionEffect = transactionEffect,
                 Error = error,
-                VariablesSnapshot = SnapshotVariables(),
+                VariablesSnapshot = currentVariables,
                 Message = message ?? objectTitle
             });
+            _lastTraceVariablesSnapshot = currentVariables;
             AsRuntimeExecutionContext().NodeResults[objectId] = new NodeExecutionResultSummary
             {
                 ObjectId = objectId,
@@ -3101,6 +3136,80 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 Message = message ?? objectTitle,
                 Output = preparedOutput
             };
+        }
+
+        private JsonElement VariablesToJson(IReadOnlyDictionary<string, MicroflowRuntimeVariableValueDto> variables)
+            => JsonSerializer.SerializeToElement(variables, JsonOptions);
+
+        private JsonElement BuildVariableDelta(
+            IReadOnlyDictionary<string, MicroflowRuntimeVariableValueDto>? previous,
+            IReadOnlyDictionary<string, MicroflowRuntimeVariableValueDto> current)
+        {
+            if (previous is null)
+            {
+                return JsonSerializer.SerializeToElement(new
+                {
+                    added = current.Keys.OrderBy(static key => key, StringComparer.Ordinal).ToArray(),
+                    changed = Array.Empty<string>(),
+                    removed = Array.Empty<string>()
+                }, JsonOptions);
+            }
+
+            var added = current.Keys.Except(previous.Keys, StringComparer.Ordinal).OrderBy(static key => key, StringComparer.Ordinal).ToArray();
+            var removed = previous.Keys.Except(current.Keys, StringComparer.Ordinal).OrderBy(static key => key, StringComparer.Ordinal).ToArray();
+            var changed = current.Keys
+                .Intersect(previous.Keys, StringComparer.Ordinal)
+                .Where(key => !string.Equals(current[key].RawValueJson, previous[key].RawValueJson, StringComparison.Ordinal)
+                    || !string.Equals(current[key].ValuePreview, previous[key].ValuePreview, StringComparison.Ordinal)
+                    || !string.Equals(current[key].Source, previous[key].Source, StringComparison.Ordinal))
+                .OrderBy(static key => key, StringComparer.Ordinal)
+                .ToArray();
+            return JsonSerializer.SerializeToElement(new { added, changed, removed }, JsonOptions);
+        }
+
+        private JsonElement BuildHandoffPayload(string? outgoingFlowId, JsonElement? output)
+            => JsonSerializer.SerializeToElement(new
+            {
+                outgoingFlowId,
+                outputPreview = output.HasValue ? Preview(output.Value) : null
+            }, JsonOptions);
+
+        private JsonElement BuildTransactionEffect()
+        {
+            var snapshot = AsRuntimeExecutionContext().CreateTransactionSnapshot("traceFrame");
+            return JsonSerializer.SerializeToElement(new
+            {
+                transactionId = snapshot?.TransactionId,
+                status = snapshot?.Status,
+                stagedChangeCount = snapshot?.ChangedObjectCount ?? 0,
+                committed = string.Equals(snapshot?.Status, MicroflowRuntimeTransactionStatus.Committed, StringComparison.OrdinalIgnoreCase),
+                rolledBack = string.Equals(snapshot?.Status, MicroflowRuntimeTransactionStatus.RolledBack, StringComparison.OrdinalIgnoreCase)
+            }, JsonOptions);
+        }
+
+        private static JsonElement ExtractEvaluatedExpressions(JsonElement? input, JsonElement? output)
+        {
+            var expressions = new List<object>();
+            AddExpression(expressions, input);
+            AddExpression(expressions, output);
+            return JsonSerializer.SerializeToElement(expressions, JsonOptions);
+        }
+
+        private static void AddExpression(List<object> expressions, JsonElement? payload)
+        {
+            if (!payload.HasValue || payload.Value.ValueKind != JsonValueKind.Object)
+            {
+                return;
+            }
+
+            foreach (var property in payload.Value.EnumerateObject())
+            {
+                if (property.Name.Contains("expression", StringComparison.OrdinalIgnoreCase)
+                    && property.Value.ValueKind is JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+                {
+                    expressions.Add(new { name = property.Name, value = property.Value.Clone() });
+                }
+            }
         }
 
         public MicroflowRunSessionDto BuildSession(string status, MicroflowRuntimeErrorDto? error, JsonElement? output = null)

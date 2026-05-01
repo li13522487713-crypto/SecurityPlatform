@@ -1031,7 +1031,7 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
                 422,
                 validationIssues: plan.Diagnostics.Select(ToValidationIssue).ToArray());
         }
-        return plan;
+        return plan with { Id = StablePlanId(CacheKeyFor(schema, runtimeDto, options)) };
     }
 
     private Task<MicroflowExecutionPlan> GetOrCreatePlanAsync(
@@ -1040,19 +1040,12 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
         CancellationToken cancellationToken)
     {
         var runtimeDto = _runtimeDtoBuilder.Build(schema, options);
-        var key = new MicroflowExecutionPlanCacheKey(
-            options.ResourceId ?? runtimeDto.ResourceId,
-            runtimeDto.SchemaId,
-            runtimeDto.Version ?? options.Version,
-            runtimeDto.SchemaVersion,
-            options.Mode,
-            options.MetadataVersion,
-            MicroflowExecutionPlanBuilder.ComputeConnectorCapabilitiesHash(options.ConnectorCapabilities));
+        var key = CacheKeyFor(schema, runtimeDto, options);
         return _planCache.GetOrCreateAsync(
             key,
             _ =>
             {
-                var plan = _planBuilder.Build(runtimeDto, options);
+                var plan = _planBuilder.Build(runtimeDto, options) with { Id = StablePlanId(key) };
                 if (options.FailOnUnsupported && plan.Validation.ErrorCount > 0)
                 {
                     throw new MicroflowApiException(
@@ -1065,6 +1058,27 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
                 return Task.FromResult(plan);
             },
             cancellationToken).AsTask();
+    }
+
+    private static MicroflowExecutionPlanCacheKey CacheKeyFor(
+        JsonElement schema,
+        MicroflowRuntimeDto runtimeDto,
+        MicroflowExecutionPlanLoadOptions options)
+        => new(
+            options.ResourceId ?? runtimeDto.ResourceId,
+            runtimeDto.SchemaId,
+            MicroflowSchemaJsonHelper.ComputeSha256(schema.GetRawText()),
+            runtimeDto.Version ?? options.Version,
+            runtimeDto.SchemaVersion,
+            options.Mode,
+            options.MetadataVersion,
+            MicroflowExecutionPlanBuilder.ComputeConnectorCapabilitiesHash(options.ConnectorCapabilities));
+
+    private static string StablePlanId(MicroflowExecutionPlanCacheKey key)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(key.StableKey));
+        var hash = Convert.ToHexString(bytes).ToLowerInvariant();
+        return $"plan-{key.SchemaId}-{hash[..16]}";
     }
 
     private async Task<MicroflowSchemaSnapshotEntity?> LoadSnapshotAsync(string? snapshotId, CancellationToken cancellationToken)

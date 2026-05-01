@@ -56,7 +56,8 @@ export function mapFlowGramEdgeToMicroflowFlow(schema: MicroflowSchema, edge: Fl
   if (!sourcePort || !targetPort) {
     return undefined;
   }
-  const caseValues = edge.data?.caseValues as MicroflowCaseValue[] | undefined;
+  const rawCaseValues = edge.data?.caseValues as MicroflowCaseValue[] | undefined;
+  const caseValues = rawCaseValues && rawCaseValues.length > 0 ? rawCaseValues : undefined;
   return createMicroflowFlowFromPorts(schema, sourcePort, targetPort, {
     caseValues,
     label: edge.data?.label,

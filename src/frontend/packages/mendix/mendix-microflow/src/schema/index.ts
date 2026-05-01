@@ -11,4 +11,5 @@ export * from "./compat";
 export * from "./samples";
 export * from "./utils";
 export * from "./validator";
+export * from "./normalizer";
 export * from "./sample";

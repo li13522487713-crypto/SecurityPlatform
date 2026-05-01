@@ -291,11 +291,43 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
         Assert.Contains(session.Trace, frame => frame.ObjectId == "retrieve" && frame.Status == "success");
     }
 
+    [Fact]
+    public async Task Run_ActionContext_CarriesConnectorCapabilitiesFromOptions()
+    {
+        var probe = new ConnectorCapabilityProbeExecutor();
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("probe", probe.ActionKind, new { }),
+                End()),
+            Flows(
+                Flow("f1", "start", "probe"),
+                Flow("f2", "probe", "end")));
+
+        var session = await RunWithRegistryAsync(
+            schema,
+            options: new MicroflowTestRunOptionsDto { ConnectorCapabilities = new[] { "rest", "soap" } },
+            configureServices: services =>
+            {
+                services.AddScoped<IMicroflowActionExecutorRegistry>(_ =>
+                {
+                    var registry = new MicroflowActionExecutorRegistry();
+                    registry.Register(probe);
+                    return registry;
+                });
+            });
+
+        Assert.Equal("success", session.Status);
+        Assert.Equal(new[] { "rest", "soap" }, probe.SeenConnectorCapabilities);
+    }
+
     private static async Task<MicroflowRunSessionDto> RunWithRegistryAsync(
         JsonElement schema,
         IReadOnlyDictionary<string, object?>? input = null,
         string? debugSessionId = null,
-        IMicroflowDebugCoordinator? debugCoordinator = null)
+        IMicroflowDebugCoordinator? debugCoordinator = null,
+        MicroflowTestRunOptionsDto? options = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -318,6 +350,7 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
         services.AddSingleton(Substitute.For<IMicroflowMetadataCacheRepository>());
         services.AddSingleton(Substitute.For<IMicroflowStorageTransaction>());
         services.AddSingleton(Substitute.For<IMicroflowStorageDiagnosticsService>());
+        configureServices?.Invoke(services);
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
@@ -333,7 +366,7 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
                 Version = "1",
                 Schema = schema,
                 Input = jsonInput,
-                Options = new MicroflowTestRunOptionsDto(),
+                Options = options ?? new MicroflowTestRunOptionsDto(),
                 RequestContext = new MicroflowRequestContext { TraceId = Guid.NewGuid().ToString("N") },
                 DebugSessionId = debugSessionId,
                 MaxCallDepth = 10
@@ -417,6 +450,26 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
             WorkspaceId = "ws-test",
             TenantId = "tenant-test"
         };
+    }
+
+    private sealed class ConnectorCapabilityProbeExecutor : IMicroflowActionExecutor
+    {
+        public string ActionKind => "connectorCapabilityProbe";
+
+        public string Category => MicroflowActionRuntimeCategory.ServerExecutable;
+
+        public string SupportLevel => MicroflowActionSupportLevel.Supported;
+
+        public IReadOnlyList<string> SeenConnectorCapabilities { get; private set; } = Array.Empty<string>();
+
+        public Task<MicroflowActionExecutionResult> ExecuteAsync(MicroflowActionExecutionContext context, CancellationToken ct)
+        {
+            SeenConnectorCapabilities = context.Options.ConnectorCapabilities;
+            return Task.FromResult(new MicroflowActionExecutionResult
+            {
+                Status = MicroflowActionExecutionStatus.Success
+            });
+        }
     }
 
     private sealed class RecordingDebugCoordinator : IMicroflowDebugCoordinator

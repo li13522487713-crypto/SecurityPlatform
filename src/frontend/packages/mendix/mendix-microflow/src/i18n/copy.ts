@@ -26,6 +26,22 @@ export interface MendixMicroflowCopy {
     readonly callDepthTag: string;
     readonly runIdTag: string;
     readonly callStackPrefix: string;
+    readonly samplesTitle: string;
+    readonly sampleNamePlaceholder: string;
+    readonly expectedResultPlaceholder: string;
+    readonly saveSample: string;
+    readonly runAllSamples: string;
+    readonly noSamples: string;
+    readonly loadSample: string;
+    readonly runSample: string;
+    readonly expectedLabel: string;
+    readonly actualLabel: string;
+    readonly previousLabel: string;
+    readonly matchTag: string;
+    readonly mismatchTag: string;
+    readonly invalidExpectedResult: string;
+    readonly copyTrace: string;
+    readonly traceCopied: string;
   };
 }
 
@@ -56,6 +72,22 @@ const zhCN: MendixMicroflowCopy = {
     callDepthTag: "深度 {depth}",
     runIdTag: "runId {id}",
     callStackPrefix: "调用栈",
+    samplesTitle: "测试样例",
+    sampleNamePlaceholder: "样例名称",
+    expectedResultPlaceholder: "期望结果 JSON，可留空",
+    saveSample: "保存样例",
+    runAllSamples: "运行全部样例",
+    noSamples: "还没有保存测试样例。",
+    loadSample: "载入",
+    runSample: "运行",
+    expectedLabel: "期望",
+    actualLabel: "实际",
+    previousLabel: "上次",
+    matchTag: "匹配",
+    mismatchTag: "不匹配",
+    invalidExpectedResult: "期望结果必须是合法 JSON。",
+    copyTrace: "复制 Debug trace",
+    traceCopied: "Debug trace 已复制",
   },
 };
 
@@ -86,6 +118,22 @@ const enUS: MendixMicroflowCopy = {
     callDepthTag: "depth {depth}",
     runIdTag: "runId {id}",
     callStackPrefix: "callStack",
+    samplesTitle: "Test samples",
+    sampleNamePlaceholder: "Sample name",
+    expectedResultPlaceholder: "Expected result JSON, optional",
+    saveSample: "Save sample",
+    runAllSamples: "Run all samples",
+    noSamples: "No saved test samples yet.",
+    loadSample: "Load",
+    runSample: "Run",
+    expectedLabel: "Expected",
+    actualLabel: "Actual",
+    previousLabel: "Previous",
+    matchTag: "match",
+    mismatchTag: "mismatch",
+    invalidExpectedResult: "Expected result must be valid JSON.",
+    copyTrace: "Copy Debug trace",
+    traceCopied: "Debug trace copied",
   },
 };
 

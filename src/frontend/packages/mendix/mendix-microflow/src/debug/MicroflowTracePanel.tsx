@@ -51,6 +51,10 @@ function collectErrors(session?: MicroflowRunSession): MicroflowRuntimeError[] {
   return errors;
 }
 
+function JsonBlock({ value }: { value: unknown }) {
+  return <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(value ?? null, null, 2)}</pre>;
+}
+
 export function MicroflowTracePanel({
   microflowId,
   microflowName,
@@ -101,7 +105,7 @@ export function MicroflowTracePanel({
                     <Text strong>{index + 1}. {item.frame.nodeTitle || item.frame.objectTitle || item.frame.objectId}</Text>
                     <br />
                     <Text size="small" type="tertiary">
-                      {item.frame.nodeType || item.frame.actionId || "node"} · {item.frame.objectId} · {item.frame.durationMs}ms · depth {item.callDepth}
+                      {item.frame.nodeKind || item.frame.nodeType || item.frame.actionKind || item.frame.actionId || "node"} · {item.frame.objectId} · {item.frame.durationMs}ms · depth {item.callDepth}
                     </Text>
                     {item.frame.error?.message ? <><br /><Text size="small" type="danger">{item.frame.error.message}</Text></> : null}
                   </button>
@@ -119,17 +123,63 @@ export function MicroflowTracePanel({
           <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(executionPath.map(item => ({
             nodeId: item.frame.nodeId ?? item.frame.objectId,
             nodeName: item.frame.nodeTitle ?? item.frame.objectTitle,
-            nodeType: item.frame.nodeType ?? item.frame.actionId,
+            nodeType: item.frame.nodeKind ?? item.frame.nodeType ?? item.frame.actionKind ?? item.frame.actionId,
             microflowId: item.frame.microflowId ?? microflowId,
             status: item.frame.status,
             inputSnapshot: item.frame.input,
+            actionInput: item.frame.actionInput,
+            inputVariables: item.frame.inputVariables,
             outputSnapshot: item.frame.output,
+            outputVariables: item.frame.outputVariables,
+            variableDelta: item.frame.variableDelta,
+            selectedCaseValue: item.frame.selectedCaseValue,
+            handoffPayload: item.frame.handoffPayload,
+            transactionEffect: item.frame.transactionEffect,
             errorMessage: item.frame.error?.message,
             durationMs: item.frame.durationMs,
             callDepth: item.callDepth,
             callPath: item.microflowPath,
             parentNodeId: item.frame.callerObjectId,
           })), null, 2)}</pre>
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="Node I/O" itemKey="node-io">
+          {!activeFrame ? <Empty title="No active frame" /> : (
+            <Space vertical align="start" style={{ width: "100%" }}>
+              <Card style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+                <Space wrap>
+                  <Tag>{activeFrame.objectId}</Tag>
+                  <Tag>{activeFrame.nodeKind ?? activeFrame.nodeType ?? "node"}</Tag>
+                  {activeFrame.actionKind || activeFrame.actionId ? <Tag>{activeFrame.actionKind ?? activeFrame.actionId}</Tag> : null}
+                  <Tag color={statusColor(activeFrame.status)}>{activeFrame.status}</Tag>
+                  <Tag>{activeFrame.durationMs}ms</Tag>
+                </Space>
+              </Card>
+              <Tabs type="card" style={{ width: "100%" }}>
+                <Tabs.TabPane tab="Input" itemKey="input">
+                  <JsonBlock value={{ input: activeFrame.input, actionInput: activeFrame.actionInput, inputVariables: activeFrame.inputVariables }} />
+                </Tabs.TabPane>
+                <Tabs.TabPane tab="Output" itemKey="output">
+                  <JsonBlock value={{ output: activeFrame.output, outputVariables: activeFrame.outputVariables, variableDelta: activeFrame.variableDelta }} />
+                </Tabs.TabPane>
+                <Tabs.TabPane tab="Flow" itemKey="flow">
+                  <JsonBlock value={{
+                    incomingFlowId: activeFrame.incomingFlowId,
+                    outgoingFlowId: activeFrame.outgoingFlowId,
+                    selectedCaseValue: activeFrame.selectedCaseValue,
+                    loopIteration: activeFrame.loopIteration,
+                    handoffPayload: activeFrame.handoffPayload,
+                  }} />
+                </Tabs.TabPane>
+                <Tabs.TabPane tab="Runtime" itemKey="runtime">
+                  <JsonBlock value={{
+                    evaluatedExpressions: activeFrame.evaluatedExpressions,
+                    transactionEffect: activeFrame.transactionEffect,
+                    error: activeFrame.error,
+                  }} />
+                </Tabs.TabPane>
+              </Tabs>
+            </Space>
+          )}
         </Tabs.TabPane>
         <Tabs.TabPane tab="Call Stack" itemKey="call-stack">
           <Space vertical align="start" style={{ width: "100%" }}>

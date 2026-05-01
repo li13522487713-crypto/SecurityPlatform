@@ -526,6 +526,42 @@ public sealed class MicroflowRuntimeEngineP04Tests
         {
             Assert.Contains(session.Trace, frame => frame.ObjectId == objectId && frame.Status == "success");
         }
+
+        Assert.Equal(2, session.Trace.Count(frame => frame.ObjectId == "add-loop-score" && frame.Status == "success"));
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "continue-loop" && frame.Status == "success");
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "break-loop" && frame.Status == "success");
+        AssertScoreDelta(session, "set-list-score", "listScore");
+        AssertScoreDelta(session, "add-loop-score", "loopScore");
+        AssertScoreDelta(session, "object-type-score", "objectScore");
+        AssertScoreDelta(session, "retrieve-score", "objectScore");
+        AssertScoreDelta(session, "rollback-score", "objectScore");
+        AssertScoreDelta(session, "delete-score", "objectScore");
+        AssertScoreDelta(session, "parallel-score", "gatewayScore");
+        AssertScoreDelta(session, "inclusive-score", "gatewayScore");
+        AssertScoreDelta(session, "final-total", "total");
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "has-five-decision" && frame.SelectedCaseValue.HasValue);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "student-type" && frame.SelectedCaseValue.HasValue);
+        AssertFrameVariableRaw(session, "final-total", "loopScore", "4");
+
+        var emptyInputSession = await RunAsync(schema, new Dictionary<string, object?> { ["numbers"] = Array.Empty<int>() }, Catalog());
+
+        Assert.True(
+            string.Equals("success", emptyInputSession.Status, StringComparison.OrdinalIgnoreCase),
+            JsonSerializer.Serialize(new { emptyInputSession.Error, Trace = emptyInputSession.Trace.Select(frame => new { frame.ObjectId, frame.Status, frame.Output, frame.VariablesSnapshot }) }, JsonOptions));
+        Assert.Equal("116", emptyInputSession.Output?.GetRawText());
+        Assert.DoesNotContain(emptyInputSession.Trace, frame => frame.ObjectId == "add-loop-score" && frame.Status == "success");
+        Assert.DoesNotContain(emptyInputSession.Trace, frame => frame.ObjectId == "continue-loop" && frame.Status == "success");
+        Assert.DoesNotContain(emptyInputSession.Trace, frame => frame.ObjectId == "break-loop" && frame.Status == "success");
+        Assert.Contains(emptyInputSession.Trace, frame => frame.ObjectId == "loop-numbers" && frame.Status == "success");
+        AssertFrameVariableRaw(emptyInputSession, "final-total", "loopScore", "0");
+        AssertScoreDelta(emptyInputSession, "set-list-score", "listScore");
+        AssertScoreDelta(emptyInputSession, "object-type-score", "objectScore");
+        AssertScoreDelta(emptyInputSession, "retrieve-score", "objectScore");
+        AssertScoreDelta(emptyInputSession, "rollback-score", "objectScore");
+        AssertScoreDelta(emptyInputSession, "delete-score", "objectScore");
+        AssertScoreDelta(emptyInputSession, "parallel-score", "gatewayScore");
+        AssertScoreDelta(emptyInputSession, "inclusive-score", "gatewayScore");
+        AssertScoreDelta(emptyInputSession, "final-total", "total");
     }
 
     [Fact]
@@ -825,6 +861,26 @@ public sealed class MicroflowRuntimeEngineP04Tests
             isErrorHandler = true,
             editor = new { edgeKind = "errorHandler" }
         };
+
+    private static void AssertScoreDelta(MicroflowRunSessionDto session, string objectId, string variableName)
+    {
+        var frame = Assert.Single(session.Trace.Where(frame => frame.ObjectId == objectId && frame.Status == "success").Take(1));
+        Assert.True(frame.VariableDelta.HasValue, $"{objectId} should expose variableDelta.");
+        var raw = frame.VariableDelta.Value.GetRawText();
+        Assert.Contains(variableName, raw, StringComparison.Ordinal);
+        Assert.NotNull(frame.InputVariables);
+        Assert.NotNull(frame.OutputVariables);
+        Assert.NotNull(frame.HandoffPayload);
+    }
+
+    private static void AssertFrameVariableRaw(MicroflowRunSessionDto session, string objectId, string variableName, string expectedRawValue)
+    {
+        var frame = Assert.Single(session.Trace.Where(frame => frame.ObjectId == objectId && frame.Status == "success").Take(1));
+        Assert.True(frame.InputVariables.HasValue, $"{objectId} should expose inputVariables.");
+        Assert.True(frame.InputVariables.Value.TryGetProperty(variableName, out var variable), $"{objectId} should expose {variableName}.");
+        Assert.True(variable.TryGetProperty("rawValue", out var rawValue), $"{variableName} should expose rawValue.");
+        Assert.Equal(expectedRawValue, rawValue.GetRawText());
+    }
 
     private sealed class FixedClock : IMicroflowClock
     {

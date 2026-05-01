@@ -8,8 +8,8 @@ const { Text } = Typography;
 /**
  * Inclusive Gateway (OR) 节点属性面板。
  *
- * 用于建模"可同时执行多个条件分支"的场景；当前 testRun 引擎不会按 OR 分发，
- * 仅在 toolbox 上标记为 unsupported，避免静默运行错误结果。
+ * 用于建模"可同时执行多个条件分支"的场景；testRun 会按分支条件选择可达路径，
+ * 并在 trace 中标记 selected / skipped 分支。
  */
 export function InclusiveGatewayForm({ object, readonly, patch }: {
   object: MicroflowObject;
@@ -45,7 +45,7 @@ export function InclusiveGatewayForm({ object, readonly, patch }: {
         />
       </Field>
       <Text type="warning" size="small">
-        Inclusive Gateway 暂不在 runtime 引擎主路径执行；testRun 会返回 RUNTIME_UNSUPPORTED_ACTION。
+        Inclusive Gateway 已进入 runtime 主路径；testRun 会按条件选择可达分支，并在 trace 中标记分支状态。
       </Text>
     </>
   );

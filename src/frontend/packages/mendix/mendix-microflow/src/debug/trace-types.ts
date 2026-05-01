@@ -90,6 +90,8 @@ export interface MicroflowTraceFrame {
   objectTitle?: string;
   nodeTitle?: string;
   actionId?: string;
+  nodeKind?: string;
+  actionKind?: string;
   collectionId?: string;
   incomingFlowId?: string;
   outgoingFlowId?: string;
@@ -107,7 +109,18 @@ export interface MicroflowTraceFrame {
   endedAt?: string;
   durationMs: number;
   input?: Record<string, unknown>;
+  inputVariables?: Record<string, MicroflowRuntimeVariableValue>;
+  actionInput?: Record<string, unknown>;
+  evaluatedExpressions?: unknown[];
   output?: Record<string, unknown>;
+  outputVariables?: Record<string, MicroflowRuntimeVariableValue>;
+  variableDelta?: {
+    added?: string[];
+    changed?: string[];
+    removed?: string[];
+  };
+  handoffPayload?: Record<string, unknown>;
+  transactionEffect?: Record<string, unknown>;
   error?: MicroflowRuntimeError;
   variablesSnapshot?: Record<string, MicroflowRuntimeVariableValue>;
   message?: string;
@@ -165,11 +178,25 @@ export interface MicroflowTestRunOptions {
   /** Backend runtime scenario option. Production Run Panel does not expose this. */
   loopIterations?: number;
   maxSteps?: number;
+  connectorCapabilities?: string[];
   disableExpressionEvaluation?: boolean;
 }
 
 export interface MicroflowTestRunInput {
   parameters: Record<string, unknown>;
   options?: MicroflowTestRunOptions;
+  sampleId?: string;
 }
 
+export interface MicroflowTestRunSample {
+  id: string;
+  name: string;
+  parameters: Record<string, unknown>;
+  expectedResult?: unknown;
+  lastResult?: unknown;
+  lastStatus?: MicroflowRunStatus;
+  lastRunId?: string;
+  lastRunAt?: string;
+  previousResult?: unknown;
+  updatedAt: string;
+}

@@ -8,8 +8,8 @@ const { Text } = Typography;
 /**
  * Parallel Gateway 节点属性面板。
  *
- * 该节点目前只参与建模/可视化，不进入 testRun 主路径；用户可以配置 split/join
- * 模式、分支命名和合并策略，运行时引擎将在后续轮次实现真实并发执行。
+ * 该节点进入 testRun 主路径；用户可以配置 split/join 模式、分支命名和合并策略。
+ * 当前 runtime 会执行所有可达分支并记录分支 trace，复杂并发隔离按执行器能力降级。
  */
 export function ParallelGatewayForm({ object, readonly, patch }: {
   object: MicroflowObject;
@@ -50,7 +50,7 @@ export function ParallelGatewayForm({ object, readonly, patch }: {
         <Input value={String(object.branches.length)} disabled />
       </Field>
       <Text type="warning" size="small">
-        Parallel Gateway 节点目前只在画布建模中使用；testRun 引擎执行其分支时仍按顺序运行。
+        Parallel Gateway 已进入 runtime 主路径；testRun 会执行所有可达分支并记录分支 trace，复杂并发隔离按执行器能力降级。
       </Text>
     </>
   );

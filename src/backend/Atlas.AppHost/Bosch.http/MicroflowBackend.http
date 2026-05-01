@@ -258,6 +258,8 @@ X-Trace-Id: {{traceId}}
 # - $.data.traceId exists
 # - $.data.session.status="success"
 # - $.data.session.trace is array
+# - $.data.session.trace[*].inputVariables exists for Node I/O debug
+# - $.data.session.trace[*].variableDelta exists for changed variables
 POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
@@ -270,7 +272,14 @@ X-Trace-Id: {{traceId}}
   "inputs": {},
   "debug": true,
   "correlationId": "round60-basic-{{$guid}}",
-  "options": { "maxSteps": 50, "allowRealHttp": false }
+  "options": {
+    "maxSteps": 50,
+    "allowRealHttp": false,
+    "connectorCapabilities": [],
+    "captureNodeInput": true,
+    "captureNodeOutput": true,
+    "captureVariableDelta": true
+  }
 }
 
 ### Stage 22 - Runtime MVP Decision / Variable
@@ -279,6 +288,8 @@ X-Trace-Id: {{traceId}}
 # - $.data.session.status="success"
 # - $.data.session.output="L2"
 # - $.data.session.trace[*].objectId contains start, decision, create, change, endTrue
+# - $.data.session.trace[*].selectedCaseValue exists for decision
+# - $.data.session.trace[*].handoffPayload.outgoingFlowId exists for handoff debug
 POST {{host}}/api/v1/microflows/{{microflowId}}/test-run
 Content-Type: application/json
 X-Workspace-Id: {{workspaceId}}
@@ -288,7 +299,12 @@ X-Trace-Id: {{traceId}}
 
 {
   "input": { "amount": 150, "userName": "alice" },
-  "options": { "maxSteps": 50 },
+  "options": {
+    "maxSteps": 50,
+    "captureNodeInput": true,
+    "captureNodeOutput": true,
+    "captureVariableDelta": true
+  },
   "schema": {
     "schemaVersion": "1.0.0",
     "id": "{{microflowId}}",
@@ -336,6 +352,11 @@ X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ###
+# Expected JSON path:
+# - $.data.trace[*].inputVariables exists
+# - $.data.trace[*].outputVariables exists
+# - $.data.trace[*].variableDelta exists
+# - $.data.trace[*].handoffPayload exists
 GET {{host}}/api/v1/microflows/runs/{{runId}}/trace
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}

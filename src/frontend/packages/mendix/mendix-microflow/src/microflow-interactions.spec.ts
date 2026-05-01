@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addFlow, applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteFlow, deleteObject, duplicateObject, moveObject, toEditorGraph, updateFlow, updateObject } from "./adapters";
+import { addFlow, applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteFlow, deleteObject, duplicateObject, moveObject, splitFlowWithObject, toEditorGraph, updateFlow, updateObject } from "./adapters";
 import {
   addMicroflowObjectFromDragPayload,
   canCreateRegistryItem,
@@ -315,6 +315,29 @@ describe("microflow editor interactions", () => {
     });
     expect(flow?.kind === "sequence" ? flow.caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: true });
     expect(flow?.editor.label).toBe("High Amount");
+  });
+
+  it("uses default decision cases when FlowGram sends empty caseValues", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "empty-case-decision");
+    const target = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 0 }, "empty-case-target");
+    const base = schemaWith([decision, target]);
+    const graph = toEditorGraph(base);
+    const sourcePort = graph.nodes.find(node => node.objectId === decision.id)?.ports.find(port => port.label.toLowerCase() === "true");
+    const targetPort = graph.nodes.find(node => node.objectId === target.id)?.ports.find(port => port.direction === "input");
+    if (!sourcePort || !targetPort) {
+      throw new Error("Expected decision source and target ports.");
+    }
+
+    const flow = mapFlowGramEdgeToMicroflowFlow(base, {
+      id: "flowgram-empty-case",
+      sourceNodeID: decision.id,
+      targetNodeID: target.id,
+      sourcePortID: sourcePort.id,
+      targetPortID: targetPort.id,
+      data: { caseValues: [] },
+    });
+
+    expect(flow?.kind === "sequence" ? flow.caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: true, persistedValue: "true" });
   });
 
   it("persists a Start to End FlowGram edge as a valid authoring sequence flow", () => {
@@ -864,6 +887,8 @@ describe("microflow editor interactions", () => {
     expect(source && target ? canConnectPorts(schema, source, target).allowed : true).toBe(false);
 
     const invalidFlow = createSequenceFlow({ originObjectId: rootAction.id, destinationObjectId: loopAction.id });
+    const rejected = addFlow(schema, invalidFlow);
+    expect(collectFlowsRecursive(rejected).some(flow => flow.id === invalidFlow.id)).toBe(false);
     const issues = validateMicroflowSchema({ schema: { ...schema, flows: [invalidFlow] }, metadata: mockMeta }).issues;
     expect(issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(true);
   });
@@ -934,6 +959,28 @@ describe("microflow editor interactions", () => {
     expect(collectFlowsRecursive(next).some(item => item.id === flow.id && item.originObjectId === first.id && item.destinationObjectId === second.id)).toBe(true);
     expect(next.editor.selection.flowId).toBe(flow.id);
     expect(validateMicroflowSchema({ schema: next, metadata: mockMeta }).issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(false);
+  });
+
+  it("splits nested loop flows inside the original loop collection", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "split-loop");
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 180, y: 180 }, "split-first");
+    const second = createObjectFromRegistry(registry("activity:logMessage"), { x: 420, y: 180 }, "split-second");
+    const inserted = createObjectFromRegistry(registry("activity:variableCreate"), { x: 300, y: 180 }, "split-inserted");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loopedActivity.");
+    }
+    const nestedFlow = createSequenceFlow({ id: "nested-flow", originObjectId: first.id, destinationObjectId: second.id });
+    const schema = schemaWith([{ ...loop, objectCollection: { ...loop.objectCollection, objects: [first, second], flows: [nestedFlow] } }]);
+
+    const next = splitFlowWithObject(schema, nestedFlow.id, inserted);
+    const nextLoop = next.objectCollection.objects.find(object => object.id === loop.id);
+    const loopFlows = nextLoop?.kind === "loopedActivity" ? nextLoop.objectCollection.flows ?? [] : [];
+
+    expect(next.flows).toEqual([]);
+    expect(nextLoop?.kind === "loopedActivity" ? nextLoop.objectCollection.objects.some(object => object.id === inserted.id) : false).toBe(true);
+    expect(loopFlows.some(flow => flow.id === nestedFlow.id)).toBe(false);
+    expect(loopFlows).toHaveLength(2);
+    expect(loopFlows.map(flow => [flow.originObjectId, flow.destinationObjectId])).toEqual([[first.id, inserted.id], [inserted.id, second.id]]);
   });
 
   it("creates FlowGram port connections as schema flows with the correct edge kind", () => {
