@@ -275,14 +275,21 @@ export function buildMicroflowExpressionCompletionOptions(input: {
       variable.visibility === "maybe" ? "maybe" : undefined,
     ].filter(Boolean).join(", ");
     const base = { label: `$${variable.name}`, value: `$${variable.name}`, detail };
+    const jsonPathBase = { label: `$.${variable.name}`, value: `$.${variable.name}`, detail };
     if (variable.dataType.kind !== "object") {
-      return [base];
+      return [base, jsonPathBase];
     }
     return [
       base,
+      jsonPathBase,
       ...getEntityAttributes(input.metadata, variable.dataType.entityQualifiedName).map(attribute => ({
         label: `$${variable.name}/${attribute.name}`,
         value: `$${variable.name}/${attribute.name}`,
+        detail: expressionTypeLabel(attribute.type),
+      })),
+      ...getEntityAttributes(input.metadata, variable.dataType.entityQualifiedName).map(attribute => ({
+        label: `$.${variable.name}/${attribute.name}`,
+        value: `$.${variable.name}/${attribute.name}`,
         detail: expressionTypeLabel(attribute.type),
       })),
     ];

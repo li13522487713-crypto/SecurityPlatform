@@ -71,10 +71,15 @@ export function resolveVariableReferenceFromIndex(
   context: MicroflowExpressionScopeContext,
   variableName: string,
 ): MicroflowVariableSymbol | null {
-  const normalized = variableName.startsWith("$") ? variableName.slice(1) : variableName;
+  const normalized = variableName.startsWith("$.")
+    ? variableName.slice(2)
+    : variableName.startsWith("$")
+      ? variableName.slice(1)
+      : variableName;
   return getVariablesForExpressionFromIndex(schema, index, context).find(symbol =>
     symbol.name === variableName ||
     symbol.name === normalized ||
-    `$${symbol.name}` === variableName
+    `$${symbol.name}` === variableName ||
+    `$.${symbol.name}` === variableName
   ) ?? null;
 }
