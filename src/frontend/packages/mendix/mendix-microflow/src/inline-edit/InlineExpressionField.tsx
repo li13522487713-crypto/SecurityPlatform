@@ -29,6 +29,7 @@ export function InlineExpressionField(props: {
       maybe: metadata.maybe === "true",
       unknown: metadata.unknown === "true",
       preview: metadata.preview,
+      refCount: typeof metadata.refCount === "string" ? Number(metadata.refCount) : undefined,
       type: metadata.type ? { kind: metadata.type } : undefined,
     };
   });
@@ -41,15 +42,8 @@ export function InlineExpressionField(props: {
           disabled={props.readonly}
           placeholder="插入变量"
           variables={variables}
-          onChange={value => {
-            if (!value) {
-              return;
-            }
-            const normalized = props.value.trim()
-              ? `${props.value} ${value}`.trim()
-              : value;
-            props.onCommit?.(normalized);
-          }}
+          insertionMode="append"
+          onChange={value => value ? props.onCommit?.(value) : undefined}
         />
       ) : null}
     </div>

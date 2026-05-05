@@ -31,6 +31,7 @@ export function InlineJsonEditor(props: {
       maybe: metadata.maybe === "true",
       unknown: metadata.unknown === "true",
       preview: metadata.preview,
+      refCount: typeof metadata.refCount === "string" ? Number(metadata.refCount) : undefined,
       type: metadata.type ? { kind: metadata.type } : undefined,
     };
   });
@@ -62,14 +63,10 @@ export function InlineJsonEditor(props: {
         <ContextVariablePicker
           value={draft}
           disabled={props.readonly}
-          placeholder="插入变量"
+          placeholder="插入 JSON 路径"
           variables={variables}
-          onChange={value => {
-            if (!value) {
-              return;
-            }
-            setDraft(current => current.trim() ? `${current} ${value}`.trim() : value);
-          }}
+          insertionMode="jsonPath"
+          onChange={value => value ? setDraft(current => current.trim() ? `${current} ${value}`.trim() : value) : undefined}
         />
       ) : null}
     </div>

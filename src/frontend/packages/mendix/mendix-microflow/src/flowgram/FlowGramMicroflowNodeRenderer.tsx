@@ -1,6 +1,7 @@
 import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { Tag, Typography } from "@douyinfe/semi-ui";
+import { InlineNodeEditor } from "../inline-edit";
 import {
   FlowNodeFormData,
   type FormModelV2,
@@ -105,6 +106,13 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
     selectNode(event);
   };
 
+  const handleDoubleClick = () => {
+    const expanded = data?.inlineConfig?.viewMode !== "expanded";
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-toggle", {
+      detail: { nodeId: data?.objectId ?? String(props.node.id), expanded },
+    }));
+  };
+
   if (!data?.objectKind) {
     return (
       <div
@@ -138,6 +146,14 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   }
 
   const tone = nodeTone(data.objectKind);
+  const isExpanded = data.inlineConfig?.viewMode === "expanded";
+  const compactSummary = (data.inlineConfig?.summaryLines ?? []).slice(0, 3);
+
+  const toggleExpanded = () => {
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-toggle", {
+      detail: { nodeId: data.objectId, expanded: !isExpanded },
+    }));
+  };
 
   return (
     <div
@@ -151,10 +167,12 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         data.disabled ? "is-disabled" : "",
         data.validationState !== "valid" ? `is-${data.validationState}` : "",
         data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
+        isExpanded ? "is-expanded" : "",
       ].filter(Boolean).join(" ")}
       draggable={false}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onFocus={() => {
         setFocused(true);
         onFocus();
@@ -182,6 +200,17 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
             </Typography.Text>
           ) : null}
         </div>
+        <button
+          type="button"
+          className="microflow-flowgram-node__expand-btn"
+          onClick={event => {
+            event.stopPropagation();
+            toggleExpanded();
+          }}
+          aria-label={isExpanded ? "收起节点" : "展开节点"}
+        >
+          {isExpanded ? "收起" : "编辑"}
+        </button>
       </div>
       <div className="microflow-flowgram-node__meta">
         {data.actionKind ? <StaticTag>{data.actionKind}</StaticTag> : null}
@@ -211,6 +240,26 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         {data.validationState === "error" ? <Tag color="red">Error</Tag> : null}
         {data.validationState === "warning" ? <Tag color="orange">Warning</Tag> : null}
       </div>
+      {compactSummary.length > 0 ? (
+        <div className="microflow-inline-summary" data-testid={`microflow-node-summary-${data.objectId}`}>
+          {compactSummary.map(line => (
+            <div key={line.id} className="microflow-inline-summary__line" title={`${line.label ? `${line.label}: ` : ""}${line.value}`}>
+              {line.label ? <Typography.Text type="tertiary" size="small">{line.label}: </Typography.Text> : null}
+              <Typography.Text size="small">{line.value}</Typography.Text>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {data.inlineConfig?.runtime ? (
+        <div className="microflow-runtime-inline">
+          {typeof data.inlineConfig.runtime.durationMs === "number" ? (
+            <Typography.Text type="tertiary" size="small">duration: {data.inlineConfig.runtime.durationMs}ms</Typography.Text>
+          ) : null}
+          {data.inlineConfig.runtime.selectedBranchLabel ? (
+            <Typography.Text type="tertiary" size="small">selected: {data.inlineConfig.runtime.selectedBranchLabel}</Typography.Text>
+          ) : null}
+        </div>
+      ) : null}
       {data.objectKind === "loopedActivity" && data.loopSummary ? (
         <div
           className="microflow-flowgram-node__loop-body"
@@ -241,6 +290,33 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
             </div>
           ) : null}
         </div>
+      ) : null}
+      {isExpanded ? (
+        <InlineNodeEditor
+          inlineConfig={data.inlineConfig}
+          onCommitField={(field, value) => {
+            window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+              detail: {
+                nodeId: data.objectId,
+                fieldPath: field.fieldPath,
+                editType: field.editType,
+                value,
+              },
+            }));
+          }}
+          onApplyQuickFix={suggestion => {
+            window.dispatchEvent(new CustomEvent("atlas:microflow-inline-quick-fix-apply", {
+              detail: {
+                nodeId: data.objectId,
+                suggestionId: suggestion.id,
+                actionKind: suggestion.actionKind,
+                fieldPath: suggestion.fieldPath,
+                value: suggestion.value,
+                editType: suggestion.editType,
+              },
+            }));
+          }}
+        />
       ) : null}
       {ports.map(port => (
         <FlowGramMicroflowPortRenderer key={port.id} port={port} />

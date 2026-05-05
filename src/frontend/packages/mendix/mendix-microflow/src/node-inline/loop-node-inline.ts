@@ -11,10 +11,18 @@ export function deriveLoopNodeInline(input: DeriveNodeInlineInput): MicroflowNod
     runtimeFrame: input.runtimeFrame,
     mode: "expression",
   });
+  const variableNameOptions = buildNodeInlineVariableOptions({
+    schema: input.schema,
+    node: input.node,
+    runtimeFrame: input.runtimeFrame,
+    mode: "name",
+  });
   const data = (input.node.data ?? {}) as Record<string, unknown>;
   const loopSource = data.loopSource as { kind?: string; listVariableName?: string; iteratorVariableName?: string; expression?: unknown } | undefined;
   const listExpr = loopSource?.kind === "iterableList" ? loopSource.listVariableName : expressionText(loopSource?.expression);
   const iterator = loopSource?.iteratorVariableName ?? "item";
+  const indexName = String(data.currentIndexVariableName ?? "$currentIndex");
+  const resultsVar = String(data.resultsVariableName ?? data.resultCollectionVariableName ?? "");
   const outgoing = input.schema.workflow.edges.filter(edge => edge.sourceNodeID === input.node.id);
   const summaryLines: MicroflowNodeInlineConfig["summaryLines"] = [
     { id: "loop", value: `for ${iterator} in ${listExpr || "$list"}`, kind: "loop", editable: true, fieldPath: "data.loopSource.listVariableName" },
@@ -38,8 +46,58 @@ export function deriveLoopNodeInline(input: DeriveNodeInlineInput): MicroflowNod
             editType: "variable",
             options: expressionOptions,
           },
-          { id: "iterator", label: "迭代变量", value: iterator, fieldPath: "data.loopSource.iteratorVariableName", editType: "text" },
-          { id: "index", label: "索引变量", value: String(data.currentIndexVariableName ?? "$currentIndex"), fieldPath: "data.currentIndexVariableName", editType: "text" },
+          {
+            id: "iterator",
+            label: "迭代变量",
+            value: iterator,
+            fieldPath: "data.loopSource.iteratorVariableName",
+            editType: "text",
+            options: variableNameOptions,
+          },
+          {
+            id: "index",
+            label: "索引变量",
+            value: indexName,
+            fieldPath: "data.currentIndexVariableName",
+            editType: "text",
+            options: variableNameOptions,
+          },
+          {
+            id: "results",
+            label: "结果收集变量",
+            value: resultsVar,
+            fieldPath: "data.resultsVariableName",
+            editType: "variable",
+            options: variableNameOptions,
+          },
+          {
+            id: "branchBody",
+            label: "body 标签",
+            value: "body",
+            fieldPath: "data.branchLabels.body",
+            editType: "branch",
+          },
+          {
+            id: "branchDone",
+            label: "done 标签",
+            value: "done",
+            fieldPath: "data.branchLabels.done",
+            editType: "branch",
+          },
+          {
+            id: "branchBreak",
+            label: "break 标签",
+            value: "break",
+            fieldPath: "data.branchLabels.break",
+            editType: "branch",
+          },
+          {
+            id: "branchContinue",
+            label: "continue 标签",
+            value: "continue",
+            fieldPath: "data.branchLabels.continue",
+            editType: "branch",
+          },
         ],
       },
       ...base.sections,

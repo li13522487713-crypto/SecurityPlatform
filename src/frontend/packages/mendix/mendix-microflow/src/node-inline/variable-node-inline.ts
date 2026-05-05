@@ -35,7 +35,15 @@ export function deriveVariableNodeInline(input: DeriveNodeInlineInput): Microflo
           title: "变量",
           kind: "variables",
           fields: [
-            { id: "name", label: "名称", value: action.variableName ?? "", fieldPath: "data.action.variableName", editType: "text", required: true },
+            {
+              id: "name",
+              label: "名称",
+              value: action.variableName ?? "",
+              fieldPath: "data.action.variableName",
+              editType: "text",
+              required: true,
+              options: variableNameOptions,
+            },
             {
               id: "type",
               label: "类型",

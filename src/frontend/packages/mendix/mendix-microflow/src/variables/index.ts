@@ -11,6 +11,7 @@ export * from "./variable-type-utils";
 export * from "./variable-selector-model";
 export * from "./use-microflow-variable-index";
 export * from "./variable-snapshot";
+export * from "./variable-usage-metrics";
 export * from "./microflow-variable-foundation";
 export * from "./list-collection-foundation";
 export * from "./object-activity-foundation";

@@ -1,5 +1,6 @@
 import type { MicroflowNodeInlineConfig } from "../flowgram/FlowGramMicroflowTypes";
 import { expressionText } from "./inline-formatters";
+import { buildNodeInlineVariableOptions } from "./inline-variable-options";
 import { createDefaultInlineConfig, type DeriveNodeInlineInput } from "./default-node-inline";
 
 export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowNodeInlineConfig {
@@ -11,6 +12,18 @@ export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowN
   const inputExpr = expressionText(action.inputExpression) || expressionText(action.valueExpression) || "";
   const outputVar = String(action.outputVariableName ?? action.resultVariableName ?? "");
   const sideEffect = String(action.sideEffectTarget ?? "");
+  const expressionOptions = buildNodeInlineVariableOptions({
+    schema: input.schema,
+    node: input.node,
+    runtimeFrame: input.runtimeFrame,
+    mode: "expression",
+  });
+  const variableNameOptions = buildNodeInlineVariableOptions({
+    schema: input.schema,
+    node: input.node,
+    runtimeFrame: input.runtimeFrame,
+    mode: "name",
+  });
 
   return {
     ...base,
@@ -32,6 +45,7 @@ export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowN
             fieldPath: "data.action.inputExpression.raw",
             editType: "expression",
             placeholder: "$value",
+            options: expressionOptions,
           },
         ],
       },
@@ -47,6 +61,7 @@ export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowN
             fieldPath: "data.action.outputVariableName",
             editType: "variable",
             placeholder: "result",
+            options: variableNameOptions,
           },
         ],
       },
@@ -63,6 +78,7 @@ export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowN
             fieldPath: "data.action.sideEffectTarget",
             editType: "text",
             placeholder: "target",
+            options: variableNameOptions,
           },
         ],
       },
@@ -70,4 +86,3 @@ export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowN
     ],
   };
 }
-

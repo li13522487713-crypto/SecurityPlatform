@@ -27,14 +27,25 @@ export function deriveCallMicroflowNodeInline(input: DeriveNodeInlineInput): Mic
     ?? [];
   const mappingPathPrefix = action?.parameterMappings ? "data.action.parameterMappings" : "data.action.argumentMappings";
   const returnValue = action?.returnValue ?? { outputVariableName: action?.outputVariableName };
+  const targetName = action?.targetMicroflowDisplayName ?? action?.targetMicroflowName ?? action?.targetMicroflowId ?? action?.calledMicroflowId ?? "未选择";
   return {
     ...base,
     summaryLines: [
-      { id: "target", value: `调用微流 ${action?.targetMicroflowDisplayName ?? action?.targetMicroflowName ?? action?.targetMicroflowId ?? action?.calledMicroflowId ?? "未选择"}`, kind: "text", editable: true, fieldPath: "data.action.targetMicroflowName" },
+      { id: "target", value: `调用微流 ${targetName}`, kind: "text", editable: true, fieldPath: "data.action.targetMicroflowName" },
       { id: "args", value: `input: ${parameterMappings.map(item => item.parameterName).join(", ") || "-"}`, kind: "input" },
       { id: "ret", value: `out: ${(returnValue as { outputVariableName?: string; resultVariableName?: string }).outputVariableName ?? (returnValue as { outputVariableName?: string; resultVariableName?: string }).resultVariableName ?? "-"}`, kind: "output", editable: true, fieldPath: "data.action.returnValue.outputVariableName" },
     ],
     sections: [
+      {
+        id: "target",
+        title: "目标微流",
+        kind: "advanced",
+        fields: [
+          { id: "targetDisplayName", label: "显示名", value: String(action?.targetMicroflowDisplayName ?? ""), fieldPath: "data.action.targetMicroflowDisplayName", editType: "text" },
+          { id: "targetName", label: "名称", value: String(action?.targetMicroflowName ?? ""), fieldPath: "data.action.targetMicroflowName", editType: "text" },
+          { id: "targetId", label: "ID", value: String(action?.targetMicroflowId ?? action?.calledMicroflowId ?? ""), fieldPath: "data.action.targetMicroflowId", editType: "text" },
+        ],
+      },
       {
         id: "inputs",
         title: "参数映射",

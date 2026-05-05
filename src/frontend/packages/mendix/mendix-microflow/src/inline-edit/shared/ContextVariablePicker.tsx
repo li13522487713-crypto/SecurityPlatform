@@ -14,11 +14,14 @@ export interface ContextVariableCandidate {
   maybe?: boolean;
   unknown?: boolean;
   preview?: string;
+  refCount?: number;
 }
 
 const SOURCE_GROUP_LABEL: Record<string, string> = {
   input: "微流输入参数",
   context: "当前上下文变量",
+  "upstream-direct": "直接上游节点输出",
+  "upstream-indirect": "间接上游节点输出",
   upstream: "上游节点输出",
   loop: "循环变量",
   system: "系统变量",
@@ -35,6 +38,12 @@ function normalizeGroup(source?: string): string {
     return "input";
   }
   if (key.includes("upstream") || key.includes("output")) {
+    if (key.includes("indirect")) {
+      return "upstream-indirect";
+    }
+    if (key.includes("direct")) {
+      return "upstream-direct";
+    }
     return "upstream";
   }
   if (key.includes("loop")) {
@@ -57,6 +66,7 @@ export function ContextVariablePicker(props: {
   disabled?: boolean;
   placeholder?: string;
   variables: ContextVariableCandidate[];
+  insertionMode?: "replace" | "append" | "jsonPath";
   onChange: (value?: string) => void;
 }) {
   const options = useMemo(() => props.variables.map(variable => ({
@@ -68,6 +78,10 @@ export function ContextVariablePicker(props: {
       variable.source ?? "",
       variable.sourceNode ?? "",
       variable.scope ?? "",
+      typeof variable.refCount === "number" ? `ref:${variable.refCount}` : "",
+      variable.readonly ? "readonly" : "",
+      variable.maybe ? "maybe" : "",
+      variable.unknown ? "unknown" : "",
     ].join(" ").toLowerCase(),
     render: () => (
       <div style={{ display: "grid", gap: 2 }}>
@@ -76,6 +90,7 @@ export function ContextVariablePicker(props: {
           {variable.readonly ? " · readonly" : ""}
           {variable.maybe ? " · maybe" : ""}
           {variable.unknown ? " · unknown" : ""}
+          {typeof variable.refCount === "number" ? ` · refs:${variable.refCount}` : ""}
         </Text>
         <Text type="tertiary" size="small">
           {(variable.type as { kind?: string } | undefined)?.kind ?? "unknown"}
@@ -106,8 +121,28 @@ export function ContextVariablePicker(props: {
       placeholder={props.placeholder ?? "选择变量"}
       optionList={options}
       onClear={() => props.onChange(undefined)}
-      onChange={value => props.onChange(value ? String(value) : undefined)}
+      onChange={value => {
+        const selected = value ? String(value) : undefined;
+        if (!selected) {
+          props.onChange(undefined);
+          return;
+        }
+        if (props.insertionMode === "jsonPath") {
+          const normalized = selected.startsWith("$.")
+            ? selected
+            : selected.startsWith("$")
+              ? `$.${selected.slice(1)}`
+              : `$.${selected}`;
+          props.onChange(normalized);
+          return;
+        }
+        if (props.insertionMode === "append") {
+          const base = String(props.value ?? "").trim();
+          props.onChange(base ? `${base} ${selected}`.trim() : selected);
+          return;
+        }
+        props.onChange(selected);
+      }}
     />
   );
 }
-

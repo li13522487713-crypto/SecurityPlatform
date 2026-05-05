@@ -51,6 +51,7 @@ export function ConditionBuilder(props: {
           disabled={props.readonly}
           placeholder="从上下文插入变量"
           variables={props.variables}
+          insertionMode="append"
           onChange={left => props.onChange({ ...props.value, left: left ?? "" })}
         />
       ) : null}
@@ -73,6 +74,7 @@ export function ConditionBuilder(props: {
           disabled={props.readonly}
           placeholder="右值可选变量"
           variables={props.variables}
+          insertionMode="append"
           onChange={right => props.onChange({ ...props.value, right: right ?? "" })}
         />
       ) : null}
@@ -96,4 +98,3 @@ export function ConditionBuilder(props: {
     </Space>
   );
 }
-

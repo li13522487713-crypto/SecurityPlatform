@@ -39,7 +39,7 @@ function renderField(field: MicroflowInlineEditableField, readonly: boolean | un
     case "branch":
       return <InlineBranchEditor {...common} />;
     case "json":
-      return <InlineJsonEditor {...common} />;
+      return <InlineJsonEditor {...common} options={field.options} />;
     case "mapping":
       return <InlineMappingEditor {...common} options={field.options} />;
     case "approval":

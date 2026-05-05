@@ -18,6 +18,8 @@ export function deriveApprovalNodeInline(input: DeriveNodeInlineInput): Microflo
   });
   const data = (input.node.data ?? {}) as Record<string, unknown>;
   const title = typeof data.title === "string" ? data.title : "人工审批";
+  const description = String(data.description ?? "");
+  const dueTime = String(data.dueTime ?? data.dueInMinutes ?? "");
   return {
     ...base,
     summaryLines: [
@@ -39,7 +41,14 @@ export function deriveApprovalNodeInline(input: DeriveNodeInlineInput): Microflo
             editType: "variable",
             options: expressionOptions,
           },
-          { id: "label", label: "标题", value: title, fieldPath: "data.title", editType: "text" },
+          {
+            id: "label",
+            label: "标题",
+            value: title,
+            fieldPath: "data.title",
+            editType: "text",
+            placeholder: "审批标题",
+          },
           {
             id: "result",
             label: "结果变量",
@@ -48,6 +57,23 @@ export function deriveApprovalNodeInline(input: DeriveNodeInlineInput): Microflo
             editType: "variable",
             options: variableNameOptions,
           },
+          {
+            id: "description",
+            label: "说明",
+            value: description,
+            fieldPath: "data.description",
+            editType: "text",
+          },
+          {
+            id: "dueTime",
+            label: "到期时间",
+            value: dueTime,
+            fieldPath: "data.dueTime",
+            editType: "text",
+          },
+          { id: "approvedBranch", label: "approved 标签", value: "approved", fieldPath: "data.branchLabels.approved", editType: "branch" },
+          { id: "rejectedBranch", label: "rejected 标签", value: "rejected", fieldPath: "data.branchLabels.rejected", editType: "branch" },
+          { id: "timeoutBranch", label: "timeout 标签", value: "timeout", fieldPath: "data.branchLabels.timeout", editType: "branch" },
         ],
       },
       ...base.sections,

@@ -12,6 +12,47 @@ import { deriveLoopNodeInline } from "./loop-node-inline";
 import { deriveRestNodeInline } from "./rest-node-inline";
 import { deriveStartNodeInline } from "./start-node-inline";
 import { deriveVariableNodeInline } from "./variable-node-inline";
+import { buildNodeInlineVariableOptions } from "./inline-variable-options";
+
+function withDefaultVariableOptions(config: MicroflowNodeInlineConfig, deriveInput: DeriveNodeInlineInput): MicroflowNodeInlineConfig {
+  const expressionOptions = buildNodeInlineVariableOptions({
+    schema: deriveInput.schema,
+    node: deriveInput.node,
+    runtimeFrame: deriveInput.runtimeFrame,
+    mode: "expression",
+  });
+  const variableNameOptions = buildNodeInlineVariableOptions({
+    schema: deriveInput.schema,
+    node: deriveInput.node,
+    runtimeFrame: deriveInput.runtimeFrame,
+    mode: "name",
+  });
+  return {
+    ...config,
+    sections: config.sections.map(section => ({
+      ...section,
+      fields: section.fields.map(field => {
+        if (field.options && field.options.length > 0) {
+          return field;
+        }
+        if (field.editType === "variable" || field.editType === "select" || field.editType === "text") {
+          return { ...field, options: variableNameOptions };
+        }
+        if (
+          field.editType === "expression" ||
+          field.editType === "condition" ||
+          field.editType === "http" ||
+          field.editType === "assignment" ||
+          field.editType === "mapping" ||
+          field.editType === "json"
+        ) {
+          return { ...field, options: expressionOptions };
+        }
+        return field;
+      }),
+    })),
+  };
+}
 
 export function deriveNodeInlineConfig(input: {
   node: MicroflowWorkflowNodeJSON;
@@ -32,34 +73,34 @@ export function deriveNodeInlineConfig(input: {
   const actionKind = String(data.actionKind ?? (data.action as { kind?: string } | undefined)?.kind ?? "");
 
   if (objectKind === "startEvent") {
-    return deriveStartNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveStartNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "endEvent") {
-    return deriveEndNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveEndNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "exclusiveSplit" || objectKind === "inheritanceSplit") {
-    return deriveDecisionNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveDecisionNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "loopedActivity" || actionKind === "forEach") {
-    return deriveLoopNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveLoopNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "errorHandler" || actionKind === "errorHandler") {
-    return deriveErrorNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveErrorNodeInline(deriveInput), deriveInput);
   }
   if (actionKind === "restCall" || actionKind === "restOperationCall") {
-    return deriveRestNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveRestNodeInline(deriveInput), deriveInput);
   }
   if (actionKind === "callMicroflow") {
-    return deriveCallMicroflowNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveCallMicroflowNodeInline(deriveInput), deriveInput);
   }
   if (actionKind === "createVariable" || actionKind === "changeVariable") {
-    return deriveVariableNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveVariableNodeInline(deriveInput), deriveInput);
   }
   if (actionKind === "completeUserTask" || actionKind === "changeWorkflowState" || objectKind === "tryCatch") {
-    return deriveApprovalNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveApprovalNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "actionActivity" || actionKind.length > 0) {
-    return deriveActionNodeInline(deriveInput);
+    return withDefaultVariableOptions(deriveActionNodeInline(deriveInput), deriveInput);
   }
-  return createDefaultInlineConfig(deriveInput);
+  return withDefaultVariableOptions(createDefaultInlineConfig(deriveInput), deriveInput);
 }

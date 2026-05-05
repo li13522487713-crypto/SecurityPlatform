@@ -11,6 +11,12 @@ export function deriveStartNodeInline(input: DeriveNodeInlineInput): MicroflowNo
     runtimeFrame: input.runtimeFrame,
     mode: "expression",
   });
+  const variableOptions = buildNodeInlineVariableOptions({
+    schema: input.schema,
+    node: input.node,
+    runtimeFrame: input.runtimeFrame,
+    mode: "expression",
+  });
   const parameterLines = input.schema.parameters.slice(0, 3).map(param => ({
     id: `p-${param.id}`,
     value: `${param.name}: ${param.dataType.kind}`,
@@ -45,8 +51,8 @@ export function deriveStartNodeInline(input: DeriveNodeInlineInput): MicroflowNo
         title: "系统上下文",
         kind: "advanced",
         fields: [
-          { id: "ctx-user", label: "currentUser", value: "$currentUser", fieldPath: nodeDataPath("system.currentUser"), editType: "variable", readonly: true },
-          { id: "ctx-now", label: "now", value: "$now", fieldPath: nodeDataPath("system.now"), editType: "variable", readonly: true },
+          { id: "ctx-user", label: "currentUser", value: "$currentUser", fieldPath: nodeDataPath("system.currentUser"), editType: "variable", readonly: true, options: variableOptions },
+          { id: "ctx-now", label: "now", value: "$now", fieldPath: nodeDataPath("system.now"), editType: "variable", readonly: true, options: variableOptions },
         ],
       },
       ...base.sections,

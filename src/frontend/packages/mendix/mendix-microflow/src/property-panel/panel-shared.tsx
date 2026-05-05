@@ -135,7 +135,7 @@ export function getObjectTabs(object: MicroflowObject): MicroflowPropertyTabKey[
   return defaultMicroflowObjectNodeRegistry.find(item => item.objectKind === object.kind)?.propertyTabs ?? ["properties", "documentation"];
 }
 
-export function getFlowEdgeKind(flow: MicroflowFlow): "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler" | "annotation" {
+export function getFlowEdgeKind(flow: MicroflowFlow): "sequence" | "decisionCondition" | "objectTypeCondition" | "loopBody" | "errorHandler" | "annotation" {
   if (flow.kind === "annotation") {
     return "annotation";
   }

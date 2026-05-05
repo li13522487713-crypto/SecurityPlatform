@@ -13,7 +13,7 @@ export interface MicroflowGraphEdge {
   fromObjectId: string;
   toObjectId: string;
   collectionId: string;
-  edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "loopEntry";
+  edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "loopBody" | "loopEntry";
 }
 
 export interface MicroflowGraph {
@@ -55,7 +55,7 @@ function toNormalEdge(flow: MicroflowSequenceFlow, collectionId: string): Microf
     fromObjectId: flow.originObjectId,
     toObjectId: flow.destinationObjectId,
     collectionId,
-    edgeKind: flow.editor.edgeKind === "decisionCondition" || flow.editor.edgeKind === "objectTypeCondition"
+    edgeKind: flow.editor.edgeKind === "decisionCondition" || flow.editor.edgeKind === "objectTypeCondition" || flow.editor.edgeKind === "loopBody"
       ? flow.editor.edgeKind
       : "sequence",
   };

@@ -11,7 +11,7 @@ import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { objectLocationMap } from "../validators/shared";
 
 export type MicroflowFlowRegistryKind = "sequence" | "annotation";
-export type MicroflowDerivedEdgeKind = "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler" | "annotation";
+export type MicroflowDerivedEdgeKind = "sequence" | "decisionCondition" | "objectTypeCondition" | "loopBody" | "errorHandler" | "annotation";
 export type MicroflowEditorEdgeKind = MicroflowDerivedEdgeKind;
 
 export interface MicroflowConnectionCheckResult {

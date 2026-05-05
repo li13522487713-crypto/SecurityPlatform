@@ -45,6 +45,7 @@ import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
 import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
+import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
 import "@flowgram-adapter/free-layout-editor/css-load";
 import "./styles/flowgram-microflow-canvas.css";
 import "./styles/flowgram-microflow-port.css";
@@ -56,6 +57,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
   schema: MicroflowDesignSchema;
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
+  nodeViewModes?: Record<string, MicroflowNodeViewMode>;
   focusObjectId?: string;
   focusRequestKey?: number;
   readonly?: boolean;

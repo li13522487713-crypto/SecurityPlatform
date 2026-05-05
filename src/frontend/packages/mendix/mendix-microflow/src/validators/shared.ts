@@ -65,7 +65,7 @@ function sourceFromCode(code: string): NonNullable<MicroflowValidationIssue["sou
 export function issue(
   code: MicroflowValidationIssue["code"],
   message: string,
-  target: Partial<Pick<MicroflowValidationIssue, "microflowId" | "objectId" | "flowId" | "actionId" | "fieldPath" | "nodeId" | "edgeId" | "parameterId" | "collectionId" | "source" | "details" | "relatedObjectIds" | "relatedFlowIds" | "actionKind" | "nodeKind" | "blockSave" | "blockPublish">> = {},
+  target: Partial<Pick<MicroflowValidationIssue, "microflowId" | "objectId" | "flowId" | "actionId" | "fieldPath" | "nodeId" | "edgeId" | "parameterId" | "collectionId" | "source" | "details" | "relatedObjectIds" | "relatedFlowIds" | "actionKind" | "nodeKind" | "blockSave" | "blockPublish" | "quickFixAvailable" | "quickFixes">> = {},
   severity: MicroflowValidationIssue["severity"] = "error"
 ): MicroflowValidationIssue {
   const source = target.source ?? sourceFromCode(code);

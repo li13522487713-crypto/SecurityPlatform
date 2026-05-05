@@ -35,6 +35,8 @@ vi.mock("@douyinfe/semi-icons", () => ({
   IconPlay: () => <span>run</span>,
   IconRefresh: () => <span>refresh</span>,
   IconSave: () => <span>save</span>,
+  IconSetting: () => <span>setting</span>,
+  IconTickCircle: () => <span>ok</span>,
   IconUndo: () => <span>undo</span>,
   IconRedo: () => <span>redo</span>,
 }));
@@ -274,7 +276,32 @@ function createExtendedInlineSchema(): MicroflowDesignSchema {
           meta: { position: { x: 1320, y: 120 } },
         },
       ],
-      edges: [],
+      edges: [
+        {
+          id: "flow-approval-rejected",
+          sourceNodeID: "approval-1",
+          targetNodeID: "end",
+          sourcePortID: "approval:rejected",
+          targetPortID: "in",
+          data: { flowId: "flow-approval-rejected", edgeKind: "sequence", label: "rejected" },
+        },
+        {
+          id: "flow-loop-continue",
+          sourceNodeID: "loop-1",
+          targetNodeID: "end",
+          sourcePortID: "loop:continue",
+          targetPortID: "in",
+          data: { flowId: "flow-loop-continue", edgeKind: "sequence", label: "continue" },
+        },
+        {
+          id: "flow-error-fallback",
+          sourceNodeID: "error-1",
+          targetNodeID: "end",
+          sourcePortID: "error:fallback",
+          targetPortID: "in",
+          data: { flowId: "flow-error-fallback", edgeKind: "errorHandler", label: "fallback" },
+        },
+      ],
     },
   } as MicroflowDesignSchema;
 }
@@ -348,6 +375,8 @@ describe("NativeMicroflowEditor inline events", () => {
       const latestSchema = onSchemaChange.mock.calls.at(-1)?.[0] as MicroflowDesignSchema | undefined;
       const flow = (latestSchema?.workflow.edges ?? []).find(item => String((item.data as { flowId?: string } | undefined)?.flowId ?? item.id) === "flow-true");
       expect((flow?.data as { label?: string } | undefined)?.label).toBe("true");
+      expect(flow?.sourcePortID).toBe("decision:true");
+      expect(flow?.caseValues).toEqual([{ kind: "boolean", value: true }]);
     });
   });
 
@@ -734,10 +763,28 @@ describe("NativeMicroflowEditor inline events", () => {
       detail: { nodeId: "rest-1", fieldPath: "data.action.request.urlExpression.raw", value: "/api/incidents/v2", editType: "http" },
     }));
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "rest-1", fieldPath: "data.action.request.queryParameters", value: "incidentId=$incidentId\nseverity=$severity", editType: "mapping" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "rest-1", fieldPath: "data.action.request.headers", value: "Authorization=Bearer $token", editType: "mapping" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "rest-1", fieldPath: "data.action.request.timeoutMs", value: "186", editType: "text" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
       detail: { nodeId: "var-1", fieldPath: "data.action.newValueExpression.raw", value: "\"approved\"", editType: "assignment" },
     }));
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
       detail: { nodeId: "call-1", fieldPath: "data.action.argumentMappings.0.valueExpression.raw", value: "$incidentNo", editType: "mapping" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "call-1", fieldPath: "data.action.targetMicroflowDisplayName", value: "CalculateRiskScoreV2", editType: "text" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "call-1", fieldPath: "data.action.targetMicroflowName", value: "CalculateRiskScore", editType: "text" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "call-1", fieldPath: "data.action.targetMicroflowId", value: "mf-calc-risk-001", editType: "text" },
     }));
 
     await waitFor(() => {
@@ -750,8 +797,47 @@ describe("NativeMicroflowEditor inline events", () => {
       const callNode = byId("call-1");
       expect((decision?.splitCondition as { expression?: { raw?: string } } | undefined)?.expression?.raw).toBe("$riskScore >= 90");
       expect((restNode?.action as { request?: { urlExpression?: { raw?: string } } } | undefined)?.request?.urlExpression?.raw).toBe("/api/incidents/v2");
+      const restRequest = (restNode?.action as { request?: { queryParameters?: Array<{ key?: string; valueExpression?: { raw?: string } }>; headers?: Array<{ key?: string; valueExpression?: { raw?: string } }>; timeoutMs?: unknown } } | undefined)?.request;
+      expect(restRequest?.queryParameters?.[0]?.key).toBe("incidentId");
+      expect(restRequest?.queryParameters?.[0]?.valueExpression?.raw).toBe("$incidentId");
+      expect(restRequest?.headers?.[0]?.key).toBe("Authorization");
+      expect(restRequest?.headers?.[0]?.valueExpression?.raw).toBe("Bearer $token");
+      expect(restRequest?.timeoutMs).toBe(186);
       expect((variableNode?.action as { newValueExpression?: { raw?: string } } | undefined)?.newValueExpression?.raw).toBe("\"approved\"");
       expect((callNode?.action as { argumentMappings?: Array<{ valueExpression?: { raw?: string } }> } | undefined)?.argumentMappings?.[0]?.valueExpression?.raw).toBe("$incidentNo");
+      const callAction = callNode?.action as { targetMicroflowDisplayName?: string; targetMicroflowName?: string; targetMicroflowId?: string } | undefined;
+      expect(callAction?.targetMicroflowDisplayName).toBe("CalculateRiskScoreV2");
+      expect(callAction?.targetMicroflowName).toBe("CalculateRiskScore");
+      expect(callAction?.targetMicroflowId).toBe("mf-calc-risk-001");
+    });
+  });
+
+  it("normalizes mapping-like inline values by trimming empty/invalid lines", async () => {
+    const onSchemaChange = vi.fn();
+    render(<NativeMicroflowEditor schema={createActionSchema()} onSchemaChange={onSchemaChange} />);
+    await waitFor(() => expect(screen.getByTestId("mock-flowgram-canvas")).not.toBeNull());
+
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: {
+        nodeId: "rest-1",
+        fieldPath: "data.action.request.queryParameters",
+        value: "\nincidentId=$incidentId\n=\nseverity=$severity\ninvalidOnlyKey\n",
+        editType: "mapping",
+      },
+    }));
+
+    await waitFor(() => {
+      const latestSchema = onSchemaChange.mock.calls.at(-1)?.[0] as MicroflowDesignSchema | undefined;
+      const restNode = latestSchema?.workflow.nodes.find(item => item.id === "rest-1")?.data as Record<string, unknown> | undefined;
+      const request = (restNode?.action as { request?: { queryParameters?: Array<{ key?: string; valueExpression?: { raw?: string } }> } } | undefined)?.request;
+      const query = request?.queryParameters ?? [];
+      expect(query).toHaveLength(3);
+      expect(query[0]?.key).toBe("incidentId");
+      expect(query[0]?.valueExpression?.raw).toBe("$incidentId");
+      expect(query[1]?.key).toBe("severity");
+      expect(query[1]?.valueExpression?.raw).toBe("$severity");
+      expect(query[2]?.key).toBe("invalidOnlyKey");
+      expect(query[2]?.valueExpression?.raw ?? "").toBe("");
     });
   });
 
@@ -795,10 +881,25 @@ describe("NativeMicroflowEditor inline events", () => {
       detail: { nodeId: "approval-1", fieldPath: "data.action.approverExpression.raw", value: "$director", editType: "approval" },
     }));
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "approval-1", fieldPath: "data.description", value: "请确认是否允许继续", editType: "text" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "approval-1", fieldPath: "data.dueTime", value: "PT2H", editType: "text" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
       detail: { nodeId: "loop-1", fieldPath: "data.action.iteratorName", value: "assetItem", editType: "loop" },
     }));
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "loop-1", fieldPath: "data.resultsVariableName", value: "loopResults", editType: "variable" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
       detail: { nodeId: "error-1", fieldPath: "data.action.errorVariableName", value: "runtimeError", editType: "text" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "error-1", fieldPath: "data.fallbackResultVariable", value: "fallbackResult", editType: "variable" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "error-1", fieldPath: "data.rethrow", value: "true", editType: "select" },
     }));
 
     await waitFor(() => {
@@ -810,8 +911,52 @@ describe("NativeMicroflowEditor inline events", () => {
       const errorNode = byId("error-1");
       expect(latestSchema?.returnVariableName).toBe("finalResult");
       expect((approvalNode?.action as { approverExpression?: { raw?: string } } | undefined)?.approverExpression?.raw).toBe("$director");
+      expect(approvalNode?.description).toBe("请确认是否允许继续");
+      expect(approvalNode?.dueTime).toBe("PT2H");
       expect((loopNode?.action as { iteratorName?: string } | undefined)?.iteratorName).toBe("assetItem");
+      expect(loopNode?.resultsVariableName).toBe("loopResults");
       expect((errorNode?.action as { errorVariableName?: string } | undefined)?.errorVariableName).toBe("runtimeError");
+      expect(errorNode?.fallbackResultVariable).toBe("fallbackResult");
+      expect(errorNode?.rethrow).toBe("true");
+    });
+  });
+
+  it("syncs edited line label into source node branchLabels", async () => {
+    const onSchemaChange = vi.fn();
+    render(<NativeMicroflowEditor schema={createExtendedInlineSchema()} onSchemaChange={onSchemaChange} />);
+    await waitFor(() => expect(screen.getByTestId("mock-flowgram-canvas")).not.toBeNull());
+
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-line-label-commit", {
+      detail: { flowId: "flow-approval-rejected", value: "rejected" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-line-label-commit", {
+      detail: { flowId: "flow-loop-continue", value: "continue" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-line-label-commit", {
+      detail: { flowId: "flow-error-fallback", value: "fallback" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "approval-1", fieldPath: "data.branchLabels.approved", value: "approved", editType: "branch" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "loop-1", fieldPath: "data.branchLabels.done", value: "done", editType: "branch" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "error-1", fieldPath: "data.branchLabels.rethrow", value: "rethrow", editType: "branch" },
+    }));
+
+    await waitFor(() => {
+      const latestSchema = onSchemaChange.mock.calls.at(-1)?.[0] as MicroflowDesignSchema | undefined;
+      const nodes = latestSchema?.workflow.nodes ?? [];
+      const approvalNode = nodes.find(item => item.id === "approval-1")?.data as Record<string, unknown> | undefined;
+      const loopNode = nodes.find(item => item.id === "loop-1")?.data as Record<string, unknown> | undefined;
+      const errorNode = nodes.find(item => item.id === "error-1")?.data as Record<string, unknown> | undefined;
+      expect((approvalNode?.branchLabels as Record<string, string> | undefined)?.rejected).toBe("rejected");
+      expect((approvalNode?.branchLabels as Record<string, string> | undefined)?.approved).toBe("approved");
+      expect((loopNode?.branchLabels as Record<string, string> | undefined)?.continue).toBe("continue");
+      expect((loopNode?.branchLabels as Record<string, string> | undefined)?.done).toBe("done");
+      expect((errorNode?.branchLabels as Record<string, string> | undefined)?.fallback).toBe("fallback");
+      expect((errorNode?.branchLabels as Record<string, string> | undefined)?.rethrow).toBe("rethrow");
     });
   });
 });

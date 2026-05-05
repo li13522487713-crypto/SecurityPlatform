@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MicroflowActionActivity, MicroflowAuthoringSchema } from "../schema";
+import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { getVariablesForExpressionFromIndex, resolveVariableReferenceFromIndex } from "./variable-scope-query";
 import { buildVariableIndex } from "./variable-index";
 
@@ -36,6 +37,20 @@ function actionActivity(id: string, variableName: string): MicroflowActionActivi
 function schema(withLink: boolean): MicroflowAuthoringSchema {
   const createA = actionActivity("node-a", "aOut");
   const useB = actionActivity("node-b", "bOut");
+  const flow = {
+    id: "flow-a-b",
+    kind: "sequence",
+    officialType: "Microflows$SequenceFlow",
+    originObjectId: "node-a",
+    destinationObjectId: "node-b",
+    caseValues: [],
+    isErrorHandler: false,
+    relativeMiddlePoint: { x: 0, y: 0 },
+    size: { width: 0, height: 0 },
+    backgroundColor: "default",
+    disabled: false,
+    editor: { edgeKind: "sequence" },
+  } as any;
   return {
     schemaVersion: "1",
     mendixProfile: "mx10",
@@ -50,39 +65,9 @@ function schema(withLink: boolean): MicroflowAuthoringSchema {
       id: "root",
       officialType: "Microflows$MicroflowObjectCollection",
       objects: [createA, useB],
-      flows: withLink ? [{
-        id: "flow-a-b",
-        kind: "sequence",
-        officialType: "Microflows$SequenceFlow",
-        originObjectId: "node-a",
-        destinationObjectId: "node-b",
-        caseValue: undefined,
-        isErrorHandler: false,
-        errorType: "all",
-        documentation: "",
-        relativeMiddlePoint: { x: 0, y: 0 },
-        size: { width: 0, height: 0 },
-        backgroundColor: "default",
-        disabled: false,
-        editor: { edgeKind: "sequence" },
-      }] : [],
+      flows: withLink ? [flow] : [],
     },
-    flows: withLink ? [{
-      id: "flow-a-b",
-      kind: "sequence",
-      officialType: "Microflows$SequenceFlow",
-      originObjectId: "node-a",
-      destinationObjectId: "node-b",
-      caseValue: undefined,
-      isErrorHandler: false,
-      errorType: "all",
-      documentation: "",
-      relativeMiddlePoint: { x: 0, y: 0 },
-      size: { width: 0, height: 0 },
-      backgroundColor: "default",
-      disabled: false,
-      editor: { edgeKind: "sequence" },
-    }] : [],
+    flows: withLink ? [flow] : [],
     security: { allowedModuleRoleIds: [], allowedRoleNames: [], applyEntityAccess: true },
     concurrency: { allowConcurrentExecution: true },
     exposure: { exportLevel: "module", markAsUsed: false },
@@ -96,8 +81,8 @@ describe("variable scope by graph links", () => {
   it("only exposes upstream outputs when a link path exists", () => {
     const linked = schema(true);
     const unlinked = schema(false);
-    const linkedNames = getVariablesForExpressionFromIndex(linked, buildVariableIndex(linked), { objectId: "node-b" }).map(item => item.name);
-    const unlinkedNames = getVariablesForExpressionFromIndex(unlinked, buildVariableIndex(unlinked), { objectId: "node-b" }).map(item => item.name);
+    const linkedNames = getVariablesForExpressionFromIndex(linked, buildVariableIndex({ schema: linked, metadata: EMPTY_MICROFLOW_METADATA_CATALOG }), { objectId: "node-b" }).map(item => item.name);
+    const unlinkedNames = getVariablesForExpressionFromIndex(unlinked, buildVariableIndex({ schema: unlinked, metadata: EMPTY_MICROFLOW_METADATA_CATALOG }), { objectId: "node-b" }).map(item => item.name);
 
     expect(linkedNames).toContain("aOut");
     expect(unlinkedNames).not.toContain("aOut");
@@ -105,7 +90,7 @@ describe("variable scope by graph links", () => {
 
   it("resolves $.variable alias the same as $variable", () => {
     const linked = schema(true);
-    const index = buildVariableIndex(linked);
+    const index = buildVariableIndex({ schema: linked, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
     const withDollar = resolveVariableReferenceFromIndex(linked, index, { objectId: "node-b" }, "$aOut");
     const withJsonRootDollar = resolveVariableReferenceFromIndex(linked, index, { objectId: "node-b" }, "$.aOut");
 
@@ -113,4 +98,3 @@ describe("variable scope by graph links", () => {
     expect(withJsonRootDollar?.name).toBe("aOut");
   });
 });
-

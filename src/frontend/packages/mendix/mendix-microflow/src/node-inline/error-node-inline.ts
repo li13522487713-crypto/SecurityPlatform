@@ -12,13 +12,16 @@ export function deriveErrorNodeInline(input: DeriveNodeInlineInput): MicroflowNo
   });
   const data = (input.node.data ?? {}) as Record<string, unknown>;
   const policy = String(data.policy ?? "continue");
+  const catchType = String(data.catchType ?? "HTTP_ERROR");
   const errorVariable = String(data.customHandlerVariable ?? "$latestError");
+  const fallbackResult = String(data.fallbackResultVariable ?? "");
+  const rethrow = String(data.rethrow ?? "false");
   return {
     ...base,
     summaryLines: [
       { id: "title", value: "错误处理", kind: "error" },
-      { id: "catch", value: `catch: ${policy}`, kind: "error", editable: true, fieldPath: "data.policy" },
-      { id: "out", value: `out: ${errorVariable}`, kind: "error", editable: true, fieldPath: "data.customHandlerVariable" },
+      { id: "catch", value: `catch: ${catchType}`, kind: "error", editable: true, fieldPath: "data.catchType" },
+      { id: "out", value: `out: ${errorVariable}${fallbackResult ? `, ${fallbackResult}` : ""}`, kind: "error", editable: true, fieldPath: "data.customHandlerVariable" },
     ],
     sections: [
       {
@@ -26,6 +29,13 @@ export function deriveErrorNodeInline(input: DeriveNodeInlineInput): MicroflowNo
         title: "错误处理",
         kind: "errors",
         fields: [
+          {
+            id: "catchType",
+            label: "捕获类型",
+            value: catchType,
+            fieldPath: "data.catchType",
+            editType: "text",
+          },
           {
             id: "policy",
             label: "策略",
@@ -46,6 +56,28 @@ export function deriveErrorNodeInline(input: DeriveNodeInlineInput): MicroflowNo
             editType: "variable",
             options: variableNameOptions,
           },
+          {
+            id: "fallbackResult",
+            label: "Fallback 结果变量",
+            value: fallbackResult,
+            fieldPath: "data.fallbackResultVariable",
+            editType: "variable",
+            options: variableNameOptions,
+          },
+          {
+            id: "rethrow",
+            label: "继续抛出",
+            value: rethrow,
+            fieldPath: "data.rethrow",
+            editType: "select",
+            options: [
+              { label: "false", value: "false" },
+              { label: "true", value: "true" },
+            ],
+          },
+          { id: "handledBranch", label: "handled 标签", value: "handled", fieldPath: "data.branchLabels.handled", editType: "branch" },
+          { id: "fallbackBranch", label: "fallback 标签", value: "fallback", fieldPath: "data.branchLabels.fallback", editType: "branch" },
+          { id: "rethrowBranch", label: "rethrow 标签", value: "rethrow", fieldPath: "data.branchLabels.rethrow", editType: "branch" },
         ],
       },
       ...base.sections,

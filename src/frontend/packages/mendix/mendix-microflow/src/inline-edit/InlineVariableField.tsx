@@ -11,13 +11,27 @@ export function InlineVariableField(props: {
 }) {
   if (props.options && props.options.length > 0) {
     const variables: ContextVariableCandidate[] = props.options.map(option => {
-      const [source, displayName] = option.label.includes("::")
+      const [source, rawMeta] = option.label.includes("::")
         ? option.label.split("::", 2)
         : ["context", option.label];
+      const [displayName, ...metadataTokens] = rawMeta.split("|");
+      const metadata = Object.fromEntries(
+        metadataTokens
+          .map(token => token.split("=", 2))
+          .filter(item => item.length === 2)
+          .map(([k, v]) => [k, v]),
+      );
       return {
         name: option.value,
         source,
-        sourceNode: displayName,
+        sourceNode: metadata.sourceNode || displayName,
+        scope: metadata.scope,
+        readonly: metadata.readonly === "true",
+        maybe: metadata.maybe === "true",
+        unknown: metadata.unknown === "true",
+        preview: metadata.preview,
+        refCount: typeof metadata.refCount === "string" ? Number(metadata.refCount) : undefined,
+        type: metadata.type ? { kind: metadata.type } : undefined,
       };
     });
     return (

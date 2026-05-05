@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { expressionRaw, expressionTypeLabel, validateExpression } from "../expressions";
 import { getEntityAttributes, getEnumerationValues, type MicroflowMetadataCatalog } from "../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../schema";
-import { getVariablesForExpressionFromIndex, variableSourceLabel, type MicroflowExpressionScopeContext } from "../variables";
+import { buildVariableUsageMetrics, getVariablesForExpressionFromIndex, variableSourceLabel, type MicroflowExpressionScopeContext } from "../variables";
 import { tokenizeExpression, type MicroflowExpressionToken } from "../expressions/expression-tokenizer";
 import type { ExpressionDiagnostic } from "../expressions/expression-types";
 
@@ -267,7 +267,19 @@ export function buildMicroflowExpressionCompletionOptions(input: {
   expectedType?: MicroflowDataType;
 }): Array<{ label: string; value: string; detail?: string; disabled?: boolean }> {
   const context: MicroflowExpressionScopeContext = { objectId: input.objectId ?? "", actionId: input.actionId, fieldPath: input.fieldPath };
-  const variables = input.objectId ? getVariablesForExpressionFromIndex(input.schema, input.variableIndex, context) : [];
+  const variableMetrics = buildVariableUsageMetrics({ schema: input.schema, variableIndex: input.variableIndex, objectId: input.objectId });
+  const variables = (input.objectId ? getVariablesForExpressionFromIndex(input.schema, input.variableIndex, context) : [])
+    .sort((left, right) => {
+      const leftCount = variableMetrics[left.name]?.referenceCount ?? 0;
+      const rightCount = variableMetrics[right.name]?.referenceCount ?? 0;
+      if (rightCount !== leftCount) {
+        return rightCount - leftCount;
+      }
+      if (left.visibility !== right.visibility) {
+        return left.visibility === "definite" ? -1 : 1;
+      }
+      return left.name.localeCompare(right.name);
+    });
   const variableOptions = variables.flatMap(variable => {
     const detail = [
       expressionTypeLabel(variable.dataType),

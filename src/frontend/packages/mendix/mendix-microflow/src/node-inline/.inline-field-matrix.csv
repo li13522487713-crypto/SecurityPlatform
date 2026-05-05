@@ -1,0 +1,31 @@
+file,id,fieldPath,editType,hasOptions
+action-node-inline.ts,advanced-action,"\"data.action.sideEffectTarget\"",text,false
+action-node-inline.ts,outputs,"\"data.action.outputVariableName\"",variable,true
+action-node-inline.ts,title,"\"data.action.inputExpression.raw\" }",expression,true
+approval-node-inline.ts,label,"\"data.title\"",text,false
+approval-node-inline.ts,result,"\"data.resultVariable\"",variable,true
+approval-node-inline.ts,title,"\"data.approver\" }",variable,true
+call-microflow-node-inline.ts,outputs,"\"data.action.returnValue.outputVariableName\"",variable,true
+call-microflow-node-inline.ts,target,"\"data.action.targetMicroflowName\" }",mapping,true
+decision-node-inline.ts,branches,"`edge:${String(data.flowId ?? edge.id)}.data.label`",branch,false
+decision-node-inline.ts,condition,"\"data.splitCondition.expression.raw\"",condition,true
+default-node-inline.ts,title,"\"\"",text,false
+end-node-inline.ts,end,"\"returnVariableName\" }",expression,true
+end-node-inline.ts,return-type,"\"returnType.kind\"",select,true
+error-node-inline.ts,errorVariable,"\"data.customHandlerVariable\"",variable,true
+error-node-inline.ts,title,"\"data.policy\" }",select,true
+loop-node-inline.ts,index,"\"data.currentIndexVariableName\"",text,false
+loop-node-inline.ts,iterator,"\"data.loopSource.iteratorVariableName\"",text,false
+loop-node-inline.ts,loop,"\"data.loopSource.listVariableName\" }",variable,true
+rest-node-inline.ts,body,"\"data.action.request.body.expression.raw\"",json,false
+rest-node-inline.ts,method,"\"data.action.request.urlExpression.raw\" }",select,true
+rest-node-inline.ts,out,"\"data.action.response.handling.outputVariableName\"",variable,true
+rest-node-inline.ts,url,"\"data.action.request.urlExpression.raw\"",http,true
+start-node-inline.ts,ctx-now,"nodeDataPath(\"system.now\")",variable,true
+start-node-inline.ts,start,"`parameters.${index}.defaultValue.raw`",expression,true
+start-node-inline.ts,system,"nodeDataPath(\"system.currentUser\")",variable,true
+variable-node-inline.ts,expr,"\"data.action.newValueExpression.raw\"",assignment,true
+variable-node-inline.ts,initial,"\"data.action.initialValue.raw\"",expression,true
+variable-node-inline.ts,title,"\"data.action.initialValue.raw\" }",text,false
+variable-node-inline.ts,title,"\"data.action.newValueExpression.raw\" }",variable,true
+variable-node-inline.ts,type,"\"data.action.dataType.kind\"",select,true

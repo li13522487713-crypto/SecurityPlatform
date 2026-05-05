@@ -216,4 +216,60 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     expect(button.getAttribute("title")).toContain("缺少目标节点");
     expect(button.textContent).toContain("!");
   });
+
+  it("derives labels for approval/loop/error edges from edge kind and source port", () => {
+    const { rerender } = render(
+      <FlowGramMicroflowLineRenderer
+        key="line-1"
+        lineType={"polyline" as never}
+        version="1"
+        line={{ data: {
+          flowId: "flow-1",
+          flowKind: "sequence",
+          edgeKind: "sequence",
+          isErrorHandler: false,
+          caseValues: [],
+          validationState: "valid",
+          sourcePortId: "approval:rejected",
+        } } as never}
+      />,
+    );
+    expect(screen.getByRole("button").textContent).toContain("rejected");
+
+    rerender(
+      <FlowGramMicroflowLineRenderer
+        key="line-1"
+        lineType={"polyline" as never}
+        version="1"
+        line={{ data: {
+          flowId: "flow-1",
+          flowKind: "sequence",
+          edgeKind: "sequence",
+          isErrorHandler: false,
+          caseValues: [],
+          validationState: "valid",
+          sourcePortId: "loop:continue",
+        } } as never}
+      />,
+    );
+    expect(screen.getByRole("button").textContent).toContain("continue");
+
+    rerender(
+      <FlowGramMicroflowLineRenderer
+        key="line-1"
+        lineType={"polyline" as never}
+        version="1"
+        line={{ data: {
+          flowId: "flow-1",
+          flowKind: "sequence",
+          edgeKind: "errorHandler",
+          isErrorHandler: true,
+          caseValues: [],
+          validationState: "valid",
+          sourcePortId: "error:fallback",
+        } } as never}
+      />,
+    );
+    expect(screen.getByRole("button").textContent).toContain("fallback");
+  });
 });

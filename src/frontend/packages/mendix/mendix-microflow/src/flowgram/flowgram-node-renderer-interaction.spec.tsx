@@ -25,9 +25,21 @@ vi.mock("@douyinfe/semi-icons", () => ({
 }));
 
 vi.mock("../inline-edit", () => ({
-  InlineNodeEditor: ({ onApplyQuickFix }: { onApplyQuickFix?: (input: { id: string; actionKind: string; fieldPath?: string; value?: string; editType?: string }) => void }) => (
+  InlineNodeEditor: ({
+    onApplyQuickFix,
+    onCommitField,
+  }: {
+    onApplyQuickFix?: (input: { id: string; actionKind: string; fieldPath?: string; value?: string; editType?: string }) => void;
+    onCommitField?: (field: { fieldPath: string; editType: string }, value: string) => void;
+  }) => (
     <div data-testid="inline-node-editor">
       inline-node-editor
+      <button
+        type="button"
+        onClick={() => onCommitField?.({ fieldPath: "data.action.request.urlExpression.raw", editType: "http" }, "/api/inline-from-node")}
+      >
+        commit-field
+      </button>
       <button
         type="button"
         onClick={() => onApplyQuickFix?.({
@@ -104,6 +116,12 @@ function renderNode(viewMode: "compact" | "expanded" = "compact") {
 }
 
 describe("FlowGramMicroflowNodeRenderer interaction", () => {
+  it("renders compact summary lines from inlineConfig", () => {
+    renderNode();
+    const text = screen.getByTestId("microflow-node-summary-node-1").textContent ?? "";
+    expect(text.includes("if $riskScore >= 80")).toBe(true);
+  });
+
   it("dispatches inline node toggle event on double click", () => {
     const events: Array<{ nodeId: string; expanded: boolean }> = [];
     const listener = (event: Event) => {
@@ -113,6 +131,21 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     try {
       renderNode();
       fireEvent.doubleClick(screen.getByTestId("microflow-node-node-1"));
+      expect(events).toEqual([{ nodeId: "node-1", expanded: true }]);
+    } finally {
+      window.removeEventListener("atlas:microflow-inline-node-toggle", listener as EventListener);
+    }
+  });
+
+  it("dispatches inline node toggle event from header expand button", () => {
+    const events: Array<{ nodeId: string; expanded: boolean }> = [];
+    const listener = (event: Event) => {
+      events.push((event as CustomEvent<{ nodeId: string; expanded: boolean }>).detail);
+    };
+    window.addEventListener("atlas:microflow-inline-node-toggle", listener as EventListener);
+    try {
+      renderNode();
+      fireEvent.click(screen.getByRole("button", { name: "展开节点" }));
       expect(events).toEqual([{ nodeId: "node-1", expanded: true }]);
     } finally {
       window.removeEventListener("atlas:microflow-inline-node-toggle", listener as EventListener);
@@ -140,6 +173,28 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
       ]);
     } finally {
       window.removeEventListener("atlas:microflow-inline-quick-fix-apply", listener as EventListener);
+    }
+  });
+
+  it("dispatches inline field commit event with node context", () => {
+    const events: Array<Record<string, unknown>> = [];
+    const listener = (event: Event) => {
+      events.push((event as CustomEvent<Record<string, unknown>>).detail);
+    };
+    window.addEventListener("atlas:microflow-inline-field-commit", listener as EventListener);
+    try {
+      renderNode("expanded");
+      fireEvent.click(screen.getByText("commit-field"));
+      expect(events).toEqual([
+        expect.objectContaining({
+          nodeId: "node-1",
+          fieldPath: "data.action.request.urlExpression.raw",
+          editType: "http",
+          value: "/api/inline-from-node",
+        }),
+      ]);
+    } finally {
+      window.removeEventListener("atlas:microflow-inline-field-commit", listener as EventListener);
     }
   });
 });

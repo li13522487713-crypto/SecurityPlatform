@@ -56,7 +56,146 @@ function runtimeFrame(nodeId: string): MicroflowTraceFrame {
   };
 }
 
+function buildMatrixSchema(): MicroflowDesignSchema {
+  const start: MicroflowWorkflowNodeJSON = {
+    id: "start",
+    type: "event",
+    data: {
+      objectId: "start",
+      objectKind: "startEvent",
+      collectionId: "nodes",
+      title: "开始",
+      validationState: "valid",
+      issueCount: 0,
+    } as never,
+    meta: { position: { x: 40, y: 120 } },
+  };
+  const decision: MicroflowWorkflowNodeJSON = {
+    id: "decision",
+    type: "decision",
+    data: {
+      objectId: "decision",
+      objectKind: "exclusiveSplit",
+      collectionId: "nodes",
+      title: "判断",
+      validationState: "valid",
+      issueCount: 0,
+      splitCondition: { kind: "expression", expression: { raw: "$riskScore >= 80" } },
+    } as never,
+    meta: { position: { x: 240, y: 120 } },
+  };
+  const rest: MicroflowWorkflowNodeJSON = {
+    id: "rest",
+    type: "activity",
+    data: {
+      objectId: "rest",
+      objectKind: "actionActivity",
+      collectionId: "nodes",
+      title: "REST",
+      validationState: "valid",
+      issueCount: 0,
+      actionKind: "restCall",
+      action: {
+        request: { method: "POST", urlExpression: { raw: "/api/incidents/$incidentId" }, body: { kind: "json", expression: { raw: "{\"id\":\"$incidentId\"}" } } },
+        response: { handling: { kind: "storeToVariable", outputVariableName: "response" } },
+      },
+    } as never,
+    meta: { position: { x: 440, y: 120 } },
+  };
+  const call: MicroflowWorkflowNodeJSON = {
+    id: "call",
+    type: "activity",
+    data: {
+      objectId: "call",
+      objectKind: "actionActivity",
+      collectionId: "nodes",
+      title: "调用",
+      validationState: "valid",
+      issueCount: 0,
+      actionKind: "callMicroflow",
+      action: { calledMicroflowId: "Calc", argumentMappings: [{ parameterName: "a", valueExpression: { raw: "$.response.score" } }], outputVariableName: "riskScore" },
+    } as never,
+    meta: { position: { x: 640, y: 120 } },
+  };
+  const loop: MicroflowWorkflowNodeJSON = {
+    id: "loop",
+    type: "activity",
+    data: {
+      objectId: "loop",
+      objectKind: "loopedActivity",
+      collectionId: "nodes",
+      title: "循环",
+      validationState: "valid",
+      issueCount: 0,
+      loopSource: { kind: "iterableList", listVariableName: "$assetList", iteratorVariableName: "item" },
+      currentIndexVariableName: "index",
+    } as never,
+    meta: { position: { x: 840, y: 120 } },
+  };
+  const end: MicroflowWorkflowNodeJSON = {
+    id: "end",
+    type: "event",
+    data: {
+      objectId: "end",
+      objectKind: "endEvent",
+      collectionId: "nodes",
+      title: "结束",
+      validationState: "valid",
+      issueCount: 0,
+    } as never,
+    meta: { position: { x: 1040, y: 120 } },
+  };
+  return {
+    ...buildSchema(start),
+    parameters: [{ id: "p1", name: "incidentId", dataType: { kind: "String" } as never }] as never,
+    workflow: {
+      nodes: [start, decision, rest, call, loop, end],
+      edges: [
+        { id: "f1", sourceNodeID: "start", targetNodeID: "decision", data: { flowId: "f1" } as never },
+        { id: "f2", sourceNodeID: "decision", targetNodeID: "rest", sourcePortID: "decision:true", caseValues: [{ kind: "boolean", value: true }], data: { flowId: "f2", label: "true", caseValues: [{ kind: "boolean", value: true }] } as never },
+        { id: "f3", sourceNodeID: "rest", targetNodeID: "call", data: { flowId: "f3" } as never },
+        { id: "f4", sourceNodeID: "call", targetNodeID: "loop", data: { flowId: "f4" } as never },
+        { id: "f5", sourceNodeID: "loop", targetNodeID: "end", data: { flowId: "f5" } as never },
+      ] as never,
+    },
+    variables: [{ id: "v1", name: "assetList", type: { kind: "List" } as never, scope: "workflow" } as never],
+  } as MicroflowDesignSchema;
+}
+
 describe("deriveNodeInlineConfig", () => {
+  it("provides variable options for all variable/expression-like editable fields", () => {
+    const schema = buildMatrixSchema();
+    for (const node of schema.workflow.nodes) {
+      const config = deriveNodeInlineConfig({
+        node,
+        schema,
+      });
+      const optionRequiredEditTypes = new Set([
+        "variable",
+        "expression",
+        "condition",
+        "http",
+        "assignment",
+        "mapping",
+        "json",
+        "select",
+        "text",
+      ]);
+      for (const section of config.sections) {
+        for (const field of section.fields) {
+          if (!optionRequiredEditTypes.has(field.editType)) {
+            continue;
+          }
+          expect(Array.isArray(field.options)).toBe(true);
+          expect((field.options ?? []).length).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+  function findFieldOption(inline: ReturnType<typeof deriveNodeInlineConfig>, fieldPath: string) {
+    return inline.sections.flatMap(section => section.fields).find(field => field.fieldPath === fieldPath)?.options;
+  }
+
   it("derives decision inline config with condition and branch sections", () => {
     const node: MicroflowWorkflowNodeJSON = {
       id: "decision-1",
@@ -197,6 +336,72 @@ describe("deriveNodeInlineConfig", () => {
     expect(Boolean(mappingField)).toBe(true);
   });
 
+  it("provides variable options for generic action inline fields with upstream link and $. alias", () => {
+    const sourceNode: MicroflowWorkflowNodeJSON = {
+      id: "rest-source",
+      type: "activity",
+      data: {
+        objectId: "rest-source",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "REST Source",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "restCall",
+        action: {
+          kind: "restCall",
+          request: { method: "GET", urlExpression: { raw: "/api/source" } },
+          response: {
+            handling: { kind: "storeToVariable", outputVariableName: "response" },
+          },
+        },
+      } as never,
+      meta: { position: { x: 0, y: 0 } },
+    };
+    const targetNode: MicroflowWorkflowNodeJSON = {
+      id: "action-target",
+      type: "activity",
+      data: {
+        objectId: "action-target",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "Action Target",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "customAction",
+        action: {
+          inputExpression: { raw: "$response" },
+          outputVariableName: "resultVar",
+        },
+      } as never,
+      meta: { position: { x: 220, y: 0 } },
+    };
+    const schema = buildSchema(sourceNode);
+    schema.workflow.nodes.push(targetNode);
+    schema.workflow.edges.push({
+      id: "flow-source-target",
+      sourceNodeID: "rest-source",
+      targetNodeID: "action-target",
+      sourcePortID: "out",
+      targetPortID: "in",
+      data: { flowId: "flow-source-target" } as never,
+    } as never);
+
+    const inline = deriveNodeInlineConfig({ node: targetNode, schema });
+    const inputField = inline.sections
+      .flatMap(section => section.fields)
+      .find(field => field.fieldPath === "data.action.inputExpression.raw");
+    const outputField = inline.sections
+      .flatMap(section => section.fields)
+      .find(field => field.fieldPath === "data.action.outputVariableName");
+
+    expect(Array.isArray(inputField?.options)).toBe(true);
+    expect(inputField?.options?.some(option => option.value === "$response")).toBe(true);
+    expect(inputField?.options?.some(option => option.value === "$.response")).toBe(true);
+    expect(Array.isArray(outputField?.options)).toBe(true);
+    expect(outputField?.options?.some(option => option.value === "response")).toBe(true);
+  });
+
   it("injects runtime/error projection from trace frame", () => {
     const node: MicroflowWorkflowNodeJSON = {
       id: "node-1",
@@ -305,6 +510,145 @@ describe("deriveNodeInlineConfig", () => {
     expect(errorInline.summaryLines.some(line => line.value.toLowerCase().includes("error"))).toBe(true);
   });
 
+  it("ensures key inline-editable fields provide variable options across node kinds", () => {
+    const decisionNode: MicroflowWorkflowNodeJSON = {
+      id: "decision-v",
+      type: "decision",
+      data: {
+        objectId: "decision-v",
+        objectKind: "exclusiveSplit",
+        collectionId: "nodes",
+        title: "判断",
+        validationState: "valid",
+        issueCount: 0,
+        splitCondition: { kind: "expression", expression: { raw: "$riskScore >= 80" } },
+      } as never,
+      meta: { position: { x: 0, y: 0 } },
+    };
+    const restNode: MicroflowWorkflowNodeJSON = {
+      id: "rest-v",
+      type: "activity",
+      data: {
+        objectId: "rest-v",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "REST",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "restCall",
+        action: {
+          request: {
+            method: "POST",
+            urlExpression: { raw: "/api/incidents" },
+            body: { kind: "json", expression: { raw: "{\"id\":\"$incidentId\"}" } },
+          },
+          response: { handling: { kind: "storeToVariable", outputVariableName: "response" } },
+        },
+      } as never,
+      meta: { position: { x: 100, y: 0 } },
+    };
+    const actionNode: MicroflowWorkflowNodeJSON = {
+      id: "action-v",
+      type: "activity",
+      data: {
+        objectId: "action-v",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "Action",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "customAction",
+        action: {
+          inputExpression: { raw: "$response" },
+          outputVariableName: "resultVar",
+        },
+      } as never,
+      meta: { position: { x: 200, y: 0 } },
+    };
+    const variableNode: MicroflowWorkflowNodeJSON = {
+      id: "var-v",
+      type: "activity",
+      data: {
+        objectId: "var-v",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "变量",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "changeVariable",
+        action: {
+          kind: "changeVariable",
+          targetVariableName: "approvalStatus",
+          newValueExpression: { raw: "\"pending\"" },
+        },
+      } as never,
+      meta: { position: { x: 300, y: 0 } },
+    };
+    const callNode: MicroflowWorkflowNodeJSON = {
+      id: "call-v",
+      type: "activity",
+      data: {
+        objectId: "call-v",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "调用子流程",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "callMicroflow",
+        action: {
+          kind: "callMicroflow",
+          calledMicroflowId: "CalculateRiskScore",
+          argumentMappings: [{ parameterName: "incidentId", valueExpression: { raw: "$incidentId" } }],
+          outputVariableName: "riskScore",
+        },
+      } as never,
+      meta: { position: { x: 400, y: 0 } },
+    };
+    const schema = buildSchema(decisionNode);
+    schema.parameters = [{ id: "p1", name: "incidentId", dataType: { kind: "string" }, required: true } as never];
+    schema.workflow.nodes.push(restNode, actionNode, variableNode, callNode);
+    schema.workflow.edges = [
+      { id: "e1", sourceNodeID: "rest-v", targetNodeID: "action-v", sourcePortID: "out", targetPortID: "in", data: { flowId: "e1" } as never },
+      { id: "e2", sourceNodeID: "rest-v", targetNodeID: "decision-v", sourcePortID: "out", targetPortID: "in", data: { flowId: "e2" } as never },
+      { id: "e3", sourceNodeID: "action-v", targetNodeID: "var-v", sourcePortID: "out", targetPortID: "in", data: { flowId: "e3" } as never },
+      { id: "e4", sourceNodeID: "var-v", targetNodeID: "call-v", sourcePortID: "out", targetPortID: "in", data: { flowId: "e4" } as never },
+    ] as never;
+
+    const decisionInline = deriveNodeInlineConfig({ node: decisionNode, schema });
+    const restInline = deriveNodeInlineConfig({ node: restNode, schema });
+    const actionInline = deriveNodeInlineConfig({ node: actionNode, schema });
+    const variableInline = deriveNodeInlineConfig({ node: variableNode, schema });
+    const callInline = deriveNodeInlineConfig({ node: callNode, schema });
+
+    expect((findFieldOption(decisionInline, "data.splitCondition.expression.raw") ?? []).length).toBeGreaterThan(0);
+    expect((findFieldOption(restInline, "data.action.request.urlExpression.raw") ?? []).length).toBeGreaterThan(0);
+    expect((findFieldOption(restInline, "data.action.request.body.expression.raw") ?? []).length).toBeGreaterThan(0);
+    expect((findFieldOption(actionInline, "data.action.inputExpression.raw") ?? []).length).toBeGreaterThan(0);
+    expect((findFieldOption(actionInline, "data.action.sideEffectTarget") ?? []).length).toBeGreaterThan(0);
+    expect((findFieldOption(variableInline, "data.action.newValueExpression.raw") ?? []).length).toBeGreaterThan(0);
+    expect((findFieldOption(callInline, "data.action.argumentMappings.0.valueExpression.raw") ?? []).length).toBeGreaterThan(0);
+    const loopNode: MicroflowWorkflowNodeJSON = {
+      id: "loop-v",
+      type: "activity",
+      data: {
+        objectId: "loop-v",
+        objectKind: "loopedActivity",
+        collectionId: "nodes",
+        title: "循环",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "forEach",
+        loopSource: { kind: "iterableList", listVariableName: "$assetList", iteratorVariableName: "item" },
+        currentIndexVariableName: "index",
+      } as never,
+      meta: { position: { x: 520, y: 0 } },
+    };
+    const loopSchema = buildSchema(loopNode);
+    const loopInline = deriveNodeInlineConfig({ node: loopNode, schema: loopSchema });
+    expect((findFieldOption(loopInline, "data.loopSource.iteratorVariableName") ?? []).length).toBeGreaterThan(0);
+    expect((findFieldOption(loopInline, "data.currentIndexVariableName") ?? []).length).toBeGreaterThan(0);
+  });
+
   it("derives approval inline config with approver/branch/result fields", () => {
     const approvalNode: MicroflowWorkflowNodeJSON = {
       id: "approval-1",
@@ -348,6 +692,8 @@ describe("deriveNodeInlineConfig", () => {
         .flatMap(section => section.fields)
         .some(field => field.fieldPath === "data.resultVariable" && field.value.includes("approvalResult")),
     ).toBe(true);
+    expect((findFieldOption(inline, "data.approver") ?? []).length).toBeGreaterThan(0);
+    expect((findFieldOption(inline, "data.resultVariable") ?? []).length).toBeGreaterThan(0);
     expect(inline.runtime?.success).toBe(true);
   });
 

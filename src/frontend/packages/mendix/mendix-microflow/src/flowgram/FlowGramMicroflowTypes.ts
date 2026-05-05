@@ -36,6 +36,7 @@ export interface FlowGramMicroflowNodeData {
   availabilityReason?: string;
   title: string;
   subtitle?: string;
+  inlineConfig?: MicroflowNodeInlineConfig;
   documentation?: string;
   officialType: string;
   disabled: boolean;
@@ -44,6 +45,104 @@ export interface FlowGramMicroflowNodeData {
   runtimeErrorCode?: string;
   runtimeErrorMessage?: string;
   issueCount: number;
+}
+
+export type MicroflowNodeViewMode =
+  | "compact"
+  | "expanded"
+  | "editing"
+  | "running"
+  | "inspectingError"
+  | "inspectingRuntime";
+
+export type MicroflowInlineEditType =
+  | "text"
+  | "select"
+  | "variable"
+  | "expression"
+  | "condition"
+  | "http"
+  | "assignment"
+  | "branch"
+  | "json"
+  | "mapping"
+  | "approval"
+  | "loop";
+
+export interface MicroflowInlineEditableField {
+  id: string;
+  label: string;
+  value: string;
+  displayValue?: string;
+  fieldPath: string;
+  editType: MicroflowInlineEditType;
+  required?: boolean;
+  readonly?: boolean;
+  invalid?: boolean;
+  errorMessage?: string;
+  placeholder?: string;
+  options?: Array<{ label: string; value: string }>;
+}
+
+export interface MicroflowInlineSection {
+  id: string;
+  title: string;
+  kind:
+    | "inputs"
+    | "outputs"
+    | "conditions"
+    | "branches"
+    | "variables"
+    | "http"
+    | "approval"
+    | "loop"
+    | "runtime"
+    | "errors"
+    | "advanced";
+  collapsed?: boolean;
+  fields: MicroflowInlineEditableField[];
+}
+
+export interface MicroflowNodeRuntimeInlineState {
+  visited?: boolean;
+  running?: boolean;
+  success?: boolean;
+  failed?: boolean;
+  skipped?: boolean;
+  durationMs?: number;
+  selectedBranchLabel?: string;
+  inputPreview?: string;
+  outputPreview?: string;
+  variableSnapshot?: Array<{ name: string; type?: string; valuePreview: string }>;
+  error?: {
+    code?: string;
+    message: string;
+    stackPreview?: string;
+    fixSuggestions?: Array<{
+      id: string;
+      label: string;
+      actionKind: string;
+      fieldPath?: string;
+      value?: unknown;
+      editType?: MicroflowInlineEditType;
+    }>;
+  };
+}
+
+export interface MicroflowNodeInlineConfig {
+  viewMode: MicroflowNodeViewMode;
+  summaryLines: Array<{
+    id: string;
+    label?: string;
+    value: string;
+    kind?: "input" | "output" | "assignment" | "condition" | "http" | "branch" | "approval" | "loop" | "runtime" | "error" | "text";
+    fieldPath?: string;
+    editable?: boolean;
+    warning?: boolean;
+    error?: boolean;
+  }>;
+  sections: MicroflowInlineSection[];
+  runtime?: MicroflowNodeRuntimeInlineState;
 }
 
 export interface FlowGramMicroflowEdgeData {
@@ -56,7 +155,15 @@ export interface FlowGramMicroflowEdgeData {
   description?: string;
   branchOrder?: number;
   showInExport?: boolean;
-  runtimeState?: "idle" | "visited" | "failed" | "skipped" | "errorHandlerVisited" | "selectedCase";
+  runtimeState?: "idle" | "visited" | "running" | "failed" | "skipped" | "errorHandlerVisited" | "selectedCase";
+  sourceNodeId?: string;
+  sourceObjectKind?: MicroflowObjectKind;
+  sourceActionKind?: MicroflowActionKind;
+  sourcePortId?: string;
+  targetNodeId?: string;
+  targetObjectKind?: MicroflowObjectKind;
+  targetActionKind?: MicroflowActionKind;
+  targetPortId?: string;
   validationState: "valid" | "warning" | "error";
 }
 

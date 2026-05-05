@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-import { Button } from "@douyinfe/semi-ui";
-import { IconClose } from "@douyinfe/semi-icons";
+import { Input } from "@douyinfe/semi-ui";
 import {
   type LineRenderProps,
   usePlaygroundReadonlyState,
@@ -19,79 +18,126 @@ function edgeDataFromLine(line: LineRenderProps["line"]): FlowGramMicroflowEdgeD
   return typeof data?.flowId === "string" ? data : undefined;
 }
 
+export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
+  if (data.label) {
+    return data.label;
+  }
+  if (typeof data.sourcePortId === "string" && data.sourcePortId.includes(":")) {
+    const inferred = data.sourcePortId.split(":").at(-1) ?? "";
+    if (["approved", "rejected", "timeout", "body", "done", "break", "continue", "error", "fallback", "rethrow", "handled"].includes(inferred)) {
+      return inferred;
+    }
+  }
+  if (data.edgeKind === "errorHandler") {
+    return "error";
+  }
+  const firstCase = data.caseValues[0];
+  if (!firstCase) {
+    return "else";
+  }
+  if (firstCase.kind === "boolean") {
+    return String(firstCase.value);
+  }
+  if (firstCase.kind === "fallback") {
+    return "else";
+  }
+  if (firstCase.kind === "enumeration") {
+    return firstCase.value;
+  }
+  return "else";
+}
+
+function runtimeClass(state: FlowGramMicroflowEdgeData["runtimeState"]): string {
+  if (state === "selectedCase" || state === "visited") {
+    return "is-runtime-active";
+  }
+  if (state === "skipped") {
+    return "is-runtime-skipped";
+  }
+  if (state === "failed" || state === "errorHandlerVisited") {
+    return "is-runtime-error";
+  }
+  return "";
+}
+
 export function lineClassNameFromEdgeData(data: FlowGramMicroflowEdgeData): string {
   return [
     "microflow-flowgram-line",
     `microflow-flowgram-line--${data.edgeKind}`,
-    data.validationState !== "valid" ? `is-${data.validationState}` : "",
-    data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
+    `is-validation-${data.validationState}`,
+    data.runtimeState ? `is-runtime-${data.runtimeState}` : "",
   ].filter(Boolean).join(" ");
 }
 
-export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string | undefined {
-  if (data.label) {
-    return data.label;
-  }
-  if (data.edgeKind === "errorHandler") {
-    return "Error";
-  }
-  const firstCase = data.caseValues[0];
-  if (!firstCase) {
-    return undefined;
-  }
-  switch (firstCase.kind) {
-    case "boolean":
-      return String(firstCase.value);
-    case "fallback":
-      return "default";
-    case "enumeration":
-      return firstCase.value;
-    case "inheritance":
-      return firstCase.entityQualifiedName.split(".").at(-1) ?? firstCase.entityQualifiedName;
-    case "empty":
-      return "empty";
-    case "noCase":
-      return undefined;
-    default:
-      return undefined;
-  }
-}
-
 export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
-  const [hovered, setHovered] = useState(false);
   const readonly = usePlaygroundReadonlyState();
-
   const data = edgeDataFromLine(line);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
   if (!data) {
     return null;
   }
-  const label = lineLabelFromEdgeData(data);
+  const label = useMemo(() => lineLabelFromEdgeData(data), [data]);
+  const warningMissingTarget = !data.targetNodeId && (data.edgeKind === "decisionCondition" || data.edgeKind === "errorHandler");
+  const className = [
+    "microflow-branch-label",
+    editing ? "is-editing" : "",
+    runtimeClass(data.runtimeState),
+    data.validationState === "warning" || warningMissingTarget ? "is-warning" : "",
+  ].filter(Boolean).join(" ");
+
+  const commit = (value: string) => {
+    const trimmed = value.trim();
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-line-label-commit", {
+      detail: {
+        flowId: data.flowId,
+        value: trimmed || label,
+      },
+    }));
+    setEditing(false);
+  };
+
+  if (editing && !readonly) {
+    return (
+      <Input
+        className="microflow-branch-label is-editing"
+        autoFocus
+        value={draft}
+        onChange={setDraft}
+        onKeyDown={event => {
+          if (event.key === "Enter") {
+            commit(draft);
+          }
+          if (event.key === "Escape") {
+            setEditing(false);
+            setDraft(label);
+          }
+        }}
+        onBlur={() => commit(draft)}
+      />
+    );
+  }
+
   return (
-    <span
-      className={lineClassNameFromEdgeData(data)}
+    <button
+      type="button"
+      className={className}
       data-testid="microflow-flowgram-line-label"
       data-flow-id={data.flowId}
       data-edge-kind={data.edgeKind}
-      data-runtime-state={data.runtimeState ?? "idle"}
-      data-validation-state={data.validationState}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onClick={event => {
+        event.stopPropagation();
+        if (readonly) {
+          return;
+        }
+        setDraft(label);
+        setEditing(true);
+      }}
+      title={warningMissingTarget ? "缺少目标节点" : label}
     >
       {label}
-      {hovered && !readonly ? (
-        <Button
-          icon={<IconClose />}
-          size="small"
-          type="danger"
-          theme="borderless"
-          className="microflow-flowgram-line__delete-btn"
-          aria-label="删除连线"
-          onClick={e => {
-            e.stopPropagation();
-            (line as unknown as { dispose?: () => void }).dispose?.();
-          }}
-        />
-      ) : null}
-    </span>
+      {warningMissingTarget ? " !" : ""}
+    </button>
   );
 }

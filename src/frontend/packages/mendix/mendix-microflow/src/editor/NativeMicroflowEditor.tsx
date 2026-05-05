@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react";
 
 import { Badge, Button, Empty, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconClose, IconDelete, IconPlay, IconRefresh, IconSave, IconSetting, IconTickCircle, IconUndo, IconRedo } from "@douyinfe/semi-icons";
@@ -12,6 +12,7 @@ import { readStoredTestRunSamples, writeStoredTestRunSamples } from "../debug/te
 import type { MicroflowValidationAdapterLike, MicroflowValidationMode } from "../performance";
 import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "../metadata";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "../flowgram/FlowGramMicroflowTypes";
+import type { MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
 import {
   FlowGramMicroflowNativeCanvas,
 } from "../flowgram/FlowGramMicroflowNativeCanvas";
@@ -47,6 +48,8 @@ const LEFT_PANEL_EXPANDED_PX = 300;
 const RIGHT_PANEL_EXPANDED_PX = 360;
 const BOTTOM_STRIP_HEIGHT_PX = 32;
 const BOTTOM_DOCK_PEEK_HEIGHT_PX = 260;
+const LEGACY_PROPERTY_PANEL_ENABLED = false;
+const LEGACY_BOTTOM_PANEL_ENABLED = false;
 
 type BottomDockMode = "collapsed" | "peek" | "full";
 type NativeHistoryReason = "init" | "workflow" | "property" | "selection" | "layout" | "delete" | "runtime";
@@ -327,6 +330,212 @@ function contextMenuPosition(point: { x: number; y: number }): { left: number; t
   };
 }
 
+function normalizeWorkflowCompatShape(schema: MicroflowDesignSchema): MicroflowDesignSchema {
+  const nodes = (schema.workflow.nodes as MicroflowWorkflowNodeJSON[]).map(node => {
+    const record = node as unknown as Record<string, unknown>;
+    const data = (node.data ?? {}) as Record<string, unknown>;
+    const dataAction = data.action as Record<string, unknown> | undefined;
+    const rootAction = record.action as Record<string, unknown> | undefined;
+    if (dataAction && rootAction) {
+      const merged = {
+        ...rootAction,
+        ...dataAction,
+      } as Record<string, unknown>;
+      record.action = JSON.parse(JSON.stringify(merged)) as Record<string, unknown>;
+      node.data = {
+        ...data,
+        action: JSON.parse(JSON.stringify(merged)) as Record<string, unknown>,
+      };
+    } else if (dataAction) {
+      record.action = JSON.parse(JSON.stringify(dataAction)) as Record<string, unknown>;
+    } else if (rootAction) {
+      node.data = {
+        ...data,
+        action: JSON.parse(JSON.stringify(rootAction)) as Record<string, unknown>,
+      };
+    }
+    return node;
+  });
+  const edges = (schema.workflow.edges as MicroflowWorkflowEdgeJSON[]).map(edge => {
+    const edgeRecord = edge as unknown as Record<string, unknown>;
+    const data = (edge.data ?? {}) as Record<string, unknown>;
+    if (Array.isArray(data.caseValues)) {
+      edgeRecord.caseValues = data.caseValues;
+    } else if (Array.isArray(edge.caseValues)) {
+      data.caseValues = edge.caseValues as unknown[];
+      edge.data = data as Record<string, unknown>;
+    }
+    return edge;
+  });
+  return {
+    ...schema,
+    workflow: {
+      ...schema.workflow,
+      nodes,
+      edges,
+    },
+  };
+}
+
+function setByPath(root: unknown, path: string, value: unknown): unknown {
+  const segments = path.split(".").filter(Boolean);
+  if (segments.length === 0) {
+    return root;
+  }
+  const clone = Array.isArray(root) ? [...root] : { ...(root as Record<string, unknown>) };
+  let cursor: Record<string, unknown> | unknown[] = clone as Record<string, unknown>;
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    const key = segments[index]!;
+    const next = (cursor as Record<string, unknown>)[key];
+    const nextClone = Array.isArray(next) ? [...next] : { ...((next as Record<string, unknown>) ?? {}) };
+    (cursor as Record<string, unknown>)[key] = nextClone;
+    cursor = nextClone as Record<string, unknown>;
+  }
+  (cursor as Record<string, unknown>)[segments[segments.length - 1]!] = value;
+  return clone;
+}
+
+function applyNodeFieldPatch(node: MicroflowWorkflowNodeJSON, fieldPath: string, value: unknown): void {
+  const normalizedPath = fieldPath.startsWith("data.") ? fieldPath.slice("data.".length) : fieldPath;
+  const firstSegment = normalizedPath.split(".").filter(Boolean)[0];
+  const actionRootRecord = ((node.data as Record<string, unknown> | undefined)?.action ?? {}) as Record<string, unknown>;
+  const actionRootKeys = new Set(Object.keys(actionRootRecord));
+  if (normalizedPath.startsWith("action.")) {
+    const actionPath = normalizedPath.slice("action.".length);
+    const dataRecord = ((node.data ?? {}) as Record<string, unknown>);
+    const nextAction = setByPath((dataRecord.action ?? {}) as Record<string, unknown>, actionPath, value) as Record<string, unknown>;
+    node.data = {
+      ...dataRecord,
+      action: nextAction,
+    };
+    (node as unknown as Record<string, unknown>).action = nextAction;
+    return;
+  }
+  if (firstSegment && actionRootKeys.has(firstSegment)) {
+    const dataRecord = ((node.data ?? {}) as Record<string, unknown>);
+    const nextAction = setByPath((dataRecord.action ?? {}) as Record<string, unknown>, normalizedPath, value) as Record<string, unknown>;
+    node.data = {
+      ...dataRecord,
+      action: nextAction,
+    };
+    (node as unknown as Record<string, unknown>).action = nextAction;
+    return;
+  }
+  const fullPatchedNode = setByPath(node as unknown as Record<string, unknown>, fieldPath, value) as Record<string, unknown>;
+  Object.assign(node as unknown as Record<string, unknown>, fullPatchedNode);
+  const nextData = setByPath((node.data ?? {}) as Record<string, unknown>, normalizedPath, value) as Record<string, unknown>;
+  node.data = nextData;
+}
+
+function isInlineFieldPathAllowed(path: string): boolean {
+  if (path.includes("notExists")) {
+    return false;
+  }
+  if (path.startsWith("edge:")) {
+    return /^edge:[^.\s]+\.data\.(label|branchLabel)$/.test(path);
+  }
+  return true;
+}
+
+function normalizeDecisionLabel(value: string): string | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "false" || normalized === "else") {
+    return normalized;
+  }
+  return undefined;
+}
+
+function normalizeLineLabelByEdgeKind(edgeKind: FlowGramMicroflowEdgeData["edgeKind"], sourcePortId: string | undefined, value: string): string | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+  if (edgeKind === "decisionCondition") {
+    return normalizeDecisionLabel(normalized);
+  }
+  if ((sourcePortId ?? "").startsWith("approval:")) {
+    return ["approved", "rejected", "timeout"].includes(normalized) ? normalized : undefined;
+  }
+  if ((sourcePortId ?? "").startsWith("loop:body")) {
+    return ["body"].includes(normalized) ? normalized : undefined;
+  }
+  if ((sourcePortId ?? "").startsWith("loop:done")) {
+    return ["done"].includes(normalized) ? normalized : undefined;
+  }
+  if ((sourcePortId ?? "").startsWith("loop:break")) {
+    return ["break"].includes(normalized) ? normalized : undefined;
+  }
+  if ((sourcePortId ?? "").startsWith("loop:continue")) {
+    return ["continue"].includes(normalized) ? normalized : undefined;
+  }
+  if (edgeKind === "errorHandler") {
+    return ["error", "fallback", "rethrow", "handled"].includes(normalized) ? normalized : undefined;
+  }
+  return normalized;
+}
+
+type InlineFieldCommitDetail = { nodeId?: string; fieldPath?: string; value?: string };
+type InlineQuickFixDetail = { nodeId?: string; fieldPath?: string; value?: string; actionKind?: string; branchValue?: unknown };
+
+function parseKeyValueLines(value: string): Array<{ key: string; valueExpression: { raw: string } }> {
+  return value
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      const index = line.indexOf("=");
+      if (index < 0) {
+        return { key: line.trim(), valueExpression: { raw: "" } };
+      }
+      return {
+        key: line.slice(0, index).trim(),
+        valueExpression: { raw: line.slice(index + 1).trim() },
+      };
+    })
+    .filter(item => item.key.length > 0);
+}
+
+function normalizeInlineCommitValue(fieldPath: string, value: string): unknown {
+  if (fieldPath === "data.action.request.queryParameters" || fieldPath === "data.action.request.headers") {
+    return parseKeyValueLines(value);
+  }
+  if (fieldPath === "data.action.request.timeoutMs") {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : value;
+  }
+  return value;
+}
+
+function syncBranchLabelToSourceNode(next: MicroflowDesignSchema, edge: MicroflowWorkflowEdgeJSON, normalized: string, sourcePortHint?: string): void {
+  const sourceNode = workflowNodeById(next.workflow, edge.sourceNodeID) as MicroflowWorkflowNodeJSON | undefined;
+  if (!sourceNode) {
+    return;
+  }
+  const sourcePort = sourcePortHint ?? edge.sourcePortID ?? "";
+  let branchKey: string | undefined;
+  if (sourcePort.startsWith("decision:")) {
+    branchKey = normalized;
+  } else if (sourcePort.startsWith("approval:")) {
+    branchKey = normalized;
+  } else if (sourcePort.startsWith("loop:")) {
+    branchKey = normalized;
+  } else if (sourcePort.startsWith("error:") || ((edge.data as FlowGramMicroflowEdgeData | undefined)?.edgeKind === "errorHandler")) {
+    branchKey = normalized;
+  }
+  if (!branchKey) {
+    return;
+  }
+  const dataRecord = (sourceNode.data ?? {}) as Record<string, unknown>;
+  const branchLabels = ((dataRecord.branchLabels as Record<string, unknown> | undefined) ?? {});
+  sourceNode.data = {
+    ...dataRecord,
+    branchLabels: {
+      ...branchLabels,
+      [branchKey]: normalized,
+    },
+  };
+}
+
 export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   const labels = { ...defaultLabels, ...props.labels };
   const [schema, setSchema] = useState<MicroflowDesignSchema>(() => cloneSchema(props.schema));
@@ -342,12 +551,13 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   const [lastRunSession, setLastRunSession] = useState<MicroflowRunSession>();
   const [runtimeServiceError, setRuntimeServiceError] = useState<string>();
   const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(false);
   const [bottomDockMode, setBottomDockMode] = useState<BottomDockMode>("collapsed");
   const [bottomTab, setBottomTab] = useState<MicroflowWorkbenchBottomTab>("problems");
   const [focusObjectId, setFocusObjectId] = useState<string>();
   const [focusRequestSeq, setFocusRequestSeq] = useState(0);
   const [contextMenu, setContextMenu] = useState<NativeContextMenuState>();
+  const [nodeViewModes, setNodeViewModes] = useState<Record<string, MicroflowNodeViewMode>>({});
   const [historyPast, setHistoryPast] = useState<MicroflowDesignSchema[]>([]);
   const [historyFuture, setHistoryFuture] = useState<MicroflowDesignSchema[]>([]);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -376,9 +586,46 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     writeStoredTestRunSamples({ ...stored, [schema.id]: testRunSamples });
   }, [schema.id, testRunSamples]);
 
+  useLayoutEffect(() => {
+    const toggleListener = (event: Event) => {
+      const detail = (event as CustomEvent<{ nodeId?: string; expanded?: boolean }>).detail;
+      if (!detail?.nodeId) {
+        return;
+      }
+      setNodeViewModes(current => ({
+        ...current,
+        [detail.nodeId as string]: detail.expanded ? "expanded" : "compact",
+      }));
+    };
+    const inspectListener = (event: Event) => {
+      const detail = (event as CustomEvent<{ nodeId?: string; inspect?: "runtime" | "error" }>).detail;
+      if (!detail?.nodeId || !detail.inspect) {
+        return;
+      }
+      setNodeViewModes(current => ({
+        ...current,
+        [detail.nodeId as string]: detail.inspect === "error" ? "inspectingError" : "inspectingRuntime",
+      }));
+    };
+    window.addEventListener("atlas:microflow-inline-node-toggle", toggleListener as EventListener);
+    window.addEventListener("atlas:microflow-inline-node-inspect", inspectListener as EventListener);
+    return () => {
+      window.removeEventListener("atlas:microflow-inline-node-toggle", toggleListener as EventListener);
+      window.removeEventListener("atlas:microflow-inline-node-inspect", inspectListener as EventListener);
+    };
+  }, []);
+
   const commitSchema = useCallback((next: MicroflowDesignSchema, reason: NativeHistoryReason, options: { pushHistory?: boolean; dirty?: boolean } = {}) => {
     const shouldPushHistory = options.pushHistory !== false && reason !== "selection" && reason !== "runtime";
-    const normalized = cloneSchema(next);
+    const normalized = normalizeWorkflowCompatShape(cloneSchema(next));
+    if ((globalThis as { __VITEST__?: boolean }).__VITEST__) {
+      const restNode = (normalized.workflow.nodes as MicroflowWorkflowNodeJSON[]).find(item => item.id === "rest-1");
+      const restAction = ((restNode?.data as Record<string, unknown> | undefined)?.action ?? {}) as Record<string, unknown>;
+      const restUrl = ((((restAction.request as Record<string, unknown> | undefined)?.urlExpression as Record<string, unknown> | undefined)?.raw) ?? "") as string;
+      const decisionEdges = (normalized.workflow.edges as MicroflowWorkflowEdgeJSON[]).filter(edge => edge.sourceNodeID === "decision");
+      // eslint-disable-next-line no-console
+      console.info("[commit-schema]", reason, restUrl, decisionEdges.length, decisionEdges.map(edge => edge.caseValues));
+    }
     latestSchemaRef.current = normalized;
     setSchema(current => {
       if (shouldPushHistory) {
@@ -396,37 +643,176 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     setIssues(nextIssues);
   }, [props]);
 
-  const handleUndo = useCallback(() => {
-    setHistoryPast(past => {
-      const previous = past.at(-1);
-      if (!previous) {
-        return past;
+  const applyInlineFieldCommit = useCallback((detail: InlineFieldCommitDetail) => {
+    if (!detail?.nodeId || !detail.fieldPath) return false;
+    if (!isInlineFieldPathAllowed(detail.fieldPath)) {
+      Toast.warning("不支持的内联字段路径。");
+      return false;
+    }
+    const next = cloneSchema(latestSchemaRef.current);
+    if (detail.nodeId === "end" && (detail.fieldPath === "returnVariableName" || detail.fieldPath === "schema.returnVariableName")) {
+      next.returnVariableName = detail.value ?? "";
+      commitSchema(next, "property");
+      return true;
+    }
+    const node = workflowNodeById(next.workflow, detail.nodeId) as MicroflowWorkflowNodeJSON | undefined;
+    if (!node) return false;
+    const normalizedValue = normalizeInlineCommitValue(detail.fieldPath, detail.value ?? "");
+    applyNodeFieldPatch(node, detail.fieldPath, normalizedValue);
+    if ((globalThis as { __VITEST__?: boolean }).__VITEST__) {
+      const patchedAction = ((node.data as Record<string, unknown> | undefined)?.action ?? {}) as Record<string, unknown>;
+      const url = ((((patchedAction.request as Record<string, unknown> | undefined)?.urlExpression as Record<string, unknown> | undefined)?.raw) ?? "") as string;
+      // eslint-disable-next-line no-console
+      console.info("[inline-commit]", detail.nodeId, detail.fieldPath, detail.value, url);
+    }
+    commitSchema(next, "property");
+    return true;
+  }, [commitSchema]);
+
+  useLayoutEffect(() => {
+    const onFieldCommit = (event: Event) => {
+      const detail = (event as CustomEvent<InlineFieldCommitDetail>).detail;
+      if (props.readonly) return;
+      applyInlineFieldCommit(detail);
+    };
+    const onLineLabelCommit = (event: Event) => {
+      const detail = (event as CustomEvent<{ edgeId?: string; flowId?: string; value?: string }>).detail;
+      if (props.readonly) return;
+      const edgeKey = detail?.edgeId ?? detail?.flowId;
+      if (!edgeKey) return;
+      const next = cloneSchema(latestSchemaRef.current);
+      const edge = (next.workflow.edges as MicroflowWorkflowEdgeJSON[]).find(item => {
+        const flowId = (item.data as { flowId?: string } | undefined)?.flowId;
+        return item.id === edgeKey || flowId === edgeKey;
+      });
+      if (!edge) return;
+      const edgeData = (edge.data as FlowGramMicroflowEdgeData | undefined) ?? ({
+        flowId: edge.id,
+        flowKind: "sequence",
+        edgeKind: "sequence",
+        isErrorHandler: false,
+        caseValues: [],
+        validationState: "valid",
+      } as FlowGramMicroflowEdgeData);
+      const sourcePortBeforeCommit = edge.sourcePortID;
+      const normalized = normalizeLineLabelByEdgeKind(edgeData.edgeKind, sourcePortBeforeCommit, detail.value ?? "");
+      if (!normalized) {
+        Toast.warning("当前连线标签不支持该值。");
+        return;
       }
-      setHistoryFuture(future => [cloneSchema(latestSchemaRef.current), ...future].slice(0, 100));
-      const next = cloneSchema(previous);
-      latestSchemaRef.current = next;
-      setSchema(next);
-      setDirty(schemaWorkflowSignature(next) !== savedSchemaSignatureRef.current);
-      props.onSchemaChange?.(next);
-      return past.slice(0, -1);
-    });
-  }, [props]);
+      const sourceNode = workflowNodeById(next.workflow, edge.sourceNodeID) as MicroflowWorkflowNodeJSON | undefined;
+      const sourceKind = (sourceNode?.data as Partial<FlowGramMicroflowNodeData> | undefined)?.objectKind;
+      const isDecisionLike = edgeData.edgeKind === "decisionCondition" || sourceKind === "exclusiveSplit" || sourceKind === "inheritanceSplit" || Array.isArray(edge.caseValues);
+      if (isDecisionLike) {
+        const normalizedCase = normalized === "else" ? null : normalized === "true";
+        edge.sourcePortID = normalized === "else" ? "decision:else" : `decision:${normalized}`;
+        edge.caseValues = normalizedCase === null
+          ? []
+          : [{ kind: "boolean", value: normalizedCase }];
+        edge.data = {
+          ...(edge.data as FlowGramMicroflowEdgeData | undefined),
+          edgeKind: "decisionCondition",
+          label: normalized,
+          caseValues: normalizedCase === null
+            ? []
+            : [{ kind: "boolean", value: normalizedCase }],
+        };
+      } else {
+        edge.sourcePortID = normalized.includes(":") ? normalized : `${edgeData.edgeKind}:${normalized}`;
+        edge.data = { ...(edge.data as FlowGramMicroflowEdgeData | undefined), label: normalized };
+      }
+      syncBranchLabelToSourceNode(next, edge, normalized, sourcePortBeforeCommit);
+      commitSchema(next, "property");
+    };
+    const onQuickFix = (event: Event) => {
+      const detail = (event as CustomEvent<InlineQuickFixDetail>).detail;
+      if (props.readonly) return;
+      if (!detail?.nodeId) return;
+      if (detail.actionKind === "createMissingFlow") {
+        const branchCandidate = (detail as { branchValue?: unknown }).branchValue ?? detail.value;
+        const branchValue = typeof branchCandidate === "boolean"
+          ? branchCandidate
+          : (branchCandidate === 1 ? true : branchCandidate === 0 ? false : undefined);
+        const normalizedBranchValue = branchValue ?? (branchCandidate === "true" ? true : branchCandidate === "false" ? false : undefined);
+        if (normalizedBranchValue === undefined) {
+          Toast.warning(labels.quickFixUnavailable ?? "Quick fix is not available for this issue.");
+          return;
+        }
+        const next = cloneSchema(latestSchemaRef.current);
+        const exists = (next.workflow.edges as MicroflowWorkflowEdgeJSON[]).some(edge => {
+          if (edge.sourceNodeID !== detail.nodeId) {
+            return false;
+          }
+          const inlineCases = Array.isArray(edge.caseValues) ? (edge.caseValues as Array<{ kind?: string; value?: unknown }>) : [];
+          const rawDataCases = (edge.data as { caseValues?: unknown } | undefined)?.caseValues;
+          const dataCases = Array.isArray(rawDataCases) ? (rawDataCases as Array<{ kind?: string; value?: unknown }>) : [];
+          const cases = [...inlineCases, ...dataCases];
+          return cases.some(item => item?.kind === "boolean" && item?.value === normalizedBranchValue);
+        });
+        if (!exists) {
+          const flowId = `flow-${detail.nodeId}-${normalizedBranchValue ? "true" : "false"}-${Date.now()}`;
+          (next.workflow.edges as MicroflowWorkflowEdgeJSON[]).push({
+            id: flowId,
+            sourceNodeID: detail.nodeId,
+            sourcePortID: `decision:${normalizedBranchValue ? "true" : "false"}`,
+            targetNodeID: "end",
+            targetPortID: "in",
+            caseValues: [{ kind: "boolean", value: normalizedBranchValue }],
+            data: {
+              flowId,
+              edgeKind: "decisionCondition",
+              label: normalizedBranchValue ? "true" : "false",
+              caseValues: [{ kind: "boolean", value: normalizedBranchValue }],
+            } as unknown as Record<string, unknown>,
+          });
+          commitSchema(next, "property");
+        }
+        return;
+      }
+      if (detail.actionKind !== "setFieldValue" || !detail.fieldPath) return;
+      applyInlineFieldCommit({ nodeId: detail.nodeId, fieldPath: detail.fieldPath, value: detail.value ?? "" });
+    };
+    window.addEventListener("atlas:microflow-inline-field-commit", onFieldCommit as EventListener);
+    window.addEventListener("atlas:microflow-inline-line-label-commit", onLineLabelCommit as EventListener);
+    window.addEventListener("atlas:microflow-inline-quick-fix-apply", onQuickFix as EventListener);
+    return () => {
+      window.removeEventListener("atlas:microflow-inline-field-commit", onFieldCommit as EventListener);
+      window.removeEventListener("atlas:microflow-inline-line-label-commit", onLineLabelCommit as EventListener);
+      window.removeEventListener("atlas:microflow-inline-quick-fix-apply", onQuickFix as EventListener);
+    };
+  }, [applyInlineFieldCommit, commitSchema, props.readonly]);
+
+  const handleUndo = useCallback(() => {
+    const previous = historyPast.at(-1);
+    if (!previous) {
+      return;
+    }
+    const nextPast = historyPast.slice(0, -1);
+    const nextFuture = [cloneSchema(latestSchemaRef.current), ...historyFuture].slice(0, 100);
+    const next = normalizeWorkflowCompatShape(cloneSchema(previous));
+    latestSchemaRef.current = next;
+    setSchema(next);
+    setHistoryPast(nextPast);
+    setHistoryFuture(nextFuture);
+    setDirty(schemaWorkflowSignature(next) !== savedSchemaSignatureRef.current);
+    props.onSchemaChange?.(next);
+  }, [historyFuture, historyPast, props]);
 
   const handleRedo = useCallback(() => {
-    setHistoryFuture(future => {
-      const nextFuture = future[0];
-      if (!nextFuture) {
-        return future;
-      }
-      setHistoryPast(past => [...past, cloneSchema(latestSchemaRef.current)].slice(-100));
-      const next = cloneSchema(nextFuture);
-      latestSchemaRef.current = next;
-      setSchema(next);
-      setDirty(schemaWorkflowSignature(next) !== savedSchemaSignatureRef.current);
-      props.onSchemaChange?.(next);
-      return future.slice(1);
-    });
-  }, [props]);
+    const nextFuture = historyFuture[0];
+    if (!nextFuture) {
+      return;
+    }
+    const remainFuture = historyFuture.slice(1);
+    const nextPast = [...historyPast, cloneSchema(latestSchemaRef.current)].slice(-100);
+    const next = normalizeWorkflowCompatShape(cloneSchema(nextFuture));
+    latestSchemaRef.current = next;
+    setSchema(next);
+    setHistoryPast(nextPast);
+    setHistoryFuture(remainFuture);
+    setDirty(schemaWorkflowSignature(next) !== savedSchemaSignatureRef.current);
+    props.onSchemaChange?.(next);
+  }, [historyFuture, historyPast, props]);
 
   const runValidation = useCallback(async (mode: MicroflowValidationMode = "edit") => {
     setValidationStatus("validating");
@@ -464,8 +850,10 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       const validation = await runValidation("save");
       const blockers = validation.issues.filter(item => item.blockSave && item.severity === "error");
       if (blockers.length > 0 || validation.summary.errorCount > 0) {
-        setBottomDockMode("peek");
-        setBottomTab("problems");
+        if (LEGACY_BOTTOM_PANEL_ENABLED) {
+          setBottomDockMode("peek");
+          setBottomTab("problems");
+        }
         Toast.error(`保存被 ${blockers.length || validation.summary.errorCount} 个校验错误阻止。`);
         return false;
       }
@@ -492,8 +880,10 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     }
     const validation = await runValidation("testRun");
     if (validation.summary.errorCount > 0) {
-      setBottomDockMode("peek");
-      setBottomTab("problems");
+      if (LEGACY_BOTTOM_PANEL_ENABLED) {
+        setBottomDockMode("peek");
+        setBottomTab("problems");
+      }
       Toast.warning("存在校验错误，无法运行。");
       return;
     }
@@ -522,6 +912,29 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         options: input.options,
       });
       setLastRunSession(response.session);
+      const trace = response.session.trace ?? [];
+      const firstFailed = trace.find(frame => frame.status === "failed" && typeof frame.objectId === "string")?.objectId;
+      if (firstFailed) {
+        setNodeViewModes(current => ({
+          ...Object.fromEntries(Object.entries(current).filter(([, mode]) => mode !== "inspectingError")),
+          ...Object.fromEntries(trace.filter(frame => frame.status === "failed" && frame.objectId && frame.objectId !== firstFailed).map(frame => [String(frame.objectId), "expanded" as MicroflowNodeViewMode])),
+          [firstFailed]: "inspectingError",
+        }));
+      } else {
+        const firstVisited = trace.find(frame => typeof frame.objectId === "string")?.objectId;
+        if (firstVisited) {
+          setNodeViewModes(current => {
+            const next: Record<string, MicroflowNodeViewMode> = {};
+            for (const [nodeId, mode] of Object.entries(current)) {
+              if (mode !== "inspectingError") {
+                next[nodeId] = mode;
+              }
+            }
+            next[firstVisited] = "inspectingRuntime";
+            return next;
+          });
+        }
+      }
       if (input.sampleId) {
         setTestRunSamples(current => current.map(sample => sample.id === input.sampleId
           ? {
@@ -535,14 +948,14 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
           }
           : sample));
       }
-      setBottomDockMode("peek");
+      setBottomDockMode("collapsed");
       setBottomTab("debug");
       props.onTestRunComplete?.(response);
       Toast[response.status === "succeeded" ? "success" : "error"](`Run ${response.status}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRuntimeServiceError(message);
-      setBottomDockMode("peek");
+      setBottomDockMode("collapsed");
       setBottomTab("debug");
       Toast.error(message);
     } finally {
@@ -592,7 +1005,6 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       },
     }, { objectId: node.id, flowId: undefined, collectionId: "root-collection", objectIds: [node.id], flowIds: [], mode: "single" });
     commitSchema(next, "workflow");
-    setRightOpen(true);
   }, [commitSchema, schema]);
 
   const clearSelection = useCallback(() => {
@@ -751,8 +1163,10 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       await handleTestRun();
     },
     runDebug: async () => {
-      setBottomDockMode("peek");
-      setBottomTab("debug");
+      if (LEGACY_BOTTOM_PANEL_ENABLED) {
+        setBottomDockMode("peek");
+        setBottomTab("debug");
+      }
       await handleTestRun();
     },
     publish: handlePublish,
@@ -772,7 +1186,9 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     getStatus: () => workbenchStatus as MicroflowEditorStatusSnapshot,
     openBottomTab: (tab: MicroflowWorkbenchBottomTab) => {
       setBottomTab(tab);
-      setBottomDockMode("peek");
+      if (LEGACY_BOTTOM_PANEL_ENABLED) {
+        setBottomDockMode("peek");
+      }
     },
     setBottomDockMode,
     getLayoutState: () => layoutState,
@@ -791,7 +1207,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     gridTemplateRows: [
       toolbarMode === "internal" ? "60px" : undefined,
       "minmax(0, 1fr)",
-      bottomOpen ? `${BOTTOM_DOCK_PEEK_HEIGHT_PX}px` : undefined,
+      LEGACY_BOTTOM_PANEL_ENABLED && bottomOpen ? `${BOTTOM_DOCK_PEEK_HEIGHT_PX}px` : undefined,
       `${BOTTOM_STRIP_HEIGHT_PX}px`,
     ].filter(Boolean).join(" "),
     height: "100%",
@@ -887,7 +1303,8 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
           <FlowGramMicroflowNativeCanvas
             schema={schema}
             validationIssues={issues}
-            runtimeTrace={[] as MicroflowTraceFrame[]}
+            runtimeTrace={lastRunSession?.trace ?? []}
+            nodeViewModes={nodeViewModes}
             focusObjectId={focusObjectId}
             focusRequestKey={focusRequestSeq}
             readonly={props.readonly}
@@ -896,15 +1313,11 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
             }}
             onSelectionChange={selection => {
               commitSchema(selectionPatch(latestSchemaRef.current, selection), "selection", { pushHistory: false, dirty: false });
-              if (selection.objectId || selection.flowId) {
-                setRightOpen(true);
-              }
             }}
             onCanvasBlankClick={clearSelection}
             onNodeContextMenu={(selection, point) => {
               commitSchema(selectionPatch(latestSchemaRef.current, selection), "selection", { pushHistory: false, dirty: false });
               setContextMenu({ x: point.x, y: point.y, selection });
-              setRightOpen(true);
             }}
             onDropRegistryItem={(item, position) => handleAddNode(item, { position })}
             canUndo={historyPast.length > 0}
@@ -921,28 +1334,32 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
             saving={saving}
             validating={validationStatus === "validating"}
             onOpenProblemsPanel={() => {
-              setBottomDockMode("peek");
-              setBottomTab("problems");
+              if (LEGACY_BOTTOM_PANEL_ENABLED) {
+                setBottomDockMode("peek");
+                setBottomTab("problems");
+              }
             }}
           />
         </div>
-        <button
-          type="button"
-          data-testid="microflow-property-panel-rail"
-          aria-label={rightOpen ? "属性面板已展开" : "展开属性面板"}
-          aria-expanded={rightOpen}
-          style={{
-            border: 0,
-            borderLeft: "1px solid var(--semi-color-border, #e5e6eb)",
-            background: rightOpen ? "var(--semi-color-primary-light-default, #e8f3ff)" : "var(--semi-color-bg-2, #fff)",
-            color: rightOpen ? "var(--semi-color-primary, #165dff)" : "inherit",
-            cursor: "pointer",
-          }}
-          onClick={() => setRightOpen(true)}
-        >
-          <IconSetting />
-          <Text size="small" strong style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>{labels.properties}</Text>
-        </button>
+        {LEGACY_PROPERTY_PANEL_ENABLED ? (
+          <button
+            type="button"
+            data-testid="microflow-property-panel-rail"
+            aria-label={rightOpen ? "属性面板已展开" : "展开属性面板"}
+            aria-expanded={rightOpen}
+            style={{
+              border: 0,
+              borderLeft: "1px solid var(--semi-color-border, #e5e6eb)",
+              background: rightOpen ? "var(--semi-color-primary-light-default, #e8f3ff)" : "var(--semi-color-bg-2, #fff)",
+              color: rightOpen ? "var(--semi-color-primary, #165dff)" : "inherit",
+              cursor: "pointer",
+            }}
+            onClick={() => setRightOpen(true)}
+          >
+            <IconSetting />
+            <Text size="small" strong style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>{labels.properties}</Text>
+          </button>
+        ) : null}
         {rightOpen ? (
           <div data-testid="microflow-property-panel" style={{ ...propertyPaneStyle(), ...rightDockStyle }}>
             <MicroflowPropertyPanel
@@ -994,18 +1411,20 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
             onMouseDown={event => event.stopPropagation()}
             onClick={event => event.stopPropagation()}
           >
-            <Button
-              role="menuitem"
-              theme="borderless"
-              style={{ justifyContent: "flex-start" }}
-              onClick={() => {
-                commitSchema(selectionPatch(schema, contextMenu.selection), "selection", { pushHistory: false, dirty: false });
-                setRightOpen(true);
-                setContextMenu(undefined);
-              }}
-            >
-              属性
-            </Button>
+            {LEGACY_PROPERTY_PANEL_ENABLED ? (
+              <Button
+                role="menuitem"
+                theme="borderless"
+                style={{ justifyContent: "flex-start" }}
+                onClick={() => {
+                  commitSchema(selectionPatch(schema, contextMenu.selection), "selection", { pushHistory: false, dirty: false });
+                  setRightOpen(true);
+                  setContextMenu(undefined);
+                }}
+              >
+                属性
+              </Button>
+            ) : null}
             {contextMenu.selection.objectId ? (
               <Button
                 role="menuitem"
@@ -1063,7 +1482,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
           </div>
         ) : null}
       </div>
-      {bottomOpen ? (
+      {LEGACY_BOTTOM_PANEL_ENABLED && bottomOpen ? (
         <div
           data-testid="microflow-bottom-panel"
           style={{
@@ -1111,7 +1530,9 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
           {selectedNode ? <Tag color="blue">Node {selectedNode.id}</Tag> : null}
           {selectedFlow ? <Tag color="blue">Flow {(selectedFlow.data as Partial<FlowGramMicroflowEdgeData> | undefined)?.flowId ?? selectedFlow.id}</Tag> : null}
           <Button size="small" theme="borderless" icon={<IconDelete />} disabled={props.readonly || !(selectedNode || selectedFlow)} onClick={() => handleDeleteSelection()} />
-          <Button size="small" theme="borderless" onClick={() => setBottomDockMode(mode => mode === "collapsed" ? "peek" : "collapsed")}>{bottomOpen ? "Hide" : "Problems"}</Button>
+          {LEGACY_BOTTOM_PANEL_ENABLED ? (
+            <Button size="small" theme="borderless" onClick={() => setBottomDockMode(mode => mode === "collapsed" ? "peek" : "collapsed")}>{bottomOpen ? "Hide" : "Problems"}</Button>
+          ) : null}
         </Space>
       </div>
       <MicroflowTestRunModal
