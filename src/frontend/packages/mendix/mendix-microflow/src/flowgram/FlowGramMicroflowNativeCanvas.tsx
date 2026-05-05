@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 
 import { Toast } from "@douyinfe/semi-ui";
 import {
@@ -11,6 +11,8 @@ import {
   type WorkflowLineEntity,
   WorkflowLinesManager,
   WorkflowSelectService,
+  SelectorBoxConfigEntity,
+  useEntity,
   usePlayground,
   useService,
 } from "@flowgram-adapter/free-layout-editor";
@@ -54,6 +56,18 @@ import "./styles/flowgram-microflow-line.css";
 
 const MICROFLOW_GRID_SIZE = 16;
 
+const FLOWGRAM_PAN_EXEMPT_SELECTOR =
+  ".microflow-flowgram-node, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
+
+function isFlowgramPanExemptTarget(target: HTMLElement | undefined): boolean {
+  return Boolean(target?.closest(FLOWGRAM_PAN_EXEMPT_SELECTOR));
+}
+
+type FlowGramPlaygroundViewportConfig = {
+  zoom?: number | ((zoom: number) => void);
+  updateConfig?: (config: { zoom?: number; scrollX?: number; scrollY?: number }) => void;
+};
+
 export interface FlowGramMicroflowNativeCanvasProps {
   schema: MicroflowDesignSchema;
   validationIssues: MicroflowValidationIssue[];
@@ -83,6 +97,9 @@ export interface FlowGramMicroflowNativeCanvasProps {
   saving?: boolean;
   validating?: boolean;
   onOpenProblemsPanel?: () => void;
+  /** Controlled pan tool: when `canvasPanToolActive` is set, it wins over internal state. */
+  canvasPanToolActive?: boolean;
+  onCanvasPanToolChange?: (active: boolean) => void;
 }
 
 type DisposableLineSnapshot = {
@@ -443,6 +460,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const dragService = useService<WorkflowDragService>(WorkflowDragService);
   const linesManager = useService<WorkflowLinesManager>(WorkflowLinesManager);
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
+  const selectorBoxConfig = useEntity<SelectorBoxConfigEntity>(SelectorBoxConfigEntity);
   const containerRef = useRef<HTMLDivElement>(null);
   const propsRef = useRef(props);
   const latestSchemaRef = useRef(props.schema);
@@ -451,8 +469,36 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const lastWorkflowSignatureRef = useRef<string>();
   const initialViewportFitDoneRef = useRef(false);
   const [dropActive, setDropActive] = useState(false);
+  const [internalPanToolActive, setInternalPanToolActive] = useState(false);
+  const panToolControlled = props.canvasPanToolActive !== undefined;
+  const panToolActive = panToolControlled ? Boolean(props.canvasPanToolActive) : internalPanToolActive;
+  const togglePanTool = () => {
+    const next = !panToolActive;
+    if (panToolControlled) {
+      props.onCanvasPanToolChange?.(next);
+    } else {
+      setInternalPanToolActive(next);
+    }
+  };
+  const [spacePressed, setSpacePressed] = useState(false);
+  const [isViewportPanGrabbing, setIsViewportPanGrabbing] = useState(false);
+  const panToolActiveRef = useRef(false);
+  const spacePressedRef = useRef(false);
+  const viewportPanPointerIdRef = useRef<number | null>(null);
+  const viewportPanOriginRef = useRef<{
+    clientX: number;
+    clientY: number;
+    viewportX: number;
+    viewportY: number;
+    zoom: number;
+  } | null>(null);
+  const viewportPanMovedRef = useRef(false);
+  const userViewportPanningRef = useRef(false);
+  const lastSyncedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   propsRef.current = props;
   latestSchemaRef.current = props.schema;
+  panToolActiveRef.current = panToolActive;
+  spacePressedRef.current = spacePressed;
 
   const renderedWorkflow = useMemo(
     () => decorateWorkflow({
@@ -465,6 +511,13 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   );
   const gridEnabled = props.schema.editor.gridEnabled !== false;
   const miniMapVisible = props.schema.editor.showMiniMap === true;
+
+  useLayoutEffect(() => {
+    selectorBoxConfig.disabled = panToolActive || spacePressed;
+    return () => {
+      selectorBoxConfig.disabled = false;
+    };
+  }, [panToolActive, selectorBoxConfig, spacePressed]);
 
   const commitWorkflow = (workflow: WorkflowJSON, reason: string, options: { snapToGrid?: boolean } = {}) => {
     const nextWorkflow = stripTransientNodeData(normalizeWorkflow(workflow, options));
@@ -513,6 +566,17 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     return Boolean(line);
   };
 
+  const pushViewportToPlaygroundConfig = useCallback((viewport: MicroflowDesignSchema["editor"]["viewport"], options?: { force?: boolean }) => {
+    const v = viewport ?? { x: 0, y: 0, zoom: 1 };
+    const last = lastSyncedViewportRef.current;
+    if (!options?.force && last && last.x === v.x && last.y === v.y && last.zoom === v.zoom) {
+      return;
+    }
+    lastSyncedViewportRef.current = { x: v.x, y: v.y, zoom: v.zoom };
+    const config = playground.config as unknown as FlowGramPlaygroundViewportConfig;
+    config.updateConfig?.({ scrollX: v.x, scrollY: v.y, zoom: v.zoom });
+  }, [playground]);
+
   useEffect(() => {
     const config = playground.config as typeof playground.config & { readonly?: boolean };
     const previous = config.readonly;
@@ -532,8 +596,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     void Promise.resolve(doc.fromJSON(cloneWorkflow(renderedWorkflow))).finally(() => {
       lastWorkflowSignatureRef.current = nextSignature;
       reloadingRef.current = false;
+      pushViewportToPlaygroundConfig(latestSchemaRef.current.editor.viewport, { force: true });
     });
-  }, [doc, renderedWorkflow]);
+  }, [doc, renderedWorkflow, pushViewportToPlaygroundConfig]);
 
   useEffect(() => {
     const disposable = dragService.onNodesDrag(event => {
@@ -587,6 +652,47 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     });
     return () => disposable.dispose();
   }, [selectService]);
+
+  useEffect(() => {
+    if (userViewportPanningRef.current) {
+      return;
+    }
+    const v = props.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+    pushViewportToPlaygroundConfig(v);
+  }, [props.schema.editor.viewport?.x, props.schema.editor.viewport?.y, props.schema.editor.viewport?.zoom, pushViewportToPlaygroundConfig]);
+
+  useEffect(() => {
+    const typingSelector =
+      "input, textarea, select, [contenteditable='true'], .semi-input-wrapper, .semi-textarea-wrapper, .cm-content, .cm-editor";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== "Space" && e.key !== " ") {
+        return;
+      }
+      const t = e.target;
+      if (t instanceof Element && t.closest(typingSelector)) {
+        return;
+      }
+      e.preventDefault();
+      setSpacePressed(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== "Space" && e.key !== " ") {
+        return;
+      }
+      setSpacePressed(false);
+    };
+    const onWindowBlur = () => {
+      setSpacePressed(false);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("blur", onWindowBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("blur", onWindowBlur);
+    };
+  }, []);
 
   const dropPointFromClient = (clientX: number, clientY: number, nativeEvent?: globalThis.MouseEvent): MicroflowPoint => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -651,6 +757,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   };
 
   const handlePointerFallbackDrop = (event: MouseEvent<HTMLDivElement>) => {
+    if (viewportPanPointerIdRef.current !== null) {
+      return;
+    }
     if (props.readonly) {
       return;
     }
@@ -702,6 +811,13 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   };
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.button === 1) {
+      const target = event.target instanceof HTMLElement ? event.target : undefined;
+      if (!isFlowgramPanExemptTarget(target)) {
+        event.preventDefault();
+      }
+      return;
+    }
     if (event.button !== 2) {
       return;
     }
@@ -720,16 +836,98 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     }
   };
 
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    const target = event.target instanceof HTMLElement ? event.target : undefined;
-    if (
-      target?.closest(
-        ".microflow-flowgram-node, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal",
-      )
-    ) {
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (viewportPanPointerIdRef.current !== event.pointerId || !viewportPanOriginRef.current) {
       return;
     }
-    props.onCanvasBlankClick?.();
+    event.preventDefault();
+    const orig = viewportPanOriginRef.current;
+    const dx = event.clientX - orig.clientX;
+    const dy = event.clientY - orig.clientY;
+    if (Math.abs(dx) + Math.abs(dy) > 2) {
+      viewportPanMovedRef.current = true;
+    }
+    const next = {
+      x: orig.viewportX - dx,
+      y: orig.viewportY - dy,
+      zoom: orig.zoom,
+    };
+    propsRef.current.onViewportChange?.(next);
+    const config = playground.config as unknown as FlowGramPlaygroundViewportConfig;
+    config.updateConfig?.({ scrollX: next.x, scrollY: next.y, zoom: next.zoom });
+    lastSyncedViewportRef.current = { x: next.x, y: next.y, zoom: next.zoom };
+  };
+
+  const endViewportPointerPan = (event: PointerEvent<HTMLDivElement>) => {
+    if (viewportPanPointerIdRef.current !== event.pointerId) {
+      return;
+    }
+    const moved = viewportPanMovedRef.current;
+    viewportPanPointerIdRef.current = null;
+    viewportPanOriginRef.current = null;
+    userViewportPanningRef.current = false;
+    setIsViewportPanGrabbing(false);
+    selectorBoxConfig.disabled = panToolActiveRef.current || spacePressedRef.current;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // Ignore — capture may already be released.
+    }
+    if (!moved) {
+      const target = event.target instanceof HTMLElement ? event.target : undefined;
+      if (!isFlowgramPanExemptTarget(target)) {
+        propsRef.current.onCanvasBlankClick?.();
+      }
+    }
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const exempt = isFlowgramPanExemptTarget(target);
+    const shouldPan =
+      !exempt
+      && (event.button === 1 || (event.button === 0 && (panToolActiveRef.current || spacePressedRef.current)));
+    if (shouldPan) {
+      selectorBoxConfig.disabled = true;
+      event.preventDefault();
+      event.stopPropagation();
+      const ne = event.nativeEvent;
+      if (typeof ne.stopImmediatePropagation === "function") {
+        ne.stopImmediatePropagation();
+      }
+      viewportPanMovedRef.current = false;
+      viewportPanPointerIdRef.current = event.pointerId;
+      userViewportPanningRef.current = true;
+      setIsViewportPanGrabbing(true);
+      const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+      viewportPanOriginRef.current = {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        viewportX: v.x,
+        viewportY: v.y,
+        zoom: v.zoom,
+      };
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Capture not supported or target detached.
+      }
+      return;
+    }
+    if (exempt) {
+      return;
+    }
+    propsRef.current.onCanvasBlankClick?.();
+  };
+
+  const handleLostPointerCapture = (event: PointerEvent<HTMLDivElement>) => {
+    if (viewportPanPointerIdRef.current === event.pointerId) {
+      viewportPanPointerIdRef.current = null;
+      viewportPanOriginRef.current = null;
+      userViewportPanningRef.current = false;
+      setIsViewportPanGrabbing(false);
+      selectorBoxConfig.disabled = panToolActiveRef.current || spacePressedRef.current;
+    }
   };
 
   const focusNode = (objectId: string) => {
@@ -770,7 +968,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   return (
     <div
       ref={containerRef}
-      className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}${gridEnabled ? "" : " is-grid-hidden"}`}
+      className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}${gridEnabled ? "" : " is-grid-hidden"}${panToolActive || spacePressed ? " is-pan-cursor" : ""}${isViewportPanGrabbing ? " is-pan-grabbing" : ""}`}
       onDragEnterCapture={event => {
         if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {
           return;
@@ -785,10 +983,19 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         }
       }}
       onDropCapture={handleDrop}
+      onAuxClick={event => {
+        if (event.button === 1) {
+          event.preventDefault();
+        }
+      }}
       onMouseDownCapture={handleMouseDown}
       onMouseUpCapture={handlePointerFallbackDrop}
       onContextMenuCapture={handleContextMenu}
       onPointerDownCapture={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUpCapture={endViewportPointerPan}
+      onPointerCancelCapture={endViewportPointerPan}
+      onLostPointerCapture={handleLostPointerCapture}
     >
       <PlaygroundReactRenderer />
       <div className="microflow-flowgram-canvas-controls">
@@ -814,6 +1021,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
           onToggleGrid={() => props.onToggleGrid?.(!gridEnabled)}
           miniMapVisible={miniMapVisible}
           onToggleMiniMap={() => props.onToggleMiniMap?.(!miniMapVisible)}
+          panToolActive={panToolActive}
+          onTogglePanTool={togglePanTool}
         />
       </div>
       {miniMapVisible ? <FlowGramMicroflowNativeMiniMap schema={props.schema} onFocusNode={focusNode} /> : null}

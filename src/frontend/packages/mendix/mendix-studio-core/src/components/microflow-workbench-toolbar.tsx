@@ -5,6 +5,7 @@ import {
   IconCheckCircleStroked,
   IconClock,
   IconFullScreenStroked,
+  IconHandle,
   IconPlay,
   IconRedo,
   IconRefresh,
@@ -55,6 +56,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
   const canUndo = status?.canUndo ?? false;
   const canRedo = status?.canRedo ?? false;
   const fullscreen = status?.fullscreen ?? false;
+  const canvasPanToolActive = status?.canvasPanToolActive === true;
   const degradedRunSession = "degradedRunSession" in (status ?? {}) ? Boolean((status as MicroflowWorkbenchStatus).degradedRunSession) : false;
   const sessionHydrated = "sessionHydrated" in (status ?? {}) ? Boolean((status as MicroflowWorkbenchStatus).sessionHydrated) : false;
 
@@ -227,6 +229,21 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
         </Tooltip>
         <Tooltip content="重做 (Ctrl+Y)">
           <Button data-testid="microflow-workbench-redo" size="small" theme="borderless" icon={<IconRedo />} disabled={disabled || !canRedo} onClick={() => runCommand("microflow.redo")} />
+        </Tooltip>
+        <Tooltip content="平移画布：开启后在空白处拖移；也可按住空格或鼠标中键拖移。">
+          <Button
+            data-testid="microflow-workbench-pan-canvas"
+            size="small"
+            theme={canvasPanToolActive ? "solid" : "borderless"}
+            icon={<IconHandle />}
+            disabled={disabled}
+            aria-label="平移画布"
+            aria-pressed={canvasPanToolActive}
+            onClick={() => {
+              editorRef.current?.togglePanTool?.();
+              refreshStatus();
+            }}
+          />
         </Tooltip>
       </Space>
 

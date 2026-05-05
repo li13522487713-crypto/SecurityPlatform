@@ -694,12 +694,13 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   const [testRunSamples, setTestRunSamples] = useState<MicroflowTestRunSample[]>(() => readStoredTestRunSamples()[props.schema.id] ?? []);
   const [lastRunSession, setLastRunSession] = useState<MicroflowRunSession>();
   const [runtimeServiceError, setRuntimeServiceError] = useState<string>();
-  const [leftOpen, setLeftOpen] = useState(true);
+  const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [bottomDockMode, setBottomDockMode] = useState<BottomDockMode>("collapsed");
   const [bottomTab, setBottomTab] = useState<MicroflowWorkbenchBottomTab>("problems");
   const [focusObjectId, setFocusObjectId] = useState<string>();
   const [focusRequestSeq, setFocusRequestSeq] = useState(0);
+  const [canvasPanToolActive, setCanvasPanToolActive] = useState(false);
   const [contextMenu, setContextMenu] = useState<NativeContextMenuState>();
   const [nodeViewModes, setNodeViewModes] = useState<Record<string, MicroflowNodeViewMode>>({});
   const [historyPast, setHistoryPast] = useState<MicroflowDesignSchema[]>([]);
@@ -1300,8 +1301,9 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     traceHydrated: false,
     debugSessionHydrated: false,
     degradedRunSession: false,
+    canvasPanToolActive,
     layout: layoutState,
-  }), [bottomDockMode, bottomTab, dirty, historyFuture.length, historyPast.length, issues, layoutState, running, saving, schema.editor.viewport?.zoom, schema.id, schema.schemaVersion, validationStatus]);
+  }), [bottomDockMode, bottomTab, canvasPanToolActive, dirty, historyFuture.length, historyPast.length, issues, layoutState, running, saving, schema.editor.viewport?.zoom, schema.id, schema.schemaVersion, validationStatus]);
 
   useEffect(() => {
     props.onLayoutStateChange?.(layoutState);
@@ -1361,6 +1363,9 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     toggleMinimap: () => {
       commitSchema({ ...schema, editor: { ...schema.editor, showMiniMap: !schema.editor.showMiniMap } }, "layout");
     },
+    togglePanTool: () => {
+      setCanvasPanToolActive(value => !value);
+    },
     resetLayout: () => undefined,
     getStatus: () => workbenchStatus as MicroflowEditorStatusSnapshot,
     openBottomTab: (tab: MicroflowWorkbenchBottomTab) => {
@@ -1379,7 +1384,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       const saved = await handleSave();
       Toast[saved ? "success" : "warning"](saved ? "已配置并保存全节点验收计算图，期望输出 120。" : "已配置全节点验收计算图，但保存未完成，请查看 Problems。");
     },
-  }), [commitSchema, handleAutoLayout, handlePublish, handleRedo, handleSave, handleTestRun, handleUndo, layoutState, runValidation, schema, workbenchStatus]);
+  }), [canvasPanToolActive, commitSchema, handleAutoLayout, handlePublish, handleRedo, handleSave, handleTestRun, handleUndo, layoutState, runValidation, schema, workbenchStatus]);
 
   const shellStyle: CSSProperties = {
     display: "grid",
@@ -1521,6 +1526,8 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
                 setBottomTab("problems");
               }
             }}
+            canvasPanToolActive={canvasPanToolActive}
+            onCanvasPanToolChange={setCanvasPanToolActive}
           />
         </div>
         {LEGACY_PROPERTY_PANEL_ENABLED ? (

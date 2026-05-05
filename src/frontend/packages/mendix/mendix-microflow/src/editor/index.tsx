@@ -344,6 +344,8 @@ export interface MicroflowEditorHandle {
   zoomIn: () => void;
   zoomOut: () => void;
   setZoom: (zoom: number) => void;
+  /** Toggle “pan / hand” mode on the native FlowGram canvas (Mendix Studio). No-op on legacy canvas. */
+  togglePanTool: () => void;
   toggleFullscreen: () => void;
   toggleFocusMode: () => void;
   toggleMinimap: () => void;
@@ -368,6 +370,8 @@ export interface MicroflowEditorStatusSnapshot {
   canUndo: boolean;
   canRedo: boolean;
   zoomPercent: number;
+  /** Native canvas pan tool; false when not supported or off. */
+  canvasPanToolActive: boolean;
   hasRunSession: boolean;
   fullscreen: boolean;
   activeBottomTab: MicroflowWorkbenchBottomTab;
@@ -3040,6 +3044,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       traceHydrated: currentRunSession?.hasHydratedTrace ?? false,
       debugSessionHydrated: Boolean(activeDebugSession?.lastUpdatedAt),
       degradedRunSession: Boolean(currentRunSession && currentRunSession.hasHydratedTrace === false),
+      canvasPanToolActive: false,
       layout: layoutState,
     };
   }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, runSession, running, saving, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, validationStatus]);
@@ -3135,6 +3140,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         { historyLabel: "Toggle minimap", skipValidate: true, preserveSelection: true, source: "flowgram" }
       );
     },
+    togglePanTool: () => undefined,
     resetLayout: resetWorkbenchLayout,
     openBottomTab: (tab: MicroflowWorkbenchBottomTab) => {
       openBottomDock(tab);

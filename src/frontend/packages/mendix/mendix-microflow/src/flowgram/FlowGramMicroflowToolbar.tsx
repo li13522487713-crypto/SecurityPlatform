@@ -1,6 +1,8 @@
-import { Button, Space } from "@douyinfe/semi-ui";
-import { IconMapPin, IconMinus, IconPlus, IconRedo, IconRefresh, IconTreeTriangleDown, IconUndo } from "@douyinfe/semi-icons";
+import { Button, Space, Tooltip } from "@douyinfe/semi-ui";
+import { IconHandle, IconMapPin, IconMinus, IconPlus, IconRedo, IconRefresh, IconTreeTriangleDown, IconUndo } from "@douyinfe/semi-icons";
 import { WorkflowResetLayoutService, usePlayground, useService } from "@flowgram-adapter/free-layout-editor";
+
+import { getMendixMicroflowCopy } from "../i18n/copy";
 
 interface MicroflowToolbarViewport {
   x: number;
@@ -10,7 +12,7 @@ interface MicroflowToolbarViewport {
 
 interface FlowGramZoomConfig {
   zoom?: number | ((zoom: number) => void);
-  updateConfig?: (config: { zoom?: number }) => void;
+  updateConfig?: (config: { zoom?: number; scrollX?: number; scrollY?: number }) => void;
 }
 
 export interface FlowGramMicroflowToolbarProps {
@@ -28,10 +30,14 @@ export interface FlowGramMicroflowToolbarProps {
   onToggleGrid: () => void;
   miniMapVisible: boolean;
   onToggleMiniMap: () => void;
+  /** When set, shows the pan-tool toggle wired to Mendix Studio native canvas. */
+  panToolActive?: boolean;
+  onTogglePanTool?: () => void;
 }
 
 export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
   const playground = usePlayground();
+  const copy = getMendixMicroflowCopy();
   const resetLayout = useService<WorkflowResetLayoutService>(WorkflowResetLayoutService);
   const fitView = () => {
     const service = resetLayout as WorkflowResetLayoutService & { fitView?: () => void };
@@ -44,13 +50,29 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
     if (typeof config.zoom === "function") {
       config.zoom(normalizedZoom);
     }
-    config.updateConfig?.({ zoom: normalizedZoom });
+    config.updateConfig?.({
+      zoom: normalizedZoom,
+      scrollX: props.viewport.x,
+      scrollY: props.viewport.y,
+    });
     props.onViewportChange({ ...props.viewport, zoom: normalizedZoom });
   };
 
   return (
     <div className="microflow-flowgram-toolbar">
       <Space>
+        {props.onTogglePanTool ? (
+          <Tooltip content={copy.canvasToolbar.panToolTooltip}>
+            <Button
+              icon={<IconHandle />}
+              size="small"
+              theme={props.panToolActive ? "solid" : "light"}
+              aria-label={copy.canvasToolbar.panTool}
+              aria-pressed={props.panToolActive === true}
+              onClick={props.onTogglePanTool}
+            />
+          </Tooltip>
+        ) : null}
         <Button icon={<IconPlus />} size="small" onClick={() => { playground.config.zoomin(); setZoom(props.viewport.zoom * 1.1); }} />
         <Button icon={<IconMinus />} size="small" onClick={() => { playground.config.zoomout(); setZoom(props.viewport.zoom / 1.1); }} />
         <Button size="small" onClick={() => setZoom(1)}>100%</Button>

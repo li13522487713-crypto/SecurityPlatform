@@ -1,6 +1,11 @@
 export type MendixMicroflowLocale = "zh-CN" | "en-US";
 
 export interface MendixMicroflowCopy {
+  readonly canvasToolbar: {
+    /** Short label for the pan / hand tool toggle (tooltip carries shortcuts). */
+    readonly panTool: string;
+    readonly panToolTooltip: string;
+  };
   readonly testRun: {
     readonly title: string;
     readonly dirtyTag: string;
@@ -46,6 +51,10 @@ export interface MendixMicroflowCopy {
 }
 
 const zhCN: MendixMicroflowCopy = {
+  canvasToolbar: {
+    panTool: "平移",
+    panToolTooltip: "拖动画布（空白处按住拖动）。按住空格拖动或鼠标中键拖动也可平移。",
+  },
   testRun: {
     title: "运行微流",
     dirtyTag: "未保存 - Save & Run",
@@ -92,6 +101,10 @@ const zhCN: MendixMicroflowCopy = {
 };
 
 const enUS: MendixMicroflowCopy = {
+  canvasToolbar: {
+    panTool: "Pan",
+    panToolTooltip: "Drag the canvas on empty space. Hold Space and drag, or drag with the middle mouse button.",
+  },
   testRun: {
     title: "Run Microflow",
     dirtyTag: "dirty - Save & Run",
