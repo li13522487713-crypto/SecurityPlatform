@@ -44,6 +44,41 @@
   align-items: center;
 }
 
+.microflow-branch-label {
+  border: 1px solid rgba(31, 35, 41, 0.18);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0 8px;
+  line-height: 20px;
+  height: 22px;
+  font-size: 12px;
+  color: #1f2329;
+}
+
+.microflow-branch-label.is-editing {
+  border-color: #165dff;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.14);
+}
+
+.microflow-branch-label.is-runtime-active {
+  border-color: #00a870;
+  color: #006b49;
+}
+
+.microflow-branch-label.is-runtime-skipped {
+  opacity: 0.5;
+}
+
+.microflow-branch-label__warning-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: #f59e0b;
+  vertical-align: middle;
+}
+
 .microflow-flowgram-line__delete-btn {
   position: absolute;
   top: 50%;

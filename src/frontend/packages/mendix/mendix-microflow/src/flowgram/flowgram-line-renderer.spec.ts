@@ -1,4 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@douyinfe/semi-ui", () => ({
+  Input: () => null,
+}));
+
+vi.mock("@flowgram-adapter/free-layout-editor", () => ({
+  usePlaygroundReadonlyState: () => false,
+}));
 
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
 import { lineClassNameFromEdgeData, lineLabelFromEdgeData } from "./FlowGramMicroflowLineRenderer";
@@ -24,7 +32,7 @@ describe("FlowGramMicroflowLineRenderer helpers", () => {
     expect(lineLabelFromEdgeData(edgeData({
       edgeKind: "decisionCondition",
       caseValues: [{ kind: "fallback", officialType: "Microflows$NoCase" }],
-    }))).toBe("default");
+    }))).toBe("else");
   });
 
   it("adds semantic class names for validation and runtime state", () => {

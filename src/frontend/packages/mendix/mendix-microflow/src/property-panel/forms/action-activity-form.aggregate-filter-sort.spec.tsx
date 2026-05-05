@@ -67,7 +67,10 @@ describe("ActionActivityForm aggregate/filter/sort", () => {
     const onPatch = vi.fn();
     render(<ActionActivityForm schema={schema()} object={aggregateObject()} issues={[]} onPatch={onPatch} />);
 
-    fireEvent.change(screen.getByDisplayValue("count"), { target: { value: "sum" } });
+    const aggregateFunctionSelect = screen.getAllByDisplayValue("count")
+      .find(element => element.tagName === "SELECT");
+    expect(aggregateFunctionSelect).toBeTruthy();
+    fireEvent.change(aggregateFunctionSelect!, { target: { value: "sum" } });
 
     expect(onPatch).toHaveBeenCalledWith(expect.objectContaining({
       object: expect.objectContaining({

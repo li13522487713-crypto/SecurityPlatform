@@ -27,12 +27,23 @@ export function deriveCallMicroflowNodeInline(input: DeriveNodeInlineInput): Mic
     ?? [];
   const mappingPathPrefix = action?.parameterMappings ? "data.action.parameterMappings" : "data.action.argumentMappings";
   const returnValue = action?.returnValue ?? { outputVariableName: action?.outputVariableName };
+  const returnMode = String((returnValue as Record<string, unknown> | undefined)?.mode ?? "single");
   const targetName = action?.targetMicroflowDisplayName ?? action?.targetMicroflowName ?? action?.targetMicroflowId ?? action?.calledMicroflowId ?? "未选择";
   return {
     ...base,
     summaryLines: [
       { id: "target", value: `调用微流 ${targetName}`, kind: "text", editable: true, fieldPath: "data.action.targetMicroflowName" },
-      { id: "args", value: `input: ${parameterMappings.map(item => item.parameterName).join(", ") || "-"}`, kind: "input" },
+      {
+        id: "args",
+        value: `input: ${parameterMappings.map(item => item.parameterName).join(", ") || "-"}`,
+        kind: "input",
+        editable: parameterMappings.length > 0,
+        fieldPath: parameterMappings.length > 0
+          ? (action?.parameterMappings
+              ? `${mappingPathPrefix}.0.argumentExpression.raw`
+              : `${mappingPathPrefix}.0.valueExpression.raw`)
+          : undefined,
+      },
       { id: "ret", value: `out: ${(returnValue as { outputVariableName?: string; resultVariableName?: string }).outputVariableName ?? (returnValue as { outputVariableName?: string; resultVariableName?: string }).resultVariableName ?? "-"}`, kind: "output", editable: true, fieldPath: "data.action.returnValue.outputVariableName" },
     ],
     sections: [
@@ -65,14 +76,24 @@ export function deriveCallMicroflowNodeInline(input: DeriveNodeInlineInput): Mic
         id: "outputs",
         title: "返回值",
         kind: "outputs",
-        fields: [{
-          id: "return-var",
-          label: "result",
-          value: (returnValue as { outputVariableName?: string; resultVariableName?: string }).outputVariableName ?? (returnValue as { outputVariableName?: string; resultVariableName?: string }).resultVariableName ?? "",
-          fieldPath: "data.action.returnValue.outputVariableName",
-          editType: "variable",
-          options: variableNameOptions,
-        }],
+        fields: [
+          {
+            id: "return-var",
+            label: "result",
+            value: (returnValue as { outputVariableName?: string; resultVariableName?: string }).outputVariableName ?? (returnValue as { outputVariableName?: string; resultVariableName?: string }).resultVariableName ?? "",
+            fieldPath: "data.action.returnValue.outputVariableName",
+            editType: "variable",
+            options: variableNameOptions,
+          },
+          {
+            id: "return-mode",
+            label: "返回模式",
+            value: returnMode,
+            fieldPath: "data.action.returnValue.mode",
+            editType: "select",
+            options: [{ label: "single", value: "single" }, { label: "object", value: "object" }],
+          },
+        ],
       },
       ...base.sections,
     ],

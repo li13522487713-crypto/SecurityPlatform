@@ -131,20 +131,33 @@ function extractActionOutputs(node: MicroflowWorkflowNodeJSON): string[] {
   const fallbackOutputs = [
     typeof nodeData.outputVariableName === "string" ? nodeData.outputVariableName : "",
     typeof nodeData.resultVariable === "string" ? nodeData.resultVariable : "",
+    typeof nodeData.returnVariableName === "string" ? nodeData.returnVariableName : "",
+    typeof nodeData.resultsVariableName === "string" ? nodeData.resultsVariableName : "",
+    typeof nodeData.fallbackResultVariable === "string" ? nodeData.fallbackResultVariable : "",
     typeof nodeData.errorVariableName === "string" ? nodeData.errorVariableName : "",
     typeof nodeData.customHandlerVariable === "string" ? nodeData.customHandlerVariable : "",
     typeof nodeData.currentIndexVariableName === "string" ? nodeData.currentIndexVariableName : "",
     typeof nodeData.iteratorVariableName === "string" ? nodeData.iteratorVariableName : "",
+    typeof nodeData.statusCodeVariableName === "string" ? nodeData.statusCodeVariableName : "",
+    typeof nodeData.headersVariableName === "string" ? nodeData.headersVariableName : "",
   ].filter(Boolean);
   const action = ((node.data ?? {}) as { action?: MicroflowAction }).action;
   if (!action) {
     return fallbackOutputs;
   }
+  const actionRecord = action as unknown as Record<string, unknown>;
+  const genericOutputs = [
+    typeof actionRecord.outputVariableName === "string" ? actionRecord.outputVariableName : "",
+    typeof actionRecord.outputListVariableName === "string" ? actionRecord.outputListVariableName : "",
+    typeof actionRecord.resultVariableName === "string" ? actionRecord.resultVariableName : "",
+    typeof actionRecord.returnVariableName === "string" ? actionRecord.returnVariableName : "",
+    typeof actionRecord.errorVariableName === "string" ? actionRecord.errorVariableName : "",
+  ].filter(Boolean);
   if (action.kind === "createVariable") {
-    return [...fallbackOutputs, (action as MicroflowCreateVariableAction).variableName].filter(Boolean);
+    return [...fallbackOutputs, ...genericOutputs, (action as MicroflowCreateVariableAction).variableName].filter(Boolean);
   }
   if (action.kind === "changeVariable") {
-    return [...fallbackOutputs, (action as { targetVariableName?: string }).targetVariableName ?? ""].filter(Boolean);
+    return [...fallbackOutputs, ...genericOutputs, (action as { targetVariableName?: string }).targetVariableName ?? ""].filter(Boolean);
   }
   if (action.kind === "restCall" || action.kind === "restOperationCall") {
     const rest = action as MicroflowRestCallAction;
@@ -152,13 +165,13 @@ function extractActionOutputs(node: MicroflowWorkflowNodeJSON): string[] {
       rest.response.handling.kind === "ignore"
         ? ""
         : rest.response.handling.outputVariableName ?? "";
-    return [...fallbackOutputs, output, rest.response.statusCodeVariableName ?? "", rest.response.headersVariableName ?? ""].filter(Boolean);
+    return [...fallbackOutputs, ...genericOutputs, output, rest.response.statusCodeVariableName ?? "", rest.response.headersVariableName ?? ""].filter(Boolean);
   }
   if (action.kind === "callMicroflow") {
     const call = action as MicroflowCallMicroflowAction;
-    return [...fallbackOutputs, call.returnValue.outputVariableName ?? call.returnValue.resultVariableName ?? ""].filter(Boolean);
+    return [...fallbackOutputs, ...genericOutputs, call.returnValue.outputVariableName ?? call.returnValue.resultVariableName ?? ""].filter(Boolean);
   }
-  return fallbackOutputs;
+  return [...fallbackOutputs, ...genericOutputs].filter(Boolean);
 }
 
 function collectReachableUpstreamNodeDepth(schema: MicroflowDesignSchema, nodeId: string): Map<string, number> {
@@ -272,26 +285,29 @@ export function buildNodeInlineVariableOptions(input: {
     }, mode);
   }
   const sourceWeight = (label: string): number => {
-    if (label.startsWith("upstream::")) {
+    if (label.startsWith("upstream-direct::")) {
       return 0;
     }
-    if (label.startsWith("input::")) {
+    if (label.startsWith("upstream-indirect::")) {
       return 1;
     }
-    if (label.startsWith("context::")) {
+    if (label.startsWith("input::")) {
       return 2;
     }
-    if (label.startsWith("loop::")) {
+    if (label.startsWith("context::")) {
       return 3;
     }
-    if (label.startsWith("runtime::")) {
+    if (label.startsWith("loop::")) {
       return 4;
     }
-    if (label.startsWith("system::")) {
+    if (label.startsWith("runtime::")) {
       return 5;
     }
-    if (label.startsWith("error::")) {
+    if (label.startsWith("system::")) {
       return 6;
+    }
+    if (label.startsWith("error::")) {
+      return 7;
     }
     return 9;
   };

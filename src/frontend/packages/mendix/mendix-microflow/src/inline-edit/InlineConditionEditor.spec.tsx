@@ -83,4 +83,12 @@ describe("InlineConditionEditor", () => {
       { name: "$riskScore", source: "context", sourceNode: "riskScore" },
     ]);
   });
+
+  it("commits raw expression directly through onChangeRaw", () => {
+    const onCommit = vi.fn();
+    render(<InlineConditionEditor value="$riskScore >= 80" onCommit={onCommit} />);
+    const props = getBuilderProps();
+    props.onChangeRaw?.("$riskScore in [80,90]");
+    expect(onCommit).toHaveBeenCalledWith("$riskScore in [80,90]");
+  });
 });

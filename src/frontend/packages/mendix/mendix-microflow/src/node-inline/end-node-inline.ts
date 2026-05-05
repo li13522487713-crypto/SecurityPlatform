@@ -22,7 +22,7 @@ export function deriveEndNodeInline(input: DeriveNodeInlineInput): MicroflowNode
     ?? "";
   const summaryLines: MicroflowNodeInlineConfig["summaryLines"] = [
     { id: "end", value: "结束", kind: "text" },
-    { id: "ret", label: "return", value: returnExpression || "void", kind: "output", editable: true, fieldPath: "returnVariableName" },
+    { id: "ret", label: "return", value: returnExpression || "void", kind: "output", editable: true, fieldPath: nodeAction?.returnExpression ? "data.action.returnExpression.raw" : "returnVariableName" },
     ...(base.runtime?.outputPreview ? [{ id: "out", label: "output", value: base.runtime.outputPreview, kind: "runtime" as const }] : []),
   ];
   return {
@@ -38,9 +38,17 @@ export function deriveEndNodeInline(input: DeriveNodeInlineInput): MicroflowNode
             id: "return-expression",
             label: "return",
             value: returnExpression,
-            fieldPath: "returnVariableName",
+            fieldPath: nodeAction?.returnExpression ? "data.action.returnExpression.raw" : "returnVariableName",
             editType: "expression",
             placeholder: "$result",
+            options: expressionOptions,
+          },
+          {
+            id: "return-variable",
+            label: "return variable",
+            value: input.schema.returnVariableName ?? "",
+            fieldPath: "returnVariableName",
+            editType: "variable",
             options: expressionOptions,
           },
           {

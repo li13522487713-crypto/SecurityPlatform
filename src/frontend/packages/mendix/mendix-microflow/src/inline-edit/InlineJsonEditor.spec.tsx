@@ -47,6 +47,6 @@ describe("InlineJsonEditor", () => {
 
     fireEvent.change(screen.getByTestId("picker-select"), { target: { value: "$riskScore" } });
     fireEvent.keyDown(screen.getByTestId("inline-json-textarea"), { key: "Enter", ctrlKey: true });
-    expect(onCommit).toHaveBeenCalledWith('{"incidentId":"$incidentId"} $riskScore');
+    expect(onCommit).toHaveBeenCalledWith('{"incidentId":"$incidentId"} $.riskScore');
   });
 });

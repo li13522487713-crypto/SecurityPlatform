@@ -69,7 +69,53 @@ export function ContextVariablePicker(props: {
   insertionMode?: "replace" | "append" | "jsonPath";
   onChange: (value?: string) => void;
 }) {
-  const options = useMemo(() => props.variables.map(variable => ({
+  const groupWeight = (source?: string): number => {
+    const group = normalizeGroup(source);
+    if (group === "upstream-direct") {
+      return 0;
+    }
+    if (group === "upstream-indirect" || group === "upstream") {
+      return 1;
+    }
+    if (group === "input") {
+      return 2;
+    }
+    if (group === "context") {
+      return 3;
+    }
+    if (group === "loop") {
+      return 4;
+    }
+    if (group === "runtime") {
+      return 5;
+    }
+    if (group === "system") {
+      return 6;
+    }
+    if (group === "error") {
+      return 7;
+    }
+    return 9;
+  };
+  const options = useMemo(() => [...props.variables]
+    .sort((a, b) => {
+      const byGroup = groupWeight(a.source) - groupWeight(b.source);
+      if (byGroup !== 0) {
+        return byGroup;
+      }
+      const aJsonPath = a.name.startsWith("$.") ? 0 : 1;
+      const bJsonPath = b.name.startsWith("$.") ? 0 : 1;
+      if (aJsonPath !== bJsonPath) {
+        return aJsonPath - bJsonPath;
+      }
+      const aRef = typeof a.refCount === "number" ? a.refCount : 0;
+      const bRef = typeof b.refCount === "number" ? b.refCount : 0;
+      if (aRef !== bRef) {
+        return bRef - aRef;
+      }
+      return a.name.localeCompare(b.name);
+    })
+    .map(variable => ({
     label: `[${SOURCE_GROUP_LABEL[normalizeGroup(variable.source)]}] ${variable.name}`,
     value: variable.name,
     searchKeywords: [

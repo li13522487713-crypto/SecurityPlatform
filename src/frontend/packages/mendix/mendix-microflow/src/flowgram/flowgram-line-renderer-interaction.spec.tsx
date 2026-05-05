@@ -214,7 +214,8 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     const button = screen.getByRole("button");
     expect(button.className).toContain("is-warning");
     expect(button.getAttribute("title")).toContain("缺少目标节点");
-    expect(button.textContent).toContain("!");
+    expect(button.querySelector(".microflow-branch-label__warning-dot")).toBeTruthy();
+    expect(button.textContent).toBe("else");
   });
 
   it("derives labels for approval/loop/error edges from edge kind and source port", () => {

@@ -32,9 +32,11 @@ export function deriveRestNodeInline(input: DeriveNodeInlineInput): MicroflowNod
   const timeoutMs = requestData.timeoutMs ?? requestData.timeoutInMs ?? "";
   const errorHandlingData = (actionData.errorHandling ?? {}) as Record<string, unknown>;
   const errorVar = String(errorHandlingData.errorVariableName ?? data.errorVariableName ?? "");
+  const outputHandlingKind = String((actionData.response as Record<string, unknown> | undefined)?.handling && (((actionData.response as Record<string, unknown>).handling as Record<string, unknown>).kind ?? "") || "");
   const summaryLines: MicroflowNodeInlineConfig["summaryLines"] = [
-    { id: "method", value: `${method} ${url || "/"}`, kind: "http", editable: true, fieldPath: "data.action.request.urlExpression.raw" },
+    { id: "methodUrl", value: `${method} ${url || "/"}`, kind: "http", editable: true, fieldPath: "data.action.request.urlExpression.raw" },
     { id: "io", value: `in: ${(action?.request.queryParameters ?? []).map(item => item.key).join(", ") || "-"} · out: ${outputVar || "-"}`, kind: "http" },
+    { id: "method", value: `method: ${method}`, kind: "http", editable: true, fieldPath: "data.action.request.method" },
     ...(base.runtime?.outputPreview ? [{ id: "status", value: base.runtime.outputPreview, kind: "runtime" as const }] : []),
   ];
   return {
@@ -99,6 +101,17 @@ export function deriveRestNodeInline(input: DeriveNodeInlineInput): MicroflowNod
             fieldPath: "data.action.response.handling.outputVariableName",
             editType: "variable",
             options: variableNameOptions,
+          },
+          {
+            id: "outputHandlingKind",
+            label: "输出处理",
+            value: outputHandlingKind || "store",
+            fieldPath: "data.action.response.handling.kind",
+            editType: "select",
+            options: [
+              { label: "store", value: "store" },
+              { label: "ignore", value: "ignore" },
+            ],
           },
           {
             id: "statusCodeVar",

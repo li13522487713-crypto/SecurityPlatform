@@ -2,6 +2,7 @@ import { Select, Typography } from "@douyinfe/semi-ui";
 import { useMemo } from "react";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMicroflowMetadata } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowVariableSymbol } from "../../schema";
+import type { ContextVariableCandidate } from "../../inline-edit/shared/ContextVariablePicker";
 import {
   buildVariableIndex,
   getAvailableVariablesAtField,
@@ -32,6 +33,7 @@ export function VariableSelector({
   placeholder = "Select variable",
   scopeMode = "available",
   emptyMessage = "No variables available. Add a Parameter or Create Variable first.",
+  inlineCandidates,
 }: {
   schema: MicroflowAuthoringSchema;
   objectId?: string;
@@ -52,11 +54,20 @@ export function VariableSelector({
   placeholder?: string;
   scopeMode?: "available" | "index";
   emptyMessage?: string;
+  inlineCandidates?: ContextVariableCandidate[];
 }) {
   const { catalog, loading, error, version } = useMicroflowMetadata();
   const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
   const variableIndex = useMemo(() => buildVariableIndex(schema, effectiveCatalog), [schema, effectiveCatalog, version]);
   const variables = useMemo(() => {
+    if (inlineCandidates?.length) {
+      return inlineCandidates.map(candidate => ({
+        name: candidate.name.startsWith("$") ? candidate.name.slice(1) : candidate.name,
+        dataType: { kind: candidate.type ?? "unknown" } as MicroflowDataType,
+        kind: candidate.source as MicroflowVariableSymbol["kind"],
+        readonly: Boolean(candidate.readonly),
+      } as MicroflowVariableSymbol));
+    }
     const sourceVariables = scopeMode === "index"
       ? getVariableSymbols(variableIndex)
       : objectId
@@ -78,7 +89,7 @@ export function VariableSelector({
       .filter(symbol => !allowedTypeKinds?.length || allowedTypeKinds.includes(symbol.dataType.kind))
       .filter(symbol => !allowedTypes?.length || allowedTypes.some(type => type.kind === symbol.dataType.kind))
       .filter(symbol => variableFilter ? variableFilter(symbol) : true);
-  }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, objectId, schema, scopeMode, variableFilter, variableIndex, writableOnly]);
+  }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, inlineCandidates, objectId, schema, scopeMode, variableFilter, variableIndex, writableOnly]);
   const current = value
     ? scopeMode === "index"
       ? variables.find(symbol => symbol.name === value)

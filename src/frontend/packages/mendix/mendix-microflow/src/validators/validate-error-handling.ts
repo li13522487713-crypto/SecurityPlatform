@@ -63,9 +63,6 @@ export function validateErrorHandling(schema: MicroflowSchema, _context: Microfl
       if (["customWithRollback", "customWithoutRollback"].includes(object.errorHandlingType) && !hasErrorFlow) {
         issues.push(issue("MF_ERROR_HANDLER_WITH_ROLLBACK_MISSING_FLOW", "Custom loop error handling requires an error handler SequenceFlow.", { objectId: object.id }));
       }
-      if (object.errorHandlingType === "continue" && !hasErrorFlow) {
-        issues.push(issue("MF_ERROR_HANDLER_WITH_ROLLBACK_MISSING_FLOW", "Loop continue mode should define an error handler SequenceFlow.", { objectId: object.id }));
-      }
     }
   }
   return issues;

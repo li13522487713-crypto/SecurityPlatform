@@ -2,6 +2,7 @@ import { Button, Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../../schema";
+import type { ContextVariableCandidate } from "../../inline-edit/shared/ContextVariablePicker";
 import { createMicroflowExpression, expressionRaw, expressionTypeLabel, validateExpression } from "../../expressions";
 import { getVariablesForExpressionFromIndex, variableSourceLabel, type MicroflowExpressionScopeContext } from "../../variables";
 import {
@@ -42,6 +43,7 @@ export function ExpressionEditor({
   placeholder,
   minRows = 2,
   mode = "inline",
+  inlineCandidates,
 }: {
   value: MicroflowExpression | string | undefined;
   onChange: (next: MicroflowExpression) => void;
@@ -58,6 +60,7 @@ export function ExpressionEditor({
   placeholder?: string;
   minRows?: number;
   mode?: "inline" | "multiline";
+  inlineCandidates?: ContextVariableCandidate[];
 }) {
   const raw = expressionRaw(value);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -71,15 +74,23 @@ export function ExpressionEditor({
     variableIndex,
     context: { objectId, actionId, flowId, fieldPath, expectedType, required },
   }), [actionId, debouncedRaw, expectedType, fieldPath, flowId, metadata, objectId, required, schema, variableIndex]);
-  const insertOptions = useMemo(() => buildMicroflowExpressionCompletionOptions({
-    schema,
-    metadata,
-    variableIndex,
-    objectId,
-    actionId,
-    fieldPath,
-    expectedType,
-  }), [actionId, expectedType, fieldPath, metadata, objectId, schema, variableIndex]);
+  const insertOptions = useMemo(() => {
+    if (inlineCandidates?.length) {
+      return inlineCandidates.map(item => ({
+        label: item.name,
+        value: item.name,
+      }));
+    }
+    return buildMicroflowExpressionCompletionOptions({
+      schema,
+      metadata,
+      variableIndex,
+      objectId,
+      actionId,
+      fieldPath,
+      expectedType,
+    });
+  }, [actionId, expectedType, fieldPath, inlineCandidates, metadata, objectId, schema, variableIndex]);
   const cmDiagnostics = useMemo(() => validateMicroflowExpressionForEditor({
     value: debouncedRaw,
     schema,

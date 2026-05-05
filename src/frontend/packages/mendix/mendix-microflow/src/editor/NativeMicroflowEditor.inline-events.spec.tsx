@@ -380,7 +380,7 @@ describe("NativeMicroflowEditor inline events", () => {
     });
   });
 
-  it("rejects invalid decision label commit and does not mutate schema", async () => {
+  it("commits custom decision line label without changing the original branch semantics", async () => {
     const onSchemaChange = vi.fn();
     render(
       <NativeMicroflowEditor
@@ -392,13 +392,18 @@ describe("NativeMicroflowEditor inline events", () => {
     await waitFor(() => expect(screen.getByTestId("mock-flowgram-canvas")).not.toBeNull());
 
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-line-label-commit", {
-      detail: { flowId: "flow-true", value: "maybe" },
+      detail: { flowId: "flow-true", value: "High risk case" },
     }));
 
     await waitFor(() => {
-      expect((Toast.warning as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0);
+      const latestSchema = onSchemaChange.mock.calls.at(-1)?.[0] as MicroflowDesignSchema | undefined;
+      const flow = (latestSchema?.workflow.edges ?? []).find(item => String((item.data as { flowId?: string } | undefined)?.flowId ?? item.id) === "flow-true");
+      const sourceNode = latestSchema?.workflow.nodes.find(item => item.id === "decision")?.data as Record<string, unknown> | undefined;
+      expect((flow?.data as { label?: string } | undefined)?.label).toBe("High risk case");
+      expect(flow?.sourcePortID).toBe("decision:true");
+      expect(flow?.caseValues).toEqual([{ kind: "boolean", value: true }]);
+      expect((sourceNode?.branchLabels as Record<string, string> | undefined)?.true).toBe("High risk case");
     });
-    expect(onSchemaChange).toHaveBeenCalledTimes(0);
   });
 
   it("ignores invalid inline field paths and edge paths", async () => {
@@ -917,7 +922,7 @@ describe("NativeMicroflowEditor inline events", () => {
       expect(loopNode?.resultsVariableName).toBe("loopResults");
       expect((errorNode?.action as { errorVariableName?: string } | undefined)?.errorVariableName).toBe("runtimeError");
       expect(errorNode?.fallbackResultVariable).toBe("fallbackResult");
-      expect(errorNode?.rethrow).toBe("true");
+      expect(errorNode?.rethrow).toBe(true);
     });
   });
 
@@ -957,6 +962,34 @@ describe("NativeMicroflowEditor inline events", () => {
       expect((loopNode?.branchLabels as Record<string, string> | undefined)?.done).toBe("done");
       expect((errorNode?.branchLabels as Record<string, string> | undefined)?.fallback).toBe("fallback");
       expect((errorNode?.branchLabels as Record<string, string> | undefined)?.rethrow).toBe("rethrow");
+    });
+  });
+
+  it("commits extra data paths for full-inline fallback fields, including $. expression and json payload", async () => {
+    const onSchemaChange = vi.fn();
+    render(<NativeMicroflowEditor schema={createActionSchema()} onSchemaChange={onSchemaChange} />);
+    await waitFor(() => expect(screen.getByTestId("mock-flowgram-canvas")).not.toBeNull());
+
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "rest-1", fieldPath: "data.action.responseTransformer.expression.raw", value: "$.response.body.score", editType: "expression" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "rest-1", fieldPath: "data.action.customPayload", value: "{\"ticket\":\"$.response.id\",\"ok\":true}", editType: "json" },
+    }));
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
+      detail: { nodeId: "call-1", fieldPath: "data.action.customMapping.raw", value: "$.riskScore.value", editType: "expression" },
+    }));
+
+    await waitFor(() => {
+      const latestSchema = onSchemaChange.mock.calls.at(-1)?.[0] as MicroflowDesignSchema | undefined;
+      const nodes = latestSchema?.workflow.nodes ?? [];
+      const restNode = nodes.find(item => item.id === "rest-1")?.data as Record<string, unknown> | undefined;
+      const callNode = nodes.find(item => item.id === "call-1")?.data as Record<string, unknown> | undefined;
+      const restAction = restNode?.action as Record<string, unknown> | undefined;
+      const callAction = callNode?.action as Record<string, unknown> | undefined;
+      expect((((restAction?.responseTransformer as Record<string, unknown> | undefined)?.expression as Record<string, unknown> | undefined)?.raw)).toBe("$.response.body.score");
+      expect(restAction?.customPayload).toEqual({ ticket: "$.response.id", ok: true });
+      expect(((callAction?.customMapping as Record<string, unknown> | undefined)?.raw)).toBe("$.riskScore.value");
     });
   });
 });

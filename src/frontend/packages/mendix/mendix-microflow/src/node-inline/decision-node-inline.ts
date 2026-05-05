@@ -32,6 +32,8 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
   const nodeData = (input.node.data ?? {}) as Record<string, unknown>;
   const splitCondition = nodeData.splitCondition as { kind?: string; expression?: unknown } | undefined;
   const rawCondition = splitCondition?.kind === "expression" ? expressionText(splitCondition.expression) : "";
+  const logic = String(nodeData.logic ?? "AND");
+  const rawExpression = String(nodeData.rawExpression ?? "");
   const outgoing = input.schema.workflow.edges
     .filter(edge => edge.sourceNodeID === input.node.id)
     .map((edge, index) => ({ edge, index }));
@@ -63,15 +65,33 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
         id: "conditions",
         title: "条件",
         kind: "conditions",
-        fields: [{
-          id: "condition-expression",
-          label: "if",
-          value: rawCondition,
-          fieldPath: "data.splitCondition.expression.raw",
-          editType: "condition",
-          placeholder: "$riskScore >= 80",
-          options: variableOptions,
-        }],
+        fields: [
+          {
+            id: "condition-expression",
+            label: "if",
+            value: rawCondition,
+            fieldPath: "data.splitCondition.expression.raw",
+            editType: "condition",
+            placeholder: "$riskScore >= 80",
+            options: variableOptions,
+          },
+          {
+            id: "condition-logic",
+            label: "逻辑",
+            value: logic,
+            fieldPath: "data.logic",
+            editType: "select",
+            options: [{ label: "AND", value: "AND" }, { label: "OR", value: "OR" }],
+          },
+          {
+            id: "raw-expression",
+            label: "高级表达式",
+            value: rawExpression,
+            fieldPath: "data.rawExpression",
+            editType: "expression",
+            options: variableOptions,
+          },
+        ],
       },
       {
         id: "branches",

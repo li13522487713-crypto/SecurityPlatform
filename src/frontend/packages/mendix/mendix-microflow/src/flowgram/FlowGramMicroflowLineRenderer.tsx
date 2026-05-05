@@ -79,7 +79,13 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
     return null;
   }
   const label = useMemo(() => lineLabelFromEdgeData(data), [data]);
-  const warningMissingTarget = !data.targetNodeId && (data.edgeKind === "decisionCondition" || data.edgeKind === "errorHandler");
+  const warningMissingTarget = !data.targetNodeId && (
+    data.edgeKind === "decisionCondition"
+    || data.edgeKind === "objectTypeCondition"
+    || data.edgeKind === "loopBody"
+    || data.edgeKind === "sequence"
+    || data.edgeKind === "errorHandler"
+  );
   const className = [
     "microflow-branch-label",
     editing ? "is-editing" : "",
@@ -137,7 +143,7 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
       title={warningMissingTarget ? "缺少目标节点" : label}
     >
       {label}
-      {warningMissingTarget ? " !" : ""}
+      {warningMissingTarget ? <span aria-hidden="true" className="microflow-branch-label__warning-dot" /> : null}
     </button>
   );
 }

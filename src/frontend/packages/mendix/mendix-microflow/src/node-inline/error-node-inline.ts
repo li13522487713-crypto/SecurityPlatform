@@ -4,6 +4,12 @@ import { createDefaultInlineConfig, type DeriveNodeInlineInput } from "./default
 
 export function deriveErrorNodeInline(input: DeriveNodeInlineInput): MicroflowNodeInlineConfig {
   const base = createDefaultInlineConfig(input);
+  const expressionOptions = buildNodeInlineVariableOptions({
+    schema: input.schema,
+    node: input.node,
+    runtimeFrame: input.runtimeFrame,
+    mode: "expression",
+  });
   const variableNameOptions = buildNodeInlineVariableOptions({
     schema: input.schema,
     node: input.node,
@@ -11,10 +17,12 @@ export function deriveErrorNodeInline(input: DeriveNodeInlineInput): MicroflowNo
     mode: "name",
   });
   const data = (input.node.data ?? {}) as Record<string, unknown>;
+  const branchLabels = (data.branchLabels ?? {}) as Record<string, unknown>;
   const policy = String(data.policy ?? "continue");
   const catchType = String(data.catchType ?? "HTTP_ERROR");
   const errorVariable = String(data.customHandlerVariable ?? "$latestError");
   const fallbackResult = String(data.fallbackResultVariable ?? "");
+  const fallbackExpression = String(data.fallbackExpression ?? "");
   const rethrow = String(data.rethrow ?? "false");
   return {
     ...base,
@@ -65,6 +73,14 @@ export function deriveErrorNodeInline(input: DeriveNodeInlineInput): MicroflowNo
             options: variableNameOptions,
           },
           {
+            id: "fallbackExpression",
+            label: "Fallback 表达式",
+            value: fallbackExpression,
+            fieldPath: "data.fallbackExpression",
+            editType: "expression",
+            options: expressionOptions,
+          },
+          {
             id: "rethrow",
             label: "继续抛出",
             value: rethrow,
@@ -75,9 +91,9 @@ export function deriveErrorNodeInline(input: DeriveNodeInlineInput): MicroflowNo
               { label: "true", value: "true" },
             ],
           },
-          { id: "handledBranch", label: "handled 标签", value: "handled", fieldPath: "data.branchLabels.handled", editType: "branch" },
-          { id: "fallbackBranch", label: "fallback 标签", value: "fallback", fieldPath: "data.branchLabels.fallback", editType: "branch" },
-          { id: "rethrowBranch", label: "rethrow 标签", value: "rethrow", fieldPath: "data.branchLabels.rethrow", editType: "branch" },
+          { id: "handledBranch", label: "handled 标签", value: String(branchLabels.handled ?? "handled"), fieldPath: "data.branchLabels.handled", editType: "branch" },
+          { id: "fallbackBranch", label: "fallback 标签", value: String(branchLabels.fallback ?? "fallback"), fieldPath: "data.branchLabels.fallback", editType: "branch" },
+          { id: "rethrowBranch", label: "rethrow 标签", value: String(branchLabels.rethrow ?? "rethrow"), fieldPath: "data.branchLabels.rethrow", editType: "branch" },
         ],
       },
       ...base.sections,

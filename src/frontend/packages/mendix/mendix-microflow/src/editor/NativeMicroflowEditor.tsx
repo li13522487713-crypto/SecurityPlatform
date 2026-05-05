@@ -445,33 +445,53 @@ function normalizeDecisionLabel(value: string): string | undefined {
   return undefined;
 }
 
+function branchKeyFromSourcePort(sourcePort?: string): string | undefined {
+  if (!sourcePort) {
+    return undefined;
+  }
+  const [, key] = sourcePort.split(":");
+  return key || undefined;
+}
+
+function canonicalBranchLabel(sourcePortId: string | undefined, value: string): string | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+  if ((sourcePortId ?? "").startsWith("decision:")) {
+    return normalizeDecisionLabel(normalized);
+  }
+  if ((sourcePortId ?? "").startsWith("approval:") && ["approved", "rejected", "timeout"].includes(normalized)) {
+    return normalized;
+  }
+  if ((sourcePortId ?? "").startsWith("loop:") && ["body", "done", "break", "continue"].includes(normalized)) {
+    return normalized;
+  }
+  if ((sourcePortId ?? "").startsWith("error:") && ["error", "fallback", "rethrow", "handled"].includes(normalized)) {
+    return normalized;
+  }
+  return undefined;
+}
+
 function normalizeLineLabelByEdgeKind(edgeKind: FlowGramMicroflowEdgeData["edgeKind"], sourcePortId: string | undefined, value: string): string | undefined {
+  const trimmed = value.trim();
   const normalized = value.trim().toLowerCase();
   if (!normalized) {
     return undefined;
   }
   if (edgeKind === "decisionCondition") {
-    return normalizeDecisionLabel(normalized);
+    return normalizeDecisionLabel(normalized) ?? trimmed;
   }
   if ((sourcePortId ?? "").startsWith("approval:")) {
-    return ["approved", "rejected", "timeout"].includes(normalized) ? normalized : undefined;
+    return ["approved", "rejected", "timeout"].includes(normalized) ? normalized : trimmed;
   }
-  if ((sourcePortId ?? "").startsWith("loop:body")) {
-    return ["body"].includes(normalized) ? normalized : undefined;
-  }
-  if ((sourcePortId ?? "").startsWith("loop:done")) {
-    return ["done"].includes(normalized) ? normalized : undefined;
-  }
-  if ((sourcePortId ?? "").startsWith("loop:break")) {
-    return ["break"].includes(normalized) ? normalized : undefined;
-  }
-  if ((sourcePortId ?? "").startsWith("loop:continue")) {
-    return ["continue"].includes(normalized) ? normalized : undefined;
+  if ((sourcePortId ?? "").startsWith("loop:")) {
+    return ["body", "done", "break", "continue"].includes(normalized) ? normalized : trimmed;
   }
   if (edgeKind === "errorHandler") {
-    return ["error", "fallback", "rethrow", "handled"].includes(normalized) ? normalized : undefined;
+    return ["error", "fallback", "rethrow", "handled"].includes(normalized) ? normalized : trimmed;
   }
-  return normalized;
+  return canonicalBranchLabel(sourcePortId, normalized) ?? trimmed;
 }
 
 type InlineFieldCommitDetail = { nodeId?: string; fieldPath?: string; value?: string };
@@ -495,13 +515,52 @@ function parseKeyValueLines(value: string): Array<{ key: string; valueExpression
     .filter(item => item.key.length > 0);
 }
 
+function parseNamedExpressionLines(value: string): Array<{ name: string; valueExpression: { raw: string } }> {
+  return value
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      const index = line.indexOf("=");
+      if (index < 0) {
+        return { name: line.trim(), valueExpression: { raw: "" } };
+      }
+      return {
+        name: line.slice(0, index).trim(),
+        valueExpression: { raw: line.slice(index + 1).trim() },
+      };
+    })
+    .filter(item => item.name.length > 0);
+}
+
 function normalizeInlineCommitValue(fieldPath: string, value: string): unknown {
+  const trimmed = value.trim();
   if (fieldPath === "data.action.request.queryParameters" || fieldPath === "data.action.request.headers") {
     return parseKeyValueLines(value);
+  }
+  if (
+    fieldPath === "data.action.argumentMappings"
+    || fieldPath === "data.action.parameterMappings"
+    || fieldPath === "data.action.inputMappings"
+  ) {
+    return parseNamedExpressionLines(value);
   }
   if (fieldPath === "data.action.request.timeoutMs") {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : value;
+  }
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value;
+    }
   }
   return value;
 }
@@ -514,13 +573,13 @@ function syncBranchLabelToSourceNode(next: MicroflowDesignSchema, edge: Microflo
   const sourcePort = sourcePortHint ?? edge.sourcePortID ?? "";
   let branchKey: string | undefined;
   if (sourcePort.startsWith("decision:")) {
-    branchKey = normalized;
+    branchKey = branchKeyFromSourcePort(sourcePort);
   } else if (sourcePort.startsWith("approval:")) {
-    branchKey = normalized;
+    branchKey = branchKeyFromSourcePort(sourcePort);
   } else if (sourcePort.startsWith("loop:")) {
-    branchKey = normalized;
+    branchKey = branchKeyFromSourcePort(sourcePort);
   } else if (sourcePort.startsWith("error:") || ((edge.data as FlowGramMicroflowEdgeData | undefined)?.edgeKind === "errorHandler")) {
-    branchKey = normalized;
+    branchKey = branchKeyFromSourcePort(sourcePort) ?? normalized;
   }
   if (!branchKey) {
     return;
@@ -704,21 +763,41 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       const sourceKind = (sourceNode?.data as Partial<FlowGramMicroflowNodeData> | undefined)?.objectKind;
       const isDecisionLike = edgeData.edgeKind === "decisionCondition" || sourceKind === "exclusiveSplit" || sourceKind === "inheritanceSplit" || Array.isArray(edge.caseValues);
       if (isDecisionLike) {
-        const normalizedCase = normalized === "else" ? null : normalized === "true";
-        edge.sourcePortID = normalized === "else" ? "decision:else" : `decision:${normalized}`;
-        edge.caseValues = normalizedCase === null
-          ? []
-          : [{ kind: "boolean", value: normalizedCase }];
+        const canonicalDecision = normalizeDecisionLabel(normalized);
+        const normalizedCase = canonicalDecision === "else" ? null : canonicalDecision === "true" ? true : canonicalDecision === "false" ? false : undefined;
+        if (canonicalDecision) {
+          edge.sourcePortID = canonicalDecision === "else" ? "decision:else" : `decision:${canonicalDecision}`;
+          edge.caseValues = normalizedCase === null
+            ? []
+            : [{ kind: "boolean", value: normalizedCase }];
+        }
         edge.data = {
           ...(edge.data as FlowGramMicroflowEdgeData | undefined),
           edgeKind: "decisionCondition",
           label: normalized,
-          caseValues: normalizedCase === null
-            ? []
-            : [{ kind: "boolean", value: normalizedCase }],
+          ...(canonicalDecision
+            ? {
+              caseValues: normalizedCase === null
+                ? []
+                : [{ kind: "boolean", value: normalizedCase }],
+            }
+            : {}),
         };
       } else {
-        edge.sourcePortID = normalized.includes(":") ? normalized : `${edgeData.edgeKind}:${normalized}`;
+        const sourcePortHint = sourcePortBeforeCommit ?? "";
+        const canonical = canonicalBranchLabel(sourcePortHint, normalized);
+        const hasSemanticPort = sourcePortHint.startsWith("approval:") || sourcePortHint.startsWith("loop:") || sourcePortHint.startsWith("error:");
+        if (sourcePortHint.startsWith("approval:") && canonical) {
+          edge.sourcePortID = `approval:${canonical}`;
+        } else if (sourcePortHint.startsWith("loop:") && canonical) {
+          edge.sourcePortID = `loop:${canonical}`;
+        } else if (sourcePortHint.startsWith("error:") && canonical) {
+          edge.sourcePortID = `error:${canonical}`;
+        } else if (hasSemanticPort) {
+          edge.sourcePortID = sourcePortHint;
+        } else {
+          edge.sourcePortID = normalized.includes(":") ? normalized : `${edgeData.edgeKind}:${normalized}`;
+        }
         edge.data = { ...(edge.data as FlowGramMicroflowEdgeData | undefined), label: normalized };
       }
       syncBranchLabelToSourceNode(next, edge, normalized, sourcePortBeforeCommit);
@@ -949,14 +1028,12 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
           : sample));
       }
       setBottomDockMode("collapsed");
-      setBottomTab("debug");
       props.onTestRunComplete?.(response);
       Toast[response.status === "succeeded" ? "success" : "error"](`Run ${response.status}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRuntimeServiceError(message);
       setBottomDockMode("collapsed");
-      setBottomTab("debug");
       Toast.error(message);
     } finally {
       setRunning(false);
@@ -1360,7 +1437,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
             <Text size="small" strong style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>{labels.properties}</Text>
           </button>
         ) : null}
-        {rightOpen ? (
+        {LEGACY_PROPERTY_PANEL_ENABLED && rightOpen ? (
           <div data-testid="microflow-property-panel" style={{ ...propertyPaneStyle(), ...rightDockStyle }}>
             <MicroflowPropertyPanel
               schemaProtocol="design"

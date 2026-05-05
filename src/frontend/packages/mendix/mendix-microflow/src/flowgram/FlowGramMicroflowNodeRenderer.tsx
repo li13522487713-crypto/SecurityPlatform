@@ -251,14 +251,43 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         </div>
       ) : null}
       {data.inlineConfig?.runtime ? (
-        <div className="microflow-runtime-inline">
+        <button
+          type="button"
+          className="microflow-runtime-inline"
+          onClick={event => {
+            event.stopPropagation();
+            window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-inspect", {
+              detail: {
+                nodeId: data.objectId,
+                inspect: data.inlineConfig?.runtime?.error ? "error" : "runtime",
+              },
+            }));
+            if (!isExpanded) {
+              toggleExpanded();
+            }
+          }}
+        >
           {typeof data.inlineConfig.runtime.durationMs === "number" ? (
             <Typography.Text type="tertiary" size="small">duration: {data.inlineConfig.runtime.durationMs}ms</Typography.Text>
           ) : null}
           {data.inlineConfig.runtime.selectedBranchLabel ? (
             <Typography.Text type="tertiary" size="small">selected: {data.inlineConfig.runtime.selectedBranchLabel}</Typography.Text>
           ) : null}
-        </div>
+          {data.inlineConfig.runtime.inputPreview ? (
+            <Typography.Text type="tertiary" size="small">in: {data.inlineConfig.runtime.inputPreview}</Typography.Text>
+          ) : null}
+          {data.inlineConfig.runtime.outputPreview ? (
+            <Typography.Text type="tertiary" size="small">out: {data.inlineConfig.runtime.outputPreview}</Typography.Text>
+          ) : null}
+          {data.inlineConfig.runtime.variableSnapshot?.length ? (
+            <Typography.Text type="tertiary" size="small">
+              vars: {data.inlineConfig.runtime.variableSnapshot.slice(0, 2).map(item => `${item.name}=${item.valuePreview}`).join(", ")}
+            </Typography.Text>
+          ) : null}
+          {data.inlineConfig.runtime.error?.message ? (
+            <Typography.Text type="danger" size="small">error: {data.inlineConfig.runtime.error.message}</Typography.Text>
+          ) : null}
+        </button>
       ) : null}
       {data.objectKind === "loopedActivity" && data.loopSummary ? (
         <div
