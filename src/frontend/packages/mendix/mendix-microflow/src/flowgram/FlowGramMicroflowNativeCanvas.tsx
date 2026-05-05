@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type DragEvent, type MouseEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 
 import { Toast } from "@douyinfe/semi-ui";
 import {
@@ -44,7 +44,7 @@ import {
 } from "./flowgram-native-schema";
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
 import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
-import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
+import { FlowGramMicroflowToolbar, microflowZoomViewportAtCanvasCenter } from "./FlowGramMicroflowToolbar";
 import { decorateWorkflow } from "./flowgram-workflow-decorate";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
@@ -456,6 +456,8 @@ function FlowGramMicroflowNativeMiniMap(props: { schema: MicroflowDesignSchema; 
 
 function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvasProps) {
   const playground = usePlayground();
+  const playgroundRef = useRef(playground);
+  playgroundRef.current = playground;
   const doc = useService<WorkflowDocument>(WorkflowDocument);
   const dragService = useService<WorkflowDragService>(WorkflowDragService);
   const linesManager = useService<WorkflowLinesManager>(WorkflowLinesManager);
@@ -565,6 +567,20 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     line?.dispose();
     return Boolean(line);
   };
+
+  const applyViewportZoomFromCanvasCenter = useCallback((normalizedZoom: number) => {
+    const root = containerRef.current;
+    const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+    const rect = root?.getBoundingClientRect();
+    const next = microflowZoomViewportAtCanvasCenter(v, rect?.width ?? 0, rect?.height ?? 0, normalizedZoom);
+    const cfg = playground.config as unknown as FlowGramPlaygroundViewportConfig;
+    if (typeof cfg.zoom === "function") {
+      cfg.zoom(next.zoom);
+    }
+    cfg.updateConfig?.({ zoom: next.zoom, scrollX: next.x, scrollY: next.y });
+    lastSyncedViewportRef.current = next;
+    propsRef.current.onViewportChange?.(next);
+  }, [playground]);
 
   const pushViewportToPlaygroundConfig = useCallback((viewport: MicroflowDesignSchema["editor"]["viewport"], options?: { force?: boolean }) => {
     const v = viewport ?? { x: 0, y: 0, zoom: 1 };
@@ -965,6 +981,43 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     }
   }, [props.focusObjectId, props.focusRequestKey]);
 
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root) {
+      return;
+    }
+    const onWheel = (e: WheelEvent) => {
+      if (!panToolActiveRef.current) {
+        return;
+      }
+      const t = e.target;
+      if (!(t instanceof HTMLElement) || !root.contains(t)) {
+        return;
+      }
+      if (isFlowgramPanExemptTarget(t)) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+      const rect = root.getBoundingClientRect();
+      const scale = Math.exp(-e.deltaY * 0.002);
+      const next = microflowZoomViewportAtCanvasCenter(v, rect.width, rect.height, v.zoom * scale);
+      if (Math.abs(next.zoom - v.zoom) < 1e-6 && Math.abs(next.x - v.x) < 1e-6 && Math.abs(next.y - v.y) < 1e-6) {
+        return;
+      }
+      const cfg = playgroundRef.current.config as unknown as FlowGramPlaygroundViewportConfig;
+      if (typeof cfg.zoom === "function") {
+        cfg.zoom(next.zoom);
+      }
+      cfg.updateConfig?.({ zoom: next.zoom, scrollX: next.x, scrollY: next.y });
+      lastSyncedViewportRef.current = next;
+      propsRef.current.onViewportChange?.(next);
+    };
+    root.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => root.removeEventListener("wheel", onWheel, { capture: true });
+  }, []);
+
   return (
     <div
       ref={containerRef}
@@ -1023,6 +1076,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
           onToggleMiniMap={() => props.onToggleMiniMap?.(!miniMapVisible)}
           panToolActive={panToolActive}
           onTogglePanTool={togglePanTool}
+          applyZoomFromCanvasCenter={applyViewportZoomFromCanvasCenter}
         />
       </div>
       {miniMapVisible ? <FlowGramMicroflowNativeMiniMap schema={props.schema} onFocusNode={focusNode} /> : null}

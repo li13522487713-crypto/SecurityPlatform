@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 
 import { Toast } from "@douyinfe/semi-ui";
 import {
@@ -40,7 +40,7 @@ import { applyEditorGraphPatchToAuthoring, toEditorGraph } from "../adapters";
 import { FlowGramMicroflowCaseEditor } from "./FlowGramMicroflowCaseEditor";
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
 import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
-import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
+import { FlowGramMicroflowToolbar, microflowZoomViewportAtCanvasCenter } from "./FlowGramMicroflowToolbar";
 import { useMicroflowMetadataCatalog } from "../metadata";
 import { getCaseEditorKind, getCaseOptionsForSource } from "./adapters/flowgram-case-options";
 import { authoringToFlowGram } from "./adapters/authoring-to-flowgram";
@@ -401,6 +401,11 @@ function lineMatchesEdge(line: WorkflowLineEntity, edge: WorkflowEdgeJSON): bool
 function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   type FlowGramChangeKind = "nodePosition" | "nodeStructure" | "edgeStructure";
 
+  type FlowGramPlaygroundViewportConfig = {
+    zoom?: number | ((zoom: number) => void);
+    updateConfig?: (config: { zoom?: number; scrollX?: number; scrollY?: number }) => void;
+  };
+
   const playground = usePlayground();
   const doc = useService<WorkflowDocument>(WorkflowDocument);
   const dragService = useService<WorkflowDragService>(WorkflowDragService);
@@ -421,6 +426,20 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   const [dropActive, setDropActive] = useState(false);
   const miniMapVisible = props.schema.editor.showMiniMap === true;
   const gridEnabled = props.schema.editor.gridEnabled !== false;
+
+  const applyZoomFromCanvasCenter = useCallback((normalizedZoom: number) => {
+    const root = containerRef.current;
+    const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+    const rect = root?.getBoundingClientRect();
+    const next = microflowZoomViewportAtCanvasCenter(v, rect?.width ?? 0, rect?.height ?? 0, normalizedZoom);
+    const config = playground.config as unknown as FlowGramPlaygroundViewportConfig;
+    if (typeof config.zoom === "function") {
+      config.zoom(next.zoom);
+    }
+    config.updateConfig?.({ zoom: next.zoom, scrollX: next.x, scrollY: next.y });
+    propsRef.current.onViewportChange?.(next);
+  }, [playground]);
+
   propsRef.current = props;
   latestSchemaRef.current = props.schema;
   const workflowJson = useMemo(
@@ -845,6 +864,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
           onToggleGrid={() => props.onToggleGrid?.(!gridEnabled)}
           miniMapVisible={miniMapVisible}
           onToggleMiniMap={() => props.onToggleMiniMap?.(!miniMapVisible)}
+          applyZoomFromCanvasCenter={applyZoomFromCanvasCenter}
         />
       </div>
       {miniMapVisible ? <FlowGramMicroflowMiniMap schema={props.schema} onFocusNode={focusNodeFromMiniMap} /> : null}

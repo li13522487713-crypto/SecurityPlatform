@@ -40,6 +40,7 @@ export function InlineVariableField(props: {
         disabled={props.readonly}
         placeholder={props.placeholder ?? "选择变量"}
         variables={variables}
+        allowCreate
         onChange={value => props.onCommit?.(value ?? "")}
       />
     );

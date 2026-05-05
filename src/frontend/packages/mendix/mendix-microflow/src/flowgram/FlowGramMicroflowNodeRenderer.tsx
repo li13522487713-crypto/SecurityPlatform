@@ -28,36 +28,35 @@ function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeD
   try {
     const formData = props.node.getData(FlowNodeFormData);
     const formModel = formData?.getFormModel<FormModelV2>();
-    const formValue = formModel?.getFormItemValueByPath("/") as FlowGramMicroflowNodeData | undefined;
-    if (formValue?.objectKind) {
-      return formValue;
-    }
+    const formValue = formModel?.getFormItemValueByPath("/") as Partial<FlowGramMicroflowNodeData> | undefined;
     const jsonData = (props.node as unknown as { toJSON?: () => { data?: FlowGramMicroflowNodeData } })
       .toJSON?.()
       ?.data;
-    if (jsonData?.objectKind) {
-      return jsonData;
-    }
+    const normalizedJsonData = jsonData as Partial<FlowGramMicroflowNodeData> | undefined;
     const nodeMeta = props.node.getNodeMeta?.() as { nodeDTOType?: string; type?: string } | undefined;
     const fallbackKind = nodeMeta?.nodeDTOType ?? nodeMeta?.type;
-    if (fallbackKind) {
-      return {
-        objectId: String(props.node.id),
-        objectKind: fallbackKind as FlowGramMicroflowNodeData["objectKind"],
-        collectionId: "",
-        title: fallbackKind,
-        subtitle: undefined,
-        officialType: fallbackKind,
-        disabled: false,
-        validationState: "valid",
-        runtimeState: "idle",
-        issueCount: 0,
-      };
+    const primary = formValue?.objectKind ? formValue : normalizedJsonData?.objectKind ? normalizedJsonData : undefined;
+    const objectKind = primary?.objectKind ?? fallbackKind;
+    if (!objectKind) {
+      return undefined;
     }
+    return {
+      ...(normalizedJsonData ?? {}),
+      ...(primary ?? {}),
+      objectId: String(primary?.objectId ?? normalizedJsonData?.objectId ?? props.node.id),
+      objectKind: objectKind as FlowGramMicroflowNodeData["objectKind"],
+      collectionId: String(primary?.collectionId ?? normalizedJsonData?.collectionId ?? ""),
+      title: String(primary?.title ?? normalizedJsonData?.title ?? objectKind),
+      subtitle: primary?.subtitle ?? normalizedJsonData?.subtitle ?? undefined,
+      officialType: String(primary?.officialType ?? normalizedJsonData?.officialType ?? objectKind),
+      disabled: Boolean(primary?.disabled ?? normalizedJsonData?.disabled ?? false),
+      validationState: (primary?.validationState ?? normalizedJsonData?.validationState ?? "valid") as FlowGramMicroflowNodeData["validationState"],
+      runtimeState: (primary?.runtimeState ?? normalizedJsonData?.runtimeState ?? "idle") as FlowGramMicroflowNodeData["runtimeState"],
+      issueCount: Number(primary?.issueCount ?? normalizedJsonData?.issueCount ?? 0),
+    };
   } catch {
     return undefined;
   }
-  return undefined;
 }
 
 function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): string {
@@ -160,6 +159,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   const compactSummary = summaryLines.slice(0, 3);
   const summaryOverflowCount = Math.max(0, summaryLines.length - compactSummary.length);
   const runtime = data.inlineConfig?.runtime;
+  const resolvedNodeId = String(data.objectId || props.node.id);
   const runtimeStateLabel = runtime?.error
     ? "× error"
     : runtime?.running
@@ -173,7 +173,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
             : "";
 
   const toggleExpanded = () => {
-    emitInlineNodeToggle({ nodeId: data.objectId, runtimeNodeId: String(props.node.id), expanded: !isExpanded });
+    emitInlineNodeToggle({ nodeId: resolvedNodeId, runtimeNodeId: String(props.node.id), expanded: !isExpanded });
   };
 
   return (
@@ -268,7 +268,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
           onClick={event => {
             event.stopPropagation();
             emitInlineNodeInspect({
-              nodeId: data.objectId,
+              nodeId: resolvedNodeId,
               runtimeNodeId: String(props.node.id),
               inspect: runtime.error ? "error" : "runtime",
             });
@@ -290,7 +290,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
           inlineConfig={data.inlineConfig}
           onCommitField={(field, value) => {
             emitInlineFieldCommit({
-              nodeId: data.objectId,
+              nodeId: resolvedNodeId,
               fieldPath: field.fieldPath,
               editType: field.editType,
               value,
@@ -298,7 +298,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
           }}
           onApplyQuickFix={suggestion => {
             emitInlineQuickFix({
-              nodeId: data.objectId,
+              nodeId: resolvedNodeId,
               suggestionId: suggestion.id,
               actionKind: suggestion.actionKind,
               fieldPath: suggestion.fieldPath,

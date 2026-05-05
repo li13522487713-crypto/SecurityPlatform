@@ -742,10 +742,11 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   useLayoutEffect(() => {
     const toggleListener = (event: Event) => {
       const detail = (event as CustomEvent<MicroflowInlineNodeToggleDetail>).detail;
-      if (!detail?.nodeId) {
+      const inlineNodeId = detail?.nodeId ?? detail?.runtimeNodeId;
+      if (!inlineNodeId) {
         return;
       }
-      const keys = resolveInlineNodeViewModeAliases(latestSchemaRef.current, detail.nodeId, detail.runtimeNodeId);
+      const keys = resolveInlineNodeViewModeAliases(latestSchemaRef.current, inlineNodeId, detail.runtimeNodeId);
       if (!keys.length) {
         return;
       }
@@ -756,10 +757,11 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     };
     const inspectListener = (event: Event) => {
       const detail = (event as CustomEvent<MicroflowInlineNodeInspectDetail>).detail;
-      if (!detail?.nodeId || !detail.inspect) {
+      const inlineNodeId = detail?.nodeId ?? detail?.runtimeNodeId;
+      if (!inlineNodeId || !detail.inspect) {
         return;
       }
-      const keys = resolveInlineNodeViewModeAliases(latestSchemaRef.current, detail.nodeId, detail.runtimeNodeId);
+      const keys = resolveInlineNodeViewModeAliases(latestSchemaRef.current, inlineNodeId, detail.runtimeNodeId);
       if (!keys.length) {
         return;
       }

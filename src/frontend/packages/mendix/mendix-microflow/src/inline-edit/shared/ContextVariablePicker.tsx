@@ -67,6 +67,7 @@ export function ContextVariablePicker(props: {
   placeholder?: string;
   variables: ContextVariableCandidate[];
   insertionMode?: "replace" | "append" | "jsonPath";
+  allowCreate?: boolean;
   onChange: (value?: string) => void;
 }) {
   const groupWeight = (source?: string): number => {
@@ -161,6 +162,7 @@ export function ContextVariablePicker(props: {
         return haystack.includes(keyword);
       }}
       showClear
+      allowCreate={props.allowCreate}
       value={props.value}
       disabled={props.disabled}
       style={{ width: "100%" }}
