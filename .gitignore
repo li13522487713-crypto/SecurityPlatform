@@ -23,6 +23,8 @@ mono_crash.*
 [Rr]eleases/
 !docs/microflow/release/
 !docs/microflow/release/**
+!src/backend/Atlas.Application.Microflows/Runtime/Debug/
+!src/backend/Atlas.Application.Microflows/Runtime/Debug/**
 x64/
 x86/
 [Ww][Ii][Nn]32/
