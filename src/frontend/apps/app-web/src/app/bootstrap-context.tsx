@@ -10,6 +10,7 @@ import type {
   SystemSetupStateDto,
   WorkspaceSetupStateDto
 } from "../services/api-setup-console";
+import { readConsoleToken } from "./pages/setup-console/console-token-storage";
 
 export interface BootstrapState {
   loading: boolean;
@@ -71,7 +72,10 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
-    void refreshSetupConsole();
+    // setup-console/overview 必须带 X-Setup-Console-Token；无 token 时预取会固定 401，污染控制台与网络面板。
+    if (readConsoleToken()) {
+      void refreshSetupConsole();
+    }
   }, []);
 
   useEffect(() => {

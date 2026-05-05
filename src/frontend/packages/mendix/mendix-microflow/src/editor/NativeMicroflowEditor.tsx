@@ -23,6 +23,18 @@ import {
   workflowNodeById,
   workflowNodeCount,
 } from "../flowgram/flowgram-native-schema";
+import {
+  MICROFLOW_INLINE_FIELD_COMMIT_EVENT,
+  MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT,
+  MICROFLOW_INLINE_NODE_INSPECT_EVENT,
+  MICROFLOW_INLINE_NODE_TOGGLE_EVENT,
+  MICROFLOW_INLINE_QUICK_FIX_EVENT,
+  type MicroflowInlineFieldCommitDetail,
+  type MicroflowInlineLineLabelCommitDetail,
+  type MicroflowInlineNodeInspectDetail,
+  type MicroflowInlineNodeToggleDetail,
+  type MicroflowInlineQuickFixDetail,
+} from "../flowgram/inline-events";
 import type {
   MicroflowDesignSchema,
   MicroflowValidationIssue,
@@ -101,6 +113,17 @@ const defaultLabels: Partial<MicroflowEditorLabels> = {
   missingDecisionBranchCreated: "Missing Decision branch created.",
   format: "Auto",
 };
+
+const NODE_STATUS_LEGEND: Array<{ key: string; label: string; description: string; tone?: "active" | "success" | "error" | "muted" }> = [
+  { key: "idle", label: "默认态", description: "紧凑摘要，只读" },
+  { key: "hover", label: "悬停态", description: "显示编辑入口" },
+  { key: "selected", label: "选中态", description: "蓝色描边", tone: "active" },
+  { key: "expanded", label: "展开态", description: "关键输入输出编辑" },
+  { key: "running", label: "运行中", description: "显示运行状态", tone: "active" },
+  { key: "success", label: "运行成功", description: "显示耗时与成功", tone: "success" },
+  { key: "failed", label: "运行失败", description: "显示错误摘要", tone: "error" },
+  { key: "skipped", label: "跳过", description: "降低透明度", tone: "muted" },
+];
 
 function cloneSchema(schema: MicroflowDesignSchema): MicroflowDesignSchema {
   const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowDesignSchema;
@@ -228,6 +251,30 @@ function selectionHasOnlyProtectedObjects(schema: MicroflowDesignSchema, selecti
   });
 }
 
+function normalizeSelectionIds(ids?: string[]): string[] {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return [];
+  }
+  return [...new Set(ids.filter((id): id is string => Boolean(id)))].sort((a, b) => a.localeCompare(b));
+}
+
+function isSameSelection(a: FlowGramMicroflowSelection | undefined, b: FlowGramMicroflowSelection | undefined): boolean {
+  if (!a && !b) {
+    return true;
+  }
+  if (!a || !b) {
+    return false;
+  }
+  return (
+    a.objectId === b.objectId
+    && a.flowId === b.flowId
+    && a.collectionId === b.collectionId
+    && a.mode === b.mode
+    && JSON.stringify(normalizeSelectionIds(a.objectIds)) === JSON.stringify(normalizeSelectionIds(b.objectIds))
+    && JSON.stringify(normalizeSelectionIds(a.flowIds)) === JSON.stringify(normalizeSelectionIds(b.flowIds))
+  );
+}
+
 function deleteSelection(schema: MicroflowDesignSchema, targetSelection?: FlowGramMicroflowSelection): MicroflowDesignSchema {
   const selection = targetSelection ?? schema.editor.selection;
   const selectedObjects = new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id)));
@@ -328,6 +375,44 @@ function contextMenuPosition(point: { x: number; y: number }): { left: number; t
     left: Math.max(margin, Math.min(point.x, window.innerWidth - menuWidth - margin)),
     top: Math.max(margin, Math.min(point.y, window.innerHeight - menuHeight - margin)),
   };
+}
+
+function resolveInlineNodeViewModeAliases(
+  schema: MicroflowDesignSchema,
+  nodeId?: string,
+  runtimeNodeId?: string,
+): string[] {
+  const seeds = [nodeId, runtimeNodeId]
+    .filter((item): item is string => Boolean(item))
+    .map(item => item.trim())
+    .filter(Boolean);
+  if (!seeds.length) {
+    return [];
+  }
+  const aliases = new Set<string>();
+  for (const seed of seeds) {
+    aliases.add(seed);
+    aliases.add(seed.startsWith("node-") ? seed.slice("node-".length) : `node-${seed}`);
+  }
+  const nodes = (schema.workflow.nodes as MicroflowWorkflowNodeJSON[] | undefined) ?? [];
+  for (const node of nodes) {
+    const data = (node.data as Partial<FlowGramMicroflowNodeData> | undefined) ?? {};
+    const candidates = [node.id, data.objectId].filter((item): item is string => Boolean(item));
+    const matched = candidates.some(candidate => {
+      const normalized = candidate.startsWith("node-") ? candidate.slice("node-".length) : candidate;
+      return aliases.has(candidate) || aliases.has(normalized) || aliases.has(`node-${normalized}`);
+    });
+    if (!matched) {
+      continue;
+    }
+    aliases.add(node.id);
+    aliases.add(`node-${node.id}`);
+    if (data.objectId) {
+      aliases.add(data.objectId);
+      aliases.add(`node-${data.objectId}`);
+    }
+  }
+  return [...aliases];
 }
 
 function normalizeWorkflowCompatShape(schema: MicroflowDesignSchema): MicroflowDesignSchema {
@@ -494,8 +579,8 @@ function normalizeLineLabelByEdgeKind(edgeKind: FlowGramMicroflowEdgeData["edgeK
   return canonicalBranchLabel(sourcePortId, normalized) ?? trimmed;
 }
 
-type InlineFieldCommitDetail = { nodeId?: string; fieldPath?: string; value?: string };
-type InlineQuickFixDetail = { nodeId?: string; fieldPath?: string; value?: string; actionKind?: string; branchValue?: unknown };
+type InlineFieldCommitDetail = Partial<MicroflowInlineFieldCommitDetail>;
+type InlineQuickFixDetail = Partial<MicroflowInlineQuickFixDetail> & { branchValue?: unknown };
 
 function parseKeyValueLines(value: string): Array<{ key: string; valueExpression: { raw: string } }> {
   return value
@@ -630,6 +715,13 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
 
   useEffect(() => {
     const next = cloneSchema(props.schema);
+    const current = latestSchemaRef.current;
+    const incomingSignature = schemaWorkflowSignature(next);
+    const currentSignature = schemaWorkflowSignature(current);
+    const schemaSwitched = next.id !== current.id;
+    if (!schemaSwitched && incomingSignature === currentSignature) {
+      return;
+    }
     setSchema(next);
     latestSchemaRef.current = next;
     savedSchemaSignatureRef.current = schemaWorkflowSignature(next);
@@ -638,6 +730,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     setHistoryFuture([]);
     setIssues(validateNativeSchema(next));
     setTestRunSamples(readStoredTestRunSamples()[next.id] ?? []);
+    setNodeViewModes(currentModes => (schemaSwitched ? {} : currentModes));
   }, [props.schema]);
 
   useEffect(() => {
@@ -647,30 +740,39 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
 
   useLayoutEffect(() => {
     const toggleListener = (event: Event) => {
-      const detail = (event as CustomEvent<{ nodeId?: string; expanded?: boolean }>).detail;
+      const detail = (event as CustomEvent<MicroflowInlineNodeToggleDetail>).detail;
       if (!detail?.nodeId) {
         return;
       }
-      setNodeViewModes(current => ({
-        ...current,
-        [detail.nodeId as string]: detail.expanded ? "expanded" : "compact",
-      }));
-    };
-    const inspectListener = (event: Event) => {
-      const detail = (event as CustomEvent<{ nodeId?: string; inspect?: "runtime" | "error" }>).detail;
-      if (!detail?.nodeId || !detail.inspect) {
+      const keys = resolveInlineNodeViewModeAliases(latestSchemaRef.current, detail.nodeId, detail.runtimeNodeId);
+      if (!keys.length) {
         return;
       }
       setNodeViewModes(current => ({
         ...current,
-        [detail.nodeId as string]: detail.inspect === "error" ? "inspectingError" : "inspectingRuntime",
+        ...Object.fromEntries(keys.map(key => [key, detail.expanded ? "expanded" : "compact"])),
       }));
     };
-    window.addEventListener("atlas:microflow-inline-node-toggle", toggleListener as EventListener);
-    window.addEventListener("atlas:microflow-inline-node-inspect", inspectListener as EventListener);
+    const inspectListener = (event: Event) => {
+      const detail = (event as CustomEvent<MicroflowInlineNodeInspectDetail>).detail;
+      if (!detail?.nodeId || !detail.inspect) {
+        return;
+      }
+      const keys = resolveInlineNodeViewModeAliases(latestSchemaRef.current, detail.nodeId, detail.runtimeNodeId);
+      if (!keys.length) {
+        return;
+      }
+      const mode: MicroflowNodeViewMode = detail.inspect === "error" ? "inspectingError" : "inspectingRuntime";
+      setNodeViewModes(current => ({
+        ...current,
+        ...Object.fromEntries(keys.map(key => [key, mode])),
+      }));
+    };
+    window.addEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, toggleListener as EventListener);
+    window.addEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, inspectListener as EventListener);
     return () => {
-      window.removeEventListener("atlas:microflow-inline-node-toggle", toggleListener as EventListener);
-      window.removeEventListener("atlas:microflow-inline-node-inspect", inspectListener as EventListener);
+      window.removeEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, toggleListener as EventListener);
+      window.removeEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, inspectListener as EventListener);
     };
   }, []);
 
@@ -735,7 +837,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       applyInlineFieldCommit(detail);
     };
     const onLineLabelCommit = (event: Event) => {
-      const detail = (event as CustomEvent<{ edgeId?: string; flowId?: string; value?: string }>).detail;
+      const detail = (event as CustomEvent<MicroflowInlineLineLabelCommitDetail>).detail;
       if (props.readonly) return;
       const edgeKey = detail?.edgeId ?? detail?.flowId;
       if (!edgeKey) return;
@@ -849,15 +951,15 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         return;
       }
       if (detail.actionKind !== "setFieldValue" || !detail.fieldPath) return;
-      applyInlineFieldCommit({ nodeId: detail.nodeId, fieldPath: detail.fieldPath, value: detail.value ?? "" });
+      applyInlineFieldCommit({ nodeId: detail.nodeId, fieldPath: detail.fieldPath, value: String(detail.value ?? "") });
     };
-    window.addEventListener("atlas:microflow-inline-field-commit", onFieldCommit as EventListener);
-    window.addEventListener("atlas:microflow-inline-line-label-commit", onLineLabelCommit as EventListener);
-    window.addEventListener("atlas:microflow-inline-quick-fix-apply", onQuickFix as EventListener);
+    window.addEventListener(MICROFLOW_INLINE_FIELD_COMMIT_EVENT, onFieldCommit as EventListener);
+    window.addEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
+    window.addEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);
     return () => {
-      window.removeEventListener("atlas:microflow-inline-field-commit", onFieldCommit as EventListener);
-      window.removeEventListener("atlas:microflow-inline-line-label-commit", onLineLabelCommit as EventListener);
-      window.removeEventListener("atlas:microflow-inline-quick-fix-apply", onQuickFix as EventListener);
+      window.removeEventListener(MICROFLOW_INLINE_FIELD_COMMIT_EVENT, onFieldCommit as EventListener);
+      window.removeEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
+      window.removeEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);
     };
   }, [applyInlineFieldCommit, commitSchema, props.readonly]);
 
@@ -1389,6 +1491,9 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
               commitSchema(nextSchema, reason === "flowgramNodeMove" ? "workflow" : "workflow");
             }}
             onSelectionChange={selection => {
+              if (isSameSelection(selection, latestSchemaRef.current.editor.selection)) {
+                return;
+              }
               commitSchema(selectionPatch(latestSchemaRef.current, selection), "selection", { pushHistory: false, dirty: false });
             }}
             onCanvasBlankClick={clearSelection}
@@ -1558,6 +1663,17 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
             </button>
           </div>
         ) : null}
+        <aside className="microflow-node-status-legend" aria-label="节点状态说明">
+          <Text strong className="microflow-node-status-legend__title">节点状态说明</Text>
+          <div className="microflow-node-status-legend__list">
+            {NODE_STATUS_LEGEND.map(item => (
+              <div key={item.key} className={["microflow-node-status-legend__item", item.tone ? `is-${item.tone}` : ""].join(" ")}>
+                <span className="microflow-node-status-legend__label">{item.label}</span>
+                <span className="microflow-node-status-legend__desc">{item.description}</span>
+              </div>
+            ))}
+          </div>
+        </aside>
       </div>
       {LEGACY_BOTTOM_PANEL_ENABLED && bottomOpen ? (
         <div

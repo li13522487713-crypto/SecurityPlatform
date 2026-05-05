@@ -31,17 +31,11 @@ export function createDefaultInlineConfig(input: DeriveNodeInlineInput): Microfl
     }],
     sections: [
       {
-        id: "advanced",
-        title: "高级",
-        kind: "advanced",
-        collapsed: true,
-        fields: [],
-      },
-      {
         id: "errors",
         title: "错误",
         kind: "errors",
-        collapsed: false,
+        collapsed: localIssues.length === 0,
+        maxVisibleRows: 3,
         fields: localIssues.slice(0, 3).map(issue => ({
           id: issue.id,
           label: issue.code,

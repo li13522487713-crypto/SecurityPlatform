@@ -21,6 +21,15 @@ function branchLabel(caseValues: MicroflowCaseValue[] | undefined): string {
   return first.kind;
 }
 
+function parseSimpleExpression(raw: string): { field: string; operator: string; value: string } | undefined {
+  const matched = raw.trim().match(/^\$?([A-Za-z_]\w*)\s*(==|=|!=|>=|<=|>|<|contains)\s*(.+)$/);
+  if (!matched) {
+    return undefined;
+  }
+  const [, field, operator, value] = matched;
+  return { field, operator: operator === "==" ? "=" : operator, value: value.trim() };
+}
+
 export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): MicroflowNodeInlineConfig {
   const base = createDefaultInlineConfig(input);
   const variableOptions = buildNodeInlineVariableOptions({
@@ -37,10 +46,11 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
   const outgoing = input.schema.workflow.edges
     .filter(edge => edge.sourceNodeID === input.node.id)
     .map((edge, index) => ({ edge, index }));
+  const parsed = parseSimpleExpression(rawCondition);
   const summaryLines: MicroflowNodeInlineConfig["summaryLines"] = [
     {
       id: "condition",
-      value: rawCondition || "if 条件",
+      value: parsed ? `if ${parsed.field} ${parsed.operator} ${parsed.value}` : (rawCondition ? `if ${rawCondition}` : "if 条件"),
       kind: "condition",
       editable: true,
       fieldPath: "data.splitCondition.expression.raw",
@@ -53,10 +63,12 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
         .join(" · ") || "分支未配置",
       kind: "branch",
     },
+    ...(outgoing.length > 2 ? [{ id: "branch-more", value: `+${outgoing.length - 2} more`, kind: "branch" as const }] : []),
     ...(base.runtime?.selectedBranchLabel
       ? [{ id: "runtime", label: "selected", value: base.runtime.selectedBranchLabel, kind: "runtime" as const }]
       : []),
   ];
+  const shouldShowCodeMode = !parsed && Boolean(rawExpression.trim());
   return {
     ...base,
     summaryLines: summaryLines.slice(0, 3),
@@ -65,6 +77,7 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
         id: "conditions",
         title: "条件",
         kind: "conditions",
+        maxVisibleRows: 2,
         fields: [
           {
             id: "condition-expression",
@@ -75,28 +88,24 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
             placeholder: "$riskScore >= 80",
             options: variableOptions,
           },
-          {
-            id: "condition-logic",
-            label: "逻辑",
-            value: logic,
-            fieldPath: "data.logic",
-            editType: "select",
-            options: [{ label: "AND", value: "AND" }, { label: "OR", value: "OR" }],
-          },
-          {
-            id: "raw-expression",
-            label: "高级表达式",
-            value: rawExpression,
-            fieldPath: "data.rawExpression",
-            editType: "expression",
-            options: variableOptions,
-          },
+          { id: "condition-logic", label: "逻辑", value: logic, fieldPath: "data.logic", editType: "select", options: [{ label: "AND", value: "AND" }, { label: "OR", value: "OR" }] },
+          ...(shouldShowCodeMode
+            ? [{
+              id: "raw-expression",
+              label: "代码模式",
+              value: rawExpression,
+              fieldPath: "data.rawExpression",
+              editType: "expression" as const,
+              options: variableOptions,
+            }]
+            : []),
         ],
       },
       {
         id: "branches",
         title: "分支",
         kind: "branches",
+        maxVisibleRows: 3,
         fields: outgoing.map(item => {
           const edge = item.edge as MicroflowWorkflowEdgeJSON;
           const data = (edge.data ?? {}) as Record<string, unknown>;
@@ -111,7 +120,7 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
           };
         }),
       },
-      ...base.sections,
+      ...base.sections.filter(section => section.kind === "errors"),
     ],
   };
 }

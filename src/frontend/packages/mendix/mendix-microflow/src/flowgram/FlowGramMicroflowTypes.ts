@@ -100,7 +100,19 @@ export interface MicroflowInlineSection {
     | "errors"
     | "advanced";
   collapsed?: boolean;
+  maxVisibleRows?: number;
   fields: MicroflowInlineEditableField[];
+}
+
+export interface MicroflowNodeMiniSummaryLine {
+  id: string;
+  kind: "input" | "output" | "assignment" | "condition" | "branch" | "http" | "runtime" | "error" | "text";
+  label?: string;
+  value: string;
+  fieldPath?: string;
+  editable?: boolean;
+  error?: boolean;
+  warning?: boolean;
 }
 
 export interface MicroflowNodeRuntimeInlineState {

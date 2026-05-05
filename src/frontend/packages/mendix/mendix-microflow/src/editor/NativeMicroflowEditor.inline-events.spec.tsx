@@ -354,6 +354,13 @@ describe("NativeMicroflowEditor inline events", () => {
     await waitFor(() => {
       expect(lastCanvasProps?.nodeViewModes?.decision).toBe("expanded");
     });
+    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-toggle", {
+      detail: { nodeId: "decision", runtimeNodeId: "node-decision", expanded: false },
+    }));
+    await waitFor(() => {
+      expect(lastCanvasProps?.nodeViewModes?.decision).toBe("compact");
+      expect(lastCanvasProps?.nodeViewModes?.["node-decision"]).toBe("compact");
+    });
 
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
       detail: {

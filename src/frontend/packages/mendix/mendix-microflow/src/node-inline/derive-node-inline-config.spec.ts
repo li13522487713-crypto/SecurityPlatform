@@ -225,7 +225,7 @@ describe("deriveNodeInlineConfig", () => {
     }] as never;
 
     const inline = deriveNodeInlineConfig({ node, schema });
-    expect(inline.summaryLines[0]?.value).toContain("$riskScore >= 80");
+    expect(inline.summaryLines[0]?.value).toContain("riskScore >= 80");
     expect(inline.sections.some(section => section.kind === "conditions")).toBe(true);
     expect(inline.sections.some(section => section.kind === "branches")).toBe(true);
     const conditionField = inline.sections
@@ -624,7 +624,7 @@ describe("deriveNodeInlineConfig", () => {
     expect((findFieldOption(restInline, "data.action.request.urlExpression.raw") ?? []).length).toBeGreaterThan(0);
     expect((findFieldOption(restInline, "data.action.request.body.expression.raw") ?? []).length).toBeGreaterThan(0);
     expect((findFieldOption(actionInline, "data.action.inputExpression.raw") ?? []).length).toBeGreaterThan(0);
-    expect((findFieldOption(actionInline, "data.action.sideEffectTarget") ?? []).length).toBeGreaterThan(0);
+    expect((findFieldOption(actionInline, "data.action.outputVariableName") ?? []).length).toBeGreaterThan(0);
     expect((findFieldOption(variableInline, "data.action.newValueExpression.raw") ?? []).length).toBeGreaterThan(0);
     expect((findFieldOption(callInline, "data.action.argumentMappings.0.valueExpression.raw") ?? []).length).toBeGreaterThan(0);
     const loopNode: MicroflowWorkflowNodeJSON = {

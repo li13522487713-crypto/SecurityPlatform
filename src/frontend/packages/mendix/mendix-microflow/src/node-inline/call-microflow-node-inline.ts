@@ -27,15 +27,14 @@ export function deriveCallMicroflowNodeInline(input: DeriveNodeInlineInput): Mic
     ?? [];
   const mappingPathPrefix = action?.parameterMappings ? "data.action.parameterMappings" : "data.action.argumentMappings";
   const returnValue = action?.returnValue ?? { outputVariableName: action?.outputVariableName };
-  const returnMode = String((returnValue as Record<string, unknown> | undefined)?.mode ?? "single");
   const targetName = action?.targetMicroflowDisplayName ?? action?.targetMicroflowName ?? action?.targetMicroflowId ?? action?.calledMicroflowId ?? "未选择";
   return {
     ...base,
     summaryLines: [
-      { id: "target", value: `调用微流 ${targetName}`, kind: "text", editable: true, fieldPath: "data.action.targetMicroflowName" },
+      { id: "target", value: `flow: ${targetName}`, kind: "text", editable: true, fieldPath: "data.action.targetMicroflowName" },
       {
         id: "args",
-        value: `input: ${parameterMappings.map(item => item.parameterName).join(", ") || "-"}`,
+        value: `in: ${parameterMappings.map(item => item.parameterName).join(", ") || "-"}`,
         kind: "input",
         editable: parameterMappings.length > 0,
         fieldPath: parameterMappings.length > 0
@@ -45,25 +44,26 @@ export function deriveCallMicroflowNodeInline(input: DeriveNodeInlineInput): Mic
           : undefined,
       },
       { id: "ret", value: `out: ${(returnValue as { outputVariableName?: string; resultVariableName?: string }).outputVariableName ?? (returnValue as { outputVariableName?: string; resultVariableName?: string }).resultVariableName ?? "-"}`, kind: "output", editable: true, fieldPath: "data.action.returnValue.outputVariableName" },
+      ...(base.runtime?.outputPreview ? [{ id: "run", value: base.runtime.outputPreview, kind: "runtime" as const }] : []),
     ],
     sections: [
       {
         id: "target",
         title: "目标微流",
-        kind: "advanced",
+        kind: "inputs",
+        maxVisibleRows: 1,
         fields: [
-          { id: "targetDisplayName", label: "显示名", value: String(action?.targetMicroflowDisplayName ?? ""), fieldPath: "data.action.targetMicroflowDisplayName", editType: "text" },
-          { id: "targetName", label: "名称", value: String(action?.targetMicroflowName ?? ""), fieldPath: "data.action.targetMicroflowName", editType: "text" },
-          { id: "targetId", label: "ID", value: String(action?.targetMicroflowId ?? action?.calledMicroflowId ?? ""), fieldPath: "data.action.targetMicroflowId", editType: "text" },
+          { id: "targetName", label: "flow", value: targetName, fieldPath: "data.action.targetMicroflowName", editType: "text" },
         ],
       },
       {
         id: "inputs",
         title: "参数映射",
         kind: "inputs",
+        maxVisibleRows: 3,
         fields: parameterMappings.map((mapping, index) => ({
           id: mapping.parameterName,
-          label: mapping.parameterName,
+            label: "in",
           value: expressionText(mapping.argumentExpression),
           fieldPath: action?.parameterMappings
             ? `${mappingPathPrefix}.${index}.argumentExpression.raw`
@@ -76,26 +76,19 @@ export function deriveCallMicroflowNodeInline(input: DeriveNodeInlineInput): Mic
         id: "outputs",
         title: "返回值",
         kind: "outputs",
+        maxVisibleRows: 1,
         fields: [
           {
             id: "return-var",
-            label: "result",
+            label: "out",
             value: (returnValue as { outputVariableName?: string; resultVariableName?: string }).outputVariableName ?? (returnValue as { outputVariableName?: string; resultVariableName?: string }).resultVariableName ?? "",
             fieldPath: "data.action.returnValue.outputVariableName",
             editType: "variable",
             options: variableNameOptions,
           },
-          {
-            id: "return-mode",
-            label: "返回模式",
-            value: returnMode,
-            fieldPath: "data.action.returnValue.mode",
-            editType: "select",
-            options: [{ label: "single", value: "single" }, { label: "object", value: "object" }],
-          },
         ],
       },
-      ...base.sections,
+      ...base.sections.filter(section => section.kind === "errors"),
     ],
   };
 }

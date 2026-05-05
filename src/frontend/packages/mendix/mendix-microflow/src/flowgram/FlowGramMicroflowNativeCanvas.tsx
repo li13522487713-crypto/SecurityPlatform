@@ -43,6 +43,7 @@ import {
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
 import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
 import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
+import { decorateWorkflow } from "./flowgram-workflow-decorate";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
@@ -232,6 +233,34 @@ function normalizeWorkflow(workflow: WorkflowJSON | MicroflowWorkflowJSON, optio
       };
     }) as WorkflowJSON["nodes"],
     edges: ((workflow.edges ?? []) as MicroflowWorkflowEdgeJSON[]).map(ensureEdgeData) as WorkflowJSON["edges"],
+  };
+}
+
+function stripTransientNodeData(workflow: WorkflowJSON): WorkflowJSON {
+  return {
+    ...workflow,
+    nodes: ((workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(node => {
+      const data = (node.data ?? {}) as Partial<FlowGramMicroflowNodeData> & Record<string, unknown>;
+      const {
+        inlineConfig,
+        runtimeState,
+        runtimeErrorCode,
+        runtimeErrorMessage,
+        validationState,
+        issueCount,
+        ...stableData
+      } = data;
+      void inlineConfig;
+      void runtimeState;
+      void runtimeErrorCode;
+      void runtimeErrorMessage;
+      void validationState;
+      void issueCount;
+      return {
+        ...node,
+        data: stableData as MicroflowWorkflowNodeJSON["data"],
+      };
+    }) as WorkflowJSON["nodes"],
   };
 }
 
@@ -425,15 +454,20 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   propsRef.current = props;
   latestSchemaRef.current = props.schema;
 
-  const normalizedWorkflow = useMemo(
-    () => normalizeWorkflow(props.schema.workflow as WorkflowJSON),
-    [props.schema.workflow],
+  const renderedWorkflow = useMemo(
+    () => decorateWorkflow({
+      schema: props.schema,
+      validationIssues: props.validationIssues,
+      runtimeTrace: props.runtimeTrace,
+      nodeViewModes: props.nodeViewModes,
+    }),
+    [props.nodeViewModes, props.runtimeTrace, props.schema, props.validationIssues],
   );
   const gridEnabled = props.schema.editor.gridEnabled !== false;
   const miniMapVisible = props.schema.editor.showMiniMap === true;
 
   const commitWorkflow = (workflow: WorkflowJSON, reason: string, options: { snapToGrid?: boolean } = {}) => {
-    const nextWorkflow = normalizeWorkflow(workflow, options);
+    const nextWorkflow = stripTransientNodeData(normalizeWorkflow(workflow, options));
     const nextSignature = workflowSignature(nextWorkflow);
     if (nextSignature === workflowSignature(latestSchemaRef.current.workflow)) {
       return;
@@ -452,10 +486,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   };
 
   const commitEdgeStructure = (workflow: WorkflowJSON, reason: string) => {
-    const nextWorkflow = normalizeWorkflow({
+    const nextWorkflow = stripTransientNodeData(normalizeWorkflow({
       ...latestSchemaRef.current.workflow,
       edges: workflow.edges ?? [],
-    } as WorkflowJSON);
+    } as WorkflowJSON));
     const nextSignature = workflowSignature(nextWorkflow);
     if (nextSignature === workflowSignature(latestSchemaRef.current.workflow)) {
       return;
@@ -489,17 +523,17 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   }, [playground.config, props.readonly]);
 
   useEffect(() => {
-    const nextSignature = workflowSignature(normalizedWorkflow);
+    const nextSignature = workflowSignature(renderedWorkflow);
     const currentDocSignature = workflowSignature(normalizeWorkflow(doc.toJSON() as WorkflowJSON));
     if (lastWorkflowSignatureRef.current === nextSignature && currentDocSignature === nextSignature) {
       return;
     }
     reloadingRef.current = true;
-    void Promise.resolve(doc.fromJSON(cloneWorkflow(normalizedWorkflow))).finally(() => {
+    void Promise.resolve(doc.fromJSON(cloneWorkflow(renderedWorkflow))).finally(() => {
       lastWorkflowSignatureRef.current = nextSignature;
       reloadingRef.current = false;
     });
-  }, [doc, normalizedWorkflow]);
+  }, [doc, renderedWorkflow]);
 
   useEffect(() => {
     const disposable = dragService.onNodesDrag(event => {

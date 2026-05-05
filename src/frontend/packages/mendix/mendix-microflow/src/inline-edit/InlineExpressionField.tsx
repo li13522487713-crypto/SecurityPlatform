@@ -1,5 +1,6 @@
 import { ContextVariablePicker, type ContextVariableCandidate } from "./shared/ContextVariablePicker";
 import { InlineEditableText } from "./InlineEditableText";
+import { useEffect, useState } from "react";
 
 export function InlineExpressionField(props: {
   value: string;
@@ -9,6 +10,17 @@ export function InlineExpressionField(props: {
   options?: Array<{ label: string; value: string }>;
   onCommit?: (value: string) => void;
 }) {
+  const [draft, setDraft] = useState(props.value);
+
+  useEffect(() => {
+    setDraft(props.value);
+  }, [props.value]);
+
+  const commit = (next: string) => {
+    setDraft(next);
+    props.onCommit?.(next);
+  };
+
   const variables: ContextVariableCandidate[] | undefined = props.options?.map(option => {
     const [group, rawMeta] = option.label.includes("::")
       ? option.label.split("::", 2)
@@ -35,15 +47,26 @@ export function InlineExpressionField(props: {
   });
   return (
     <div style={{ display: "grid", gap: 4 }}>
-      <InlineEditableText {...props} className="microflow-inline-expression" commitOnBlur={false} />
+      <InlineEditableText
+        {...props}
+        value={draft}
+        className="microflow-inline-expression"
+        onCommit={commit}
+      />
       {variables?.length ? (
         <ContextVariablePicker
-          value={props.value}
+          value={undefined}
           disabled={props.readonly}
           placeholder="插入变量"
           variables={variables}
           insertionMode="append"
-          onChange={value => value ? props.onCommit?.(value) : undefined}
+          onChange={value => {
+            if (!value) {
+              return;
+            }
+            const next = draft ? `${draft} ${value}`.trim() : value;
+            commit(next);
+          }}
         />
       ) : null}
     </div>

@@ -1,6 +1,4 @@
-import { Button, Typography } from "@douyinfe/semi-ui";
-import { IconChevronDown, IconChevronRight } from "@douyinfe/semi-icons";
-import { useEffect, useState } from "react";
+import { Typography } from "@douyinfe/semi-ui";
 import type { MicroflowInlineEditableField, MicroflowInlineSection as InlineSectionType } from "../flowgram/FlowGramMicroflowTypes";
 import { InlineAssignmentEditor } from "./InlineAssignmentEditor";
 import { InlineBranchEditor } from "./InlineBranchEditor";
@@ -56,36 +54,25 @@ export function InlineSection(props: {
   onCommitField: (field: MicroflowInlineEditableField, value: string) => void;
 }) {
   const section = props.section;
-  const [collapsed, setCollapsed] = useState(Boolean(section.collapsed));
-
-  useEffect(() => {
-    setCollapsed(Boolean(section.collapsed));
-  }, [section.collapsed]);
+  const visibleRows = section.maxVisibleRows && section.maxVisibleRows > 0
+    ? section.fields.slice(0, section.maxVisibleRows)
+    : section.fields;
+  const hiddenCount = Math.max(0, section.fields.length - visibleRows.length);
 
   return (
-    <section className="microflow-inline-section" data-section-id={section.id}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+    <section className="microflow-inline-section microflow-mini-section" data-section-id={section.id}>
+      <div className="microflow-mini-section__title">
         <Text type="tertiary" size="small">{section.title}</Text>
-        <Button
-          size="small"
-          theme="borderless"
-          icon={collapsed ? <IconChevronRight /> : <IconChevronDown />}
-          onClick={() => setCollapsed(value => !value)}
-        >
-          {section.kind}
-        </Button>
       </div>
-      <div
-        style={{ display: collapsed ? "none" : "grid", gap: 6 }}
-        aria-hidden={collapsed}
-      >
-        {section.fields.map(field => (
-          <div key={field.id} className={["microflow-inline-field-row", field.invalid ? "is-invalid" : ""].join(" ")} style={{ display: "grid", gap: 4 }}>
-            <Text size="small" type="tertiary">{field.label}</Text>
-            {renderField(field, props.readonly, props.onCommitField)}
+      <div className="microflow-mini-section__rows">
+        {visibleRows.map(field => (
+          <div key={field.id} className={["microflow-mini-field", field.invalid ? "is-invalid" : ""].join(" ")}>
+            <Text size="small" type="tertiary" className="microflow-mini-field__label">{field.label}</Text>
+            <div className="microflow-mini-field__editor">{renderField(field, props.readonly, props.onCommitField)}</div>
             {field.errorMessage ? <Text size="small" type="danger">{field.errorMessage}</Text> : null}
           </div>
         ))}
+        {hiddenCount > 0 ? <Text type="tertiary" size="small" className="microflow-mini-field__more">+{hiddenCount} more</Text> : null}
       </div>
     </section>
   );

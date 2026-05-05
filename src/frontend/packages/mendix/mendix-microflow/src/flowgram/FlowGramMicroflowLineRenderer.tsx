@@ -7,6 +7,7 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
+import { emitInlineLineLabelCommit } from "./inline-events";
 
 function edgeDataFromLine(line: LineRenderProps["line"]): FlowGramMicroflowEdgeData | undefined {
   const maybeLine = line as unknown as {
@@ -88,6 +89,9 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   );
   const className = [
     "microflow-branch-label",
+    label === "true" ? "is-true" : "",
+    label === "false" ? "is-false" : "",
+    label === "else" ? "is-else" : "",
     editing ? "is-editing" : "",
     runtimeClass(data.runtimeState),
     data.validationState === "warning" || warningMissingTarget ? "is-warning" : "",
@@ -95,12 +99,10 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
 
   const commit = (value: string) => {
     const trimmed = value.trim();
-    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-line-label-commit", {
-      detail: {
-        flowId: data.flowId,
-        value: trimmed || label,
-      },
-    }));
+    emitInlineLineLabelCommit({
+      flowId: data.flowId,
+      value: trimmed || label,
+    });
     setEditing(false);
   };
 
@@ -132,6 +134,9 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
       data-testid="microflow-flowgram-line-label"
       data-flow-id={data.flowId}
       data-edge-kind={data.edgeKind}
+      onMouseDown={event => {
+        event.stopPropagation();
+      }}
       onClick={event => {
         event.stopPropagation();
         if (readonly) {
@@ -143,6 +148,7 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
       title={warningMissingTarget ? "缺少目标节点" : label}
     >
       {label}
+      {!readonly ? <span className="microflow-branch-label__edit" aria-hidden="true">✎</span> : null}
       {warningMissingTarget ? <span aria-hidden="true" className="microflow-branch-label__warning-dot" /> : null}
     </button>
   );

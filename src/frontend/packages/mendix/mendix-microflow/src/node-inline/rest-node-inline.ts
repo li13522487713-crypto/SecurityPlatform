@@ -28,15 +28,10 @@ export function deriveRestNodeInline(input: DeriveNodeInlineInput): MicroflowNod
     ? ""
     : action?.response.handling.outputVariableName ?? "";
   const statusCodeVar = action?.response.statusCodeVariableName ?? "";
-  const headersVar = action?.response.headersVariableName ?? "";
-  const timeoutMs = requestData.timeoutMs ?? requestData.timeoutInMs ?? "";
-  const errorHandlingData = (actionData.errorHandling ?? {}) as Record<string, unknown>;
-  const errorVar = String(errorHandlingData.errorVariableName ?? data.errorVariableName ?? "");
-  const outputHandlingKind = String((actionData.response as Record<string, unknown> | undefined)?.handling && (((actionData.response as Record<string, unknown>).handling as Record<string, unknown>).kind ?? "") || "");
   const summaryLines: MicroflowNodeInlineConfig["summaryLines"] = [
     { id: "methodUrl", value: `${method} ${url || "/"}`, kind: "http", editable: true, fieldPath: "data.action.request.urlExpression.raw" },
-    { id: "io", value: `in: ${(action?.request.queryParameters ?? []).map(item => item.key).join(", ") || "-"} · out: ${outputVar || "-"}`, kind: "http" },
-    { id: "method", value: `method: ${method}`, kind: "http", editable: true, fieldPath: "data.action.request.method" },
+    { id: "in", value: `in: ${(action?.request.queryParameters ?? []).map(item => item.key).join(", ") || "-"}`, kind: "input" },
+    { id: "out", value: `out: ${[outputVar, statusCodeVar].filter(Boolean).join(", ") || "-"}`, kind: "output" },
     ...(base.runtime?.outputPreview ? [{ id: "status", value: base.runtime.outputPreview, kind: "runtime" as const }] : []),
   ];
   return {
@@ -47,10 +42,11 @@ export function deriveRestNodeInline(input: DeriveNodeInlineInput): MicroflowNod
         id: "http",
         title: "请求",
         kind: "http",
+        maxVisibleRows: 6,
         fields: [
           {
             id: "method",
-            label: "Method",
+            label: "method",
             value: method,
             fieldPath: "data.action.request.method",
             editType: "select",
@@ -58,27 +54,17 @@ export function deriveRestNodeInline(input: DeriveNodeInlineInput): MicroflowNod
           },
           {
             id: "url",
-            label: "URL",
+            label: "url",
             value: url,
             fieldPath: "data.action.request.urlExpression.raw",
             editType: "http",
             required: true,
             options: expressionOptions,
           },
-          {
-            id: "body",
-            label: "Body",
-            value: action?.request.body.kind === "json" || action?.request.body.kind === "text"
-              ? expressionText(action.request.body.expression)
-              : "",
-            fieldPath: "data.action.request.body.expression.raw",
-            editType: "json",
-            placeholder: "{ }",
-            options: expressionOptions,
-          },
+          { id: "body", label: "body", value: action?.request.body.kind ? `JSON · ${action.request.body.kind}` : "body JSON · 0 fields", fieldPath: "data.action.request.body.expression.raw", editType: "json", placeholder: "{ }", options: expressionOptions },
           {
             id: "query",
-            label: "Query",
+            label: "in",
             value: (action?.request.queryParameters ?? []).map(item => `${item.key}=${expressionText(item.valueExpression)}`).join("\n"),
             fieldPath: "data.action.request.queryParameters",
             editType: "mapping",
@@ -86,67 +72,24 @@ export function deriveRestNodeInline(input: DeriveNodeInlineInput): MicroflowNod
             options: expressionOptions,
           },
           {
-            id: "headers",
-            label: "Headers",
-            value: (action?.request.headers ?? []).map(item => `${item.key}=${expressionText(item.valueExpression)}`).join("\n"),
-            fieldPath: "data.action.request.headers",
-            editType: "mapping",
-            placeholder: "Authorization=Bearer ...",
-            options: expressionOptions,
-          },
-          {
             id: "out",
-            label: "输出变量",
+            label: "out",
             value: outputVar,
             fieldPath: "data.action.response.handling.outputVariableName",
             editType: "variable",
             options: variableNameOptions,
           },
           {
-            id: "outputHandlingKind",
-            label: "输出处理",
-            value: outputHandlingKind || "store",
-            fieldPath: "data.action.response.handling.kind",
-            editType: "select",
-            options: [
-              { label: "store", value: "store" },
-              { label: "ignore", value: "ignore" },
-            ],
-          },
-          {
             id: "statusCodeVar",
-            label: "状态码变量",
+            label: "status",
             value: statusCodeVar,
             fieldPath: "data.action.response.statusCodeVariableName",
             editType: "variable",
             options: variableNameOptions,
           },
-          {
-            id: "headersVar",
-            label: "响应头变量",
-            value: headersVar,
-            fieldPath: "data.action.response.headersVariableName",
-            editType: "variable",
-            options: variableNameOptions,
-          },
-          {
-            id: "timeout",
-            label: "超时(ms)",
-            value: String(timeoutMs),
-            fieldPath: "data.action.request.timeoutMs",
-            editType: "text",
-          },
-          {
-            id: "errorVar",
-            label: "错误变量",
-            value: errorVar,
-            fieldPath: "data.action.errorHandling.errorVariableName",
-            editType: "variable",
-            options: variableNameOptions,
-          },
         ],
       },
-      ...base.sections,
+      ...base.sections.filter(section => section.kind === "errors"),
     ],
   };
 }

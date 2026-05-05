@@ -150,6 +150,12 @@ export function decorateWorkflow(input: {
       });
       return {
         ...node,
+        meta: {
+          ...node.meta,
+          size: viewMode === "expanded"
+            ? { width: 320, height: 210 }
+            : { width: 240, height: 104 },
+        },
         data: {
           ...data,
           validationState,

@@ -21,8 +21,8 @@ export function deriveEndNodeInline(input: DeriveNodeInlineInput): MicroflowNode
     ?? input.schema.returnVariableName
     ?? "";
   const summaryLines: MicroflowNodeInlineConfig["summaryLines"] = [
-    { id: "end", value: "结束", kind: "text" },
-    { id: "ret", label: "return", value: returnExpression || "void", kind: "output", editable: true, fieldPath: nodeAction?.returnExpression ? "data.action.returnExpression.raw" : "returnVariableName" },
+    { id: "ret", value: `return: ${returnExpression || "void"}`, kind: "output", editable: true, fieldPath: nodeAction?.returnExpression ? "data.action.returnExpression.raw" : "returnVariableName" },
+    { id: "status", value: "status: success", kind: "text" },
     ...(base.runtime?.outputPreview ? [{ id: "out", label: "output", value: base.runtime.outputPreview, kind: "runtime" as const }] : []),
   ];
   return {
@@ -33,6 +33,7 @@ export function deriveEndNodeInline(input: DeriveNodeInlineInput): MicroflowNode
         id: "outputs",
         title: "返回值",
         kind: "outputs",
+        maxVisibleRows: 3,
         fields: [
           {
             id: "return-expression",
@@ -41,14 +42,6 @@ export function deriveEndNodeInline(input: DeriveNodeInlineInput): MicroflowNode
             fieldPath: nodeAction?.returnExpression ? "data.action.returnExpression.raw" : "returnVariableName",
             editType: "expression",
             placeholder: "$result",
-            options: expressionOptions,
-          },
-          {
-            id: "return-variable",
-            label: "return variable",
-            value: input.schema.returnVariableName ?? "",
-            fieldPath: "returnVariableName",
-            editType: "variable",
             options: expressionOptions,
           },
           {
@@ -67,7 +60,7 @@ export function deriveEndNodeInline(input: DeriveNodeInlineInput): MicroflowNode
           },
         ],
       },
-      ...base.sections,
+      ...base.sections.filter(section => section.kind === "errors"),
     ],
   };
 }

@@ -17,7 +17,13 @@ export function InlineNodeEditor(props: {
     return null;
   }
   return (
-    <div className="microflow-inline-editor">
+    <div
+      className="microflow-inline-editor"
+      data-flow-editor-selectable="false"
+      onMouseDown={event => event.stopPropagation()}
+      onClick={event => event.stopPropagation()}
+      onPointerDown={event => event.stopPropagation()}
+    >
       {config.sections.map(section => (
         <InlineSection key={section.id} section={section} readonly={props.readonly} onCommitField={props.onCommitField} />
       ))}

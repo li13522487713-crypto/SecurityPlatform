@@ -13,6 +13,12 @@ import {
 import type { FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
 import { FlowGramMicroflowPortRenderer } from "./FlowGramMicroflowPortRenderer";
 import {
+  emitInlineFieldCommit,
+  emitInlineNodeInspect,
+  emitInlineNodeToggle,
+  emitInlineQuickFix,
+} from "./inline-events";
+import {
   focusMicroflowNodeDragRoot,
   isMicroflowNodeDragBlockedTarget,
 } from "./flowgram-node-drag";
@@ -91,6 +97,9 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
     if (readonly || event.button !== 0) {
       return false;
     }
+    if (event.detail > 1) {
+      return false;
+    }
     return !isMicroflowNodeDragBlockedTarget(event.target);
   };
 
@@ -106,11 +115,11 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
     selectNode(event);
   };
 
-  const handleDoubleClick = () => {
+  const handleDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
     const expanded = data?.inlineConfig?.viewMode !== "expanded";
-    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-toggle", {
-      detail: { nodeId: data?.objectId ?? String(props.node.id), expanded },
-    }));
+    emitInlineNodeToggle({ nodeId: data?.objectId ?? String(props.node.id), runtimeNodeId: String(props.node.id), expanded });
   };
 
   if (!data?.objectKind) {
@@ -147,12 +156,24 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
 
   const tone = nodeTone(data.objectKind);
   const isExpanded = data.inlineConfig?.viewMode === "expanded";
-  const compactSummary = (data.inlineConfig?.summaryLines ?? []).slice(0, 3);
+  const summaryLines = data.inlineConfig?.summaryLines ?? [];
+  const compactSummary = summaryLines.slice(0, 3);
+  const summaryOverflowCount = Math.max(0, summaryLines.length - compactSummary.length);
+  const runtime = data.inlineConfig?.runtime;
+  const runtimeStateLabel = runtime?.error
+    ? "× error"
+    : runtime?.running
+      ? "running"
+      : runtime?.failed
+        ? "× failed"
+        : runtime?.skipped
+          ? "skipped"
+          : runtime?.success
+            ? "✓"
+            : "";
 
   const toggleExpanded = () => {
-    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-toggle", {
-      detail: { nodeId: data.objectId, expanded: !isExpanded },
-    }));
+    emitInlineNodeToggle({ nodeId: data.objectId, runtimeNodeId: String(props.node.id), expanded: !isExpanded });
   };
 
   return (
@@ -191,11 +212,20 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
       <div className="microflow-flowgram-node__header">
         <span className="microflow-flowgram-node__icon" />
         <div className="microflow-flowgram-node__text">
-          <Typography.Text strong title={data.title} style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <Typography.Text
+            strong
+            title={`${data.title}（双击切换编辑）`}
+            style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
             {data.title}
           </Typography.Text>
           {data.subtitle ? (
-            <Typography.Text type="tertiary" size="small" title={data.subtitle} style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <Typography.Text
+              type="tertiary"
+              size="small"
+              title={`${data.subtitle}（双击编辑）`}
+              style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            >
               {data.subtitle}
             </Typography.Text>
           ) : null}
@@ -203,147 +233,78 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         <button
           type="button"
           className="microflow-flowgram-node__expand-btn"
+          onMouseDown={event => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
           onClick={event => {
             event.stopPropagation();
             toggleExpanded();
           }}
           aria-label={isExpanded ? "收起节点" : "展开节点"}
+          title={isExpanded ? "收起" : "编辑"}
         >
-          {isExpanded ? "收起" : "编辑"}
+          {isExpanded ? "完成" : "编辑"}
         </button>
       </div>
       <div className="microflow-flowgram-node__meta">
-        {data.actionKind ? <StaticTag>{data.actionKind}</StaticTag> : null}
-        {data.availability === "beta" ? <StaticTag color="blue">Beta</StaticTag> : null}
-        {data.availability === "deprecated" ? <StaticTag color="orange">Deprecated</StaticTag> : null}
-        {data.availability === "requiresConnector" ? <StaticTag color="grey">Connector Required</StaticTag> : null}
-        {data.availability === "nanoflowOnlyDisabled" ? <StaticTag color="grey">Nanoflow Only</StaticTag> : null}
-        {data.runtimeState && data.runtimeState !== "idle" ? (
-          <span title={data.runtimeErrorMessage ?? data.runtimeErrorCode}>
-            <Tag
-              color={
-                data.runtimeState === "failed"
-                  ? "red"
-                  : data.runtimeState === "unsupported"
-                    ? "orange"
-                    : data.runtimeState === "running"
-                      ? "blue"
-                      : data.runtimeState === "skipped"
-                        ? "grey"
-                        : "green"
-              }
-            >
-              {data.runtimeState}
-            </Tag>
-          </span>
-        ) : null}
-        {data.validationState === "error" ? <Tag color="red">Error</Tag> : null}
-        {data.validationState === "warning" ? <Tag color="orange">Warning</Tag> : null}
+        <StaticTag>{data.actionKind || data.objectKind}</StaticTag>
       </div>
       {compactSummary.length > 0 ? (
-        <div className="microflow-inline-summary" data-testid={`microflow-node-summary-${data.objectId}`}>
+        <div className="microflow-mini-summary" data-testid={`microflow-node-summary-${data.objectId}`}>
           {compactSummary.map(line => (
             <div key={line.id} className="microflow-inline-summary__line" title={`${line.label ? `${line.label}: ` : ""}${line.value}`}>
               {line.label ? <Typography.Text type="tertiary" size="small">{line.label}: </Typography.Text> : null}
               <Typography.Text size="small">{line.value}</Typography.Text>
             </div>
           ))}
+          {summaryOverflowCount > 0 ? <Typography.Text type="tertiary" size="small">+{summaryOverflowCount} more</Typography.Text> : null}
         </div>
       ) : null}
-      {data.inlineConfig?.runtime ? (
+      {runtime ? (
         <button
           type="button"
-          className="microflow-runtime-inline"
+          className="microflow-mini-runtime"
           onClick={event => {
             event.stopPropagation();
-            window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-inspect", {
-              detail: {
-                nodeId: data.objectId,
-                inspect: data.inlineConfig?.runtime?.error ? "error" : "runtime",
-              },
-            }));
+            emitInlineNodeInspect({
+              nodeId: data.objectId,
+              runtimeNodeId: String(props.node.id),
+              inspect: runtime.error ? "error" : "runtime",
+            });
             if (!isExpanded) {
               toggleExpanded();
             }
           }}
         >
-          {typeof data.inlineConfig.runtime.durationMs === "number" ? (
-            <Typography.Text type="tertiary" size="small">duration: {data.inlineConfig.runtime.durationMs}ms</Typography.Text>
+          {runtimeStateLabel ? <Typography.Text type={runtime.error || runtime.failed ? "danger" : "tertiary"} size="small">{runtimeStateLabel}</Typography.Text> : null}
+          {typeof runtime.durationMs === "number" ? (
+            <Typography.Text type="tertiary" size="small">{runtime.durationMs}ms</Typography.Text>
           ) : null}
-          {data.inlineConfig.runtime.selectedBranchLabel ? (
-            <Typography.Text type="tertiary" size="small">selected: {data.inlineConfig.runtime.selectedBranchLabel}</Typography.Text>
-          ) : null}
-          {data.inlineConfig.runtime.inputPreview ? (
-            <Typography.Text type="tertiary" size="small">in: {data.inlineConfig.runtime.inputPreview}</Typography.Text>
-          ) : null}
-          {data.inlineConfig.runtime.outputPreview ? (
-            <Typography.Text type="tertiary" size="small">out: {data.inlineConfig.runtime.outputPreview}</Typography.Text>
-          ) : null}
-          {data.inlineConfig.runtime.variableSnapshot?.length ? (
-            <Typography.Text type="tertiary" size="small">
-              vars: {data.inlineConfig.runtime.variableSnapshot.slice(0, 2).map(item => `${item.name}=${item.valuePreview}`).join(", ")}
-            </Typography.Text>
-          ) : null}
-          {data.inlineConfig.runtime.error?.message ? (
-            <Typography.Text type="danger" size="small">error: {data.inlineConfig.runtime.error.message}</Typography.Text>
-          ) : null}
+          {runtime.selectedBranchLabel ? <Typography.Text type="tertiary" size="small">selected: {runtime.selectedBranchLabel}</Typography.Text> : null}
+          {!runtime.selectedBranchLabel && runtime.outputPreview ? <Typography.Text type="tertiary" size="small">{runtime.outputPreview}</Typography.Text> : null}
         </button>
-      ) : null}
-      {data.objectKind === "loopedActivity" && data.loopSummary ? (
-        <div
-          className="microflow-flowgram-node__loop-body"
-          aria-label="Loop body summary"
-          data-microflow-loop-body="true"
-          data-microflow-loop-object-id={data.objectId}
-        >
-          <Typography.Text type="tertiary" size="small">
-            {data.loopSummary.childCount === 0 ? "拖入节点配置循环体" : `${data.loopSummary.childCount} body nodes`}
-          </Typography.Text>
-          {data.loopSource?.kind === "iterableList" ? (
-            <div className="microflow-flowgram-node__loop-source">
-              <Tag size="small">For Each</Tag>
-              <Tag size="small">list {data.listVariableName || "未配置"}</Tag>
-              <Tag size="small">iterator {data.iteratorVariableName || "未配置"}</Tag>
-              <Tag size="small">{data.currentIndexVariableName ?? "$currentIndex"}</Tag>
-            </div>
-          ) : (
-            <div className="microflow-flowgram-node__loop-source">
-              <Tag size="small">While</Tag>
-            </div>
-          )}
-          {data.loopSummary.childCount > 0 ? (
-            <div className="microflow-flowgram-node__loop-stats">
-              <Tag size="small">Actions {data.loopSummary.actionCount}</Tag>
-              <Tag size="small">Events {data.loopSummary.eventCount}</Tag>
-              <Tag size="small">Flows {data.loopSummary.flowCount}</Tag>
-            </div>
-          ) : null}
-        </div>
       ) : null}
       {isExpanded ? (
         <InlineNodeEditor
           inlineConfig={data.inlineConfig}
           onCommitField={(field, value) => {
-            window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
-              detail: {
-                nodeId: data.objectId,
-                fieldPath: field.fieldPath,
-                editType: field.editType,
-                value,
-              },
-            }));
+            emitInlineFieldCommit({
+              nodeId: data.objectId,
+              fieldPath: field.fieldPath,
+              editType: field.editType,
+              value,
+            });
           }}
           onApplyQuickFix={suggestion => {
-            window.dispatchEvent(new CustomEvent("atlas:microflow-inline-quick-fix-apply", {
-              detail: {
-                nodeId: data.objectId,
-                suggestionId: suggestion.id,
-                actionKind: suggestion.actionKind,
-                fieldPath: suggestion.fieldPath,
-                value: suggestion.value,
-                editType: suggestion.editType,
-              },
-            }));
+            emitInlineQuickFix({
+              nodeId: data.objectId,
+              suggestionId: suggestion.id,
+              actionKind: suggestion.actionKind,
+              fieldPath: suggestion.fieldPath,
+              value: suggestion.value,
+              editType: suggestion.editType,
+            });
           }}
         />
       ) : null}

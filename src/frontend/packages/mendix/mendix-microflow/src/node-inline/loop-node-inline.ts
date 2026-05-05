@@ -23,11 +23,10 @@ export function deriveLoopNodeInline(input: DeriveNodeInlineInput): MicroflowNod
   const listExpr = loopSource?.kind === "iterableList" ? loopSource.listVariableName : expressionText(loopSource?.expression);
   const iterator = loopSource?.iteratorVariableName ?? "item";
   const indexName = String(data.currentIndexVariableName ?? "$currentIndex");
-  const resultsVar = String(data.resultsVariableName ?? data.resultCollectionVariableName ?? "");
   const outgoing = input.schema.workflow.edges.filter(edge => edge.sourceNodeID === input.node.id);
   const summaryLines: MicroflowNodeInlineConfig["summaryLines"] = [
     { id: "loop", value: `for ${iterator} in ${listExpr || "$list"}`, kind: "loop", editable: true, fieldPath: loopSource?.kind === "iterableExpression" ? "data.loopSource.expression.raw" : "data.loopSource.listVariableName" },
-    { id: "body", value: `body: ${outgoing.length} edges`, kind: "loop" },
+    { id: "body", value: `body: ${outgoing.length} nodes · done ->`, kind: "loop" },
     ...(base.runtime?.outputPreview ? [{ id: "runtime", value: base.runtime.outputPreview, kind: "runtime" as const }] : []),
   ];
   return {
@@ -38,10 +37,11 @@ export function deriveLoopNodeInline(input: DeriveNodeInlineInput): MicroflowNod
         id: "loop",
         title: "循环",
         kind: "loop",
+        maxVisibleRows: 5,
         fields: [
           {
             id: "collection",
-            label: "集合",
+            label: "list",
             value: listExpr || "",
             fieldPath: loopSource?.kind === "iterableExpression" ? "data.loopSource.expression.raw" : "data.loopSource.listVariableName",
             editType: "variable",
@@ -49,7 +49,7 @@ export function deriveLoopNodeInline(input: DeriveNodeInlineInput): MicroflowNod
           },
           {
             id: "iterator",
-            label: "迭代变量",
+            label: "item",
             value: iterator,
             fieldPath: "data.loopSource.iteratorVariableName",
             editType: "text",
@@ -57,59 +57,29 @@ export function deriveLoopNodeInline(input: DeriveNodeInlineInput): MicroflowNod
           },
           {
             id: "index",
-            label: "索引变量",
+            label: "index",
             value: indexName,
             fieldPath: "data.currentIndexVariableName",
             editType: "text",
             options: variableNameOptions,
           },
           {
-            id: "results",
-            label: "结果收集变量",
-            value: resultsVar,
-            fieldPath: data.resultsVariableName !== undefined ? "data.resultsVariableName" : "data.resultCollectionVariableName",
-            editType: "variable",
-            options: variableNameOptions,
-          },
-          {
-            id: "loopCondition",
-            label: "循环条件",
-            value: String(data.loopCondition ?? ""),
-            fieldPath: "data.loopCondition",
-            editType: "condition",
-            options: expressionOptions,
-          },
-          {
             id: "branchBody",
-            label: "body 标签",
+            label: "body",
             value: String(branchLabels.body ?? "body"),
             fieldPath: "data.branchLabels.body",
             editType: "branch",
           },
           {
             id: "branchDone",
-            label: "done 标签",
+            label: "done",
             value: String(branchLabels.done ?? "done"),
             fieldPath: "data.branchLabels.done",
             editType: "branch",
           },
-          {
-            id: "branchBreak",
-            label: "break 标签",
-            value: String(branchLabels.break ?? "break"),
-            fieldPath: "data.branchLabels.break",
-            editType: "branch",
-          },
-          {
-            id: "branchContinue",
-            label: "continue 标签",
-            value: String(branchLabels.continue ?? "continue"),
-            fieldPath: "data.branchLabels.continue",
-            editType: "branch",
-          },
         ],
       },
-      ...base.sections,
+      ...base.sections.filter(section => section.kind === "errors"),
     ],
   };
 }

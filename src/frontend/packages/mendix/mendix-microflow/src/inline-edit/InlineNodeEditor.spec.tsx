@@ -77,6 +77,30 @@ function buildConfig(): MicroflowNodeInlineConfig {
 }
 
 describe("InlineNodeEditor", () => {
+  it("prevents pointer events from bubbling to node shell", () => {
+    const shellPointerDown = vi.fn();
+    const shellMouseDown = vi.fn();
+    const shellClick = vi.fn();
+    render(
+      <div onPointerDown={shellPointerDown} onMouseDown={shellMouseDown} onClick={shellClick}>
+        <InlineNodeEditor inlineConfig={buildConfig()} onCommitField={() => undefined} />
+      </div>,
+    );
+
+    const editor = document.querySelector(".microflow-inline-editor") as HTMLElement | null;
+    expect(editor).not.toBeNull();
+    if (!editor) {
+      return;
+    }
+    fireEvent.pointerDown(editor);
+    fireEvent.mouseDown(editor);
+    fireEvent.click(editor);
+
+    expect(shellPointerDown).toHaveBeenCalledTimes(0);
+    expect(shellMouseDown).toHaveBeenCalledTimes(0);
+    expect(shellClick).toHaveBeenCalledTimes(0);
+  });
+
   it("renders sections and runtime/error blocks", () => {
     render(
       <InlineNodeEditor

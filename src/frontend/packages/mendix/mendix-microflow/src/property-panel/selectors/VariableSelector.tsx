@@ -12,6 +12,33 @@ import {
 import { VariableOptionLabel } from "./VariableOptionLabel";
 
 const { Text } = Typography;
+const RECENT_VARIABLES_STORAGE_KEY = "atlas.microflow.inline.recentVariables";
+
+function readRecentVariables(): string[] {
+  try {
+    const raw = window.localStorage.getItem(RECENT_VARIABLES_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentVariable(name?: string) {
+  if (!name) {
+    return;
+  }
+  try {
+    const prev = readRecentVariables().filter(item => item !== name);
+    const next = [name, ...prev].slice(0, 8);
+    window.localStorage.setItem(RECENT_VARIABLES_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // no-op
+  }
+}
 
 export function VariableSelector({
   schema,
@@ -90,6 +117,27 @@ export function VariableSelector({
       .filter(symbol => !allowedTypes?.length || allowedTypes.some(type => type.kind === symbol.dataType.kind))
       .filter(symbol => variableFilter ? variableFilter(symbol) : true);
   }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, inlineCandidates, objectId, schema, scopeMode, variableFilter, variableIndex, writableOnly]);
+  const recentVariables = useMemo(() => readRecentVariables(), [value, variables.length]);
+  const orderedVariables = useMemo(() => {
+    if (!variables.length) {
+      return variables;
+    }
+    const rank = new Map(recentVariables.map((name, index) => [name, index]));
+    return [...variables].sort((a, b) => {
+      const ia = rank.get(a.name);
+      const ib = rank.get(b.name);
+      if (ia !== undefined && ib !== undefined) {
+        return ia - ib;
+      }
+      if (ia !== undefined) {
+        return -1;
+      }
+      if (ib !== undefined) {
+        return 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [recentVariables, variables]);
   const current = value
     ? scopeMode === "index"
       ? variables.find(symbol => symbol.name === value)
@@ -114,13 +162,17 @@ export function VariableSelector({
         showClear
         style={{ width: "100%" }}
         onClear={() => onChange(undefined)}
-        onChange={nextValue => onChange(nextValue ? String(nextValue) : undefined)}
-        optionList={variables.map(symbol => ({
+        onChange={nextValue => {
+          const resolved = nextValue ? String(nextValue) : undefined;
+          writeRecentVariable(resolved);
+          onChange(resolved);
+        }}
+        optionList={orderedVariables.map(symbol => ({
           value: symbol.name,
           label: symbol.name,
           showTick: true,
           render: () => <VariableOptionLabel symbol={symbol} />,
-        }))}
+        })).slice(0, 20)}
       />
       {variables.length === 0 ? <Text size="small" type="tertiary">{emptyMessage}</Text> : null}
       {!currentVisible ? <Text size="small" type="danger">Stale target: current variable is not available in this microflow scope.</Text> : null}

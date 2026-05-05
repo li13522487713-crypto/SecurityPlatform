@@ -105,8 +105,9 @@ export function ExpressionEditor({
   }), [actionId, debouncedRaw, expectedType, fieldPath, flowId, metadata, objectId, required, schema, variableIndex]);
   const nextExpression = (nextRaw: string) => onChange(createMicroflowExpression(nextRaw, validation.inferredType));
   const cmMinRows = mode === "multiline" ? minRows : 1;
+  const inlineMode = mode === "inline";
   return (
-    <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+    <Space vertical align="start" spacing={inlineMode ? 4 : 6} style={{ width: "100%" }}>
       <Suspense
         fallback={(
           <TextArea
@@ -133,39 +134,37 @@ export function ExpressionEditor({
         filter
         showClear
         disabled={readonly || !insertOptions.length}
-        placeholder="Insert variable or attribute"
+        placeholder="插入变量"
         style={{ width: "100%" }}
         value={undefined}
-        optionList={insertOptions}
+        optionList={insertOptions.slice(0, 20)}
         onChange={token => {
           if (token) {
             nextExpression(insertExpressionToken(raw, String(token)));
           }
         }}
       />
-      <Space wrap spacing={4}>
-        {compositeConditionTokens.map(token => (
-          <Button
-            key={token}
-            size="small"
-            disabled={readonly}
-            aria-label={`insert expression token ${token}`}
-            onClick={() => nextExpression(insertExpressionToken(raw, token))}
-          >
-            {token}
-          </Button>
-        ))}
-      </Space>
-      {variables.length ? (
-        <Text size="small" type="tertiary">
-          Available variables: {variables.map(variable => `$${variable.name} (${expressionTypeLabel(variable.dataType)}, ${variableSourceLabel(variable)})`).join(", ")}
-        </Text>
-      ) : (
-        <Text size="small" type="tertiary">Available variables: none in the current microflow scope.</Text>
-      )}
+      {!inlineMode ? (
+        <Space wrap spacing={4}>
+          {compositeConditionTokens.map(token => (
+            <Button
+              key={token}
+              size="small"
+              disabled={readonly}
+              aria-label={`insert expression token ${token}`}
+              onClick={() => nextExpression(insertExpressionToken(raw, token))}
+            >
+              {token}
+            </Button>
+          ))}
+        </Space>
+      ) : null}
       <Text size="small" type="tertiary">
-        Expected: {expressionTypeLabel(expectedType)} · Inferred: {expressionTypeLabel(validation.inferredType)}
+        {variables.length
+          ? `变量: ${variables.slice(0, 4).map(variable => `$${variable.name}(${variableSourceLabel(variable)})`).join(", ")}${variables.length > 4 ? ` +${variables.length - 4}` : ""}`
+          : "变量: none"}
       </Text>
+      <Text size="small" type="tertiary">类型: {expressionTypeLabel(expectedType)} {"->"} {expressionTypeLabel(validation.inferredType)}</Text>
       <ExpressionDiagnostics
         diagnostics={validation.diagnostics}
         onDiagnosticClick={() => {
