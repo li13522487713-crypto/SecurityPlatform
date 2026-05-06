@@ -16,8 +16,12 @@ import type {
 import type {
   MicroflowDebugCommand,
   MicroflowDebugSessionDto,
+  MicroflowDebugTimelineEventDto,
   MicroflowDebugTraceEventDto,
+  MutateDebugVariableRequestDto,
+  MutateDebugVariableResponseDto,
   MicroflowDebugVariableSnapshotDto,
+  UpdateDebugSuspendPolicyResponseDto,
   MicroflowDebugWatchExpressionDto,
 } from "../debug/step-debug-api";
 
@@ -123,6 +127,44 @@ export interface ListMicroflowRunsResponse {
   total: number;
 }
 
+export interface EnqueueMicroflowRunRequest {
+  microflowId: string;
+  schemaId?: string;
+  input: Record<string, unknown>;
+}
+
+export interface EnqueueMicroflowRunResponse {
+  runId: string;
+  status: "queued" | "running" | "success" | "failed" | "cancelled";
+}
+
+export interface MicroflowRunStatusResponse {
+  runId: string;
+  status: "queued" | "running" | "success" | "failed" | "cancelled";
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface RetryMicroflowRunResponse {
+  runId: string;
+  status: "queued" | "running" | "success" | "failed" | "cancelled";
+}
+
+export interface RunRetentionRequest {
+  dryRun?: boolean;
+  retainDays?: number;
+}
+
+export interface RunRetentionResult {
+  dryRun: boolean;
+  cutoffAt?: string;
+  candidateRuns?: number;
+  deletedRuns: number;
+  deletedTraceFrames: number;
+  deletedLogs?: number;
+  sampleRunIds?: string[];
+}
+
 export interface PublishMicroflowResponse {
   microflowId: string;
   publishedVersion: string;
@@ -137,6 +179,9 @@ export interface MicroflowDebugAdapter {
   listVariables(sessionId: string): Promise<MicroflowDebugVariableSnapshotDto[]>;
   evaluate(sessionId: string, expression: string): Promise<MicroflowDebugWatchExpressionDto>;
   trace(sessionId: string): Promise<MicroflowDebugTraceEventDto[]>;
+  updateSuspendPolicy?(sessionId: string, policy: "all" | "branchOnly"): Promise<UpdateDebugSuspendPolicyResponseDto>;
+  getTimeline?(sessionId: string): Promise<MicroflowDebugTimelineEventDto[]>;
+  mutateVariable?(sessionId: string, payload: MutateDebugVariableRequestDto): Promise<MutateDebugVariableResponseDto>;
   deleteSession(sessionId: string): Promise<boolean>;
 }
 
@@ -154,6 +199,10 @@ export interface MicroflowApiClient {
   getMicroflowRunTrace(runId: string): Promise<MicroflowTraceFrame[]>;
   listMicroflowRuns(microflowId: string, query?: MicroflowRunHistoryQuery): Promise<ListMicroflowRunsResponse>;
   getMicroflowRunDetail(microflowId: string, runId: string): Promise<MicroflowRunSession>;
+  enqueueMicroflowRun?(request: EnqueueMicroflowRunRequest): Promise<EnqueueMicroflowRunResponse>;
+  getMicroflowRunStatus?(runId: string): Promise<MicroflowRunStatusResponse>;
+  retryMicroflowRun?(runId: string): Promise<RetryMicroflowRunResponse>;
+  runRetention?(request?: RunRetentionRequest): Promise<RunRetentionResult>;
   publishMicroflow(id: string, payload?: PublishMicroflowPayload): Promise<PublishMicroflowResponse>;
   duplicateMicroflow(id: string): Promise<MicroflowResource>;
   deleteMicroflow(id: string): Promise<void>;

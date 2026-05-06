@@ -999,4 +999,49 @@ describe("NativeMicroflowEditor inline events", () => {
       expect(((callAction?.customMapping as Record<string, unknown> | undefined)?.raw)).toBe("$.riskScore.value");
     });
   });
+
+  it("consumes runtime commands and emits host event for showPage/closePage/downloadFile/openTaskPage", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const runtimeEvents: Array<{ command?: { commandKind?: string }; consumed?: { action?: string } }> = [];
+    const listener = (event: Event) => {
+      runtimeEvents.push((event as CustomEvent<{ command?: { commandKind?: string }; consumed?: { action?: string } }>).detail);
+    };
+    window.addEventListener("atlas:microflow-runtime-command", listener as EventListener);
+    try {
+      const apiClient = {
+        testRunMicroflow: vi.fn(async () => ({
+          runId: "run-runtime-commands",
+          status: "succeeded",
+          runtimeCommands: [
+            { commandKind: "showPage", payloadJson: "{\"pageId\":\"dashboard\"}" },
+            { commandKind: "openTaskPage", payloadJson: "{\"workflowTaskId\":\"task-1\"}" },
+            { commandKind: "downloadFile", payloadJson: "{\"downloadUrl\":\"/files/report.pdf\",\"fileName\":\"report.pdf\"}" },
+            { commandKind: "closePage", payloadJson: "{}" },
+          ],
+          session: {
+            id: "session-runtime-commands",
+            status: "succeeded",
+            startedAt: "2026-05-05T10:00:00.000Z",
+            endedAt: "2026-05-05T10:00:01.000Z",
+            input: {},
+            output: {},
+            trace: [],
+          },
+        })),
+      };
+
+      render(<NativeMicroflowEditor schema={createSchema()} apiClient={apiClient as never} />);
+      await waitFor(() => expect(lastTestRunModalProps?.onRun).toBeTypeOf("function"));
+      await lastTestRunModalProps?.onRun?.({ parameters: {}, options: {} });
+
+      await waitFor(() => {
+        const kinds = runtimeEvents.map(item => item.command?.commandKind);
+        expect(kinds).toEqual(["showPage", "openTaskPage", "downloadFile", "closePage"]);
+        expect(runtimeEvents.map(item => item.consumed?.action)).toEqual(["showPage", "openTaskPage", "downloadFile", "closePage"]);
+      });
+    } finally {
+      openSpy.mockRestore();
+      window.removeEventListener("atlas:microflow-runtime-command", listener as EventListener);
+    }
+  });
 });

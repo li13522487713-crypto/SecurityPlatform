@@ -225,6 +225,57 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
     trace(sessionId) {
       return client.get(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/trace`);
     },
+    async updateSuspendPolicy(sessionId, policy) {
+      return client.post<{
+        sessionId: string;
+        policy: "all" | "branchOnly";
+      }>(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/suspend-policy`, { policy });
+    },
+    async getTimeline(sessionId) {
+      const timeline = await client.get<Array<{
+        id: string;
+        sessionId?: string;
+        runId?: string;
+        objectId?: string;
+        flowId?: string;
+        branchId?: string;
+        phase?: string;
+        summary?: string;
+        occurredAt?: string;
+      }>>(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/timeline`);
+      return timeline.map(item => ({
+        id: item.id,
+        sessionId: item.sessionId ?? sessionId,
+        runId: item.runId,
+        objectId: item.objectId,
+        flowId: item.flowId,
+        branchId: item.branchId,
+        phase: item.phase,
+        occurredAt: item.occurredAt ?? new Date().toISOString(),
+        summary: item.summary,
+      }));
+    },
+    async mutateVariable(sessionId, payload) {
+      const serialized = typeof payload.value === "string"
+        ? payload.value
+        : JSON.stringify(payload.value);
+      const result = await client.post<{
+        sessionId: string;
+        name: string;
+        valuePreview?: string;
+      }>(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/variables:mutate`, {
+        name: payload.name,
+        valuePreview: serialized,
+        rawValueJson: serialized,
+        allowUnsafe: true,
+      });
+      return {
+        sessionId: result.sessionId,
+        name: result.name,
+        valuePreview: result.valuePreview,
+        mutated: true,
+      };
+    },
     deleteSession(sessionId) {
       return client.delete(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}`);
     },
@@ -325,6 +376,71 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
     async getMicroflowRunDetail(microflowId: string, runId: string) {
       const dto = await client.get<MicroflowRunSession>(`/microflows/${encodeURIComponent(microflowId)}/runs/${encodeURIComponent(runId)}`);
       return normalizeRunDetail(dto);
+    },
+    async enqueueMicroflowRun(request) {
+      const response = await client.post<{
+        runId: string;
+        status: "queued" | "running" | "success" | "failed" | "cancelled";
+      }>("/microflows/runs:enqueue", {
+        resourceId: request.microflowId,
+        request: {
+          schemaId: request.schemaId,
+          input: request.input,
+          inputs: request.input,
+          debug: false,
+        },
+      });
+      return {
+        runId: response.runId,
+        status: response.status,
+      };
+    },
+    async getMicroflowRunStatus(runId: string) {
+      const status = await client.get<{
+        runId: string;
+        status: "queued" | "running" | "success" | "failed" | "cancelled";
+        startedAt?: string;
+        endedAt?: string;
+      }>(`/microflows/runs/${encodeURIComponent(runId)}/status`);
+      return {
+        runId: status.runId,
+        status: status.status,
+        startedAt: status.startedAt,
+        completedAt: status.endedAt,
+      };
+    },
+    async retryMicroflowRun(runId: string) {
+      const retried = await client.post<{
+        newRunId: string;
+        status: "queued" | "running" | "success" | "failed" | "cancelled";
+      }>(`/microflows/runs/${encodeURIComponent(runId)}:retry`, {});
+      return {
+        runId: retried.newRunId,
+        status: retried.status,
+      };
+    },
+    async runRetention(request = {}) {
+      const response = await client.post<{
+        cutoffAt?: string;
+        dryRun: boolean;
+        candidateRunCount?: number;
+        deletedRunCount?: number;
+        deletedTraceCount?: number;
+        deletedLogCount?: number;
+        sampleRunIds?: string[];
+      }>("/microflows/runtime/retention:run", {
+        retentionDays: request.retainDays,
+        dryRun: request.dryRun,
+      });
+      return {
+        cutoffAt: response.cutoffAt,
+        dryRun: response.dryRun,
+        candidateRuns: response.candidateRunCount ?? 0,
+        deletedRuns: response.deletedRunCount ?? 0,
+        deletedTraceFrames: response.deletedTraceCount ?? 0,
+        deletedLogs: response.deletedLogCount ?? 0,
+        sampleRunIds: response.sampleRunIds ?? [],
+      };
     },
     async publishMicroflow(id: string, payload: PublishMicroflowPayload = { version: "1.0.0", releaseNote: "", overwriteCurrent: true }): Promise<PublishMicroflowResponse> {
       const result = await client.post<import("../../publish/microflow-publish-types").MicroflowPublishResult>(`/microflows/${encodeURIComponent(id)}/publish`, {

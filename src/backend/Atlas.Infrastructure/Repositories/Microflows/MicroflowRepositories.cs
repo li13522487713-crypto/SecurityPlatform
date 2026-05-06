@@ -350,6 +350,51 @@ public sealed class MicroflowRunRepository : IMicroflowRunRepository
             .SetColumns(x => x.EndedAt == endedAt)
             .Where(x => x.Id == runId)
             .ExecuteCommandAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<MicroflowRunSessionEntity>> ListRetentionCandidatesAsync(
+        DateTimeOffset cutoffAt,
+        int pageSize,
+        string? resourceId,
+        CancellationToken cancellationToken)
+    {
+        var normalizedPageSize = pageSize <= 0 ? 200 : Math.Min(pageSize, 1000);
+        var query = _db.Queryable<MicroflowRunSessionEntity>()
+            .Where(x => x.StartedAt < cutoffAt);
+        if (!string.IsNullOrWhiteSpace(resourceId))
+        {
+            query = query.Where(x => x.ResourceId == resourceId);
+        }
+
+        return await query
+            .OrderBy(x => x.StartedAt, OrderByType.Asc)
+            .Take(normalizedPageSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<(int RunCount, int TraceCount, int LogCount)> DeleteRunGraphAsync(
+        IReadOnlyList<string> runIds,
+        CancellationToken cancellationToken)
+    {
+        var normalizedRunIds = runIds
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (normalizedRunIds.Length == 0)
+        {
+            return (0, 0, 0);
+        }
+
+        var traceCount = await _db.Deleteable<MicroflowRunTraceFrameEntity>()
+            .Where(x => SqlFunc.ContainsArray(normalizedRunIds, x.RunId))
+            .ExecuteCommandAsync(cancellationToken);
+        var logCount = await _db.Deleteable<MicroflowRunLogEntity>()
+            .Where(x => SqlFunc.ContainsArray(normalizedRunIds, x.RunId))
+            .ExecuteCommandAsync(cancellationToken);
+        var runCount = await _db.Deleteable<MicroflowRunSessionEntity>()
+            .Where(x => SqlFunc.ContainsArray(normalizedRunIds, x.Id))
+            .ExecuteCommandAsync(cancellationToken);
+        return (runCount, traceCount, logCount);
+    }
 }
 
 public sealed class MicroflowMetadataCacheRepository : IMicroflowMetadataCacheRepository

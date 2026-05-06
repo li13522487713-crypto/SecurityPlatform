@@ -130,6 +130,168 @@ public sealed class MicroflowDebugController : MicroflowApiControllerBase
         return session is null ? ConvertError<IReadOnlyList<DebugTraceEvent>>(error!) : MicroflowOk(session.Trace);
     }
 
+    [HttpPost("debug-sessions/{sessionId}/suspend-policy")]
+    public ActionResult<MicroflowApiResponse<DebugSuspendPolicyResult>> SetSuspendPolicy(
+        string sessionId,
+        [FromBody] DebugSuspendPolicyRequest request)
+    {
+        var session = ResolveOwnedSession(sessionId, out var error);
+        if (session is null)
+        {
+            return ConvertError<DebugSuspendPolicyResult>(error!);
+        }
+
+        var policy = string.IsNullOrWhiteSpace(request.Policy) ? "all" : request.Policy.Trim();
+        if (!string.Equals(policy, "all", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(policy, "branchOnly", StringComparison.OrdinalIgnoreCase))
+        {
+            return MicroflowError<DebugSuspendPolicyResult>(
+                new MicroflowApiError
+                {
+                    Code = MicroflowApiErrorCode.MicroflowValidationFailed,
+                    Message = "Suspend policy 仅支持 all 或 branchOnly。",
+                    HttpStatus = 422
+                },
+                422);
+        }
+
+        policy = string.Equals(policy, "branchOnly", StringComparison.OrdinalIgnoreCase) ? "branchOnly" : "all";
+        var updated = _sessions.Upsert(session with
+        {
+            LastCommand = $"suspendPolicy:{policy}"
+        });
+        return MicroflowOk(new DebugSuspendPolicyResult
+        {
+            SessionId = updated.Id,
+            Policy = policy
+        });
+    }
+
+    [HttpGet("debug-sessions/{sessionId}/timeline")]
+    public ActionResult<MicroflowApiResponse<IReadOnlyList<DebugTimelineItem>>> Timeline(
+        string sessionId,
+        [FromQuery] int take = 200)
+    {
+        var session = ResolveOwnedSession(sessionId, out var error);
+        if (session is null)
+        {
+            return ConvertError<IReadOnlyList<DebugTimelineItem>>(error!);
+        }
+
+        var size = take <= 0 ? 200 : Math.Min(take, 1000);
+        var timeline = session.Trace
+            .OrderByDescending(item => item.CreatedAt)
+            .Take(size)
+            .Select(item => new DebugTimelineItem
+            {
+                Id = item.Id,
+                SessionId = session.Id,
+                RunId = item.RunId,
+                ObjectId = item.NodeObjectId,
+                FlowId = item.FlowId,
+                BranchId = item.BranchId,
+                Phase = item.Kind,
+                OccurredAt = item.CreatedAt,
+                Summary = item.Message
+            })
+            .ToArray();
+        return MicroflowOk<IReadOnlyList<DebugTimelineItem>>(timeline);
+    }
+
+    [HttpPost("debug-sessions/{sessionId}/variables:mutate")]
+    public ActionResult<MicroflowApiResponse<DebugVariableMutationResult>> MutateVariable(
+        string sessionId,
+        [FromBody] DebugVariableMutateRequest request)
+    {
+        var session = ResolveOwnedSession(sessionId, out var error);
+        if (session is null)
+        {
+            return ConvertError<DebugVariableMutationResult>(error!);
+        }
+
+        if (session.CurrentSafePoint is null)
+        {
+            return MicroflowError<DebugVariableMutationResult>(
+                new MicroflowApiError
+                {
+                    Code = MicroflowApiErrorCode.MicroflowDebugSessionForbidden,
+                    Message = "仅允许在暂停点修改变量。",
+                    HttpStatus = 409
+                },
+                409);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return MicroflowError<DebugVariableMutationResult>(
+                new MicroflowApiError
+                {
+                    Code = MicroflowApiErrorCode.MicroflowValidationFailed,
+                    Message = "变量名不能为空。",
+                    HttpStatus = 422
+                },
+                422);
+        }
+
+        var variables = session.Variables.ToList();
+        var index = variables.FindIndex(item => string.Equals(item.Name, request.Name, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            return MicroflowError<DebugVariableMutationResult>(
+                new MicroflowApiError
+                {
+                    Code = MicroflowApiErrorCode.MicroflowValidationFailed,
+                    Message = $"变量不存在：{request.Name}",
+                    HttpStatus = 404
+                },
+                404);
+        }
+
+        var original = variables[index];
+        if (!request.AllowUnsafe && original.RedactionApplied)
+        {
+            return MicroflowError<DebugVariableMutationResult>(
+                new MicroflowApiError
+                {
+                    Code = MicroflowApiErrorCode.MicroflowDebugSessionForbidden,
+                    Message = "该变量被标记为脱敏，默认不允许修改。",
+                    HttpStatus = 403
+                },
+                403);
+        }
+
+        var normalizedValuePreview = request.ValuePreview ?? request.Value?.ToString();
+        variables[index] = original with
+        {
+            ValuePreview = normalizedValuePreview ?? original.ValuePreview,
+            RawValueJson = request.RawValueJson ?? original.RawValueJson,
+            RedactionApplied = false
+        };
+        var updated = _sessions.Upsert(session with
+        {
+            Variables = variables,
+            Trace = session.Trace.Concat(new[]
+            {
+                new DebugTraceEvent
+                {
+                    Kind = "mutation",
+                    Message = $"debug variable mutated: {request.Name}",
+                    RunId = session.RunId,
+                    NodeObjectId = session.CurrentNodeObjectId
+                }
+            }).ToArray()
+        });
+
+        return MicroflowOk(new DebugVariableMutationResult
+        {
+            SessionId = updated.Id,
+            Name = request.Name,
+            ValuePreview = variables[index].ValuePreview,
+            UpdatedAt = updated.UpdatedAt,
+            Mutated = true
+        });
+    }
+
     [HttpDelete("debug-sessions/{sessionId}")]
     public ActionResult<MicroflowApiResponse<bool>> Delete(string sessionId)
     {
@@ -262,5 +424,47 @@ public sealed class MicroflowDebugController : MicroflowApiControllerBase
                 HttpStatus = 500
             },
             500);
+    }
+
+    public sealed record DebugSuspendPolicyRequest
+    {
+        public string? Policy { get; init; }
+    }
+
+    public sealed record DebugSuspendPolicyResult
+    {
+        public string SessionId { get; init; } = string.Empty;
+        public string Policy { get; init; } = "all";
+    }
+
+    public sealed record DebugTimelineItem
+    {
+        public string Id { get; init; } = string.Empty;
+        public string SessionId { get; init; } = string.Empty;
+        public string? RunId { get; init; }
+        public string? ObjectId { get; init; }
+        public string? FlowId { get; init; }
+        public string? BranchId { get; init; }
+        public string? Phase { get; init; }
+        public DateTimeOffset OccurredAt { get; init; }
+        public string? Summary { get; init; }
+    }
+
+    public sealed record DebugVariableMutateRequest
+    {
+        public string Name { get; init; } = string.Empty;
+        public object? Value { get; init; }
+        public string? ValuePreview { get; init; }
+        public string? RawValueJson { get; init; }
+        public bool AllowUnsafe { get; init; }
+    }
+
+    public sealed record DebugVariableMutationResult
+    {
+        public string SessionId { get; init; } = string.Empty;
+        public string Name { get; init; } = string.Empty;
+        public string? ValuePreview { get; init; }
+        public DateTimeOffset UpdatedAt { get; init; }
+        public bool Mutated { get; init; }
     }
 }

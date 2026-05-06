@@ -345,6 +345,30 @@ X-Trace-Id: {{traceId}}
 }
 
 ### Round 60 - Run / Trace
+### Runtime runs - enqueue
+POST {{host}}/api/v1/microflows/runs:enqueue
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "resourceId": "{{microflowId}}",
+  "request": {
+    "input": {},
+    "inputs": {},
+    "debug": false
+  }
+}
+
+### Runtime runs - status
+GET {{host}}/api/v1/microflows/runs/{{runId}}/status
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 GET {{host}}/api/v1/microflows/runs/{{runId}}
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
@@ -3461,6 +3485,61 @@ X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
+
+### Runtime runs - retry
+POST {{host}}/api/v1/microflows/runs/{{runId}}:retry
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Runtime retention run (dry-run)
+POST {{host}}/api/v1/microflows/runtime/retention:run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "retentionDays": 30,
+  "batchSize": 200,
+  "dryRun": true
+}
+
+### Debug - suspend policy
+POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/suspend-policy
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "policy": "branchOnly"
+}
+
+### Debug - timeline
+GET {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/timeline?take=200
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Debug - mutate variable at paused safe-point
+POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/variables:mutate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "name": "$latestError",
+  "valuePreview": "{\"code\":\"MUTATED\"}",
+  "allowUnsafe": true
+}
 
 ### Debug — test-run with debugSessionId
 # Uses cooperative pause + MicroflowDebugCoordinator; omit debugSessionId for normal non-blocking test-run.

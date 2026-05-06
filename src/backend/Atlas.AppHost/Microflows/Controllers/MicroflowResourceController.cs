@@ -635,6 +635,17 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         };
     }
 
+    [HttpPost("runs:enqueue")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<EnqueueMicroflowRunResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<MicroflowApiResponse<EnqueueMicroflowRunResponse>>> EnqueueRun(
+        [FromBody] EnqueueMicroflowRunRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _testRunService.EnqueueAsync(request, cancellationToken);
+        return MicroflowOk(result);
+    }
+
     [HttpGet("runs/{runId}")]
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowRunSessionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -643,6 +654,17 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _testRunService.GetRunSessionAsync(runId, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("runs/{runId}/status")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowRunStatusDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowRunStatusDto>>> GetRunStatus(
+        string runId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _testRunService.GetRunStatusAsync(runId, cancellationToken);
         return MicroflowOk(result);
     }
 
@@ -699,6 +721,27 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _testRunService.CancelAsync(runId, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpPost("runs/{runId}:retry")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<RetryMicroflowRunResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MicroflowApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MicroflowApiResponse<RetryMicroflowRunResponse>>> RetryRun(
+        string runId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _testRunService.RetryAsync(runId, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpPost("runtime/retention:run")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<RunRetentionResultDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<RunRetentionResultDto>>> RunRetention(
+        [FromBody] RunRetentionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _testRunService.RunRetentionAsync(request, cancellationToken);
         return MicroflowOk(result);
     }
 }

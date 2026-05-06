@@ -70,6 +70,39 @@ export interface MicroflowDebugWatchExpressionDto {
   durationMs?: number;
 }
 
+export interface MicroflowDebugTimelineEventDto {
+  id: string;
+  sessionId: string;
+  runId?: string;
+  objectId?: string;
+  flowId?: string;
+  branchId?: string;
+  phase?: string;
+  occurredAt: string;
+  summary?: string;
+}
+
+export interface UpdateDebugSuspendPolicyRequestDto {
+  policy: "all" | "branchOnly";
+}
+
+export interface UpdateDebugSuspendPolicyResponseDto {
+  sessionId: string;
+  policy: "all" | "branchOnly";
+}
+
+export interface MutateDebugVariableRequestDto {
+  name: string;
+  value: unknown;
+}
+
+export interface MutateDebugVariableResponseDto {
+  sessionId: string;
+  name: string;
+  valuePreview?: string;
+  mutated: boolean;
+}
+
 export interface MicroflowDebugApiEnvelope<T> {
   success: boolean;
   data?: T;
@@ -133,6 +166,24 @@ export class MicroflowStepDebugApiClient {
 
   trace(sessionId: string): Promise<MicroflowDebugTraceEventDto[]> {
     return this.request<MicroflowDebugTraceEventDto[]>(`/api/v1/microflows/debug-sessions/${encodeURIComponent(sessionId)}/trace`);
+  }
+
+  updateSuspendPolicy(sessionId: string, policy: UpdateDebugSuspendPolicyRequestDto["policy"]): Promise<UpdateDebugSuspendPolicyResponseDto> {
+    return this.request<UpdateDebugSuspendPolicyResponseDto>(`/api/v1/microflows/debug-sessions/${encodeURIComponent(sessionId)}/suspend-policy`, {
+      method: "POST",
+      body: JSON.stringify({ policy }),
+    });
+  }
+
+  getTimeline(sessionId: string): Promise<MicroflowDebugTimelineEventDto[]> {
+    return this.request<MicroflowDebugTimelineEventDto[]>(`/api/v1/microflows/debug-sessions/${encodeURIComponent(sessionId)}/timeline`);
+  }
+
+  mutateVariable(sessionId: string, payload: MutateDebugVariableRequestDto): Promise<MutateDebugVariableResponseDto> {
+    return this.request<MutateDebugVariableResponseDto>(`/api/v1/microflows/debug-sessions/${encodeURIComponent(sessionId)}/variables:mutate`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   }
 
   async deleteSession(sessionId: string): Promise<boolean> {

@@ -7,6 +7,7 @@ export * from "./storage";
 export * from "./examples";
 export * from "./runtime-dto-contract";
 export * from "./adapter-contracts";
+export * from "./ui-interaction-contract";
 export { verifyMicroflowContracts, type MicroflowContractVerificationResult } from "./verify-microflow-contracts";
 export * from "./runtime-semantics";
 

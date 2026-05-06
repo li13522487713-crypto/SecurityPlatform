@@ -58,6 +58,9 @@ export {
   type MicroflowEditorProps,
   type MicroflowEditorStatusSnapshot,
   type MicroflowWorkbenchBottomTab,
+  type InlineEditState,
+  type PanelSyncEvent,
+  type CommandPaletteAction,
   type MicroflowWorkbenchLayoutState,
   type MicroflowWorkbenchStatus,
 } from "./editor";

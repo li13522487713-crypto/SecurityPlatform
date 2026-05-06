@@ -52,6 +52,7 @@ import type {
   MicroflowWorkbenchStatus,
 } from "./index";
 import { buildAcceptance120Schema as buildAcceptance120SchemaFixture } from "./acceptance-120-fixture";
+import { consumeRuntimeCommand, isSupportedClientRuntimeCommand, parseRuntimeCommandPayload } from "./runtime-command-consumer";
 
 const { Text, Title } = Typography;
 
@@ -1097,6 +1098,40 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         schema: latestSchemaRef.current,
         options: input.options,
       });
+      const deferredCommandKinds: string[] = [];
+      for (const command of response.runtimeCommands ?? []) {
+        const payload = parseRuntimeCommandPayload(command.payloadJson);
+        if (command.commandKind === "showMessage") {
+          const level = typeof payload?.messageType === "string"
+            ? payload.messageType
+            : typeof payload?.level === "string"
+              ? payload.level
+              : "info";
+          const message =
+            typeof payload?.message === "string" ? payload.message
+              : typeof payload?.messageExpression === "string" ? payload.messageExpression
+                : typeof payload?.template === "string" ? payload.template
+                  : `Runtime command: ${command.commandKind}`;
+          Toast[(level === "error" || level === "warning" || level === "success") ? level : "info"](message);
+          continue;
+        }
+        if (isSupportedClientRuntimeCommand(command.commandKind)) {
+          const consumed = consumeRuntimeCommand(command, payload);
+          window.dispatchEvent(new CustomEvent("atlas:microflow-runtime-command", {
+            detail: {
+              command,
+              payload,
+              consumed,
+            },
+          }));
+          Toast[consumed.severity](consumed.message);
+          continue;
+        }
+        deferredCommandKinds.push(command.commandKind);
+      }
+      if (deferredCommandKinds.length > 0) {
+        setRuntimeServiceError(`这些 runtime commands 已生成但前端尚未完整消费：${deferredCommandKinds.join(", ")}`);
+      }
       setLastRunSession(response.session);
       const trace = response.session.trace ?? [];
       const firstFailed = trace.find(frame => frame.status === "failed" && typeof frame.objectId === "string")?.objectId;

@@ -130,6 +130,55 @@ public sealed class MicroflowActionExecutorRegistryTests
     }
 
     [Fact]
+    public async Task ConnectorBackedExecutor_DelegatesToConnectorRegistryWhenCapabilityAvailable()
+    {
+        var registry = new MicroflowActionExecutorRegistry();
+        var executor = registry.GetOrFallback("webServiceCall");
+        var connectorRegistry = new StubConnectorRegistry(
+            hasCapability: true,
+            result: new MicroflowConnectorExecutionResult
+            {
+                Success = true,
+                Capability = MicroflowRuntimeConnectorCapability.SoapWebService,
+                OutputJson = "{\"provider\":\"soap\",\"ok\":true}"
+            });
+
+        var result = await executor.ExecuteAsync(Context("webServiceCall", connectorRegistry: connectorRegistry), CancellationToken.None);
+
+        Assert.Equal(MicroflowActionExecutionStatus.Success, result.Status);
+        Assert.Single(connectorRegistry.Requests);
+        Assert.Equal(MicroflowRuntimeConnectorCapability.SoapWebService, connectorRegistry.Requests[0].Capability);
+        Assert.Single(result.ConnectorRequests);
+        Assert.True(result.OutputJson?.GetProperty("ok").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ConnectorBackedExecutor_MapsConnectorExecutionFailureToFailed()
+    {
+        var registry = new MicroflowActionExecutorRegistry();
+        var executor = registry.GetOrFallback("webServiceCall");
+        var connectorRegistry = new StubConnectorRegistry(
+            hasCapability: true,
+            result: new MicroflowConnectorExecutionResult
+            {
+                Success = false,
+                Capability = MicroflowRuntimeConnectorCapability.SoapWebService,
+                Error = new MicroflowRuntimeErrorDto
+                {
+                    Code = RuntimeErrorCode.RuntimeUnknownError,
+                    Message = "SOAP connector execution failed."
+                }
+            });
+
+        var result = await executor.ExecuteAsync(Context("webServiceCall", connectorRegistry: connectorRegistry), CancellationToken.None);
+
+        Assert.Equal(MicroflowActionExecutionStatus.Failed, result.Status);
+        Assert.Equal(RuntimeErrorCode.RuntimeUnknownError, result.Error?.Code);
+        Assert.True(result.ShouldStopRun);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.ConnectorCapability == MicroflowRuntimeConnectorCapability.SoapWebService);
+    }
+
+    [Fact]
     public void R3ProductionExecutors_AreSupportedAndNoLongerModeledOnly()
     {
         var byKind = MicroflowActionExecutorRegistry.BuiltInDescriptors()
@@ -167,7 +216,10 @@ public sealed class MicroflowActionExecutorRegistryTests
         Assert.Equal(RuntimeErrorCode.RuntimeUnsupportedAction, result.Error?.Code);
     }
 
-    private static MicroflowActionExecutionContext Context(string actionKind, object? config = null)
+    private static MicroflowActionExecutionContext Context(
+        string actionKind,
+        object? config = null,
+        IMicroflowRuntimeConnectorRegistry? connectorRegistry = null)
     {
         var plan = new MicroflowExecutionPlan
         {
@@ -193,7 +245,34 @@ public sealed class MicroflowActionExecutorRegistryTests
             ActionConfig = JsonSerializer.SerializeToElement(config ?? new { }, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
             VariableStore = runtime.VariableStore,
             ExpressionEvaluator = new MicroflowExpressionEvaluator(),
-            ConnectorRegistry = new MicroflowRuntimeConnectorRegistry()
+            ConnectorRegistry = connectorRegistry ?? new MicroflowRuntimeConnectorRegistry()
         };
+    }
+
+    private sealed class StubConnectorRegistry : IMicroflowRuntimeConnectorRegistry
+    {
+        private readonly bool _hasCapability;
+        private readonly MicroflowConnectorExecutionResult _result;
+
+        public StubConnectorRegistry(bool hasCapability, MicroflowConnectorExecutionResult result)
+        {
+            _hasCapability = hasCapability;
+            _result = result;
+        }
+
+        public List<MicroflowConnectorExecutionRequest> Requests { get; } = [];
+
+        public bool HasCapability(string capability) => _hasCapability;
+
+        public IReadOnlyList<string> ListEnabledCapabilities()
+            => _hasCapability ? [_result.Capability] : Array.Empty<string>();
+
+        public Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+            MicroflowConnectorExecutionRequest request,
+            CancellationToken ct)
+        {
+            Requests.Add(request);
+            return Task.FromResult(_result);
+        }
     }
 }

@@ -525,7 +525,7 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
 
     public string SupportLevel => Descriptor.SupportLevel;
 
-    public Task<MicroflowActionExecutionResult> ExecuteAsync(MicroflowActionExecutionContext context, CancellationToken ct)
+    public async Task<MicroflowActionExecutionResult> ExecuteAsync(MicroflowActionExecutionContext context, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         if (Category == MicroflowActionRuntimeCategory.RuntimeCommand)
@@ -600,6 +600,66 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
                     Message = Descriptor.Reason
                 });
             }
+
+            var connectorResult = await context.ConnectorRegistry.ExecuteAsync(request, ct);
+            if (!connectorResult.Success)
+            {
+                var error = connectorResult.Error ?? new MicroflowRuntimeErrorDto
+                {
+                    Code = Descriptor.ErrorCode ?? RuntimeErrorCode.RuntimeConnectorRequired,
+                    Message = Descriptor.Reason,
+                    ObjectId = context.ObjectId,
+                    ActionId = context.ActionId
+                };
+                var code = string.IsNullOrWhiteSpace(error.Code) ? RuntimeErrorCode.RuntimeUnknownError : error.Code;
+                var status = string.Equals(code, RuntimeErrorCode.RuntimeConnectorRequired, StringComparison.OrdinalIgnoreCase)
+                    ? MicroflowActionExecutionStatus.ConnectorRequired
+                    : MicroflowActionExecutionStatus.Failed;
+                return new MicroflowActionExecutionResult
+                {
+                    Status = status,
+                    Error = error with
+                    {
+                        Code = code,
+                        ObjectId = error.ObjectId ?? context.ObjectId,
+                        ActionId = error.ActionId ?? context.ActionId
+                    },
+                    ConnectorRequests = [request],
+                    Logs = connectorResult.Logs,
+                    Diagnostics =
+                    [
+                        new MicroflowActionExecutionDiagnostic
+                        {
+                            Code = code,
+                            Severity = "error",
+                            Message = error.Message ?? Descriptor.Reason,
+                            ActionKind = ActionKind,
+                            ObjectId = context.ObjectId,
+                            ActionId = context.ActionId,
+                            ConnectorCapability = request.Capability
+                        }
+                    ],
+                    ShouldContinueNormalFlow = false,
+                    ShouldEnterErrorHandler = true,
+                    ShouldStopRun = true,
+                    Message = error.Message ?? Descriptor.Reason
+                };
+            }
+
+            return new MicroflowActionExecutionResult
+            {
+                Status = MicroflowActionExecutionStatus.Success,
+                OutputJson = TryParseConnectorOutputJson(connectorResult.OutputJson) ?? JsonSerializer.SerializeToElement(new
+                {
+                    actionKind = ActionKind,
+                    connectorCapability = request.Capability,
+                    outputPreview = Descriptor.Reason
+                }, JsonOptions),
+                OutputPreview = Descriptor.Reason,
+                ConnectorRequests = [request],
+                Logs = connectorResult.Logs,
+                Message = Descriptor.Reason
+            };
         }
 
         if (Category == MicroflowActionRuntimeCategory.ExplicitUnsupported)
@@ -647,6 +707,24 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
             }, JsonOptions),
             OutputPreview = Descriptor.Reason
         });
+    }
+
+    private static JsonElement? TryParseConnectorOutputJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return JsonSerializer.SerializeToElement(new { rawOutput = json }, JsonOptions);
+        }
     }
 }
 

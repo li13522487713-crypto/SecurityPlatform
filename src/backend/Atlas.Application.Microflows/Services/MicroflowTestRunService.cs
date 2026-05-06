@@ -202,6 +202,25 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         return ToApiResponse(session, _requestContextAccessor.Current.TraceId);
     }
 
+    public async Task<EnqueueMicroflowRunResponse> EnqueueAsync(
+        EnqueueMicroflowRunRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ResourceId))
+        {
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowValidationFailed, "resourceId 不能为空。", 422);
+        }
+
+        var response = await TestRunAsync(request.ResourceId, request.Request, cancellationToken);
+        return new EnqueueMicroflowRunResponse
+        {
+            RunId = response.RunId,
+            ResourceId = request.ResourceId,
+            Status = NormalizeAsyncRunStatus(response.Status, response.ErrorCode),
+            StartedAt = response.StartedAt
+        };
+    }
+
     private async Task SafeAuditAsync(MicroflowAuditEvent auditEvent, CancellationToken cancellationToken)
     {
         try
@@ -278,6 +297,31 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         };
     }
 
+    public async Task<RetryMicroflowRunResponse> RetryAsync(string runId, CancellationToken cancellationToken)
+    {
+        var session = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
+        if (string.IsNullOrWhiteSpace(session.ResourceId))
+        {
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "原运行会话缺少资源标识。", 404);
+        }
+
+        var request = new TestRunMicroflowApiRequest
+        {
+            SchemaId = session.SchemaSnapshotId,
+            Input = Deserialize<Dictionary<string, JsonElement>>(session.InputJson) ?? new Dictionary<string, JsonElement>(),
+            CorrelationId = $"retry:{runId}",
+            Options = new MicroflowTestRunOptionsDto()
+        };
+        var response = await TestRunAsync(session.ResourceId, request, cancellationToken);
+        return new RetryMicroflowRunResponse
+        {
+            PreviousRunId = runId,
+            NewRunId = response.RunId,
+            Status = NormalizeAsyncRunStatus(response.Status, response.ErrorCode),
+            StartedAt = response.StartedAt
+        };
+    }
+
     public async Task<MicroflowRunSessionDto> GetRunSessionAsync(string runId, CancellationToken cancellationToken)
     {
         _ = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
@@ -350,6 +394,71 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             RunId = runId,
             Trace = frames.Select(ToFrameDto).ToArray(),
             Logs = logs.Select(ToLogDto).ToArray()
+        };
+    }
+
+    public async Task<MicroflowRunStatusDto> GetRunStatusAsync(string runId, CancellationToken cancellationToken)
+    {
+        _ = await _ownershipGuard.EnsureRunOwnedAsync(runId, cancellationToken);
+        var session = await _runRepository.GetSessionAsync(runId, cancellationToken)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
+        var error = string.IsNullOrWhiteSpace(session.ErrorJson)
+            ? null
+            : Deserialize<MicroflowRuntimeErrorDto>(session.ErrorJson);
+        var durationMs = session.EndedAt.HasValue
+            ? Math.Max(0, (int)(session.EndedAt.Value - session.StartedAt).TotalMilliseconds)
+            : Math.Max(0, (int)(_clock.UtcNow - session.StartedAt).TotalMilliseconds);
+        var finalized = session.EndedAt.HasValue
+            || string.Equals(session.Status, "success", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(session.Status, "failed", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(session.Status, "cancelled", StringComparison.OrdinalIgnoreCase);
+        return new MicroflowRunStatusDto
+        {
+            RunId = session.Id,
+            ResourceId = session.ResourceId,
+            Status = NormalizeAsyncRunStatus(session.Status, error?.Code),
+            StartedAt = session.StartedAt,
+            EndedAt = session.EndedAt,
+            DurationMs = durationMs,
+            Finalized = finalized,
+            ErrorCode = error?.Code,
+            ErrorMessage = error?.Message
+        };
+    }
+
+    public async Task<RunRetentionResultDto> RunRetentionAsync(
+        RunRetentionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var retentionDays = request.RetentionDays <= 0 ? 30 : request.RetentionDays;
+        var cutoffAt = _clock.UtcNow.AddDays(-retentionDays);
+        var candidates = await _runRepository.ListRetentionCandidatesAsync(
+            cutoffAt,
+            request.BatchSize <= 0 ? 200 : request.BatchSize,
+            request.ResourceId,
+            cancellationToken);
+        var runIds = candidates.Select(item => item.Id).ToArray();
+        if (request.DryRun || runIds.Length == 0)
+        {
+            return new RunRetentionResultDto
+            {
+                CutoffAt = cutoffAt,
+                DryRun = true,
+                CandidateRunCount = runIds.Length,
+                SampleRunIds = runIds.Take(20).ToArray()
+            };
+        }
+
+        var deleted = await _runRepository.DeleteRunGraphAsync(runIds, cancellationToken);
+        return new RunRetentionResultDto
+        {
+            CutoffAt = cutoffAt,
+            DryRun = false,
+            CandidateRunCount = runIds.Length,
+            DeletedRunCount = deleted.RunCount,
+            DeletedTraceCount = deleted.TraceCount,
+            DeletedLogCount = deleted.LogCount,
+            SampleRunIds = runIds.Take(20).ToArray()
         };
     }
 
@@ -741,6 +850,40 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             && errorCode.Contains("UNSUPPORTED", StringComparison.OrdinalIgnoreCase))
         {
             return "unsupported";
+        }
+
+        return "failed";
+    }
+
+    private static string NormalizeAsyncRunStatus(string rawStatus, string? errorCode)
+    {
+        if (string.Equals(rawStatus, "queued", StringComparison.OrdinalIgnoreCase))
+        {
+            return "queued";
+        }
+
+        if (string.Equals(rawStatus, "running", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(rawStatus, "validating", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(rawStatus, "idle", StringComparison.OrdinalIgnoreCase))
+        {
+            return "running";
+        }
+
+        if (string.Equals(rawStatus, "cancelled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "cancelled";
+        }
+
+        if (string.Equals(rawStatus, "success", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(rawStatus, "succeeded", StringComparison.OrdinalIgnoreCase))
+        {
+            return "success";
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorCode)
+            && errorCode.Contains("UNSUPPORTED", StringComparison.OrdinalIgnoreCase))
+        {
+            return "failed";
         }
 
         return "failed";

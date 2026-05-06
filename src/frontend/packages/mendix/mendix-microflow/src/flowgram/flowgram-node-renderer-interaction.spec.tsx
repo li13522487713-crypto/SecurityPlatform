@@ -12,6 +12,7 @@ vi.mock("@douyinfe/semi-ui", () => ({
   ),
   Spin: () => <span>spin</span>,
   Tag: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+  Tooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   Typography: {
     Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   },
@@ -21,6 +22,7 @@ vi.mock("@douyinfe/semi-icons", () => ({
   IconChevronDown: () => <span>down</span>,
   IconChevronUp: () => <span>up</span>,
   IconEdit: () => <span>edit</span>,
+  IconTickCircle: () => <span>tick</span>,
   IconMore: () => <span>more</span>,
 }));
 
@@ -131,7 +133,7 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     try {
       renderNode();
       fireEvent.doubleClick(screen.getByTestId("microflow-node-node-1"));
-      expect(events).toEqual([{ nodeId: "node-1", expanded: true }]);
+      expect(events).toEqual([expect.objectContaining({ nodeId: "node-1", expanded: true })]);
     } finally {
       window.removeEventListener("atlas:microflow-inline-node-toggle", listener as EventListener);
     }
@@ -146,7 +148,7 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     try {
       renderNode();
       fireEvent.click(screen.getByRole("button", { name: "展开节点" }));
-      expect(events).toEqual([{ nodeId: "node-1", expanded: true }]);
+      expect(events).toEqual([expect.objectContaining({ nodeId: "node-1", expanded: true })]);
     } finally {
       window.removeEventListener("atlas:microflow-inline-node-toggle", listener as EventListener);
     }

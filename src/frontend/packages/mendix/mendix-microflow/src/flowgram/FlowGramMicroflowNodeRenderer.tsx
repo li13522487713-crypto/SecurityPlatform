@@ -365,6 +365,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
       {isExpanded ? (
         <InlineNodeEditor
           inlineConfig={data.inlineConfig}
+          readonly={readonly}
           onCommitField={(field, value) => {
             emitInlineFieldCommit({
               nodeId: resolvedNodeId,

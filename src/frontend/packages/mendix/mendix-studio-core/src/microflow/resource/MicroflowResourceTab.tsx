@@ -322,6 +322,40 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
     await reload();
   }
 
+  async function handleRequestRename(resource: MicroflowResource) {
+    let references;
+    try {
+      references = await adapter.getMicroflowReferences(resource.id, { includeInactive: true });
+    } catch (caught) {
+      Modal.confirm({
+        title: "重命名影响预检查失败",
+        content: `无法获取引用摘要：${getMicroflowApiError(caught).message}。仍要继续重命名吗？`,
+        okText: "继续",
+        cancelText: "取消",
+        onOk: () => setRenamingResource(resource),
+      });
+      return;
+    }
+
+    const activeCallers = getActiveReferences(references);
+    const activeCallerNames = activeCallers.slice(0, 5).map(reference => resolveReferenceDisplayName(reference)).join("、");
+    const inactiveCallerCount = Math.max(0, references.length - activeCallers.length);
+    const summary = [
+      `active callers：${activeCallers.length}`,
+      `inactive callers：${inactiveCallerCount}`,
+      activeCallerNames ? `示例：${activeCallerNames}` : "",
+      "重命名不会自动修改调用逻辑，请确认发布影响并按需回归验证。",
+    ].filter(Boolean).join("；");
+
+    Modal.confirm({
+      title: "重命名前影响摘要",
+      content: `${summary}\n确认进入重命名？`,
+      okText: "继续重命名",
+      cancelText: "取消",
+      onOk: () => setRenamingResource(resource),
+    });
+  }
+
   async function handleDelete(resource: MicroflowResource) {
     let references;
     try {
@@ -383,7 +417,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
     return (
       <Dropdown.Menu>
         <Dropdown.Item icon={<IconEdit />} onClick={() => onOpenMicroflow?.(resource.id)}>编辑</Dropdown.Item>
-        <Dropdown.Item onClick={() => setRenamingResource(resource)} disabled={!canRunMicroflowAction(resource, "canEdit")}>重命名</Dropdown.Item>
+        <Dropdown.Item onClick={() => void handleRequestRename(resource)} disabled={!canRunMicroflowAction(resource, "canEdit")}>重命名</Dropdown.Item>
         <Dropdown.Item icon={<IconCopy />} disabled={!canRunMicroflowAction(resource, "canDuplicate")} onClick={() => void refreshAfter(adapter.duplicateMicroflow(resource.id), "已复制微流")}>复制</Dropdown.Item>
         <Dropdown.Item disabled={!canRunMicroflowAction(resource, "canPublish")} onClick={() => openPublish(resource)}>发布</Dropdown.Item>
         <Dropdown.Item onClick={() => openVersions(resource)}>查看版本</Dropdown.Item>

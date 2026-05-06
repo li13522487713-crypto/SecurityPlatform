@@ -13,7 +13,15 @@ public interface IMicroflowTestRunService
         TestRunMicroflowApiRequest request,
         CancellationToken cancellationToken);
 
+    Task<EnqueueMicroflowRunResponse> EnqueueAsync(
+        EnqueueMicroflowRunRequestDto request,
+        CancellationToken cancellationToken);
+
     Task<CancelMicroflowRunResponse> CancelAsync(
+        string runId,
+        CancellationToken cancellationToken);
+
+    Task<RetryMicroflowRunResponse> RetryAsync(
         string runId,
         CancellationToken cancellationToken);
 
@@ -30,9 +38,17 @@ public interface IMicroflowTestRunService
         string runId,
         CancellationToken cancellationToken);
 
+    Task<MicroflowRunStatusDto> GetRunStatusAsync(
+        string runId,
+        CancellationToken cancellationToken);
+
     Task<ListMicroflowRunsResponse> ListRunsAsync(
         string resourceId,
         ListMicroflowRunsRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RunRetentionResultDto> RunRetentionAsync(
+        RunRetentionRequestDto request,
         CancellationToken cancellationToken);
 }
 

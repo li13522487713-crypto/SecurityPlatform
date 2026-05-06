@@ -70,3 +70,76 @@ export type CancelMicroflowRunResponse = MicroflowApiResponse<{
   runId: string;
   status: "cancelled";
 }>;
+
+/**
+ * POST /api/v1/microflows/runs:enqueue
+ */
+export interface EnqueueMicroflowRunRequestDto {
+  resourceId: string;
+  request: {
+    schemaId?: string;
+    input: Record<string, unknown>;
+    inputs?: Record<string, unknown>;
+    debug?: boolean;
+  };
+}
+
+export interface EnqueueMicroflowRunResponseDto {
+  runId: string;
+  resourceId: string;
+  status: "queued" | "running" | "success" | "failed" | "cancelled";
+  startedAt: string;
+}
+
+export type EnqueueMicroflowRunApiResponse = MicroflowApiResponse<EnqueueMicroflowRunResponseDto>;
+
+/**
+ * GET /api/v1/microflows/runs/{runId}/status
+ */
+export interface MicroflowRunStatusResponseDto {
+  runId: string;
+  resourceId: string;
+  status: "queued" | "running" | "success" | "failed" | "cancelled";
+  startedAt: string;
+  endedAt?: string;
+  durationMs: number;
+  finalized: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export type GetMicroflowRunStatusApiResponse = MicroflowApiResponse<MicroflowRunStatusResponseDto>;
+
+/**
+ * POST /api/v1/microflows/runs/{runId}:retry
+ */
+export interface RetryMicroflowRunResponseDto {
+  previousRunId: string;
+  newRunId: string;
+  status: "queued" | "running" | "success" | "failed" | "cancelled";
+  startedAt: string;
+}
+
+export type RetryMicroflowRunApiResponse = MicroflowApiResponse<RetryMicroflowRunResponseDto>;
+
+/**
+ * POST /api/v1/microflows/runtime/retention:run
+ */
+export interface RunRetentionRequestDto {
+  retentionDays?: number;
+  batchSize?: number;
+  dryRun?: boolean;
+  resourceId?: string;
+}
+
+export interface RunRetentionResultDto {
+  cutoffAt: string;
+  dryRun: boolean;
+  candidateRunCount: number;
+  deletedRunCount: number;
+  deletedTraceCount: number;
+  deletedLogCount: number;
+  sampleRunIds: string[];
+}
+
+export type RunRetentionApiResponse = MicroflowApiResponse<RunRetentionResultDto>;

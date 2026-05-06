@@ -2411,6 +2411,16 @@ export function formatStudioTemplate(template: string, params: Record<string, st
   - `POST /api/v1/microflows/{id}/test-run` 的 `options.connectorCapabilities[]` 会进入顶层 `ExecutionPlan` 预热 cache key，并继续传递到 Action executor / CallMicroflow 子微流加载链路；connector capability、schema hash、metadata version、runtime mode、ActionExecutor capability hash 任一变化都必须形成独立 plan cache 边界。
   - `MicroflowExecutionPlanCacheKey` 必须包含 `ActionExecutorCapabilitiesHash`，该 hash 由内置 ActionExecutor descriptor 的 actionKind、schemaType、runtimeCategory、supportLevel、executor、connectorCapability、errorCode、真实执行和变量/事务/命令输出能力稳定计算，确保后端 ActionExecutor 能力矩阵变化后不会复用旧 plan。
   - `MicroflowDebugSession` / 前端 `MicroflowDebugSessionDto` 额外暴露 `state`、`availableCommands`、`lastUpdatedAt`，供 step-debug 面板与外置工作台统一消费。
+  - 运行态异步补充接口：
+    - `POST /api/v1/microflows/runs:enqueue`，请求 `{ resourceId, request }`（`request` 复用 test-run 输入结构），返回 `{ runId, resourceId, status, startedAt }`。
+    - `GET /api/v1/microflows/runs/{runId}/status`，返回 `{ runId, resourceId, status, startedAt, endedAt?, durationMs, finalized, errorCode?, errorMessage? }`。
+    - `POST /api/v1/microflows/runs/{runId}:retry`，返回 `{ previousRunId, newRunId, status, startedAt }`。
+    - `POST /api/v1/microflows/runtime/retention:run`，支持 `{ retentionDays, batchSize, dryRun, resourceId? }`，返回 `{ cutoffAt, dryRun, candidateRunCount, deletedRunCount, deletedTraceCount, deletedLogCount, sampleRunIds[] }`。
+  - Debug 扩展接口：
+    - `POST /api/v1/microflows/debug-sessions/{sessionId}/suspend-policy`，请求 `{ policy: "all" | "branchOnly" }`，返回 `{ sessionId, policy }`。
+    - `GET /api/v1/microflows/debug-sessions/{sessionId}/timeline?take=200`，返回时间倒序 timeline，字段 `id/sessionId/runId/objectId/flowId/branchId/phase/occurredAt/summary`。
+    - `POST /api/v1/microflows/debug-sessions/{sessionId}/variables:mutate` 仅允许暂停点调用，支持 `{ name, value?, valuePreview?, rawValueJson?, allowUnsafe }`，返回 `{ sessionId, name, valuePreview, updatedAt, mutated }`。
+  - 前端内联编辑运行态门禁：`running` 时仅在 debug 暂停点允许提交内联字段；`continue/stepOver/stepInto/stepOut` 前必须执行快速校验，校验失败时阻断继续并定位到首个 error issue 对应字段/节点。
   - 前端测试样例管理先采用工作区浏览器本地持久化，`localStorage` key 为 `atlas_mendix_microflow_test_run_samples`，按 `microflowId` 保存最多 20 个 `MicroflowTestRunSample { id, name, parameters, expectedResult?, lastResult?, lastStatus?, lastRunId?, lastRunAt?, previousResult?, updatedAt }`。样例运行仍复用唯一 `POST /api/v1/microflows/{id}/test-run` 入口，不新增服务端样例 API。
   - `GET /api/v1/microflows/runs/{runId}`、`GET /api/v1/microflows/runs/{runId}/trace`、`GET /api/v1/microflows/debug-sessions/{sessionId}` 必须继续执行 workspace / tenant / user ownership 校验，禁止仅按主键直读。
 - Microflow App Explorer P1 资源摘要契约：

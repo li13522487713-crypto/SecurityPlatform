@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
-import { Badge, Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Badge, Button, Card, Checkbox, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
   IconClose,
@@ -59,6 +59,19 @@ import { MicroflowHistoryManager, labelForHistoryReason, microflowSchemasEqual, 
 import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowCanvas } from "../flowgram";
+import {
+  MICROFLOW_INLINE_FIELD_COMMIT_EVENT,
+  MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT,
+  MICROFLOW_INLINE_NODE_INSPECT_EVENT,
+  MICROFLOW_INLINE_NODE_TOGGLE_EVENT,
+  MICROFLOW_INLINE_QUICK_FIX_EVENT,
+  type MicroflowInlineFieldCommitDetail,
+  type MicroflowInlineLineLabelCommitDetail,
+  type MicroflowInlineNodeInspectDetail,
+  type MicroflowInlineNodeToggleDetail,
+  type MicroflowInlineQuickFixDetail,
+} from "../flowgram/inline-events";
+import type { MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
 import { MICROFLOW_GRID_SIZE } from "../flowgram/adapters/flowgram-coordinate";
 import {
   EMPTY_MICROFLOW_METADATA_CATALOG,
@@ -85,6 +98,7 @@ import {
   writeStoredTestRunSamples,
   type MicroflowDebugCommand,
   type MicroflowDebugTraceEventDto,
+  type MicroflowDebugTimelineEventDto,
   type MicroflowDebugSessionDto,
   type MicroflowDebugVariableSnapshotDto,
   type MicroflowDebugWatchExpressionDto,
@@ -95,6 +109,13 @@ import {
 } from "../debug";
 import { createMicroflowGraphIndex, useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
 import { useMicroflowShortcuts } from "./shortcuts";
+import {
+  consumeRuntimeCommand,
+  createRuntimeCommandConsoleEntry,
+  isSupportedClientRuntimeCommand,
+  parseRuntimeCommandPayload,
+  type RuntimeCommandConsoleEntry,
+} from "./runtime-command-consumer";
 import type {
   MicroflowCaseValue,
   MicroflowEditorEdge,
@@ -137,6 +158,19 @@ function isDesignSchema(schema: unknown): schema is MicroflowDesignSchema {
 type MendixLayoutInspectorMode = "floating" | "docked";
 type BottomDockMode = "collapsed" | "peek" | "full";
 export type MicroflowWorkbenchBottomTab = "problems" | "debug" | "references" | "info" | "console";
+export type InlineEditState = "idle" | "editing" | "paused-edit" | "blocked";
+export type PanelSyncEvent =
+  | { type: "inline-edit"; nodeId?: string; flowId?: string; fieldPath?: string }
+  | { type: "property-edit"; nodeId?: string; flowId?: string; fieldPath?: string }
+  | { type: "problem-fix"; issueId?: string; nodeId?: string; flowId?: string }
+  | { type: "trace-focus"; nodeId?: string; flowId?: string; frameId?: string };
+export interface CommandPaletteAction {
+  id: string;
+  label: string;
+  disabled?: boolean;
+  disabledReason?: string;
+  run: () => void;
+}
 
 interface MendixLayoutStorage {
   nodesDrawerOpen?: boolean;
@@ -522,6 +556,16 @@ function issueSourceLabel(source?: MicroflowValidationIssue["source"]): string {
   return source ? labels[source] ?? source : "Schema";
 }
 
+function issueObjectTypeLabel(issue: Pick<MicroflowValidationIssue, "flowId" | "edgeId" | "objectId" | "nodeId">): "flow" | "node" | "global" {
+  if (issue.flowId || issue.edgeId) {
+    return "flow";
+  }
+  if (issue.objectId || issue.nodeId) {
+    return "node";
+  }
+  return "global";
+}
+
 function readFavoriteNodeKeys(): string[] {
   if (typeof window === "undefined") {
     return defaultFavoriteNodeKeys;
@@ -678,6 +722,30 @@ function parseDragPayload(value: string): MicroflowNodeDragPayload | undefined {
   } catch {
     return undefined;
   }
+}
+
+function setValueAtPath(target: Record<string, unknown>, path: string, value: unknown): boolean {
+  const segments = path.split(".").filter(Boolean);
+  if (segments.length === 0) {
+    return false;
+  }
+  let cursor: Record<string, unknown> = target;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const segment = segments[i];
+    const next = cursor[segment];
+    if (typeof next !== "object" || next === null || Array.isArray(next)) {
+      cursor[segment] = {};
+    }
+    cursor = cursor[segment] as Record<string, unknown>;
+  }
+  cursor[segments[segments.length - 1]] = value;
+  return true;
+}
+
+function waitForMs(ms: number): Promise<void> {
+  return new Promise(resolve => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 const toolbarStyle: CSSProperties = {
@@ -1329,6 +1397,8 @@ function ProblemPanel({
 }) {
   const [severityFilter, setSeverityFilter] = useState<"all" | MicroflowValidationIssue["severity"]>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [objectTypeFilter, setObjectTypeFilter] = useState<"all" | "flow" | "node" | "global">("all");
+  const [onlyBlocking, setOnlyBlocking] = useState(false);
   const [keyword, setKeyword] = useState("");
   const summary = useMemo(() => ({
     errors: issues.filter(issue => issue.severity === "error").length,
@@ -1341,13 +1411,15 @@ function ProblemPanel({
     return issues.filter(issue => {
       const severityMatched = severityFilter === "all" || issue.severity === severityFilter;
       const sourceMatched = sourceFilter === "all" || issue.source === sourceFilter;
+      const objectTypeMatched = objectTypeFilter === "all" || issueObjectTypeLabel(issue) === objectTypeFilter;
+      const blockingMatched = !onlyBlocking || Boolean(issue.blockSave || issue.blockPublish || issue.severity === "error");
       const keywordMatched = !normalizedKeyword ||
         issue.code.toLowerCase().includes(normalizedKeyword) ||
         issue.message.toLowerCase().includes(normalizedKeyword) ||
         (issue.fieldPath ?? "").toLowerCase().includes(normalizedKeyword);
-      return severityMatched && sourceMatched && keywordMatched;
+      return severityMatched && sourceMatched && objectTypeMatched && blockingMatched && keywordMatched;
     });
-  }, [issues, keyword, severityFilter, sourceFilter]);
+  }, [issues, keyword, objectTypeFilter, onlyBlocking, severityFilter, sourceFilter]);
   const groupedIssues = useMemo(() => {
     const groups = new Map<string, MicroflowValidationIssue[]>();
     for (const issue of filteredIssues) {
@@ -1397,6 +1469,21 @@ function ProblemPanel({
               ...sources.map(source => ({ label: issueSourceLabel(source as MicroflowValidationIssue["source"]), value: source })),
             ]}
           />
+          <Select
+            size="small"
+            value={objectTypeFilter}
+            onChange={value => setObjectTypeFilter(value as "all" | "flow" | "node" | "global")}
+            style={{ width: 130 }}
+            optionList={[
+              { label: "All types", value: "all" },
+              { label: "Node", value: "node" },
+              { label: "Flow", value: "flow" },
+              { label: "Global", value: "global" },
+            ]}
+          />
+          <Checkbox checked={onlyBlocking} onChange={event => setOnlyBlocking(Boolean(event.target.checked))}>
+            Only blockers
+          </Checkbox>
         </Space>
       </Space>
       {status === "validating" && issues.length === 0 ? <Empty title="Validating" description="Schema validation is running in the background." /> : null}
@@ -1472,6 +1559,8 @@ function DebugPanel({
   debugSession,
   debugVariables,
   debugWatches,
+  debugTimeline,
+  debugSuspendPolicy,
   activeFrameId,
   onSelectFrame,
   onSelectFlow,
@@ -1479,8 +1568,12 @@ function DebugPanel({
   onClear,
   onRerun,
   onCancelRun,
+  onRetryQueuedRun,
   onDebugCommand,
   onDebugEvaluate,
+  onDebugSuspendPolicyChange,
+  onDebugRefreshTimeline,
+  onDebugMutateVariable,
 }: {
   microflowId: string;
   microflowName?: string;
@@ -1490,6 +1583,8 @@ function DebugPanel({
   debugSession?: MicroflowDebugSessionDto;
   debugVariables?: MicroflowDebugVariableSnapshotDto[];
   debugWatches?: MicroflowDebugWatchExpressionDto[];
+  debugTimeline?: MicroflowDebugTimelineEventDto[];
+  debugSuspendPolicy?: "all" | "branchOnly";
   activeFrameId?: string;
   onSelectFrame: (frame: MicroflowTraceFrame) => void;
   onSelectFlow: (flowId: string) => void;
@@ -1497,9 +1592,24 @@ function DebugPanel({
   onClear: () => void;
   onRerun: () => void;
   onCancelRun: () => void;
+  onRetryQueuedRun?: () => void;
   onDebugCommand?: (command: MicroflowDebugCommand) => void;
   onDebugEvaluate?: (expression: string) => void;
+  onDebugSuspendPolicyChange?: (policy: "all" | "branchOnly") => void;
+  onDebugRefreshTimeline?: () => void;
+  onDebugMutateVariable?: (name: string, value: string) => void;
 }) {
+  const [suspendPolicyDraft, setSuspendPolicyDraft] = useState<"all" | "branchOnly">(debugSuspendPolicy ?? "all");
+  const [mutateVariableName, setMutateVariableName] = useState("");
+  const [mutateVariableValue, setMutateVariableValue] = useState("");
+  useEffect(() => {
+    setSuspendPolicyDraft(debugSuspendPolicy ?? "all");
+  }, [debugSuspendPolicy]);
+  useEffect(() => {
+    if (!mutateVariableName && debugVariables && debugVariables.length > 0) {
+      setMutateVariableName(debugVariables[0].name);
+    }
+  }, [debugVariables, mutateVariableName]);
   if (serviceError) {
     return <Empty title="运行服务不可用" description={serviceError} />;
   }
@@ -1507,51 +1617,122 @@ function DebugPanel({
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       {debugAvailable && debugSession ? (
-        <MicroflowStepDebugPanel
-          status={debugSession.status}
-          currentNodeId={debugSession.currentNodeObjectId ?? debugSession.currentSafePoint?.nodeObjectId}
-          currentFlowId={debugSession.currentSafePoint?.incomingFlowId ?? debugSession.currentSafePoint?.outgoingFlowId}
-          currentBranchId={debugSession.currentSafePoint?.branchId}
-          currentPhase={debugSession.pausePhase ?? debugSession.currentSafePoint?.phase}
-          variables={(debugVariables ?? []).map(variable => ({
-            name: variable.name,
-            valuePreview: variable.valuePreview ?? "",
-            scope: variable.scopeKind,
-          }))}
-          watches={(debugWatches ?? []).map(watch => ({
-            expression: watch.expression,
-            value: watch.valuePreview,
-            error: watch.error,
-          }))}
-          labels={{
-            statusPrefix: "Status",
-            nodePrefix: "Node",
-            flowPrefix: "Flow",
-            branchPrefix: "Branch",
-            phasePrefix: "Phase",
-            breakpointsTitle: "Breakpoints",
-            staleBreakpoint: "stale",
-            logpoint: "logpoint",
-            variablesTitle: "Variables",
-            watchesTitle: "Watches",
-            callStackTitle: "Call Stack",
-            branchTreeTitle: "Branches",
-            watchPlaceholder: "Expression",
-            evaluate: "Evaluate",
-            commands: {
-              continue: "Continue",
-              pause: "Pause",
-              stepOver: "Step Over",
-              stepInto: "Step Into",
-              stepOut: "Step Out",
-              runToNode: "Run To Node",
-              cancel: "Cancel",
-              stop: "Stop",
-            },
-          }}
-          onCommand={onDebugCommand}
-          onEvaluate={onDebugEvaluate}
-        />
+        <>
+          <MicroflowStepDebugPanel
+            status={debugSession.status}
+            currentNodeId={debugSession.currentNodeObjectId ?? debugSession.currentSafePoint?.nodeObjectId}
+            currentFlowId={debugSession.currentSafePoint?.incomingFlowId ?? debugSession.currentSafePoint?.outgoingFlowId}
+            currentBranchId={debugSession.currentSafePoint?.branchId}
+            currentPhase={debugSession.pausePhase ?? debugSession.currentSafePoint?.phase}
+            variables={(debugVariables ?? []).map(variable => ({
+              name: variable.name,
+              valuePreview: variable.valuePreview ?? "",
+              scope: variable.scopeKind,
+            }))}
+            watches={(debugWatches ?? []).map(watch => ({
+              expression: watch.expression,
+              value: watch.valuePreview,
+              error: watch.error,
+            }))}
+            labels={{
+              statusPrefix: "Status",
+              nodePrefix: "Node",
+              flowPrefix: "Flow",
+              branchPrefix: "Branch",
+              phasePrefix: "Phase",
+              breakpointsTitle: "Breakpoints",
+              staleBreakpoint: "stale",
+              logpoint: "logpoint",
+              variablesTitle: "Variables",
+              watchesTitle: "Watches",
+              callStackTitle: "Call Stack",
+              branchTreeTitle: "Branches",
+              watchPlaceholder: "Expression",
+              evaluate: "Evaluate",
+              commands: {
+                continue: "Continue",
+                pause: "Pause",
+                stepOver: "Step Over",
+                stepInto: "Step Into",
+                stepOut: "Step Out",
+                runToNode: "Run To Node",
+                cancel: "Cancel",
+                stop: "Stop",
+              },
+            }}
+            onCommand={onDebugCommand}
+            onEvaluate={onDebugEvaluate}
+          />
+          <Card title="Debug Controls" style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+            <Space vertical align="start" style={{ width: "100%" }}>
+              <Space wrap>
+                <Select
+                  style={{ width: 180 }}
+                  value={suspendPolicyDraft}
+                  onChange={value => setSuspendPolicyDraft(value as "all" | "branchOnly")}
+                  optionList={[
+                    { label: "Suspend all", value: "all" },
+                    { label: "Branch only", value: "branchOnly" },
+                  ]}
+                />
+                <Button size="small" onClick={() => onDebugSuspendPolicyChange?.(suspendPolicyDraft)}>Apply Policy</Button>
+                <Button size="small" onClick={onDebugRefreshTimeline}>Refresh Timeline</Button>
+              </Space>
+              <Space wrap>
+                <Input
+                  style={{ width: 180 }}
+                  value={mutateVariableName}
+                  onChange={setMutateVariableName}
+                  placeholder="Variable name"
+                />
+                <Input
+                  style={{ width: 260 }}
+                  value={mutateVariableValue}
+                  onChange={setMutateVariableValue}
+                  placeholder="New value preview/json"
+                />
+                <Tooltip content={!debugSession.currentSafePoint ? "仅暂停点允许修改变量" : !mutateVariableName.trim() ? "变量名不能为空" : ""}>
+                  <Button
+                    size="small"
+                    disabled={!debugSession.currentSafePoint || !mutateVariableName.trim()}
+                    onClick={() => onDebugMutateVariable?.(mutateVariableName.trim(), mutateVariableValue)}
+                  >
+                    Mutate Variable
+                  </Button>
+                </Tooltip>
+              </Space>
+              <div style={{ width: "100%", maxHeight: 180, overflow: "auto", border: "1px solid var(--semi-color-border)", borderRadius: 6, padding: 8 }}>
+                {(debugTimeline ?? []).slice(0, 50).map(item => (
+                  <div key={item.id} style={{ marginBottom: 6 }}>
+                    <Text size="small" type="secondary">{item.occurredAt} · {item.phase ?? "event"}</Text>
+                    <br />
+                    <Text
+                      size="small"
+                      link={Boolean(item.objectId || item.flowId)}
+                      onClick={() => {
+                        if (item.flowId) {
+                          onSelectFlow(item.flowId);
+                          return;
+                        }
+                        if (item.objectId) {
+                          const frame = session?.trace.find(trace => trace.objectId === item.objectId);
+                          if (frame) {
+                            onSelectFrame(frame);
+                          }
+                        }
+                      }}
+                    >
+                      {item.summary ?? item.objectId ?? item.flowId ?? item.id}
+                    </Text>
+                  </div>
+                ))}
+                {(!debugTimeline || debugTimeline.length === 0) ? (
+                  <Text size="small" type="tertiary">No timeline events.</Text>
+                ) : null}
+              </div>
+            </Space>
+          </Card>
+        </>
       ) : null}
       {!debugAvailable ? (
         <Tag color="grey">Trace mode</Tag>
@@ -1567,6 +1748,7 @@ function DebugPanel({
         </Space>
         <Space>
           <Button size="small" onClick={onRerun}>重新运行</Button>
+          {onRetryQueuedRun ? <Button size="small" onClick={onRetryQueuedRun}>重试队列运行</Button> : null}
           <Button size="small" type="warning" onClick={onCancelRun}>取消运行</Button>
           <Button size="small" type="danger" theme="borderless" onClick={onClear}>清空</Button>
         </Space>
@@ -1586,13 +1768,6 @@ function DebugPanel({
   );
 }
 
-interface MicroflowCommandItem {
-  id: string;
-  label: string;
-  disabled?: boolean;
-  run: () => void;
-}
-
 function MicroflowCommandPalette({
   visible,
   query,
@@ -1602,7 +1777,7 @@ function MicroflowCommandPalette({
 }: {
   visible: boolean;
   query: string;
-  commands: MicroflowCommandItem[];
+  commands: CommandPaletteAction[];
   onQueryChange: (value: string) => void;
   onClose: () => void;
 }) {
@@ -1635,19 +1810,20 @@ function MicroflowCommandPalette({
         />
         <Space vertical align="start" spacing={4} style={{ width: "100%", maxHeight: 360, overflow: "auto" }}>
           {filtered.map(command => (
-            <Button
-              key={command.id}
-              theme="borderless"
-              type="tertiary"
-              disabled={command.disabled}
-              style={{ justifyContent: "flex-start" }}
-              onClick={() => {
-                command.run();
-                onClose();
-              }}
-            >
-              {command.label}
-            </Button>
+            <Tooltip key={command.id} content={command.disabled ? (command.disabledReason ?? "This command is currently unavailable.") : ""}>
+              <Button
+                theme="borderless"
+                type="tertiary"
+                disabled={command.disabled}
+                style={{ justifyContent: "flex-start" }}
+                onClick={() => {
+                  command.run();
+                  onClose();
+                }}
+              >
+                {command.label}
+              </Button>
+            </Tooltip>
           ))}
           {filtered.length === 0 ? <Empty title="No commands" description="Try a different search." /> : null}
         </Space>
@@ -1701,6 +1877,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [runSessionByMicroflowId, setRunSessionByMicroflowId] = useState<Record<string, MicroflowRunSession | undefined>>({});
   const [runtimeServiceErrorByMicroflowId, setRuntimeServiceErrorByMicroflowId] = useState<Record<string, string | undefined>>({});
   const [runHistoryByMicroflowId, setRunHistoryByMicroflowId] = useState<Record<string, MicroflowRunHistoryItem[]>>({});
+  const [runtimeCommandEntriesByMicroflowId, setRuntimeCommandEntriesByMicroflowId] = useState<Record<string, RuntimeCommandConsoleEntry[]>>({});
   const [selectedRunIdByMicroflowId, setSelectedRunIdByMicroflowId] = useState<Record<string, string | undefined>>({});
   const [runDetailsByRunId, setRunDetailsByRunId] = useState<Record<string, MicroflowRunSession | undefined>>({});
   const [runHistoryLoadingByMicroflowId, setRunHistoryLoadingByMicroflowId] = useState<Record<string, boolean>>({});
@@ -1717,6 +1894,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [debugSessionByMicroflowId, setDebugSessionByMicroflowId] = useState<Record<string, MicroflowDebugSessionDto | undefined>>({});
   const [debugVariablesBySessionId, setDebugVariablesBySessionId] = useState<Record<string, MicroflowDebugVariableSnapshotDto[]>>({});
   const [debugTraceBySessionId, setDebugTraceBySessionId] = useState<Record<string, MicroflowDebugTraceEventDto[]>>({});
+  const [debugTimelineBySessionId, setDebugTimelineBySessionId] = useState<Record<string, MicroflowDebugTimelineEventDto[]>>({});
+  const [debugSuspendPolicyBySessionId, setDebugSuspendPolicyBySessionId] = useState<Record<string, "all" | "branchOnly">>({});
   const [debugWatchesBySessionId, setDebugWatchesBySessionId] = useState<Record<string, MicroflowDebugWatchExpressionDto[]>>({});
   const [testRunModalOpen, setTestRunModalOpen] = useState(false);
   const [runInputsByMicroflowId, setRunInputsByMicroflowId] = useState<Record<string, Record<string, unknown>>>({});
@@ -1775,6 +1954,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const activeBottomDockHeight = bottomDockMode === "full" ? bottomDockHeight : BOTTOM_DOCK_PEEK_HEIGHT_PX;
   const [focusMode, setFocusMode] = useState(() => Boolean(readMendixLayoutStorage().focusMode));
   const [canvasPanToolActive, setCanvasPanToolActive] = useState(false);
+  const [nodeViewModes, setNodeViewModes] = useState<Record<string, MicroflowNodeViewMode>>({});
   const onValidationStateChangeRef = useRef(props.onValidationStateChange);
   const onSchemaChangeRef = useRef(props.onSchemaChange);
 
@@ -1883,11 +2063,39 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const selectedRunId = selectedRunIdByMicroflowId[activeMicroflowId];
   const runHistoryFilter = runHistoryStatusByMicroflowId[activeMicroflowId] ?? "all";
   const runHistoryItems = runHistoryByMicroflowId[activeMicroflowId] ?? [];
+  const runtimeCommandEntries = runtimeCommandEntriesByMicroflowId[activeMicroflowId] ?? [];
   const runHistoryLoading = Boolean(runHistoryLoadingByMicroflowId[activeMicroflowId]);
   const runHistoryError = runHistoryErrorByMicroflowId[activeMicroflowId];
   const selectedRunSession = selectedRunId ? runDetailsByRunId[selectedRunId] : runSession;
   const activeDebugSession = debugSessionByMicroflowId[activeMicroflowId];
+  const isDebugPaused = useMemo(() => {
+    const status = String(activeDebugSession?.status ?? "").toLowerCase();
+    if (status.includes("paused")) {
+      return true;
+    }
+    const commands = new Set((activeDebugSession?.availableCommands ?? []).map(item => String(item).toLowerCase()));
+    return commands.has("continue") || commands.has("stepover") || commands.has("stepinto") || commands.has("stepout");
+  }, [activeDebugSession]);
+  const runtimeInlineReadonly = running && !isDebugPaused;
+  const hasExpandedInlineNode = useMemo(
+    () => Object.values(nodeViewModes).some(mode => mode === "expanded"),
+    [nodeViewModes],
+  );
+  const inlineEditState = useMemo<InlineEditState>(() => {
+    if (runtimeInlineReadonly) {
+      return "blocked";
+    }
+    if (isDebugPaused) {
+      return "paused-edit";
+    }
+    if (hasExpandedInlineNode) {
+      return "editing";
+    }
+    return "idle";
+  }, [hasExpandedInlineNode, isDebugPaused, runtimeInlineReadonly]);
   const activeDebugVariables = activeDebugSession ? debugVariablesBySessionId[activeDebugSession.id] ?? [] : [];
+  const activeDebugTimeline = activeDebugSession ? debugTimelineBySessionId[activeDebugSession.id] ?? [] : [];
+  const activeDebugSuspendPolicy = activeDebugSession ? debugSuspendPolicyBySessionId[activeDebugSession.id] ?? "all" : "all";
   const activeDebugWatches = activeDebugSession ? debugWatchesBySessionId[activeDebugSession.id] ?? [] : [];
   const traceFrames = useMemo(
     () => filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId),
@@ -2261,6 +2469,39 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
   }, [apiClient]);
 
+  const hydrateRunSession = useCallback(async (microflowId: string, runId: string): Promise<MicroflowRunSession> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const detail = await apiClient.getMicroflowRunDetail(microflowId, runId);
+        const trace = await apiClient.getMicroflowRunTrace(runId);
+        return { ...detail, trace };
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) {
+          await waitForMs(500);
+        }
+      }
+    }
+    throw lastError ?? new Error(`Unable to hydrate run session: ${runId}`);
+  }, [apiClient]);
+
+  const waitForTerminalRunStatus = useCallback(async (runId: string): Promise<"success" | "failed" | "cancelled" | "running" | "queued"> => {
+    if (!apiClient.getMicroflowRunStatus) {
+      return "running";
+    }
+    let currentStatus: "queued" | "running" | "success" | "failed" | "cancelled" = "queued";
+    for (let poll = 0; poll < 60; poll += 1) {
+      const status = await apiClient.getMicroflowRunStatus(runId);
+      currentStatus = status.status;
+      if (currentStatus === "success" || currentStatus === "failed" || currentStatus === "cancelled") {
+        return currentStatus;
+      }
+      await waitForMs(1000);
+    }
+    return currentStatus;
+  }, [apiClient]);
+
   const selectRunHistoryItem = useCallback(async (microflowId: string, runId: string) => {
     setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: runId }));
     const cached = runDetailsByRunId[runId];
@@ -2288,14 +2529,28 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (!apiClient.debugAdapter) {
       return undefined;
     }
-    const [session, variables] = await Promise.all([
+    const [session, variables, timeline] = await Promise.all([
       apiClient.debugAdapter.getSession(sessionId),
       apiClient.debugAdapter.listVariables(sessionId).catch(() => []),
+      apiClient.debugAdapter.getTimeline?.(sessionId).catch(() => []) ?? Promise.resolve([] as MicroflowDebugTimelineEventDto[]),
     ]);
     setDebugSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
     setDebugVariablesBySessionId(current => ({ ...current, [sessionId]: variables }));
+    setDebugTimelineBySessionId(current => ({ ...current, [sessionId]: timeline }));
     return session;
   }, [apiClient.debugAdapter, schema.id]);
+
+  const refreshDebugTimeline = useCallback(async (sessionId: string) => {
+    if (!apiClient.debugAdapter?.getTimeline) {
+      return;
+    }
+    try {
+      const timeline = await apiClient.debugAdapter.getTimeline(sessionId);
+      setDebugTimelineBySessionId(current => ({ ...current, [sessionId]: timeline }));
+    } catch (error) {
+      Toast.warning(getEditorApiErrorMessage(error));
+    }
+  }, [apiClient.debugAdapter]);
 
   const startDebugSession = useCallback(async () => {
     if (!apiClient.debugAdapter) {
@@ -2308,6 +2563,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const session = await apiClient.debugAdapter.createSession(schema.id);
     setPendingDebugSessionId(session.id);
     setDebugSessionByMicroflowId(current => ({ ...current, [schema.id]: session }));
+    setDebugSuspendPolicyBySessionId(current => ({ ...current, [session.id]: current[session.id] ?? "all" }));
     setBottomDockMode("peek");
     setBottomTab("debug");
     setTestRunModalOpen(true);
@@ -2318,13 +2574,45 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     try {
+      if (command === "continue" || command === "stepOver" || command === "stepInto" || command === "stepOut") {
+        const validation = await validateForMode(schema, "testRun");
+        const gate = shouldBlockRun(validation.issues, {}, false, "saveAndRun");
+        if (gate.blocked) {
+          const blockingIssue = validation.issues.find(issue => issue.severity === "error");
+          if (blockingIssue) {
+            const selectedFlowId = blockingIssue.flowId ?? blockingIssue.edgeId;
+            const selectedObjectId = selectedFlowId ? undefined : blockingIssue.objectId ?? blockingIssue.nodeId;
+            const selectedCollectionId = selectedFlowId
+              ? findFlowWithCollection(schema, selectedFlowId)?.collectionId
+              : selectedObjectId
+                ? findObjectWithCollection(schema, selectedObjectId)?.collectionId
+                : blockingIssue.collectionId;
+            setRightOpen(true);
+            applyPatch(
+              {
+                selectedObjectId,
+                selectedFlowId,
+                selectedCollectionId,
+              },
+              { pushHistory: false, skipDirty: true, skipValidate: true },
+            );
+          } else {
+            setBottomDockMode("peek");
+            setBottomTab("problems");
+          }
+          setBottomDockMode("peek");
+          setBottomTab("problems");
+          Toast.error("继续执行前校验未通过，请先修复问题。");
+          return;
+        }
+      }
       const next = await apiClient.debugAdapter.sendCommand(activeDebugSession.id, command);
       setDebugSessionByMicroflowId(current => ({ ...current, [schema.id]: next }));
       await refreshDebugSession(next.id, schema.id);
     } catch (error) {
       Toast.error(getEditorApiErrorMessage(error));
     }
-  }, [activeDebugSession, apiClient.debugAdapter, refreshDebugSession, schema.id]);
+  }, [activeDebugSession, apiClient.debugAdapter, applyPatch, refreshDebugSession, schema, schema.id, validateForMode]);
 
   const handleDebugEvaluate = useCallback(async (expression: string) => {
     if (!apiClient.debugAdapter || !activeDebugSession || !expression.trim()) {
@@ -2340,6 +2628,35 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast.error(getEditorApiErrorMessage(error));
     }
   }, [activeDebugSession, apiClient.debugAdapter]);
+
+  const handleDebugSuspendPolicyChange = useCallback(async (policy: "all" | "branchOnly") => {
+    if (!apiClient.debugAdapter?.updateSuspendPolicy || !activeDebugSession) {
+      Toast.info("Suspend policy is not available in current debug adapter.");
+      return;
+    }
+    try {
+      const result = await apiClient.debugAdapter.updateSuspendPolicy(activeDebugSession.id, policy);
+      setDebugSuspendPolicyBySessionId(current => ({ ...current, [result.sessionId]: result.policy }));
+      Toast.success(`Suspend policy updated: ${result.policy}`);
+      await refreshDebugSession(activeDebugSession.id, schema.id);
+    } catch (error) {
+      Toast.error(getEditorApiErrorMessage(error));
+    }
+  }, [activeDebugSession, apiClient.debugAdapter, refreshDebugSession, schema.id]);
+
+  const handleDebugMutateVariable = useCallback(async (name: string, value: string) => {
+    if (!apiClient.debugAdapter?.mutateVariable || !activeDebugSession) {
+      Toast.info("Debug variable mutation is not available in current debug adapter.");
+      return;
+    }
+    try {
+      await apiClient.debugAdapter.mutateVariable(activeDebugSession.id, { name, value });
+      await refreshDebugSession(activeDebugSession.id, schema.id);
+      Toast.success(`Variable mutated: ${name}`);
+    } catch (error) {
+      Toast.error(getEditorApiErrorMessage(error));
+    }
+  }, [activeDebugSession, apiClient.debugAdapter, refreshDebugSession, schema.id]);
 
   const handleExecuteTestRun = async (input: MicroflowTestRunInput) => {
     const microflowId = schema.id;
@@ -2363,6 +2680,62 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
     setFocusObjectId(undefined);
     try {
+      if (!pendingDebugSessionId && apiClient.enqueueMicroflowRun && apiClient.getMicroflowRunStatus) {
+        const enqueued = await apiClient.enqueueMicroflowRun({
+          microflowId,
+          schemaId: schema.id,
+          input: input.parameters,
+        });
+        const terminalStatus = await waitForTerminalRunStatus(enqueued.runId);
+        if (terminalStatus === "queued" || terminalStatus === "running") {
+          setRuntimeServiceErrorByMicroflowId(current => ({
+            ...current,
+            [microflowId]: `运行已入队（${enqueued.runId}），仍在执行中，请稍后刷新 Run History。`,
+          }));
+          setBottomDockMode("peek");
+          setBottomTab("debug");
+          setTestRunModalOpen(false);
+          void loadRunHistory(microflowId, runHistoryFilter);
+          Toast.info(`Run ${terminalStatus}`);
+          return;
+        }
+        const session = await hydrateRunSession(microflowId, enqueued.runId);
+        setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+        setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
+        setRunDetailsByRunId(current => ({ ...current, [session.id]: session }));
+        setRunHistoryByMicroflowId(current => ({
+          ...current,
+          [microflowId]: [
+            buildRunHistoryItemFromSession(microflowId, session),
+            ...(current[microflowId] ?? []).filter(item => item.runId !== session.id),
+          ].slice(0, 20) as MicroflowRunHistoryItem[],
+        }));
+        if (input.sampleId) {
+          setTestRunSamplesByMicroflowId(current => ({
+            ...current,
+            [microflowId]: (current[microflowId] ?? []).map(sample => sample.id === input.sampleId
+              ? {
+                ...sample,
+                previousResult: sample.lastResult,
+                lastResult: session.output,
+                lastStatus: session.status,
+                lastRunId: session.id,
+                lastRunAt: session.endedAt ?? session.startedAt,
+                updatedAt: new Date().toISOString(),
+              }
+              : sample),
+          }));
+        }
+        setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
+        setActiveTraceFrameId(session.trace[0]?.id);
+        setTestRunModalOpen(false);
+        setBottomDockMode("peek");
+        setBottomTab("debug");
+        void loadRunHistory(microflowId, runHistoryFilter);
+        Toast[terminalStatus === "success" ? "success" : terminalStatus === "cancelled" ? "warning" : "error"](`Run ${terminalStatus}`);
+        return;
+      }
+
       const debugSessionId = pendingDebugSessionId;
       const normalized = normalizeMicroflowAuthoringSchemaForRuntime(schema);
       const response = await apiClient.testRunMicroflow(buildRunRequest(normalized.schema, input.parameters, input.options, true, debugSessionId));
@@ -2420,21 +2793,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         }));
       }
       if (response.runtimeCommands?.length) {
-        const parsePayload = (payloadJson?: string) => {
-          if (!payloadJson) {
-            return undefined;
-          }
-          try {
-            return JSON.parse(payloadJson) as Record<string, unknown>;
-          } catch {
-            return undefined;
-          }
-        };
-
         const runtimeIssues: MicroflowValidationIssue[] = [];
         const deferredMessages: string[] = [];
+        const runtimeCommandEntriesForRun: RuntimeCommandConsoleEntry[] = [];
         for (const command of response.runtimeCommands) {
-          const payload = parsePayload(command.payloadJson);
+          const payload = parseRuntimeCommandPayload(command.payloadJson);
           if (command.commandKind === "showMessage") {
             const level = typeof payload?.messageType === "string"
               ? payload.messageType
@@ -2470,12 +2833,33 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             continue;
           }
 
+          if (isSupportedClientRuntimeCommand(command.commandKind)) {
+            const consumed = consumeRuntimeCommand(command, payload);
+            runtimeCommandEntriesForRun.push(createRuntimeCommandConsoleEntry(command, consumed, response.runId));
+            window.dispatchEvent(new CustomEvent("atlas:microflow-runtime-command", {
+              detail: {
+                command,
+                payload,
+                consumed,
+              },
+            }));
+            Toast[consumed.severity](consumed.message);
+            continue;
+          }
+
           deferredMessages.push(command.commandKind);
         }
 
         if (runtimeIssues.length > 0) {
           setIssues([...issues, ...runtimeIssues]);
           setBottomTab("problems");
+        }
+
+        if (runtimeCommandEntriesForRun.length > 0) {
+          setRuntimeCommandEntriesByMicroflowId(current => ({
+            ...current,
+            [microflowId]: [...runtimeCommandEntriesForRun, ...(current[microflowId] ?? [])].slice(0, 200),
+          }));
         }
 
         if (deferredMessages.length > 0) {
@@ -2583,6 +2967,140 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
   };
 
+  const handleRetryQueuedRun = useCallback(async () => {
+    const microflowId = schema.id;
+    const runId = selectedRunIdByMicroflowId[microflowId] ?? runSessionByMicroflowId[microflowId]?.id;
+    if (!runId) {
+      Toast.info("当前没有可重试的运行。");
+      return;
+    }
+    if (!apiClient.retryMicroflowRun || !apiClient.getMicroflowRunStatus) {
+      Toast.info("当前运行适配器不支持队列重试。");
+      return;
+    }
+    setRunning(true);
+    try {
+      const retried = await apiClient.retryMicroflowRun(runId);
+      const terminalStatus = await waitForTerminalRunStatus(retried.runId);
+      if (terminalStatus === "queued" || terminalStatus === "running") {
+        setRuntimeServiceErrorByMicroflowId(current => ({
+          ...current,
+          [microflowId]: `重试已入队（${retried.runId}），仍在执行中，请稍后刷新 Run History。`,
+        }));
+        void loadRunHistory(microflowId, runHistoryFilter);
+        Toast.info(`Retry ${terminalStatus}`);
+        return;
+      }
+      const session = await hydrateRunSession(microflowId, retried.runId);
+      setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+      setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
+      setRunDetailsByRunId(current => ({ ...current, [session.id]: session }));
+      setRunHistoryByMicroflowId(current => ({
+        ...current,
+        [microflowId]: [
+          buildRunHistoryItemFromSession(microflowId, session),
+          ...(current[microflowId] ?? []).filter(item => item.runId !== session.id),
+        ].slice(0, 20) as MicroflowRunHistoryItem[],
+      }));
+      setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
+      setActiveTraceFrameId(session.trace[0]?.id);
+      setBottomDockMode("peek");
+      setBottomTab("debug");
+      void loadRunHistory(microflowId, runHistoryFilter);
+      Toast[terminalStatus === "success" ? "success" : terminalStatus === "cancelled" ? "warning" : "error"](`Retry ${terminalStatus}`);
+    } catch (error) {
+      setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
+      setBottomDockMode("peek");
+      setBottomTab("debug");
+      Toast.error(getEditorApiErrorMessage(error));
+    } finally {
+      setRunning(false);
+    }
+  }, [apiClient, hydrateRunSession, loadRunHistory, runHistoryFilter, runSessionByMicroflowId, schema.id, selectedRunIdByMicroflowId, waitForTerminalRunStatus]);
+
+  const describeRetentionResult = useCallback((result: {
+    dryRun: boolean;
+    cutoffAt?: string;
+    candidateRuns?: number;
+    deletedRuns: number;
+    deletedTraceFrames: number;
+    deletedLogs?: number;
+    sampleRunIds?: string[];
+  }) => {
+    const mode = result.dryRun ? "dry-run" : "execute";
+    const samples = (result.sampleRunIds ?? []).slice(0, 3);
+    return [
+      `Retention ${mode} completed`,
+      `candidates=${result.candidateRuns ?? 0}`,
+      `deletedRuns=${result.deletedRuns}`,
+      `deletedTraces=${result.deletedTraceFrames}`,
+      `deletedLogs=${result.deletedLogs ?? 0}`,
+      result.cutoffAt ? `cutoff=${result.cutoffAt}` : "",
+      samples.length > 0 ? `sample=${samples.join(",")}` : "",
+    ].filter(Boolean).join(" · ");
+  }, []);
+
+  const handleRetentionDryRun = useCallback(async () => {
+    if (!apiClient.runRetention) {
+      Toast.info("当前运行适配器不支持 retention。");
+      return;
+    }
+    try {
+      const result = await apiClient.runRetention({ dryRun: true, retainDays: 30 });
+      Toast.success(describeRetentionResult(result));
+    } catch (error) {
+      Toast.error(getEditorApiErrorMessage(error));
+    }
+  }, [apiClient, describeRetentionResult]);
+
+  const handleRetentionExecute = useCallback(() => {
+    const runRetention = apiClient.runRetention;
+    if (!runRetention) {
+      Toast.info("当前运行适配器不支持 retention。");
+      return;
+    }
+    Modal.confirm({
+      title: "执行 Retention 清理",
+      content: "将按 30 天阈值正式删除候选 run/trace/log。该操作不可撤销，是否继续？",
+      okText: "执行清理",
+      okButtonProps: { type: "danger" },
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          const result = await runRetention({ dryRun: false, retainDays: 30 });
+          Toast.success(describeRetentionResult(result));
+        } catch (error) {
+          Toast.error(getEditorApiErrorMessage(error));
+        }
+      },
+    });
+  }, [apiClient, describeRetentionResult]);
+
+  const handleRetentionPreview = useCallback(async () => {
+    if (!apiClient.runRetention) {
+      Toast.info("当前运行适配器不支持 retention。");
+      return;
+    }
+    try {
+      const result = await apiClient.runRetention({ dryRun: true, retainDays: 30 });
+      Modal.info({
+        title: "Retention 预览结果",
+        content: (
+          <div>
+            <div>{describeRetentionResult(result)}</div>
+            {(result.sampleRunIds ?? []).length > 0 ? (
+              <div style={{ marginTop: 8 }}>
+                <Text type="tertiary" size="small">Sample runIds: {(result.sampleRunIds ?? []).slice(0, 20).join(", ")}</Text>
+              </div>
+            ) : null}
+          </div>
+        ),
+      });
+    } catch (error) {
+      Toast.error(getEditorApiErrorMessage(error));
+    }
+  }, [apiClient, describeRetentionResult]);
+
   const selectTraceFrame = (frame: MicroflowTraceFrame) => {
     setActiveTraceFrameId(frame.id);
     setRightOpen(true);
@@ -2665,6 +3183,28 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const objectId = issue.objectId ?? issue.nodeId;
     return viewportCenteredOn(graph.nodes.find(item => item.objectId === objectId)?.position);
   };
+
+  const focusProblemIssue = useCallback((issue: MicroflowValidationIssue) => {
+    const selectedFlowId = issue.flowId ?? issue.edgeId;
+    const selectedObjectId = selectedFlowId ? undefined : issue.objectId ?? issue.nodeId;
+    const selectedCollectionId = selectedFlowId
+      ? findFlowWithCollection(schema, selectedFlowId)?.collectionId
+      : selectedObjectId
+        ? findObjectWithCollection(schema, selectedObjectId)?.collectionId
+        : issue.collectionId;
+    setBottomDockMode("peek");
+    setBottomTab("problems");
+    setRightOpen(true);
+    applyPatch(
+      {
+        selectedObjectId,
+        selectedFlowId,
+        selectedCollectionId,
+        viewport: viewportForProblemIssue(issue),
+      },
+      { pushHistory: false, skipDirty: true, skipValidate: true },
+    );
+  }, [applyPatch, schema]);
 
   const handleApplyProblemQuickFix = (issue: MicroflowValidationIssue) => {
     if (props.readonly) {
@@ -2846,6 +3386,29 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     commitSchema(nextSchema, source.parentLoopObjectId ? "addLoopNode" : "addNode", { historyLabel: "Paste selection", source: "flowgram" });
   };
 
+  const handleEnterInlineEdit = useCallback(() => {
+    const selection = schema.editor.selection;
+    const selectedObjectId = selection.objectId
+      ?? selection.objectIds?.find(id => Boolean(id && findObjectWithCollection(schema, id)));
+    if (!selectedObjectId) {
+      Toast.info("请先选中一个节点，再进入内敛编辑。");
+      return;
+    }
+    setNodeViewModes(current => ({ ...current, [selectedObjectId]: "expanded" }));
+    setRightOpen(true);
+    applyPatch(
+      {
+        selectedObjectId,
+        selectedFlowId: undefined,
+        selectedCollectionId: findObjectWithCollection(schema, selectedObjectId)?.collectionId,
+      },
+      { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" },
+    );
+    if (runtimeInlineReadonly) {
+      Toast.info("运行中当前为只读；请在暂停点提交变更。");
+    }
+  }, [applyPatch, runtimeInlineReadonly, schema]);
+
   const handleEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (isEditableElement(event.target)) {
       return;
@@ -2870,6 +3433,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       event.preventDefault();
       setCommandPaletteQuery("");
       setCommandPaletteOpen(true);
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === "e") {
+      event.preventDefault();
+      handleEnterInlineEdit();
       return;
     }
     if ((event.ctrlKey || event.metaKey) && key === "0") {
@@ -3114,6 +3682,111 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     props.onWorkbenchStatusChange?.(workbenchStatus);
   }, [props.onWorkbenchStatusChange, workbenchStatus]);
 
+  useEffect(() => {
+    const resolveInlineNodeId = (detail?: { nodeId?: string; runtimeNodeId?: string }) => detail?.nodeId ?? detail?.runtimeNodeId;
+    const onNodeToggle = (event: Event) => {
+      const detail = (event as CustomEvent<MicroflowInlineNodeToggleDetail>).detail;
+      const nodeId = resolveInlineNodeId(detail);
+      if (!nodeId) {
+        return;
+      }
+      setNodeViewModes(current => ({ ...current, [nodeId]: detail.expanded ? "expanded" : "compact" }));
+    };
+    const onNodeInspect = (event: Event) => {
+      const detail = (event as CustomEvent<MicroflowInlineNodeInspectDetail>).detail;
+      const nodeId = resolveInlineNodeId(detail);
+      if (!nodeId) {
+        return;
+      }
+      setNodeViewModes(current => ({ ...current, [nodeId]: detail.inspect === "error" ? "inspectingError" : "inspectingRuntime" }));
+      applyPatch({ selectedObjectId: nodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+      setRightOpen(true);
+    };
+    const onFieldCommit = (event: Event) => {
+      if (props.readonly) {
+        return;
+      }
+      const detail = (event as CustomEvent<MicroflowInlineFieldCommitDetail>).detail;
+      if (!detail?.nodeId || !detail.fieldPath) {
+        return;
+      }
+      if (running && !isDebugPaused) {
+        Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再提交。");
+        return;
+      }
+      const located = findObjectWithCollection(schema, detail.nodeId);
+      if (!located) {
+        return;
+      }
+      const object = structuredClone(located.object) as MicroflowObject;
+      const patched = setValueAtPath(object as unknown as Record<string, unknown>, detail.fieldPath, detail.value)
+        || (detail.fieldPath.startsWith("data.") && setValueAtPath(object as unknown as Record<string, unknown>, detail.fieldPath.slice(5), detail.value));
+      if (!patched) {
+        Toast.warning("当前字段暂不支持内联提交。");
+        return;
+      }
+      const reason = object.kind === "actionActivity" ? "updateActionProperty" : "updateNodeProperty";
+      commitSchema(updateObject(schema, detail.nodeId, () => object), reason, { source: "propertyPanel" });
+      const panelSyncEvent: PanelSyncEvent = { type: "inline-edit", nodeId: detail.nodeId, fieldPath: detail.fieldPath };
+      window.dispatchEvent(new CustomEvent<PanelSyncEvent>("atlas:microflow-panel-sync", { detail: panelSyncEvent }));
+      applyPatch({ selectedObjectId: detail.nodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+      setRightOpen(true);
+    };
+    const onLineLabelCommit = (event: Event) => {
+      if (props.readonly) {
+        return;
+      }
+      const detail = (event as CustomEvent<MicroflowInlineLineLabelCommitDetail>).detail;
+      const flowId = detail?.flowId ?? detail?.edgeId;
+      if (!flowId) {
+        return;
+      }
+      if (running && !isDebugPaused) {
+        Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再提交。");
+        return;
+      }
+      const located = findFlowWithCollection(schema, flowId);
+      if (!located) {
+        return;
+      }
+      commitSchema(updateFlow(schema, flowId, flow => (
+        flow.kind === "sequence"
+          ? { ...flow, label: detail.value ?? "" }
+          : { ...flow, line: { ...flow.line, content: detail.value ?? "" } }
+      )), "updateEdgeProperty", { source: "propertyPanel" });
+      const panelSyncEvent: PanelSyncEvent = { type: "inline-edit", flowId };
+      window.dispatchEvent(new CustomEvent<PanelSyncEvent>("atlas:microflow-panel-sync", { detail: panelSyncEvent }));
+      applyPatch({ selectedObjectId: undefined, selectedFlowId: flowId }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+      setRightOpen(true);
+    };
+    const onQuickFix = (event: Event) => {
+      const detail = (event as CustomEvent<MicroflowInlineQuickFixDetail>).detail;
+      if (!detail?.nodeId || detail.actionKind !== "setFieldValue" || !detail.fieldPath) {
+        return;
+      }
+      onFieldCommit(new CustomEvent<MicroflowInlineFieldCommitDetail>("inline", {
+        detail: {
+          nodeId: detail.nodeId,
+          fieldPath: detail.fieldPath,
+          value: String(detail.value ?? ""),
+          editType: String(detail.editType ?? "text"),
+        },
+      }));
+    };
+    window.addEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, onNodeToggle as EventListener);
+    window.addEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, onNodeInspect as EventListener);
+    window.addEventListener(MICROFLOW_INLINE_FIELD_COMMIT_EVENT, onFieldCommit as EventListener);
+    window.addEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
+    window.addEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);
+    return () => {
+      window.removeEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, onNodeToggle as EventListener);
+      window.removeEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, onNodeInspect as EventListener);
+      window.removeEventListener(MICROFLOW_INLINE_FIELD_COMMIT_EVENT, onFieldCommit as EventListener);
+      window.removeEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
+      window.removeEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);
+    };
+  }, [applyPatch, commitSchema, isDebugPaused, props.readonly, running, schema]);
+
   // External hosts ride imperative handle; internal mode also receives the handle so
   // higher-level UIs can opt-in without forcing internal toolbar to disappear.
   useImperativeHandle(props.editorRef, () => ({
@@ -3213,21 +3886,80 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   // render so callers always observe fresh values.
   }), [commitSchema, dirty, focusMode, fullscreenActive, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, validationStatus, workbenchStatus]);
 
-  const commandItems = useMemo<MicroflowCommandItem[]>(() => [
-    { id: "save", label: "Save", disabled: props.readonly || saving, run: () => void handleSave() },
+  const nodePaletteActions = useMemo<CommandPaletteAction[]>(() => (
+    graph.nodes
+      .slice(0, 30)
+      .map(node => ({
+        id: `node:${node.objectId}`,
+        label: `Go to node: ${node.title || node.objectId}`,
+        run: () => {
+          setRightOpen(true);
+          applyPatch(
+            {
+              selectedObjectId: node.objectId,
+              selectedFlowId: undefined,
+              selectedCollectionId: findObjectWithCollection(schema, node.objectId)?.collectionId,
+              viewport: viewportCenteredOn(node.position),
+            },
+            { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" },
+          );
+        },
+      }))
+  ), [applyPatch, graph.nodes, schema]);
+
+  const problemPaletteActions = useMemo<CommandPaletteAction[]>(() => (
+    [...issues]
+      .sort((a, b) => {
+        const rank = (issue: MicroflowValidationIssue) => issue.severity === "error" ? 0 : issue.severity === "warning" ? 1 : 2;
+        return rank(a) - rank(b);
+      })
+      .slice(0, 20)
+      .map(issue => ({
+        id: `problem:${issue.id}`,
+        label: `Go to problem: [${issue.severity}] ${issue.code}`,
+        run: () => focusProblemIssue(issue),
+      }))
+  ), [focusProblemIssue, issues]);
+
+  const tracePaletteActions = useMemo<CommandPaletteAction[]>(() => (
+    traceFrames
+      .slice(0, 20)
+      .map(frame => ({
+        id: `trace:${frame.id}`,
+        label: `Go to trace: ${frame.objectId ?? "unknown"} · ${frame.status}${typeof frame.durationMs === "number" ? ` · ${frame.durationMs}ms` : ""}`,
+        run: () => selectTraceFrame(frame),
+      }))
+  ), [traceFrames]);
+
+  const commandItems = useMemo<CommandPaletteAction[]>(() => [
+    { id: "save", label: "Save", disabled: props.readonly || saving, disabledReason: props.readonly ? "Readonly mode cannot save." : saving ? "Save is in progress." : undefined, run: () => void handleSave() },
     { id: "validate", label: "Validate", run: () => void handleValidate() },
-    { id: "run", label: "Run Test", disabled: running, run: () => void handleTestRun() },
-    { id: "debug", label: "Run Debug", disabled: running, run: () => void startDebugSession() },
+    { id: "run", label: "Run Test", disabled: running, disabledReason: running ? "A run is already in progress." : undefined, run: () => void handleTestRun() },
+    { id: "debug", label: "Run Debug", disabled: running, disabledReason: running ? "A run is already in progress." : undefined, run: () => void startDebugSession() },
+    {
+      id: "inline-edit",
+      label: "Enter Inline Edit",
+      disabled: !(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length),
+      disabledReason: !(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length) ? "Select a node first." : undefined,
+      run: () => handleEnterInlineEdit(),
+    },
     { id: "problems", label: "Open Problems", run: () => { setBottomDockMode("peek"); setBottomTab("problems"); } },
     { id: "properties", label: rightOpen ? "Hide Properties" : "Show Properties", run: () => setRightOpen(open => !open) },
     { id: "toolbox", label: leftOpen ? "Hide Toolbox" : "Show Toolbox", run: () => setLeftOpen(open => !open) },
-    { id: "undo", label: "Undo", disabled: !historyState.canUndo, run: handleUndo },
-    { id: "redo", label: "Redo", disabled: !historyState.canRedo, run: handleRedo },
+    { id: "undo", label: "Undo", disabled: !historyState.canUndo, disabledReason: !historyState.canUndo ? "No history to undo." : undefined, run: handleUndo },
+    { id: "redo", label: "Redo", disabled: !historyState.canRedo, disabledReason: !historyState.canRedo ? "No history to redo." : undefined, run: handleRedo },
     { id: "fit-view", label: "Fit View", run: () => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-fit-view")) },
     { id: "zoom-100", label: "Zoom 100%", run: () => applyPatch({ viewport: { ...schema.editor.viewport, zoom: 1 } }, { pushHistory: false, skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" }) },
-    { id: "auto-layout", label: "Auto Layout", disabled: props.readonly, run: handleAutoLayout },
+    { id: "auto-layout", label: "Auto Layout", disabled: props.readonly, disabledReason: props.readonly ? "Readonly mode cannot change layout." : undefined, run: handleAutoLayout },
+    { id: "retry-queued-run", label: "Retry Queued Run", disabled: !apiClient.retryMicroflowRun || (!(selectedRunId ?? runSession?.id)), disabledReason: !apiClient.retryMicroflowRun ? "Current runtime adapter does not support queued retry." : !(selectedRunId ?? runSession?.id) ? "No selected run to retry." : undefined, run: () => void handleRetryQueuedRun() },
+    { id: "retention-preview", label: "Retention Preview (30d)", disabled: !apiClient.runRetention, disabledReason: !apiClient.runRetention ? "Current runtime adapter does not support retention." : undefined, run: () => void handleRetentionPreview() },
+    { id: "retention-dry-run", label: "Retention Dry Run (30d)", disabled: !apiClient.runRetention, disabledReason: !apiClient.runRetention ? "Current runtime adapter does not support retention." : undefined, run: () => void handleRetentionDryRun() },
+    { id: "retention-execute", label: "Retention Execute (30d)", disabled: !apiClient.runRetention, disabledReason: !apiClient.runRetention ? "Current runtime adapter does not support retention." : undefined, run: () => void handleRetentionExecute() },
     { id: "focus-mode", label: focusMode ? "Exit Focus Mode" : "Enter Focus Mode", run: () => setFocusMode(value => !value) },
-  ], [dirty, focusMode, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, props.readonly, rightOpen, running, saving, schema.editor.viewport, startDebugSession]);
+    ...problemPaletteActions,
+    ...tracePaletteActions,
+    ...nodePaletteActions,
+  ], [apiClient.retryMicroflowRun, apiClient.runRetention, dirty, focusMode, handleEnterInlineEdit, handleRetentionDryRun, handleRetentionExecute, handleRetentionPreview, handleRetryQueuedRun, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, nodePaletteActions, problemPaletteActions, props.readonly, rightOpen, runSession?.id, running, saving, schema.editor.selection.objectId, schema.editor.selection.objectIds, schema.editor.viewport, selectedRunId, startDebugSession, tracePaletteActions]);
 
   return (
     <div ref={shellRef} data-testid="microflow-editor-shell" data-microflow-id={schema.id} style={shellStyle} tabIndex={0}>
@@ -3250,6 +3982,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           </Tag>
           {saveBlockers.length > 0 ? <Tag color="red">Save blocked {saveBlockers.length}</Tag> : null}
           {publishBlockers.length > 0 ? <Tag color="red">Publish blocked by {publishBlockers.length} errors</Tag> : null}
+          {inlineEditState === "blocked" ? <Tag color="orange">Inline edit: running-readonly (editable on pause)</Tag> : null}
+          {inlineEditState === "editing" ? <Tag color="green">Inline edit: editing</Tag> : null}
+          {inlineEditState === "paused-edit" ? <Tag color="blue">Inline edit: paused-edit</Tag> : null}
           {runSession ? <Tag color={runSession.status === "success" ? "green" : "red"}>{runSession.status} · {runSession.trace.length} frames</Tag> : null}
         </Space>
         <Space wrap style={{ justifyContent: "flex-end", rowGap: 4 }}>
@@ -3345,9 +4080,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           schema={schema}
           validationIssues={issues}
           runtimeTrace={traceFrames}
+          nodeViewModes={nodeViewModes}
           focusObjectId={focusObjectId}
           focusRequestKey={focusRequestSeq}
-          readonly={props.readonly}
+          readonly={props.readonly || runtimeInlineReadonly}
           onSchemaChange={(nextSchema, reason) => {
             commitSchema(nextSchema, reason, { source: "flowgram", skipValidate: true });
           }}
@@ -3676,20 +4412,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   onRetry={() => void runValidationNow(schema)}
                   onApplyQuickFix={handleApplyProblemQuickFix}
                   quickFixLabel={labels.quickFix}
-                  onSelect={issue => {
-                    const selectedFlowId = issue.flowId ?? issue.edgeId;
-                    const selectedObjectId = selectedFlowId ? undefined : issue.objectId ?? issue.nodeId;
-                    const selectedCollectionId = selectedFlowId
-                      ? findFlowWithCollection(schema, selectedFlowId)?.collectionId
-                      : selectedObjectId
-                        ? findObjectWithCollection(schema, selectedObjectId)?.collectionId
-                        : issue.collectionId;
-                    setRightOpen(true);
-                    applyPatch(
-                      { selectedObjectId, selectedFlowId, selectedCollectionId, viewport: viewportForProblemIssue(issue) },
-                      { pushHistory: false, skipDirty: true, skipValidate: true },
-                    );
-                  }}
+                  onSelect={focusProblemIssue}
                 />
               </div>
             </Tabs.TabPane>
@@ -3706,6 +4429,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       debugAvailable={Boolean(apiClient.debugAdapter)}
                       debugSession={activeDebugSession}
                       debugVariables={activeDebugVariables}
+                      debugTimeline={activeDebugTimeline}
+                      debugSuspendPolicy={activeDebugSuspendPolicy}
                       debugWatches={activeDebugWatches}
                       activeFrameId={activeTraceFrameId}
                       onSelectFrame={selectTraceFrame}
@@ -3714,8 +4439,16 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       onClear={clearTestRun}
                       onRerun={handleTestRun}
                       onCancelRun={cancelTestRun}
+                      onRetryQueuedRun={handleRetryQueuedRun}
                       onDebugCommand={command => void handleDebugCommand(command)}
                       onDebugEvaluate={expression => void handleDebugEvaluate(expression)}
+                      onDebugSuspendPolicyChange={policy => void handleDebugSuspendPolicyChange(policy)}
+                      onDebugRefreshTimeline={() => {
+                        if (activeDebugSession) {
+                          void refreshDebugTimeline(activeDebugSession.id);
+                        }
+                      }}
+                      onDebugMutateVariable={(name, value) => void handleDebugMutateVariable(name, value)}
                     />
                     </div>
                   </Tabs.TabPane>
@@ -3765,9 +4498,22 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </Tabs.TabPane>
             <Tabs.TabPane tab="Console" itemKey="console">
               <div style={{ overflow: "auto", maxHeight: activeBottomDockHeight - 56 }}>
-                {selectedRunSession?.logs?.length ? (
+                {(selectedRunSession?.logs?.length || runtimeCommandEntries.length) ? (
                   <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
-                    {selectedRunSession.logs.map(log => (
+                    {runtimeCommandEntries.map(entry => (
+                      <Card key={entry.id} style={{ width: "100%" }}>
+                        <Space vertical align="start" spacing={4}>
+                          <Tag color={entry.handled ? "green" : "orange"}>{entry.commandKind}</Tag>
+                          <Text>{entry.message}</Text>
+                          <Text type="tertiary" size="small">
+                            {entry.timestamp}
+                            {entry.target ? ` · ${entry.target}` : ""}
+                            {entry.sourceObjectId ? ` · object=${entry.sourceObjectId}` : ""}
+                          </Text>
+                        </Space>
+                      </Card>
+                    ))}
+                    {(selectedRunSession?.logs ?? []).map(log => (
                       <Card key={log.id} style={{ width: "100%" }}>
                         <Space vertical align="start" spacing={4}>
                           <Tag color={log.level === "error" ? "red" : log.level === "warning" ? "orange" : "blue"}>{log.level}</Tag>
@@ -3778,7 +4524,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     ))}
                   </Space>
                 ) : (
-                  <Empty title="No runtime logs" description="执行产生的日志会在这里汇总展示。" />
+                  <Empty title="No runtime logs" description="执行产生的日志和 runtime command 消费记录会在这里展示。" />
                 )}
               </div>
             </Tabs.TabPane>

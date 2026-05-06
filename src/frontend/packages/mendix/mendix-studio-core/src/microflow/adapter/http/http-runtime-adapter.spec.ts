@@ -167,4 +167,119 @@ describe("createHttpMicroflowRuntimeAdapter", () => {
     });
     expect(response.hydration?.warning).toBeTruthy();
   });
+
+  it("maps enqueue/status/retry/retention endpoints", async () => {
+    const apiClient = {
+      post: vi.fn(async (path: string, payload?: Record<string, unknown>) => {
+        if (path === "/microflows/runs:enqueue") {
+          expect(payload).toMatchObject({
+            resourceId: "mf-1",
+            request: {
+              input: { amount: 1 },
+              inputs: { amount: 1 },
+              debug: false,
+            },
+          });
+          return { runId: "run-10", status: "queued" };
+        }
+        if (path === "/microflows/runs/run-10:retry") {
+          return { newRunId: "run-11", status: "queued" };
+        }
+        if (path === "/microflows/runtime/retention:run") {
+          expect(payload).toMatchObject({ retentionDays: 30, dryRun: true });
+          return {
+            cutoffAt: "2026-03-31T00:00:00.000Z",
+            dryRun: true,
+            candidateRunCount: 3,
+            deletedRunCount: 0,
+            deletedTraceCount: 0,
+            deletedLogCount: 0,
+            sampleRunIds: ["run-1", "run-2"],
+          };
+        }
+        throw new Error(`unexpected post path ${path}`);
+      }),
+      get: vi.fn(async (path: string) => {
+        if (path === "/microflows/runs/run-10/status") {
+          return {
+            runId: "run-10",
+            status: "running",
+            startedAt: "2026-04-30T08:00:00.000Z",
+            endedAt: "2026-04-30T08:01:00.000Z",
+          };
+        }
+        throw new Error(`unexpected get path ${path}`);
+      }),
+      delete: vi.fn(),
+      put: vi.fn(),
+    } as any;
+
+    const adapter = createHttpMicroflowRuntimeAdapter({
+      apiBaseUrl: "/api/v1",
+      apiClient,
+    });
+
+    const queued = await adapter.enqueueMicroflowRun?.({ microflowId: "mf-1", input: { amount: 1 } });
+    const status = await adapter.getMicroflowRunStatus?.("run-10");
+    const retried = await adapter.retryMicroflowRun?.("run-10");
+    const retention = await adapter.runRetention?.({ dryRun: true, retainDays: 30 });
+
+    expect(queued).toMatchObject({ runId: "run-10", status: "queued" });
+    expect(status).toMatchObject({ runId: "run-10", status: "running", completedAt: "2026-04-30T08:01:00.000Z" });
+    expect(retried).toMatchObject({ runId: "run-11", status: "queued" });
+    expect(retention).toMatchObject({
+      cutoffAt: "2026-03-31T00:00:00.000Z",
+      dryRun: true,
+      candidateRuns: 3,
+      deletedRuns: 0,
+      deletedTraceFrames: 0,
+      deletedLogs: 0,
+      sampleRunIds: ["run-1", "run-2"],
+    });
+  });
+
+  it("maps debug suspend policy and timeline endpoints", async () => {
+    const apiClient = {
+      post: vi.fn(async (path: string) => {
+        if (path === "/microflows/debug-sessions/session-1/suspend-policy") {
+          return { sessionId: "session-1", policy: "branchOnly" };
+        }
+        throw new Error(`unexpected post path ${path}`);
+      }),
+      get: vi.fn(async (path: string) => {
+        if (path === "/microflows/debug-sessions/session-1/timeline") {
+          return [{
+            id: "evt-1",
+            sessionId: "session-1",
+            runId: "run-1",
+            objectId: "node-1",
+            flowId: "flow-1",
+            branchId: "branch-1",
+            phase: "pause",
+            occurredAt: "2026-05-06T10:00:00.000Z",
+            summary: "paused",
+          }];
+        }
+        throw new Error(`unexpected get path ${path}`);
+      }),
+      delete: vi.fn(),
+    } as any;
+
+    const adapter = createHttpMicroflowRuntimeAdapter({
+      apiBaseUrl: "/api/v1",
+      apiClient,
+    });
+
+    const policy = await adapter.debugAdapter?.updateSuspendPolicy?.("session-1", "branchOnly");
+    const timeline = await adapter.debugAdapter?.getTimeline?.("session-1");
+
+    expect(policy).toMatchObject({ sessionId: "session-1", policy: "branchOnly" });
+    expect(timeline?.[0]).toMatchObject({
+      id: "evt-1",
+      sessionId: "session-1",
+      objectId: "node-1",
+      phase: "pause",
+      summary: "paused",
+    });
+  });
 });

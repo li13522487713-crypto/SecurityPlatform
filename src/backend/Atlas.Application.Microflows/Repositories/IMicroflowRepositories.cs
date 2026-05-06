@@ -169,6 +169,16 @@ public interface IMicroflowRunRepository
         string status,
         DateTimeOffset? endedAt,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MicroflowRunSessionEntity>> ListRetentionCandidatesAsync(
+        DateTimeOffset cutoffAt,
+        int pageSize,
+        string? resourceId,
+        CancellationToken cancellationToken);
+
+    Task<(int RunCount, int TraceCount, int LogCount)> DeleteRunGraphAsync(
+        IReadOnlyList<string> runIds,
+        CancellationToken cancellationToken);
 }
 
 public interface IMicroflowMetadataCacheRepository

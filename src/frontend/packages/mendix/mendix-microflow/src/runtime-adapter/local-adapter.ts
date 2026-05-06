@@ -369,6 +369,87 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     return this.getMicroflowRunSession(runId);
   }
 
+  async enqueueMicroflowRun(request: { microflowId: string; input: Record<string, unknown>; schemaId?: string }): Promise<{ runId: string; status: "queued" | "running" | "success" | "failed" | "cancelled" }> {
+    const result = await this.testRunMicroflow({ microflowId: request.microflowId, input: request.input });
+    const status = result.status === "succeeded"
+      ? "success"
+      : result.status === "failed"
+        ? "failed"
+        : result.status === "cancelled"
+          ? "cancelled"
+          : "running";
+    return { runId: result.runId, status };
+  }
+
+  async getMicroflowRunStatus(runId: string): Promise<{ runId: string; status: "queued" | "running" | "success" | "failed" | "cancelled"; startedAt?: string; completedAt?: string }> {
+    const session = this.sessions.get(runId);
+    if (!session) {
+      throw new Error(`Microflow run ${runId} was not found.`);
+    }
+    const status = session.status === "success"
+      ? "success"
+      : session.status === "failed" || session.status === "unsupported"
+        ? "failed"
+        : session.status === "cancelled"
+          ? "cancelled"
+          : "running";
+    return {
+      runId,
+      status,
+      startedAt: session.startedAt,
+      completedAt: session.endedAt,
+    };
+  }
+
+  async retryMicroflowRun(runId: string): Promise<{ runId: string; status: "queued" | "running" | "success" | "failed" | "cancelled" }> {
+    const session = this.sessions.get(runId);
+    if (!session) {
+      throw new Error(`Microflow run ${runId} was not found.`);
+    }
+    const microflowId = this.runMicroflowIndex.get(runId);
+    if (!microflowId) {
+      throw new Error(`Microflow mapping for run ${runId} was not found.`);
+    }
+    return this.enqueueMicroflowRun({ microflowId, input: session.input, schemaId: session.schemaId });
+  }
+
+  async runRetention(request: { dryRun?: boolean; retainDays?: number } = {}): Promise<{
+    dryRun: boolean;
+    cutoffAt?: string;
+    candidateRuns?: number;
+    deletedRuns: number;
+    deletedTraceFrames: number;
+    deletedLogs?: number;
+    sampleRunIds?: string[];
+  }> {
+    const retainDays = request.retainDays ?? 7;
+    const dryRun = request.dryRun !== false;
+    const cutoff = Date.now() - retainDays * 24 * 60 * 60 * 1000;
+    const candidates = [...this.sessions.values()].filter(session => {
+      const endedAt = session.endedAt ? new Date(session.endedAt).getTime() : undefined;
+      return typeof endedAt === "number" && !Number.isNaN(endedAt) && endedAt < cutoff;
+    });
+
+    const deletedTraceFrames = candidates.reduce((total, session) => total + (this.traces.get(session.id)?.length ?? 0), 0);
+    if (!dryRun) {
+      for (const session of candidates) {
+        this.sessions.delete(session.id);
+        this.traces.delete(session.id);
+        this.runMicroflowIndex.delete(session.id);
+      }
+    }
+
+    return {
+      dryRun,
+      cutoffAt: new Date(cutoff).toISOString(),
+      candidateRuns: candidates.length,
+      deletedRuns: dryRun ? 0 : candidates.length,
+      deletedTraceFrames,
+      deletedLogs: 0,
+      sampleRunIds: candidates.slice(0, 20).map(item => item.id),
+    };
+  }
+
   async publishMicroflow(id: string, payload: PublishMicroflowPayload = { version: "v1", releaseNote: "", overwriteCurrent: true }): Promise<PublishMicroflowResponse> {
     const current = this.resources.get(id);
     if (!current) {

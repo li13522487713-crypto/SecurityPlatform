@@ -65,4 +65,41 @@ describe("MicroflowStepDebugApiClient", () => {
 
     await expect(client.getSession("session-1")).rejects.toThrow("MICROFLOW_DEBUG_SESSION_FORBIDDEN: denied");
   });
+
+  it("updates suspend policy via dedicated endpoint", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { sessionId: "session-1", policy: "branchOnly" },
+      }),
+    });
+    const client = new MicroflowStepDebugApiClient({ fetcher: fetcher as unknown as typeof fetch });
+
+    const result = await client.updateSuspendPolicy("session-1", "branchOnly");
+
+    expect(result.policy).toBe("branchOnly");
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/v1/microflows/debug-sessions/session-1/suspend-policy",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("mutates debug variable through mutate endpoint", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { sessionId: "session-1", name: "$flag", valuePreview: "true", mutated: true },
+      }),
+    });
+    const client = new MicroflowStepDebugApiClient({ fetcher: fetcher as unknown as typeof fetch });
+
+    const result = await client.mutateVariable("session-1", { name: "$flag", value: true });
+
+    expect(result.mutated).toBe(true);
+    const [, init] = fetcher.mock.calls[0];
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ name: "$flag", value: true });
+  });
 });

@@ -131,6 +131,84 @@ public record CancelMicroflowRunResponse
 
 public sealed record CancelMicroflowRunResponseDto : CancelMicroflowRunResponse;
 
+public sealed record RetryMicroflowRunResponse
+{
+    [JsonPropertyName("previousRunId")]
+    public string PreviousRunId { get; init; } = string.Empty;
+
+    [JsonPropertyName("newRunId")]
+    public string NewRunId { get; init; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = "failed";
+
+    [JsonPropertyName("startedAt")]
+    public DateTimeOffset StartedAt { get; init; }
+}
+
+public sealed record EnqueueMicroflowRunRequestDto
+{
+    [JsonPropertyName("resourceId")]
+    public string ResourceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("request")]
+    public TestRunMicroflowApiRequest Request { get; init; } = new();
+}
+
+public sealed record EnqueueMicroflowRunResponse
+{
+    [JsonPropertyName("runId")]
+    public string RunId { get; init; } = string.Empty;
+
+    [JsonPropertyName("resourceId")]
+    public string ResourceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = "queued";
+
+    [JsonPropertyName("startedAt")]
+    public DateTimeOffset StartedAt { get; init; }
+}
+
+public sealed record RunRetentionRequestDto
+{
+    [JsonPropertyName("retentionDays")]
+    public int RetentionDays { get; init; } = 30;
+
+    [JsonPropertyName("batchSize")]
+    public int BatchSize { get; init; } = 200;
+
+    [JsonPropertyName("dryRun")]
+    public bool DryRun { get; init; } = true;
+
+    [JsonPropertyName("resourceId")]
+    public string? ResourceId { get; init; }
+}
+
+public sealed record RunRetentionResultDto
+{
+    [JsonPropertyName("cutoffAt")]
+    public DateTimeOffset CutoffAt { get; init; }
+
+    [JsonPropertyName("dryRun")]
+    public bool DryRun { get; init; }
+
+    [JsonPropertyName("candidateRunCount")]
+    public int CandidateRunCount { get; init; }
+
+    [JsonPropertyName("deletedRunCount")]
+    public int DeletedRunCount { get; init; }
+
+    [JsonPropertyName("deletedTraceCount")]
+    public int DeletedTraceCount { get; init; }
+
+    [JsonPropertyName("deletedLogCount")]
+    public int DeletedLogCount { get; init; }
+
+    [JsonPropertyName("sampleRunIds")]
+    public IReadOnlyList<string> SampleRunIds { get; init; } = Array.Empty<string>();
+}
+
 public sealed record MicroflowRunSessionDto
 {
     [JsonPropertyName("id")]
@@ -505,6 +583,36 @@ public sealed record ListMicroflowRunsResponse
 
     [JsonPropertyName("total")]
     public int Total { get; init; }
+}
+
+public sealed record MicroflowRunStatusDto
+{
+    [JsonPropertyName("runId")]
+    public string RunId { get; init; } = string.Empty;
+
+    [JsonPropertyName("resourceId")]
+    public string ResourceId { get; init; } = string.Empty;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = "failed";
+
+    [JsonPropertyName("startedAt")]
+    public DateTimeOffset StartedAt { get; init; }
+
+    [JsonPropertyName("endedAt")]
+    public DateTimeOffset? EndedAt { get; init; }
+
+    [JsonPropertyName("durationMs")]
+    public int DurationMs { get; init; }
+
+    [JsonPropertyName("finalized")]
+    public bool Finalized { get; init; }
+
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; init; }
+
+    [JsonPropertyName("errorMessage")]
+    public string? ErrorMessage { get; init; }
 }
 
 public static class RuntimeErrorCode
