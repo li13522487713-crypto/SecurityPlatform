@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { IconPlus, IconClose } from "@douyinfe/semi-icons";
 import { Button, Modal, Space, Tag, Typography } from "@douyinfe/semi-ui";
 import { useMendixStudioStore } from "../store";
@@ -120,6 +121,18 @@ export function WorkbenchTabs() {
   const pendingCloseTab = pendingCloseTabId
     ? tabs.find(tab => tab.id === pendingCloseTabId)
     : undefined;
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasDirty = Object.values(dirtyByWorkbenchTabId).some(Boolean);
+      if (hasDirty) {
+        e.preventDefault();
+        e.returnValue = "当前有未保存的更改，离开页面将丢失这些工作。";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirtyByWorkbenchTabId]);
 
   const handleTabClick = (tab: StudioWorkbenchTab) => {
     if (activeWorkbenchTabId && activeWorkbenchTabId !== tab.id && dirtyByWorkbenchTabId[activeWorkbenchTabId]) {

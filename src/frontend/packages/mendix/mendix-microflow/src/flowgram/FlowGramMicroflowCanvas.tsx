@@ -42,6 +42,7 @@ import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
 import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
 import { FlowGramMicroflowToolbar, microflowZoomViewportAtCanvasCenter } from "./FlowGramMicroflowToolbar";
 import { FlowGramNodeToolbar } from "./FlowGramNodeToolbar";
+import { FlowGramNodeEditor } from "./FlowGramNodeEditor";
 import { useMicroflowMetadataCatalog } from "../metadata";
 import { getCaseEditorKind, getCaseOptionsForSource } from "./adapters/flowgram-case-options";
 import { authoringToFlowGram } from "./adapters/authoring-to-flowgram";
@@ -427,6 +428,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   const [dropActive, setDropActive] = useState(false);
   const [hoveredPortId, setHoveredPortId] = useState<string | null>(null);
   const [toolbarNode, setToolbarNode] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const miniMapVisible = props.schema.editor.showMiniMap === true;
   const gridEnabled = props.schema.editor.gridEnabled !== false;
 
@@ -848,6 +850,24 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   };
 
   useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      const graph = toEditorGraph(props.schema);
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect && graph.nodes.length > 0) {
+        const viewport = props.schema.editor.viewport;
+        if (!hasUsableViewport(viewport) || !viewportContainsGraph(graph, rect, viewport)) {
+          props.onViewportChange?.(fitViewportForGraph(graph, rect), { skipDirty: true });
+        }
+      }
+    });
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+    return () => observer.disconnect();
+  }, [props.schema, props.onViewportChange]);
+
+  useEffect(() => {
     if (initialViewportFitDoneRef.current) {
       return;
     }
@@ -898,12 +918,19 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
       onPointerDownCapture={handlePointerDown}
     >
       <PlaygroundReactRenderer />
-      {toolbarNode && (
+      {toolbarNode && !editingNodeId && (
         <FlowGramNodeToolbar 
            x={toolbarNode.x} y={toolbarNode.y} 
-           onEdit={() => { /* 触发逻辑 */ }} 
+           onEdit={() => setEditingNodeId(toolbarNode.id)} 
            onDelete={() => { /* 触发逻辑 */ }} 
            onDuplicate={() => { /* 触发逻辑 */ }}
+        />
+      )}
+      {editingNodeId && toolbarNode && (
+        <FlowGramNodeEditor 
+          initialValue={toolbarNode.id} 
+          onSave={(val) => { /* 这里调用 Schema 更新逻辑 */ setEditingNodeId(null); }}
+          onCancel={() => setEditingNodeId(null)}
         />
       )}
       <div className="microflow-flowgram-canvas-controls">
