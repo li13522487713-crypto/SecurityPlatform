@@ -5,13 +5,13 @@ import { Button, Input, TextArea, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowActionActivity, MicroflowAnnotation, MicroflowAuthoringSchema, MicroflowEndEvent, MicroflowLoopedActivity, MicroflowSchema } from "../../schema";
 import { VariableSelector } from "../../property-panel/selectors/VariableSelector";
 import {
-  updateActionActivity,
   updateAnnotationObjectConfig,
   updateEndEventConfig,
   updateObject,
 } from "../../property-panel/utils/schema-patch";
 import type { FlowGramMicroflowNodeData } from "../FlowGramMicroflowTypes";
 import { useInlineEditorDraft, type InlineEditorDraft } from "./useInlineEditorDraft";
+import { useFlowGramMicroflowContext } from "./useFlowGramMicroflowContext";
 
 const { Text } = Typography;
 
@@ -38,11 +38,13 @@ function InlineEndEventSection({
   schema,
   draft,
   updateField,
+  readonly,
 }: {
   objectId: string;
   schema: MicroflowAuthoringSchema;
   draft: InlineEditorDraft;
   updateField: (key: string, value: unknown) => void;
+  readonly: boolean;
 }) {
   return (
     <FieldRow label="返回变量">
@@ -52,6 +54,7 @@ function InlineEndEventSection({
         value={draft.returnVariableName as string | undefined}
         onChange={name => updateField("returnVariableName", name)}
         placeholder="选择返回变量"
+        disabled={readonly}
       />
     </FieldRow>
   );
@@ -63,12 +66,14 @@ function InlineCreateVariableSection({
   draft,
   updateField,
   fieldErrors,
+  readonly,
 }: {
   objectId: string;
   schema: MicroflowAuthoringSchema;
   draft: InlineEditorDraft;
   updateField: (key: string, value: unknown) => void;
   fieldErrors: Record<string, string>;
+  readonly: boolean;
 }) {
   return (
     <>
@@ -80,6 +85,7 @@ function InlineCreateVariableSection({
             onChange={v => updateField("variableName", v)}
             validateStatus={fieldErrors.variableName ? "error" : undefined}
             placeholder="输入变量名"
+            disabled={readonly}
           />
           {fieldErrors.variableName ? (
             <Text type="danger" size="small">{fieldErrors.variableName}</Text>
@@ -93,6 +99,7 @@ function InlineCreateVariableSection({
           value={draft.initialValue as string | undefined}
           onChange={name => updateField("initialValue", name)}
           placeholder="选择初始值变量（可选）"
+          disabled={readonly}
         />
       </FieldRow>
     </>
@@ -104,11 +111,13 @@ function InlineChangeVariableSection({
   schema,
   draft,
   updateField,
+  readonly,
 }: {
   objectId: string;
   schema: MicroflowAuthoringSchema;
   draft: InlineEditorDraft;
   updateField: (key: string, value: unknown) => void;
+  readonly: boolean;
 }) {
   return (
     <>
@@ -120,6 +129,7 @@ function InlineChangeVariableSection({
           onChange={name => updateField("changeVariableName", name)}
           placeholder="选择要修改的变量"
           writableOnly
+          disabled={readonly}
         />
       </FieldRow>
       <FieldRow label="新值（变量）">
@@ -129,6 +139,7 @@ function InlineChangeVariableSection({
           value={draft.newValue as string | undefined}
           onChange={name => updateField("newValue", name)}
           placeholder="选择新值变量（可选）"
+          disabled={readonly}
         />
       </FieldRow>
     </>
@@ -141,12 +152,14 @@ function InlineRestCallSection({
   draft,
   updateField,
   data,
+  readonly,
 }: {
   objectId: string;
   schema: MicroflowAuthoringSchema;
   draft: InlineEditorDraft;
   updateField: (key: string, value: unknown) => void;
   data: FlowGramMicroflowNodeData;
+  readonly: boolean;
 }) {
   return (
     <>
@@ -162,6 +175,7 @@ function InlineRestCallSection({
           value={draft.responseVariableName as string | undefined}
           onChange={name => updateField("responseVariableName", name)}
           placeholder="选择响应输出变量"
+          disabled={readonly}
         />
       </FieldRow>
     </>
@@ -174,12 +188,14 @@ function InlineCallMicroflowSection({
   draft,
   updateField,
   data,
+  readonly,
 }: {
   objectId: string;
   schema: MicroflowAuthoringSchema;
   draft: InlineEditorDraft;
   updateField: (key: string, value: unknown) => void;
   data: FlowGramMicroflowNodeData;
+  readonly: boolean;
 }) {
   return (
     <>
@@ -195,6 +211,7 @@ function InlineCallMicroflowSection({
           value={draft.returnVariableName as string | undefined}
           onChange={name => updateField("returnVariableName", name)}
           placeholder="选择返回值变量（可选）"
+          disabled={readonly}
         />
       </FieldRow>
     </>
@@ -207,12 +224,14 @@ function InlineLoopSection({
   draft,
   updateField,
   fieldErrors,
+  readonly,
 }: {
   objectId: string;
   schema: MicroflowAuthoringSchema;
   draft: InlineEditorDraft;
   updateField: (key: string, value: unknown) => void;
   fieldErrors: Record<string, string>;
+  readonly: boolean;
 }) {
   return (
     <>
@@ -224,6 +243,7 @@ function InlineLoopSection({
           onChange={name => updateField("listVariableName", name)}
           allowedTypeKinds={["list"]}
           placeholder="选择列表变量"
+          disabled={readonly}
         />
       </FieldRow>
       <FieldRow label="迭代器变量名">
@@ -234,6 +254,7 @@ function InlineLoopSection({
             onChange={v => updateField("iteratorVariableName", v)}
             validateStatus={fieldErrors.iteratorVariableName ? "error" : undefined}
             placeholder="输入迭代器变量名"
+            disabled={readonly}
           />
           {fieldErrors.iteratorVariableName ? (
             <Text type="danger" size="small">{fieldErrors.iteratorVariableName}</Text>
@@ -247,9 +268,11 @@ function InlineLoopSection({
 function InlineAnnotationSection({
   draft,
   updateField,
+  readonly,
 }: {
   draft: InlineEditorDraft;
   updateField: (key: string, value: unknown) => void;
+  readonly: boolean;
 }) {
   return (
     <FieldRow label="注释文本">
@@ -260,6 +283,7 @@ function InlineAnnotationSection({
         onChange={v => updateField("caption", v)}
         placeholder="输入注释内容"
         data-flow-editor-selectable="false"
+        disabled={readonly}
       />
     </FieldRow>
   );
@@ -435,6 +459,7 @@ export function MicroflowInlineNodeEditor({
   onCollapse,
   registerDraftValidator,
 }: MicroflowInlineNodeEditorProps): ReactElement | null {
+  const { readonly } = useFlowGramMicroflowContext();
   const authoringSchema = schema as MicroflowAuthoringSchema;
   const initialDraft = buildInitialDraft(data, authoringSchema);
   const validators = buildValidators(data);
@@ -471,11 +496,12 @@ export function MicroflowInlineNodeEditor({
           schema={authoringSchema}
           draft={draft}
           updateField={updateField}
+          readonly={readonly}
         />
       );
       break;
     case "annotation":
-      fields = <InlineAnnotationSection draft={draft} updateField={updateField} />;
+      fields = <InlineAnnotationSection draft={draft} updateField={updateField} readonly={readonly} />;
       break;
     case "loopedActivity":
       fields = (
@@ -485,6 +511,7 @@ export function MicroflowInlineNodeEditor({
           draft={draft}
           updateField={updateField}
           fieldErrors={fieldErrors}
+          readonly={readonly}
         />
       );
       break;
@@ -498,6 +525,7 @@ export function MicroflowInlineNodeEditor({
               draft={draft}
               updateField={updateField}
               fieldErrors={fieldErrors}
+              readonly={readonly}
             />
           );
           break;
@@ -508,6 +536,7 @@ export function MicroflowInlineNodeEditor({
               schema={authoringSchema}
               draft={draft}
               updateField={updateField}
+              readonly={readonly}
             />
           );
           break;
@@ -519,6 +548,7 @@ export function MicroflowInlineNodeEditor({
               draft={draft}
               updateField={updateField}
               data={data}
+              readonly={readonly}
             />
           );
           break;
@@ -530,6 +560,7 @@ export function MicroflowInlineNodeEditor({
               draft={draft}
               updateField={updateField}
               data={data}
+              readonly={readonly}
             />
           );
           break;
@@ -541,12 +572,12 @@ export function MicroflowInlineNodeEditor({
       return null;
   }
 
-  const isReadonly = data.objectKind === "startEvent";
+  const isStartEvent = data.objectKind === "startEvent";
 
   return (
     <>
       {fields}
-      {!isReadonly ? (
+      {!isStartEvent && !readonly ? (
         <div className="microflow-flowgram-node__inline-editor-actions">
           <Button size="small" theme="borderless" type="tertiary" onClick={handleCancel}>
             取消
@@ -558,6 +589,12 @@ export function MicroflowInlineNodeEditor({
             onClick={handleSave}
           >
             保存
+          </Button>
+        </div>
+      ) : !isStartEvent && readonly ? (
+        <div className="microflow-flowgram-node__inline-editor-actions">
+          <Button size="small" theme="borderless" type="tertiary" onClick={handleCancel}>
+            关闭
           </Button>
         </div>
       ) : null}

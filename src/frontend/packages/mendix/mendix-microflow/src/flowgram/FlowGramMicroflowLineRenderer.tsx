@@ -7,6 +7,8 @@ import {
   usePlaygroundReadonlyState,
 } from "@flowgram-adapter/free-layout-editor";
 
+import type { MicroflowCaseValue } from "../schema";
+import { updateFlow } from "../property-panel/utils/schema-patch";
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
 import { useFlowGramMicroflowContext } from "./inline/useFlowGramMicroflowContext";
 
@@ -85,49 +87,60 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
       return;
     }
 
-    // 更新 schema 中的 expression（这里简化处理，实际需要根据边的类型更新）
-    // 由于这里无法直接访问完整的 schema 和节点信息，暂时只关闭编辑框
-    // 完整实现需要在画布层面处理
+    const { schema, onSchemaChange } = ctx;
+    const updatedCaseValue: MicroflowCaseValue = {
+      ...(firstCase as Extract<MicroflowCaseValue, { kind: "expression" }>),
+      expression: expressionValue,
+    };
+    const nextSchema = updateFlow(schema, data.flowId, flow => ({
+      ...flow,
+      caseValues: [updatedCaseValue, ...(flow.caseValues?.slice(1) ?? [])],
+    } as typeof flow));
+    onSchemaChange(nextSchema, "inlineExpressionEdit");
     setEditingExpression(false);
-  }, [isExpressionCase, ctx]);
+  }, [isExpressionCase, ctx, firstCase, expressionValue, data]);
 
   const expressionLabel = isExpressionCase ? (
-    <Popover
-      content={
-        <div
-          style={{ width: 200, padding: "8px" }}
-          onClick={e => e.stopPropagation()}
-          draggable={false}
-        >
-          <Input
-            value={expressionValue}
-            onChange={setExpressionValue}
-            placeholder="输入条件表达式"
-            size="small"
-            style={{ marginBottom: 8 }}
-          />
-          <div style={{ display: "flex", gap: 6 }}>
-            <Button size="small" onClick={() => setEditingExpression(false)}>
-              取消
-            </Button>
-            <Button size="small" type="primary" onClick={handleExpressionSave}>
-              保存
-            </Button>
+    readonly ? (
+      <span>{label || "expression"}</span>
+    ) : (
+      <Popover
+        content={
+          <div
+            style={{ width: 200, padding: "8px" }}
+            onClick={e => e.stopPropagation()}
+            draggable={false}
+          >
+            <Input
+              value={expressionValue}
+              onChange={setExpressionValue}
+              placeholder="输入条件表达式"
+              size="small"
+              style={{ marginBottom: 8 }}
+            />
+            <div style={{ display: "flex", gap: 6 }}>
+              <Button size="small" onClick={() => setEditingExpression(false)}>
+                取消
+              </Button>
+              <Button size="small" type="primary" onClick={handleExpressionSave}>
+                保存
+              </Button>
+            </div>
           </div>
-        </div>
-      }
-      visible={editingExpression}
-      onVisibleChange={setEditingExpression}
-      trigger="custom"
-      position="top"
-    >
-      <span
-        style={{ cursor: "pointer", textDecoration: "underline" }}
-        onClick={handleExpressionEdit}
+        }
+        visible={editingExpression}
+        onVisibleChange={setEditingExpression}
+        trigger="custom"
+        position="top"
       >
-        {label || "expression"}
-      </span>
-    </Popover>
+        <span
+          style={{ cursor: "pointer", textDecoration: "underline" }}
+          onClick={handleExpressionEdit}
+        >
+          {label || "expression"}
+        </span>
+      </Popover>
+    )
   ) : (
     label
   );
