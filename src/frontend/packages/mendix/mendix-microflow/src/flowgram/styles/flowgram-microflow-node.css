@@ -13,6 +13,14 @@
   overflow: hidden;
 }
 
+.microflow-flowgram-node.is-expanded {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(31, 35, 41, 0.18);
+}
+
 .microflow-flowgram-node.is-selected {
   border-color: #165dff;
   background: #e8f3ff;
@@ -151,4 +159,71 @@
   flex-wrap: wrap;
   gap: 4px;
   margin-top: 6px;
+}
+
+.microflow-flowgram-node__inline-editor {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(31, 35, 41, 0.1);
+}
+
+.microflow-flowgram-node__inline-editor-field {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.microflow-flowgram-node__inline-editor-label {
+  font-size: 12px;
+  color: var(--semi-color-text-2, #646a73);
+}
+
+.microflow-flowgram-node__inline-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.microflow-flowgram-node__runtime-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(31, 35, 41, 0.08);
+}
+
+.microflow-flowgram-node__runtime-summary-io {
+  margin-top: 6px;
+  display: grid;
+  gap: 4px;
+}
+
+.microflow-flowgram-node__runtime-summary-row {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--semi-color-text-2, #646a73);
+  overflow: hidden;
+}
+
+.microflow-flowgram-node__runtime-summary-key {
+  flex: 0 0 auto;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.microflow-flowgram-node__runtime-summary-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  font-size: 10px;
 }

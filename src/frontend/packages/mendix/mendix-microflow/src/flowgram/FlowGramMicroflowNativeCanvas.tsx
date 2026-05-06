@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 
 import { Toast } from "@douyinfe/semi-ui";
 import {
@@ -16,6 +16,11 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import type { MicroflowTraceFrame } from "../debug/trace-types";
+import type { MicroflowMetadataCatalog } from "../metadata";
+import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
+import { buildVariableIndex } from "../variables/variable-index";
+import { getVariablesBeforeObject } from "../variables/variable-scope-engine";
+import { FlowGramMicroflowRuntimeContext } from "./FlowGramMicroflowContext";
 import {
   canCreateRegistryItem,
   canDragRegistryItem,
@@ -59,6 +64,10 @@ export interface FlowGramMicroflowNativeCanvasProps {
   focusObjectId?: string;
   focusRequestKey?: number;
   readonly?: boolean;
+  metadataCatalog?: MicroflowMetadataCatalog;
+  expandedObjectId?: string | null;
+  onExpandChange?: (objectId: string | null) => void;
+  registerDraftValidator?: (fn: (() => { valid: boolean; summary: string }) | null) => void;
   onSchemaChange: (nextSchema: MicroflowDesignSchema, reason: string) => void;
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
   onCanvasBlankClick?: () => void;
@@ -407,6 +416,27 @@ function FlowGramMicroflowNativeMiniMap(props: { schema: MicroflowDesignSchema; 
 }
 
 function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvasProps) {
+  const [localExpandedObjectId, setLocalExpandedObjectId] = useState<string | null>(null);
+  const effectiveExpandedObjectId = props.expandedObjectId !== undefined ? props.expandedObjectId : localExpandedObjectId;
+  const effectiveOnExpandChange = props.onExpandChange ?? setLocalExpandedObjectId;
+
+  const variableIndex = useMemo(
+    () => buildVariableIndex(props.schema, props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [props.schema, props.metadataCatalog],
+  );
+
+  const runtimeTraceByObjectId = useMemo(
+    () => new Map(props.runtimeTrace.map(f => [f.objectId, f])),
+    [props.runtimeTrace],
+  );
+
+  const getVariablesForNode = useCallback(
+    (objectId: string, options?: Parameters<typeof getVariablesBeforeObject>[3]) =>
+      getVariablesBeforeObject(props.schema, variableIndex, objectId, options),
+    [props.schema, variableIndex],
+  );
+
   const playground = usePlayground();
   const doc = useService<WorkflowDocument>(WorkflowDocument);
   const dragService = useService<WorkflowDragService>(WorkflowDragService);
@@ -731,7 +761,25 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     }
   }, [props.focusObjectId, props.focusRequestKey]);
 
+  const registerDraftValidator = useCallback(
+    (fn: (() => { valid: boolean; summary: string }) | null) => props.registerDraftValidator?.(fn),
+    [props.registerDraftValidator],
+  );
+
+  const contextValue = useMemo(() => ({
+    schema: props.schema,
+    variableIndex,
+    getVariablesForNode,
+    runtimeTraceByObjectId,
+    expandedObjectId: effectiveExpandedObjectId,
+    onExpandChange: effectiveOnExpandChange,
+    onSchemaChange: props.onSchemaChange,
+    readonly: Boolean(props.readonly),
+    registerDraftValidator,
+  }), [props.schema, variableIndex, getVariablesForNode, runtimeTraceByObjectId, effectiveExpandedObjectId, effectiveOnExpandChange, props.onSchemaChange, props.readonly, registerDraftValidator]);
+
   return (
+    <FlowGramMicroflowRuntimeContext.Provider value={contextValue}>
     <div
       ref={containerRef}
       className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}${gridEnabled ? "" : " is-grid-hidden"}`}
@@ -782,6 +830,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       </div>
       {miniMapVisible ? <FlowGramMicroflowNativeMiniMap schema={props.schema} onFocusNode={focusNode} /> : null}
     </div>
+    </FlowGramMicroflowRuntimeContext.Provider>
   );
 }
 

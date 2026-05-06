@@ -1,4 +1,4 @@
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { lazy, Suspense, useState, type MouseEvent, type ReactNode } from "react";
 
 import { Tag, Typography } from "@douyinfe/semi-ui";
 import {
@@ -15,7 +15,15 @@ import {
   focusMicroflowNodeDragRoot,
   isMicroflowNodeDragBlockedTarget,
 } from "./flowgram-node-drag";
+import { useFlowGramMicroflowContext } from "./inline/useFlowGramMicroflowContext";
 import "./styles/flowgram-microflow-node.css";
+
+const MicroflowInlineNodeEditor = lazy(() =>
+  import("./inline/MicroflowInlineNodeEditor").then(m => ({ default: m.MicroflowInlineNodeEditor })),
+);
+const MicroflowInlineRuntimeSummary = lazy(() =>
+  import("./inline/MicroflowInlineRuntimeSummary").then(m => ({ default: m.MicroflowInlineRuntimeSummary })),
+);
 
 function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeData | undefined {
   try {
@@ -86,6 +94,13 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   const [focused, setFocused] = useState(false);
   const data = tryReadNodeData(props);
 
+  const ctx = useFlowGramMicroflowContext();
+  const { expandedObjectId, onExpandChange, runtimeTraceByObjectId, schema, onSchemaChange, registerDraftValidator } = ctx;
+
+  const objectId = data?.objectId ?? String(props.node.id);
+  const isExpanded = expandedObjectId === objectId && Boolean(data?.objectKind);
+  const traceFrame = runtimeTraceByObjectId.get(objectId);
+
   const canStartNodeDrag = (event: MouseEvent<HTMLDivElement>) => {
     if (readonly || event.button !== 0) {
       return false;
@@ -103,6 +118,21 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
 
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
     selectNode(event);
+  };
+
+  const handleDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    if (readonly || !data?.objectKind) {
+      return;
+    }
+    onExpandChange(isExpanded ? null : objectId);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" && !readonly && data?.objectKind) {
+      event.preventDefault();
+      onExpandChange(isExpanded ? null : objectId);
+    }
   };
 
   if (!data?.objectKind) {
@@ -151,10 +181,13 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         data.disabled ? "is-disabled" : "",
         data.validationState !== "valid" ? `is-${data.validationState}` : "",
         data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
+        isExpanded ? "is-expanded" : "",
       ].filter(Boolean).join(" ")}
       draggable={false}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+      onKeyDown={handleKeyDown}
       onFocus={() => {
         setFocused(true);
         onFocus();
@@ -240,6 +273,36 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
               <Tag size="small">Flows {data.loopSummary.flowCount}</Tag>
             </div>
           ) : null}
+        </div>
+      ) : null}
+      {isExpanded ? (
+        <div
+          className="microflow-flowgram-node__inline-editor"
+          draggable={false}
+          data-flow-editor-selectable="false"
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <Suspense fallback={null}>
+            <MicroflowInlineNodeEditor
+              data={data}
+              objectId={objectId}
+              schema={schema}
+              onSchemaChange={onSchemaChange}
+              onCollapse={() => onExpandChange(null)}
+              registerDraftValidator={registerDraftValidator}
+            />
+          </Suspense>
+        </div>
+      ) : null}
+      {traceFrame ? (
+        <div
+          className="microflow-flowgram-node__runtime-summary"
+          draggable={false}
+          data-flow-editor-selectable="false"
+        >
+          <Suspense fallback={null}>
+            <MicroflowInlineRuntimeSummary frame={traceFrame} expanded={isExpanded} />
+          </Suspense>
         </div>
       ) : null}
       {ports.map(port => (

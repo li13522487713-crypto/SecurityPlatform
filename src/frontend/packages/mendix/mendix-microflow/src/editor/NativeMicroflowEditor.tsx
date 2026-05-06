@@ -350,6 +350,8 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   const [contextMenu, setContextMenu] = useState<NativeContextMenuState>();
   const [historyPast, setHistoryPast] = useState<MicroflowDesignSchema[]>([]);
   const [historyFuture, setHistoryFuture] = useState<MicroflowDesignSchema[]>([]);
+  const [expandedObjectId, setExpandedObjectId] = useState<string | null>(null);
+  const draftValidatorRef = useRef<(() => { valid: boolean; summary: string }) | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const latestSchemaRef = useRef(schema);
@@ -427,6 +429,17 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       return future.slice(1);
     });
   }, [props]);
+
+  const handleExpandChange = useCallback((nextId: string | null) => {
+    if (draftValidatorRef.current) {
+      const { valid, summary } = draftValidatorRef.current();
+      if (!valid) {
+        Toast.error(`请先修正字段错误：${summary}`);
+        return;
+      }
+    }
+    setExpandedObjectId(nextId);
+  }, []);
 
   const runValidation = useCallback(async (mode: MicroflowValidationMode = "edit") => {
     setValidationStatus("validating");
@@ -891,6 +904,10 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
             focusObjectId={focusObjectId}
             focusRequestKey={focusRequestSeq}
             readonly={props.readonly}
+            metadataCatalog={props.metadataCatalog}
+            expandedObjectId={expandedObjectId}
+            onExpandChange={handleExpandChange}
+            registerDraftValidator={fn => { draftValidatorRef.current = fn; }}
             onSchemaChange={(nextSchema, reason) => {
               commitSchema(nextSchema, reason === "flowgramNodeMove" ? "workflow" : "workflow");
             }}
