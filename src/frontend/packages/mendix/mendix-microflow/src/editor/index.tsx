@@ -1774,6 +1774,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const bottomOpen = bottomDockMode !== "collapsed";
   const activeBottomDockHeight = bottomDockMode === "full" ? bottomDockHeight : BOTTOM_DOCK_PEEK_HEIGHT_PX;
   const [focusMode, setFocusMode] = useState(() => Boolean(readMendixLayoutStorage().focusMode));
+  const [canvasPanToolActive, setCanvasPanToolActive] = useState(false);
   const onValidationStateChangeRef = useRef(props.onValidationStateChange);
   const onSchemaChangeRef = useRef(props.onSchemaChange);
 
@@ -2723,7 +2724,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     commitSchema(result.nextSchema, "autoLayout", { source: "autolayout" });
-    Toast.info("已自动排版，可按 Ctrl+Z 撤销", { duration: 4 });
+    Toast.info({ content: "已自动排版，可按 Ctrl+Z 撤销", duration: 4 });
   };
 
   const handleDeleteSelection = () => {
@@ -2747,13 +2748,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         }
       }
       commitSchema(next, "bulkUpdate", { historyLabel: "Delete selection", source: "flowgram" });
-      Toast.info(`已删除 ${totalCount} 个元素，可按 Ctrl+Z 撤销`, { duration: 4 });
+      Toast.info({ content: `已删除 ${totalCount} 个元素，可按 Ctrl+Z 撤销`, duration: 4 });
       return;
     }
     if (selection.flowId) {
       const located = findFlowWithCollection(schema, selection.flowId);
       commitSchema(deleteFlow(schema, selection.flowId), located?.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow");
-      Toast.info("已删除连线，可按 Ctrl+Z 撤销", { duration: 4 });
+      Toast.info({ content: "已删除连线，可按 Ctrl+Z 撤销", duration: 4 });
       return;
     }
     if (selection.objectId) {
@@ -2761,7 +2762,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       const node = findObject(schema, selection.objectId);
       const nodeName = (node as { title?: string } | undefined)?.title ?? "节点";
       commitSchema(deleteObject(schema, selection.objectId), located?.parentLoopObjectId ? "deleteLoopNode" : "deleteNode");
-      Toast.info(`已删除"${nodeName}"，可按 Ctrl+Z 撤销`, { duration: 4 });
+      Toast.info({ content: `已删除"${nodeName}"，可按 Ctrl+Z 撤销`, duration: 4 });
     }
   };
 
@@ -2789,7 +2790,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     const source = findObjectWithCollection(schema, objectIds[0]);
     const nextSchema = objectIds.length > 1 || flowIds.length > 0
-      ? duplicateObjectSelection(schema, { microflowId: schema.id, objectIds, flowIds })
+      ? duplicateObjectSelection(schema, { objectIds, flowIds })
       : duplicateObject(schema, objectIds[0]);
     commitSchema(nextSchema, source?.parentLoopObjectId ? "addLoopNode" : "addNode", { historyLabel: "Duplicate selection", source: "flowgram" });
     Toast.success(objectIds.length > 1 ? `已复制 ${objectIds.length} 个节点。` : "已复制节点。");
@@ -2803,7 +2804,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     let next = schema;
     for (const objectId of objectIds) {
       if (findObjectWithCollection(next, objectId)) {
-        next = moveObject(next, objectId, dx, dy);
+        next = moveObject(next, objectId, { x: dx, y: dy });
       }
     }
     // commitSchema 对 "moveNode" 内置了 debounce 历史推送，直接调用即可
@@ -3036,6 +3037,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setBottomDockHeight(BOTTOM_DOCK_FULL_DEFAULT_PX);
     setBottomDockMode(bottomPanelFallbackMode);
     setBottomTab("problems");
+    setCanvasPanToolActive(false);
     commitSchema(
       {
         ...schema,
@@ -3099,10 +3101,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       traceHydrated: currentRunSession?.hasHydratedTrace ?? false,
       debugSessionHydrated: Boolean(activeDebugSession?.lastUpdatedAt),
       degradedRunSession: Boolean(currentRunSession && currentRunSession.hasHydratedTrace === false),
-      canvasPanToolActive: false,
+      canvasPanToolActive,
       layout: layoutState,
     };
-  }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, runSession, running, saving, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, validationStatus]);
+  }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, canvasPanToolActive, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, runSession, running, saving, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, validationStatus]);
 
   useEffect(() => {
     props.onLayoutStateChange?.(layoutState);
@@ -3195,7 +3197,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         { historyLabel: "Toggle minimap", skipValidate: true, preserveSelection: true, source: "flowgram" }
       );
     },
-    togglePanTool: () => undefined,
+    togglePanTool: () => {
+      setCanvasPanToolActive(value => !value);
+    },
     resetLayout: resetWorkbenchLayout,
     openBottomTab: (tab: MicroflowWorkbenchBottomTab) => {
       openBottomDock(tab);
@@ -3415,6 +3419,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           onOpenProblemsPanel={() => {
             openBottomDock("problems");
           }}
+          canvasPanToolActive={canvasPanToolActive}
+          onCanvasPanToolChange={setCanvasPanToolActive}
         />
         </div>
         {canvasNodeContextMenu ? (

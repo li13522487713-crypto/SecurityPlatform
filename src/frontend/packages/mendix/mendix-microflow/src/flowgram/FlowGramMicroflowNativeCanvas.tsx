@@ -45,7 +45,16 @@ import {
 } from "./flowgram-native-schema";
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
 import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
-import { FlowGramMicroflowToolbar, microflowZoomViewportAtCanvasCenter } from "./FlowGramMicroflowToolbar";
+import {
+  FlowGramMicroflowToolbar,
+  microflowZoomViewportAtCanvasCenter,
+  microflowZoomViewportAtLocalPoint,
+} from "./FlowGramMicroflowToolbar";
+import {
+  isPointerTargetPanExempt,
+  shouldViewportPanFromPointerDown,
+  zoomViewportForPanToolWheel,
+} from "./flowgram-canvas-interactions";
 import { decorateWorkflow } from "./flowgram-workflow-decorate";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
@@ -59,18 +68,6 @@ const MICROFLOW_GRID_SIZE = 16;
 // 拖放时用于居中节点：默认节点尺寸的一半（defaultNodeSize: 160×76）
 const NODE_DROP_HALF_W = 80;
 const NODE_DROP_HALF_H = 38;
-
-const FLOWGRAM_PAN_EXEMPT_SELECTOR =
-  ".microflow-flowgram-node, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
-
-/** 空格键按住时排除节点本身，让空格拖动全局生效 */
-const FLOWGRAM_PAN_EXEMPT_SELECTOR_SPACE =
-  ".microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
-
-function isFlowgramPanExemptTarget(target: HTMLElement | undefined, spaceActive = false): boolean {
-  const selector = spaceActive ? FLOWGRAM_PAN_EXEMPT_SELECTOR_SPACE : FLOWGRAM_PAN_EXEMPT_SELECTOR;
-  return Boolean(target?.closest(selector));
-}
 
 type FlowGramPlaygroundViewportConfig = {
   zoom?: number | ((zoom: number) => void);
@@ -93,6 +90,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
     item: MicroflowNodeRegistryItem,
     position: MicroflowPoint,
     payload: MicroflowNodeDragPayload,
+    options?: { parentLoopObjectId?: string },
   ) => void;
   canUndo?: boolean;
   canRedo?: boolean;
@@ -111,6 +109,11 @@ export interface FlowGramMicroflowNativeCanvasProps {
   onCanvasPanToolChange?: (active: boolean) => void;
   onDeleteSelection?: () => void;
   onClearSelection?: () => void;
+  /** Compatibility fields consumed by editor wrappers; native canvas does not persist them directly. */
+  metadataCatalog?: unknown;
+  expandedObjectId?: string | null;
+  onExpandChange?: (objectId: string | null) => void;
+  registerDraftValidator?: (validator: () => { valid: boolean; summary: string }) => void;
 }
 
 type DisposableLineSnapshot = {
@@ -845,7 +848,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (event.button === 1) {
       const target = event.target instanceof HTMLElement ? event.target : undefined;
-      if (!isFlowgramPanExemptTarget(target, spacePressedRef.current)) {
+      if (!isPointerTargetPanExempt(target, spacePressedRef.current)) {
         event.preventDefault();
       }
       return;
@@ -870,6 +873,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
     if (viewportPanPointerIdRef.current !== event.pointerId || !viewportPanOriginRef.current) {
+      return;
+    }
+    if (draggingRef.current) {
       return;
     }
     event.preventDefault();
@@ -907,7 +913,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     }
     if (!moved) {
       const target = event.target instanceof HTMLElement ? event.target : undefined;
-      if (!isFlowgramPanExemptTarget(target)) {
+      if (!isPointerTargetPanExempt(target, false)) {
         propsRef.current.onCanvasBlankClick?.();
       }
     }
@@ -915,11 +921,13 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     const target = event.target instanceof HTMLElement ? event.target : undefined;
-    // 空格键按住时，节点本身不再豁免平移（让空格拖拽全局生效）
-    const exempt = isFlowgramPanExemptTarget(target, spacePressedRef.current);
-    const shouldPan =
-      !exempt
-      && (event.button === 1 || (event.button === 0 && (panToolActiveRef.current || spacePressedRef.current)));
+    const shouldPan = shouldViewportPanFromPointerDown({
+      target,
+      button: event.button,
+      panToolActive: panToolActiveRef.current,
+      spacePressed: spacePressedRef.current,
+      draggingNode: draggingRef.current,
+    });
     if (shouldPan) {
       selectorBoxConfig.disabled = true;
       event.preventDefault();
@@ -947,7 +955,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       }
       return;
     }
-    if (exempt) {
+    if (isPointerTargetPanExempt(target, spacePressedRef.current)) {
       return;
     }
     propsRef.current.onCanvasBlankClick?.();
@@ -1036,15 +1044,16 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       if (!panToolActiveRef.current) {
         return;
       }
-      if (isFlowgramPanExemptTarget(t)) {
+      if (isPointerTargetPanExempt(t, false)) {
         return;
       }
       e.preventDefault();
       e.stopPropagation();
       const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
       const rect = root.getBoundingClientRect();
-      const scale = Math.exp(-e.deltaY * 0.002);
-      const next = microflowZoomViewportAtCanvasCenter(v, rect.width, rect.height, v.zoom * scale);
+      const localX = e.clientX - rect.left;
+      const localY = e.clientY - rect.top;
+      const next = zoomViewportForPanToolWheel(v, localX, localY, e.deltaY);
       if (Math.abs(next.zoom - v.zoom) < 1e-6 && Math.abs(next.x - v.x) < 1e-6 && Math.abs(next.y - v.y) < 1e-6) {
         return;
       }

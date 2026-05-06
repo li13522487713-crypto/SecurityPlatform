@@ -1239,7 +1239,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
 
   const handleAutoLayout = useCallback(() => {
     commitSchema(applyAutoLayout(schema), "layout");
-    Toast.info("已自动排版，可按 Ctrl+Z 撤销", { duration: 4 });
+    Toast.info({ content: "已自动排版，可按 Ctrl+Z 撤销", duration: 4 });
   }, [commitSchema, schema]);
 
   const handleEditorShortcut = useCallback((event: {
