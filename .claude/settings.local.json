@@ -15,7 +15,10 @@
       "Bash(find /d/Code/Web_SaaS_Backend/SecurityPlatform/src/frontend/packages/studio/workspace -name \"package.json\" -exec grep -l \"workspace-adapter\" {} \\\\;)",
       "Bash(dotnet build *)",
       "Bash(pnpm --filter \"@atlas/mendix-microflow\" exec tsc --noEmit)",
-      "Bash(grep -r \"canDrag\\\\|isDraggable\\\\|draggable.*false\" /d/Code/Web_SaaS_Backend/SecurityPlatform/src/frontend/packages -path \"*/flowgram*\" --include=\"*.tsx\" --include=\"*.ts\")"
+      "Bash(grep -r \"canDrag\\\\|isDraggable\\\\|draggable.*false\" /d/Code/Web_SaaS_Backend/SecurityPlatform/src/frontend/packages -path \"*/flowgram*\" --include=\"*.tsx\" --include=\"*.ts\")",
+      "PowerShell(head -10)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
