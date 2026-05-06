@@ -140,8 +140,13 @@
 
 .microflow-flowgram-node.is-expanded {
   min-width: 300px;
-  /* 展开时允许内容超出，由内部 inline-editor 自行滚动 */
   overflow: visible;
+}
+
+/* 展开时提升 FlowGram 节点容器的层叠优先级，确保编辑区覆盖在邻近节点之上 */
+*:has(> .microflow-flowgram-node.is-expanded) {
+  z-index: 20;
+  isolation: isolate;
 }
 
 .microflow-flowgram-node.is-editing {

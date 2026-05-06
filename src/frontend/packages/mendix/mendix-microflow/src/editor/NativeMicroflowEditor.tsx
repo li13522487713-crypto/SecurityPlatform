@@ -1179,8 +1179,35 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   }, [props]);
 
   const handleAddNode = useCallback((item: Parameters<NonNullable<React.ComponentProps<typeof MicroflowNodePanel>["onAddNode"]>>[0], options?: { position?: { x: number; y: number } }) => {
-    const position = options?.position ?? { x: 360 + schema.workflow.nodes.length * 80, y: 240 };
-    const node = createWorkflowNodeFromPanelItem(item, position, schema.workflow.nodes.map(existing => existing.id));
+    const existingNodes = schema.workflow.nodes as MicroflowWorkflowNodeJSON[];
+    let position = options?.position;
+    if (!position) {
+      // 网格排布：4列，列间距220px（>默认节点宽160px），行间距140px（>默认节点高76px）
+      const idx = existingNodes.length;
+      position = {
+        x: 40 + (idx % 4) * 220,
+        y: 40 + Math.floor(idx / 4) * 140,
+      };
+    } else {
+      // 拖放落点：检测与已有节点的重叠，若重叠则向右下偏移
+      const NODE_W = 160;
+      const NODE_H = 76;
+      const NUDGE = 24;
+      let nudged = { ...position };
+      let attempts = 0;
+      while (attempts < 8) {
+        const overlaps = existingNodes.some(n => {
+          const nx = (n.meta as { position?: { x: number; y: number } } | undefined)?.position?.x ?? 0;
+          const ny = (n.meta as { position?: { x: number; y: number } } | undefined)?.position?.y ?? 0;
+          return Math.abs(nudged.x - nx) < NODE_W && Math.abs(nudged.y - ny) < NODE_H;
+        });
+        if (!overlaps) break;
+        nudged = { x: nudged.x + NUDGE, y: nudged.y + NUDGE };
+        attempts++;
+      }
+      position = nudged;
+    }
+    const node = createWorkflowNodeFromPanelItem(item, position, existingNodes.map(existing => existing.id));
     const next = selectionPatch({
       ...schema,
       workflow: {

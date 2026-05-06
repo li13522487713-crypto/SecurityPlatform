@@ -56,6 +56,9 @@ import "./styles/flowgram-microflow-port.css";
 import "./styles/flowgram-microflow-line.css";
 
 const MICROFLOW_GRID_SIZE = 16;
+// 拖放时用于居中节点：默认节点尺寸的一半（defaultNodeSize: 160×76）
+const NODE_DROP_HALF_W = 80;
+const NODE_DROP_HALF_H = 38;
 
 const FLOWGRAM_PAN_EXEMPT_SELECTOR =
   ".microflow-flowgram-node, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
@@ -731,12 +734,17 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       ? playground.config.getPosFromMouseEvent?.(nativeEvent) as MicroflowPoint | undefined
       : undefined;
     const position = dragPosition ?? fallback;
+    // 居中：让节点中心落在鼠标位置，而非左上角
+    const centered = {
+      x: position.x - NODE_DROP_HALF_W,
+      y: position.y - NODE_DROP_HALF_H,
+    };
     return gridEnabled
       ? {
-          x: Math.round(position.x / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
-          y: Math.round(position.y / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+          x: Math.round(centered.x / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+          y: Math.round(centered.y / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
         }
-      : position;
+      : centered;
   };
 
   const dropPointFromEvent = (event: DragEvent<HTMLDivElement>): MicroflowPoint =>
