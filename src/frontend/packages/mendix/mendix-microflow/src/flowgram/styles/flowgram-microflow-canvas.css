@@ -191,3 +191,42 @@
     display: none;
   }
 }
+
+.microflow-multiselect-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5001;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid rgba(22, 93, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 4px 12px rgba(31, 35, 41, 0.1), 0 0 0 2px rgba(22, 93, 255, 0.1);
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+  pointer-events: auto;
+  animation: multiselect-bar-in 120ms ease;
+}
+
+@keyframes multiselect-bar-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.microflow-multiselect-bar__label {
+  font-size: 12px;
+  line-height: 20px;
+  color: #4e5969;
+  padding-right: 4px;
+  border-right: 1px solid rgba(31, 35, 41, 0.12);
+}

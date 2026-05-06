@@ -15,6 +15,10 @@ export interface UseMicroflowShortcutsOptions {
   onDeleteSelection: () => void;
   onEscape: () => void;
   onFocusMode?: () => void;
+  onSelectAll?: () => void;
+  onDuplicateSelection?: () => void;
+  onFitView?: () => void;
+  onMoveSelection?: (dx: number, dy: number) => void;
 }
 
 export function useMicroflowShortcuts({
@@ -30,6 +34,10 @@ export function useMicroflowShortcuts({
   onDeleteSelection,
   onEscape,
   onFocusMode,
+  onSelectAll,
+  onDuplicateSelection,
+  onFitView,
+  onMoveSelection,
 }: UseMicroflowShortcutsOptions) {
   useEffect(() => {
     if (!active) {
@@ -100,6 +108,39 @@ export function useMicroflowShortcuts({
         return;
       }
 
+      // Ctrl+A：全选
+      if (commandKey && key === "a" && onSelectAll) {
+        event.preventDefault();
+        onSelectAll();
+        return;
+      }
+
+      // Ctrl+D：复制当前选中节点
+      if (!readonly && commandKey && key === "d" && onDuplicateSelection) {
+        event.preventDefault();
+        onDuplicateSelection();
+        return;
+      }
+
+      // Ctrl+0 / Ctrl+Shift+H：适应视图
+      if (commandKey && (key === "0" || (event.shiftKey && key === "h")) && onFitView) {
+        event.preventDefault();
+        onFitView();
+        return;
+      }
+
+      // 方向键微移选中节点（普通 1格，Shift+方向键 8格）
+      if (!readonly && onMoveSelection && ["arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) {
+        // 只在有选中节点时生效，避免影响滚动
+        event.preventDefault();
+        const step = event.shiftKey ? 8 : 1;
+        if (key === "arrowleft") onMoveSelection(-step, 0);
+        else if (key === "arrowright") onMoveSelection(step, 0);
+        else if (key === "arrowup") onMoveSelection(0, -step);
+        else if (key === "arrowdown") onMoveSelection(0, step);
+        return;
+      }
+
       if (key === "escape") {
         event.preventDefault();
         onEscape();
@@ -108,5 +149,5 @@ export function useMicroflowShortcuts({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [active, containerRef, onCopySelection, onDeleteSelection, onEscape, onFocusMode, onPasteSelection, onRedo, onSave, onSearch, onUndo, readonly]);
+  }, [active, containerRef, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onMoveSelection, onPasteSelection, onRedo, onSave, onSearch, onSelectAll, onUndo, readonly]);
 }

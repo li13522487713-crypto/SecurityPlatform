@@ -1223,7 +1223,7 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
 
   const handleAutoLayout = useCallback(() => {
     commitSchema(applyAutoLayout(schema), "layout");
-    Toast.success("Auto layout applied.");
+    Toast.info("已自动排版，可按 Ctrl+Z 撤销", { duration: 4 });
   }, [commitSchema, schema]);
 
   const handleEditorShortcut = useCallback((event: {
@@ -1547,6 +1547,8 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
             }}
             canvasPanToolActive={canvasPanToolActive}
             onCanvasPanToolChange={setCanvasPanToolActive}
+            onDeleteSelection={() => handleDeleteSelection()}
+            onClearSelection={clearSelection}
           />
         </div>
         {LEGACY_PROPERTY_PANEL_ENABLED ? (

@@ -1,5 +1,5 @@
-import { Button, Space, Tooltip } from "@douyinfe/semi-ui";
-import { IconHandle, IconMapPin, IconMinus, IconPlus, IconRedo, IconRefresh, IconTreeTriangleDown, IconUndo } from "@douyinfe/semi-icons";
+import { Button, Divider, Dropdown, Space, Tooltip } from "@douyinfe/semi-ui";
+import { IconGridRectangle, IconHandle, IconMapPin, IconMinus, IconPlus, IconRedo, IconRefresh, IconTreeTriangleDown, IconUndo } from "@douyinfe/semi-icons";
 import { WorkflowResetLayoutService, usePlayground, useService } from "@flowgram-adapter/free-layout-editor";
 
 import { getMendixMicroflowCopy } from "../i18n/copy";
@@ -12,6 +12,7 @@ interface MicroflowToolbarViewport {
 
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2;
+const ZOOM_STEP = 1.25;
 
 /** Zoom around a point in the canvas container's local coordinates (e.g. viewport center). */
 export function microflowZoomViewportAtLocalPoint(
@@ -75,11 +76,13 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
   const playground = usePlayground();
   const copy = getMendixMicroflowCopy();
   const resetLayout = useService<WorkflowResetLayoutService>(WorkflowResetLayoutService);
+
   const fitView = () => {
     const service = resetLayout as WorkflowResetLayoutService & { fitView?: () => void };
     service.fitView?.();
     props.onFitView?.();
   };
+
   const commitViewportZoom = (normalizedZoom: number) => {
     if (props.applyZoomFromCanvasCenter) {
       props.applyZoomFromCanvasCenter(normalizedZoom);
@@ -113,46 +116,126 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
     commitViewportZoom(normalizedZoom);
   };
 
+  const zoomPercent = `${Math.round(props.viewport.zoom * 100)}%`;
+
   return (
     <div className="microflow-flowgram-toolbar">
-      <Space>
+      <Space spacing={2}>
+        {/* 平移工具 */}
         {props.onTogglePanTool ? (
-          <Tooltip content={copy.canvasToolbar.panToolTooltip}>
-            <Button
-              icon={<IconHandle />}
-              size="small"
-              theme={props.panToolActive ? "solid" : "light"}
-              aria-label={copy.canvasToolbar.panTool}
-              aria-pressed={props.panToolActive === true}
-              onClick={props.onTogglePanTool}
-            />
-          </Tooltip>
+          <>
+            <Tooltip content={copy.canvasToolbar.panToolTooltip} position="bottom">
+              <Button
+                icon={<IconHandle />}
+                size="small"
+                theme={props.panToolActive ? "solid" : "light"}
+                aria-label={copy.canvasToolbar.panTool}
+                aria-pressed={props.panToolActive === true}
+                onClick={props.onTogglePanTool}
+              />
+            </Tooltip>
+            <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
+          </>
         ) : null}
-        <Button icon={<IconPlus />} size="small" onClick={() => { bumpZoom(1.1); }} />
-        <Button icon={<IconMinus />} size="small" onClick={() => { bumpZoom(1 / 1.1); }} />
-        <Button size="small" onClick={() => setZoom(1)}>100%</Button>
-        <Button icon={<IconRefresh />} size="small" onClick={fitView} />
-        <Button icon={<IconUndo />} size="small" disabled={!props.canUndo} onClick={props.onUndo} />
-        <Button icon={<IconRedo />} size="small" disabled={!props.canRedo} onClick={props.onRedo} />
-        <Button size="small" theme={props.gridEnabled ? "solid" : "light"} onClick={props.onToggleGrid}>Grid</Button>
-        <Button
-          icon={<IconMapPin />}
-          size="small"
-          theme={props.miniMapVisible ? "solid" : "light"}
-          onClick={props.onToggleMiniMap}
-        />
-        <Button
-          icon={<IconTreeTriangleDown />}
-          size="small"
-          loading={props.autoLayoutLoading}
-          disabled={props.readonly}
-          onClick={() => {
-            props.onAutoLayout?.();
-            requestAnimationFrame(fitView);
-          }}
+
+        {/* 缩放控制 */}
+        <Tooltip content={copy.canvasToolbar.zoomOutTooltip} position="bottom">
+          <Button icon={<IconMinus />} size="small" aria-label={copy.canvasToolbar.zoomOut} onClick={() => { bumpZoom(1 / ZOOM_STEP); }} />
+        </Tooltip>
+        <Dropdown
+          trigger="click"
+          position="bottom"
+          render={
+            <Dropdown.Menu>
+              {copy.canvasToolbar.zoomLevels.map(level => (
+                <Dropdown.Item
+                  key={level.value}
+                  active={Math.abs(props.viewport.zoom - level.value) < 0.01}
+                  onClick={() => setZoom(level.value)}
+                >
+                  {level.label}
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Menu>
+          }
         >
-          Auto
-        </Button>
+          <Tooltip content={copy.canvasToolbar.zoomResetTooltip} position="bottom">
+            <Button size="small" style={{ minWidth: 52 }} aria-label={copy.canvasToolbar.zoomReset}>
+              {zoomPercent}
+            </Button>
+          </Tooltip>
+        </Dropdown>
+        <Tooltip content={copy.canvasToolbar.zoomInTooltip} position="bottom">
+          <Button icon={<IconPlus />} size="small" aria-label={copy.canvasToolbar.zoomIn} onClick={() => { bumpZoom(ZOOM_STEP); }} />
+        </Tooltip>
+        <Tooltip content={copy.canvasToolbar.fitViewTooltip} position="bottom">
+          <Button icon={<IconRefresh />} size="small" aria-label={copy.canvasToolbar.fitView} onClick={fitView} />
+        </Tooltip>
+
+        <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
+
+        {/* 撤销 / 重做 */}
+        <Tooltip content={copy.canvasToolbar.undoTooltip} position="bottom">
+          <Button
+            icon={<IconUndo />}
+            size="small"
+            disabled={!props.canUndo}
+            aria-label={copy.canvasToolbar.undo}
+            onClick={props.onUndo}
+          />
+        </Tooltip>
+        <Tooltip content={copy.canvasToolbar.redoTooltip} position="bottom">
+          <Button
+            icon={<IconRedo />}
+            size="small"
+            disabled={!props.canRedo}
+            aria-label={copy.canvasToolbar.redo}
+            onClick={props.onRedo}
+          />
+        </Tooltip>
+
+        <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
+
+        {/* 视图开关 */}
+        <Tooltip content={copy.canvasToolbar.gridTooltip} position="bottom">
+          <Button
+            icon={<IconGridRectangle />}
+            size="small"
+            theme={props.gridEnabled ? "solid" : "light"}
+            aria-label={copy.canvasToolbar.grid}
+            aria-pressed={props.gridEnabled}
+            onClick={props.onToggleGrid}
+          />
+        </Tooltip>
+        <Tooltip content={copy.canvasToolbar.minimapTooltip} position="bottom">
+          <Button
+            icon={<IconMapPin />}
+            size="small"
+            theme={props.miniMapVisible ? "solid" : "light"}
+            aria-label={copy.canvasToolbar.minimap}
+            aria-pressed={props.miniMapVisible}
+            onClick={props.onToggleMiniMap}
+          />
+        </Tooltip>
+
+        <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
+
+        {/* 自动排版 */}
+        <Tooltip content={copy.canvasToolbar.autoLayoutTooltip} position="bottom">
+          <Button
+            icon={<IconTreeTriangleDown />}
+            size="small"
+            loading={props.autoLayoutLoading}
+            disabled={props.readonly}
+            aria-label={copy.canvasToolbar.autoLayout}
+            onClick={() => {
+              props.onAutoLayout?.();
+              requestAnimationFrame(fitView);
+            }}
+          >
+            {copy.canvasToolbar.autoLayout}
+          </Button>
+        </Tooltip>
       </Space>
     </div>
   );

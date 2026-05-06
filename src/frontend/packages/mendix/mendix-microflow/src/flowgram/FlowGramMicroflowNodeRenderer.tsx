@@ -1,6 +1,7 @@
 import { useState, type MouseEvent, type ReactNode } from "react";
 
-import { Tag, Typography } from "@douyinfe/semi-ui";
+import { Tag, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { IconEdit, IconTickCircle } from "@douyinfe/semi-icons";
 import { InlineNodeEditor } from "../inline-edit";
 import {
   FlowNodeFormData,
@@ -56,6 +57,77 @@ function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeD
     };
   } catch {
     return undefined;
+  }
+}
+
+const OBJECT_KIND_LABEL: Record<string, string> = {
+  startEvent: "开始",
+  endEvent: "结束",
+  errorEvent: "错误结束",
+  exclusiveSplit: "条件分支",
+  inheritanceSplit: "继承分支",
+  loopedActivity: "循环",
+  annotation: "注释",
+  parameterObject: "参数对象",
+  httpRequest: "HTTP 请求",
+  javaAction: "Java 动作",
+  microflowCall: "调用微流",
+  nanoflowCall: "调用纳流",
+  actionActivity: "动作",
+  mergeActivity: "合并",
+  tryCatch: "异常捕获",
+  parallelSplit: "并行分支",
+  parallelMerge: "并行合并",
+};
+
+function nodeKindLabel(kind: string): string {
+  return OBJECT_KIND_LABEL[kind] ?? kind;
+}
+
+/** 每种节点类型的语义 SVG 图标（16×16 viewBox） */
+function NodeIcon({ kind }: { kind: string }) {
+  const base = { width: 14, height: 14, viewBox: "0 0 16 16", fill: "currentColor", "aria-hidden": true as const, style: { display: "block" } };
+  switch (kind) {
+    case "startEvent":
+      // 实心播放三角
+      return <svg {...base}><polygon points="3,2 14,8 3,14" /></svg>;
+    case "endEvent":
+      // 实心正方形
+      return <svg {...base}><rect x="2" y="2" width="12" height="12" rx="1" /></svg>;
+    case "errorEvent":
+      // X 形
+      return <svg {...base}><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" /></svg>;
+    case "exclusiveSplit":
+    case "inheritanceSplit":
+      // 菱形
+      return <svg {...base}><polygon points="8,1 15,8 8,15 1,8" /></svg>;
+    case "loopedActivity":
+      // 循环箭头
+      return <svg {...base}><path d="M8 2a6 6 0 1 1-4.24 1.76M8 2V6M8 2L5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
+    case "annotation":
+      // 文档/注释
+      return <svg {...base}><rect x="2" y="1" width="10" height="14" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" /><line x1="5" y1="5" x2="9" y2="5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><line x1="5" y1="8" x2="9" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><line x1="5" y1="11" x2="7" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>;
+    case "httpRequest":
+      // 地球/网络
+      return <svg {...base}><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" /><ellipse cx="8" cy="8" rx="2.5" ry="6" fill="none" stroke="currentColor" strokeWidth="1.2" /><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.2" /></svg>;
+    case "javaAction":
+    case "microflowCall":
+    case "nanoflowCall":
+      // 闪电/执行
+      return <svg {...base}><polygon points="9,1 3,9 8,9 7,15 13,7 8,7" /></svg>;
+    case "parallelSplit":
+    case "parallelMerge":
+      // 双竖线（并行）
+      return <svg {...base}><rect x="3" y="2" width="3" height="12" rx="1" /><rect x="10" y="2" width="3" height="12" rx="1" /></svg>;
+    case "tryCatch":
+      // 盾牌
+      return <svg {...base}><path d="M8 1L2 4v4c0 3 2.7 5.7 6 7 3.3-1.3 6-4 6-7V4L8 1z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>;
+    case "mergeActivity":
+      // 汇聚箭头
+      return <svg {...base}><path d="M2 4l6 4-6 4M14 4l-6 4 6 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
+    default:
+      // 通用动作：齿轮
+      return <svg {...base}><circle cx="8" cy="8" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>;
   }
 }
 
@@ -210,7 +282,9 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
       tabIndex={0}
     >
       <div className="microflow-flowgram-node__header">
-        <span className="microflow-flowgram-node__icon" />
+        <span className="microflow-flowgram-node__icon">
+          <NodeIcon kind={data.objectKind} />
+        </span>
         <div className="microflow-flowgram-node__text">
           <Typography.Text
             strong
@@ -230,25 +304,28 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
             </Typography.Text>
           ) : null}
         </div>
-        <button
-          type="button"
-          className="microflow-flowgram-node__expand-btn"
-          onMouseDown={event => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-          onClick={event => {
-            event.stopPropagation();
-            toggleExpanded();
-          }}
-          aria-label={isExpanded ? "收起节点" : "展开节点"}
-          title={isExpanded ? "收起" : "编辑"}
-        >
-          {isExpanded ? "完成" : "编辑"}
-        </button>
+        <Tooltip content={isExpanded ? "收起（Esc）" : "展开编辑（双击节点也可）"} position="top">
+          <button
+            type="button"
+            className="microflow-flowgram-node__expand-btn"
+            onMouseDown={event => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onClick={event => {
+              event.stopPropagation();
+              toggleExpanded();
+            }}
+            aria-label={isExpanded ? "收起节点" : "展开节点"}
+          >
+            {isExpanded
+              ? <><IconTickCircle style={{ marginRight: 3, verticalAlign: "middle" }} />完成</>
+              : <><IconEdit style={{ marginRight: 3, verticalAlign: "middle" }} />编辑</>}
+          </button>
+        </Tooltip>
       </div>
       <div className="microflow-flowgram-node__meta">
-        <StaticTag>{data.actionKind || data.objectKind}</StaticTag>
+        <StaticTag>{nodeKindLabel(data.actionKind || data.objectKind)}</StaticTag>
       </div>
       {compactSummary.length > 0 ? (
         <div className="microflow-mini-summary" data-testid={`microflow-node-summary-${data.objectId}`}>

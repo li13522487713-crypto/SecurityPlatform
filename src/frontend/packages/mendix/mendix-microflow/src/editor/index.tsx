@@ -2723,7 +2723,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     commitSchema(result.nextSchema, "autoLayout", { source: "autolayout" });
-    Toast.success("Auto layout applied.");
+    Toast.info("已自动排版，可按 Ctrl+Z 撤销", { duration: 4 });
   };
 
   const handleDeleteSelection = () => {
@@ -2733,7 +2733,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const selection = schema.editor.selection;
     const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id)))];
     const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id)))];
-    if (flowIds.length > 1 || objectIds.length > 1 || (flowIds.length + objectIds.length) > 1) {
+    const totalCount = flowIds.length + objectIds.length;
+    if (flowIds.length > 1 || objectIds.length > 1 || totalCount > 1) {
       let next = schema;
       for (const flowId of flowIds) {
         if (findFlowWithCollection(next, flowId)) {
@@ -2746,17 +2747,67 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         }
       }
       commitSchema(next, "bulkUpdate", { historyLabel: "Delete selection", source: "flowgram" });
+      Toast.info(`已删除 ${totalCount} 个元素，可按 Ctrl+Z 撤销`, { duration: 4 });
       return;
     }
     if (selection.flowId) {
       const located = findFlowWithCollection(schema, selection.flowId);
       commitSchema(deleteFlow(schema, selection.flowId), located?.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow");
+      Toast.info("已删除连线，可按 Ctrl+Z 撤销", { duration: 4 });
       return;
     }
     if (selection.objectId) {
       const located = findObjectWithCollection(schema, selection.objectId);
+      const node = findObject(schema, selection.objectId);
+      const nodeName = (node as { title?: string } | undefined)?.title ?? "节点";
       commitSchema(deleteObject(schema, selection.objectId), located?.parentLoopObjectId ? "deleteLoopNode" : "deleteNode");
+      Toast.info(`已删除"${nodeName}"，可按 Ctrl+Z 撤销`, { duration: 4 });
     }
+  };
+
+  const handleSelectAll = () => {
+    const objectIds = graph.nodes.map(n => n.objectId);
+    if (objectIds.length === 0) return;
+    applyPatch(
+      {
+        selectedObjectIds: objectIds,
+        selectedFlowIds: [],
+        selectionMode: "multi",
+      },
+      { pushHistory: false, skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" },
+    );
+  };
+
+  const handleDuplicateSelection = () => {
+    if (props.readonly) return;
+    const selection = schema.editor.selection;
+    const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id && findObject(schema, id))))];
+    const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id && findFlowWithCollection(schema, id))))];
+    if (objectIds.length === 0) {
+      Toast.info("请先选择节点再复制。");
+      return;
+    }
+    const source = findObjectWithCollection(schema, objectIds[0]);
+    const nextSchema = objectIds.length > 1 || flowIds.length > 0
+      ? duplicateObjectSelection(schema, { microflowId: schema.id, objectIds, flowIds })
+      : duplicateObject(schema, objectIds[0]);
+    commitSchema(nextSchema, source?.parentLoopObjectId ? "addLoopNode" : "addNode", { historyLabel: "Duplicate selection", source: "flowgram" });
+    Toast.success(objectIds.length > 1 ? `已复制 ${objectIds.length} 个节点。` : "已复制节点。");
+  };
+
+  const handleMoveSelection = (dx: number, dy: number) => {
+    if (props.readonly) return;
+    const selection = schema.editor.selection;
+    const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id)))];
+    if (objectIds.length === 0) return;
+    let next = schema;
+    for (const objectId of objectIds) {
+      if (findObjectWithCollection(next, objectId)) {
+        next = moveObject(next, objectId, dx, dy);
+      }
+    }
+    // commitSchema 对 "moveNode" 内置了 debounce 历史推送，直接调用即可
+    commitSchema(next, "moveNode", { source: "flowgram" });
   };
 
   const handleCopySelection = () => {
@@ -3011,6 +3062,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     onDeleteSelection: handleDeleteSelection,
     onEscape: clearSelection,
     onFocusMode: () => setFocusMode(value => !value),
+    onSelectAll: handleSelectAll,
+    onDuplicateSelection: handleDuplicateSelection,
+    onFitView: () => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-fit-view")),
+    onMoveSelection: handleMoveSelection,
   });
 
   const [fullscreenActive, setFullscreenActive] = useState(false);

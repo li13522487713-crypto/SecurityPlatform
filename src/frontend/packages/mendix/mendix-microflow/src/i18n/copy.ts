@@ -5,6 +5,25 @@ export interface MendixMicroflowCopy {
     /** Short label for the pan / hand tool toggle (tooltip carries shortcuts). */
     readonly panTool: string;
     readonly panToolTooltip: string;
+    readonly zoomIn: string;
+    readonly zoomInTooltip: string;
+    readonly zoomOut: string;
+    readonly zoomOutTooltip: string;
+    readonly zoomReset: string;
+    readonly zoomResetTooltip: string;
+    readonly fitView: string;
+    readonly fitViewTooltip: string;
+    readonly undo: string;
+    readonly undoTooltip: string;
+    readonly redo: string;
+    readonly redoTooltip: string;
+    readonly grid: string;
+    readonly gridTooltip: string;
+    readonly minimap: string;
+    readonly minimapTooltip: string;
+    readonly autoLayout: string;
+    readonly autoLayoutTooltip: string;
+    readonly zoomLevels: Array<{ label: string; value: number }>;
   };
   readonly testRun: {
     readonly title: string;
@@ -54,6 +73,32 @@ const zhCN: MendixMicroflowCopy = {
   canvasToolbar: {
     panTool: "平移",
     panToolTooltip: "拖动画布（空白处按住拖动）。按住空格拖动或鼠标中键拖动也可平移。",
+    zoomIn: "放大",
+    zoomInTooltip: "放大 (Ctrl++)",
+    zoomOut: "缩小",
+    zoomOutTooltip: "缩小 (Ctrl+-)",
+    zoomReset: "缩放比例",
+    zoomResetTooltip: "重置为 100%（点击选择缩放级别）",
+    fitView: "适应视图",
+    fitViewTooltip: "将所有节点适配到视图 (Ctrl+Shift+H)",
+    undo: "撤销",
+    undoTooltip: "撤销 (Ctrl+Z)",
+    redo: "重做",
+    redoTooltip: "重做 (Ctrl+Y)",
+    grid: "网格",
+    gridTooltip: "显示/隐藏对齐网格",
+    minimap: "小地图",
+    minimapTooltip: "显示/隐藏小地图概览",
+    autoLayout: "自动排版",
+    autoLayoutTooltip: "自动重新排列所有节点位置",
+    zoomLevels: [
+      { label: "50%", value: 0.5 },
+      { label: "75%", value: 0.75 },
+      { label: "100%", value: 1 },
+      { label: "125%", value: 1.25 },
+      { label: "150%", value: 1.5 },
+      { label: "200%", value: 2 },
+    ],
   },
   testRun: {
     title: "运行微流",
@@ -104,6 +149,32 @@ const enUS: MendixMicroflowCopy = {
   canvasToolbar: {
     panTool: "Pan",
     panToolTooltip: "Drag the canvas on empty space. Hold Space and drag, or drag with the middle mouse button.",
+    zoomIn: "Zoom In",
+    zoomInTooltip: "Zoom In (Ctrl++)",
+    zoomOut: "Zoom Out",
+    zoomOutTooltip: "Zoom Out (Ctrl+-)",
+    zoomReset: "Zoom Level",
+    zoomResetTooltip: "Reset to 100% (click to choose zoom level)",
+    fitView: "Fit View",
+    fitViewTooltip: "Fit all nodes into view (Ctrl+Shift+H)",
+    undo: "Undo",
+    undoTooltip: "Undo (Ctrl+Z)",
+    redo: "Redo",
+    redoTooltip: "Redo (Ctrl+Y)",
+    grid: "Grid",
+    gridTooltip: "Show/hide alignment grid",
+    minimap: "Minimap",
+    minimapTooltip: "Show/hide minimap overview",
+    autoLayout: "Auto Layout",
+    autoLayoutTooltip: "Automatically rearrange all node positions",
+    zoomLevels: [
+      { label: "50%", value: 0.5 },
+      { label: "75%", value: 0.75 },
+      { label: "100%", value: 1 },
+      { label: "125%", value: 1.25 },
+      { label: "150%", value: 1.5 },
+      { label: "200%", value: 2 },
+    ],
   },
   testRun: {
     title: "Run Microflow",

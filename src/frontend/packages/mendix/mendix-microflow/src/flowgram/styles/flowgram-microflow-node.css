@@ -108,17 +108,20 @@
 }
 
 .microflow-flowgram-node__icon {
-  width: 12px;
-  height: 12px;
-  margin-top: 4px;
-  border-radius: 50%;
-  background: #165dff;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #165dff;
 }
-.microflow-flowgram-node--start .microflow-flowgram-node__icon { background: #00a870; }
-.microflow-flowgram-node--end .microflow-flowgram-node__icon { background: #d73135; }
-.microflow-flowgram-node--decision .microflow-flowgram-node__icon { background: #f59e0b; }
-.microflow-flowgram-node--loop .microflow-flowgram-node__icon { background: #722ed1; }
+.microflow-flowgram-node--start .microflow-flowgram-node__icon  { color: #00a870; }
+.microflow-flowgram-node--end .microflow-flowgram-node__icon    { color: #d73135; }
+.microflow-flowgram-node--decision .microflow-flowgram-node__icon { color: #f59e0b; }
+.microflow-flowgram-node--loop .microflow-flowgram-node__icon   { color: #722ed1; }
+.microflow-flowgram-node--annotation .microflow-flowgram-node__icon { color: #86909c; }
 
 .microflow-flowgram-node__text {
   display: flex;
@@ -137,7 +140,8 @@
 
 .microflow-flowgram-node.is-expanded {
   min-width: 300px;
-  max-height: 220px;
+  /* 展开时允许内容超出，由内部 inline-editor 自行滚动 */
+  overflow: visible;
 }
 
 .microflow-flowgram-node.is-editing {
@@ -155,9 +159,19 @@
   border-radius: 6px;
   padding: 0 8px;
   cursor: pointer;
+  /* 默认隐藏，hover 节点时才显示 */
+  opacity: 0;
+  pointer-events: none;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+/* 节点 hover / 选中 / 展开时显示编辑按钮 */
+.microflow-flowgram-node:hover .microflow-flowgram-node__expand-btn,
+.microflow-flowgram-node.is-selected .microflow-flowgram-node__expand-btn,
+.microflow-flowgram-node.is-active .microflow-flowgram-node__expand-btn,
+.microflow-flowgram-node.is-expanded .microflow-flowgram-node__expand-btn {
   opacity: 1;
   pointer-events: auto;
-  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .microflow-flowgram-node__expand-btn:hover,
@@ -268,10 +282,23 @@
 
 .microflow-inline-editor {
   margin-top: 6px;
-  max-height: 128px;
-  overflow: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: grid;
   gap: 4px;
+  /* 细滚动条，不抢视觉 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(22, 93, 255, 0.25) transparent;
+}
+
+.microflow-inline-editor::-webkit-scrollbar {
+  width: 4px;
+}
+
+.microflow-inline-editor::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: rgba(22, 93, 255, 0.25);
 }
 
 .microflow-mini-section {

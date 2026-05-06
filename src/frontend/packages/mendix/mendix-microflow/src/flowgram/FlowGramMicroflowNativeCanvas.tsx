@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 
-import { Toast } from "@douyinfe/semi-ui";
+import { Button, Space, Toast } from "@douyinfe/semi-ui";
+import { IconDelete } from "@douyinfe/semi-icons";
 import {
   type FlowNodeEntity,
   PlaygroundReactRenderer,
@@ -59,8 +60,13 @@ const MICROFLOW_GRID_SIZE = 16;
 const FLOWGRAM_PAN_EXEMPT_SELECTOR =
   ".microflow-flowgram-node, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
 
-function isFlowgramPanExemptTarget(target: HTMLElement | undefined): boolean {
-  return Boolean(target?.closest(FLOWGRAM_PAN_EXEMPT_SELECTOR));
+/** 空格键按住时排除节点本身，让空格拖动全局生效 */
+const FLOWGRAM_PAN_EXEMPT_SELECTOR_SPACE =
+  ".microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
+
+function isFlowgramPanExemptTarget(target: HTMLElement | undefined, spaceActive = false): boolean {
+  const selector = spaceActive ? FLOWGRAM_PAN_EXEMPT_SELECTOR_SPACE : FLOWGRAM_PAN_EXEMPT_SELECTOR;
+  return Boolean(target?.closest(selector));
 }
 
 type FlowGramPlaygroundViewportConfig = {
@@ -100,6 +106,8 @@ export interface FlowGramMicroflowNativeCanvasProps {
   /** Controlled pan tool: when `canvasPanToolActive` is set, it wins over internal state. */
   canvasPanToolActive?: boolean;
   onCanvasPanToolChange?: (active: boolean) => void;
+  onDeleteSelection?: () => void;
+  onClearSelection?: () => void;
 }
 
 type DisposableLineSnapshot = {
@@ -829,7 +837,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (event.button === 1) {
       const target = event.target instanceof HTMLElement ? event.target : undefined;
-      if (!isFlowgramPanExemptTarget(target)) {
+      if (!isFlowgramPanExemptTarget(target, spacePressedRef.current)) {
         event.preventDefault();
       }
       return;
@@ -899,7 +907,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     const target = event.target instanceof HTMLElement ? event.target : undefined;
-    const exempt = isFlowgramPanExemptTarget(target);
+    // 空格键按住时，节点本身不再豁免平移（让空格拖拽全局生效）
+    const exempt = isFlowgramPanExemptTarget(target, spacePressedRef.current);
     const shouldPan =
       !exempt
       && (event.button === 1 || (event.button === 0 && (panToolActiveRef.current || spacePressedRef.current)));
@@ -987,11 +996,36 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       return;
     }
     const onWheel = (e: WheelEvent) => {
-      if (!panToolActiveRef.current) {
-        return;
-      }
       const t = e.target;
       if (!(t instanceof HTMLElement) || !root.contains(t)) {
+        return;
+      }
+
+      // Ctrl+滚轮：以鼠标位置为中心缩放（任何区域均生效）
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+        const rect = root.getBoundingClientRect();
+        const scale = Math.exp(-e.deltaY * 0.004);
+        const localX = e.clientX - rect.left;
+        const localY = e.clientY - rect.top;
+        const next = microflowZoomViewportAtLocalPoint(v, localX, localY, v.zoom * scale);
+        if (Math.abs(next.zoom - v.zoom) < 1e-6 && Math.abs(next.x - v.x) < 1e-6 && Math.abs(next.y - v.y) < 1e-6) {
+          return;
+        }
+        const cfg = playgroundRef.current.config as unknown as FlowGramPlaygroundViewportConfig;
+        if (typeof cfg.zoom === "function") {
+          cfg.zoom(next.zoom);
+        }
+        cfg.updateConfig?.({ zoom: next.zoom, scrollX: next.x, scrollY: next.y });
+        lastSyncedViewportRef.current = next;
+        propsRef.current.onViewportChange?.(next);
+        return;
+      }
+
+      // 平移工具模式下的普通滚轮平移
+      if (!panToolActiveRef.current) {
         return;
       }
       if (isFlowgramPanExemptTarget(t)) {
@@ -1080,6 +1114,67 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         />
       </div>
       {miniMapVisible ? <FlowGramMicroflowNativeMiniMap schema={props.schema} onFocusNode={focusNode} /> : null}
+      <MicroflowMultiSelectBar
+        selection={props.schema.editor.selection}
+        readonly={props.readonly}
+        onDelete={props.onDeleteSelection}
+        onClear={props.onClearSelection ?? (() => props.onCanvasBlankClick?.())}
+      />
+    </div>
+  );
+}
+
+type MultiSelectBarSelection = {
+  mode?: string;
+  objectIds?: string[];
+  flowIds?: string[];
+  objectId?: string;
+  flowId?: string;
+};
+
+function MicroflowMultiSelectBar(props: {
+  selection: MultiSelectBarSelection;
+  readonly?: boolean;
+  onDelete?: () => void;
+  onClear?: () => void;
+}) {
+  const { selection, readonly, onDelete, onClear } = props;
+  const objectCount = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter(Boolean))].length;
+  const flowCount = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter(Boolean))].length;
+  const total = objectCount + flowCount;
+  if (total < 2) {
+    return null;
+  }
+  const label = objectCount > 0 && flowCount > 0
+    ? `已选 ${objectCount} 个节点、${flowCount} 条连线`
+    : objectCount > 0
+      ? `已选 ${objectCount} 个节点`
+      : `已选 ${flowCount} 条连线`;
+
+  return (
+    <div
+      className="microflow-multiselect-bar"
+      data-flow-editor-selectable="false"
+      onMouseDown={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <span className="microflow-multiselect-bar__label">{label}</span>
+      <Space spacing={4}>
+        {!readonly && onDelete ? (
+          <Button
+            size="small"
+            type="danger"
+            theme="light"
+            icon={<IconDelete />}
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+          >
+            删除
+          </Button>
+        ) : null}
+        <Button size="small" theme="borderless" onClick={e => { e.stopPropagation(); onClear?.(); }}>
+          取消选择
+        </Button>
+      </Space>
     </div>
   );
 }
