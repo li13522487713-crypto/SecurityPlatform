@@ -7,7 +7,7 @@ import {
   usePlaygroundReadonlyState,
 } from "@flowgram-adapter/free-layout-editor";
 
-import type { MicroflowCaseValue } from "../schema";
+import type { MicroflowAuthoringSchema, MicroflowCaseValue } from "../schema";
 import { updateFlow } from "../property-panel/utils/schema-patch";
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
 import { useFlowGramMicroflowContext } from "./inline/useFlowGramMicroflowContext";
@@ -92,11 +92,12 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
       ...(firstCase as Extract<MicroflowCaseValue, { kind: "expression" }>),
       expression: expressionValue,
     };
-    const nextSchema = updateFlow(schema, data.flowId, flow => ({
+    // cast DesignSchema → AuthoringSchema for updateFlow (shares flow data at runtime)
+    const nextSchema = updateFlow(schema as unknown as MicroflowAuthoringSchema, data.flowId, flow => ({
       ...flow,
       caseValues: [updatedCaseValue, ...(flow.caseValues?.slice(1) ?? [])],
     } as typeof flow));
-    onSchemaChange(nextSchema, "inlineExpressionEdit");
+    onSchemaChange(nextSchema as unknown as typeof schema, "inlineExpressionEdit");
     setEditingExpression(false);
   }, [isExpressionCase, ctx, firstCase, expressionValue, data]);
 

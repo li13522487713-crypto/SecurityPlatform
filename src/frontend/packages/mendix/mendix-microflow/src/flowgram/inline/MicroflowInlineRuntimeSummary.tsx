@@ -1,6 +1,6 @@
 import { Tag, Typography } from "@douyinfe/semi-ui";
 
-import type { MicroflowTraceFrame } from "../../debug/trace-types";
+import type { MicroflowRuntimeVariableValue, MicroflowTraceFrame } from "../../debug/trace-types";
 import { buildMicroflowNodeIoViewModel } from "../../debug/node-io-view-model";
 
 const { Text } = Typography;
@@ -27,10 +27,34 @@ function getStatusTagColor(status: MicroflowTraceFrame["status"]): "red" | "oran
   }
 }
 
+function VariableRow({ label, vars }: { label: string; vars: Record<string, MicroflowRuntimeVariableValue> }) {
+  const entries = Object.entries(vars);
+  if (entries.length === 0) return null;
+  return (
+    <>
+      <div className="microflow-flowgram-node__runtime-summary-row">
+        <span className="microflow-flowgram-node__runtime-summary-key">{label}:</span>
+      </div>
+      {entries.map(([key, variable]) => (
+        <div key={key} className="microflow-flowgram-node__runtime-summary-row">
+          <span className="microflow-flowgram-node__runtime-summary-key">{variable.name}</span>
+          <span
+            className="microflow-flowgram-node__runtime-summary-value"
+            title={variable.rawValueJson ?? variable.valuePreview}
+          >
+            {variable.valuePreview}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function MicroflowInlineRuntimeSummary({ frame, expanded }: MicroflowInlineRuntimeSummaryProps) {
   const viewModel = buildMicroflowNodeIoViewModel(frame);
   const { status, durationMs } = viewModel.summary;
-  const { inputVariables, outputVariables } = viewModel.output;
+  const { inputVariables } = viewModel.input;
+  const { outputVariables } = viewModel.output;
 
   // 摘要态：只显示 status tag 和耗时
   if (!expanded) {
@@ -50,39 +74,8 @@ export function MicroflowInlineRuntimeSummary({ frame, expanded }: MicroflowInli
   return (
     <div className="microflow-flowgram-node__runtime-summary">
       <div className="microflow-flowgram-node__runtime-summary-io">
-        {/* 输入变量 */}
-        {inputVariables && Object.entries(inputVariables).length > 0 ? (
-          <>
-            <div className="microflow-flowgram-node__runtime-summary-row">
-              <span className="microflow-flowgram-node__runtime-summary-key">Input:</span>
-            </div>
-            {Object.entries(inputVariables).map(([key, variable]) => (
-              <div key={`input-${key}`} className="microflow-flowgram-node__runtime-summary-row">
-                <span className="microflow-flowgram-node__runtime-summary-key">{variable.name}</span>
-                <span className="microflow-flowgram-node__runtime-summary-value" title={variable.rawValueJson ?? variable.valuePreview}>
-                  {variable.valuePreview}
-                </span>
-              </div>
-            ))}
-          </>
-        ) : null}
-
-        {/* 输出变量 */}
-        {outputVariables && Object.entries(outputVariables).length > 0 ? (
-          <>
-            <div className="microflow-flowgram-node__runtime-summary-row">
-              <span className="microflow-flowgram-node__runtime-summary-key">Output:</span>
-            </div>
-            {Object.entries(outputVariables).map(([key, variable]) => (
-              <div key={`output-${key}`} className="microflow-flowgram-node__runtime-summary-row">
-                <span className="microflow-flowgram-node__runtime-summary-key">{variable.name}</span>
-                <span className="microflow-flowgram-node__runtime-summary-value" title={variable.rawValueJson ?? variable.valuePreview}>
-                  {variable.valuePreview}
-                </span>
-              </div>
-            ))}
-          </>
-        ) : null}
+        {inputVariables ? <VariableRow label="Input" vars={inputVariables} /> : null}
+        {outputVariables ? <VariableRow label="Output" vars={outputVariables} /> : null}
       </div>
     </div>
   );

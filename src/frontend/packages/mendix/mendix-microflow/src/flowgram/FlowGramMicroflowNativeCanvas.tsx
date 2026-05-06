@@ -19,7 +19,8 @@ import type { MicroflowTraceFrame } from "../debug/trace-types";
 import type { MicroflowMetadataCatalog } from "../metadata";
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { buildVariableIndex } from "../variables/variable-index";
-import { getVariablesBeforeObject } from "../variables/variable-scope-engine";
+import { getVariablesBeforeObject, type MicroflowVariableQueryOptions } from "../variables/variable-scope-engine";
+import type { MicroflowSchema } from "../schema";
 import { FlowGramMicroflowRuntimeContext } from "./FlowGramMicroflowContext";
 import {
   canCreateRegistryItem,
@@ -420,8 +421,12 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const effectiveExpandedObjectId = props.expandedObjectId !== undefined ? props.expandedObjectId : localExpandedObjectId;
   const effectiveOnExpandChange = props.onExpandChange ?? setLocalExpandedObjectId;
 
+  // MicroflowDesignSchema shares variable/parameter data with MicroflowAuthoringSchema;
+  // cast for the variable engine which only uses those shared fields at runtime.
+  const schemaAsAuthoring = props.schema as unknown as MicroflowSchema;
+
   const variableIndex = useMemo(
-    () => buildVariableIndex(props.schema, props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG),
+    () => buildVariableIndex(schemaAsAuthoring, props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [props.schema, props.metadataCatalog],
   );
@@ -432,8 +437,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   );
 
   const getVariablesForNode = useCallback(
-    (objectId: string, options?: Parameters<typeof getVariablesBeforeObject>[3]) =>
-      getVariablesBeforeObject(props.schema, variableIndex, objectId, options),
+    (objectId: string, options?: MicroflowVariableQueryOptions) =>
+      getVariablesBeforeObject(schemaAsAuthoring, variableIndex, objectId, options),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [props.schema, variableIndex],
   );
 

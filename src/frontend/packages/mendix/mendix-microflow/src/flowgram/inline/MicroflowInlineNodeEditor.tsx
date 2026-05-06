@@ -2,7 +2,8 @@ import { useCallback, type ReactElement } from "react";
 
 import { Button, Input, TextArea, Typography } from "@douyinfe/semi-ui";
 
-import type { MicroflowActionActivity, MicroflowAnnotation, MicroflowAuthoringSchema, MicroflowEndEvent, MicroflowLoopedActivity, MicroflowSchema } from "../../schema";
+import type { MicroflowActionActivity, MicroflowAnnotation, MicroflowAuthoringSchema, MicroflowEndEvent, MicroflowIterableListLoopSource, MicroflowLoopedActivity } from "../../schema";
+import type { MicroflowDesignSchema } from "../../schema/types";
 import { VariableSelector } from "../../property-panel/selectors/VariableSelector";
 import {
   updateAnnotationObjectConfig,
@@ -18,8 +19,8 @@ const { Text } = Typography;
 export interface MicroflowInlineNodeEditorProps {
   data: FlowGramMicroflowNodeData;
   objectId: string;
-  schema: MicroflowSchema;
-  onSchemaChange: (next: MicroflowSchema, reason: string) => void;
+  schema: MicroflowDesignSchema;
+  onSchemaChange: (next: MicroflowDesignSchema, reason: string) => void;
   onCollapse: () => void;
   registerDraftValidator: ((fn: (() => { valid: boolean; summary: string }) | null) => void) | undefined;
 }
@@ -278,7 +279,6 @@ function InlineAnnotationSection({
     <FieldRow label="注释文本">
       <TextArea
         rows={3}
-        size="small"
         value={String(draft.caption ?? "")}
         onChange={v => updateField("caption", v)}
         placeholder="输入注释内容"
@@ -300,39 +300,35 @@ function InlineStartEventSection({ schema }: { schema: MicroflowAuthoringSchema 
   );
 }
 
-function buildInitialDraft(data: FlowGramMicroflowNodeData, schema: MicroflowAuthoringSchema): InlineEditorDraft {
+function buildInitialDraft(data: FlowGramMicroflowNodeData): InlineEditorDraft {
   const action = data.action as Record<string, unknown> | undefined;
-  const objectId = data.objectId;
 
   if (data.objectKind === "endEvent") {
-    const endEvent = schema.objectCollection.objects.find(o => o.id === objectId) as MicroflowEndEvent | undefined;
     return {
-      returnVariableName: (endEvent as unknown as Record<string, unknown>)?.returnVariableName ?? action?.outputVariableName ?? "",
+      returnVariableName: String(action?.outputVariableName ?? data.subtitle ?? ""),
     };
   }
   if (data.objectKind === "loopedActivity") {
-    const loop = schema.objectCollection.objects.find(o => o.id === objectId) as MicroflowLoopedActivity | undefined;
-    const src = loop?.loopSource as Record<string, unknown> | undefined;
     return {
-      listVariableName: String(src?.sourceListVariableName ?? ""),
-      iteratorVariableName: loop?.iteratorVariableName ?? "",
+      listVariableName: String(data.listVariableName ?? ""),
+      iteratorVariableName: String(data.iteratorVariableName ?? ""),
     };
   }
   if (data.objectKind === "annotation") {
-    const obj = schema.objectCollection.objects.find(o => o.id === objectId) as MicroflowAnnotation | undefined;
-    return { caption: obj?.caption ?? "" };
+    // annotation 的文本内容存在 title/subtitle 或直接在 action 中
+    return { caption: String(action?.text ?? data.title ?? "") };
   }
   if (data.objectKind === "actionActivity") {
     switch (data.actionKind) {
       case "createVariable":
         return {
           variableName: String(action?.variableName ?? ""),
-          initialValue: String(action?.value ?? ""),
+          initialValue: String((action?.value as Record<string, unknown> | undefined)?.variableName ?? action?.value ?? ""),
         };
       case "changeVariable":
         return {
           changeVariableName: String(action?.variableName ?? ""),
-          newValue: String(action?.value ?? ""),
+          newValue: String((action?.value as Record<string, unknown> | undefined)?.variableName ?? action?.value ?? ""),
         };
       case "restCall":
         return {
@@ -391,14 +387,17 @@ function applyDraft(
       } as Partial<MicroflowEndEvent>);
 
     case "annotation":
-      return updateAnnotationObjectConfig(schema, objectId, { caption: String(draft.caption ?? "") });
+      return updateAnnotationObjectConfig(schema, objectId, { text: String(draft.caption ?? "") } as Partial<MicroflowAnnotation>);
 
     case "loopedActivity":
       return updateObject<MicroflowLoopedActivity>(schema, objectId, loop => ({
         ...loop,
-        iteratorVariableName: String(draft.iteratorVariableName ?? loop.iteratorVariableName),
         loopSource: loop.loopSource?.kind === "iterableList"
-          ? { ...loop.loopSource, sourceListVariableName: String(draft.listVariableName ?? loop.loopSource.sourceListVariableName) }
+          ? {
+              ...loop.loopSource,
+              listVariableName: String(draft.listVariableName ?? (loop.loopSource as MicroflowIterableListLoopSource).listVariableName),
+              iteratorVariableName: String(draft.iteratorVariableName ?? (loop.loopSource as MicroflowIterableListLoopSource).iteratorVariableName),
+            } as MicroflowIterableListLoopSource
           : loop.loopSource,
       }));
 
@@ -408,20 +407,24 @@ function applyDraft(
           return updateObject<MicroflowActionActivity>(schema, objectId, activity => ({
             ...activity,
             action: {
-              ...activity.action,
+              ...(activity.action as Record<string, unknown>),
               variableName: String(draft.variableName ?? ""),
-              value: draft.initialValue ? { kind: "variable", variableName: String(draft.initialValue) } : activity.action.value,
-            } as MicroflowActionActivity["action"],
+              value: draft.initialValue
+                ? { kind: "variable", variableName: String(draft.initialValue) }
+                : (activity.action as unknown as Record<string, unknown>).value,
+            } as unknown as MicroflowActionActivity["action"],
           }));
 
         case "changeVariable":
           return updateObject<MicroflowActionActivity>(schema, objectId, activity => ({
             ...activity,
             action: {
-              ...activity.action,
+              ...(activity.action as Record<string, unknown>),
               variableName: String(draft.changeVariableName ?? ""),
-              value: draft.newValue ? { kind: "variable", variableName: String(draft.newValue) } : activity.action.value,
-            } as MicroflowActionActivity["action"],
+              value: draft.newValue
+                ? { kind: "variable", variableName: String(draft.newValue) }
+                : (activity.action as unknown as Record<string, unknown>).value,
+            } as unknown as MicroflowActionActivity["action"],
           }));
 
         case "restCall":
@@ -460,8 +463,8 @@ export function MicroflowInlineNodeEditor({
   registerDraftValidator,
 }: MicroflowInlineNodeEditorProps): ReactElement | null {
   const { readonly } = useFlowGramMicroflowContext();
-  const authoringSchema = schema as MicroflowAuthoringSchema;
-  const initialDraft = buildInitialDraft(data, authoringSchema);
+  const authoringSchema = schema as unknown as MicroflowAuthoringSchema;
+  const initialDraft = buildInitialDraft(data);
   const validators = buildValidators(data);
 
   const { draft, fieldErrors, isDraftValid, updateField } = useInlineEditorDraft(
@@ -475,7 +478,7 @@ export function MicroflowInlineNodeEditor({
       return;
     }
     const nextSchema = applyDraft(authoringSchema, objectId, data, draft);
-    onSchemaChange(nextSchema, "inlineEdit");
+    onSchemaChange(nextSchema as unknown as MicroflowDesignSchema, "inlineEdit");
     onCollapse();
   }, [isDraftValid, authoringSchema, objectId, data, draft, onSchemaChange, onCollapse]);
 
