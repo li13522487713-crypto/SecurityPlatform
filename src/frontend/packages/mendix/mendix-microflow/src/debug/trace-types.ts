@@ -91,7 +91,7 @@ export function extractGatewayBranchTrace(frame: Pick<MicroflowTraceFrame, "outp
     if (!item || typeof item !== "object") {
       return [];
     }
-    const candidate = item as Record<string, unknown>;
+    const candidate = item as unknown as Record<string, unknown>;
     const flowId = typeof candidate.flowId === "string" ? candidate.flowId : undefined;
     const branchId = typeof candidate.branchId === "string" ? candidate.branchId : flowId;
     const status = typeof candidate.status === "string" ? candidate.status : undefined;

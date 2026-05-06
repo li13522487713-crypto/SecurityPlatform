@@ -13,7 +13,7 @@ export interface MicroflowGraphEdge {
   fromObjectId: string;
   toObjectId: string;
   collectionId: string;
-  edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "loopEntry";
+  edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "loopEntry" | "loopBody";
 }
 
 export interface MicroflowGraph {
