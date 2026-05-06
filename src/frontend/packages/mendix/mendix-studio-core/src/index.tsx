@@ -341,7 +341,6 @@ export function MendixStudioApp({
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "100vh",
           width: "100%",
           overflow: "hidden",
           background: "#f0f2f5"
@@ -372,7 +371,6 @@ export function MendixStudioApp({
       style={{
         display: "flex",
         flexDirection: "column",
-        height: "100vh",
         width: "100%",
         overflow: "hidden",
         background: "#f0f2f5"
@@ -413,6 +411,7 @@ export function MendixStudioApp({
               flexDirection: "row",
               flex: 1,
               minWidth: 0,
+              minHeight: 0,
               overflow: "hidden"
             }}
           >
@@ -423,6 +422,7 @@ export function MendixStudioApp({
                 flexDirection: "column",
                 flex: 1,
                 minWidth: 0,
+                minHeight: 0,
                 overflow: "hidden"
               }}
             >

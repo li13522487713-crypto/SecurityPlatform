@@ -470,7 +470,8 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
   }, [saveLatestSchema]);
 
   return (
-    <div style={{ height: "100%", minHeight: 720, overflow: "hidden", background: "var(--semi-color-bg-0)" }}>
+    <div style={{ height: "100%", minHeight: 0, overflow: "hidden", background: "var(--semi-color-bg-0)", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <NativeMicroflowEditor
         key={currentResource.id}
         schema={schema}
@@ -565,6 +566,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
           </Space>
         }
       />
+      </div>
       <PublishMicroflowModal
         visible={publishOpen}
         resource={currentResource}

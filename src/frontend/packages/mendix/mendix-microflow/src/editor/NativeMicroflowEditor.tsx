@@ -114,17 +114,6 @@ const defaultLabels: Partial<MicroflowEditorLabels> = {
   format: "Auto",
 };
 
-const NODE_STATUS_LEGEND: Array<{ key: string; label: string; description: string; tone?: "active" | "success" | "error" | "muted" }> = [
-  { key: "idle", label: "默认态", description: "紧凑摘要，只读" },
-  { key: "hover", label: "悬停态", description: "显示编辑入口" },
-  { key: "selected", label: "选中态", description: "蓝色描边", tone: "active" },
-  { key: "expanded", label: "展开态", description: "关键输入输出编辑" },
-  { key: "running", label: "运行中", description: "显示运行状态", tone: "active" },
-  { key: "success", label: "运行成功", description: "显示耗时与成功", tone: "success" },
-  { key: "failed", label: "运行失败", description: "显示错误摘要", tone: "error" },
-  { key: "skipped", label: "跳过", description: "降低透明度", tone: "muted" },
-];
-
 function cloneSchema(schema: MicroflowDesignSchema): MicroflowDesignSchema {
   const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowDesignSchema;
   const defaultEditor = createDefaultEditorState();
@@ -1691,17 +1680,6 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
             </button>
           </div>
         ) : null}
-        <aside className="microflow-node-status-legend" aria-label="节点状态说明">
-          <Text strong className="microflow-node-status-legend__title">节点状态说明</Text>
-          <div className="microflow-node-status-legend__list">
-            {NODE_STATUS_LEGEND.map(item => (
-              <div key={item.key} className={["microflow-node-status-legend__item", item.tone ? `is-${item.tone}` : ""].join(" ")}>
-                <span className="microflow-node-status-legend__label">{item.label}</span>
-                <span className="microflow-node-status-legend__desc">{item.description}</span>
-              </div>
-            ))}
-          </div>
-        </aside>
       </div>
       {LEGACY_BOTTOM_PANEL_ENABLED && bottomOpen ? (
         <div
