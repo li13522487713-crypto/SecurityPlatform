@@ -33,6 +33,18 @@ public sealed class WorkflowActionExecutor : IMicroflowActionExecutor
                 "callWorkflow" => await ExecuteCallWorkflowAsync(context, started, ct).ConfigureAwait(false),
                 "changeWorkflowState" => await ExecuteChangeWorkflowStateAsync(context, started, ct).ConfigureAwait(false),
                 "completeUserTask" => await ExecuteCompleteUserTaskAsync(context, started, ct).ConfigureAwait(false),
+                "applyJumpToOption" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.jump.apply").ConfigureAwait(false),
+                "generateJumpToOptions" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.jump.options.generate").ConfigureAwait(false),
+                "retrieveWorkflowActivityRecords" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.activity-records.retrieve").ConfigureAwait(false),
+                "retrieveWorkflowContext" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.context.retrieve").ConfigureAwait(false),
+                "retrieveWorkflows" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.list.retrieve").ConfigureAwait(false),
+                "showUserTaskPage" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.user-task-page.show").ConfigureAwait(false),
+                "showWorkflowAdminPage" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.admin-page.show").ConfigureAwait(false),
+                "lockWorkflow" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.lock").ConfigureAwait(false),
+                "unlockWorkflow" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.unlock").ConfigureAwait(false),
+                "notifyWorkflow" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.notify").ConfigureAwait(false),
+                "workflow" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.generic").ConfigureAwait(false),
+                "workflowAction" => await ExecuteConnectorEventActionAsync(context, started, ct, "workflow.generic").ConfigureAwait(false),
                 _ => Failed(RuntimeErrorCode.RuntimeConnectorRequired, $"Workflow action '{context.ActionKind}' is not implemented.", context, started)
             };
         }
@@ -162,6 +174,43 @@ public sealed class WorkflowActionExecutor : IMicroflowActionExecutor
             started);
     }
 
+    private async Task<MicroflowActionExecutionResult> ExecuteConnectorEventActionAsync(
+        MicroflowActionExecutionContext context,
+        Stopwatch started,
+        CancellationToken ct,
+        string defaultEventName)
+    {
+        var eventKey = ReadString(context.ActionConfig, "eventKey")
+            ?? ReadString(context.ActionConfig, "taskId")
+            ?? ReadString(context.ActionConfig, "userTaskId")
+            ?? ReadString(context.ActionConfig, "instanceId")
+            ?? ReadString(context.ActionConfig, "workflowInstanceId")
+            ?? ReadString(context.ActionConfig, "workflowId")
+            ?? context.ObjectId;
+        var eventName = ReadString(context.ActionConfig, "eventName") ?? defaultEventName;
+        var eventData = ReadOptionalJson(context.ActionConfig, "data")
+            ?? ReadOptionalJson(context.ActionConfig, "payload")
+            ?? ReadOptionalJson(context.ActionConfig, "input");
+        var result = await _workflowRuntimeClient.PublishEventAsync(eventName, eventKey, eventData, ct).ConfigureAwait(false);
+        if (!result.Success)
+        {
+            return Failed(RuntimeErrorCode.RuntimeConnectorRequired, result.ErrorMessage ?? $"Workflow event '{eventName}' publish failed.", context, started);
+        }
+
+        return Success(
+            new
+            {
+                workflow = new
+                {
+                    action = context.ActionKind,
+                    eventName,
+                    eventKey
+                }
+            },
+            context,
+            started);
+    }
+
     private static MicroflowActionExecutionResult Success(object payload, MicroflowActionExecutionContext context, Stopwatch started)
     {
         started.Stop();
@@ -183,7 +232,9 @@ public sealed class WorkflowActionExecutor : IMicroflowActionExecutor
         started.Stop();
         return new MicroflowActionExecutionResult
         {
-            Status = MicroflowActionExecutionStatus.Failed,
+            Status = string.Equals(code, RuntimeErrorCode.RuntimeConnectorRequired, StringComparison.OrdinalIgnoreCase)
+                ? MicroflowActionExecutionStatus.ConnectorRequired
+                : MicroflowActionExecutionStatus.Failed,
             Error = new MicroflowRuntimeErrorDto
             {
                 Code = code,

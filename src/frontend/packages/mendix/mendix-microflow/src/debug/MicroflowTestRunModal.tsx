@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Input, Modal, Select, Space, Switch, Tag, TextArea, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Card, Input, Modal, Select, Space, Switch, Tag, TextArea, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 
 import type { MicroflowDataType, MicroflowDesignSchema, MicroflowSchema } from "../schema";
 import { buildDefaultRunInputValues, buildRunInputModel, validateRunInputs, type MicroflowRunInputField } from "./run-input-model";
@@ -34,6 +34,8 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sampleName, setSampleName] = useState("");
   const [expectedResultJson, setExpectedResultJson] = useState("");
+  const copyTraceDisabledReason = !props.lastSession ? copy.testRun.copyTraceDisabledReason : "";
+  const cancelDisabledReason = props.running ? copy.testRun.cancelDisabledReason : "";
 
   useEffect(() => {
     if (props.visible) {
@@ -167,8 +169,16 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
         </div>
         <RunResultPreview session={props.lastSession} serviceError={props.serviceError} />
         <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-          <Button onClick={copyTrace} disabled={!props.lastSession}>{copy.testRun.copyTrace}</Button>
-          <Button data-testid="microflow-test-run-cancel" onClick={props.onCancel} disabled={props.running}>{copy.testRun.cancel}</Button>
+          <Tooltip content={copyTraceDisabledReason || copy.testRun.copyTrace}>
+            <span style={{ display: "inline-flex" }}>
+              <Button onClick={copyTrace} disabled={!props.lastSession}>{copy.testRun.copyTrace}</Button>
+            </span>
+          </Tooltip>
+          <Tooltip content={cancelDisabledReason || copy.testRun.cancel}>
+            <span style={{ display: "inline-flex" }}>
+              <Button data-testid="microflow-test-run-cancel" onClick={props.onCancel} disabled={props.running}>{copy.testRun.cancel}</Button>
+            </span>
+          </Tooltip>
           <Button data-testid="microflow-test-run-submit" type="primary" loading={props.running} onClick={run}>{props.dirty ? copy.testRun.saveAndRun : copy.testRun.run}</Button>
         </Space>
       </Space>
@@ -189,12 +199,22 @@ function TestSamplesPanel(props: {
   onRunAll: () => void;
 }) {
   const copy = getMendixMicroflowCopy();
+  const runAllSamplesDisabledReason = props.running
+    ? copy.testRun.runAllSamplesDisabledRunningReason
+    : props.samples.length === 0
+      ? copy.testRun.runAllSamplesDisabledNoSamplesReason
+      : "";
+  const saveSampleDisabledReason = props.running ? copy.testRun.saveSampleDisabledReason : "";
   return (
     <div style={{ width: "100%", borderTop: "1px solid var(--semi-color-border)", paddingTop: 12 }}>
       <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
         <Space style={{ width: "100%", justifyContent: "space-between" }} align="center">
           <Text strong>{copy.testRun.samplesTitle}</Text>
-          <Button size="small" disabled={props.running || props.samples.length === 0} onClick={props.onRunAll}>{copy.testRun.runAllSamples}</Button>
+          <Tooltip content={runAllSamplesDisabledReason || copy.testRun.runAllSamples}>
+            <span style={{ display: "inline-flex" }}>
+              <Button size="small" disabled={props.running || props.samples.length === 0} onClick={props.onRunAll}>{copy.testRun.runAllSamples}</Button>
+            </span>
+          </Tooltip>
         </Space>
         <Space align="start" style={{ width: "100%" }}>
           <Input
@@ -210,7 +230,11 @@ function TestSamplesPanel(props: {
             onChange={props.onExpectedResultJsonChange}
             style={{ flex: 1 }}
           />
-          <Button type="secondary" disabled={props.running} onClick={props.onSave}>{copy.testRun.saveSample}</Button>
+          <Tooltip content={saveSampleDisabledReason || copy.testRun.saveSample}>
+            <span style={{ display: "inline-flex" }}>
+              <Button type="secondary" disabled={props.running} onClick={props.onSave}>{copy.testRun.saveSample}</Button>
+            </span>
+          </Tooltip>
         </Space>
         {props.samples.length === 0 ? <Text type="tertiary">{copy.testRun.noSamples}</Text> : null}
         {props.samples.map(sample => (

@@ -1,4 +1,4 @@
-import { Button, Select, Space } from "@douyinfe/semi-ui";
+import { Button, Select, Space, Tooltip } from "@douyinfe/semi-ui";
 import { useMemo } from "react";
 import { InlineExpressionField } from "../InlineExpressionField";
 import { ContextVariablePicker, type ContextVariableCandidate } from "./ContextVariablePicker";
@@ -42,6 +42,7 @@ export function ConditionBuilder(props: {
   onChangeRaw?: (raw: string) => void;
 }) {
   const operatorOptions = useMemo(() => operators.map(item => ({ label: item, value: item })), []);
+  const readonlyDisabledReason = props.readonly ? "只读模式不可编辑条件。" : "";
   const clauses = props.value.clauses?.length
     ? props.value.clauses
     : [{ left: props.value.left, operator: props.value.operator, right: props.value.right }];
@@ -105,35 +106,43 @@ export function ConditionBuilder(props: {
             />
           ) : null}
           {clauses.length > 1 ? (
-            <Button
-              size="small"
-              disabled={props.readonly}
-              onClick={() => {
-                const nextClauses = clauses.filter((_, itemIndex) => itemIndex !== index);
-                props.onChange({
-                  ...props.value,
-                  left: nextClauses[0]?.left ?? "",
-                  operator: nextClauses[0]?.operator ?? "equals",
-                  right: nextClauses[0]?.right ?? "",
-                  clauses: nextClauses,
-                });
-              }}
-            >
-              删除条件
-            </Button>
+            <Tooltip content={readonlyDisabledReason || "删除条件"}>
+              <span style={{ display: "inline-flex" }}>
+                <Button
+                  size="small"
+                  disabled={props.readonly}
+                  onClick={() => {
+                    const nextClauses = clauses.filter((_, itemIndex) => itemIndex !== index);
+                    props.onChange({
+                      ...props.value,
+                      left: nextClauses[0]?.left ?? "",
+                      operator: nextClauses[0]?.operator ?? "equals",
+                      right: nextClauses[0]?.right ?? "",
+                      clauses: nextClauses,
+                    });
+                  }}
+                >
+                  删除条件
+                </Button>
+              </span>
+            </Tooltip>
           ) : null}
         </Space>
       ))}
-      <Button
-        size="small"
-        disabled={props.readonly}
-        onClick={() => {
-          const nextClauses = [...clauses, { left: "", operator: "equals" as const, right: "" }];
-          props.onChange({ ...props.value, clauses: nextClauses });
-        }}
-      >
-        添加条件
-      </Button>
+      <Tooltip content={readonlyDisabledReason || "添加条件"}>
+        <span style={{ display: "inline-flex" }}>
+          <Button
+            size="small"
+            disabled={props.readonly}
+            onClick={() => {
+              const nextClauses = [...clauses, { left: "", operator: "equals" as const, right: "" }];
+              props.onChange({ ...props.value, clauses: nextClauses });
+            }}
+          >
+            添加条件
+          </Button>
+        </span>
+      </Tooltip>
       <Select
         disabled={props.readonly}
         value={props.value.logic ?? "AND"}
@@ -150,7 +159,11 @@ export function ConditionBuilder(props: {
           props.onChange({ ...props.value, raw });
         }}
       />
-      <Button size="small" disabled={props.readonly} onClick={() => props.onChange({ ...props.value, right: "", clauses: undefined })}>清空值</Button>
+      <Tooltip content={readonlyDisabledReason || "清空值"}>
+        <span style={{ display: "inline-flex" }}>
+          <Button size="small" disabled={props.readonly} onClick={() => props.onChange({ ...props.value, right: "", clauses: undefined })}>清空值</Button>
+        </span>
+      </Tooltip>
     </Space>
   );
 }

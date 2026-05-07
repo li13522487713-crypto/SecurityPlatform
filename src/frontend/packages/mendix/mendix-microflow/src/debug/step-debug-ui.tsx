@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Card, List, Space, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Card, List, Space, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 
 const { Text } = Typography;
 type DebugCommand = "continue" | "pause" | "stepOver" | "stepInto" | "stepOut" | "runToNode" | "cancel" | "stop";
@@ -64,6 +64,31 @@ export interface MicroflowStepDebugPanelLabels {
   commands: Record<DebugCommand, string>;
 }
 
+function isPausedStatus(status: string): boolean {
+  return status.toLowerCase().includes("paused");
+}
+
+function isTerminalStatus(status: string): boolean {
+  const normalized = status.toLowerCase();
+  return normalized.includes("cancelled")
+    || normalized.includes("completed")
+    || normalized.includes("failed")
+    || normalized.includes("stopped");
+}
+
+function commandDisabledReason(command: DebugCommand, status: string): string {
+  if (isTerminalStatus(status)) {
+    return "Debug session is already finished.";
+  }
+  if (command === "pause") {
+    return isPausedStatus(status) ? "Session is already paused." : "";
+  }
+  if (command === "continue" || command === "stepOver" || command === "stepInto" || command === "stepOut" || command === "runToNode") {
+    return isPausedStatus(status) ? "" : "This command is available only when paused.";
+  }
+  return "";
+}
+
 export function MicroflowStepDebugPanel({
   status,
   currentNodeId,
@@ -100,11 +125,18 @@ export function MicroflowStepDebugPanel({
         {currentPhase ? <Tag color="purple">{labels.phasePrefix}: {currentPhase}</Tag> : null}
       </Space>
       <Space wrap>
-        {commands.map(command => (
-          <Button key={command} onClick={() => onCommand?.(command)}>
-            {labels.commands[command]}
-          </Button>
-        ))}
+        {commands.map(command => {
+          const disabledReason = commandDisabledReason(command, status);
+          return (
+            <Tooltip key={command} content={disabledReason || labels.commands[command]}>
+              <span style={{ display: "inline-flex" }}>
+                <Button disabled={Boolean(disabledReason)} onClick={() => onCommand?.(command)}>
+                  {labels.commands[command]}
+                </Button>
+              </span>
+            </Tooltip>
+          );
+        })}
       </Space>
       <Card title={labels.variablesTitle}>
         <List dataSource={variables} renderItem={item => <List.Item>{item.name}: {item.valuePreview}</List.Item>} />

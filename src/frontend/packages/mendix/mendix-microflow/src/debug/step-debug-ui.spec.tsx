@@ -15,6 +15,7 @@ vi.mock("@douyinfe/semi-ui", async () => {
     Space: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
     Tag: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
     TextArea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { onChange?: (value: string) => void }) => <textarea {...props} onChange={event => props.onChange?.(event.currentTarget.value)} />,
+    Tooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Typography: { Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span> },
   };
 });
@@ -100,5 +101,33 @@ describe("MicroflowStepDebugPanel", () => {
 
     expect(onCommand).toHaveBeenCalledWith("stepOver");
     expect(onEvaluate).toHaveBeenCalledWith("$amount");
+  });
+
+  it("disables commands based on debug status", () => {
+    const onCommand = vi.fn();
+    const { rerender } = render(
+      <MicroflowStepDebugPanel
+        status="paused"
+        labels={labels}
+        onCommand={onCommand}
+      />,
+    );
+
+    const pauseButton = screen.getByText("Pause") as HTMLButtonElement;
+    expect(pauseButton.disabled).toBe(true);
+    fireEvent.click(pauseButton);
+    expect(onCommand).not.toHaveBeenCalledWith("pause");
+
+    rerender(
+      <MicroflowStepDebugPanel
+        status="running"
+        labels={labels}
+        onCommand={onCommand}
+      />,
+    );
+    const stepOverButton = screen.getByText("Step Over") as HTMLButtonElement;
+    expect(stepOverButton.disabled).toBe(true);
+    fireEvent.click(stepOverButton);
+    expect(onCommand).not.toHaveBeenCalledWith("stepOver");
   });
 });

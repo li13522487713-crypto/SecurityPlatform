@@ -1,4 +1,4 @@
-import { Input, Select, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Input, Select, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
 import { getMergeFlowSummary } from "../../schema/utils";
 import type { MicroflowPropertyPanelProps } from "../types";
@@ -6,11 +6,20 @@ import { Field } from "../panel-shared";
 
 const { Text } = Typography;
 
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
+    </Tooltip>
+  );
+}
+
 export function MergeNodeForm({ props, object, patch }: {
   props: MicroflowPropertyPanelProps;
   object: MicroflowObject;
   patch: (next: MicroflowObject) => void;
 }) {
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit merge settings." : "";
   if (object.kind !== "exclusiveMerge") {
     return null;
   }
@@ -18,13 +27,17 @@ export function MergeNodeForm({ props, object, patch }: {
   return (
     <>
       <Field label="Merge Strategy">
-        <Select
-          value={object.mergeBehavior.strategy}
-          disabled={props.readonly}
-          style={{ width: "100%" }}
-          optionList={[{ label: "firstArrived", value: "firstArrived" }]}
-          onChange={strategy => patch({ ...object, mergeBehavior: { strategy: String(strategy) as typeof object.mergeBehavior.strategy } })}
-        />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Merge strategy",
+          <Select
+            value={object.mergeBehavior.strategy}
+            disabled={props.readonly}
+            style={{ width: "100%" }}
+            optionList={[{ label: "firstArrived", value: "firstArrived" }]}
+            onChange={strategy => patch({ ...object, mergeBehavior: { strategy: String(strategy) as typeof object.mergeBehavior.strategy } })}
+          />
+        )}
       </Field>
       <Field label="Incoming Count">
         <Input value={String(summary.incoming.length)} disabled />

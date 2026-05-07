@@ -210,6 +210,51 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             }
         }
 
+        if (string.Equals(actionKind, "webServiceCall", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<SoapWebServiceActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "importXml", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "exportXml", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<XmlMappingActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "generateDocument", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<DocumentGenerationActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "createExternalObject", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "changeExternalObject", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "sendExternalObject", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "deleteExternalObject", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "externalObject", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<ExternalObjectActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (string.Equals(actionKind, "logMessage", StringComparison.OrdinalIgnoreCase))
         {
             var specialized = _serviceProvider?.GetService<LogMessageActionExecutor>();
@@ -222,7 +267,19 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
 
         if (string.Equals(actionKind, "callWorkflow", StringComparison.OrdinalIgnoreCase)
             || string.Equals(actionKind, "changeWorkflowState", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(actionKind, "completeUserTask", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(actionKind, "completeUserTask", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "applyJumpToOption", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "generateJumpToOptions", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "retrieveWorkflowActivityRecords", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "retrieveWorkflowContext", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "retrieveWorkflows", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "showUserTaskPage", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "showWorkflowAdminPage", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "lockWorkflow", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "unlockWorkflow", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "notifyWorkflow", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "workflow", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "workflowAction", StringComparison.OrdinalIgnoreCase))
         {
             var specialized = _serviceProvider?.GetService<WorkflowActionExecutor>();
             if (specialized is not null)
@@ -376,12 +433,10 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Command("callNanoflow", "CallNanoflowAction", "call", "CallNanoflowActionExecutor", "callNanoflow"),
 
             Server("restCall", "RestCallAction", "integration", "RestCallActionExecutor", producesVariables: true, producesTransaction: false, reason: "Runtime can build REST requests, enforce HTTP policy, block external calls by default, and use real HTTP when allowRealHttp is enabled."),
-            // P1-2: 这些 Connector 描述符的 Executor 字段保留 connector 实现规划名，
-            // 但实际运行由 ConfiguredMicroflowActionExecutor 在 connector 缺失时返回
-            // RUNTIME_CONNECTOR_REQUIRED；等真实 *ActionExecutor 落地后会替换 DI。
-            Connector("webServiceCall", "WebServiceCallAction", "integration", "ConnectorBackedActionExecutor:webServiceCall", MicroflowRuntimeConnectorCapability.SoapWebService, "SOAP/WSDL execution requires web service connector."),
-            Connector("importXml", "ImportXmlAction", "integration", "ConnectorBackedActionExecutor:importXml", MicroflowRuntimeConnectorCapability.XmlImportMapping, "XML import mapping requires mapping connector."),
-            Connector("exportXml", "ExportXmlAction", "integration", "ConnectorBackedActionExecutor:exportXml", MicroflowRuntimeConnectorCapability.XmlExportMapping, "XML export mapping requires mapping connector."),
+            // SOAP/XML 现已走专用 executor；仍保留 connector capability gate（缺能力时返回 RUNTIME_CONNECTOR_REQUIRED）。
+            Connector("webServiceCall", "WebServiceCallAction", "integration", "SoapWebServiceActionExecutor", MicroflowRuntimeConnectorCapability.SoapWebService, "SOAP/WSDL execution requires web service connector."),
+            Connector("importXml", "ImportXmlAction", "integration", "XmlMappingActionExecutor", MicroflowRuntimeConnectorCapability.XmlImportMapping, "XML import mapping requires mapping connector."),
+            Connector("exportXml", "ExportXmlAction", "integration", "XmlMappingActionExecutor", MicroflowRuntimeConnectorCapability.XmlExportMapping, "XML export mapping requires mapping connector."),
             Connector("callExternalAction", "CallExternalAction", "integration", "ConnectorBackedActionExecutor:callExternalAction", "external.action", "External action requires connector capability."),
             Connector("restOperationCall", "RestOperationCallAction", "integration", "ConnectorBackedActionExecutor:restOperationCall", MicroflowRuntimeConnectorCapability.RestRealHttp, "REST operation calls require real HTTP connector capability."),
             Connector("queryExternalDatabase", "QueryExternalDatabaseAction", "integration", "ConnectorBackedActionExecutor:queryExternalDatabase", "externalDatabase.query", "External database query requires external database connector capability."),
@@ -396,7 +451,7 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
 
             Server("logMessage", "LogMessageAction", "logging", "LogMessageActionExecutor", producesVariables: false, producesTransaction: false),
             Server("throwException", "ThrowExceptionAction", "errorHandling", "ThrowExceptionActionExecutor", producesVariables: false, producesTransaction: false, reason: "Server-side throwException stops the run with a structured RuntimeError."),
-            Connector("generateDocument", "GenerateDocumentAction", "documentGeneration", "DocumentGenerationExecutor", MicroflowRuntimeConnectorCapability.DocumentGeneration, "Document generation is deprecated and requires document connector.", supportLevel: MicroflowActionSupportLevel.Deprecated),
+            Connector("generateDocument", "GenerateDocumentAction", "documentGeneration", "DocumentGenerationActionExecutor", MicroflowRuntimeConnectorCapability.DocumentGeneration, "Document generation is deprecated and requires document connector.", supportLevel: MicroflowActionSupportLevel.Deprecated),
 
             Server("counter", "MetricsCounterAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, reason: "Counter emits a structured runtime metric entry."),
             Server("incrementCounter", "MetricsIncrementCounterAction", "metrics", "MetricsActionExecutor", producesVariables: false, producesTransaction: false, reason: "IncrementCounter emits a structured runtime metric entry with value 1."),
@@ -421,8 +476,8 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Connector("workflow", "MicroflowGenericAction", "workflow", "WorkflowActionExecutor", MicroflowRuntimeConnectorCapability.WorkflowAction, "Legacy workflow action requires workflow connector."),
             Connector("workflowAction", "MicroflowGenericAction", "workflow", "WorkflowActionExecutor", MicroflowRuntimeConnectorCapability.WorkflowAction, "Legacy workflowAction requires workflow connector."),
 
-            Connector("deleteExternalObject", "DeleteExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object CRUD connector required."),
-            Connector("sendExternalObject", "SendExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object CRUD connector required."),
+            Connector("deleteExternalObject", "DeleteExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object delete requires external object connector capability."),
+            Connector("sendExternalObject", "SendExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object send requires external object connector capability."),
 
             Connector("externalObject", "MicroflowGenericAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "Legacy external object action requires connector."),
             Connector("connectorCall", "MicroflowGenericAction", "integration", "ExternalActionExecutor", "external.action", "Legacy connectorCall requires connector."),
@@ -439,8 +494,8 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Connector("storeFileDocument", "StoreFileDocumentAction", "fileDocument", "FileDocumentActionExecutor", MicroflowRuntimeConnectorCapability.FileDocumentWrite, "File document storage requires file storage connector capability."),
             Connector("exportFileDocument", "ExportFileDocumentAction", "fileDocument", "FileDocumentActionExecutor", MicroflowRuntimeConnectorCapability.FileDocumentRead, "File document export requires file storage connector capability."),
             Connector("importFileDocument", "ImportFileDocumentAction", "fileDocument", "FileDocumentActionExecutor", MicroflowRuntimeConnectorCapability.FileDocumentWrite, "File document import requires file storage connector capability."),
-            Connector("createExternalObject", "CreateExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object creation requires external object CRUD connector capability."),
-            Connector("changeExternalObject", "ChangeExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object update requires external object CRUD connector capability."),
+            Connector("createExternalObject", "CreateExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object create requires external object connector capability."),
+            Connector("changeExternalObject", "ChangeExternalObjectAction", "externalObject", "ExternalObjectActionExecutor", MicroflowRuntimeConnectorCapability.ExternalObjectCrud, "External object update requires external object connector capability."),
             Command("javascriptAction", "MicroflowGenericAction", "call", "CallJavaScriptActionExecutor", "callJavaScriptAction"),
             Command("nanoflowCall", "MicroflowGenericAction", "call", "CallNanoflowActionExecutor", "callNanoflow"),
             Command("nanoflowCallAction", "MicroflowGenericAction", "call", "CallNanoflowActionExecutor", "callNanoflow"),
@@ -538,7 +593,7 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
                 PayloadJson = context.ActionConfig.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null ? null : context.ActionConfig.GetRawText(),
                 Message = Descriptor.Reason
             };
-            return Task.FromResult(new MicroflowActionExecutionResult
+            return new MicroflowActionExecutionResult
             {
                 Status = MicroflowActionExecutionStatus.PendingClientCommand,
                 OutputJson = JsonSerializer.SerializeToElement(new
@@ -553,7 +608,7 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
                 RuntimeCommands = [command],
                 ShouldContinueNormalFlow = true,
                 Message = Descriptor.Reason
-            });
+            };
         }
 
         if (Category == MicroflowActionRuntimeCategory.ConnectorBacked)
@@ -576,7 +631,7 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
                     ActionId = context.ActionId,
                     Details = JsonSerializer.Serialize(new { ActionKind, request.Capability }, JsonOptions)
                 };
-                return Task.FromResult(new MicroflowActionExecutionResult
+                return new MicroflowActionExecutionResult
                 {
                     Status = MicroflowActionExecutionStatus.ConnectorRequired,
                     Error = error,
@@ -598,7 +653,7 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
                     ShouldEnterErrorHandler = true,
                     ShouldStopRun = true,
                     Message = Descriptor.Reason
-                });
+                };
             }
 
             var connectorResult = await context.ConnectorRegistry.ExecuteAsync(request, ct);
@@ -672,7 +727,7 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
                 ActionId = context.ActionId,
                 Details = JsonSerializer.Serialize(new { ActionKind, SupportLevel }, JsonOptions)
             };
-            return Task.FromResult(new MicroflowActionExecutionResult
+            return new MicroflowActionExecutionResult
             {
                 Status = MicroflowActionExecutionStatus.Unsupported,
                 Error = error,
@@ -692,10 +747,10 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
                 ShouldEnterErrorHandler = true,
                 ShouldStopRun = true,
                 Message = Descriptor.Reason
-            });
+            };
         }
 
-        return Task.FromResult(new MicroflowActionExecutionResult
+        return new MicroflowActionExecutionResult
         {
             Status = MicroflowActionExecutionStatus.Success,
             OutputJson = JsonSerializer.SerializeToElement(new
@@ -706,7 +761,7 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
                 outputPreview = Descriptor.Reason
             }, JsonOptions),
             OutputPreview = Descriptor.Reason
-        });
+        };
     }
 
     private static JsonElement? TryParseConnectorOutputJson(string? json)
@@ -731,6 +786,30 @@ public sealed class ConfiguredMicroflowActionExecutor : IMicroflowActionExecutor
 public sealed class MicroflowRuntimeConnectorRegistry : IMicroflowRuntimeConnectorRegistry
 {
     private readonly Dictionary<string, IMicroflowRuntimeConnector> _connectors = new(StringComparer.OrdinalIgnoreCase);
+
+    public MicroflowRuntimeConnectorRegistry(IEnumerable<IMicroflowRuntimeConnector>? connectors = null)
+    {
+        if (connectors is null)
+        {
+            return;
+        }
+
+        foreach (var connector in connectors)
+        {
+            Register(connector);
+        }
+    }
+
+    public void Register(IMicroflowRuntimeConnector connector)
+    {
+        ArgumentNullException.ThrowIfNull(connector);
+        if (string.IsNullOrWhiteSpace(connector.Capability))
+        {
+            return;
+        }
+
+        _connectors[connector.Capability] = connector;
+    }
 
     public bool HasCapability(string capability)
         => !string.IsNullOrWhiteSpace(capability)

@@ -95,6 +95,10 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<LogMessageActionExecutor>();
         services.TryAddScoped<ThrowExceptionActionExecutor>();
         services.TryAddScoped<WorkflowActionExecutor>();
+        services.TryAddScoped<SoapWebServiceActionExecutor>();
+        services.TryAddScoped<XmlMappingActionExecutor>();
+        services.TryAddScoped<DocumentGenerationActionExecutor>();
+        services.TryAddScoped<ExternalObjectActionExecutor>();
         services.TryAddScoped<FilterListActionExecutor>();
         services.TryAddScoped<SortListActionExecutor>();
         services.TryAddScoped<MetricsActionExecutor>();
@@ -119,6 +123,11 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddSingleton<IGatewayJoinStateStore, InMemoryGatewayJoinStateStore>();
         services.TryAddSingleton<IDebugSessionStore, InMemoryDebugSessionStore>();
         services.TryAddSingleton<DebugSessionSweeper>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IMicroflowRuntimeConnector, SoapWebServiceRuntimeConnector>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IMicroflowRuntimeConnector, XmlImportMappingRuntimeConnector>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IMicroflowRuntimeConnector, XmlExportMappingRuntimeConnector>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IMicroflowRuntimeConnector, DocumentGenerationRuntimeConnector>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IMicroflowRuntimeConnector, ExternalObjectRuntimeConnector>());
         services.TryAddScoped<IMicroflowRuntimeConnectorRegistry, MicroflowRuntimeConnectorRegistry>();
         services.TryAddSingleton<IServerActionRuntime, MissingServerActionRuntime>();
         services.TryAddSingleton<ISoapWebServiceConnector, MissingSoapWebServiceConnector>();

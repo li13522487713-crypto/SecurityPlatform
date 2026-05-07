@@ -256,6 +256,204 @@ public sealed class MicroflowDebugControllerTests
         Assert.True(envelope.Data.LastUpdatedAt > envelope.Data.CreatedAt);
     }
 
+    [Fact]
+    public void SetSuspendPolicy_rejects_invalid_policy()
+    {
+        var store = new InMemoryDebugSessionStore();
+        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
+        accessor.Current.Returns(new MicroflowRequestContext
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1",
+            TraceId = "trace-debug"
+        });
+        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1"
+        });
+        var controller = CreateController(store, accessor);
+
+        var result = controller.SetSuspendPolicy(session.Id, new MicroflowDebugController.DebugSuspendPolicyRequest
+        {
+            Policy = "invalid-policy"
+        });
+
+        var obj = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(422, obj.StatusCode);
+    }
+
+    [Fact]
+    public void SetSuspendPolicy_accepts_branch_only()
+    {
+        var store = new InMemoryDebugSessionStore();
+        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
+        accessor.Current.Returns(new MicroflowRequestContext
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1",
+            TraceId = "trace-debug"
+        });
+        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1"
+        });
+        var controller = CreateController(store, accessor);
+
+        var result = controller.SetSuspendPolicy(session.Id, new MicroflowDebugController.DebugSuspendPolicyRequest
+        {
+            Policy = "branchOnly"
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<MicroflowApiResponse<MicroflowDebugController.DebugSuspendPolicyResult>>(ok.Value);
+        Assert.Equal(session.Id, envelope.Data!.SessionId);
+        Assert.Equal("branchOnly", envelope.Data.Policy);
+    }
+
+    [Fact]
+    public void Timeline_returns_items_ordered_descending_by_created_at()
+    {
+        var store = new InMemoryDebugSessionStore();
+        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
+        accessor.Current.Returns(new MicroflowRequestContext
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1",
+            TraceId = "trace-debug"
+        });
+        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1"
+        });
+        var older = DateTimeOffset.UtcNow.AddMinutes(-2);
+        var newer = DateTimeOffset.UtcNow.AddMinutes(-1);
+        store.Upsert(session with
+        {
+            Trace =
+            [
+                new DebugTraceEvent { Id = "evt-older", Kind = "beforeNode", Message = "older", CreatedAt = older, RunId = "run-1", NodeObjectId = "node-1" },
+                new DebugTraceEvent { Id = "evt-newer", Kind = "afterNode", Message = "newer", CreatedAt = newer, RunId = "run-1", NodeObjectId = "node-2" }
+            ]
+        });
+        var controller = CreateController(store, accessor);
+
+        var result = controller.Timeline(session.Id, take: 10);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<MicroflowApiResponse<IReadOnlyList<MicroflowDebugController.DebugTimelineItem>>>(ok.Value);
+        Assert.Equal(2, envelope.Data!.Count);
+        Assert.Equal("evt-newer", envelope.Data[0].Id);
+        Assert.Equal("evt-older", envelope.Data[1].Id);
+    }
+
+    [Fact]
+    public void MutateVariable_requires_pause_point()
+    {
+        var store = new InMemoryDebugSessionStore();
+        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
+        accessor.Current.Returns(new MicroflowRequestContext
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1",
+            TraceId = "trace-debug"
+        });
+        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1"
+        });
+        store.Upsert(session with
+        {
+            Variables =
+            [
+                new DebugVariableSnapshot
+                {
+                    Name = "flag",
+                    Type = "boolean",
+                    ValuePreview = "false"
+                }
+            ]
+        });
+        var controller = CreateController(store, accessor);
+
+        var result = controller.MutateVariable(session.Id, new MicroflowDebugController.DebugVariableMutateRequest
+        {
+            Name = "flag",
+            ValuePreview = "true",
+            AllowUnsafe = true
+        });
+
+        var obj = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(409, obj.StatusCode);
+    }
+
+    [Fact]
+    public void MutateVariable_updates_snapshot_when_paused()
+    {
+        var store = new InMemoryDebugSessionStore();
+        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
+        accessor.Current.Returns(new MicroflowRequestContext
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1",
+            TraceId = "trace-debug"
+        });
+        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
+        {
+            WorkspaceId = "workspace-1",
+            TenantId = "tenant-1",
+            UserId = "user-1"
+        });
+        store.Upsert(session with
+        {
+            CurrentSafePoint = new MicroflowDebugSafePointSnapshot
+            {
+                NodeObjectId = "node-1",
+                NodeKind = "actionActivity",
+                Phase = "beforeNode",
+                CallDepth = 0,
+                SemanticKind = "node",
+                ArrivedAt = DateTimeOffset.UtcNow
+            },
+            Variables =
+            [
+                new DebugVariableSnapshot
+                {
+                    Name = "flag",
+                    Type = "boolean",
+                    ValuePreview = "false"
+                }
+            ]
+        });
+        var controller = CreateController(store, accessor);
+
+        var result = controller.MutateVariable(session.Id, new MicroflowDebugController.DebugVariableMutateRequest
+        {
+            Name = "flag",
+            ValuePreview = "true",
+            RawValueJson = "true",
+            AllowUnsafe = true
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<MicroflowApiResponse<MicroflowDebugController.DebugVariableMutationResult>>(ok.Value);
+        Assert.True(envelope.Data!.Mutated);
+        Assert.Equal("flag", envelope.Data.Name);
+        Assert.Equal("true", envelope.Data.ValuePreview);
+    }
+
     private static MicroflowDebugController CreateController(InMemoryDebugSessionStore store, IMicroflowRequestContextAccessor accessor)
     {
         var coordinator = new MicroflowDebugCoordinator(store);

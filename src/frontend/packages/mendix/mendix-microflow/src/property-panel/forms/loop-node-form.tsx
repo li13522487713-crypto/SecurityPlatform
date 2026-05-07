@@ -1,4 +1,4 @@
-import { Input, Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Input, Select, Space, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowIterableListLoopSource, MicroflowObject, MicroflowWhileLoopCondition } from "../../schema";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
@@ -13,6 +13,14 @@ import { getVariableNameConflicts } from "../../variables";
 
 const { Text } = Typography;
 
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
+    </Tooltip>
+  );
+}
+
 export function LoopNodeForm({ props, object, issues, metadata, variableIndex, patch }: {
   props: MicroflowPropertyPanelProps;
   object: MicroflowObject;
@@ -21,6 +29,7 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
   variableIndex: MicroflowVariableIndex;
   patch: (next: MicroflowObject) => void;
 }) {
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit loop settings." : "";
   if (object.kind !== "loopedActivity") {
     return null;
   }
@@ -35,43 +44,55 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
   return (
     <>
       <Field label="Loop Type">
-        <Select
-          value={object.loopSource.kind === "whileCondition" ? "while" : "forEach"}
-          disabled={props.readonly}
-          style={{ width: "100%" }}
-          onChange={loopType => {
-            const nextSchema = updateLoopType(props.schema, object.id, String(loopType) === "while" ? "while" : "forEach");
-            const nextObject = collectLoopObjects(nextSchema).find(loop => loop.id === object.id);
-            if (nextObject) {
-              patch(nextObject);
-            }
-          }}
-          optionList={[
-            { label: "forEach", value: "forEach" },
-            { label: "while", value: "while" },
-          ]}
-        />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Loop type",
+          <Select
+            value={object.loopSource.kind === "whileCondition" ? "while" : "forEach"}
+            disabled={props.readonly}
+            style={{ width: "100%" }}
+            onChange={loopType => {
+              const nextSchema = updateLoopType(props.schema, object.id, String(loopType) === "while" ? "while" : "forEach");
+              const nextObject = collectLoopObjects(nextSchema).find(loop => loop.id === object.id);
+              if (nextObject) {
+                patch(nextObject);
+              }
+            }}
+            optionList={[
+              { label: "forEach", value: "forEach" },
+              { label: "while", value: "while" },
+            ]}
+          />
+        )}
         <Text type="tertiary" size="small">当前 schema 支持 forEach 与 while；repeatUntil 未在源码契约中建模，本轮不强行扩展。</Text>
       </Field>
       {object.loopSource.kind === "iterableList" ? (
         <>
           <Field label="Source List / Iterable Expression">
-            <Input
-              value={object.loopSource.listVariableName}
-              disabled={props.readonly}
-              placeholder="List variable name or expression"
-              onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName } as MicroflowIterableListLoopSource })}
-            />
-            <VariableSelector
-              schema={props.schema}
-              objectId={object.id}
-              fieldPath="loopSource.listVariableName"
-              allowedTypeKinds={["list"]}
-              value={object.loopSource.listVariableName}
-              disabled={props.readonly}
-              placeholder="Or select a List variable"
-              onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName: listVariableName ?? "" } as MicroflowIterableListLoopSource })}
-            />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Source list",
+              <Input
+                value={object.loopSource.listVariableName}
+                disabled={props.readonly}
+                placeholder="List variable name or expression"
+                onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName } as MicroflowIterableListLoopSource })}
+              />
+            )}
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Select source list variable",
+              <VariableSelector
+                schema={props.schema}
+                objectId={object.id}
+                fieldPath="loopSource.listVariableName"
+                allowedTypeKinds={["list"]}
+                value={object.loopSource.listVariableName}
+                disabled={props.readonly}
+                placeholder="Or select a List variable"
+                onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName: listVariableName ?? "" } as MicroflowIterableListLoopSource })}
+              />
+            )}
             <FieldError issues={getIssuesForField(issues, "loopSource.listVariableName")} />
           </Field>
           <Field label="Iterator Variable">
@@ -90,12 +111,16 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
             <Text type="warning" size="small">Renaming a loop variable does not rewrite existing expressions.</Text>
           </Field>
           <Field label="Loop Variable Type">
-            <DataTypeSelector
-              value={object.loopSource.iteratorVariableDataType ?? { kind: "unknown", reason: "loop variable" }}
-              disabled={props.readonly}
-              allowVoid={false}
-              onChange={iteratorVariableDataType => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableDataType } as MicroflowIterableListLoopSource })}
-            />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Loop variable type",
+              <DataTypeSelector
+                value={object.loopSource.iteratorVariableDataType ?? { kind: "unknown", reason: "loop variable" }}
+                disabled={props.readonly}
+                allowVoid={false}
+                onChange={iteratorVariableDataType => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableDataType } as MicroflowIterableListLoopSource })}
+              />
+            )}
           </Field>
           <Field label="Current Index Variable">
             <Input value={object.loopSource.currentIndexVariableName ?? "$currentIndex"} disabled />
@@ -139,13 +164,17 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
         </Space>
       </Field>
       <FieldRow label="Error Handling" fieldPath="errorHandlingType" issues={getIssuesForField(issues, "errorHandlingType")}>
-        <Select
-          value={object.errorHandlingType}
-          disabled={props.readonly}
-          style={{ width: "100%" }}
-          onChange={errorHandlingType => patch({ ...object, errorHandlingType: String(errorHandlingType) as typeof object.errorHandlingType })}
-          optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
-        />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Error handling",
+          <Select
+            value={object.errorHandlingType}
+            disabled={props.readonly}
+            style={{ width: "100%" }}
+            onChange={errorHandlingType => patch({ ...object, errorHandlingType: String(errorHandlingType) as typeof object.errorHandlingType })}
+            optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+          />
+        )}
       </FieldRow>
     </>
   );

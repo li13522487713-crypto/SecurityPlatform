@@ -1,4 +1,4 @@
-import { Input, Select, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Input, Select, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
 import type { MicroflowCaseValue } from "../../schema/types";
 import type { MicroflowMetadataCatalog } from "../../metadata";
@@ -14,6 +14,14 @@ import { expression, Field } from "../panel-shared";
 
 const { Text } = Typography;
 
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
+    </Tooltip>
+  );
+}
+
 export function ExclusiveSplitForm({ props, object, issues, metadata, variableIndex, patch }: {
   props: MicroflowPropertyPanelProps;
   object: MicroflowObject;
@@ -22,6 +30,7 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
   variableIndex: MicroflowVariableIndex;
   patch: (next: MicroflowObject) => void;
 }) {
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit decision settings." : "";
   if (object.kind !== "exclusiveSplit") {
     return null;
   }
@@ -39,61 +48,73 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
   return (
     <>
       <Field label="Decision Type">
-        <Select
-          value={object.splitCondition.kind}
-          disabled={props.readonly}
-          style={{ width: "100%" }}
-          onChange={kind => {
-            const nextKind = String(kind);
-            patch({
-              ...object,
-              splitCondition: nextKind === "rule"
-                ? { kind: "rule", ruleQualifiedName: "", parameterMappings: [], resultType: "boolean" }
-                : { kind: "expression", expression: expression("", { kind: "boolean" }), resultType: "boolean" },
-            });
-          }}
-          optionList={[{ label: "expression", value: "expression" }, { label: "rule", value: "rule" }]}
-        />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Decision type",
+          <Select
+            value={object.splitCondition.kind}
+            disabled={props.readonly}
+            style={{ width: "100%" }}
+            onChange={kind => {
+              const nextKind = String(kind);
+              patch({
+                ...object,
+                splitCondition: nextKind === "rule"
+                  ? { kind: "rule", ruleQualifiedName: "", parameterMappings: [], resultType: "boolean" }
+                  : { kind: "expression", expression: expression("", { kind: "boolean" }), resultType: "boolean" },
+              });
+            }}
+            optionList={[{ label: "expression", value: "expression" }, { label: "rule", value: "rule" }]}
+          />
+        )}
       </Field>
       {object.splitCondition.kind === "expression" ? (
         <>
           <Field label="Result Type">
-            <Select
-              value={object.splitCondition.resultType}
-              disabled={props.readonly}
-              style={{ width: "100%" }}
-              onChange={resultType => {
-                if (object.splitCondition.kind !== "expression") {
-                  return;
-                }
-                const nextResultType = String(resultType) as "boolean" | "enumeration";
-                patch({
-                  ...object,
-                  splitCondition: {
-                    kind: "expression",
-                    resultType: nextResultType,
-                    enumerationQualifiedName: nextResultType === "enumeration" ? object.splitCondition.enumerationQualifiedName ?? "" : undefined,
-                    expression: expression(object.splitCondition.expression.raw, nextResultType === "enumeration"
-                      ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
-                      : { kind: "boolean" }),
-                  },
-                });
-              }}
-              optionList={[{ label: "boolean", value: "boolean" }, { label: "enumeration", value: "enumeration" }]}
-            />
-          </Field>
-          {object.splitCondition.resultType === "enumeration" ? (
-            <Field label="Enumeration Type">
-              <EnumerationSelector
-                value={object.splitCondition.enumerationQualifiedName}
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Result type",
+              <Select
+                value={object.splitCondition.resultType}
                 disabled={props.readonly}
-                onChange={enumerationQualifiedName => {
+                style={{ width: "100%" }}
+                onChange={resultType => {
                   if (object.splitCondition.kind !== "expression") {
                     return;
                   }
-                  patch({ ...object, splitCondition: { ...object.splitCondition, enumerationQualifiedName } });
+                  const nextResultType = String(resultType) as "boolean" | "enumeration";
+                  patch({
+                    ...object,
+                    splitCondition: {
+                      kind: "expression",
+                      resultType: nextResultType,
+                      enumerationQualifiedName: nextResultType === "enumeration" ? object.splitCondition.enumerationQualifiedName ?? "" : undefined,
+                      expression: expression(object.splitCondition.expression.raw, nextResultType === "enumeration"
+                        ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
+                        : { kind: "boolean" }),
+                    },
+                  });
                 }}
+                optionList={[{ label: "boolean", value: "boolean" }, { label: "enumeration", value: "enumeration" }]}
               />
+            )}
+          </Field>
+          {object.splitCondition.resultType === "enumeration" ? (
+            <Field label="Enumeration Type">
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Enumeration type",
+                <EnumerationSelector
+                  value={object.splitCondition.enumerationQualifiedName}
+                  disabled={props.readonly}
+                  onChange={enumerationQualifiedName => {
+                    if (object.splitCondition.kind !== "expression") {
+                      return;
+                    }
+                    patch({ ...object, splitCondition: { ...object.splitCondition, enumerationQualifiedName } });
+                  }}
+                />
+              )}
               <FieldError issues={getIssuesForField(issues, "splitCondition.enumerationQualifiedName")} />
             </Field>
           ) : null}
@@ -133,16 +154,20 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
         </>
       ) : (
         <Field label="Rule Reference">
-          <Input
-            value={object.splitCondition.ruleQualifiedName}
-            disabled={props.readonly}
-            onChange={ruleQualifiedName => {
-              if (object.splitCondition.kind !== "rule") {
-                return;
-              }
-              patch({ ...object, splitCondition: { ...object.splitCondition, ruleQualifiedName } });
-            }}
-          />
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Rule reference",
+            <Input
+              value={object.splitCondition.ruleQualifiedName}
+              disabled={props.readonly}
+              onChange={ruleQualifiedName => {
+                if (object.splitCondition.kind !== "rule") {
+                  return;
+                }
+                patch({ ...object, splitCondition: { ...object.splitCondition, ruleQualifiedName } });
+              }}
+            />
+          )}
         </Field>
       )}
     </>

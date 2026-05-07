@@ -1492,6 +1492,27 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
   };
   const selectedNode = workflowNodeById(schema.workflow, schema.editor.selection.objectId) as MicroflowWorkflowNodeJSON | undefined;
   const selectedFlow = workflowEdgeById(schema.workflow, schema.editor.selection.flowId) as MicroflowWorkflowEdgeJSON | undefined;
+  const runButtonDisabledReason = saving ? "Save is in progress." : props.readonly ? "Readonly mode." : "";
+  const saveButtonDisabledReason = saving
+    ? "Save is in progress."
+    : props.readonly
+      ? "Readonly mode."
+      : !dirty
+        ? "No changes to save."
+        : "";
+  const contextDeleteBlockedByProtectedSelection = contextMenu
+    ? selectionHasOnlyProtectedObjects(latestSchemaRef.current, contextMenu.selection)
+    : false;
+  const contextDeleteDisabledReason = props.readonly
+    ? "Readonly mode."
+    : contextDeleteBlockedByProtectedSelection
+      ? "Start/End nodes cannot be deleted."
+      : "";
+  const bottomDeleteDisabledReason = props.readonly
+    ? "Readonly mode."
+    : !(selectedNode || selectedFlow)
+      ? "Select a node or flow first."
+      : "";
 
   return (
     <div ref={shellRef} data-testid="microflow-editor-shell" data-microflow-id={schema.id} style={shellStyle} tabIndex={0} onKeyDown={handleKeyDown}>
@@ -1505,11 +1526,19 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
             <Tag color={issues.some(item => item.severity === "error") ? "red" : "green"}>{issues.length} issues</Tag>
           </Space>
           <Space>
-            <Tooltip content={labels.undo}><Button icon={<IconUndo />} disabled={historyPast.length === 0} onClick={handleUndo} /></Tooltip>
-            <Tooltip content={labels.redo}><Button icon={<IconRedo />} disabled={historyFuture.length === 0} onClick={handleRedo} /></Tooltip>
+            <Tooltip content={historyPast.length === 0 ? "No history to undo." : labels.undo}><span style={{ display: "inline-flex" }}><Button icon={<IconUndo />} disabled={historyPast.length === 0} onClick={handleUndo} /></span></Tooltip>
+            <Tooltip content={historyFuture.length === 0 ? "No history to redo." : labels.redo}><span style={{ display: "inline-flex" }}><Button icon={<IconRedo />} disabled={historyFuture.length === 0} onClick={handleRedo} /></span></Tooltip>
             <Button data-testid="microflow-editor-validate" icon={<IconRefresh />} loading={validationStatus === "validating"} onClick={() => void runValidation("save")}>{labels.validate}</Button>
-            <Button data-testid="microflow-editor-run" icon={<IconPlay />} loading={running} disabled={saving || props.readonly} onClick={() => void handleTestRun()}>{labels.testRun}</Button>
-            <Button data-testid="microflow-editor-save" icon={<IconSave />} type="primary" loading={saving} disabled={saving || props.readonly || !dirty} onClick={() => void handleSave()}>{labels.save}</Button>
+            <Tooltip content={runButtonDisabledReason || labels.testRun}>
+              <span style={{ display: "inline-flex" }}>
+                <Button data-testid="microflow-editor-run" icon={<IconPlay />} loading={running} disabled={saving || props.readonly} onClick={() => void handleTestRun()}>{labels.testRun}</Button>
+              </span>
+            </Tooltip>
+            <Tooltip content={saveButtonDisabledReason || labels.save}>
+              <span style={{ display: "inline-flex" }}>
+                <Button data-testid="microflow-editor-save" icon={<IconSave />} type="primary" loading={saving} disabled={saving || props.readonly || !dirty} onClick={() => void handleSave()}>{labels.save}</Button>
+              </span>
+            </Tooltip>
             {props.toolbarSuffix}
           </Space>
         </div>
@@ -1705,7 +1734,8 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
               role="menuitem"
               data-testid="microflow-canvas-context-menu-delete"
               data-menu-action="delete"
-              disabled={props.readonly || selectionHasOnlyProtectedObjects(latestSchemaRef.current, contextMenu.selection)}
+              disabled={props.readonly || contextDeleteBlockedByProtectedSelection}
+              title={contextDeleteDisabledReason}
               style={{
                 minHeight: 32,
                 display: "flex",
@@ -1717,8 +1747,8 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
                 padding: "6px 12px",
                 color: "var(--semi-color-danger, #f93920)",
                 background: "transparent",
-                cursor: props.readonly || selectionHasOnlyProtectedObjects(latestSchemaRef.current, contextMenu.selection) ? "not-allowed" : "pointer",
-                opacity: props.readonly || selectionHasOnlyProtectedObjects(latestSchemaRef.current, contextMenu.selection) ? 0.45 : 1,
+                cursor: props.readonly || contextDeleteBlockedByProtectedSelection ? "not-allowed" : "pointer",
+                opacity: props.readonly || contextDeleteBlockedByProtectedSelection ? 0.45 : 1,
                 font: "inherit",
               }}
               onPointerDown={event => {
@@ -1790,7 +1820,11 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         <Space>
           {selectedNode ? <Tag color="blue">Node {selectedNode.id}</Tag> : null}
           {selectedFlow ? <Tag color="blue">Flow {(selectedFlow.data as Partial<FlowGramMicroflowEdgeData> | undefined)?.flowId ?? selectedFlow.id}</Tag> : null}
-          <Button size="small" theme="borderless" icon={<IconDelete />} disabled={props.readonly || !(selectedNode || selectedFlow)} onClick={() => handleDeleteSelection()} />
+          <Tooltip content={bottomDeleteDisabledReason || "Delete selection"}>
+            <span style={{ display: "inline-flex" }}>
+              <Button size="small" theme="borderless" icon={<IconDelete />} disabled={props.readonly || !(selectedNode || selectedFlow)} onClick={() => handleDeleteSelection()} />
+            </span>
+          </Tooltip>
           {LEGACY_BOTTOM_PANEL_ENABLED ? (
             <Button size="small" theme="borderless" onClick={() => setBottomDockMode(mode => mode === "collapsed" ? "peek" : "collapsed")}>{bottomOpen ? "Hide" : "Problems"}</Button>
           ) : null}

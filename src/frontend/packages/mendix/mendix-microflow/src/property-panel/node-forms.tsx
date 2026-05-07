@@ -1,4 +1,4 @@
-import { Button, Checkbox, Input, Select, Space, Switch, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Checkbox, Input, Select, Space, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
 import type {
   LegacyMicroflowActivityConfig,
@@ -46,6 +46,14 @@ function updateActivityConfig(props: LegacyActivityFormProps, patch: Partial<Leg
   props.onPatch({ config: patch });
 }
 
+function withReadonlyTooltip(readonly: boolean, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={readonly ? "Readonly mode cannot edit this setting." : enabledHint}>
+      <span style={{ display: "inline-flex" }}>{control}</span>
+    </Tooltip>
+  );
+}
+
 function assignmentEditor(props: LegacyActivityFormProps, entity?: string) {
   const assignments = props.node.config.assignments ?? [];
   return (
@@ -65,18 +73,26 @@ function assignmentEditor(props: LegacyActivityFormProps, entity?: string) {
               placeholder="Expression or value"
               onChange={text => updateActivityConfig(props, { assignments: assignments.map((item, itemIndex) => itemIndex === index ? { ...item, expression: { ...item.expression, text } } : item) })}
             />
-            <Button disabled={props.readonly} type="danger" theme="borderless" onClick={() => updateActivityConfig(props, { assignments: assignments.filter((_, itemIndex) => itemIndex !== index) })}>Delete</Button>
+            {withReadonlyTooltip(
+              props.readonly,
+              "Delete",
+              <Button disabled={props.readonly} type="danger" theme="borderless" onClick={() => updateActivityConfig(props, { assignments: assignments.filter((_, itemIndex) => itemIndex !== index) })}>Delete</Button>
+            )}
           </div>
         ))}
-        <Button
-          disabled={props.readonly}
-          icon={<IconPlus />}
-          onClick={() => updateActivityConfig(props, {
-            assignments: [...assignments, { id: `assignment-${Date.now()}`, attribute: "", expression: createExpression() }]
-          })}
-        >
-          Add assignment
-        </Button>
+        {withReadonlyTooltip(
+          props.readonly,
+          "Add assignment",
+          <Button
+            disabled={props.readonly}
+            icon={<IconPlus />}
+            onClick={() => updateActivityConfig(props, {
+              assignments: [...assignments, { id: `assignment-${Date.now()}`, attribute: "", expression: createExpression() }]
+            })}
+          >
+            Add assignment
+          </Button>
+        )}
       </Space>
     </FieldRow>
   );
@@ -103,10 +119,18 @@ export function MicroflowStartEventForm(rawProps: MicroflowNodeFormProps) {
         />
       </FieldRow>
       <FieldRow label="Allow external call">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.allowExternalCall)} onChange={allowExternalCall => updateEventConfig(props, { allowExternalCall })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Allow external call",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.allowExternalCall)} onChange={allowExternalCall => updateEventConfig(props, { allowExternalCall })} />
+        )}
       </FieldRow>
       <FieldRow label="Record execution log">
-        <Switch disabled={props.readonly} checked={props.node.config.logExecution ?? true} onChange={logExecution => updateEventConfig(props, { logExecution })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Record execution log",
+          <Switch disabled={props.readonly} checked={props.node.config.logExecution ?? true} onChange={logExecution => updateEventConfig(props, { logExecution })} />
+        )}
       </FieldRow>
       <FieldRow label="Input parameter preview">
         <Space vertical align="start" spacing={4}>
@@ -255,7 +279,11 @@ export function MicroflowParameterForm(rawProps: MicroflowNodeFormProps) {
         <Select disabled={props.readonly} style={{ width: "100%" }} value={parameter.type?.name ?? "String"} optionList={["String", "Boolean", "Integer", "Decimal", "DateTime", "Object", "List"].map(name => ({ label: name, value: name }))} onChange={name => props.onPatch({ config: { parameter: { ...parameter, type: typeRef(String(name)) } } })} />
       </FieldRow>
       <FieldRow label="Required">
-        <Switch disabled={props.readonly} checked={parameter.required} onChange={required => props.onPatch({ config: { parameter: { ...parameter, required } } })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Required",
+          <Switch disabled={props.readonly} checked={parameter.required} onChange={required => props.onPatch({ config: { parameter: { ...parameter, required } } })} />
+        )}
       </FieldRow>
       <FieldRow label="Default value">
         <ExpressionEditor readonly={props.readonly} value={props.node.config.defaultValue} variables={props.variables} onChange={defaultValue => props.onPatch({ config: { defaultValue } })} />
@@ -282,10 +310,18 @@ export function MicroflowAnnotationForm(rawProps: MicroflowNodeFormProps) {
         <Input readonly={props.readonly} value={props.node.config.color ?? ""} placeholder="#fff7e0" onChange={color => props.onPatch({ config: { color } })} />
       </FieldRow>
       <FieldRow label="Pinned">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.pinned)} onChange={pinned => props.onPatch({ config: { pinned } })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Pinned",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.pinned)} onChange={pinned => props.onPatch({ config: { pinned } })} />
+        )}
       </FieldRow>
       <FieldRow label="Export to documentation">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.exportToDocumentation)} onChange={exportToDocumentation => props.onPatch({ config: { exportToDocumentation } })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Export to documentation",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.exportToDocumentation)} onChange={exportToDocumentation => props.onPatch({ config: { exportToDocumentation } })} />
+        )}
       </FieldRow>
     </Space>
   );
@@ -343,10 +379,18 @@ export function MicroflowObjectCreateForm(rawProps: MicroflowNodeFormProps) {
       </FieldRow>
       {assignmentEditor(props, props.node.config.entity)}
       <FieldRow label="Commit immediately">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.commitImmediately)} onChange={commitImmediately => updateActivityConfig(props, { commitImmediately })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Commit immediately",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.commitImmediately)} onChange={commitImmediately => updateActivityConfig(props, { commitImmediately })} />
+        )}
       </FieldRow>
       <FieldRow label="Refresh client">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.refreshClient)} onChange={refreshClient => updateActivityConfig(props, { refreshClient })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Refresh client",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.refreshClient)} onChange={refreshClient => updateActivityConfig(props, { refreshClient })} />
+        )}
       </FieldRow>
     </Space>
   );
@@ -362,16 +406,32 @@ export function MicroflowObjectChangeForm(rawProps: MicroflowNodeFormProps) {
       </FieldRow>
       {assignmentEditor(props, props.node.config.entity)}
       <FieldRow label="Commit">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.commitImmediately)} onChange={commitImmediately => updateActivityConfig(props, { commitImmediately })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Commit",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.commitImmediately)} onChange={commitImmediately => updateActivityConfig(props, { commitImmediately })} />
+        )}
       </FieldRow>
       <FieldRow label="With events">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.withEvents)} onChange={withEvents => updateActivityConfig(props, { withEvents })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "With events",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.withEvents)} onChange={withEvents => updateActivityConfig(props, { withEvents })} />
+        )}
       </FieldRow>
       <FieldRow label="Refresh client">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.refreshClient)} onChange={refreshClient => updateActivityConfig(props, { refreshClient })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Refresh client",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.refreshClient)} onChange={refreshClient => updateActivityConfig(props, { refreshClient })} />
+        )}
       </FieldRow>
       <FieldRow label="Validate object">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.validateObject)} onChange={validateObject => updateActivityConfig(props, { validateObject })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Validate object",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.validateObject)} onChange={validateObject => updateActivityConfig(props, { validateObject })} />
+        )}
       </FieldRow>
     </Space>
   );
@@ -386,10 +446,18 @@ export function MicroflowObjectCommitForm(rawProps: MicroflowNodeFormProps) {
         <VariableSelector value={props.node.config.objectVariableName} variables={props.variables} readonly={props.readonly} onChange={objectVariableName => updateActivityConfig(props, { objectVariableName })} />
       </FieldRow>
       <FieldRow label="With events">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.withEvents)} onChange={withEvents => updateActivityConfig(props, { withEvents })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "With events",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.withEvents)} onChange={withEvents => updateActivityConfig(props, { withEvents })} />
+        )}
       </FieldRow>
       <FieldRow label="Refresh client">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.refreshClient)} onChange={refreshClient => updateActivityConfig(props, { refreshClient })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Refresh client",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.refreshClient)} onChange={refreshClient => updateActivityConfig(props, { refreshClient })} />
+        )}
       </FieldRow>
     </Space>
   );
@@ -404,10 +472,18 @@ export function MicroflowObjectDeleteForm(rawProps: MicroflowNodeFormProps) {
         <VariableSelector value={props.node.config.objectVariableName} variables={props.variables} readonly={props.readonly} onChange={objectVariableName => updateActivityConfig(props, { objectVariableName })} />
       </FieldRow>
       <FieldRow label="Delete list">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.deleteList)} onChange={deleteList => updateActivityConfig(props, { deleteList })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Delete list",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.deleteList)} onChange={deleteList => updateActivityConfig(props, { deleteList })} />
+        )}
       </FieldRow>
       <FieldRow label="With events">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.withEvents)} onChange={withEvents => updateActivityConfig(props, { withEvents })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "With events",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.withEvents)} onChange={withEvents => updateActivityConfig(props, { withEvents })} />
+        )}
       </FieldRow>
       <FieldRow label="Delete confirmation">
         <TextArea autosize readonly={props.readonly} value={props.node.config.deleteConfirmation ?? ""} onChange={deleteConfirmation => updateActivityConfig(props, { deleteConfirmation })} />
@@ -447,7 +523,11 @@ export function MicroflowVariableCreateForm(rawProps: MicroflowNodeFormProps) {
         <ExpressionEditor readonly={props.readonly} value={props.node.config.valueExpression} variables={props.variables} onChange={valueExpression => updateActivityConfig(props, { valueExpression })} />
       </FieldRow>
       <FieldRow label="Readonly">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.readonly)} onChange={readonly => updateActivityConfig(props, { readonly })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Readonly",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.readonly)} onChange={readonly => updateActivityConfig(props, { readonly })} />
+        )}
       </FieldRow>
     </Space>
   );
@@ -534,10 +614,18 @@ export function MicroflowLogMessageForm(rawProps: MicroflowNodeFormProps) {
         <ExpressionEditor required readonly={props.readonly} value={props.node.config.messageExpression} variables={props.variables} onChange={messageExpression => updateActivityConfig(props, { messageExpression })} />
       </FieldRow>
       <FieldRow label="Record context variables">
-        <Switch disabled={props.readonly} checked={Boolean(props.node.config.logContextVariables)} onChange={logContextVariables => updateActivityConfig(props, { logContextVariables })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Record context variables",
+          <Switch disabled={props.readonly} checked={Boolean(props.node.config.logContextVariables)} onChange={logContextVariables => updateActivityConfig(props, { logContextVariables })} />
+        )}
       </FieldRow>
       <FieldRow label="Record traceId">
-        <Switch disabled={props.readonly} checked={props.node.config.logTraceId ?? true} onChange={logTraceId => updateActivityConfig(props, { logTraceId })} />
+        {withReadonlyTooltip(
+          props.readonly,
+          "Record traceId",
+          <Switch disabled={props.readonly} checked={props.node.config.logTraceId ?? true} onChange={logTraceId => updateActivityConfig(props, { logTraceId })} />
+        )}
       </FieldRow>
     </Space>
   );

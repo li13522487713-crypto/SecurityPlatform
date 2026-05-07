@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Input, InputNumber, Select, Switch, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Input, InputNumber, Select, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowFlow, MicroflowSequenceFlow } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../../flowgram/adapters/flowgram-case-options";
@@ -10,6 +10,14 @@ import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "../types";
 import { Header, PropertyTabs, Field, flowPatch, getFlowTabs, issuesFor, objectName } from "../panel-shared";
 
 const { Text } = Typography;
+
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
+    </Tooltip>
+  );
+}
 
 function CaseValueField({ props, flow, patch }: {
   props: MicroflowPropertyPanelProps;
@@ -39,32 +47,37 @@ function CaseValueField({ props, flow, patch }: {
   const current = flow.caseValues[0];
   const currentKey = current ? caseValueKey(current) : undefined;
   const conflicts = getDecisionBranchConflicts(props.schema, flow.originObjectId).filter(item => item.flowIds.includes(flow.id));
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit decision branch case." : "";
   return (
     <Field label={caseKind === "enumeration" ? "Enumeration Case" : caseKind === "objectType" ? "Object Type Case" : "Boolean Case"}>
-      <Select
-        value={currentKey}
-        disabled={props.readonly}
-        style={{ width: "100%" }}
-        onChange={value => {
-          const option = options.find(item => item.key === String(value));
-          if (!option) {
-            return;
-          }
-          patch(flowPatch(flow, {
-            caseValues: [option.caseValue],
-            editor: {
-              ...flow.editor,
-              edgeKind: caseKind === "objectType" ? "objectTypeCondition" : "decisionCondition",
-              label: option.label,
-            },
-          }));
-        }}
-        optionList={options.map(option => ({
-          label: option.reason ? `${option.label} - ${option.reason}` : option.label,
-          value: option.key,
-          disabled: option.disabled,
-        }))}
-      />
+      {withDisabledReason(
+        readonlyDisabledReason,
+        "Branch case",
+        <Select
+          value={currentKey}
+          disabled={props.readonly}
+          style={{ width: "100%" }}
+          onChange={value => {
+            const option = options.find(item => item.key === String(value));
+            if (!option) {
+              return;
+            }
+            patch(flowPatch(flow, {
+              caseValues: [option.caseValue],
+              editor: {
+                ...flow.editor,
+                edgeKind: caseKind === "objectType" ? "objectTypeCondition" : "decisionCondition",
+                label: option.label,
+              },
+            }));
+          }}
+          optionList={options.map(option => ({
+            label: option.reason ? `${option.label} - ${option.reason}` : option.label,
+            value: option.key,
+            disabled: option.disabled,
+          }))}
+        />
+      )}
       {!current || current.kind === "noCase" ? <Text type="warning" size="small">Branch case is not configured.</Text> : null}
       {conflicts.length ? <Text type="warning" size="small">Duplicate branch case: {conflicts.map(item => item.key).join(", ")}</Text> : null}
     </Field>
@@ -85,6 +98,7 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
   const patch = (next: MicroflowFlow) => props.onFlowChange?.(flow.id, next);
   const loopFlowKind = getLoopFlowKind(props.schema, flow);
   const loopSources = collectLoopObjects(props.schema).filter(loop => loop.id === flow.originObjectId);
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit flow edge settings." : "";
   return (
     <>
       <Header
@@ -118,23 +132,27 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
         </Field>
         <Field label="Loop Flow Role">
           {flow.kind === "sequence" && loopSources.length ? (
-            <Select
-              value={loopFlowKind === "body" || loopFlowKind === "exit" ? loopFlowKind : undefined}
-              disabled={props.readonly}
-              placeholder="Not a loop body/exit flow"
-              style={{ width: "100%" }}
-              optionList={[
-                { label: "Body", value: "body" },
-                { label: "After / Exit", value: "exit" },
-              ]}
-              onChange={value => {
-                const role = String(value) === "body" ? "body" : "exit";
-                patch(flowPatch(flow, {
-                  originConnectionIndex: role === "body" ? 2 : 1,
-                  editor: { ...flow.editor, label: role === "body" ? "Body" : "After" },
-                } as MicroflowEdgePatch));
-              }}
-            />
+            withDisabledReason(
+              readonlyDisabledReason,
+              "Loop flow role",
+              <Select
+                value={loopFlowKind === "body" || loopFlowKind === "exit" ? loopFlowKind : undefined}
+                disabled={props.readonly}
+                placeholder="Not a loop body/exit flow"
+                style={{ width: "100%" }}
+                optionList={[
+                  { label: "Body", value: "body" },
+                  { label: "After / Exit", value: "exit" },
+                ]}
+                onChange={value => {
+                  const role = String(value) === "body" ? "body" : "exit";
+                  patch(flowPatch(flow, {
+                    originConnectionIndex: role === "body" ? 2 : 1,
+                    editor: { ...flow.editor, label: role === "body" ? "Body" : "After" },
+                  } as MicroflowEdgePatch));
+                }}
+              />
+            )
           ) : (
             <Input value={loopFlowKind === "none" ? "Not a Loop body/exit flow" : loopFlowKind} disabled />
           )}
@@ -148,13 +166,17 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
           <InputNumber value={flow.destinationConnectionIndex ?? 0} disabled />
         </Field>
         <Field label="Line Routing">
-          <Select
-            value={flow.line.kind}
-            disabled={props.readonly}
-            style={{ width: "100%" }}
-            onChange={kind => patch(flowPatch(flow, { line: { ...flow.line, kind: String(kind) as typeof flow.line.kind } }))}
-            optionList={["orthogonal", "polyline", "bezier"].map(value => ({ label: value, value }))}
-          />
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Line routing",
+            <Select
+              value={flow.line.kind}
+              disabled={props.readonly}
+              style={{ width: "100%" }}
+              onChange={kind => patch(flowPatch(flow, { line: { ...flow.line, kind: String(kind) as typeof flow.line.kind } }))}
+              optionList={["orthogonal", "polyline", "bezier"].map(value => ({ label: value, value }))}
+            />
+          )}
         </Field>
         {flow.kind === "sequence" ? (
           <>
@@ -162,54 +184,92 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
               <Input value={flow.editor.edgeKind} disabled />
             </Field>
             <Field label="Error Handler">
-              <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : flow.editor.edgeKind } }))} />
+              <Tooltip content={readonlyDisabledReason || "Toggle error handler"}>
+                <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : flow.editor.edgeKind } }))} />
+              </Tooltip>
             </Field>
             {flow.isErrorHandler ? (
               <>
                 <Field label="Expose latestError">
-                  <Switch checked={flow.exposeLatestError ?? true} disabled={props.readonly} onChange={exposeLatestError => patch(flowPatch(flow, { exposeLatestError }))} />
+                  <Tooltip content={readonlyDisabledReason || "Expose latestError"}>
+                    <Switch checked={flow.exposeLatestError ?? true} disabled={props.readonly} onChange={exposeLatestError => patch(flowPatch(flow, { exposeLatestError }))} />
+                  </Tooltip>
                 </Field>
                 <Field label="Expose latestHttpResponse">
-                  <Switch checked={Boolean(flow.exposeLatestHttpResponse)} disabled={props.readonly} onChange={exposeLatestHttpResponse => patch(flowPatch(flow, { exposeLatestHttpResponse }))} />
+                  <Tooltip content={readonlyDisabledReason || "Expose latestHttpResponse"}>
+                    <Switch checked={Boolean(flow.exposeLatestHttpResponse)} disabled={props.readonly} onChange={exposeLatestHttpResponse => patch(flowPatch(flow, { exposeLatestHttpResponse }))} />
+                  </Tooltip>
                 </Field>
                 <Field label="Expose latestSoapFault">
-                  <Switch checked={Boolean(flow.exposeLatestSoapFault)} disabled={props.readonly} onChange={exposeLatestSoapFault => patch(flowPatch(flow, { exposeLatestSoapFault }))} />
+                  <Tooltip content={readonlyDisabledReason || "Expose latestSoapFault"}>
+                    <Switch checked={Boolean(flow.exposeLatestSoapFault)} disabled={props.readonly} onChange={exposeLatestSoapFault => patch(flowPatch(flow, { exposeLatestSoapFault }))} />
+                  </Tooltip>
                 </Field>
                 <Field label="Error variable name">
-                  <Input value={flow.targetErrorVariableName ?? ""} disabled={props.readonly} onChange={targetErrorVariableName => patch(flowPatch(flow, { targetErrorVariableName }))} />
+                  {withDisabledReason(
+                    readonlyDisabledReason,
+                    "Error variable name",
+                    <Input value={flow.targetErrorVariableName ?? ""} disabled={props.readonly} onChange={targetErrorVariableName => patch(flowPatch(flow, { targetErrorVariableName }))} />
+                  )}
                 </Field>
               </>
             ) : null}
             <CaseValueField props={props} flow={flow} patch={patch} />
             <Field label="Branch Order">
-              <InputNumber value={flow.editor.branchOrder ?? 0} disabled={props.readonly} onChange={branchOrder => patch(flowPatch(flow, { editor: { ...flow.editor, branchOrder: Number(branchOrder) } }))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Branch order",
+                <InputNumber value={flow.editor.branchOrder ?? 0} disabled={props.readonly} onChange={branchOrder => patch(flowPatch(flow, { editor: { ...flow.editor, branchOrder: Number(branchOrder) } }))} />
+              )}
             </Field>
             <Field label="Label">
-              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Label",
+                <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
+              )}
             </Field>
             <Field label="Description">
-              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } } as MicroflowEdgePatch))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Description",
+                <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } } as MicroflowEdgePatch))} />
+              )}
             </Field>
           </>
         ) : (
           <>
             <Field label="Show In Export">
-              <Switch checked={flow.editor.showInExport} disabled={props.readonly} onChange={showInExport => patch(flowPatch(flow, { editor: { ...flow.editor, showInExport } }))} />
+              <Tooltip content={readonlyDisabledReason || "Show in export"}>
+                <Switch checked={flow.editor.showInExport} disabled={props.readonly} onChange={showInExport => patch(flowPatch(flow, { editor: { ...flow.editor, showInExport } }))} />
+              </Tooltip>
             </Field>
             <Field label="Attachment Mode">
-              <Select
-                value={flow.attachmentMode ?? "edge"}
-                disabled={props.readonly}
-                style={{ width: "100%" }}
-                onChange={attachmentMode => patch(flowPatch(flow, { attachmentMode: String(attachmentMode) as "node" | "edge" | "canvas" }))}
-                optionList={["node", "edge", "canvas"].map(value => ({ label: value, value }))}
-              />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Attachment mode",
+                <Select
+                  value={flow.attachmentMode ?? "edge"}
+                  disabled={props.readonly}
+                  style={{ width: "100%" }}
+                  onChange={attachmentMode => patch(flowPatch(flow, { attachmentMode: String(attachmentMode) as "node" | "edge" | "canvas" }))}
+                  optionList={["node", "edge", "canvas"].map(value => ({ label: value, value }))}
+                />
+              )}
             </Field>
             <Field label="Label">
-              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Label",
+                <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
+              )}
             </Field>
             <Field label="Description">
-              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } } as MicroflowEdgePatch))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Description",
+                <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } } as MicroflowEdgePatch))} />
+              )}
             </Field>
           </>
         )}
@@ -218,23 +278,39 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
         {activeTab === "documentation" ? (
           <>
             <Field label="Label">
-              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Label",
+                <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
+              )}
             </Field>
             <Field label="Description">
-              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } } as MicroflowEdgePatch))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Description",
+                <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } } as MicroflowEdgePatch))} />
+              )}
             </Field>
           </>
         ) : null}
         {activeTab === "errorHandling" && flow.kind === "sequence" ? (
           <>
             <Field label="Error Handler">
-              <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : "sequence" } }))} />
+              <Tooltip content={readonlyDisabledReason || "Toggle error handler"}>
+                <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : "sequence" } }))} />
+              </Tooltip>
             </Field>
             <Field label="Expose latestError">
-              <Switch checked={flow.exposeLatestError ?? true} disabled={props.readonly} onChange={exposeLatestError => patch(flowPatch(flow, { exposeLatestError }))} />
+              <Tooltip content={readonlyDisabledReason || "Expose latestError"}>
+                <Switch checked={flow.exposeLatestError ?? true} disabled={props.readonly} onChange={exposeLatestError => patch(flowPatch(flow, { exposeLatestError }))} />
+              </Tooltip>
             </Field>
             <Field label="Error variable name">
-              <Input value={flow.targetErrorVariableName ?? "$latestError"} disabled={props.readonly} onChange={targetErrorVariableName => patch(flowPatch(flow, { targetErrorVariableName }))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Error variable name",
+                <Input value={flow.targetErrorVariableName ?? "$latestError"} disabled={props.readonly} onChange={targetErrorVariableName => patch(flowPatch(flow, { targetErrorVariableName }))} />
+              )}
             </Field>
           </>
         ) : null}

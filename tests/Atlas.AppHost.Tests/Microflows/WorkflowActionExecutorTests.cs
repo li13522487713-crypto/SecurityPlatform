@@ -92,6 +92,33 @@ public sealed class WorkflowActionExecutorTests
         Assert.Equal("task-1", client.LastEventKey);
     }
 
+    [Theory]
+    [InlineData("notifyWorkflow", "workflow.notify")]
+    [InlineData("retrieveWorkflowContext", "workflow.context.retrieve")]
+    [InlineData("showUserTaskPage", "workflow.user-task-page.show")]
+    public async Task ExtendedWorkflowActions_Publish_Default_Event(string actionKind, string expectedEventName)
+    {
+        var client = new RecordingWorkflowRuntimeClient
+        {
+            CommandResult = new WorkflowRuntimeCommandResult { Success = true }
+        };
+        var executor = new WorkflowActionExecutor(client);
+
+        var result = await executor.ExecuteAsync(
+            CreateContext(
+                actionKind,
+                new
+                {
+                    instanceId = "wf-instance-3",
+                    data = new { source = "test" }
+                }),
+            CancellationToken.None);
+
+        Assert.Equal(MicroflowActionExecutionStatus.Success, result.Status);
+        Assert.Equal(expectedEventName, client.LastEventName);
+        Assert.Equal("wf-instance-3", client.LastEventKey);
+    }
+
     private static MicroflowActionExecutionContext CreateContext(string actionKind, object config)
     {
         var plan = new MicroflowExecutionPlan

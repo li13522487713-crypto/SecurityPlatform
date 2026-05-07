@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Button, Space, Tabs, Tag, Typography } from "@douyinfe/semi-ui";
+import { Button, Space, Tabs, Tag, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconClose, IconCopy, IconDelete } from "@douyinfe/semi-icons";
 import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowExpression, MicroflowFlow, MicroflowObject } from "../schema";
 import type { MicroflowPropertyTabKey } from "../schema/types";
@@ -60,6 +60,7 @@ export function Header({ props, title, subtitle, onDelete, onDuplicate }: {
   onDelete?: () => void;
   onDuplicate?: () => void;
 }) {
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit this object." : "";
   const counts = countIssuesBySeverity(props.selectedFlow
     ? getIssuesForFlow(props.validationIssues, props.selectedFlow.id)
     : props.selectedObject
@@ -89,8 +90,20 @@ export function Header({ props, title, subtitle, onDelete, onDuplicate }: {
           {runtimeStatus ? <Tag color={runtimeStatus.status === "failed" ? "red" : runtimeStatus.status === "success" || runtimeStatus.status === "visited" ? "green" : "grey"}>{runtimeStatus.status}</Tag> : <Tag color="grey">notRun</Tag>}
           {counts.errors > 0 ? <Tag color="red">{counts.errors} error</Tag> : null}
           {counts.warnings > 0 ? <Tag color="orange">{counts.warnings} warning</Tag> : null}
-          {onDuplicate ? <Button icon={<IconCopy />} theme="borderless" onClick={onDuplicate} disabled={props.readonly} /> : null}
-          {onDelete ? <Button icon={<IconDelete />} theme="borderless" type="danger" onClick={onDelete} disabled={props.readonly} /> : null}
+          {onDuplicate ? (
+            <Tooltip content={readonlyDisabledReason || "Duplicate"}>
+              <span style={{ display: "inline-flex" }}>
+                <Button icon={<IconCopy />} theme="borderless" onClick={onDuplicate} disabled={props.readonly} />
+              </span>
+            </Tooltip>
+          ) : null}
+          {onDelete ? (
+            <Tooltip content={readonlyDisabledReason || "Delete"}>
+              <span style={{ display: "inline-flex" }}>
+                <Button icon={<IconDelete />} theme="borderless" type="danger" onClick={onDelete} disabled={props.readonly} />
+              </span>
+            </Tooltip>
+          ) : null}
           <Button icon={<IconClose />} theme="borderless" onClick={props.onClose} />
         </Space>
       </Space>

@@ -179,6 +179,28 @@ public sealed class MicroflowActionExecutorRegistryTests
     }
 
     [Fact]
+    public async Task RuntimeConnectorRegistry_CanRegisterAndExecuteConnector()
+    {
+        var registry = new MicroflowRuntimeConnectorRegistry();
+        registry.Register(new PassThroughRuntimeConnector(MicroflowRuntimeConnectorCapability.SoapWebService));
+
+        Assert.True(registry.HasCapability(MicroflowRuntimeConnectorCapability.SoapWebService));
+        Assert.Contains(MicroflowRuntimeConnectorCapability.SoapWebService, registry.ListEnabledCapabilities());
+
+        var result = await registry.ExecuteAsync(
+            new MicroflowConnectorExecutionRequest
+            {
+                Capability = MicroflowRuntimeConnectorCapability.SoapWebService,
+                ActionKind = "webServiceCall",
+                ObjectId = "node-1"
+            },
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(MicroflowRuntimeConnectorCapability.SoapWebService, result.Capability);
+    }
+
+    [Fact]
     public void R3ProductionExecutors_AreSupportedAndNoLongerModeledOnly()
     {
         var byKind = MicroflowActionExecutorRegistry.BuiltInDescriptors()
@@ -274,5 +296,25 @@ public sealed class MicroflowActionExecutorRegistryTests
             Requests.Add(request);
             return Task.FromResult(_result);
         }
+    }
+
+    private sealed class PassThroughRuntimeConnector : IMicroflowRuntimeConnector
+    {
+        public PassThroughRuntimeConnector(string capability)
+        {
+            Capability = capability;
+        }
+
+        public string Capability { get; }
+
+        public bool Enabled => true;
+
+        public Task<MicroflowConnectorExecutionResult> ExecuteAsync(MicroflowConnectorExecutionRequest request, CancellationToken ct)
+            => Task.FromResult(new MicroflowConnectorExecutionResult
+            {
+                Success = true,
+                Capability = Capability,
+                OutputJson = "{\"ok\":true}"
+            });
     }
 }

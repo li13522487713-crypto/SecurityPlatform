@@ -56,6 +56,25 @@ function JsonBlock({ value }: { value: unknown }) {
   return <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(value ?? null, null, 2)}</pre>;
 }
 
+function summarizeFramePayload(label: string, payload: unknown): string | null {
+  if (payload == null) {
+    return null;
+  }
+  if (Array.isArray(payload)) {
+    return `${label}[${payload.length}]`;
+  }
+  if (typeof payload === "object") {
+    const keys = Object.keys(payload as Record<string, unknown>);
+    if (keys.length === 0) {
+      return `${label}{}`;
+    }
+    const preview = keys.slice(0, 3).join(", ");
+    const suffix = keys.length > 3 ? ` +${keys.length - 3}` : "";
+    return `${label}{${preview}${suffix}}`;
+  }
+  return `${label}:${String(payload)}`;
+}
+
 function branchStatusColor(status: string): "green" | "red" | "blue" | "grey" {
   if (status === "completed") {
     return "green";
@@ -131,7 +150,29 @@ export function MicroflowTracePanel({
                         </Text>
                       </>
                     ) : null}
-                    {item.frame.error?.message ? <><br /><Text size="small" type="danger">{item.frame.error.message}</Text></> : null}
+                    {(() => {
+                      const inputSummary = summarizeFramePayload("in", item.frame.input);
+                      const outputSummary = summarizeFramePayload("out", item.frame.output);
+                      if (!inputSummary && !outputSummary) {
+                        return null;
+                      }
+                      return (
+                        <>
+                          <br />
+                          <Text size="small" type="tertiary">
+                            {[inputSummary, outputSummary].filter(Boolean).join(" · ")}
+                          </Text>
+                        </>
+                      );
+                    })()}
+                    {item.frame.error ? (
+                      <>
+                        <br />
+                        <Text size="small" type="danger">
+                          {item.frame.error.code}: {item.frame.error.message}
+                        </Text>
+                      </>
+                    ) : null}
                   </button>
                   <Space>
                     {item.frame.incomingFlowId ? <Tag onClick={() => onSelectFlow(item.frame.incomingFlowId as string)}>in</Tag> : null}

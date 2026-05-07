@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@douyinfe/semi-ui", () => ({
   Button: ({ onClick, children }: { onClick?: () => void; children?: React.ReactNode }) => <button type="button" onClick={onClick}>{children}</button>,
   Space: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  Tooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   Select: (props: { optionList?: Array<{ label: string; value: string }>; onChange?: (value?: string) => void; placeholder?: string }) => (
     <select data-testid={`select-${props.placeholder ?? "default"}`} onChange={event => props.onChange?.(event.currentTarget.value)}>
       <option value="" />

@@ -1614,6 +1614,22 @@ function DebugPanel({
     return <Empty title="运行服务不可用" description={serviceError} />;
   }
   const hasTrace = Boolean(session && buildExecutionPath(session).length > 0);
+  const canApplyPolicy = Boolean(onDebugSuspendPolicyChange);
+  const applyPolicyDisabledReason = canApplyPolicy ? "" : "Current debug adapter does not support suspend policy updates.";
+  const canRefreshTimeline = Boolean(onDebugRefreshTimeline);
+  const refreshTimelineDisabledReason = canRefreshTimeline ? "" : "Current debug adapter does not expose debug timeline refresh.";
+  const canRerun = session ? session.status !== "running" : false;
+  const rerunDisabledReason = canRerun ? "" : "Cannot rerun while current run is still running.";
+  const canCancelRun = session ? session.status === "running" || session.status === "queued" : false;
+  const cancelRunDisabledReason = canCancelRun ? "" : "Only queued/running sessions can be cancelled.";
+  const canRetryQueuedRun = Boolean(onRetryQueuedRun && session && session.status !== "running" && session.status !== "queued");
+  const retryQueuedRunDisabledReason = !onRetryQueuedRun
+    ? "Current runtime adapter does not support queued retry."
+    : !session
+      ? "No run session to retry."
+      : session.status === "running" || session.status === "queued"
+        ? "Cannot retry while current run is queued/running."
+        : "";
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       {debugAvailable && debugSession ? (
@@ -1675,8 +1691,16 @@ function DebugPanel({
                     { label: "Branch only", value: "branchOnly" },
                   ]}
                 />
-                <Button size="small" onClick={() => onDebugSuspendPolicyChange?.(suspendPolicyDraft)}>Apply Policy</Button>
-                <Button size="small" onClick={onDebugRefreshTimeline}>Refresh Timeline</Button>
+                <Tooltip content={applyPolicyDisabledReason || "Apply debug suspend policy"}>
+                  <span style={{ display: "inline-flex" }}>
+                    <Button size="small" disabled={!canApplyPolicy} onClick={() => onDebugSuspendPolicyChange?.(suspendPolicyDraft)}>Apply Policy</Button>
+                  </span>
+                </Tooltip>
+                <Tooltip content={refreshTimelineDisabledReason || "Refresh debug timeline"}>
+                  <span style={{ display: "inline-flex" }}>
+                    <Button size="small" disabled={!canRefreshTimeline} onClick={onDebugRefreshTimeline}>Refresh Timeline</Button>
+                  </span>
+                </Tooltip>
               </Space>
               <Space wrap>
                 <Input
@@ -1692,13 +1716,15 @@ function DebugPanel({
                   placeholder="New value preview/json"
                 />
                 <Tooltip content={!debugSession.currentSafePoint ? "仅暂停点允许修改变量" : !mutateVariableName.trim() ? "变量名不能为空" : ""}>
-                  <Button
-                    size="small"
-                    disabled={!debugSession.currentSafePoint || !mutateVariableName.trim()}
-                    onClick={() => onDebugMutateVariable?.(mutateVariableName.trim(), mutateVariableValue)}
-                  >
-                    Mutate Variable
-                  </Button>
+                  <span style={{ display: "inline-flex" }}>
+                    <Button
+                      size="small"
+                      disabled={!debugSession.currentSafePoint || !mutateVariableName.trim()}
+                      onClick={() => onDebugMutateVariable?.(mutateVariableName.trim(), mutateVariableValue)}
+                    >
+                      Mutate Variable
+                    </Button>
+                  </span>
                 </Tooltip>
               </Space>
               <div style={{ width: "100%", maxHeight: 180, overflow: "auto", border: "1px solid var(--semi-color-border)", borderRadius: 6, padding: 8 }}>
@@ -1747,10 +1773,26 @@ function DebugPanel({
           <Tag>{session.childRuns?.length ?? 0} child runs</Tag>
         </Space>
         <Space>
-          <Button size="small" onClick={onRerun}>重新运行</Button>
-          {onRetryQueuedRun ? <Button size="small" onClick={onRetryQueuedRun}>重试队列运行</Button> : null}
-          <Button size="small" type="warning" onClick={onCancelRun}>取消运行</Button>
-          <Button size="small" type="danger" theme="borderless" onClick={onClear}>清空</Button>
+          <Tooltip content={rerunDisabledReason || "重新运行"}>
+            <span style={{ display: "inline-flex" }}>
+              <Button size="small" disabled={!canRerun} onClick={onRerun}>重新运行</Button>
+            </span>
+          </Tooltip>
+          {onRetryQueuedRun ? (
+            <Tooltip content={retryQueuedRunDisabledReason || "重试队列运行"}>
+              <span style={{ display: "inline-flex" }}>
+                <Button size="small" disabled={!canRetryQueuedRun} onClick={onRetryQueuedRun}>重试队列运行</Button>
+              </span>
+            </Tooltip>
+          ) : null}
+          <Tooltip content={cancelRunDisabledReason || "取消运行"}>
+            <span style={{ display: "inline-flex" }}>
+              <Button size="small" type="warning" disabled={!canCancelRun} onClick={onCancelRun}>取消运行</Button>
+            </span>
+          </Tooltip>
+          <Tooltip content="清空当前调试视图（不影响已保存的运行记录）">
+            <Button size="small" type="danger" theme="borderless" onClick={onClear}>清空</Button>
+          </Tooltip>
         </Space>
       </Space>
       <MicroflowTracePanel
@@ -2217,6 +2259,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   ) => {
     commitSchema(applyEditorGraphPatchToAuthoring(schema, patch), options.reason ?? "bulkUpdate", options);
   };
+
+  const emitPanelSyncEvent = useCallback((detail: PanelSyncEvent) => {
+    window.dispatchEvent(new CustomEvent<PanelSyncEvent>("atlas:microflow-panel-sync", { detail }));
+  }, []);
 
   const quickAddPosition = (): MicroflowPoint => {
     const viewport = schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
@@ -3124,6 +3170,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       selectedCollectionId: frame.collectionId ?? findObjectWithCollection(schema, targetObjectId)?.collectionId,
       viewport: viewportCenteredOn(targetPosition),
     }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" });
+    emitPanelSyncEvent({
+      type: "trace-focus",
+      nodeId: targetObjectId,
+      frameId: frame.id,
+    });
   };
 
   const selectTraceFlow = (flowId: string) => {
@@ -3134,6 +3185,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       selectedFlowId: flowId,
       selectedCollectionId: located?.collectionId,
     }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" });
+    emitPanelSyncEvent({
+      type: "trace-focus",
+      flowId,
+    });
   };
 
   const selectTraceError = (error: NonNullable<MicroflowTraceFrame["error"]>) => {
@@ -3216,6 +3271,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     commitSchema(nextSchema, "addNode", { historyLabel: "Create missing Decision branch", source: "propertyPanel" });
+    emitPanelSyncEvent({
+      type: "problem-fix",
+      issueId: issue.id,
+      nodeId: issue.objectId ?? issue.nodeId,
+      flowId: issue.flowId ?? issue.edgeId,
+    });
     setBottomDockMode("peek");
     setBottomTab("problems");
     Toast.success(labels.missingDecisionBranchCreated);
@@ -3267,6 +3328,114 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     Toast.info({ content: "已自动排版，可按 Ctrl+Z 撤销", duration: 4 });
   };
 
+  const collectDeleteImpact = useCallback((objectIds: string[], flowIds: string[]) => {
+    const uniqueObjectIds = [...new Set(objectIds)];
+    const uniqueFlowIds = [...new Set(flowIds)];
+    const objectIdSet = new Set(uniqueObjectIds);
+    const selectedFlowIdSet = new Set(uniqueFlowIds);
+    const allFlows = collectFlowsRecursive(schema);
+    const cascadedFlowIds = allFlows
+      .filter(flow => (objectIdSet.has(flow.originObjectId) || objectIdSet.has(flow.destinationObjectId)) && !selectedFlowIdSet.has(flow.id))
+      .map(flow => flow.id);
+    const objectKinds = uniqueObjectIds
+      .map(id => findObject(schema, id)?.kind)
+      .filter((kind): kind is NonNullable<MicroflowObject["kind"]> => Boolean(kind));
+    const splitNodeCount = objectKinds.filter(kind => kind === "exclusiveSplit" || kind === "inheritanceSplit" || kind === "parallelGateway" || kind === "inclusiveGateway").length;
+    const callMicroflowCount = uniqueObjectIds
+      .map(id => findObject(schema, id))
+      .filter((node): node is Extract<MicroflowObject, { kind: "actionActivity" }> => Boolean(node && node.kind === "actionActivity"))
+      .filter(node => node.action.kind === "callMicroflow")
+      .length;
+    return {
+      nodeCount: uniqueObjectIds.length,
+      selectedFlowCount: uniqueFlowIds.length,
+      cascadedFlowCount: cascadedFlowIds.length,
+      splitNodeCount,
+      callMicroflowCount,
+      totalElements: uniqueObjectIds.length + uniqueFlowIds.length + cascadedFlowIds.length,
+    };
+  }, [schema]);
+
+  const applyDeleteTargets = useCallback((objectIds: string[], flowIds: string[], source: MicroflowSchemaChangeSource) => {
+    const uniqueObjectIds = [...new Set(objectIds)];
+    const uniqueFlowIds = [...new Set(flowIds)];
+    const totalCount = uniqueObjectIds.length + uniqueFlowIds.length;
+    if (totalCount === 0) {
+      return;
+    }
+    if (uniqueFlowIds.length > 1 || uniqueObjectIds.length > 1 || totalCount > 1) {
+      let next = schema;
+      for (const flowId of uniqueFlowIds) {
+        if (findFlowWithCollection(next, flowId)) {
+          next = deleteFlow(next, flowId);
+        }
+      }
+      for (const objectId of uniqueObjectIds) {
+        if (findObjectWithCollection(next, objectId)) {
+          next = deleteObject(next, objectId);
+        }
+      }
+      commitSchema(next, "bulkUpdate", { historyLabel: "Delete selection", source });
+      Toast.info({ content: `已删除 ${totalCount} 个元素，可按 Ctrl+Z 撤销`, duration: 4 });
+      return;
+    }
+    if (uniqueFlowIds.length === 1) {
+      const flowId = uniqueFlowIds[0];
+      const located = findFlowWithCollection(schema, flowId);
+      if (!located) {
+        return;
+      }
+      commitSchema(deleteFlow(schema, flowId), located.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow", { source });
+      Toast.info({ content: "已删除连线，可按 Ctrl+Z 撤销", duration: 4 });
+      return;
+    }
+    if (uniqueObjectIds.length === 1) {
+      const objectId = uniqueObjectIds[0];
+      const located = findObjectWithCollection(schema, objectId);
+      if (!located) {
+        return;
+      }
+      const node = findObject(schema, objectId);
+      const nodeName = (node as { title?: string } | undefined)?.title ?? "节点";
+      commitSchema(deleteObject(schema, objectId), located.parentLoopObjectId ? "deleteLoopNode" : "deleteNode", { source });
+      Toast.info({ content: `已删除"${nodeName}"，可按 Ctrl+Z 撤销`, duration: 4 });
+    }
+  }, [schema]);
+
+  const confirmDeleteTargets = useCallback((objectIds: string[], flowIds: string[], source: MicroflowSchemaChangeSource) => {
+    const uniqueObjectIds = [...new Set(objectIds)];
+    const uniqueFlowIds = [...new Set(flowIds)];
+    const totalCount = uniqueObjectIds.length + uniqueFlowIds.length;
+    if (totalCount === 0) {
+      return;
+    }
+    const impact = collectDeleteImpact(uniqueObjectIds, uniqueFlowIds);
+    Modal.confirm({
+      title: "删除前影响确认",
+      okText: "确认删除",
+      okButtonProps: { type: "danger" },
+      cancelText: "取消",
+      content: (
+        <Space vertical align="start" spacing={6}>
+          <Text>将删除节点 {impact.nodeCount} 个、连线 {impact.selectedFlowCount} 条。</Text>
+          {impact.cascadedFlowCount > 0 ? (
+            <Text type="warning">受节点删除影响，还会级联删除额外连线 {impact.cascadedFlowCount} 条。</Text>
+          ) : null}
+          {impact.splitNodeCount > 0 ? (
+            <Text type="warning">包含 {impact.splitNodeCount} 个分支/网关节点，可能影响下游分支路径。</Text>
+          ) : null}
+          {impact.callMicroflowCount > 0 ? (
+            <Text type="warning">包含 {impact.callMicroflowCount} 个 Call Microflow 节点，可能影响调用链路。</Text>
+          ) : null}
+          <Text type="tertiary" size="small">本次影响元素总计约 {impact.totalElements} 项，删除后可使用 Ctrl+Z 撤销。</Text>
+        </Space>
+      ),
+      onOk: () => {
+        applyDeleteTargets(uniqueObjectIds, uniqueFlowIds, source);
+      },
+    });
+  }, [applyDeleteTargets, collectDeleteImpact]);
+
   const handleDeleteSelection = () => {
     if (props.readonly) {
       return;
@@ -3274,36 +3443,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const selection = schema.editor.selection;
     const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id)))];
     const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id)))];
-    const totalCount = flowIds.length + objectIds.length;
-    if (flowIds.length > 1 || objectIds.length > 1 || totalCount > 1) {
-      let next = schema;
-      for (const flowId of flowIds) {
-        if (findFlowWithCollection(next, flowId)) {
-          next = deleteFlow(next, flowId);
-        }
-      }
-      for (const objectId of objectIds) {
-        if (findObjectWithCollection(next, objectId)) {
-          next = deleteObject(next, objectId);
-        }
-      }
-      commitSchema(next, "bulkUpdate", { historyLabel: "Delete selection", source: "flowgram" });
-      Toast.info({ content: `已删除 ${totalCount} 个元素，可按 Ctrl+Z 撤销`, duration: 4 });
-      return;
-    }
-    if (selection.flowId) {
-      const located = findFlowWithCollection(schema, selection.flowId);
-      commitSchema(deleteFlow(schema, selection.flowId), located?.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow");
-      Toast.info({ content: "已删除连线，可按 Ctrl+Z 撤销", duration: 4 });
-      return;
-    }
-    if (selection.objectId) {
-      const located = findObjectWithCollection(schema, selection.objectId);
-      const node = findObject(schema, selection.objectId);
-      const nodeName = (node as { title?: string } | undefined)?.title ?? "节点";
-      commitSchema(deleteObject(schema, selection.objectId), located?.parentLoopObjectId ? "deleteLoopNode" : "deleteNode");
-      Toast.info({ content: `已删除"${nodeName}"，可按 Ctrl+Z 撤销`, duration: 4 });
-    }
+    confirmDeleteTargets(objectIds, flowIds, "flowgram");
   };
 
   const handleSelectAll = () => {
@@ -3727,8 +3867,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       }
       const reason = object.kind === "actionActivity" ? "updateActionProperty" : "updateNodeProperty";
       commitSchema(updateObject(schema, detail.nodeId, () => object), reason, { source: "propertyPanel" });
-      const panelSyncEvent: PanelSyncEvent = { type: "inline-edit", nodeId: detail.nodeId, fieldPath: detail.fieldPath };
-      window.dispatchEvent(new CustomEvent<PanelSyncEvent>("atlas:microflow-panel-sync", { detail: panelSyncEvent }));
+      emitPanelSyncEvent({ type: "inline-edit", nodeId: detail.nodeId, fieldPath: detail.fieldPath });
       applyPatch({ selectedObjectId: detail.nodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
       setRightOpen(true);
     };
@@ -3754,8 +3893,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           ? { ...flow, label: detail.value ?? "" }
           : { ...flow, line: { ...flow.line, content: detail.value ?? "" } }
       )), "updateEdgeProperty", { source: "propertyPanel" });
-      const panelSyncEvent: PanelSyncEvent = { type: "inline-edit", flowId };
-      window.dispatchEvent(new CustomEvent<PanelSyncEvent>("atlas:microflow-panel-sync", { detail: panelSyncEvent }));
+      emitPanelSyncEvent({ type: "inline-edit", flowId });
       applyPatch({ selectedObjectId: undefined, selectedFlowId: flowId }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
       setRightOpen(true);
     };
@@ -3785,7 +3923,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       window.removeEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
       window.removeEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);
     };
-  }, [applyPatch, commitSchema, isDebugPaused, props.readonly, running, schema]);
+  }, [applyPatch, commitSchema, emitPanelSyncEvent, isDebugPaused, props.readonly, running, schema]);
 
   // External hosts ride imperative handle; internal mode also receives the handle so
   // higher-level UIs can opt-in without forcing internal toolbar to disappear.
@@ -3961,6 +4099,35 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     ...nodePaletteActions,
   ], [apiClient.retryMicroflowRun, apiClient.runRetention, dirty, focusMode, handleEnterInlineEdit, handleRetentionDryRun, handleRetentionExecute, handleRetentionPreview, handleRetryQueuedRun, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, nodePaletteActions, problemPaletteActions, props.readonly, rightOpen, runSession?.id, running, saving, schema.editor.selection.objectId, schema.editor.selection.objectIds, schema.editor.viewport, selectedRunId, startDebugSession, tracePaletteActions]);
 
+  const canCopySelection = Boolean(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length);
+  const canPasteSelection = Boolean(clipboardObject);
+  const canDeleteSelection = Boolean(
+    schema.editor.selection.objectId
+      || schema.editor.selection.flowId
+      || schema.editor.selection.objectIds?.length
+      || schema.editor.selection.flowIds?.length
+  );
+  const runDisabledReason = saving
+    ? "Save is in progress."
+    : props.readonly
+      ? "Readonly mode cannot run."
+      : !schema.id
+        ? "Schema is not ready."
+        : "";
+  const saveDisabledReason = saving
+    ? "Save is in progress."
+    : props.readonly
+      ? "Readonly mode cannot save."
+      : !dirty
+        ? "No unsaved changes."
+        : !schema.id
+          ? "Schema is not ready."
+          : "";
+  const debugDisabledReason = running ? "A run is already in progress." : "";
+  const copyDisabledReason = props.readonly ? "Readonly mode cannot copy nodes." : canCopySelection ? "" : "Select at least one node first.";
+  const pasteDisabledReason = props.readonly ? "Readonly mode cannot paste nodes." : canPasteSelection ? "" : "Clipboard is empty.";
+  const deleteDisabledReason = props.readonly ? "Readonly mode cannot delete selection." : canDeleteSelection ? "" : "Select node/flow first.";
+
   return (
     <div ref={shellRef} data-testid="microflow-editor-shell" data-microflow-id={schema.id} style={shellStyle} tabIndex={0}>
       <MicroflowCommandPalette
@@ -3975,44 +4142,105 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         <Space style={{ minWidth: 0, overflow: "hidden" }}>
           {props.toolbarPrefix}
           <Title heading={5} style={{ margin: 0 }}>{schema.displayName || schema.name}</Title>
-          <Tag>{schema.schemaVersion}</Tag>
-          {dirty ? <Tag color="orange">dirty</Tag> : null}
+          {!focusMode ? <Tag>{schema.schemaVersion}</Tag> : null}
+          {!focusMode && dirty ? <Tag color="orange">dirty</Tag> : null}
           <Tag color={validationStatus === "validating" ? "blue" : issues.some(issue => issue.severity === "error") ? "red" : "green"}>
             {validationStatus === "validating" ? "validating..." : `${issues.length} issues`}
           </Tag>
-          {saveBlockers.length > 0 ? <Tag color="red">Save blocked {saveBlockers.length}</Tag> : null}
-          {publishBlockers.length > 0 ? <Tag color="red">Publish blocked by {publishBlockers.length} errors</Tag> : null}
-          {inlineEditState === "blocked" ? <Tag color="orange">Inline edit: running-readonly (editable on pause)</Tag> : null}
-          {inlineEditState === "editing" ? <Tag color="green">Inline edit: editing</Tag> : null}
-          {inlineEditState === "paused-edit" ? <Tag color="blue">Inline edit: paused-edit</Tag> : null}
-          {runSession ? <Tag color={runSession.status === "success" ? "green" : "red"}>{runSession.status} · {runSession.trace.length} frames</Tag> : null}
+          {!focusMode && saveBlockers.length > 0 ? <Tag color="red">Save blocked {saveBlockers.length}</Tag> : null}
+          {!focusMode && publishBlockers.length > 0 ? <Tag color="red">Publish blocked by {publishBlockers.length} errors</Tag> : null}
+          {!focusMode && inlineEditState === "blocked" ? <Tag color="orange">Inline edit: running-readonly (editable on pause)</Tag> : null}
+          {!focusMode && inlineEditState === "editing" ? <Tag color="green">Inline edit: editing</Tag> : null}
+          {!focusMode && inlineEditState === "paused-edit" ? <Tag color="blue">Inline edit: paused-edit</Tag> : null}
+          {!focusMode && runSession ? <Tag color={runSession.status === "success" ? "green" : "red"}>{runSession.status} · {runSession.trace.length} frames</Tag> : null}
         </Space>
         <Space wrap style={{ justifyContent: "flex-end", rowGap: 4 }}>
+          {focusMode ? (
+            <>
+              <Tooltip content={runDisabledReason || (dirty ? "Save & Run opens the input panel" : labels.testRun)}>
+                <span style={{ display: "inline-flex" }}>
+                  <Button
+                    data-testid="microflow-editor-run"
+                    aria-label={labels.testRun}
+                    icon={<IconPlay />}
+                    loading={running}
+                    disabled={saving || props.readonly || !schema.id}
+                    onClick={handleTestRun}
+                  >
+                    {dirty ? "Save & Run" : labels.testRun}
+                  </Button>
+                </span>
+              </Tooltip>
+              <Tooltip content={saveDisabledReason || labels.save}>
+                <span style={{ display: "inline-flex" }}>
+                  <Button
+                    data-testid="microflow-editor-save"
+                    aria-label={labels.save}
+                    icon={<IconSave />}
+                    loading={saving}
+                    disabled={saving || props.readonly || !dirty || !schema.id}
+                    type="primary"
+                    onClick={handleSave}
+                  >
+                    {labels.save}
+                  </Button>
+                </span>
+              </Tooltip>
+              <Tooltip content={debugDisabledReason || "Start debug run"}>
+                <span style={{ display: "inline-flex" }}>
+                  <Button
+                    data-testid="microflow-editor-debug"
+                    aria-label="Debug"
+                    icon={<IconTickCircle />}
+                    disabled={running}
+                    onClick={() => void startDebugSession()}
+                  >
+                    Debug
+                  </Button>
+                </span>
+              </Tooltip>
+            </>
+          ) : (
+            <>
           <Tooltip content={historyState.canUndo ? labels.undo : "No history to undo"}>
-            <Button data-testid="microflow-editor-undo" aria-label={labels.undo} icon={<IconUndo />} disabled={!historyState.canUndo} onClick={handleUndo} />
+            <span style={{ display: "inline-flex" }}>
+              <Button data-testid="microflow-editor-undo" aria-label={labels.undo} icon={<IconUndo />} disabled={!historyState.canUndo} onClick={handleUndo} />
+            </span>
           </Tooltip>
           <Tooltip content={historyState.canRedo ? labels.redo : "No history to redo"}>
-            <Button data-testid="microflow-editor-redo" aria-label={labels.redo} icon={<IconRedo />} disabled={!historyState.canRedo} onClick={handleRedo} />
+            <span style={{ display: "inline-flex" }}>
+              <Button data-testid="microflow-editor-redo" aria-label={labels.redo} icon={<IconRedo />} disabled={!historyState.canRedo} onClick={handleRedo} />
+            </span>
           </Tooltip>
           <Tooltip content={labels.validate}>
             <Button data-testid="microflow-editor-validate" aria-label={labels.validate} icon={<IconRefresh />} loading={validationStatus === "validating"} onClick={handleValidate}>{labels.validate}</Button>
           </Tooltip>
-          <Tooltip content={dirty ? "Save & Run opens the input panel" : labels.testRun}>
-            <Button data-testid="microflow-editor-run" aria-label={labels.testRun} icon={<IconPlay />} loading={running} disabled={saving || props.readonly || !schema.id} onClick={handleTestRun}>
-              {dirty ? "Save & Run" : labels.testRun}
-            </Button>
+          <Tooltip content={runDisabledReason || (dirty ? "Save & Run opens the input panel" : labels.testRun)}>
+            <span style={{ display: "inline-flex" }}>
+              <Button data-testid="microflow-editor-run" aria-label={labels.testRun} icon={<IconPlay />} loading={running} disabled={saving || props.readonly || !schema.id} onClick={handleTestRun}>
+                {dirty ? "Save & Run" : labels.testRun}
+              </Button>
+            </span>
           </Tooltip>
-          <Tooltip content={dirty ? labels.save : "No unsaved changes"}>
-            <Button data-testid="microflow-editor-save" aria-label={labels.save} icon={<IconSave />} loading={saving} disabled={saving || props.readonly || !dirty || !schema.id} type="primary" onClick={handleSave}>{labels.save}</Button>
+          <Tooltip content={saveDisabledReason || labels.save}>
+            <span style={{ display: "inline-flex" }}>
+              <Button data-testid="microflow-editor-save" aria-label={labels.save} icon={<IconSave />} loading={saving} disabled={saving || props.readonly || !dirty || !schema.id} type="primary" onClick={handleSave}>{labels.save}</Button>
+            </span>
           </Tooltip>
           <Dropdown
             trigger="click"
             position="bottomRight"
             render={(
               <Dropdown.Menu>
-                <Dropdown.Item icon={<IconCopy />} disabled={props.readonly || !schema.editor.selection.objectId && !(schema.editor.selection.objectIds?.length)} onClick={handleCopySelection}>复制节点</Dropdown.Item>
-                <Dropdown.Item icon={<IconCopy />} disabled={props.readonly || !clipboardObject} onClick={handlePasteSelection}>粘贴节点</Dropdown.Item>
-                <Dropdown.Item icon={<IconDelete />} disabled={props.readonly || !schema.editor.selection.objectId && !schema.editor.selection.flowId && !(schema.editor.selection.objectIds?.length) && !(schema.editor.selection.flowIds?.length)} onClick={handleDeleteSelection}>删除选择</Dropdown.Item>
+                <Tooltip content={copyDisabledReason}>
+                  <Dropdown.Item icon={<IconCopy />} disabled={props.readonly || !canCopySelection} onClick={handleCopySelection}>复制节点</Dropdown.Item>
+                </Tooltip>
+                <Tooltip content={pasteDisabledReason}>
+                  <Dropdown.Item icon={<IconCopy />} disabled={props.readonly || !canPasteSelection} onClick={handlePasteSelection}>粘贴节点</Dropdown.Item>
+                </Tooltip>
+                <Tooltip content={deleteDisabledReason}>
+                  <Dropdown.Item icon={<IconDelete />} disabled={props.readonly || !canDeleteSelection} onClick={handleDeleteSelection}>删除选择</Dropdown.Item>
+                </Tooltip>
                 <Dropdown.Item icon={<IconRefresh />} onClick={handleAutoLayout}>{labels.format}</Dropdown.Item>
                 <Dropdown.Item onClick={focusNodeSearch}>搜索节点</Dropdown.Item>
                 <Dropdown.Item onClick={() => setLeftOpen(open => !open)}>{leftOpen ? "折叠节点面板" : "展开节点面板"}</Dropdown.Item>
@@ -4024,6 +4252,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           >
             <Button data-testid="microflow-editor-more" aria-label={labels.more} icon={<IconMore />} theme="borderless">{labels.more}</Button>
           </Dropdown>
+            </>
+          )}
           {props.toolbarSuffix}
         </Space>
       </div>
@@ -4262,7 +4492,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   schema={schema}
                   validationIssues={issues}
                   traceFrames={traceFrames}
-                  onSchemaChange={(nextSchema, reason) => commitSchema(nextSchema, reason, { source: "propertyPanel" })}
+                  onSchemaChange={(nextSchema, reason) => {
+                    commitSchema(nextSchema, reason, { source: "propertyPanel" });
+                    emitPanelSyncEvent({ type: "property-edit" });
+                  }}
                   onObjectChange={(objectId, patch: MicroflowNodePatch) => {
                     if (!patch.object) {
                       return;
@@ -4270,6 +4503,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     const object = patch.object as MicroflowObject;
                     const reason = object.kind === "actionActivity" ? "updateActionProperty" : "updateNodeProperty";
                     commitSchema(updateObject(schema, objectId, () => object), reason, { source: "propertyPanel" });
+                    emitPanelSyncEvent({ type: "property-edit", nodeId: objectId });
                   }}
                   onFlowChange={(flowId, patch: MicroflowEdgePatch) => {
                     const located = findFlowWithCollection(schema, flowId);
@@ -4292,18 +4526,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                         editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
                       };
                     }), located?.parentLoopObjectId ? "updateFlow" : reason, { source: "propertyPanel" });
+                    emitPanelSyncEvent({ type: "property-edit", flowId });
                   }}
                   onDuplicateObject={objectId => {
                     const located = findObjectWithCollection(schema, objectId);
                     commitSchema(duplicateObject(schema, objectId), located?.parentLoopObjectId ? "addLoopNode" : "addNode", { source: "propertyPanel" });
                   }}
                   onDeleteObject={objectId => {
-                    const located = findObjectWithCollection(schema, objectId);
-                    commitSchema(deleteObject(schema, objectId), located?.parentLoopObjectId ? "deleteLoopNode" : "deleteNode", { source: "propertyPanel" });
+                    confirmDeleteTargets([objectId], [], "propertyPanel");
                   }}
                   onDeleteFlow={flowId => {
-                    const located = findFlowWithCollection(schema, flowId);
-                    commitSchema(deleteFlow(schema, flowId), located?.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow", { source: "propertyPanel" });
+                    confirmDeleteTargets([], [flowId], "propertyPanel");
                   }}
                   onClose={() => {
                     applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true });

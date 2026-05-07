@@ -1,4 +1,4 @@
-import { Input, Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Input, Select, Space, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
@@ -12,6 +12,14 @@ import { expression, Field } from "../panel-shared";
 
 const { Text } = Typography;
 
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
+    </Tooltip>
+  );
+}
+
 export function EventNodesForm({ props, object, issues, metadata, variableIndex, patch }: {
   props: MicroflowPropertyPanelProps;
   object: MicroflowObject;
@@ -20,6 +28,7 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
   variableIndex: MicroflowVariableIndex;
   patch: (next: MicroflowObject) => void;
 }) {
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit event settings." : "";
   const flows = collectFlowsRecursive(props.schema);
   const objects = props.schema.objectCollection.objects;
   const startCount = objects.filter(item => item.kind === "startEvent").length;
@@ -30,13 +39,17 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
     return (
       <>
         <Field label="Trigger">
-          <Select
-            value={object.trigger.type}
-            disabled={props.readonly}
-            style={{ width: "100%" }}
-            onChange={type => patch({ ...object, trigger: { type: String(type) as typeof object.trigger.type } })}
-            optionList={["manual", "pageEvent", "formSubmit", "workflowCall", "apiCall", "scheduled", "system"].map(value => ({ label: value, value }))}
-          />
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Trigger",
+            <Select
+              value={object.trigger.type}
+              disabled={props.readonly}
+              style={{ width: "100%" }}
+              onChange={type => patch({ ...object, trigger: { type: String(type) as typeof object.trigger.type } })}
+              optionList={["manual", "pageEvent", "formSubmit", "workflowCall", "apiCall", "scheduled", "system"].map(value => ({ label: value, value }))}
+            />
+          )}
         </Field>
         <Field label="Outgoing Flows">
           <TextArea value={outgoingSummary || "No outgoing flow"} autosize disabled />
@@ -50,13 +63,17 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
     return (
       <>
         <Field label="Return Type">
-          <DataTypeSelector
-            value={props.schema.returnType}
-            disabled={props.readonly}
-            onChange={returnType => {
-              props.onSchemaChange?.(updateMicroflowReturnType(props.schema, returnType), "updateReturnType");
-            }}
-          />
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Return type",
+            <DataTypeSelector
+              value={props.schema.returnType}
+              disabled={props.readonly}
+              onChange={returnType => {
+                props.onSchemaChange?.(updateMicroflowReturnType(props.schema, returnType), "updateReturnType");
+              }}
+            />
+          )}
           <Text type="tertiary" size="small">Return type is stored on the microflow schema and shared by all EndEvents.</Text>
         </Field>
         <Field label="Incoming Flows">
@@ -124,16 +141,20 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
           <TextArea value={outgoingSummaryForControl || "No outgoing flow"} autosize disabled />
         </Field>
         <Field label="Target Loop">
-          <Select
-            value={object.targetLoopObjectId}
-            disabled={props.readonly || loopObjects.length === 0}
-            showClear
-            style={{ width: "100%" }}
-            placeholder={loopObjects.length === 1 ? `Implicit: ${loopObjects[0].caption ?? loopObjects[0].id}` : "Select target loop"}
-            onClear={() => patch({ ...object, targetLoopObjectId: undefined })}
-            onChange={targetLoopObjectId => patch({ ...object, targetLoopObjectId: targetLoopObjectId ? String(targetLoopObjectId) : undefined })}
-            optionList={loopObjects.map(loop => ({ label: loop.caption ?? loop.id, value: loop.id }))}
-          />
+          {withDisabledReason(
+            props.readonly ? "Readonly mode cannot edit event settings." : (loopObjects.length === 0 ? "No loop nodes available in this microflow." : ""),
+            "Target loop",
+            <Select
+              value={object.targetLoopObjectId}
+              disabled={props.readonly || loopObjects.length === 0}
+              showClear
+              style={{ width: "100%" }}
+              placeholder={loopObjects.length === 1 ? `Implicit: ${loopObjects[0].caption ?? loopObjects[0].id}` : "Select target loop"}
+              onClear={() => patch({ ...object, targetLoopObjectId: undefined })}
+              onChange={targetLoopObjectId => patch({ ...object, targetLoopObjectId: targetLoopObjectId ? String(targetLoopObjectId) : undefined })}
+              optionList={loopObjects.map(loop => ({ label: loop.caption ?? loop.id, value: loop.id }))}
+            />
+          )}
         </Field>
         <Field label="Legal State">
           <Space vertical align="start" spacing={4}>

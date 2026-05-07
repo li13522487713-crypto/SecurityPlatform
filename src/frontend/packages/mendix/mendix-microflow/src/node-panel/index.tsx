@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Button, Card, Empty, Input, Popover, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Card, Empty, Input, Popover, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
   IconChevronRight,
@@ -1003,9 +1003,13 @@ export function MicroflowNodePanel({
                       <Tag>{template.nodeKeys.length}</Tag>
                     </Space>
                     <Text size="small" type="tertiary">{template.description}</Text>
-                    <Button size="small" icon={<IconPlus />} disabled={!onInsertTemplate} onClick={() => onInsertTemplate?.(template)}>
-                      {labels.insertTemplate}
-                    </Button>
+                    <Tooltip content={onInsertTemplate ? labels.insertTemplate : "Current editor cannot insert templates in this context."}>
+                      <span style={{ display: "inline-flex" }}>
+                        <Button size="small" icon={<IconPlus />} disabled={!onInsertTemplate} onClick={() => onInsertTemplate?.(template)}>
+                          {labels.insertTemplate}
+                        </Button>
+                      </span>
+                    </Tooltip>
                   </Space>
                 </Card>
               ))}

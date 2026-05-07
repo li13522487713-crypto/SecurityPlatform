@@ -1,4 +1,4 @@
-import { Input, Switch, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Input, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject, MicroflowParameter } from "../../schema";
 import { getParameterNameWarning } from "../../schema/utils";
 import { FieldError } from "../common";
@@ -8,6 +8,14 @@ import { getIssuesForField, getIssuesForObject, updateParameterObjectConfig } fr
 import { expression, Field } from "../panel-shared";
 
 const { Text } = Typography;
+
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
+    </Tooltip>
+  );
+}
 
 export function ParameterObjectForm({ props, object, issues, parameter }: {
   props: MicroflowPropertyPanelProps;
@@ -20,6 +28,7 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
   }
   const parameterName = parameter?.name ?? object.parameterName ?? "";
   const nameWarning = parameter ? getParameterNameWarning(props.schema, parameter.id, parameterName) : "Parameter definition is missing from schema.parameters.";
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit parameter settings." : !parameter ? "Parameter definition is missing from schema.parameters." : "";
   const patchParameter = (parameterPatch: Partial<MicroflowParameter>) => {
     if (!parameter || !props.onSchemaChange) {
       return;
@@ -36,18 +45,26 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
         <Input value={object.id} disabled />
       </Field>
       <Field label="Parameter Name">
-        <Input
-          value={parameterName}
-          disabled={props.readonly || !parameter}
-          onChange={name => {
-            patchParameter({ name });
-          }}
-        />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Parameter name",
+          <Input
+            value={parameterName}
+            disabled={props.readonly || !parameter}
+            onChange={name => {
+              patchParameter({ name });
+            }}
+          />
+        )}
         {nameWarning ? <Text type="warning" size="small">{nameWarning}</Text> : null}
         <Text type="tertiary" size="small">Renaming a parameter does not rewrite existing expressions.</Text>
       </Field>
       <Field label="Data Type">
-        <DataTypeSelector value={parameter?.dataType ?? { kind: "unknown", reason: "missing parameter type" }} disabled={props.readonly || !parameter} allowVoid={false} onChange={dataType => patchParameter({ dataType })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Data type",
+          <DataTypeSelector value={parameter?.dataType ?? { kind: "unknown", reason: "missing parameter type" }} disabled={props.readonly || !parameter} allowVoid={false} onChange={dataType => patchParameter({ dataType })} />
+        )}
         <FieldError issues={getIssuesForField(issues, "parameter.dataType")} />
         {!parameter?.dataType || parameter.dataType.kind === "unknown" ? (
           <Text type="warning" size="small">Parameter type is empty or unknown.</Text>
@@ -57,17 +74,33 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
         ) : null}
       </Field>
       <Field label="Required">
-        <Switch checked={parameter?.required ?? false} disabled={props.readonly || !parameter} onChange={required => patchParameter({ required })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Required",
+          <Switch checked={parameter?.required ?? false} disabled={props.readonly || !parameter} onChange={required => patchParameter({ required })} />
+        )}
       </Field>
       <Field label="Default Value Expression">
-        <Input value={parameter?.defaultValue?.raw ?? ""} disabled={props.readonly || !parameter} onChange={raw => patchParameter({ defaultValue: raw ? expression(raw, parameter?.dataType) : undefined })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Default value expression",
+          <Input value={parameter?.defaultValue?.raw ?? ""} disabled={props.readonly || !parameter} onChange={raw => patchParameter({ defaultValue: raw ? expression(raw, parameter?.dataType) : undefined })} />
+        )}
         <Text type="tertiary" size="small">Default value is stored as text; Stage 12 does not evaluate expressions.</Text>
       </Field>
       <Field label="Example Value">
-        <Input value={parameter?.exampleValue ?? ""} disabled={props.readonly || !parameter} onChange={exampleValue => patchParameter({ exampleValue })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Example value",
+          <Input value={parameter?.exampleValue ?? ""} disabled={props.readonly || !parameter} onChange={exampleValue => patchParameter({ exampleValue })} />
+        )}
       </Field>
       <Field label="Description">
-        <TextArea value={parameter?.description ?? parameter?.documentation ?? ""} autosize disabled={props.readonly || !parameter} onChange={description => patchParameter({ description, documentation: description })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Description",
+          <TextArea value={parameter?.description ?? parameter?.documentation ?? ""} autosize disabled={props.readonly || !parameter} onChange={description => patchParameter({ description, documentation: description })} />
+        )}
       </Field>
     </>
   );

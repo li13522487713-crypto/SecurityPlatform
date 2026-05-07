@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Atlas.Application.Microflows.Models;
+using Atlas.Application.Microflows.Runtime.Actions;
 
 namespace Atlas.Application.Microflows.Runtime.Connectors;
 
@@ -12,11 +14,26 @@ public interface IMicroflowRuntimeCapabilityProbe
     MicroflowConnectorCapabilityStatus GetCapabilityStatus();
 }
 
-public interface ISoapWebServiceConnector : IMicroflowRuntimeCapabilityProbe;
+public interface ISoapWebServiceConnector : IMicroflowRuntimeCapabilityProbe
+{
+    Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+        MicroflowConnectorExecutionRequest request,
+        CancellationToken cancellationToken);
+}
 
-public interface IXmlMappingConnector : IMicroflowRuntimeCapabilityProbe;
+public interface IXmlMappingConnector : IMicroflowRuntimeCapabilityProbe
+{
+    Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+        MicroflowConnectorExecutionRequest request,
+        CancellationToken cancellationToken);
+}
 
-public interface IDocumentGenerationRuntime : IMicroflowRuntimeCapabilityProbe;
+public interface IDocumentGenerationRuntime : IMicroflowRuntimeCapabilityProbe
+{
+    Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+        MicroflowConnectorExecutionRequest request,
+        CancellationToken cancellationToken);
+}
 
 public interface IWorkflowRuntimeClient : IMicroflowRuntimeCapabilityProbe
 {
@@ -57,7 +74,12 @@ public interface IMlRuntime : IMicroflowRuntimeCapabilityProbe;
 
 public interface IExternalActionConnector : IMicroflowRuntimeCapabilityProbe;
 
-public interface IExternalObjectConnector : IMicroflowRuntimeCapabilityProbe;
+public interface IExternalObjectConnector : IMicroflowRuntimeCapabilityProbe
+{
+    Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+        MicroflowConnectorExecutionRequest request,
+        CancellationToken cancellationToken);
+}
 
 public interface IServerActionRuntime : IMicroflowRuntimeCapabilityProbe;
 
@@ -77,16 +99,31 @@ public abstract class MissingMicroflowConnectorCapability : IMicroflowRuntimeCap
 public sealed class MissingSoapWebServiceConnector : MissingMicroflowConnectorCapability, ISoapWebServiceConnector
 {
     public MissingSoapWebServiceConnector() : base("soap.webService") { }
+
+    public Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+        MicroflowConnectorExecutionRequest request,
+        CancellationToken cancellationToken)
+        => Task.FromResult(MissingConnectorResultFactory.ConnectorRequiredResult(request, "SOAP/WSDL execution requires web service connector."));
 }
 
 public sealed class MissingXmlMappingConnector : MissingMicroflowConnectorCapability, IXmlMappingConnector
 {
     public MissingXmlMappingConnector() : base("xml.mapping") { }
+
+    public Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+        MicroflowConnectorExecutionRequest request,
+        CancellationToken cancellationToken)
+        => Task.FromResult(MissingConnectorResultFactory.ConnectorRequiredResult(request, "XML mapping connector is required."));
 }
 
 public sealed class MissingDocumentGenerationRuntime : MissingMicroflowConnectorCapability, IDocumentGenerationRuntime
 {
     public MissingDocumentGenerationRuntime() : base("document.generation") { }
+
+    public Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+        MicroflowConnectorExecutionRequest request,
+        CancellationToken cancellationToken)
+        => Task.FromResult(MissingConnectorResultFactory.ConnectorRequiredResult(request, "Document generation connector is required."));
 }
 
 public sealed class MissingWorkflowRuntimeClient : MissingMicroflowConnectorCapability, IWorkflowRuntimeClient
@@ -142,9 +179,31 @@ public sealed class MissingExternalActionConnector : MissingMicroflowConnectorCa
 public sealed class MissingExternalObjectConnector : MissingMicroflowConnectorCapability, IExternalObjectConnector
 {
     public MissingExternalObjectConnector() : base("externalObject.crud") { }
+
+    public Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+        MicroflowConnectorExecutionRequest request,
+        CancellationToken cancellationToken)
+        => Task.FromResult(MissingConnectorResultFactory.ConnectorRequiredResult(request, "External object connector is required."));
 }
 
 public sealed class MissingServerActionRuntime : MissingMicroflowConnectorCapability, IServerActionRuntime
 {
     public MissingServerActionRuntime() : base("java.action") { }
+}
+
+internal static class MissingConnectorResultFactory
+{
+    public static MicroflowConnectorExecutionResult ConnectorRequiredResult(MicroflowConnectorExecutionRequest request, string message)
+        => new()
+        {
+            Success = false,
+            Capability = request.Capability,
+            Error = new MicroflowRuntimeErrorDto
+            {
+                Code = RuntimeErrorCode.RuntimeConnectorRequired,
+                Message = message,
+                ObjectId = request.ObjectId,
+                ActionId = request.ActionId
+            }
+        };
 }

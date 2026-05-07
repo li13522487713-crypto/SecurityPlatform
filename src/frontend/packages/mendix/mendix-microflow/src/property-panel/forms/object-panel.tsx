@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Input, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Input, Select, Space, Switch, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowAction, MicroflowFlow, MicroflowObject, MicroflowParameter, MicroflowVariableIndex, MicroflowVariableSymbol } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
@@ -36,6 +36,14 @@ import { TryCatchForm } from "./try-catch-form";
 import { ErrorHandlerForm } from "./error-handler-form";
 
 const { Text } = Typography;
+
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
+    </Tooltip>
+  );
+}
 const supportedObjectKinds = new Set<string>([
   "startEvent",
   "endEvent",
@@ -121,6 +129,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   }, [object.id, tabs]);
   const issues = issuesFor(props, object.id, undefined, object.kind === "actionActivity" ? object.action.id : undefined);
   const patch = (next: MicroflowObject) => props.onObjectChange(object.id, { object: next });
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit object settings." : "";
   const parameter = object.kind === "parameterObject"
     ? props.schema.parameters.find(item => item.id === object.parameterId)
     : undefined;
@@ -200,30 +209,42 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         ) : null}
         {activeTab === "documentation" ? (
           <Field label="Documentation">
-            <TextArea value={object.documentation ?? ""} autosize disabled={props.readonly} onChange={documentation => patch(updateObjectDocumentation(object, documentation))} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Documentation",
+              <TextArea value={object.documentation ?? ""} autosize disabled={props.readonly} onChange={documentation => patch(updateObjectDocumentation(object, documentation))} />
+            )}
           </Field>
         ) : null}
         {activeTab === "errorHandling" ? (
           <>
             {object.kind === "actionActivity" ? (
               <Field label="Error Handling Type">
-                <Select
-                  value={object.action.errorHandlingType}
-                  disabled={props.readonly}
-                  style={{ width: "100%" }}
-                  onChange={errorHandlingType => patch(updateAction(object, { errorHandlingType: String(errorHandlingType) as MicroflowAction["errorHandlingType"] }))}
-                  optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
-                />
+                {withDisabledReason(
+                  readonlyDisabledReason,
+                  "Error handling type",
+                  <Select
+                    value={object.action.errorHandlingType}
+                    disabled={props.readonly}
+                    style={{ width: "100%" }}
+                    onChange={errorHandlingType => patch(updateAction(object, { errorHandlingType: String(errorHandlingType) as MicroflowAction["errorHandlingType"] }))}
+                    optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+                  />
+                )}
               </Field>
             ) : object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" || object.kind === "loopedActivity" ? (
               <Field label="Error Handling Type">
-                <Select
-                  value={object.errorHandlingType}
-                  disabled={props.readonly}
-                  style={{ width: "100%" }}
-                  onChange={errorHandlingType => patch({ ...object, errorHandlingType: String(errorHandlingType) as typeof object.errorHandlingType })}
-                  optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
-                />
+                {withDisabledReason(
+                  readonlyDisabledReason,
+                  "Error handling type",
+                  <Select
+                    value={object.errorHandlingType}
+                    disabled={props.readonly}
+                    style={{ width: "100%" }}
+                    onChange={errorHandlingType => patch({ ...object, errorHandlingType: String(errorHandlingType) as typeof object.errorHandlingType })}
+                    optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+                  />
+                )}
               </Field>
             ) : (
               <Text type="tertiary">This object does not expose error handling.</Text>
@@ -256,16 +277,32 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         {activeTab === "advanced" ? (
           <>
             <Field label="Disabled">
-              <Switch checked={Boolean(object.disabled)} disabled={props.readonly} onChange={disabled => patch({ ...object, disabled } as MicroflowObject)} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Disabled",
+                <Switch checked={Boolean(object.disabled)} disabled={props.readonly} onChange={disabled => patch({ ...object, disabled } as MicroflowObject)} />
+              )}
             </Field>
             <Field label="Performance Tag">
-              <Input value={(object.editor as unknown as { advanced?: { performanceTag?: string } }).advanced?.performanceTag ?? ""} disabled={props.readonly} onChange={performanceTag => patch(updateObjectAdvanced(object, { performanceTag }))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Performance tag",
+                <Input value={(object.editor as unknown as { advanced?: { performanceTag?: string } }).advanced?.performanceTag ?? ""} disabled={props.readonly} onChange={performanceTag => patch(updateObjectAdvanced(object, { performanceTag }))} />
+              )}
             </Field>
             <Field label="Execution Timeout">
-              <Input value={String((object.editor as unknown as { advanced?: { timeoutMs?: number } }).advanced?.timeoutMs ?? "")} disabled={props.readonly} onChange={timeoutMs => patch(updateObjectAdvanced(object, { timeoutMs: Number(timeoutMs) || undefined }))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Execution timeout",
+                <Input value={String((object.editor as unknown as { advanced?: { timeoutMs?: number } }).advanced?.timeoutMs ?? "")} disabled={props.readonly} onChange={timeoutMs => patch(updateObjectAdvanced(object, { timeoutMs: Number(timeoutMs) || undefined }))} />
+              )}
             </Field>
             <Field label="Retry Enabled">
-              <Switch checked={Boolean((object.editor as unknown as { advanced?: { retryEnabled?: boolean } }).advanced?.retryEnabled)} disabled={props.readonly} onChange={retryEnabled => patch(updateObjectAdvanced(object, { retryEnabled }))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Retry enabled",
+                <Switch checked={Boolean((object.editor as unknown as { advanced?: { retryEnabled?: boolean } }).advanced?.retryEnabled)} disabled={props.readonly} onChange={retryEnabled => patch(updateObjectAdvanced(object, { retryEnabled }))} />
+              )}
             </Field>
           </>
         ) : null}

@@ -66,6 +66,11 @@ export interface MendixMicroflowCopy {
     readonly invalidExpectedResult: string;
     readonly copyTrace: string;
     readonly traceCopied: string;
+    readonly copyTraceDisabledReason: string;
+    readonly cancelDisabledReason: string;
+    readonly runAllSamplesDisabledRunningReason: string;
+    readonly runAllSamplesDisabledNoSamplesReason: string;
+    readonly saveSampleDisabledReason: string;
   };
 }
 
@@ -142,6 +147,11 @@ const zhCN: MendixMicroflowCopy = {
     invalidExpectedResult: "期望结果必须是合法 JSON。",
     copyTrace: "复制 Debug trace",
     traceCopied: "Debug trace 已复制",
+    copyTraceDisabledReason: "当前没有可复制的 trace。",
+    cancelDisabledReason: "运行中不可关闭，请等待执行完成。",
+    runAllSamplesDisabledRunningReason: "运行中无法再次发起批量运行。",
+    runAllSamplesDisabledNoSamplesReason: "请先保存至少一个测试样例。",
+    saveSampleDisabledReason: "运行中无法保存样例。",
   },
 };
 
@@ -218,6 +228,11 @@ const enUS: MendixMicroflowCopy = {
     invalidExpectedResult: "Expected result must be valid JSON.",
     copyTrace: "Copy Debug trace",
     traceCopied: "Debug trace copied",
+    copyTraceDisabledReason: "No trace available to copy yet.",
+    cancelDisabledReason: "Cannot close while run is in progress.",
+    runAllSamplesDisabledRunningReason: "Cannot start batch run while a run is in progress.",
+    runAllSamplesDisabledNoSamplesReason: "Save at least one sample first.",
+    saveSampleDisabledReason: "Cannot save sample while a run is in progress.",
   },
 };
 

@@ -1,4 +1,4 @@
-import { Button, Checkbox, Collapse, Input, Select, Space, Switch, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Checkbox, Collapse, Input, Select, Space, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
 import type { LegacyMicroflowNode, MicroflowNodeAdvancedConfig, MicroflowNodeDocumentation, MicroflowNodeOutput, MicroflowObject, MicroflowTypeRef } from "../schema";
 import { flattenObjectCollection } from "../adapters";
@@ -6,6 +6,14 @@ import { FieldRow, primitiveType } from "./controls";
 import type { MicroflowNodeFormProps } from "./types";
 
 const { Text } = Typography;
+
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
+    </Tooltip>
+  );
+}
 
 export function patchConfig<T extends object>(props: MicroflowNodeFormProps, configPatch: Partial<T> & Record<string, unknown>) {
   props.onPatch({ config: configPatch });
@@ -15,6 +23,7 @@ export function MicroflowBasicSection({ props }: { props: MicroflowNodeFormProps
   const { node: rawNode, readonly, onPatch } = props;
   const node = rawNode as unknown as LegacyMicroflowNode;
   const typeLabel = node.type === "activity" ? node.config.activityType : node.type;
+  const readonlyDisabledReason = readonly ? "Readonly mode cannot edit basic node settings." : "";
   return (
     <Collapse defaultActiveKey={["basic"]} style={{ width: "100%" }}>
       <Collapse.Panel itemKey="basic" header="Basic information">
@@ -32,18 +41,26 @@ export function MicroflowBasicSection({ props }: { props: MicroflowNodeFormProps
             <Input readonly value={typeLabel} />
           </FieldRow>
           <FieldRow label="Enabled">
-            <Switch disabled={readonly} checked={node.enabled !== false} onChange={enabled => onPatch({ node: { enabled } })} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Enabled",
+              <Switch disabled={readonly} checked={node.enabled !== false} onChange={enabled => onPatch({ node: { enabled } })} />
+            )}
           </FieldRow>
           <FieldRow label="Tags">
-            <Select
-              multiple
-              disabled={readonly}
-              style={{ width: "100%" }}
-              value={node.tags ?? []}
-              placeholder="Add labels"
-              optionList={(node.tags ?? []).map(tag => ({ label: tag, value: tag }))}
-              onChange={selected => onPatch({ node: { tags: Array.isArray(selected) ? selected.map(String) : [] } })}
-            />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Tags",
+              <Select
+                multiple
+                disabled={readonly}
+                style={{ width: "100%" }}
+                value={node.tags ?? []}
+                placeholder="Add labels"
+                optionList={(node.tags ?? []).map(tag => ({ label: tag, value: tag }))}
+                onChange={selected => onPatch({ node: { tags: Array.isArray(selected) ? selected.map(String) : [] } })}
+              />
+            )}
           </FieldRow>
         </Space>
       </Collapse.Panel>
@@ -92,21 +109,26 @@ export function MicroflowErrorHandlingSection({ props }: { props: MicroflowNodeF
   }
   const config = n.config;
   const errorHandling = config.errorHandling ?? { mode: "rollback" as const, errorVariableName: "latestError" };
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit error handling settings." : "";
   return (
     <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
       <FieldRow label="Error handling mode" required>
-        <Select
-          disabled={props.readonly}
-          style={{ width: "100%" }}
-          value={errorHandling.mode}
-          optionList={[
-            { label: "rollback", value: "rollback" },
-            { label: "customWithRollback", value: "customWithRollback" },
-            { label: "customWithoutRollback", value: "customWithoutRollback" },
-            { label: "continue", value: "continue" }
-          ]}
-          onChange={mode => patchConfig(props, { errorHandling: { ...errorHandling, mode: String(mode) } })}
-        />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Error handling mode",
+          <Select
+            disabled={props.readonly}
+            style={{ width: "100%" }}
+            value={errorHandling.mode}
+            optionList={[
+              { label: "rollback", value: "rollback" },
+              { label: "customWithRollback", value: "customWithRollback" },
+              { label: "customWithoutRollback", value: "customWithoutRollback" },
+              { label: "continue", value: "continue" }
+            ]}
+            onChange={mode => patchConfig(props, { errorHandling: { ...errorHandling, mode: String(mode) } })}
+          />
+        )}
       </FieldRow>
       <FieldRow label="Custom microflow">
         <Input readonly={props.readonly} value={config.customErrorMicroflowId ?? ""} onChange={customErrorMicroflowId => patchConfig(props, { customErrorMicroflowId })} />
@@ -119,18 +141,26 @@ export function MicroflowErrorHandlingSection({ props }: { props: MicroflowNodeF
         />
       </FieldRow>
       <FieldRow label="Log error">
-        <Switch disabled={props.readonly} checked={config.errorLogEnabled ?? true} onChange={errorLogEnabled => patchConfig(props, { errorLogEnabled })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Log error",
+          <Switch disabled={props.readonly} checked={config.errorLogEnabled ?? true} onChange={errorLogEnabled => patchConfig(props, { errorLogEnabled })} />
+        )}
       </FieldRow>
       <FieldRow label="Target node after error">
-        <Select
-          filter
-          disabled={props.readonly}
-          style={{ width: "100%" }}
-          value={errorHandling.targetNodeId}
-          placeholder="Select node"
-          optionList={flattenObjectCollection(props.schema.objectCollection).filter(object => object.id !== props.object.id).map(object => ({ label: object.caption ?? object.id, value: object.id }))}
-          onChange={targetNodeId => patchConfig(props, { errorHandling: { ...errorHandling, targetNodeId: String(targetNodeId ?? "") } })}
-        />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Target node after error",
+          <Select
+            filter
+            disabled={props.readonly}
+            style={{ width: "100%" }}
+            value={errorHandling.targetNodeId}
+            placeholder="Select node"
+            optionList={flattenObjectCollection(props.schema.objectCollection).filter(object => object.id !== props.object.id).map(object => ({ label: object.caption ?? object.id, value: object.id }))}
+            onChange={targetNodeId => patchConfig(props, { errorHandling: { ...errorHandling, targetNodeId: String(targetNodeId ?? "") } })}
+          />
+        )}
       </FieldRow>
       <FieldRow label="Description">
         <TextArea autosize readonly={props.readonly} value={config.errorDescription ?? ""} onChange={errorDescription => patchConfig(props, { errorDescription })} />
@@ -147,6 +177,7 @@ export function MicroflowOutputSection({ props }: { props: MicroflowNodeFormProp
   const n = props.node as unknown as LegacyMicroflowNode;
   const outputs: MicroflowNodeOutput[] = n.outputs ?? inferNodeOutputs({ ...props, node: n as unknown as MicroflowObject });
   const updateOutputs = (nextOutputs: MicroflowNodeOutput[]) => props.onPatch({ outputs: nextOutputs });
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit output variables." : "";
   return (
     <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
       {outputs.map((output, index) => (
@@ -154,22 +185,30 @@ export function MicroflowOutputSection({ props }: { props: MicroflowNodeFormProp
           <Input readonly={props.readonly} value={output.name} placeholder="Variable" onChange={name => updateOutputs(outputs.map((item, itemIndex) => itemIndex === index ? { ...item, name } : item))} />
           <Input readonly value={outputTypeName(output.type)} />
           <Input readonly value={output.source} />
-          <Button disabled={props.readonly} type="danger" theme="borderless" onClick={() => updateOutputs(outputs.filter((_, itemIndex) => itemIndex !== index))}>Delete</Button>
+          <Tooltip content={readonlyDisabledReason || "Delete output variable"}>
+            <span style={{ display: "inline-flex" }}>
+              <Button disabled={props.readonly} type="danger" theme="borderless" onClick={() => updateOutputs(outputs.filter((_, itemIndex) => itemIndex !== index))}>Delete</Button>
+            </span>
+          </Tooltip>
         </div>
       ))}
-      <Button
-        disabled={props.readonly}
-        icon={<IconPlus />}
-        onClick={() => updateOutputs([...outputs, {
-          id: `output-${Date.now()}`,
-          name: "result",
-          type: primitiveType("String"),
-          source: "Manual",
-          downstreamAvailable: true
-        }])}
-      >
-        Add output variable
-      </Button>
+      <Tooltip content={readonlyDisabledReason || "Add output variable"}>
+        <span style={{ display: "inline-flex" }}>
+          <Button
+            disabled={props.readonly}
+            icon={<IconPlus />}
+            onClick={() => updateOutputs([...outputs, {
+              id: `output-${Date.now()}`,
+              name: "result",
+              type: primitiveType("String"),
+              source: "Manual",
+              downstreamAvailable: true
+            }])}
+          >
+            Add output variable
+          </Button>
+        </span>
+      </Tooltip>
     </Space>
   );
 }
@@ -178,13 +217,18 @@ export function MicroflowAdvancedSection({ props }: { props: MicroflowNodeFormPr
   const n = props.node as unknown as LegacyMicroflowNode;
   const advanced: MicroflowNodeAdvancedConfig = n.advanced ?? {};
   const update = (patch: MicroflowNodeAdvancedConfig) => props.onPatch({ advanced: { ...advanced, ...patch } });
+  const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit advanced settings." : "";
   return (
     <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
       <FieldRow label="Execution timeout (ms)">
         <Input readonly={props.readonly} value={String(advanced.timeoutMs ?? "")} onChange={timeoutMs => update({ timeoutMs: Number(timeoutMs) || undefined })} />
       </FieldRow>
       <FieldRow label="Enable retry">
-        <Switch disabled={props.readonly} checked={Boolean(advanced.retryEnabled)} onChange={retryEnabled => update({ retryEnabled })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Enable retry",
+          <Switch disabled={props.readonly} checked={Boolean(advanced.retryEnabled)} onChange={retryEnabled => update({ retryEnabled })} />
+        )}
       </FieldRow>
       <FieldRow label="Retry count">
         <Input readonly={props.readonly} value={String(advanced.retryCount ?? "")} onChange={retryCount => update({ retryCount: Number(retryCount) || undefined })} />
@@ -193,33 +237,49 @@ export function MicroflowAdvancedSection({ props }: { props: MicroflowNodeFormPr
         <Input readonly={props.readonly} value={String(advanced.retryIntervalMs ?? "")} onChange={retryIntervalMs => update({ retryIntervalMs: Number(retryIntervalMs) || undefined })} />
       </FieldRow>
       <FieldRow label="Verbose logging">
-        <Switch disabled={props.readonly} checked={Boolean(advanced.verboseLogging)} onChange={verboseLogging => update({ verboseLogging })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Verbose logging",
+          <Switch disabled={props.readonly} checked={Boolean(advanced.verboseLogging)} onChange={verboseLogging => update({ verboseLogging })} />
+        )}
       </FieldRow>
       <FieldRow label="Ignore non-critical errors">
-        <Checkbox disabled={props.readonly} checked={Boolean(advanced.ignoreNonCriticalErrors)} onChange={event => update({ ignoreNonCriticalErrors: Boolean(event.target.checked) })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Ignore non-critical errors",
+          <Checkbox disabled={props.readonly} checked={Boolean(advanced.ignoreNonCriticalErrors)} onChange={event => update({ ignoreNonCriticalErrors: Boolean(event.target.checked) })} />
+        )}
       </FieldRow>
       <FieldRow label="Permission context">
         <Input readonly={props.readonly} value={advanced.permissionContext ?? ""} onChange={permissionContext => update({ permissionContext })} />
       </FieldRow>
       <FieldRow label="Transaction boundary">
-        <Select
-          disabled={props.readonly}
-          style={{ width: "100%" }}
-          value={advanced.transactionBoundary ?? "inherit"}
-          optionList={[
-            { label: "Inherit", value: "inherit" },
-            { label: "Requires new", value: "requiresNew" },
-            { label: "None", value: "none" }
-          ]}
-          onChange={transactionBoundary => update({ transactionBoundary: String(transactionBoundary) as MicroflowNodeAdvancedConfig["transactionBoundary"] })}
-        />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Transaction boundary",
+          <Select
+            disabled={props.readonly}
+            style={{ width: "100%" }}
+            value={advanced.transactionBoundary ?? "inherit"}
+            optionList={[
+              { label: "Inherit", value: "inherit" },
+              { label: "Requires new", value: "requiresNew" },
+              { label: "None", value: "none" }
+            ]}
+            onChange={transactionBoundary => update({ transactionBoundary: String(transactionBoundary) as MicroflowNodeAdvancedConfig["transactionBoundary"] })}
+          />
+        )}
       </FieldRow>
       <FieldRow label="Performance tag">
         <Input readonly={props.readonly} value={advanced.performanceTag ?? ""} onChange={performanceTag => update({ performanceTag })} />
       </FieldRow>
       {n.type === "activity" && n.config.activityType === "callRest" ? (
         <FieldRow label="Follow redirects">
-          <Switch disabled={props.readonly} checked={advanced.followRedirects ?? true} onChange={followRedirects => update({ followRedirects })} />
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Follow redirects",
+            <Switch disabled={props.readonly} checked={advanced.followRedirects ?? true} onChange={followRedirects => update({ followRedirects })} />
+          )}
         </FieldRow>
       ) : null}
     </Space>

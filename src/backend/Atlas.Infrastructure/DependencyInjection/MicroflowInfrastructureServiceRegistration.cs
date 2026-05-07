@@ -30,6 +30,10 @@ public static class MicroflowInfrastructureServiceRegistration
         services.AddScoped<IDatabaseBackedMicroflowRuntimeObjectStore, SqlSugarMicroflowRuntimeObjectStore>();
         services.AddScoped<IMicroflowRuntimeObjectStore, DomainModelRuntimeObjectStore>();
         services.AddScoped<IWorkflowRuntimeClient, WorkflowRuntimeClientAdapter>();
+        services.AddSingleton<ISoapWebServiceConnector, DefaultSoapWebServiceConnector>();
+        services.AddSingleton<IXmlMappingConnector, DefaultXmlMappingConnector>();
+        services.AddSingleton<IDocumentGenerationRuntime, DefaultDocumentGenerationRuntime>();
+        services.AddSingleton<IExternalObjectConnector, DefaultExternalObjectConnector>();
         services.AddScoped<IMicroflowDatabaseUnitOfWork>(sp =>
         {
             var sessionFactory = sp.GetRequiredService<IMicroflowRuntimeDbSessionFactory>();

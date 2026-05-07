@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Button, Input, Modal, Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Input, Modal, Select, Space, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
 import type { MicroflowExpression, MicroflowTypeRef } from "../schema";
 import type {
@@ -70,6 +70,7 @@ export function ExpressionEditor({
   const expression = value ?? createExpression();
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState(expression.text ?? expression.raw);
+  const readonlyDisabledReason = readonly ? "Readonly mode cannot edit this field." : "";
   const variableOptions = useMemo(() => variables.map(variable => ({
     label: `${variable.name}: ${(variable.type ?? { name: variable.dataType.kind }).name}`,
     value: variable.name
@@ -101,15 +102,17 @@ export function ExpressionEditor({
             onChange({ ...expression, referencedVariables: selectedValues });
           }}
         />
-        <Button
-          disabled={readonly}
-          onClick={() => {
-            setDraft(expression.text ?? expression.raw);
-            setModalOpen(true);
-          }}
-        >
-          Edit
-        </Button>
+        <Tooltip content={readonlyDisabledReason || "Edit"}>
+          <Button
+            disabled={readonly}
+            onClick={() => {
+              setDraft(expression.text ?? expression.raw);
+              setModalOpen(true);
+            }}
+          >
+            Edit
+          </Button>
+        </Tooltip>
       </div>
       <Text type="tertiary" size="small">Syntax hints and engine validation are reserved for the expression runtime.</Text>
       {required && !(expression.text ?? expression.raw).trim() ? <FieldError message="Expression is required." /> : null}
@@ -217,16 +220,25 @@ export function KeyValueEditor({
   valuePlaceholder?: string;
   onChange: (value: Array<{ key: string; value: string }>) => void;
 }) {
+  const readonlyDisabledReason = readonly ? "Readonly mode cannot edit key/value pairs." : "";
   return (
     <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
       {value.map((item, index) => (
         <div key={`${item.key}-${index}`} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, width: "100%" }}>
           <Input readonly={readonly} value={item.key} placeholder={keyPlaceholder} onChange={next => onChange(value.map((row, rowIndex) => rowIndex === index ? { ...row, key: next } : row))} />
           <Input readonly={readonly} value={item.value} placeholder={valuePlaceholder} onChange={next => onChange(value.map((row, rowIndex) => rowIndex === index ? { ...row, value: next } : row))} />
-          <Button disabled={readonly} type="danger" theme="borderless" onClick={() => onChange(value.filter((_, rowIndex) => rowIndex !== index))}>Delete</Button>
+          <Tooltip content={readonlyDisabledReason || "Delete"}>
+            <span style={{ display: "inline-flex" }}>
+              <Button disabled={readonly} type="danger" theme="borderless" onClick={() => onChange(value.filter((_, rowIndex) => rowIndex !== index))}>Delete</Button>
+            </span>
+          </Tooltip>
         </div>
       ))}
-      <Button disabled={readonly} icon={<IconPlus />} onClick={() => onChange([...value, { key: "", value: "" }])}>Add</Button>
+      <Tooltip content={readonlyDisabledReason || "Add"}>
+        <span style={{ display: "inline-flex" }}>
+          <Button disabled={readonly} icon={<IconPlus />} onClick={() => onChange([...value, { key: "", value: "" }])}>Add</Button>
+        </span>
+      </Tooltip>
     </Space>
   );
 }

@@ -1,4 +1,4 @@
-import { Input, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Input, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowParameter } from "../../schema";
 import { updateMicroflowDocumentProperties } from "../utils";
@@ -6,6 +6,14 @@ import { dataTypeLabel, Field } from "../panel-shared";
 import type { MicroflowPropertyPanelProps } from "../types";
 
 const { Text, Title } = Typography;
+
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
+    </Tooltip>
+  );
+}
 
 function parameterSummary(parameters: MicroflowParameter[]): string {
   if (!parameters.length) {
@@ -28,6 +36,7 @@ function auditSummary(schema: MicroflowAuthoringSchema): string {
 
 export function MicroflowDocumentPropertiesForm(props: MicroflowPropertyPanelProps) {
   const { schema, readonly } = props;
+  const readonlyDisabledReason = readonly ? "Readonly mode cannot edit document properties." : "";
   const patchDocument = (patch: Partial<Pick<MicroflowAuthoringSchema, "description" | "documentation" | "returnType">>) => {
     props.onSchemaChange?.(updateMicroflowDocumentProperties(schema, patch), "updateMicroflowDocumentProperties");
   };
@@ -62,12 +71,16 @@ export function MicroflowDocumentPropertiesForm(props: MicroflowPropertyPanelPro
           <Text type="tertiary" size="small">Resource-level description remains read-only here; editable document notes are stored in schema.documentation.</Text>
         </Field>
         <Field label="Documentation">
-          <TextArea
-            value={schema.documentation ?? ""}
-            autosize
-            disabled={readonly}
-            onChange={documentation => patchDocument({ documentation })}
-          />
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Documentation",
+            <TextArea
+              value={schema.documentation ?? ""}
+              autosize
+              disabled={readonly}
+              onChange={documentation => patchDocument({ documentation })}
+            />
+          )}
         </Field>
         <Field label="Parameters">
           <TextArea value={parameterSummary(schema.parameters)} autosize disabled />

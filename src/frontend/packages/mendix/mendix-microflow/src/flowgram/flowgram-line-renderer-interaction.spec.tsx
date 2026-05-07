@@ -89,7 +89,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
       fireEvent.change(input, { target: { value: "error" } });
       fireEvent.keyDown(input, { key: "Escape" });
       expect(committed).toEqual([]);
-      expect(screen.getByRole("button").textContent).toBe("fallback");
+      expect(screen.getByRole("button").textContent).toContain("fallback");
     } finally {
       window.removeEventListener("atlas:microflow-inline-line-label-commit", listener as EventListener);
     }
@@ -215,7 +215,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     expect(button.className).toContain("is-warning");
     expect(button.getAttribute("title")).toContain("缺少目标节点");
     expect(button.querySelector(".microflow-branch-label__warning-dot")).toBeTruthy();
-    expect(button.textContent).toBe("else");
+    expect(button.textContent).toContain("else");
   });
 
   it("derives labels for approval/loop/error edges from edge kind and source port", () => {

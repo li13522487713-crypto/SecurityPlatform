@@ -7,6 +7,7 @@ import type { MicroflowRuntimeErrorCode } from "./runtime-error-codes";
 export type MicroflowRunStatus =
   | "idle"
   | "validating"
+  | "queued"
   | "running"
   | "success"
   | "failed"

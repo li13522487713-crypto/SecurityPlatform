@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Button, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowDatabaseRetrieveSource, MicroflowExpression, MicroflowMemberChange, MicroflowSortItem, MicroflowVariableSymbol } from "../../schema";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, getAssociationByQualifiedName, getAttributeByQualifiedName, getEnumerationByQualifiedName, getMicroflowById, getTargetEntityByAssociation, useMetadataStatus, useMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
 import { buildObjectActionWarnings, buildVariableIndex, getObjectEntityQualifiedName, getVariableNameConflicts, getVariableReferences, resolveVariableReferenceFromIndex } from "../../variables";
@@ -103,6 +103,14 @@ function listVariableEntityQualifiedName(symbol?: MicroflowVariableSymbol): stri
   return itemType?.kind === "object" ? itemType.entityQualifiedName : undefined;
 }
 
+function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
+  return (
+    <Tooltip content={disabledReason || enabledHint}>
+      <span style={{ display: "inline-flex" }}>{control}</span>
+    </Tooltip>
+  );
+}
+
 export function ActionActivityForm({
   schema,
   object,
@@ -147,6 +155,7 @@ export function ActionActivityForm({
   const selectedSourceList = (name?: string) => name ? listVariables.find(variable => variable.name === name) : undefined;
   const listVariableEmptyMessage = "No list variables available. Add a Create List node first.";
   const patchObject = (next: MicroflowActionActivity) => onPatch({ object: next });
+  const readonlyDisabledReason = readonly ? "Readonly mode cannot edit this action." : "";
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       <Field label="Caption">
@@ -157,16 +166,24 @@ export function ActionActivityForm({
         />
       </Field>
       <Field label="Auto Generate Caption">
-        <Switch checked={object.autoGenerateCaption} disabled={readonly} onChange={autoGenerateCaption => patchObject({ ...object, autoGenerateCaption })} />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Auto generate caption",
+          <Switch checked={object.autoGenerateCaption} disabled={readonly} onChange={autoGenerateCaption => patchObject({ ...object, autoGenerateCaption })} />
+        )}
       </Field>
       <Field label="Background Color">
-        <Select
-          value={object.backgroundColor}
-          disabled={readonly}
-          style={{ width: "100%" }}
-          onChange={value => patchObject({ ...object, backgroundColor: String(value) as MicroflowActionActivity["backgroundColor"] })}
-          optionList={["default", "blue", "green", "orange", "red", "purple", "gray"].map(value => ({ label: value, value }))}
-        />
+        {withDisabledReason(
+          readonlyDisabledReason,
+          "Background color",
+          <Select
+            value={object.backgroundColor}
+            disabled={readonly}
+            style={{ width: "100%" }}
+            onChange={value => patchObject({ ...object, backgroundColor: String(value) as MicroflowActionActivity["backgroundColor"] })}
+            optionList={["default", "blue", "green", "orange", "red", "purple", "gray"].map(value => ({ label: value, value }))}
+          />
+        )}
       </Field>
       <FieldRow label="Error Handling" fieldPath="action.errorHandlingType" issues={getIssuesForField(issues, "action.errorHandlingType")}>
         <ErrorHandlingEditor
@@ -342,20 +359,30 @@ export function ActionActivityForm({
                           },
                         }))}
                       />
-                      <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
-                        retrieveSource: {
-                          ...action.retrieveSource,
-                          sortItemList: { items: (action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items.filter((_: unknown, rowIndex: number) => rowIndex !== index) },
-                        },
-                      }))}>Delete</Button>
+                      {withDisabledReason(
+                        readonlyDisabledReason,
+                        "Delete",
+                        <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
+                          retrieveSource: {
+                            ...action.retrieveSource,
+                            sortItemList: { items: (action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items.filter((_: unknown, rowIndex: number) => rowIndex !== index) },
+                          },
+                        }))}>Delete</Button>
+                      )}
                     </div>
                   ))}
-                  <Button disabled={readonly || !action.retrieveSource.entityQualifiedName} onClick={() => patchObject(updateAction(object, {
-                    retrieveSource: {
-                      ...action.retrieveSource,
-                      sortItemList: { items: [...(action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items, { attributeQualifiedName: "", direction: "asc" as const }] },
-                    },
-                  }))}>Add sort item</Button>
+                  {withDisabledReason(
+                    readonly
+                      ? "Readonly mode cannot edit this action."
+                      : (!action.retrieveSource.entityQualifiedName ? "Select entity first before adding sort items." : ""),
+                    "Add sort item",
+                    <Button disabled={readonly || !action.retrieveSource.entityQualifiedName} onClick={() => patchObject(updateAction(object, {
+                      retrieveSource: {
+                        ...action.retrieveSource,
+                        sortItemList: { items: [...(action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items, { attributeQualifiedName: "", direction: "asc" as const }] },
+                      },
+                    }))}>Add sort item</Button>
+                  )}
                 </Space>
               </Field>
             </>
@@ -590,38 +617,64 @@ export function ActionActivityForm({
                           }))}
                         />
                       )}
-                      <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
-                        memberChanges: action.memberChanges.filter((_, rowIndex) => rowIndex !== index),
-                      }))}>Delete</Button>
+                      {withDisabledReason(
+                        readonlyDisabledReason,
+                        "Delete",
+                        <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
+                          memberChanges: action.memberChanges.filter((_, rowIndex) => rowIndex !== index),
+                        }))}>Delete</Button>
+                      )}
                     </div>
                     {staleMember ? <Text type="warning" size="small">Metadata unavailable / stale member: {change.memberQualifiedName}</Text> : null}
                     {selectedAttribute?.isReadonly ? <Text type="warning" size="small">Selected attribute is readonly or calculated.</Text> : null}
                   </Space>
                 );
               })}
-              <Button disabled={readonly || (action.kind === "createObject" ? !action.entityQualifiedName : !memberEntity)} onClick={() => patchObject(updateAction(object, {
-                memberChanges: [...action.memberChanges, {
-                  id: `member-change-${Date.now()}`,
-                  memberQualifiedName: "",
-                  memberKind: "attribute",
-                  assignmentKind: "set",
-                  valueExpression: expression(""),
-                }],
-              }))}>Add member change</Button>
+              {withDisabledReason(
+                readonly
+                  ? "Readonly mode cannot edit this action."
+                  : (action.kind === "createObject" ? (!action.entityQualifiedName ? "Select entity first before adding member changes." : "") : (!memberEntity ? "Select or infer member entity first before adding member changes." : "")),
+                "Add member change",
+                <Button disabled={readonly || (action.kind === "createObject" ? !action.entityQualifiedName : !memberEntity)} onClick={() => patchObject(updateAction(object, {
+                  memberChanges: [...action.memberChanges, {
+                    id: `member-change-${Date.now()}`,
+                    memberQualifiedName: "",
+                    memberKind: "attribute",
+                    assignmentKind: "set",
+                    valueExpression: expression(""),
+                  }],
+                }))}>Add member change</Button>
+              )}
             </Space>
           </Field>
           <Field label="Commit Enabled">
-            <Switch checked={action.commit.enabled} disabled={readonly} onChange={enabled => patchObject(updateAction(object, { commit: { ...action.commit, enabled } }))} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Commit enabled",
+              <Switch checked={action.commit.enabled} disabled={readonly} onChange={enabled => patchObject(updateAction(object, { commit: { ...action.commit, enabled } }))} />
+            )}
           </Field>
           <Field label="With Events">
-            <Switch checked={action.commit.withEvents} disabled={readonly} onChange={withEvents => patchObject(updateAction(object, { commit: { ...action.commit, withEvents } }))} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "With events",
+              <Switch checked={action.commit.withEvents} disabled={readonly} onChange={withEvents => patchObject(updateAction(object, { commit: { ...action.commit, withEvents } }))} />
+            )}
           </Field>
           <Field label="Refresh In Client">
-            <Switch checked={action.commit.refreshInClient} disabled={readonly} onChange={refreshInClient => patchObject(updateAction(object, { commit: { ...action.commit, refreshInClient } }))} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Refresh in client",
+              <Switch checked={action.commit.refreshInClient} disabled={readonly} onChange={refreshInClient => patchObject(updateAction(object, { commit: { ...action.commit, refreshInClient } }))} />
+            )}
           </Field>
           {action.kind === "changeMembers" ? (
             <Field label="Validate Object">
-              <Switch checked={action.validateObject} disabled={readonly} onChange={validateObject => patchObject(updateAction(object, { validateObject }))} />
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Validate object",
+                <Switch checked={action.validateObject} disabled={readonly} onChange={validateObject => patchObject(updateAction(object, { validateObject }))} />
+              )}
             </Field>
           ) : null}
         </>
@@ -631,13 +684,17 @@ export function ActionActivityForm({
         <>
           <Title heading={6} style={{ margin: "10px 0 0" }}>REST Request</Title>
           <Field label="Method">
-            <Select
-              value={action.request.method}
-              disabled={readonly}
-              style={{ width: "100%" }}
-              onChange={method => patchObject(updateAction(object, { request: { ...action.request, method: String(method) as typeof action.request.method } }))}
-              optionList={["GET", "POST", "PUT", "PATCH", "DELETE"].map(value => ({ label: value, value }))}
-            />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Method",
+              <Select
+                value={action.request.method}
+                disabled={readonly}
+                style={{ width: "100%" }}
+                onChange={method => patchObject(updateAction(object, { request: { ...action.request, method: String(method) as typeof action.request.method } }))}
+                optionList={["GET", "POST", "PUT", "PATCH", "DELETE"].map(value => ({ label: value, value }))}
+              />
+            )}
           </Field>
           <Field label="URL Expression">
             <ExpressionEditor
@@ -677,15 +734,21 @@ export function ActionActivityForm({
                   />
                 </div>
               ))}
-              <Button
-                disabled={readonly}
-                onClick={() => patchObject(updateAction(object, {
-                  request: {
-                    ...action.request,
-                    headers: [...action.request.headers, { id: `hdr-${Date.now()}`, key: "", valueExpression: expression("", { kind: "string" }) }],
-                  },
-                }))}
-              >Add header</Button>
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Add header",
+                <Button
+                  disabled={readonly}
+                  onClick={() => patchObject(updateAction(object, {
+                    request: {
+                      ...action.request,
+                      headers: [...action.request.headers, { id: `hdr-${Date.now()}`, key: "", valueExpression: expression("", { kind: "string" }) }],
+                    },
+                  }))}
+                >
+                  Add header
+                </Button>
+              )}
             </Space>
           </Field>
           <Field label="Query Parameters">
@@ -707,15 +770,21 @@ export function ActionActivityForm({
                   />
                 </div>
               ))}
-              <Button
-                disabled={readonly}
-                onClick={() => patchObject(updateAction(object, {
-                  request: {
-                    ...action.request,
-                    queryParameters: [...action.request.queryParameters, { id: `q-${Date.now()}`, key: "", valueExpression: expression("", { kind: "string" }) }],
-                  },
-                }))}
-              >Add query</Button>
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Add query",
+                <Button
+                  disabled={readonly}
+                  onClick={() => patchObject(updateAction(object, {
+                    request: {
+                      ...action.request,
+                      queryParameters: [...action.request.queryParameters, { id: `q-${Date.now()}`, key: "", valueExpression: expression("", { kind: "string" }) }],
+                    },
+                  }))}
+                >
+                  Add query
+                </Button>
+              )}
             </Space>
           </Field>
           <Field label="Body Type">
@@ -772,10 +841,18 @@ export function ActionActivityForm({
                       readonly={readonly}
                       onChange={valueExpression => patchObject(updateAction(object, { request: { ...action.request, body: { ...restFormBody, fields: restFormBody.fields.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression } : row) } } }))}
                     />
-                    <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, { request: { ...action.request, body: { ...restFormBody, fields: restFormBody.fields.filter((_, rowIndex) => rowIndex !== index) } } }))}>Delete</Button>
+                    {withDisabledReason(
+                      readonlyDisabledReason,
+                      "Delete",
+                      <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, { request: { ...action.request, body: { ...restFormBody, fields: restFormBody.fields.filter((_, rowIndex) => rowIndex !== index) } } }))}>Delete</Button>
+                    )}
                   </div>
                 ))}
-                <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { request: { ...action.request, body: { ...restFormBody, fields: [...restFormBody.fields, { id: `form-${Date.now()}`, key: "", valueExpression: expression("", { kind: "string" }) }] } } }))}>Add form field</Button>
+                {withDisabledReason(
+                  readonlyDisabledReason,
+                  "Add form field",
+                  <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { request: { ...action.request, body: { ...restFormBody, fields: [...restFormBody.fields, { id: `form-${Date.now()}`, key: "", valueExpression: expression("", { kind: "string" }) }] } } }))}>Add form field</Button>
+                )}
               </Space>
             </Field>
           ) : null}
@@ -895,20 +972,36 @@ export function ActionActivityForm({
                     placeholder="Argument expression"
                     onChange={nextArgument => patchObject(updateAction(object, { template: { ...action.template, arguments: action.template.arguments.map((row, rowIndex) => rowIndex === index ? nextArgument : row) } }))}
                   />
-                  <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, { template: { ...action.template, arguments: action.template.arguments.filter((_, rowIndex) => rowIndex !== index) } }))}>Delete</Button>
+                  {withDisabledReason(
+                    readonlyDisabledReason,
+                    "Delete",
+                    <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, { template: { ...action.template, arguments: action.template.arguments.filter((_, rowIndex) => rowIndex !== index) } }))}>Delete</Button>
+                  )}
                 </div>
               ))}
-              <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { template: { ...action.template, arguments: [...action.template.arguments, expression("")] } }))}>Add argument</Button>
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Add argument",
+                <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { template: { ...action.template, arguments: [...action.template.arguments, expression("")] } }))}>Add argument</Button>
+              )}
             </Space>
           </FieldRow>
           <FieldRow label="Log Node Name" fieldPath="action.logNodeName">
             <Input value={action.logNodeName} disabled={readonly} onChange={logNodeName => patchObject(updateAction(object, { logNodeName }))} />
           </FieldRow>
           <Field label="Include Context Variables">
-            <Switch checked={action.includeContextVariables} disabled={readonly} onChange={includeContextVariables => patchObject(updateAction(object, { includeContextVariables }))} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Include context variables",
+              <Switch checked={action.includeContextVariables} disabled={readonly} onChange={includeContextVariables => patchObject(updateAction(object, { includeContextVariables }))} />
+            )}
           </Field>
           <Field label="Include TraceId">
-            <Switch checked={action.includeTraceId} disabled={readonly} onChange={includeTraceId => patchObject(updateAction(object, { includeTraceId }))} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Include traceId",
+              <Switch checked={action.includeTraceId} disabled={readonly} onChange={includeTraceId => patchObject(updateAction(object, { includeTraceId }))} />
+            )}
           </Field>
         </>
       ) : null}
@@ -1011,22 +1104,34 @@ export function ActionActivityForm({
             </Space>
           </FieldRow>
           <Field label="Store Result">
-            <Switch checked={action.returnValue.storeResult} disabled={readonly || isVoidMicroflowReturn(selectedMicroflow?.returnType)} onChange={storeResult => patchObject(updateAction(object, { returnValue: { ...action.returnValue, storeResult, outputVariableName: storeResult ? action.returnValue.outputVariableName : undefined } }))} />
+            {withDisabledReason(
+              readonly
+                ? "Readonly mode cannot edit this action."
+                : (isVoidMicroflowReturn(selectedMicroflow?.returnType) ? "Target microflow has no return value." : ""),
+              "Store result",
+              <Switch checked={action.returnValue.storeResult} disabled={readonly || isVoidMicroflowReturn(selectedMicroflow?.returnType)} onChange={storeResult => patchObject(updateAction(object, { returnValue: { ...action.returnValue, storeResult, outputVariableName: storeResult ? action.returnValue.outputVariableName : undefined } }))} />
+            )}
             {isVoidMicroflowReturn(selectedMicroflow?.returnType) ? <Text type="tertiary" size="small">Target microflow has no return value.</Text> : null}
           </Field>
           <Field label="Existing Return Variable">
-            <VariableSelector
-              schema={schema}
-              objectId={object.id}
-              fieldPath="action.returnValue.outputVariableName"
-              allowedTypeKinds={selectedMicroflow?.returnType ? [selectedMicroflow.returnType.kind] : undefined}
-              value={action.returnValue.outputVariableName}
-              disabled={readonly || isVoidMicroflowReturn(selectedMicroflow?.returnType)}
-              includeSystem={false}
-              includeReadonly={false}
-              scopeMode="index"
-              onChange={outputVariableName => patchObject(updateAction(object, updateCallMicroflowReturnBinding(action, outputVariableName)))}
-            />
+            {withDisabledReason(
+              readonly
+                ? "Readonly mode cannot edit this action."
+                : (isVoidMicroflowReturn(selectedMicroflow?.returnType) ? "Target microflow has no return value." : ""),
+              "Existing return variable",
+              <VariableSelector
+                schema={schema}
+                objectId={object.id}
+                fieldPath="action.returnValue.outputVariableName"
+                allowedTypeKinds={selectedMicroflow?.returnType ? [selectedMicroflow.returnType.kind] : undefined}
+                value={action.returnValue.outputVariableName}
+                disabled={readonly || isVoidMicroflowReturn(selectedMicroflow?.returnType)}
+                includeSystem={false}
+                includeReadonly={false}
+                scopeMode="index"
+                onChange={outputVariableName => patchObject(updateAction(object, updateCallMicroflowReturnBinding(action, outputVariableName)))}
+              />
+            )}
           </Field>
           <FieldRow label="Return Variable Name" fieldPath="action.returnValue.outputVariableName" required={action.returnValue.storeResult} issues={getIssuesForField(issues, "action.returnValue.outputVariableName")}>
             <OutputVariableEditor
@@ -1044,13 +1149,17 @@ export function ActionActivityForm({
             />
           </FieldRow>
           <Field label="Call Mode">
-            <Select
-              value={action.callMode}
-              disabled={readonly}
-              style={{ width: "100%" }}
-              onChange={callMode => patchObject(updateAction(object, { callMode: String(callMode) as typeof action.callMode }))}
-              optionList={[{ label: "sync", value: "sync" }, { label: "asyncReserved", value: "asyncReserved" }]}
-            />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Call mode",
+              <Select
+                value={action.callMode}
+                disabled={readonly}
+                style={{ width: "100%" }}
+                onChange={callMode => patchObject(updateAction(object, { callMode: String(callMode) as typeof action.callMode }))}
+                optionList={[{ label: "sync", value: "sync" }, { label: "asyncReserved", value: "asyncReserved" }]}
+              />
+            )}
           </Field>
         </>
       ) : null}
@@ -1080,7 +1189,11 @@ export function ActionActivityForm({
             <Input value={action.id} disabled />
           </Field>
           <Field label="Read only">
-            <Switch checked={action.readonly} disabled={readonly} onChange={readOnly => patchObject(updateAction(object, { readonly: readOnly }))} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Read only",
+              <Switch checked={action.readonly} disabled={readonly} onChange={readOnly => patchObject(updateAction(object, { readonly: readOnly }))} />
+            )}
           </Field>
           <Field label="Data Type">
             <DataTypeSelector value={action.dataType} disabled={readonly} allowVoid={false} onChange={dataType => patchObject(updateAction(object, { dataType }))} />
@@ -1242,13 +1355,17 @@ export function ActionActivityForm({
             <RequiredConfigWarning visible={Boolean(action.targetListVariableName) && !listVariableNames.has(action.targetListVariableName)}>Selected target is stale or is not a List variable.</RequiredConfigWarning>
           </Field>
           <Field label="Operation">
-            <Select
-              value={action.operation}
-              disabled={readonly}
-              style={{ width: "100%" }}
-              optionList={changeListOperations.map(value => ({ label: value, value }))}
-              onChange={operation => patchObject(updateAction(object, { operation: String(operation) as typeof action.operation }))}
-            />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Operation",
+              <Select
+                value={action.operation}
+                disabled={readonly}
+                style={{ width: "100%" }}
+                optionList={changeListOperations.map(value => ({ label: value, value }))}
+                onChange={operation => patchObject(updateAction(object, { operation: String(operation) as typeof action.operation }))}
+              />
+            )}
           </Field>
           {action.operation === "addAll" || action.operation === "removeAll" || action.operation === "set" ? (
             <Field label="Source List">
@@ -1268,10 +1385,18 @@ export function ActionActivityForm({
             </Field>
           ) : null}
           <Field label="Allow Duplicates">
-            <Switch checked={Boolean(action.allowDuplicates)} disabled={readonly} onChange={allowDuplicates => patchObject(updateAction(object, { allowDuplicates }))} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Allow duplicates",
+              <Switch checked={Boolean(action.allowDuplicates)} disabled={readonly} onChange={allowDuplicates => patchObject(updateAction(object, { allowDuplicates }))} />
+            )}
           </Field>
           <Field label="Mutate In Place">
-            <Switch checked={action.mutateInPlace ?? true} disabled={readonly} onChange={mutateInPlace => patchObject(updateAction(object, { mutateInPlace }))} />
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Mutate in place",
+              <Switch checked={action.mutateInPlace ?? true} disabled={readonly} onChange={mutateInPlace => patchObject(updateAction(object, { mutateInPlace }))} />
+            )}
           </Field>
           <Field label={action.operation === "addRange" ? "Items Expression" : "Item Expression"}>
             <ExpressionEditor

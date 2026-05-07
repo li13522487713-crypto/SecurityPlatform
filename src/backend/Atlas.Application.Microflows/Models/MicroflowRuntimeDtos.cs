@@ -683,6 +683,7 @@ public static class RuntimeErrorCode
     /// 服务端 test-run 没有客户端环境，因此显式失败而非静默成功。
     /// </summary>
     public const string RuntimePendingClientCommand = "RUNTIME_PENDING_CLIENT_COMMAND";
+    public const string RuntimeValidationBlocked = "RUNTIME_VALIDATION_BLOCKED";
     public const string RuntimeUnknownError = "RUNTIME_UNKNOWN_ERROR";
     public const string RuntimeExpressionParseError = "RUNTIME_EXPR_PARSE_ERROR";
     public const string RuntimeExpressionMemberNotFound = "RUNTIME_EXPR_MEMBER_NOT_FOUND";

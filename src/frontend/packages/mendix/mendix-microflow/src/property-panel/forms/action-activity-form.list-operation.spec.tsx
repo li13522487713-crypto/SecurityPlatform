@@ -18,6 +18,7 @@ vi.mock("@douyinfe/semi-ui", () => ({
   Switch: ({ checked, onChange, disabled }: any) => <input type="checkbox" checked={Boolean(checked)} disabled={disabled} onChange={event => onChange?.(event.currentTarget.checked)} />,
   Tag: ({ children }: any) => <span>{children}</span>,
   TextArea: ({ value, onChange, disabled }: any) => <textarea value={value ?? ""} disabled={disabled} onChange={event => onChange?.(event.currentTarget.value)} />,
+  Tooltip: ({ children }: any) => <>{children}</>,
   Typography: {
     Text: ({ children }: any) => <span>{children}</span>,
     Title: ({ children }: any) => <h3>{children}</h3>,
