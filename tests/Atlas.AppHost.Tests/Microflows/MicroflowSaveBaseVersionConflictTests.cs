@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Audit;
 using Atlas.Application.Microflows.Contracts;
@@ -148,6 +149,35 @@ public sealed class MicroflowSaveBaseVersionConflictTests
         await fixture.ResourceRepo.DidNotReceive().UpdateAsync(Arg.Any<MicroflowResourceEntity>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task SaveSchemaAsync_PersistsOutputMappingsIntoSnapshot()
+    {
+        var fixture = Build();
+        var resource = Resource();
+        var snapshot = Snapshot(resource.CurrentSchemaSnapshotId!);
+        fixture.ResourceRepo.GetByIdAsync(resource.Id, Arg.Any<CancellationToken>()).Returns(resource);
+        fixture.SnapshotRepo.GetByIdAsync(resource.CurrentSchemaSnapshotId!, Arg.Any<CancellationToken>()).Returns(snapshot);
+
+        var schema = MinimalSchemaWithOutputMappings(resource.Id);
+        await fixture.Service.SaveSchemaAsync(
+            resource.Id,
+            new SaveMicroflowSchemaRequestDto
+            {
+                Schema = schema,
+                BaseVersion = snapshot.Id,
+                ClientRequestId = "req-output-mappings",
+                SaveReason = "manual-save"
+            },
+            CancellationToken.None);
+
+        await fixture.SnapshotRepo.Received(1).InsertAsync(
+            Arg.Is<MicroflowSchemaSnapshotEntity>(entity =>
+                entity.SchemaJson.Contains("\"outputMappings\"", StringComparison.Ordinal)
+                && entity.SchemaJson.Contains("\"key\":\"final\"", StringComparison.Ordinal)
+                && entity.SchemaJson.Contains("\"variableName\":\"resultVar\"", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
     private static (MicroflowResourceService Service, IMicroflowResourceRepository ResourceRepo, IMicroflowSchemaSnapshotRepository SnapshotRepo) Build()
     {
         var resourceRepo = Substitute.For<IMicroflowResourceRepository>();
@@ -257,6 +287,19 @@ public sealed class MicroflowSaveBaseVersionConflictTests
                 updatedAt = "2026-04-29T00:00:00.000Z"
             }
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+    private static JsonElement MinimalSchemaWithOutputMappings(string id)
+    {
+        var node = JsonSerializer.SerializeToNode(MinimalSchema(id), new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
+        var dataNode = node["workflow"]?["nodes"]?[0]?["data"] as JsonObject
+            ?? throw new InvalidOperationException("测试 schema 缺少 workflow.nodes[0].data。");
+        dataNode["outputMappings"] = JsonSerializer.SerializeToNode(new object[]
+        {
+            new { key = "final", source = "variable", variableName = "resultVar" },
+            new { key = "status", source = "constant", constantValue = "ok" }
+        }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        return JsonSerializer.SerializeToElement(node, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    }
 
     private static string MinimalSchemaWithForbiddenProperty(string id, string forbiddenProperty)
     {

@@ -13,6 +13,16 @@ import type { MicroflowCaseEditorKind } from "./adapters/flowgram-case-options";
 
 export type FlowGramMicroflowNodeType = MicroflowObjectKind;
 
+export type MicroflowOutputMappingSource = "variable" | "constant" | "expression";
+
+export interface MicroflowOutputMapping {
+  key: string;
+  source: MicroflowOutputMappingSource;
+  variableName?: string;
+  constantValue?: unknown;
+  expression?: string;
+}
+
 export interface FlowGramMicroflowNodeData {
   objectId: string;
   objectKind: MicroflowObjectKind;
@@ -32,6 +42,7 @@ export interface FlowGramMicroflowNodeData {
   };
   actionKind?: MicroflowActionKind;
   action?: MicroflowAction;
+  outputMappings?: MicroflowOutputMapping[];
   availability?: MicroflowNodeAvailability;
   availabilityReason?: string;
   title: string;
@@ -67,7 +78,8 @@ export type MicroflowInlineEditType =
   | "json"
   | "mapping"
   | "approval"
-  | "loop";
+  | "loop"
+  | "outputMappings";
 
 export interface MicroflowInlineEditableField {
   id: string;

@@ -3,7 +3,7 @@ import { Button, Card, Input, Modal, Select, Space, Switch, Tag, TextArea, Toast
 
 import type { MicroflowDataType, MicroflowDesignSchema, MicroflowSchema } from "../schema";
 import { buildDefaultRunInputValues, buildRunInputModel, validateRunInputs, type MicroflowRunInputField } from "./run-input-model";
-import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTestRunOptions, MicroflowTestRunSample } from "./trace-types";
+import type { MicroflowRunSession, MicroflowTestRunInput, MicroflowTestRunOptions, MicroflowTestRunSample, MicroflowTraceFrame } from "./trace-types";
 import { formatMendixMicroflowTemplate, getMendixMicroflowCopy } from "../i18n/copy";
 
 const { Text } = Typography;
@@ -324,6 +324,30 @@ function renderInput(dataType: MicroflowDataType, value: unknown, onChange: (val
   return <Input value={String(value ?? "")} onChange={onChange} />;
 }
 
+function summarizeTraceFrameForTestRun(frame: MicroflowTraceFrame): Record<string, unknown> {
+  const row: Record<string, unknown> = {
+    objectId: frame.objectId,
+    microflowId: frame.microflowId,
+    status: frame.status,
+  };
+  if (frame.output !== undefined) {
+    row.output = frame.output;
+  }
+  if (frame.outputVariables !== undefined) {
+    row.outputVariables = frame.outputVariables;
+  }
+  if (frame.outputMappingsResolved !== undefined) {
+    row.outputMappingsResolved = frame.outputMappingsResolved;
+  }
+  if (frame.variablesSnapshot !== undefined && Object.keys(frame.variablesSnapshot).length > 0) {
+    row.variablesSnapshot = frame.variablesSnapshot;
+  }
+  if (frame.error !== undefined) {
+    row.error = frame.error;
+  }
+  return row;
+}
+
 function RunResultPreview({ session, serviceError }: { session?: MicroflowRunSession; serviceError?: string }) {
   if (serviceError) {
     return <Card style={{ width: "100%" }} bodyStyle={{ padding: 12 }}><Text type="danger">{serviceError}</Text></Card>;
@@ -334,12 +358,7 @@ function RunResultPreview({ session, serviceError }: { session?: MicroflowRunSes
   }
   const copy = getMendixMicroflowCopy();
   const durationMs = session.endedAt ? Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) : undefined;
-  const nodeOutputs = session.trace.filter(frame => frame.output !== undefined).map(frame => ({
-    objectId: frame.objectId,
-    microflowId: frame.microflowId,
-    status: frame.status,
-    output: frame.output,
-  }));
+  const traceSummaries = session.trace.map(frame => summarizeTraceFrameForTestRun(frame));
   const childRuns = session.childRuns ?? [];
   return (
     <Card style={{ width: "100%" }} bodyStyle={{ padding: 12 }}>
@@ -360,18 +379,12 @@ function RunResultPreview({ session, serviceError }: { session?: MicroflowRunSes
         <pre data-testid="microflow-test-run-output-json" style={{ whiteSpace: "pre-wrap", margin: 0, maxHeight: 220, overflow: "auto", width: "100%" }}>
           {JSON.stringify({
             output: session.output,
-            nodeOutputs,
+            traceSummaries,
             childRuns: childRuns.map(item => ({
               id: item.id,
               status: item.status,
               error: item.error,
-              trace: item.trace.map(frame => ({
-                objectId: frame.objectId,
-                microflowId: frame.microflowId,
-                status: frame.status,
-                output: frame.output,
-                error: frame.error,
-              })),
+              trace: item.trace.map(frame => summarizeTraceFrameForTestRun(frame)),
             })),
             logs: session.logs,
           }, null, 2)}

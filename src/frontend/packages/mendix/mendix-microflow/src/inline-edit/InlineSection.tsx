@@ -9,6 +9,7 @@ import { InlineExpressionField } from "./InlineExpressionField";
 import { InlineHttpEditor } from "./InlineHttpEditor";
 import { InlineJsonEditor } from "./InlineJsonEditor";
 import { InlineMappingEditor } from "./InlineMappingEditor";
+import { InlineOutputMappingsEditor } from "./InlineOutputMappingsEditor";
 import { InlineVariableField } from "./InlineVariableField";
 
 const { Text } = Typography;
@@ -40,6 +41,8 @@ function renderField(field: MicroflowInlineEditableField, readonly: boolean | un
       return <InlineJsonEditor {...common} options={field.options} />;
     case "mapping":
       return <InlineMappingEditor {...common} options={field.options} />;
+    case "outputMappings":
+      return <InlineOutputMappingsEditor {...common} options={field.options} />;
     case "approval":
     case "loop":
     case "text":

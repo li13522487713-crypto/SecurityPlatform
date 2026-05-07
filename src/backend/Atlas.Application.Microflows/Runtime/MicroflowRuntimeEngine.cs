@@ -1085,9 +1085,14 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
     private static NodeExecution ExecuteEnd(RuntimeContext context, MicroflowObjectModel node, string? incomingFlowId)
     {
+        var mappedOutput = context.ResolveOutputMappings(node.Id);
         var expression = ReadExpressionText(node.Raw, "returnValue") ?? ReadExpressionText(node.Raw, "returnValueExpression");
         JsonElement output;
-        if (string.IsNullOrWhiteSpace(expression))
+        if (mappedOutput.HasValue)
+        {
+            output = mappedOutput.Value;
+        }
+        else if (string.IsNullOrWhiteSpace(expression))
         {
             output = JsonNull();
         }
@@ -3185,6 +3190,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             var preparedOutput = PrepareTracePayload(output);
             var previousVariables = _lastTraceVariablesSnapshot;
             var currentVariables = SnapshotVariables();
+            var outputMappingsResolved = ResolveOutputMappingsResolved(objectId, currentVariables);
             var inputVariables = VariablesToJson(previousVariables ?? currentVariables);
             var outputVariables = VariablesToJson(currentVariables);
             var variableDelta = BuildVariableDelta(previousVariables, currentVariables);
@@ -3215,6 +3221,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 ActionInput = preparedInput,
                 EvaluatedExpressions = ExtractEvaluatedExpressions(input, output),
                 Output = preparedOutput,
+                OutputMappingsResolved = outputMappingsResolved,
                 OutputVariables = outputVariables,
                 VariableDelta = variableDelta,
                 HandoffPayload = BuildHandoffPayload(outgoingFlowId, preparedOutput),
@@ -3235,6 +3242,101 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 Output = preparedOutput
             };
         }
+
+        private JsonElement? ResolveOutputMappingsResolved(
+            string objectId,
+            IReadOnlyDictionary<string, MicroflowRuntimeVariableValueDto> currentVariables)
+        {
+            var node = Model.Objects.FirstOrDefault(item => string.Equals(item.Id, objectId, StringComparison.Ordinal));
+            if (node is null)
+            {
+                return null;
+            }
+
+            if (!node.Raw.TryGetProperty("outputMappings", out var mappingsElement) || mappingsElement.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            var resolved = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+            foreach (var mapping in mappingsElement.EnumerateArray())
+            {
+                if (mapping.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var key = ReadString(mapping, "key");
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                var source = ReadString(mapping, "source")?.Trim().ToLowerInvariant();
+                switch (source)
+                {
+                    case "variable":
+                    {
+                        var variableName = ReadString(mapping, "variableName");
+                        if (string.IsNullOrWhiteSpace(variableName))
+                        {
+                            break;
+                        }
+
+                        if (currentVariables.TryGetValue(variableName, out var variable))
+                        {
+                            resolved[key] = MicroflowVariableStore.ToJsonElement(variable.RawValueJson) ?? JsonNull();
+                        }
+                        else
+                        {
+                            resolved[key] = JsonNull();
+                        }
+                        break;
+                    }
+                    case "constant":
+                    {
+                        if (mapping.TryGetProperty("constantValue", out var constantValue))
+                        {
+                            resolved[key] = constantValue.Clone();
+                        }
+                        else
+                        {
+                            resolved[key] = JsonNull();
+                        }
+                        break;
+                    }
+                    case "expression":
+                    {
+                        var expression = ReadExpressionText(mapping, "expression");
+                        if (string.IsNullOrWhiteSpace(expression))
+                        {
+                            resolved[key] = JsonNull();
+                            break;
+                        }
+
+                        try
+                        {
+                            resolved[key] = EvaluateExpression(expression, currentObjectId: objectId);
+                        }
+                        catch
+                        {
+                            resolved[key] = JsonNull();
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if (resolved.Count == 0)
+            {
+                return null;
+            }
+
+            return JsonSerializer.SerializeToElement(resolved, JsonOptions);
+        }
+
+        public JsonElement? ResolveOutputMappings(string objectId)
+            => ResolveOutputMappingsResolved(objectId, SnapshotVariables());
 
         private JsonElement VariablesToJson(IReadOnlyDictionary<string, MicroflowRuntimeVariableValueDto> variables)
             => JsonSerializer.SerializeToElement(variables, JsonOptions);

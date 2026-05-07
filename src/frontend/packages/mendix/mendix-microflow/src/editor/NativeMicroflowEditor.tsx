@@ -457,17 +457,26 @@ function setByPath(root: unknown, path: string, value: unknown): unknown {
   if (segments.length === 0) {
     return root;
   }
-  const clone = Array.isArray(root) ? [...root] : { ...(root as Record<string, unknown>) };
-  let cursor: Record<string, unknown> | unknown[] = clone as Record<string, unknown>;
-  for (let index = 0; index < segments.length - 1; index += 1) {
-    const key = segments[index]!;
-    const next = (cursor as Record<string, unknown>)[key];
-    const nextClone = Array.isArray(next) ? [...next] : { ...((next as Record<string, unknown>) ?? {}) };
-    (cursor as Record<string, unknown>)[key] = nextClone;
-    cursor = nextClone as Record<string, unknown>;
-  }
-  (cursor as Record<string, unknown>)[segments[segments.length - 1]!] = value;
-  return clone;
+  const isArrayIndex = (segment: string) => /^\d+$/.test(segment);
+  const visit = (current: unknown, index: number): unknown => {
+    const segment = segments[index]!;
+    const isLast = index === segments.length - 1;
+    const key: string | number = isArrayIndex(segment) ? Number(segment) : segment;
+    const currentValue = current ?? (isArrayIndex(segment) ? [] : {});
+    const container = Array.isArray(currentValue) ? [...currentValue] : { ...(currentValue as Record<string, unknown>) };
+
+    if (isLast) {
+      (container as Record<string, unknown>)[key] = value;
+      return container;
+    }
+
+    const nextSegment = segments[index + 1]!;
+    const nextDefault: unknown = isArrayIndex(nextSegment) ? [] : {};
+    const nextCurrent = (container as Record<string, unknown>)[key] ?? nextDefault;
+    (container as Record<string, unknown>)[key] = visit(nextCurrent, index + 1);
+    return container;
+  };
+  return visit(root, 0);
 }
 
 function applyNodeFieldPatch(node: MicroflowWorkflowNodeJSON, fieldPath: string, value: unknown): void {
@@ -812,11 +821,6 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
       return false;
     }
     const next = cloneSchema(latestSchemaRef.current);
-    if (detail.nodeId === "end" && (detail.fieldPath === "returnVariableName" || detail.fieldPath === "schema.returnVariableName")) {
-      next.returnVariableName = detail.value ?? "";
-      commitSchema(next, "property");
-      return true;
-    }
     const node = workflowNodeById(next.workflow, detail.nodeId) as MicroflowWorkflowNodeJSON | undefined;
     if (!node) return false;
     const normalizedValue = normalizeInlineCommitValue(detail.fieldPath, detail.value ?? "");

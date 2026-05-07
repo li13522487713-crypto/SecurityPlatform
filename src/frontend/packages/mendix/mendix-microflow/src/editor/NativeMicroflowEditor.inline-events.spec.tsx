@@ -232,6 +232,19 @@ function createExtendedInlineSchema(): MicroflowDesignSchema {
       nodes: [
         ...createActionSchema().workflow.nodes,
         {
+          id: "end",
+          type: "event",
+          data: {
+            objectId: "end",
+            objectKind: "endEvent",
+            collectionId: "nodes",
+            title: "End",
+            validationState: "valid",
+            issueCount: 0,
+          },
+          meta: { position: { x: 860, y: 120 } },
+        },
+        {
           id: "approval-1",
           type: "activity",
           data: {
@@ -367,14 +380,17 @@ describe("NativeMicroflowEditor inline events", () => {
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
       detail: {
         nodeId: "end",
-        fieldPath: "returnVariableName",
-        value: "approvalResult",
-        editType: "text",
+        fieldPath: "data.outputMappings",
+        value: "[{\"key\":\"approval\",\"source\":\"variable\",\"variableName\":\"approvalResult\"}]",
+        editType: "outputMappings",
       },
     }));
     await waitFor(() => {
       const latestSchema = onSchemaChange.mock.calls.at(-1)?.[0] as MicroflowDesignSchema | undefined;
-      expect(latestSchema?.returnVariableName).toBe("approvalResult");
+      const endNode = latestSchema?.workflow.nodes.find(item => item.id === "end")?.data as Record<string, unknown> | undefined;
+      expect(Array.isArray(endNode?.outputMappings)).toBe(true);
+      expect((endNode?.outputMappings as Array<{ key?: string; variableName?: string }>)[0]?.key).toBe("approval");
+      expect((endNode?.outputMappings as Array<{ key?: string; variableName?: string }>)[0]?.variableName).toBe("approvalResult");
     });
 
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-line-label-commit", {
@@ -896,7 +912,12 @@ describe("NativeMicroflowEditor inline events", () => {
     await waitFor(() => expect(screen.getByTestId("mock-flowgram-canvas")).not.toBeNull());
 
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
-      detail: { nodeId: "end", fieldPath: "returnVariableName", value: "finalResult", editType: "text" },
+      detail: {
+        nodeId: "end",
+        fieldPath: "data.outputMappings",
+        value: "[{\"key\":\"final\",\"source\":\"variable\",\"variableName\":\"finalResult\"},{\"key\":\"status\",\"source\":\"constant\",\"constantValue\":\"ok\"}]",
+        editType: "outputMappings",
+      },
     }));
     window.dispatchEvent(new CustomEvent("atlas:microflow-inline-field-commit", {
       detail: { nodeId: "approval-1", fieldPath: "data.action.approverExpression.raw", value: "$director", editType: "approval" },
@@ -927,10 +948,14 @@ describe("NativeMicroflowEditor inline events", () => {
       const latestSchema = onSchemaChange.mock.calls.at(-1)?.[0] as MicroflowDesignSchema | undefined;
       const nodes = latestSchema?.workflow.nodes ?? [];
       const byId = (id: string) => nodes.find(item => item.id === id)?.data as Record<string, unknown> | undefined;
+      const endNode = byId("end");
       const approvalNode = byId("approval-1");
       const loopNode = byId("loop-1");
       const errorNode = byId("error-1");
-      expect(latestSchema?.returnVariableName).toBe("finalResult");
+      expect(Array.isArray(endNode?.outputMappings)).toBe(true);
+      expect((endNode?.outputMappings as Array<{ key?: string; source?: string; variableName?: string }>)[0]?.key).toBe("final");
+      expect((endNode?.outputMappings as Array<{ key?: string; source?: string; variableName?: string }>)[0]?.source).toBe("variable");
+      expect((endNode?.outputMappings as Array<{ key?: string; source?: string; variableName?: string }>)[0]?.variableName).toBe("finalResult");
       expect((approvalNode?.action as { approverExpression?: { raw?: string } } | undefined)?.approverExpression?.raw).toBe("$director");
       expect(approvalNode?.description).toBe("请确认是否允许继续");
       expect(approvalNode?.dueTime).toBe("PT2H");

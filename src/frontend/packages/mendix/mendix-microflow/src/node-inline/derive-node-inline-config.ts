@@ -13,6 +13,7 @@ import { deriveRestNodeInline } from "./rest-node-inline";
 import { deriveStartNodeInline } from "./start-node-inline";
 import { deriveVariableNodeInline } from "./variable-node-inline";
 import { buildNodeInlineVariableOptions } from "./inline-variable-options";
+import { appendOutputMappingsInlineSection } from "./output-mappings-inline";
 
 function collectLeafFields(
   value: unknown,
@@ -157,6 +158,11 @@ function withDefaultVariableOptions(config: MicroflowNodeInlineConfig, deriveInp
   };
 }
 
+function finalizeInlineConfig(config: MicroflowNodeInlineConfig, deriveInput: DeriveNodeInlineInput): MicroflowNodeInlineConfig {
+  const withMappings = appendOutputMappingsInlineSection(config, deriveInput);
+  return withDefaultVariableOptions(withMappings, deriveInput);
+}
+
 export function deriveNodeInlineConfig(input: {
   node: MicroflowWorkflowNodeJSON;
   schema: MicroflowDesignSchema;
@@ -176,34 +182,34 @@ export function deriveNodeInlineConfig(input: {
   const actionKind = String(data.actionKind ?? (data.action as { kind?: string } | undefined)?.kind ?? "");
 
   if (objectKind === "startEvent") {
-    return withDefaultVariableOptions(deriveStartNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveStartNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "endEvent") {
-    return withDefaultVariableOptions(deriveEndNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveEndNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "exclusiveSplit" || objectKind === "inheritanceSplit") {
-    return withDefaultVariableOptions(deriveDecisionNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveDecisionNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "loopedActivity" || actionKind === "forEach") {
-    return withDefaultVariableOptions(deriveLoopNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveLoopNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "errorHandler" || actionKind === "errorHandler") {
-    return withDefaultVariableOptions(deriveErrorNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveErrorNodeInline(deriveInput), deriveInput);
   }
   if (actionKind === "restCall" || actionKind === "restOperationCall") {
-    return withDefaultVariableOptions(deriveRestNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveRestNodeInline(deriveInput), deriveInput);
   }
   if (actionKind === "callMicroflow") {
-    return withDefaultVariableOptions(deriveCallMicroflowNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveCallMicroflowNodeInline(deriveInput), deriveInput);
   }
   if (actionKind === "createVariable" || actionKind === "changeVariable") {
-    return withDefaultVariableOptions(deriveVariableNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveVariableNodeInline(deriveInput), deriveInput);
   }
   if (actionKind === "completeUserTask" || actionKind === "changeWorkflowState" || objectKind === "tryCatch") {
-    return withDefaultVariableOptions(deriveApprovalNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveApprovalNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "actionActivity" || actionKind.length > 0) {
-    return withDefaultVariableOptions(deriveActionNodeInline(deriveInput), deriveInput);
+    return finalizeInlineConfig(deriveActionNodeInline(deriveInput), deriveInput);
   }
-  return withDefaultVariableOptions(createDefaultInlineConfig(deriveInput), deriveInput);
+  return finalizeInlineConfig(createDefaultInlineConfig(deriveInput), deriveInput);
 }

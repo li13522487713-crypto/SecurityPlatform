@@ -13,3 +13,4 @@ export * from "./InlineErrorBlock";
 export * from "./InlineQuickFix";
 export * from "./InlineSection";
 export * from "./InlineNodeEditor";
+export * from "./InlineOutputMappingsEditor";

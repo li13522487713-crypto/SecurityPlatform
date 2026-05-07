@@ -171,6 +171,41 @@ public sealed class MicroflowRuntimeEngineTests
     }
 
     [Fact]
+    public async Task Run_TraceFrame_ContainsResolvedOutputMappings()
+    {
+        var result = await RunAsync(Schema(
+            Objects(
+                Start(),
+                Action("create", "createVariable", new { variableName = "total", dataType = Type("integer"), initialValue = "1 + 2" }),
+                new
+                {
+                    id = "end",
+                    kind = "endEvent",
+                    caption = "End",
+                    returnValue = "total",
+                    outputMappings = new object[]
+                    {
+                        new { key = "result", source = "variable", variableName = "total" },
+                        new { key = "fixed", source = "constant", constantValue = 9 },
+                        new { key = "expr", source = "expression", expression = "total + 1" }
+                    }
+                }),
+            Flows(Flow("f1", "start", "create"), Flow("f2", "create", "end"))));
+
+        Assert.Equal("success", result.Status);
+        Assert.True(result.Output.HasValue);
+        Assert.Equal(3m, result.Output!.Value.GetProperty("result").GetDecimal());
+        Assert.Equal(9m, result.Output!.Value.GetProperty("fixed").GetDecimal());
+        Assert.Equal(4m, result.Output!.Value.GetProperty("expr").GetDecimal());
+        var endFrame = Assert.Single(result.Trace, frame => frame.ObjectId == "end");
+        Assert.True(endFrame.OutputMappingsResolved.HasValue);
+        var resolved = endFrame.OutputMappingsResolved!.Value;
+        Assert.Equal(3m, resolved.GetProperty("result").GetDecimal());
+        Assert.Equal(9m, resolved.GetProperty("fixed").GetDecimal());
+        Assert.Equal(4m, resolved.GetProperty("expr").GetDecimal());
+    }
+
+    [Fact]
     public async Task Run_UnsupportedNode_Fails()
     {
         var result = await RunAsync(Schema(

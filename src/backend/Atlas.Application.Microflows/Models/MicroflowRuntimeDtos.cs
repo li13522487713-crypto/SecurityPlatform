@@ -376,6 +376,9 @@ public sealed record MicroflowTraceFrameDto
     [JsonPropertyName("output")]
     public JsonElement? Output { get; init; }
 
+    [JsonPropertyName("outputMappingsResolved")]
+    public JsonElement? OutputMappingsResolved { get; init; }
+
     [JsonPropertyName("outputVariables")]
     public JsonElement? OutputVariables { get; init; }
 

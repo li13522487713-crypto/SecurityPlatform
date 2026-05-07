@@ -150,6 +150,7 @@ export interface MicroflowTraceFrame {
   actionInput?: Record<string, unknown>;
   evaluatedExpressions?: unknown[];
   output?: Record<string, unknown> & { branchTrace?: MicroflowGatewayBranchTrace[] };
+  outputMappingsResolved?: Record<string, unknown>;
   outputVariables?: Record<string, MicroflowRuntimeVariableValue>;
   variableDelta?: {
     added?: string[];

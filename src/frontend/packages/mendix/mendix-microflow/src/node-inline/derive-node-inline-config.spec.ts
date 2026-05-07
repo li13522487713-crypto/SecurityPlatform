@@ -454,14 +454,13 @@ describe("deriveNodeInlineConfig", () => {
         title: "结束",
         validationState: "valid",
         issueCount: 0,
-        returnExpression: { raw: "$approvalResult" },
       } as never,
       meta: { position: { x: 200, y: 0 } },
     };
     const startInline = deriveNodeInlineConfig({ node: startNode, schema: buildSchema(startNode) });
     const endInline = deriveNodeInlineConfig({ node: endNode, schema: buildSchema(endNode) });
     expect(startInline.summaryLines.length).toBeGreaterThan(0);
-    expect(endInline.summaryLines.some(line => line.value.includes("$approvalResult"))).toBe(true);
+    expect(endInline.sections.some(section => section.id === "output-mappings")).toBe(true);
   });
 
   it("derives loop and error handler branch-like summaries", () => {
@@ -758,5 +757,33 @@ describe("deriveNodeInlineConfig", () => {
     const fix = inline.runtime?.error?.fixSuggestions?.find(item => item.actionKind === "createMissingFlow");
     expect(fix?.value).toBe(false);
     expect(fix?.editType).toBe("branch");
+  });
+
+  it("adds unified output-mappings section for executable nodes without legacy fallback", () => {
+    const node: MicroflowWorkflowNodeJSON = {
+      id: "action-2",
+      type: "activity",
+      data: {
+        objectId: "action-2",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "输出动作",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "invokeAction",
+        action: {
+          kind: "invokeAction",
+          outputVariableName: "legacyResult",
+        },
+      } as never,
+      meta: { position: { x: 520, y: 80 } },
+    };
+    const inline = deriveNodeInlineConfig({ node, schema: buildSchema(node) });
+    const mappingField = inline.sections
+      .flatMap(section => section.fields)
+      .find(field => field.fieldPath === "data.outputMappings");
+    expect(mappingField?.editType).toBe("outputMappings");
+    expect(mappingField?.value).toBe("[]");
+    expect(inline.sections.some(section => section.id === "output-mappings")).toBe(true);
   });
 });
