@@ -59,6 +59,7 @@ import { decorateWorkflow } from "./flowgram-workflow-decorate";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
+import { MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
 import "@flowgram-adapter/free-layout-editor/css-load";
 import "./styles/flowgram-microflow-canvas.css";
 import "./styles/flowgram-microflow-port.css";
@@ -1199,8 +1200,10 @@ function MicroflowMultiSelectBar(props: {
 export function FlowGramMicroflowNativeCanvas(props: FlowGramMicroflowNativeCanvasProps) {
   const structureKey = workflowRenderStructureKey(props.schema.workflow);
   return (
-    <FlowGramMicroflowProvider key={structureKey}>
-      <FlowGramMicroflowNativeCanvasInner {...props} />
-    </FlowGramMicroflowProvider>
+    <MicroflowNodeViewModesContext.Provider value={props.nodeViewModes ?? {}}>
+      <FlowGramMicroflowProvider key={structureKey}>
+        <FlowGramMicroflowNativeCanvasInner {...props} />
+      </FlowGramMicroflowProvider>
+    </MicroflowNodeViewModesContext.Provider>
   );
 }

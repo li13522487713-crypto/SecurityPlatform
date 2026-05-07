@@ -84,6 +84,7 @@ vi.mock("@flowgram-adapter/free-layout-editor", () => ({
 
 import { FlowGramMicroflowNodeRenderer } from "./FlowGramMicroflowNodeRenderer";
 import { subscribeInlineNodeToggle } from "./inline-events";
+import { MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
 
 afterEach(() => {
   cleanup();
@@ -115,7 +116,11 @@ function renderNode(viewMode: "compact" | "expanded" = "compact") {
       }),
     }),
   };
-  return render(<FlowGramMicroflowNodeRenderer node={node as never} />);
+  return render(
+    <MicroflowNodeViewModesContext.Provider value={viewMode === "expanded" ? { "node-1": "expanded" } : {}}>
+      <FlowGramMicroflowNodeRenderer node={node as never} />
+    </MicroflowNodeViewModesContext.Provider>
+  );
 }
 
 describe("FlowGramMicroflowNodeRenderer interaction", () => {

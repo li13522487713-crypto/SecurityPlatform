@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import { Tag, Typography } from "@douyinfe/semi-ui";
 import { IconEdit, IconTickCircle } from "@douyinfe/semi-icons";
@@ -12,6 +12,7 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import type { FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
+import { MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
 import { FlowGramMicroflowPortRenderer } from "./FlowGramMicroflowPortRenderer";
 import {
   emitInlineFieldCommit,
@@ -178,8 +179,25 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   const data = tryReadNodeData(props);
   const expandBtnRef = useRef<HTMLButtonElement>(null);
   const resolvedNodeIdForState = String(data?.objectId || props.node.id);
-  const projectedExpanded = data?.inlineConfig?.viewMode === "expanded";
+  const nodeViewModesCtx = useContext(MicroflowNodeViewModesContext);
+  const projectedExpanded =
+    nodeViewModesCtx[resolvedNodeIdForState] === "expanded" ||
+    nodeViewModesCtx[`node-${resolvedNodeIdForState}`] === "expanded" ||
+    nodeViewModesCtx[resolvedNodeIdForState.replace(/^node-/, "")] === "expanded";
   const currentExpanded = projectedExpanded;
+
+  // Ref keeps the latest toggle payload so the click handler never goes stale,
+  // while the effect itself runs only once per mount (empty deps = no listener churn).
+  const expandClickPayloadRef = useRef({
+    nodeId: resolvedNodeIdForState,
+    runtimeNodeId: String(props.node.id),
+    expanded: !currentExpanded,
+  });
+  expandClickPayloadRef.current = {
+    nodeId: resolvedNodeIdForState,
+    runtimeNodeId: String(props.node.id),
+    expanded: !currentExpanded,
+  };
 
   useEffect(() => {
     const btn = expandBtnRef.current;
@@ -187,15 +205,12 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
     const handle = (e: MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      emitInlineNodeToggle({
-        nodeId: resolvedNodeIdForState,
-        runtimeNodeId: String(props.node.id),
-        expanded: !currentExpanded,
-      });
+      emitInlineNodeToggle(expandClickPayloadRef.current);
     };
     btn.addEventListener("click", handle);
     return () => btn.removeEventListener("click", handle);
-  }, [resolvedNodeIdForState, props.node.id, currentExpanded]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canStartNodeDrag = (event: MouseEvent<HTMLDivElement>) => {
     if (readonly || event.button !== 0) {

@@ -209,3 +209,6 @@ export interface FlowGramMicroflowPendingLine {
 }
 
 export type FlowGramMicroflowIssueIndex = Map<string, MicroflowValidationIssue[]>;
+
+import { createContext } from "react";
+export const MicroflowNodeViewModesContext = createContext<Record<string, MicroflowNodeViewMode>>({});
