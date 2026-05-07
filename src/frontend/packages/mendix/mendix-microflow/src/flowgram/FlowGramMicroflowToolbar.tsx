@@ -1,8 +1,10 @@
-import { Button, Divider, Dropdown, Space, Tooltip } from "@douyinfe/semi-ui";
-import { IconGridRectangle, IconHandle, IconMapPin, IconMinus, IconPlus, IconRedo, IconRefresh, IconTreeTriangleDown, IconUndo } from "@douyinfe/semi-icons";
+import { type CSSProperties, useMemo } from "react";
+import { Button, Divider, Dropdown, Space, Tag, Tooltip } from "@douyinfe/semi-ui";
+import { IconClock, IconGridRectangle, IconHandle, IconMapPin, IconMinus, IconPlus, IconRedo, IconRefresh, IconTreeTriangleDown, IconUndo } from "@douyinfe/semi-icons";
 import { WorkflowResetLayoutService, usePlayground, useService } from "@flowgram-adapter/free-layout-editor";
 
 import { getMendixMicroflowCopy } from "../i18n/copy";
+import type { MicroflowValidationIssue } from "../schema";
 
 interface MicroflowToolbarViewport {
   x: number;
@@ -70,12 +72,58 @@ export interface FlowGramMicroflowToolbarProps {
   onTogglePanTool?: () => void;
   /** When set, +/- / 100% zoom keeps the canvas center fixed (viewport scroll adjusted). */
   applyZoomFromCanvasCenter?: (normalizedZoom: number) => void;
+  dirty?: boolean;
+  saving?: boolean;
+  validating?: boolean;
+  validationIssues?: MicroflowValidationIssue[];
+  onOpenProblemsPanel?: () => void;
 }
+
+const draftTagStyle: CSSProperties = {
+  backgroundColor: "rgba(255, 237, 213, 0.95)",
+  color: "#7c2d12",
+  border: "1px solid rgba(180, 83, 9, 0.2)",
+};
+const savedTagStyle: CSSProperties = {
+  backgroundColor: "rgba(240, 255, 244, 0.95)",
+  color: "#166534",
+  border: "1px solid rgba(22, 163, 74, 0.2)",
+};
+const savingTagStyle: CSSProperties = {
+  backgroundColor: "rgba(219, 234, 254, 0.95)",
+  color: "#1d4ed8",
+  border: "1px solid rgba(59, 130, 246, 0.25)",
+};
+const errorTagStyle: CSSProperties = {
+  backgroundColor: "rgba(254, 226, 226, 0.95)",
+  color: "#991b1b",
+  border: "1px solid rgba(220, 38, 38, 0.2)",
+  cursor: "pointer",
+};
+const warningTagStyle: CSSProperties = {
+  backgroundColor: "rgba(254, 249, 195, 0.95)",
+  color: "#854d0e",
+  border: "1px solid rgba(202, 138, 4, 0.25)",
+  cursor: "pointer",
+};
 
 export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
   const playground = usePlayground();
   const copy = getMendixMicroflowCopy();
   const resetLayout = useService<WorkflowResetLayoutService>(WorkflowResetLayoutService);
+
+  const { errorCount, warningCount } = useMemo(() => {
+    let errors = 0;
+    let warnings = 0;
+    for (const issue of props.validationIssues ?? []) {
+      if (issue.severity === "error") {
+        errors += 1;
+      } else if (issue.severity === "warning") {
+        warnings += 1;
+      }
+    }
+    return { errorCount: errors, warningCount: warnings };
+  }, [props.validationIssues]);
 
   const fitView = () => {
     const service = resetLayout as WorkflowResetLayoutService & { fitView?: () => void };
@@ -236,6 +284,38 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
             {copy.canvasToolbar.autoLayout}
           </Button>
         </Tooltip>
+
+        {/* 保存/校验状态 */}
+        {props.dirty !== undefined ? (
+          <>
+            <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
+            <Tag
+              size="small"
+              prefixIcon={<IconClock />}
+              style={props.saving ? savingTagStyle : props.dirty ? draftTagStyle : savedTagStyle}
+            >
+              {props.saving ? "保存中" : props.dirty ? "草稿待保存" : "已保存"}
+            </Tag>
+            {errorCount > 0 ? (
+              <Tag
+                size="small"
+                style={errorTagStyle}
+                onClick={props.onOpenProblemsPanel}
+              >
+                {errorCount} 错误
+              </Tag>
+            ) : null}
+            {warningCount > 0 ? (
+              <Tag
+                size="small"
+                style={warningTagStyle}
+                onClick={props.onOpenProblemsPanel}
+              >
+                {warningCount} 警告
+              </Tag>
+            ) : null}
+          </>
+        ) : null}
       </Space>
     </div>
   );

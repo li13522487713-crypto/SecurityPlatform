@@ -1,4 +1,14 @@
-import { useContext, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+  type TransitionEvent,
+} from "react";
 
 import { Tag, Typography } from "@douyinfe/semi-ui";
 import { IconEdit, IconTickCircle } from "@douyinfe/semi-icons";
@@ -31,7 +41,7 @@ function stopEditorControlEvent(event: MouseEvent<HTMLElement>) {
   event.stopPropagation();
 }
 
-function isHeaderInlineControlRegion(event: MouseEvent<HTMLElement> | PointerEvent<HTMLElement>): boolean {
+function isHeaderInlineControlRegion(event: MouseEvent<HTMLElement> | ReactPointerEvent<HTMLElement>): boolean {
   const rect = event.currentTarget.getBoundingClientRect();
   return event.clientX >= rect.right - 104
     && event.clientX <= rect.right
@@ -185,6 +195,63 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
     nodeViewModesCtx[`node-${resolvedNodeIdForState}`] === "expanded" ||
     nodeViewModesCtx[resolvedNodeIdForState.replace(/^node-/, "")] === "expanded";
   const currentExpanded = projectedExpanded;
+  const [editorMounted, setEditorMounted] = useState(currentExpanded);
+  const [collapsibleOpen, setCollapsibleOpen] = useState(currentExpanded);
+  const prevExpandedRef = useRef<boolean | null>(null);
+  const expandedForTransitionEndRef = useRef(currentExpanded);
+  expandedForTransitionEndRef.current = currentExpanded;
+
+  useLayoutEffect(() => {
+    const prev = prevExpandedRef.current;
+    prevExpandedRef.current = currentExpanded;
+
+    const reduced =
+      typeof window !== "undefined"
+      && typeof window.matchMedia === "function"
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (!currentExpanded) {
+      setCollapsibleOpen(false);
+      if (reduced) {
+        setEditorMounted(false);
+      }
+      return;
+    }
+
+    setEditorMounted(true);
+    if (reduced) {
+      setCollapsibleOpen(true);
+      return;
+    }
+
+    const wasExpanded = prev === true;
+    if (!wasExpanded && prev !== null) {
+      setCollapsibleOpen(false);
+      let raf1 = 0;
+      let raf2 = 0;
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          setCollapsibleOpen(true);
+        });
+      });
+      return () => {
+        cancelAnimationFrame(raf1);
+        cancelAnimationFrame(raf2);
+      };
+    }
+
+    setCollapsibleOpen(true);
+  }, [currentExpanded]);
+
+  const handleCollapsibleTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
+    if (event.propertyName !== "grid-template-rows") {
+      return;
+    }
+    if (expandedForTransitionEndRef.current) {
+      return;
+    }
+    setEditorMounted(false);
+  };
 
   // Ref keeps the latest toggle payload so the click handler never goes stale,
   // while the effect itself runs only once per mount (empty deps = no listener churn).
@@ -202,7 +269,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   useEffect(() => {
     const btn = expandBtnRef.current;
     if (!btn) return;
-    const handle = (e: MouseEvent) => {
+    const handle = (e: Event) => {
       e.stopPropagation();
       e.preventDefault();
       emitInlineNodeToggle(expandClickPayloadRef.current);
@@ -416,29 +483,39 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
           {!runtime.selectedBranchLabel && runtime.outputPreview ? <Typography.Text type="tertiary" size="small">{runtime.outputPreview}</Typography.Text> : null}
         </button>
       ) : null}
-      {isExpanded ? (
-        <InlineNodeEditor
-          inlineConfig={data.inlineConfig}
-          readonly={readonly}
-          onCommitField={(field, value) => {
-            emitInlineFieldCommit({
-              nodeId: resolvedNodeId,
-              fieldPath: field.fieldPath,
-              editType: field.editType,
-              value,
-            });
-          }}
-          onApplyQuickFix={suggestion => {
-            emitInlineQuickFix({
-              nodeId: resolvedNodeId,
-              suggestionId: suggestion.id,
-              actionKind: suggestion.actionKind,
-              fieldPath: suggestion.fieldPath,
-              value: suggestion.value,
-              editType: suggestion.editType,
-            });
-          }}
-        />
+      {editorMounted ? (
+        <div
+          className={[
+            "microflow-flowgram-node__collapsible",
+            collapsibleOpen ? "is-collapsible-open" : "",
+          ].filter(Boolean).join(" ")}
+          onTransitionEnd={handleCollapsibleTransitionEnd}
+        >
+          <div className="microflow-flowgram-node__collapsible-inner">
+            <InlineNodeEditor
+              inlineConfig={data.inlineConfig}
+              readonly={readonly}
+              onCommitField={(field, value) => {
+                emitInlineFieldCommit({
+                  nodeId: resolvedNodeId,
+                  fieldPath: field.fieldPath,
+                  editType: field.editType,
+                  value,
+                });
+              }}
+              onApplyQuickFix={suggestion => {
+                emitInlineQuickFix({
+                  nodeId: resolvedNodeId,
+                  suggestionId: suggestion.id,
+                  actionKind: suggestion.actionKind,
+                  fieldPath: suggestion.fieldPath,
+                  value: suggestion.value,
+                  editType: suggestion.editType,
+                });
+              }}
+            />
+          </div>
+        </div>
       ) : null}
       {ports.map(port => (
         <FlowGramMicroflowPortRenderer key={port.id} port={port} />

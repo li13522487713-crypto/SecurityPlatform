@@ -44,7 +44,6 @@ import {
   workflowNodeById,
 } from "./flowgram-native-schema";
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
-import { FlowGramMicroflowStatusStrip } from "./FlowGramMicroflowStatusStrip";
 import {
   FlowGramMicroflowToolbar,
   microflowZoomViewportAtCanvasCenter,
@@ -1104,14 +1103,6 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     >
       <PlaygroundReactRenderer />
       <div className="microflow-flowgram-canvas-controls">
-        <FlowGramMicroflowStatusStrip
-          validationIssues={props.validationIssues}
-          dirty={props.dirty ?? false}
-          saving={props.saving ?? false}
-          validating={props.validating ?? false}
-          readonly={props.readonly}
-          onOpenProblemsPanel={props.onOpenProblemsPanel}
-        />
         <FlowGramMicroflowToolbar
           canUndo={props.canUndo}
           canRedo={props.canRedo}
@@ -1129,6 +1120,11 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
           panToolActive={panToolActive}
           onTogglePanTool={togglePanTool}
           applyZoomFromCanvasCenter={applyViewportZoomFromCanvasCenter}
+          dirty={props.dirty}
+          saving={props.saving}
+          validating={props.validating}
+          validationIssues={props.validationIssues}
+          onOpenProblemsPanel={props.onOpenProblemsPanel}
         />
       </div>
       {miniMapVisible ? <FlowGramMicroflowNativeMiniMap schema={props.schema} onFocusNode={focusNode} /> : null}

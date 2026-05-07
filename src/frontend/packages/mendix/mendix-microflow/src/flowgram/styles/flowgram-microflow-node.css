@@ -31,8 +31,12 @@
   outline-offset: 3px;
 }
 
+.microflow-flowgram-node {
+  transition: min-width 360ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+
 .microflow-flowgram-node:not(.is-selected):not(.is-active):not(.is-focused) {
-  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  transition: min-width 360ms cubic-bezier(0.33, 1, 0.68, 1), background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
 .microflow-flowgram-node:not(.is-selected):not(.is-active):not(.is-focused):hover {
@@ -141,6 +145,46 @@
 .microflow-flowgram-node.is-expanded {
   min-width: 300px;
   overflow: visible;
+  border-color: rgba(22, 93, 255, 0.32);
+  box-shadow: 0 8px 24px rgba(31, 35, 41, 0.12), 0 0 0 2px rgba(22, 93, 255, 0.14);
+  will-change: min-width;
+}
+
+/* 内联编辑器展开：grid 0fr → 1fr，避免高度瞬间跳变 */
+.microflow-flowgram-node__collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  transition: grid-template-rows 360ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.microflow-flowgram-node__collapsible.is-collapsible-open {
+  grid-template-rows: 1fr;
+}
+
+.microflow-flowgram-node__collapsible-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.microflow-flowgram-node__collapsible-inner .microflow-inline-editor {
+  opacity: 0;
+  transition: opacity 220ms cubic-bezier(0.33, 1, 0.68, 1) 40ms;
+}
+
+.microflow-flowgram-node__collapsible.is-collapsible-open .microflow-inline-editor {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .microflow-flowgram-node__collapsible {
+    transition: none;
+  }
+
+  .microflow-flowgram-node__collapsible-inner .microflow-inline-editor {
+    transition: none;
+    opacity: 1;
+  }
 }
 
 /* 展开时提升 FlowGram 节点容器的层叠优先级，确保编辑区覆盖在邻近节点之上 */
@@ -166,7 +210,7 @@
   cursor: pointer;
   opacity: 1;
   pointer-events: auto;
-  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 200ms ease;
 }
 
 /* 节点 hover / 选中 / 展开时保持编辑按钮可操作 */
