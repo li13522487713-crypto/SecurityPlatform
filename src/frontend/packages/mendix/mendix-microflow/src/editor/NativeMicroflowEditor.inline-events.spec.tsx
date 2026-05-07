@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Toast } from "@douyinfe/semi-ui";
 
 import type { FlowGramMicroflowNativeCanvasProps } from "../flowgram/FlowGramMicroflowNativeCanvas";
+import { emitInlineNodeInspect, emitInlineNodeToggle } from "../flowgram/inline-events";
 import type { MicroflowDesignSchema } from "../schema/types";
 import { NativeMicroflowEditor } from "./NativeMicroflowEditor";
 
@@ -348,15 +349,16 @@ describe("NativeMicroflowEditor inline events", () => {
 
     await waitFor(() => expect(screen.getByTestId("mock-flowgram-canvas")).not.toBeNull());
 
-    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-toggle", {
-      detail: { nodeId: "decision", expanded: true },
-    }));
+    emitInlineNodeToggle({ nodeId: "start", expanded: true });
+    await waitFor(() => {
+      expect(lastCanvasProps?.nodeViewModes?.start).toBe("expanded");
+    });
+
+    emitInlineNodeToggle({ nodeId: "decision", expanded: true });
     await waitFor(() => {
       expect(lastCanvasProps?.nodeViewModes?.decision).toBe("expanded");
     });
-    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-toggle", {
-      detail: { nodeId: "decision", runtimeNodeId: "node-decision", expanded: false },
-    }));
+    emitInlineNodeToggle({ nodeId: "decision", runtimeNodeId: "node-decision", expanded: false });
     await waitFor(() => {
       expect(lastCanvasProps?.nodeViewModes?.decision).toBe("compact");
       expect(lastCanvasProps?.nodeViewModes?.["node-decision"]).toBe("compact");
@@ -384,6 +386,17 @@ describe("NativeMicroflowEditor inline events", () => {
       expect((flow?.data as { label?: string } | undefined)?.label).toBe("true");
       expect(flow?.sourcePortID).toBe("decision:true");
       expect(flow?.caseValues).toEqual([{ kind: "boolean", value: true }]);
+    });
+  });
+
+  it("emitInlineNodeToggle updates native node view modes", async () => {
+    render(<NativeMicroflowEditor schema={createSchema()} />);
+
+    await waitFor(() => expect(screen.getByTestId("mock-flowgram-canvas")).not.toBeNull());
+
+    emitInlineNodeToggle({ nodeId: "start", expanded: true });
+    await waitFor(() => {
+      expect(lastCanvasProps?.nodeViewModes?.start).toBe("expanded");
     });
   });
 
@@ -748,16 +761,12 @@ describe("NativeMicroflowEditor inline events", () => {
     render(<NativeMicroflowEditor schema={createSchema()} />);
     await waitFor(() => expect(screen.getByTestId("mock-flowgram-canvas")).not.toBeNull());
 
-    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-inspect", {
-      detail: { nodeId: "decision", inspect: "error" },
-    }));
+    emitInlineNodeInspect({ nodeId: "decision", inspect: "error" });
     await waitFor(() => {
       expect(lastCanvasProps?.nodeViewModes?.decision).toBeDefined();
     });
 
-    window.dispatchEvent(new CustomEvent("atlas:microflow-inline-node-inspect", {
-      detail: { nodeId: "decision", inspect: "runtime" },
-    }));
+    emitInlineNodeInspect({ nodeId: "decision", inspect: "runtime" });
     await waitFor(() => {
       expect(lastCanvasProps?.nodeViewModes?.decision).toBe("inspectingRuntime");
     });

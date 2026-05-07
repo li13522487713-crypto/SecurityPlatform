@@ -3824,22 +3824,69 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   useEffect(() => {
     const resolveInlineNodeId = (detail?: { nodeId?: string; runtimeNodeId?: string }) => detail?.nodeId ?? detail?.runtimeNodeId;
+    const resolveInlineNodeAliases = (seed: string): string[] => {
+      const trimmed = seed.trim();
+      if (!trimmed) return [];
+      if (trimmed.startsWith("node-")) {
+        return [trimmed, trimmed.slice("node-".length)];
+      }
+      return [trimmed, `node-${trimmed}`];
+    };
+    const resolveInlineNodeIds = (detail?: { nodeId?: string; runtimeNodeId?: string }): string[] => {
+      const seeds = [detail?.nodeId, detail?.runtimeNodeId].filter((item): item is string => Boolean(item)).map(item => item.trim()).filter(Boolean);
+      if (seeds.length === 0) return [];
+
+      const aliases = new Set<string>();
+      for (const seed of seeds) {
+        for (const alias of resolveInlineNodeAliases(seed)) {
+          aliases.add(alias);
+        }
+      }
+
+      const nodes = (isDesignSchema(schema)
+        ? (schema.workflow.nodes as Array<{ id: string; data?: unknown }> | undefined)
+        : undefined) ?? [];
+      const matchedNodeIds = new Set<string>();
+      for (const node of nodes) {
+        const data = (node.data ?? {}) as { objectId?: unknown };
+        const candidates = [node.id, typeof data.objectId === "string" ? data.objectId : undefined].filter((item): item is string => Boolean(item));
+        const matched = candidates.some(candidate => {
+          const normalized = candidate.startsWith("node-") ? candidate.slice("node-".length) : candidate;
+          return aliases.has(candidate) || aliases.has(normalized) || aliases.has(`node-${normalized}`);
+        });
+        if (matched) {
+          matchedNodeIds.add(node.id);
+        }
+      }
+      if (matchedNodeIds.size > 0) {
+        return [...matchedNodeIds];
+      }
+      // Fallback: keep original seed so we at least store a mode for something.
+      return [seeds[0]!];
+    };
     const onNodeToggle = (event: Event) => {
       const detail = (event as CustomEvent<MicroflowInlineNodeToggleDetail>).detail;
-      const nodeId = resolveInlineNodeId(detail);
-      if (!nodeId) {
+      const nodeIds = resolveInlineNodeIds(detail);
+      if (nodeIds.length === 0) {
         return;
       }
-      setNodeViewModes(current => ({ ...current, [nodeId]: detail.expanded ? "expanded" : "compact" }));
+      setNodeViewModes(current => ({
+        ...current,
+        ...Object.fromEntries(nodeIds.map(nodeId => [nodeId, detail.expanded ? "expanded" : "compact"])),
+      }));
     };
     const onNodeInspect = (event: Event) => {
       const detail = (event as CustomEvent<MicroflowInlineNodeInspectDetail>).detail;
-      const nodeId = resolveInlineNodeId(detail);
-      if (!nodeId) {
+      const nodeIds = resolveInlineNodeIds(detail);
+      const primaryNodeId = nodeIds[0];
+      if (!primaryNodeId) {
         return;
       }
-      setNodeViewModes(current => ({ ...current, [nodeId]: detail.inspect === "error" ? "inspectingError" : "inspectingRuntime" }));
-      applyPatch({ selectedObjectId: nodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+      setNodeViewModes(current => ({
+        ...current,
+        ...Object.fromEntries(nodeIds.map(nodeId => [nodeId, detail.inspect === "error" ? "inspectingError" : "inspectingRuntime"])),
+      }));
+      applyPatch({ selectedObjectId: primaryNodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
       setRightOpen(true);
     };
     const onFieldCommit = (event: Event) => {

@@ -19,7 +19,8 @@
       "PowerShell(head -10)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(pnpm vitest *)"
     ]
   }
 }

@@ -83,6 +83,7 @@ vi.mock("@flowgram-adapter/free-layout-editor", () => ({
 }));
 
 import { FlowGramMicroflowNodeRenderer } from "./FlowGramMicroflowNodeRenderer";
+import { subscribeInlineNodeToggle } from "./inline-events";
 
 afterEach(() => {
   cleanup();
@@ -125,32 +126,40 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
   });
 
   it("dispatches inline node toggle event on double click", () => {
-    const events: Array<{ nodeId: string; expanded: boolean }> = [];
-    const listener = (event: Event) => {
-      events.push((event as CustomEvent<{ nodeId: string; expanded: boolean }>).detail);
-    };
-    window.addEventListener("atlas:microflow-inline-node-toggle", listener as EventListener);
+    const events: Array<{ nodeId?: string; expanded?: boolean }> = [];
+    const unsub = subscribeInlineNodeToggle(detail => events.push(detail));
     try {
       renderNode();
       fireEvent.doubleClick(screen.getByTestId("microflow-node-node-1"));
       expect(events).toEqual([expect.objectContaining({ nodeId: "node-1", expanded: true })]);
     } finally {
-      window.removeEventListener("atlas:microflow-inline-node-toggle", listener as EventListener);
+      unsub();
     }
   });
 
   it("dispatches inline node toggle event from header expand button", () => {
-    const events: Array<{ nodeId: string; expanded: boolean }> = [];
-    const listener = (event: Event) => {
-      events.push((event as CustomEvent<{ nodeId: string; expanded: boolean }>).detail);
-    };
-    window.addEventListener("atlas:microflow-inline-node-toggle", listener as EventListener);
+    const events: Array<{ nodeId?: string; expanded?: boolean }> = [];
+    const unsub = subscribeInlineNodeToggle(detail => events.push(detail));
     try {
       renderNode();
       fireEvent.click(screen.getByRole("button", { name: "展开节点" }));
       expect(events).toEqual([expect.objectContaining({ nodeId: "node-1", expanded: true })]);
     } finally {
-      window.removeEventListener("atlas:microflow-inline-node-toggle", listener as EventListener);
+      unsub();
+    }
+  });
+
+  it("dispatches inline node toggle once from pointer activation", () => {
+    const events: Array<{ nodeId?: string; expanded?: boolean }> = [];
+    const unsub = subscribeInlineNodeToggle(detail => events.push(detail));
+    try {
+      renderNode();
+      const button = screen.getByRole("button", { name: "展开节点" });
+      fireEvent.pointerDown(button);
+      fireEvent.click(button);
+      expect(events).toEqual([expect.objectContaining({ nodeId: "node-1", expanded: true })]);
+    } finally {
+      unsub();
     }
   });
 

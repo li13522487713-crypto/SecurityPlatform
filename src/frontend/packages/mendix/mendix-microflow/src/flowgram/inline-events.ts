@@ -38,16 +38,41 @@ export interface MicroflowInlineQuickFixDetail {
   editType?: string;
 }
 
+type InlineEventListener<T> = (detail: T) => void;
+
+const inlineNodeToggleListeners = new Set<InlineEventListener<MicroflowInlineNodeToggleDetail>>();
+const inlineNodeInspectListeners = new Set<InlineEventListener<MicroflowInlineNodeInspectDetail>>();
+
 function dispatchInlineEvent<T>(name: string, detail: T): void {
   window.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
+function notifyInlineListeners<T>(listeners: Set<InlineEventListener<T>>, detail: T): void {
+  for (const listener of listeners) {
+    listener(detail);
+  }
+}
+
+export function subscribeInlineNodeToggle(listener: InlineEventListener<MicroflowInlineNodeToggleDetail>): () => void {
+  inlineNodeToggleListeners.add(listener);
+  return () => {
+    inlineNodeToggleListeners.delete(listener);
+  };
+}
+
+export function subscribeInlineNodeInspect(listener: InlineEventListener<MicroflowInlineNodeInspectDetail>): () => void {
+  inlineNodeInspectListeners.add(listener);
+  return () => {
+    inlineNodeInspectListeners.delete(listener);
+  };
+}
+
 export function emitInlineNodeToggle(detail: MicroflowInlineNodeToggleDetail): void {
-  dispatchInlineEvent(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, detail);
+  notifyInlineListeners(inlineNodeToggleListeners, detail);
 }
 
 export function emitInlineNodeInspect(detail: MicroflowInlineNodeInspectDetail): void {
-  dispatchInlineEvent(MICROFLOW_INLINE_NODE_INSPECT_EVENT, detail);
+  notifyInlineListeners(inlineNodeInspectListeners, detail);
 }
 
 export function emitInlineFieldCommit(detail: MicroflowInlineFieldCommitDetail): void {
@@ -61,3 +86,4 @@ export function emitInlineLineLabelCommit(detail: MicroflowInlineLineLabelCommit
 export function emitInlineQuickFix(detail: MicroflowInlineQuickFixDetail): void {
   dispatchInlineEvent(MICROFLOW_INLINE_QUICK_FIX_EVENT, detail);
 }
+

@@ -1,6 +1,6 @@
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
-import { Tag, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Tag, Typography } from "@douyinfe/semi-ui";
 import { IconEdit, IconTickCircle } from "@douyinfe/semi-icons";
 import { InlineNodeEditor } from "../inline-edit";
 import {
@@ -24,6 +24,19 @@ import {
   isMicroflowNodeDragBlockedTarget,
 } from "./flowgram-node-drag";
 import "./styles/flowgram-microflow-node.css";
+
+function stopEditorControlEvent(event: MouseEvent<HTMLElement>) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function isHeaderInlineControlRegion(event: MouseEvent<HTMLElement> | PointerEvent<HTMLElement>): boolean {
+  const rect = event.currentTarget.getBoundingClientRect();
+  return event.clientX >= rect.right - 104
+    && event.clientX <= rect.right
+    && event.clientY >= rect.top
+    && event.clientY <= rect.top + 44;
+}
 
 function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeData | undefined {
   try {
@@ -163,12 +176,35 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   const readonly = usePlaygroundReadonlyState();
   const [focused, setFocused] = useState(false);
   const data = tryReadNodeData(props);
+  const expandBtnRef = useRef<HTMLButtonElement>(null);
+  const resolvedNodeIdForState = String(data?.objectId || props.node.id);
+  const projectedExpanded = data?.inlineConfig?.viewMode === "expanded";
+  const currentExpanded = projectedExpanded;
+
+  useEffect(() => {
+    const btn = expandBtnRef.current;
+    if (!btn) return;
+    const handle = (e: MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      emitInlineNodeToggle({
+        nodeId: resolvedNodeIdForState,
+        runtimeNodeId: String(props.node.id),
+        expanded: !currentExpanded,
+      });
+    };
+    btn.addEventListener("click", handle);
+    return () => btn.removeEventListener("click", handle);
+  }, [resolvedNodeIdForState, props.node.id, currentExpanded]);
 
   const canStartNodeDrag = (event: MouseEvent<HTMLDivElement>) => {
     if (readonly || event.button !== 0) {
       return false;
     }
     if (event.detail > 1) {
+      return false;
+    }
+    if (isHeaderInlineControlRegion(event)) {
       return false;
     }
     return !isMicroflowNodeDragBlockedTarget(event.target);
@@ -182,15 +218,14 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
     startDrag(event);
   };
 
-  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+  const handleFallbackClick = (event: MouseEvent<HTMLDivElement>) => {
     selectNode(event);
   };
 
   const handleDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    const expanded = data?.inlineConfig?.viewMode !== "expanded";
-    emitInlineNodeToggle({ nodeId: data?.objectId ?? String(props.node.id), runtimeNodeId: String(props.node.id), expanded });
+    emitInlineNodeToggle({ nodeId: data?.objectId ?? String(props.node.id), runtimeNodeId: String(props.node.id), expanded: !currentExpanded });
   };
 
   if (!data?.objectKind) {
@@ -206,7 +241,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         ].filter(Boolean).join(" ")}
         draggable={false}
         onMouseDown={handleMouseDown}
-        onClick={handleClick}
+        onClick={handleFallbackClick}
         onFocus={() => {
           setFocused(true);
           onFocus();
@@ -226,12 +261,12 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   }
 
   const tone = nodeTone(data.objectKind);
-  const isExpanded = data.inlineConfig?.viewMode === "expanded";
+  const isExpanded = currentExpanded;
   const summaryLines = data.inlineConfig?.summaryLines ?? [];
   const compactSummary = summaryLines.slice(0, 3);
   const summaryOverflowCount = Math.max(0, summaryLines.length - compactSummary.length);
   const runtime = data.inlineConfig?.runtime;
-  const resolvedNodeId = String(data.objectId || props.node.id);
+  const resolvedNodeId = resolvedNodeIdForState;
   const runtimeStateLabel = runtime?.error
     ? "× error"
     : runtime?.running
@@ -244,8 +279,18 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
             ? "✓"
             : "";
 
-  const toggleExpanded = () => {
-    emitInlineNodeToggle({ nodeId: resolvedNodeId, runtimeNodeId: String(props.node.id), expanded: !isExpanded });
+  const handleNodeClick = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target as Element | null;
+    if (target?.closest?.(".microflow-flowgram-node__expand-btn")) {
+      return;
+    }
+    const interactiveTarget = target?.closest?.("button,input,textarea,select,[contenteditable='true'],.microflow-inline-editor,.microflow-inline-field");
+    if (!isExpanded && (selected || activated) && !interactiveTarget) {
+      stopEditorControlEvent(event);
+      emitInlineNodeToggle({ nodeId: resolvedNodeId, runtimeNodeId: String(props.node.id), expanded: true });
+      return;
+    }
+    selectNode(event);
   };
 
   return (
@@ -264,7 +309,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
       ].filter(Boolean).join(" ")}
       draggable={false}
       onMouseDown={handleMouseDown}
-      onClick={handleClick}
+      onClick={handleNodeClick}
       onDoubleClick={handleDoubleClick}
       onFocus={() => {
         setFocused(true);
@@ -304,25 +349,19 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
             </Typography.Text>
           ) : null}
         </div>
-        <Tooltip content={isExpanded ? "收起（Esc）" : "展开编辑（双击节点也可）"} position="top">
-          <button
-            type="button"
-            className="microflow-flowgram-node__expand-btn"
-            onMouseDown={event => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            onClick={event => {
-              event.stopPropagation();
-              toggleExpanded();
-            }}
-            aria-label={isExpanded ? "收起节点" : "展开节点"}
-          >
-            {isExpanded
-              ? <><IconTickCircle style={{ marginRight: 3, verticalAlign: "middle" }} />完成</>
-              : <><IconEdit style={{ marginRight: 3, verticalAlign: "middle" }} />编辑</>}
-          </button>
-        </Tooltip>
+        <button
+          ref={expandBtnRef}
+          type="button"
+          className="microflow-flowgram-node__expand-btn"
+          data-flow-editor-selectable="false"
+          aria-label={isExpanded ? "收起节点" : "展开节点"}
+          title={isExpanded ? "收起（Esc）" : "展开编辑（双击节点也可）"}
+          style={{ pointerEvents: "auto", position: "relative", zIndex: 5 }}
+        >
+          {isExpanded
+            ? <><IconTickCircle style={{ marginRight: 3, verticalAlign: "middle" }} />完成</>
+            : <><IconEdit style={{ marginRight: 3, verticalAlign: "middle" }} />编辑</>}
+        </button>
       </div>
       <div className="microflow-flowgram-node__meta">
         <StaticTag>{nodeKindLabel(data.actionKind || data.objectKind)}</StaticTag>
@@ -350,7 +389,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
               inspect: runtime.error ? "error" : "runtime",
             });
             if (!isExpanded) {
-              toggleExpanded();
+              emitInlineNodeToggle({ nodeId: resolvedNodeId, runtimeNodeId: String(props.node.id), expanded: true });
             }
           }}
         >

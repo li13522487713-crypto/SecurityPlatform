@@ -164,13 +164,12 @@
   border-radius: 6px;
   padding: 0 8px;
   cursor: pointer;
-  /* 默认隐藏，hover 节点时才显示 */
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
   transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
-/* 节点 hover / 选中 / 展开时显示编辑按钮 */
+/* 节点 hover / 选中 / 展开时保持编辑按钮可操作 */
 .microflow-flowgram-node:hover .microflow-flowgram-node__expand-btn,
 .microflow-flowgram-node.is-selected .microflow-flowgram-node__expand-btn,
 .microflow-flowgram-node.is-active .microflow-flowgram-node__expand-btn,

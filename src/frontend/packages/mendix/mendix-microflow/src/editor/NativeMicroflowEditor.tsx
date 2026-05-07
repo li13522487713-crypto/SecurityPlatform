@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref } from "react";
 
 import { Badge, Button, Empty, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconClose, IconDelete, IconPlay, IconRefresh, IconSave, IconSetting, IconTickCircle, IconUndo, IconRedo } from "@douyinfe/semi-icons";
@@ -26,9 +26,9 @@ import {
 import {
   MICROFLOW_INLINE_FIELD_COMMIT_EVENT,
   MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT,
-  MICROFLOW_INLINE_NODE_INSPECT_EVENT,
-  MICROFLOW_INLINE_NODE_TOGGLE_EVENT,
   MICROFLOW_INLINE_QUICK_FIX_EVENT,
+  subscribeInlineNodeInspect,
+  subscribeInlineNodeToggle,
   type MicroflowInlineFieldCommitDetail,
   type MicroflowInlineLineLabelCommitDetail,
   type MicroflowInlineNodeInspectDetail,
@@ -731,24 +731,30 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     writeStoredTestRunSamples({ ...stored, [schema.id]: testRunSamples });
   }, [schema.id, testRunSamples]);
 
+  const applyInlineNodeToggleDetail = useCallback((detail: MicroflowInlineNodeToggleDetail | undefined) => {
+    if (!detail) {
+      return;
+    }
+    const inlineNodeId = detail?.nodeId ?? detail?.runtimeNodeId;
+    if (!inlineNodeId) {
+      return;
+    }
+    const keys = resolveInlineNodeViewModeAliases(latestSchemaRef.current, inlineNodeId, detail.runtimeNodeId);
+    if (!keys.length) {
+      return;
+    }
+    setNodeViewModes(current => ({
+      ...current,
+      ...Object.fromEntries(keys.map(key => [key, detail.expanded ? "expanded" : "compact"])),
+    }));
+  }, []);
+
   useLayoutEffect(() => {
-    const toggleListener = (event: Event) => {
-      const detail = (event as CustomEvent<MicroflowInlineNodeToggleDetail>).detail;
-      const inlineNodeId = detail?.nodeId ?? detail?.runtimeNodeId;
-      if (!inlineNodeId) {
+    const handleToggle = applyInlineNodeToggleDetail;
+    const handleInspect = (detail: MicroflowInlineNodeInspectDetail | undefined) => {
+      if (!detail) {
         return;
       }
-      const keys = resolveInlineNodeViewModeAliases(latestSchemaRef.current, inlineNodeId, detail.runtimeNodeId);
-      if (!keys.length) {
-        return;
-      }
-      setNodeViewModes(current => ({
-        ...current,
-        ...Object.fromEntries(keys.map(key => [key, detail.expanded ? "expanded" : "compact"])),
-      }));
-    };
-    const inspectListener = (event: Event) => {
-      const detail = (event as CustomEvent<MicroflowInlineNodeInspectDetail>).detail;
       const inlineNodeId = detail?.nodeId ?? detail?.runtimeNodeId;
       if (!inlineNodeId || !detail.inspect) {
         return;
@@ -763,13 +769,13 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
         ...Object.fromEntries(keys.map(key => [key, mode])),
       }));
     };
-    window.addEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, toggleListener as EventListener);
-    window.addEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, inspectListener as EventListener);
+    const unsubscribeToggle = subscribeInlineNodeToggle(handleToggle);
+    const unsubscribeInspect = subscribeInlineNodeInspect(handleInspect);
     return () => {
-      window.removeEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, toggleListener as EventListener);
-      window.removeEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, inspectListener as EventListener);
+      unsubscribeToggle();
+      unsubscribeInspect();
     };
-  }, []);
+  }, [applyInlineNodeToggleDetail]);
 
   const commitSchema = useCallback((next: MicroflowDesignSchema, reason: NativeHistoryReason, options: { pushHistory?: boolean; dirty?: boolean } = {}) => {
     const shouldPushHistory = options.pushHistory !== false && reason !== "selection" && reason !== "runtime";
@@ -1513,9 +1519,15 @@ export function NativeMicroflowEditor(props: NativeMicroflowEditorProps) {
     : !(selectedNode || selectedFlow)
       ? "Select a node or flow first."
       : "";
-
   return (
-    <div ref={shellRef} data-testid="microflow-editor-shell" data-microflow-id={schema.id} style={shellStyle} tabIndex={0} onKeyDown={handleKeyDown}>
+    <div
+      ref={shellRef}
+      data-testid="microflow-editor-shell"
+      data-microflow-id={schema.id}
+      style={shellStyle}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
       {toolbarMode === "internal" ? (
         <div data-testid="microflow-editor-toolbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 12px", borderBottom: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-2, #fff)" }}>
           <Space style={{ minWidth: 0, overflow: "hidden" }}>
