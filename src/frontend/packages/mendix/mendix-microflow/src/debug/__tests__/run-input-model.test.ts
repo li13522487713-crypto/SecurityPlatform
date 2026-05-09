@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { sampleMicroflowSchema, type MicroflowSchema } from "../../schema";
+import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
+import type { MicroflowSchema } from "../../schema";
 import {
   buildRunInputModel,
   buildRunRequest,

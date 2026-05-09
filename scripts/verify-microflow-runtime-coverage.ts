@@ -125,11 +125,11 @@ for (const kind of backendKinds) {
     backendOnlyKinds.add(kind);
   }
 }
-// 这些 actionKind 是后端为兼容 legacy schema 保留的派发别名（在前端 toolbox 中以更
+// 这些 actionKind 是后端为兼容旧 schema 保留的派发别名（在前端 toolbox 中以更
 // 现代的名称暴露），允许只存在于后端。属于"后端独有但符合预期"的清单，在矩阵报告
 // 中以信息性输出列出，不参与 fail。
 const BACKEND_ONLY_LEGACY_ALIASES = new Set([
-  // legacy / generic dispatcher fallbacks
+  // deprecated / generic dispatcher fallbacks
   "connectorCall",
   "externalConnectorCall",
   "externalObject",
@@ -170,10 +170,10 @@ const BACKEND_ONLY_LEGACY_ALIASES = new Set([
 const backendOnlyExpected = Array.from(backendOnlyKinds).filter(kind => BACKEND_ONLY_LEGACY_ALIASES.has(kind));
 const backendOnlyUnexpected = Array.from(backendOnlyKinds).filter(kind => !BACKEND_ONLY_LEGACY_ALIASES.has(kind));
 if (backendOnlyExpected.length > 0) {
-  console.log(`info - backend-only legacy aliases (allowed): [${fmt(backendOnlyExpected)}]`);
+  console.log(`info - backend-only deprecated aliases (allowed): [${fmt(backendOnlyExpected)}]`);
 }
 add(
-  "every backend actionKind beyond the legacy alias allowlist is modeled in frontend registry",
+  "every backend actionKind beyond the deprecated alias allowlist is modeled in frontend registry",
   backendOnlyUnexpected.length === 0,
   backendOnlyUnexpected.length === 0 ? undefined : `missing-on-frontend=[${fmt(backendOnlyUnexpected)}]`,
 );

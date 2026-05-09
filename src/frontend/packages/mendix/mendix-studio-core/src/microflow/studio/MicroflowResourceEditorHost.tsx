@@ -3,7 +3,7 @@ import { Button, Empty, Space, Spin, Tag, Typography } from "@douyinfe/semi-ui";
 
 import type { MicroflowEditorHandle, MicroflowWorkbenchLayoutState, MicroflowWorkbenchStatus } from "@atlas/microflow";
 import type { MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
-import { createMicroflowApiError, getMicroflowApiError, getMicroflowErrorUserMessage, isLegacyDesignSchemaError, isNotFoundError } from "../adapter/http/microflow-api-error";
+import { createMicroflowApiError, getMicroflowApiError, getMicroflowErrorUserMessage, isNotFoundError, isOldDesignSchemaError } from "../adapter/http/microflow-api-error";
 import { MicroflowErrorState } from "../components/error";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MendixMicroflowEditorEntry } from "../editor/MendixMicroflowEditorEntry";
@@ -27,7 +27,6 @@ export interface MicroflowResourceEditorHostProps {
    */
   editorRef?: Ref<MicroflowEditorHandle>;
   toolbarMode?: "internal" | "external";
-  shellMode?: "legacy-host-layout" | "editor-native-layout";
   onLayoutStateChange?: (state: MicroflowWorkbenchLayoutState) => void;
   onWorkbenchStatusChange?: (status: MicroflowWorkbenchStatus) => void;
   readonly?: boolean;
@@ -56,7 +55,7 @@ function getLoadErrorTitle(error: unknown): string {
   if (apiError.code === "MICROFLOW_PERMISSION_DENIED") {
     return "无权限访问该微流";
   }
-  if (isLegacyDesignSchemaError(apiError)) {
+  if (isOldDesignSchemaError(apiError)) {
     return "当前微流不是新版设计态";
   }
   return "Microflow schema load failed";
@@ -75,7 +74,6 @@ export function MicroflowResourceEditorHost({
   microflowResourceIndex,
   editorRef,
   toolbarMode,
-  shellMode,
   onLayoutStateChange,
   onWorkbenchStatusChange,
   readonly,
@@ -244,7 +242,6 @@ export function MicroflowResourceEditorHost({
           microflowResourceIndex={microflowResourceIndex}
           editorRef={editorRef}
           toolbarMode={toolbarMode}
-          shellMode={shellMode}
           onLayoutStateChange={onLayoutStateChange}
           onWorkbenchStatusChange={onWorkbenchStatusChange}
           readonly={readonly}

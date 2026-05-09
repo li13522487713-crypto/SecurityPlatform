@@ -759,7 +759,7 @@ describe("deriveNodeInlineConfig", () => {
     expect(fix?.editType).toBe("branch");
   });
 
-  it("adds unified output-mappings section for executable nodes without legacy fallback", () => {
+  it("adds unified output-mappings section for executable nodes without compatibility fallback", () => {
     const node: MicroflowWorkflowNodeJSON = {
       id: "action-2",
       type: "activity",
@@ -773,7 +773,7 @@ describe("deriveNodeInlineConfig", () => {
         actionKind: "invokeAction",
         action: {
           kind: "invokeAction",
-          outputVariableName: "legacyResult",
+          outputVariableName: "canonicalResult",
         },
       } as never,
       meta: { position: { x: 520, y: 80 } },

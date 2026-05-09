@@ -275,7 +275,7 @@ export function p0ActionLooksMalformed(action: MicroflowAction): boolean {
   if (!isP0ActionKind(action.kind)) {
     return false;
   }
-  if ("legacyConfig" in action && isRecord((action as { legacyConfig?: unknown }).legacyConfig)) {
+  if ("sourceConfig" in action && isRecord((action as { sourceConfig?: unknown }).sourceConfig)) {
     return true;
   }
   return !isMicroflowP0ActionStronglyTyped(action);

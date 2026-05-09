@@ -2366,7 +2366,7 @@ export function formatStudioTemplate(template: string, params: Record<string, st
 - 左导航新增 `Mendix Studio` 菜单；资源中心微流 Tab 新增“在 Mendix Studio 中打开”。
 - 微流资源 API 统一使用 `/api/v1` 前缀；资源列表/创建/更新返回的 `MicroflowResource` 包含可选 `folderId`、`folderPath`。`GET /api/v1/microflows` 支持可选 `folderId` 过滤，`POST /api/v1/microflows/{id}/move` 请求体为 `{ "targetFolderId": string | null }`，用于在模块内移动单个微流到目标文件夹或未分组根。
 - 微流设计态 schema 为 FlowGram 原生 `MicroflowDesignSchema`，根字段包含 `schemaVersion: "flowgram.microflow.v1"`、`id/name/moduleId`、`workflow.nodes[]`、`workflow.edges[]`、`editor`、`parameters` 与 `returnType`。可执行节点 `workflow.nodes[].data` 允许统一声明 `outputMappings[]`（`{ key, source: variable|constant|expression, variableName?, constantValue?, expression? }`），用于节点输出字段映射。`PUT /api/v1/microflows/{id}/schema` 不再接受旧 `objectCollection/flows` 设计态，也不允许缺少 `workflow.nodes/workflow.edges` 的裸 JSON；运行、校验、发布前由服务或前端编译到 runtime schema。
-- Studio 内联编辑对节点输出统一采用 `data.outputMappings[]`；End 节点 legacy `returnVariableName` 内联入口已移除，不再做回填兼容。
+- Studio 内联编辑对节点输出统一采用 `data.outputMappings[]`；End 节点旧 `returnVariableName` 内联入口已移除，不再做回填兼容。
 - `GET /api/v1/microflows/{id}/schema` 只允许返回新版设计态；若当前快照仍是旧 `1.0.0 + objectCollection/flows`，后端直接返回 `MICROFLOW_SCHEMA_INVALID`，明确提示“旧设计态快照无法在新版 Studio 中打开”，不得在读取阶段做运行时兼容转换或回退样例。
 - 当前草稿 / 复制 / 版本回滚 / 版本复制 / 发布历史所写入的 `MicroflowSchemaSnapshot.SchemaJson` 与 `MicroflowPublishSnapshot.SchemaJson` 必须始终保持为 `flowgram.microflow.v1` 设计态；运行时、校验、引用分析、版本 diff、执行计划等内部链路也必须直接消费新版 `workflow.nodes/workflow.edges`，不得再依赖根级 `objectCollection/flows` 旧结构。
 - 微流文件夹由后端真实 `MicroflowFolder` 实体持久化，REST 前缀为 `/api/v1/microflow-folders`：

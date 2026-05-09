@@ -45,16 +45,6 @@ export function MendixStudioAppRoute() {
     },
     [currentUser, workspace.id, workspace.orgId]
   );
-  const useNativeMicroflowDocking = useMemo(() => {
-    const configured = import.meta.env.VITE_MICROFLOW_NATIVE_DOCKING ?? import.meta.env.MICROFLOW_NATIVE_DOCKING;
-    if (configured === "true") {
-      return true;
-    }
-    if (configured === "false") {
-      return false;
-    }
-    return !import.meta.env.PROD;
-  }, []);
   return (
     <MendixStudioApp
       appId={appId}
@@ -62,7 +52,6 @@ export function MendixStudioAppRoute() {
       tenantId={workspace.orgId}
       currentUser={currentUser}
       adapterConfig={adapterConfig}
-      useNativeMicroflowDocking={useNativeMicroflowDocking}
     />
   );
 }

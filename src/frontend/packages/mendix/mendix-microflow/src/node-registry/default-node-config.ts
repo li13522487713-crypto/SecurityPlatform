@@ -1,5 +1,5 @@
 import type {
-  LegacyMicroflowActivityConfig,
+  MicroflowActionActivityConfig,
   MicroflowActionKind,
   MicroflowActivityType,
   MicroflowDataType,
@@ -18,7 +18,7 @@ export interface MicroflowNodeCreateContext {
   supportedActionKinds?: string[];
 }
 
-type SafeDefaultActivityConfig = Partial<LegacyMicroflowActivityConfig> & Record<string, unknown>;
+type SafeDefaultActivityConfig = Partial<MicroflowActionActivityConfig> & Record<string, unknown>;
 
 const stringType: MicroflowDataType = { kind: "string" };
 const stringTypeRef = { kind: "primitive" as const, name: "String" };

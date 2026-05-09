@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { validateMicroflowSchema } from "../schema/validator";
-import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import type { MicroflowDesignSchema, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import type { MicroflowMetadataCatalog } from "../metadata";
 
 export type MicroflowValidationStatus = "idle" | "validating" | "valid" | "invalid" | "failed";
@@ -10,7 +10,7 @@ export type MicroflowValidationMode = "edit" | "save" | "publish" | "testRun";
 export interface MicroflowValidationAdapterLike {
   validate(input: {
     resourceId?: string;
-    schema: MicroflowSchema;
+    schema: MicroflowSchema | MicroflowDesignSchema;
     metadata?: MicroflowMetadataCatalog | null;
     mode: MicroflowValidationMode;
     includeInfo?: boolean;
@@ -27,7 +27,7 @@ export interface MicroflowValidationAdapterLike {
 }
 
 export interface UseDebouncedMicroflowValidationOptions {
-  schema: MicroflowSchema;
+  schema: MicroflowSchema | MicroflowDesignSchema;
   metadata: MicroflowMetadataCatalog | null;
   trigger: number;
   delayMs?: number;
@@ -114,7 +114,7 @@ export function useDebouncedMicroflowValidation({
     setIssuesByMicroflowId(current => ({ ...current, [targetId]: nextIssues }));
   }, [resourceId]);
 
-  const runNow = useCallback(async (targetSchema: MicroflowSchema = latestSchemaRef.current) => {
+  const runNow = useCallback(async (targetSchema: MicroflowSchema | MicroflowDesignSchema = latestSchemaRef.current) => {
     const targetId = resourceId ?? targetSchema.id;
     const requestId = (requestIdsByMicroflowIdRef.current[targetId] ?? 0) + 1;
     requestIdsByMicroflowIdRef.current[targetId] = requestId;

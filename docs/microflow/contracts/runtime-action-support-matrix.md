@@ -39,7 +39,7 @@
 | ExternalObject | deleteExternalObject, sendExternalObject | connectorBacked | ExternalObjectActionExecutor | requiresConnector | externalObject.crud |
 | Unknown / Generic | unknown actionKind | explicitUnsupported | FallbackUnsupportedActionExecutor | unsupported | RUNTIME_UNSUPPORTED_ACTION |
 
-后端还保留 legacy aliases：`externalObject`、`connectorCall`、`externalConnectorCall`、`javascriptAction`、`nanoflowCall`、`nanoflowCallAction`、`nanoflowOnlySynchronize`、`workflow`、`workflowAction`、`metrics`。
+后端还保留 deprecated aliases：`externalObject`、`connectorCall`、`externalConnectorCall`、`javascriptAction`、`nanoflowCall`、`nanoflowCallAction`、`nanoflowOnlySynchronize`、`workflow`、`workflowAction`、`metrics`。
 
 校验：`MicroflowValidationService` 通过同一 `MicroflowActionSupportMatrix` 判定 supportLevel；connector missing 在 `testRun/publish` 为 error，edit/save 为 warning；deprecated 为 warning。
 

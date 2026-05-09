@@ -34,7 +34,7 @@ function expressionIssues(schema: MicroflowSchema, metadata: MicroflowMetadataCa
     { objectId: target.objectId, actionId: target.actionId, fieldPath: target.fieldPath, source: "expression" },
     diagnostic.severity
   ));
-  const legacyCompatibilityIssues = result.diagnostics
+  const compatibilityIssues = result.diagnostics
     .filter(diagnostic => diagnostic.severity === "error" && diagnostic.code.startsWith("MF_EXPR"))
     .map(diagnostic => issue(
       diagnostic.code === "MF_EXPR_UNKNOWN_VARIABLE" ? "MF_EXPRESSION_UNKNOWN_VARIABLE" : "MF_EXPRESSION_INVALID",
@@ -42,7 +42,7 @@ function expressionIssues(schema: MicroflowSchema, metadata: MicroflowMetadataCa
       { objectId: target.objectId, actionId: target.actionId, fieldPath: target.fieldPath, source: "expression" },
       diagnostic.severity
     ));
-  return [...issues, ...legacyCompatibilityIssues];
+  return [...issues, ...compatibilityIssues];
 }
 
 export function validateExpressions(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {

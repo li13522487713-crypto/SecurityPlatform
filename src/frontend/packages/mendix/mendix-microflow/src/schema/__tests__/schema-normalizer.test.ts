@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../../adapters";
+import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
   collectFlowsRecursive,
   normalizeMicroflowAuthoringSchemaForRuntime,
-  sampleMicroflowSchema,
   type MicroflowObject,
   type MicroflowSchema,
 } from "../index";

@@ -1,6 +1,5 @@
 export * from "./schema";
 export * from "./adapters";
-export * from "./samples";
 export * from "./resource";
 export * from "./node-registry";
 export * from "./registry";
@@ -64,10 +63,6 @@ export {
   type MicroflowWorkbenchLayoutState,
   type MicroflowWorkbenchStatus,
 } from "./editor";
-export {
-  NativeMicroflowEditor,
-  type NativeMicroflowEditorProps,
-} from "./editor/NativeMicroflowEditor";
 export {
   ExpressionEditor,
   MicroflowPropertyForm,

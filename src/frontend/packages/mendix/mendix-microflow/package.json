@@ -10,9 +10,7 @@
     "./schema": "./src/schema/index.ts",
     "./schema/types": "./src/schema/types.ts",
     "./schema/authoring": "./src/schema/authoring/index.ts",
-    "./schema/legacy": "./src/schema/legacy/index.ts",
     "./schema/compat": "./src/schema/compat/index.ts",
-    "./schema/samples": "./src/schema/samples/index.ts",
     "./schema/utils": "./src/schema/utils/index.ts",
     "./editor": "./src/editor/index.tsx",
     "./node-registry": "./src/node-registry/index.ts",
@@ -22,7 +20,6 @@
     "./property-forms": "./src/property-forms/index.tsx",
     "./runtime-adapter": "./src/runtime-adapter/index.ts",
     "./adapters": "./src/adapters/index.ts",
-    "./adapters/runtime": "./src/adapters/microflow-adapters.ts",
     "./resource": "./src/resource/index.ts",
     "./flowgram": "./src/flowgram/index.ts",
     "./flowgram/authoring-to-flowgram": "./src/flowgram/adapters/authoring-to-flowgram.ts",
@@ -36,14 +33,14 @@
     "./debug": "./src/debug/index.ts",
     "./debug/trace-utils": "./src/debug/trace-utils.ts",
     "./versioning": "./src/versioning/index.ts",
-    "./samples": "./src/samples/index.ts",
     "./mendix-compat": "./src/mendix-compat/index.ts",
     "./performance": "./src/performance/index.ts",
     "./runtime": "./src/runtime/index.ts"
   },
   "scripts": {
     "build": "echo 'microflow: source-only package, no build step'",
-    "lint": "echo 'microflow: no package-local lint configured yet'",
+    "lint": "eslint src --ext .ts,.tsx",
+    "check-legacy": "node ./scripts/check-legacy.mjs",
     "typecheck": "tsc --noEmit -p ."
   },
   "peerDependencies": {
@@ -65,8 +62,13 @@
     "inversify": "^6.2.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.12.0",
+    "@typescript-eslint/eslint-plugin": "^8.10.0",
+    "@typescript-eslint/parser": "^8.10.0",
     "@types/react": "18.2.37",
     "@types/react-dom": "18.2.15",
+    "eslint": "^9.12.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
     "typescript": "~5.9.3"
   }
 }

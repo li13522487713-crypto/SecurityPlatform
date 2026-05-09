@@ -15,7 +15,8 @@ export function collectRuntimeObjects(collection: MicroflowObjectCollection): Mi
 }
 
 export function collectRuntimeFlows(schema: Pick<MicroflowAuthoringSchema, "flows" | "objectCollection">): MicroflowFlow[] {
-  return [...schema.flows, ...collectCollectionFlows(schema.objectCollection)];
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
+  return [...safeFlows, ...collectCollectionFlows(schema.objectCollection)];
 }
 
 function collectCollectionFlows(collection: MicroflowObjectCollection): MicroflowFlow[] {

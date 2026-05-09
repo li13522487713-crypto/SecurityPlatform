@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { deleteObject, duplicateObject, createObjectFromRegistry } from "../../adapters";
+import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
 import { getDefaultMockMetadataCatalog } from "../../metadata";
 import { addMicroflowObjectFromDragPayload, createDragPayloadFromRegistryItem, defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
   getParameterNameWarning,
   renameMicroflowParameter,
-  sampleMicroflowSchema,
   updateEndEventReturnValue,
   updateMicroflowParameterType,
   updateMicroflowReturnType,

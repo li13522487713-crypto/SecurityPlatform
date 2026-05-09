@@ -95,6 +95,31 @@ describe("decorateWorkflow runtime projection", () => {
     expect(edge.data?.runtimeState).toBe("selectedCase");
   });
 
+  it("resolves inline view modes by persisted object id aliases", () => {
+    const schema = createSchema();
+    schema.workflow.nodes = schema.workflow.nodes.map(node => ({
+      ...node,
+      id: "node-decision-1",
+      data: {
+        ...(node.data ?? {}),
+        objectId: "decision-1",
+      },
+    }));
+    schema.workflow.edges = schema.workflow.edges.map(edge => ({
+      ...edge,
+      sourceNodeID: "node-decision-1",
+    }));
+
+    const decorated = decorateWorkflow({
+      schema,
+      validationIssues: [],
+      runtimeTrace: [],
+      nodeViewModes: { "decision-1": "expanded" },
+    });
+    const node = decorated.nodes?.[0] as { data?: { inlineConfig?: { viewMode?: string } } };
+    expect(node.data?.inlineConfig?.viewMode).toBe("expanded");
+  });
+
   it("keeps latest frame status for the same node", () => {
     const decorated = decorateWorkflow({
       schema: createSchema(),

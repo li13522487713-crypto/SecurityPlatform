@@ -180,4 +180,11 @@ describe("microflow variable foundation", () => {
     expect(buildMicroflowVariableIndex(b).byName?.riskLevel).toBeTruthy();
     expect(buildMicroflowVariableIndex(b).byName?.routeName).toBeUndefined();
   });
+
+  it("builds variable index even when root object collection is missing", () => {
+    const corrupted = { ...schema(), objectCollection: undefined } as unknown as MicroflowAuthoringSchema;
+
+    expect(() => buildMicroflowVariableIndex(corrupted)).not.toThrow();
+    expect((buildMicroflowVariableIndex(corrupted).all ?? []).length).toBeGreaterThan(0);
+  });
 });

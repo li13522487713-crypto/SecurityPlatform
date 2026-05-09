@@ -4,7 +4,7 @@ describe("microflow production gate collectors", () => {
   async function loadGateLib() {
     const moduleUrl = new URL("../../../../../../../scripts/microflow-production-gate-lib.ts", import.meta.url).href;
     return await import(moduleUrl) as {
-      detectLegacyAliasesInText: (text: string) => string[];
+      detectDeprecatedAliasesInText: (text: string) => string[];
       parseBackendDescriptorsFromSource: (source: string) => Array<{
         actionKind: string;
         producesVariables: boolean;
@@ -36,10 +36,10 @@ public static IReadOnlyList<MicroflowActionExecutorDescriptor> BuiltInDescriptor
     expect(descriptors[2].errorCode).toBe("RUNTIME_UNSUPPORTED_ACTION");
   });
 
-  it("detects legacy aliases in schema-like text", async () => {
-    const { detectLegacyAliasesInText } = await loadGateLib();
-    expect(detectLegacyAliasesInText('{ "kind": "rollbackObject" }')).toContain("rollbackObject");
-    expect(detectLegacyAliasesInText('{ "kind": "rollback" }')).toEqual([]);
+  it("detects deprecated aliases in schema-like text", async () => {
+    const { detectDeprecatedAliasesInText } = await loadGateLib();
+    expect(detectDeprecatedAliasesInText('{ "kind": "rollbackObject" }')).toContain("rollbackObject");
+    expect(detectDeprecatedAliasesInText('{ "kind": "rollback" }')).toEqual([]);
   });
 
   it("parses matrix actionKind rows", async () => {

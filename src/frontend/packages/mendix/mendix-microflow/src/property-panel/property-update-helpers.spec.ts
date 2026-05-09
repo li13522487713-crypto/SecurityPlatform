@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../adapters";
+import { sampleMicroflowSchema } from "../__fixtures__/sample-microflow";
 import { getMicroflowNodeRegistryKey, defaultMicroflowNodeRegistry } from "../node-registry";
-import { sampleMicroflowSchema, type MicroflowObject, type MicroflowSchema } from "../schema";
+import type { MicroflowObject, MicroflowSchema } from "../schema";
 import {
   updateActionConfig,
   updateAnnotationObjectConfig,

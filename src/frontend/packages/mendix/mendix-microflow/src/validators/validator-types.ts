@@ -1,4 +1,4 @@
-import type { MicroflowAuthoringSchema, MicroflowVariableIndex, MicroflowValidationIssue } from "../schema/types";
+import type { MicroflowAuthoringSchema, MicroflowDesignSchema, MicroflowVariableIndex, MicroflowValidationIssue } from "../schema/types";
 import type { MicroflowMetadataCatalog } from "../metadata";
 import type { MicroflowValidationCode } from "./validation-codes";
 
@@ -22,7 +22,7 @@ export interface MicroflowValidationOptions {
 }
 
 export interface MicroflowValidationInput {
-  schema: MicroflowAuthoringSchema;
+  schema: MicroflowAuthoringSchema | MicroflowDesignSchema;
   /**
    * 必须为已加载的目录；`null` / `undefined` 时返回 `MF_METADATA_CATALOG_MISSING`，不回落到 mock。
    */

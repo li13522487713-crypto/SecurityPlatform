@@ -44,8 +44,8 @@ export function parsePortId(portId: string): MicroflowParsedPortId | null {
       : null;
   }
   if (parts.length === 2) {
-    const [objectId, legacyKind] = parts;
-    return { objectId, portKind: legacyKindToPortKind(legacyKind), connectionIndex: legacyConnectionIndex(legacyKind) };
+    const [objectId, compatKind] = parts;
+    return { objectId, portKind: compatPortKindToPortKind(compatKind), connectionIndex: compatConnectionIndex(compatKind) };
   }
   return null;
 }
@@ -66,7 +66,7 @@ export function getPortDirectionFromPortId(portId?: string): MicroflowPortDirect
   return ["sequenceIn", "loopIn", "loopBodyOut"].includes(kind) ? "input" : "output";
 }
 
-function legacyKindToPortKind(value: string): MicroflowPortKind {
+function compatPortKindToPortKind(value: string): MicroflowPortKind {
   if (value === "in") {
     return "sequenceIn";
   }
@@ -94,7 +94,7 @@ function legacyKindToPortKind(value: string): MicroflowPortKind {
   return value as MicroflowPortKind;
 }
 
-function legacyConnectionIndex(value: string): number {
+function compatConnectionIndex(value: string): number {
   if (value === "out" || value === "in") {
     return 0;
   }

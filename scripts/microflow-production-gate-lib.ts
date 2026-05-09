@@ -29,7 +29,7 @@ export interface CheckResult {
 
 export interface FrontendActionRegistryEntry {
   actionKind: string;
-  legacyActivityType: string;
+  activityType: string;
   officialType: string;
   title?: string;
   titleZh?: string;
@@ -66,7 +66,7 @@ export interface FrontendMicroflowRegistrySnapshot {
   propertyForms: FrontendPropertyFormRegistryEntry[];
 }
 
-export const LEGACY_ACTION_ALIASES = [
+export const DEPRECATED_ACTION_ALIASES = [
   "webserviceCall",
   "webService",
   "callExternal",
@@ -413,7 +413,7 @@ export function parseFrontendActionRegistry(root = findWorkspaceRoot()): Fronten
     const supportsErrorHandling = !["client", "logging", "metrics", "variable"].includes(category);
     return {
       actionKind,
-      legacyActivityType: propertyString(call, "legacyActivityType") ?? "",
+      activityType: propertyString(call, "activityType") ?? "",
       officialType: propertyString(call, "officialType") ?? "",
       title: propertyString(call, "title") ?? "",
       titleZh: propertyString(call, "titleZh") ?? "",
@@ -619,13 +619,13 @@ export function collectFrontendActionRegistry(root = findWorkspaceRoot()): Front
   const body = extractArrayBody(source, "export const defaultMicroflowActionRegistry");
   return extractFunctionCalls(body, "action").map(call => {
     const actionKind = fieldString(call, "key") ?? "";
-    const legacyActivityType = fieldString(call, "legacyActivityType") ?? "";
+    const activityType = fieldString(call, "activityType") ?? "";
     const category = fieldString(call, "category") ?? "unknown";
     const availability = fieldString(call, "availability") ?? "supported";
     const supportsErrorHandling = fieldBoolean(call, "supportsErrorHandling") ?? !["client", "logging", "metrics", "variable"].includes(category);
     return {
       actionKind,
-      legacyActivityType,
+      activityType,
       officialType: fieldString(call, "officialType") ?? "",
       category,
       availability,
@@ -781,9 +781,9 @@ export function parseMarkdownMatrixActionKinds(markdown: string): Set<string> {
   return kinds;
 }
 
-export function detectLegacyAliasesInText(text: string): string[] {
+export function detectDeprecatedAliasesInText(text: string): string[] {
   const found = new Set<string>();
-  for (const alias of LEGACY_ACTION_ALIASES) {
+  for (const alias of DEPRECATED_ACTION_ALIASES) {
     const regex = new RegExp(`(?<![A-Za-z0-9_])${alias}(?![A-Za-z0-9_])`, "u");
     if (regex.test(text)) {
       found.add(alias);
@@ -856,7 +856,7 @@ export function productionDecisionForDescriptor(descriptor: BackendDescriptor): 
   if (descriptor.runtimeCategory === "ExplicitUnsupported") {
     return {
       decision: "unsupported",
-      limitation: "Nanoflow/client-only 或 legacy unsupported，不进入服务端生产运行。",
+      limitation: "Nanoflow/client-only 或 deprecated unsupported，不进入服务端生产运行。",
       targetRound: "R5"
     };
   }
@@ -886,8 +886,8 @@ export function buildCapabilityMatrixRows(root = findWorkspaceRoot()): Capabilit
   const descriptors = parseBackendDescriptors(root);
   return descriptors.map(descriptor => {
     const fe = frontend.actionsByKind.get(descriptor.actionKind);
-    const node = fe?.legacyActivityType ? frontend.nodesByActionKind.get(descriptor.actionKind) : undefined;
-    const propertyFormKey = node?.propertyFormKey ?? (fe?.legacyActivityType ? `activity:${fe.legacyActivityType}` : "");
+    const node = fe?.activityType ? frontend.nodesByActionKind.get(descriptor.actionKind) : undefined;
+    const propertyFormKey = node?.propertyFormKey ?? (fe?.activityType ? `activity:${fe.activityType}` : "");
     const propertyFormRegistered = propertyFormKey ? frontend.propertyFormKeys.has(propertyFormKey) : false;
     const decision = productionDecisionForDescriptor(descriptor);
     return {
@@ -960,7 +960,7 @@ export function capabilityMatrixMarkdown(root = findWorkspaceRoot()): string {
     "- `blocked-before-r3`：`rollback` / `cast` / `listOperation` 当前为 modeled-only fake success，R3 真实 executor 前禁止生产放行。",
     "- `blocked-without-capability`：connector-backed 节点缺 capability 时必须返回 `RUNTIME_CONNECTOR_REQUIRED` 并阻断 publish。",
     "- `server-command-preview`：服务端只产 RuntimeCommand，由客户端完成动作。",
-    "- `unsupported`：Nanoflow/client-only 或 legacy unsupported。",
+    "- `unsupported`：Nanoflow/client-only 或 deprecated unsupported。",
     "",
     "## 三合一矩阵",
     "",

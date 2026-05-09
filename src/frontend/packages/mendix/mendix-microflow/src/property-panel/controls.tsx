@@ -173,7 +173,7 @@ export function AssociationSelector({ value, readonly, onChange, startEntityQual
   value?: string;
   readonly?: boolean;
   onChange: (value: string) => void;
-  /** 若 legacy 表单未传，需在选择实体后由上层填入。 */
+  /** 若 兼容表单未传，需在选择实体后由上层填入。 */
   startEntityQualifiedName?: string;
 }) {
   return (

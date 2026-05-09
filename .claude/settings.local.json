@@ -21,7 +21,13 @@
       "Bash(git commit -m ' *)",
       "mcp__Claude_Preview__preview_start",
       "Bash(pnpm vitest *)",
-      "Bash(Remove-Item \"D:\\\\Code\\\\Web_SaaS_Backend\\\\SecurityPlatform\\\\src\\\\frontend\\\\packages\\\\mendix\\\\mendix-microflow\\\\src\\\\flowgram\\\\styles\\\\flowgram-node-uniform.css\")"
+      "Bash(Remove-Item \"D:\\\\Code\\\\Web_SaaS_Backend\\\\SecurityPlatform\\\\src\\\\frontend\\\\packages\\\\mendix\\\\mendix-microflow\\\\src\\\\flowgram\\\\styles\\\\flowgram-node-uniform.css\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('type:', d.get\\('type', 'cjs/none'\\)\\)\")",
+      "Bash(findstr \"eslint@\")",
+      "Bash(findstr \"@typescript-eslint\")",
+      "Bash(awk '/^export type LegacyMicroflow|^export interface LegacyMicroflow/{flag=1; line=NR} flag && /^export type [^L]|^export interface [^L]/{print line \"-\" NR-1; flag=0}' \"D:\\\\Code\\\\Web_SaaS_Backend\\\\SecurityPlatform\\\\src\\\\frontend\\\\packages\\\\mendix\\\\mendix-microflow\\\\src\\\\schema\\\\types.ts\")",
+      "Bash(awk -F: '{print $1, $2}')",
+      "Bash(git checkout *)"
     ]
   }
 }

@@ -144,7 +144,7 @@ export function isValidationFailedError(error: unknown): boolean {
   return apiError.code === "MICROFLOW_VALIDATION_FAILED" || apiError.code === "MICROFLOW_SCHEMA_INVALID";
 }
 
-export function isLegacyDesignSchemaError(error: unknown): boolean {
+export function isOldDesignSchemaError(error: unknown): boolean {
   const apiError = getMicroflowApiError(error);
   return apiError.code === "MICROFLOW_SCHEMA_INVALID"
     && (
@@ -188,7 +188,7 @@ export function getMicroflowErrorUserMessage(error: unknown): string {
       return "微流版本已变化，请刷新后再处理。";
     case "MICROFLOW_VALIDATION_FAILED":
     case "MICROFLOW_SCHEMA_INVALID":
-      if (isLegacyDesignSchemaError(apiError)) {
+      if (isOldDesignSchemaError(apiError)) {
         return "当前微流仍是旧设计态快照，无法回显到新版画布。";
       }
       return "微流校验未通过，请查看问题面板。";

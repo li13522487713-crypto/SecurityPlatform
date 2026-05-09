@@ -22,11 +22,11 @@
 | logging / errors | `logMessage`, `throwException` |
 | document / metrics / ML | `generateDocument`, `counter`, `incrementCounter`, `gauge`, `metrics`, `mlModelCall` |
 | workflow | `applyJumpToOption`, `callWorkflow`, `changeWorkflowState`, `completeUserTask`, `generateJumpToOptions`, `retrieveWorkflowActivityRecords`, `retrieveWorkflowContext`, `retrieveWorkflows`, `showUserTaskPage`, `showWorkflowAdminPage`, `lockWorkflow`, `unlockWorkflow`, `notifyWorkflow`, `workflow`, `workflowAction` |
-| external object / legacy connector | `deleteExternalObject`, `sendExternalObject`, `createExternalObject`, `changeExternalObject`, `externalObject`, `connectorCall`, `externalConnectorCall` |
+| external object / deprecated connector aliases | `deleteExternalObject`, `sendExternalObject`, `createExternalObject`, `changeExternalObject`, `externalObject`, `connectorCall`, `externalConnectorCall` |
 | communication / messaging | `sendEmail`, `sendNotification`, `publishMessage`, `consumeMessage` |
 | odata | `callODataAction`, `retrieveODataObject`, `commitODataObject`, `deleteODataObject` |
 | file document | `retrieveFileDocument`, `storeFileDocument`, `exportFileDocument`, `importFileDocument` |
-| explicit unsupported legacy | `javascriptAction`, `nanoflowCall`, `nanoflowCallAction`, `nanoflowOnlySynchronize` |
+| explicit unsupported deprecated aliases | `javascriptAction`, `nanoflowCall`, `nanoflowCallAction`, `nanoflowOnlySynchronize` |
 
 ## 3. 禁止进入 schema 的旧别名
 

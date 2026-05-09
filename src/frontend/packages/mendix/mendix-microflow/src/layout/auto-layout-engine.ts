@@ -127,7 +127,8 @@ function assignLayers(
 
 function branchAwareNodeSort(schema: MicroflowSchema, nodes: MicroflowEditorNode[]) {
   const orderByObjectId = new Map<string, number>();
-  for (const flow of schema.flows) {
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
+  for (const flow of safeFlows) {
     if (flow.kind === "sequence") {
       orderByObjectId.set(flow.destinationObjectId, orderByObjectId.size);
     }

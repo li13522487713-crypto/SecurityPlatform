@@ -43,7 +43,6 @@ export interface MendixStudioAppProps {
   currentUser?: MicroflowAdapterFactoryConfig["currentUser"];
   adapterConfig?: MicroflowAdapterFactoryConfig;
   adapterBundle?: MicroflowAdapterBundle;
-  useNativeMicroflowDocking?: boolean;
 }
 
 const { Text } = Typography;
@@ -55,7 +54,6 @@ export function MendixStudioApp({
   currentUser,
   adapterConfig,
   adapterBundle,
-  useNativeMicroflowDocking = true,
 }: MendixStudioAppProps) {
   const copy = getMendixStudioCopy();
   const activeWorkbenchTab = useMendixStudioStore(state =>
@@ -487,7 +485,6 @@ export function MendixStudioApp({
                       microflowResourceIndex={microflowResourcesById}
                       editorRef={microflowEditorHandleRef}
                       toolbarMode="external"
-                      shellMode={useNativeMicroflowDocking ? "editor-native-layout" : "legacy-host-layout"}
                       onLayoutStateChange={setMicroflowWorkbenchLayout}
                       onWorkbenchStatusChange={setMicroflowWorkbenchStatus}
                       readonly={Boolean(errorBusSnapshot.readonlyReason)}
@@ -524,13 +521,11 @@ export function MendixStudioApp({
                       </Card>
                     </div>
                   )}
-                  {!useNativeMicroflowDocking ? (
-                    <MicroflowStudioBottomPanel
-                      microflowId={activeMicroflowId}
-                      resource={activeMicroflowResource}
-                      adapterBundle={_resolvedBundle}
-                    />
-                  ) : null}
+                  <MicroflowStudioBottomPanel
+                    microflowId={activeMicroflowId}
+                    resource={activeMicroflowResource}
+                    adapterBundle={_resolvedBundle}
+                  />
                   </div>
                 </div>
               ) : activeWorkbenchTab?.kind === "domainModel" ? (

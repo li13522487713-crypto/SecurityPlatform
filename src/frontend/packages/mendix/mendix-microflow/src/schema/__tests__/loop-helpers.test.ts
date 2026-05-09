@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow, deleteObject, duplicateObject } from "../../adapters";
+import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import { buildMicroflowVariableIndex } from "../../variables";
 import {
@@ -16,7 +17,7 @@ import {
   updateLoopType,
   upsertLoopVariable,
 } from "../utils";
-import { sampleMicroflowSchema, type MicroflowObject, type MicroflowSchema } from "../index";
+import type { MicroflowObject, MicroflowSchema } from "../index";
 
 function registry(key: string) {
   const item = defaultMicroflowNodeRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key || entry.type === key);

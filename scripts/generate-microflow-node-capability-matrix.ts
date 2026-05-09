@@ -85,7 +85,7 @@ const rows = backend.map(descriptor => {
   const action = actionByKind[descriptor.actionKind];
   const nodes = nodesByActionKind[descriptor.actionKind] ?? [];
   const firstNode = nodes[0];
-  const formKey = firstNode?.propertyFormKey ?? (action ? `activity:${action.legacyActivityType}` : `activity:${descriptor.actionKind}`);
+  const formKey = firstNode?.propertyFormKey ?? (action ? `activity:${action.activityType}` : `activity:${descriptor.actionKind}`);
   const formRegistered = propertyFormKeys.includes(formKey);
   const formPath = formRegistered
     ? `registered:${formKey}`
@@ -104,7 +104,7 @@ const rows = backend.map(descriptor => {
     action?.officialType ?? descriptor.schemaType,
     descriptor.schemaType,
     firstNode?.registryKey ?? action?.actionKind ?? "-",
-    action?.legacyActivityType ?? firstNode?.activityType ?? "-",
+    action?.activityType ?? firstNode?.activityType ?? "-",
     toolboxVisible,
     formPath,
     validationSupport,
@@ -151,7 +151,7 @@ const doc = [
   "| Mendix semantic name | 前端标题或后端 schema type |",
   "| schema kind | 后端 descriptor schemaType |",
   "| frontend registry key | 前端 node/action registry key |",
-  "| legacy activity type | 前端旧 activityType 桥接名 |",
+  "| source activity type | 前端 action registry activityType |",
   "| toolbox visible | toolbox / action registry 可见性 |",
   "| property panel form path | property form 声明或注册状态 |",
   "| validation support | 前端 validation 支持或后端兜底 |",
@@ -168,7 +168,7 @@ const doc = [
   "",
   "## 三合一矩阵",
   "",
-  "| actionKind | category | Mendix semantic name | schema kind | frontend registry key | legacy activity type | toolbox visible | property panel form path | validation support | runtime executor | runtime support level | transaction behavior | variable output behavior | error handling | trace behavior | connector capability | known limitations | production decision | target round |",
+  "| actionKind | category | Mendix semantic name | schema kind | frontend registry key | source activity type | toolbox visible | property panel form path | validation support | runtime executor | runtime support level | transaction behavior | variable output behavior | error handling | trace behavior | connector capability | known limitations | production decision | target round |",
   "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
   ...rows.map(row => `| ${row.map(esc).join(" | ")} |`)
 ].join("\n");

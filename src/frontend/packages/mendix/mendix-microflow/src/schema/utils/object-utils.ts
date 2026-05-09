@@ -17,7 +17,8 @@ export function isLoopedActivity(object: MicroflowObject): object is MicroflowLo
 }
 
 export function collectObjectsRecursive(collection: MicroflowObjectCollection): MicroflowObject[] {
-  return collection.objects.flatMap(object => object.kind === "loopedActivity"
+  const safeObjects = Array.isArray(collection?.objects) ? collection.objects : [];
+  return safeObjects.flatMap(object => object.kind === "loopedActivity"
     ? [object, ...collectObjectsRecursive(object.objectCollection)]
     : [object]);
 }
@@ -69,9 +70,16 @@ export function findFlowWithCollection(
   schema: MicroflowSchema,
   flowId: string,
 ): MicroflowFlowWithCollection | undefined {
-  const rootFlow = schema.flows.find(flow => flow.id === flowId);
+  const rootFlows = Array.isArray(schema.flows) ? schema.flows : [];
+  const safeObjectCollection = schema.objectCollection ?? {
+    id: "root-collection",
+    officialType: "Microflows$MicroflowObjectCollection",
+    objects: [],
+    flows: [],
+  };
+  const rootFlow = rootFlows.find(flow => flow.id === flowId);
   if (rootFlow) {
-    return { flow: rootFlow, collection: schema.objectCollection, collectionId: schema.objectCollection.id };
+    return { flow: rootFlow, collection: safeObjectCollection, collectionId: safeObjectCollection.id };
   }
   return findFlowWithCollectionIn(schema.objectCollection, flowId);
 }
@@ -124,8 +132,9 @@ export function addFlowToCollection(
   collectionId: string,
   flow: MicroflowFlow,
 ): MicroflowSchema {
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
   if (collectionId === schema.objectCollection.id) {
-    return { ...schema, flows: [...schema.flows, flow] };
+    return { ...schema, flows: [...safeFlows, flow] };
   }
   return {
     ...schema,
@@ -141,8 +150,9 @@ export function removeFlowFromCollection(
   collectionId: string,
   flowId: string,
 ): MicroflowSchema {
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
   if (collectionId === schema.objectCollection.id) {
-    return { ...schema, flows: schema.flows.filter(flow => flow.id !== flowId) };
+    return { ...schema, flows: safeFlows.filter(flow => flow.id !== flowId) };
   }
   return {
     ...schema,
@@ -153,27 +163,37 @@ export function removeFlowFromCollection(
   };
 }
 
-export function collectFlowsRecursive(schema: Pick<MicroflowAuthoringSchema, "objectCollection" | "flows">): MicroflowFlow[] {
-  return [...schema.flows, ...collectCollectionFlowsRecursive(schema.objectCollection)];
+export function collectFlowsRecursive(schema: Partial<MicroflowAuthoringSchema>): MicroflowFlow[] {
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
+  return [...safeFlows, ...collectCollectionFlowsRecursive(schema.objectCollection)];
 }
 
-function collectCollectionFlowsRecursive(collection: MicroflowObjectCollection): MicroflowFlow[] {
+function collectCollectionFlowsRecursive(collection?: MicroflowObjectCollection): MicroflowFlow[] {
+  if (!collection) {
+    return [];
+  }
+  const safeObjects = Array.isArray(collection?.objects) ? collection.objects : [];
+  const safeFlows = Array.isArray(collection?.flows) ? collection.flows : [];
   return [
-    ...(collection.flows ?? []),
-    ...collection.objects.flatMap(object => object.kind === "loopedActivity"
+    ...safeFlows,
+    ...safeObjects.flatMap(object => object.kind === "loopedActivity"
       ? collectCollectionFlowsRecursive(object.objectCollection)
       : []),
   ];
 }
 
 function findCollectionById(
-  collection: MicroflowObjectCollection,
+  collection: MicroflowObjectCollection | undefined,
   collectionId: string,
 ): MicroflowObjectCollection | undefined {
+  if (!collection) {
+    return undefined;
+  }
+  const safeObjects = Array.isArray(collection?.objects) ? collection.objects : [];
   if (collection.id === collectionId) {
     return collection;
   }
-  for (const object of collection.objects) {
+  for (const object of safeObjects) {
     if (object.kind === "loopedActivity") {
       const found = findCollectionById(object.objectCollection, collectionId);
       if (found) {
@@ -185,11 +205,15 @@ function findCollectionById(
 }
 
 function findObjectWithCollectionIn(
-  collection: MicroflowObjectCollection,
+  collection: MicroflowObjectCollection | undefined,
   objectId: string,
   parentLoopObjectId?: string,
 ): MicroflowObjectWithCollection | undefined {
-  for (const object of collection.objects) {
+  if (!collection) {
+    return undefined;
+  }
+  const safeObjects = Array.isArray(collection?.objects) ? collection.objects : [];
+  for (const object of safeObjects) {
     if (object.id === objectId) {
       return { object, collection, collectionId: collection.id, parentLoopObjectId };
     }
@@ -204,15 +228,20 @@ function findObjectWithCollectionIn(
 }
 
 function findFlowWithCollectionIn(
-  collection: MicroflowObjectCollection,
+  collection: MicroflowObjectCollection | undefined,
   flowId: string,
   parentLoopObjectId?: string,
 ): MicroflowFlowWithCollection | undefined {
-  const flow = collection.flows?.find(item => item.id === flowId);
+  if (!collection) {
+    return undefined;
+  }
+  const safeFlows = Array.isArray(collection.flows) ? collection.flows : [];
+  const flow = safeFlows.find(item => item.id === flowId);
   if (flow) {
     return { flow, collection, collectionId: collection.id, parentLoopObjectId };
   }
-  for (const object of collection.objects) {
+  const safeObjects = Array.isArray(collection?.objects) ? collection.objects : [];
+  for (const object of safeObjects) {
     if (object.kind === "loopedActivity") {
       const found = findFlowWithCollectionIn(object.objectCollection, flowId, object.id);
       if (found) {
@@ -228,12 +257,20 @@ function mapCollectionById(
   collectionId: string,
   mapper: (collection: MicroflowObjectCollection) => MicroflowObjectCollection,
 ): MicroflowObjectCollection {
-  if (collection.id === collectionId) {
-    return mapper(collection);
+  const fallbackCollection: MicroflowObjectCollection = {
+    id: "root-collection",
+    officialType: "Microflows$MicroflowObjectCollection",
+    objects: [],
+    flows: [],
+  };
+  const safeCollection = collection ?? fallbackCollection;
+  const safeObjects = Array.isArray(collection?.objects) ? collection.objects : [];
+  if (safeCollection.id === collectionId) {
+    return mapper(safeCollection);
   }
   return {
-    ...collection,
-    objects: collection.objects.map(object => object.kind === "loopedActivity"
+    ...safeCollection,
+    objects: safeObjects.map(object => object.kind === "loopedActivity"
       ? { ...object, objectCollection: mapCollectionById(object.objectCollection, collectionId, mapper) }
       : object),
   };

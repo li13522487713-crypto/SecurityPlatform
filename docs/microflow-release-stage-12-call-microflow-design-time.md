@@ -36,7 +36,7 @@
 | target parameter metadata 缺少 id/default/description/order | 扩展前后端 parameter DTO/type，并从 schema parameters 读取 |
 | metadata 请求可能乱序污染当前 form | `MicroflowMetadataProvider` 与 `MicroflowSelector` 增加 request sequence guard |
 | 后端 metadata search 未覆盖 displayName | `MicroflowMetadataService` keyword match 增加 displayName |
-| legacy call config adapter 缺少新增字段透传 | `microflow-adapters.ts` 与 `LegacyMicroflowActivityConfig` 做兼容扩展 |
+| call config 字段缺少新增字段透传 | canonical action DTO 与 `microflow-adapters.ts` 字段映射保持一致 |
 
 ## 2. Changed Files
 
@@ -49,7 +49,7 @@
 | `src/frontend/packages/mendix/mendix-microflow/src/property-panel/forms/action-activity-form.tsx` | 修改 | Call Microflow target summary、参数映射、return binding、stale warning |
 | `src/frontend/packages/mendix/mendix-microflow/src/property-panel/utils/call-microflow-config.ts` | 修改 | target 更新/清空、mapping rebuild、return binding helper |
 | `src/frontend/packages/mendix/mendix-microflow/src/adapters/authoring-operations.ts` | 修改 | 新建 Call Microflow action 默认字段补齐 |
-| `src/frontend/packages/mendix/mendix-microflow/src/adapters/microflow-adapters.ts` | 修改 | legacy config 到 authoring schema 的新增字段透传 |
+| `src/frontend/packages/mendix/mendix-microflow/src/adapters/microflow-adapters.ts` | 修改 | canonical action config 到 authoring schema 的新增字段透传 |
 | `src/frontend/packages/mendix/mendix-microflow/src/runtime/map-authoring-p0-runtime.ts` | 修改 | runtime DTO 保留 target display/module/version/schema 快照 |
 | `src/frontend/packages/mendix/mendix-microflow/src/property-panel/__tests__/call-microflow-config.test.ts` | 修改 | 覆盖 target 写入/清空、mapping 保留、return binding |
 | `src/backend/Atlas.Application.Microflows/Models/MicroflowMetadataCatalogDto.cs` | 修改 | 扩展 metadata DTO 字段 |

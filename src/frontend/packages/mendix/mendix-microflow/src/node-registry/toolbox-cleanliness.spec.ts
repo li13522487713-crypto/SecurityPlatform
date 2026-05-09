@@ -92,7 +92,7 @@ describe("microflow toolbox cleanliness", () => {
       expect(action, `${kind} action should be registered`).toBeTruthy();
       expect(action?.runtimeSupportLevel).toBe("supported");
     }
-    // The legacy activity type bridge is what lets the canvas roundtrip these actions.
+    // The source activity type map is what lets the canvas roundtrip these actions.
     expect(microflowActionRegistryByActivityType.get("throwException")?.kind).toBe("throwException");
     expect(microflowActionRegistryByActivityType.get("listFilter")?.kind).toBe("filterList");
     expect(microflowActionRegistryByActivityType.get("listSort")?.kind).toBe("sortList");
@@ -100,7 +100,7 @@ describe("microflow toolbox cleanliness", () => {
 
   it("registers all 30+ user-spec toolbox entries in defaultMicroflowNodeRegistry", () => {
     // Object-shaped (gateway / event / decision / annotation / etc.) keys equal
-    // their `type`; action panel entries use `activity:<legacyActivityType>`.
+    // their `type`; action panel entries use `activity:<activityType>`.
     const requiredKeys = [
       "startEvent",
       "endEvent",

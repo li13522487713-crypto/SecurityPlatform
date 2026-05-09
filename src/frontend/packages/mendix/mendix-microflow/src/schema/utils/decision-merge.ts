@@ -34,9 +34,10 @@ function mapFlows(schema: MicroflowSchema, flowId: string, updater: (flow: Micro
       ? { ...object, objectCollection: updateCollection(object.objectCollection) }
       : object),
   });
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
   return {
     ...schema,
-    flows: updateFlows(schema.flows) ?? schema.flows,
+    flows: updateFlows(safeFlows) ?? safeFlows,
     objectCollection: updateCollection(schema.objectCollection),
   };
 }

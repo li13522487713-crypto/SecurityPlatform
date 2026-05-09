@@ -183,13 +183,13 @@ describe("MicroflowResourceEditorHost", () => {
     expect(screen.queryByText("sampleOrderProcessingMicroflow")).toBeNull();
   });
 
-  it("shows legacy-design error when backend rejects old schema snapshots", async () => {
+  it("shows old-design error when backend rejects old schema snapshots", async () => {
     render(
       <MicroflowResourceEditorHost
-        microflowId="legacy"
+        microflowId="old-design"
         workspaceId="workspace-1"
         adapterBundle={createBundle({
-          getMicroflow: vi.fn(async () => createResource("legacy")),
+          getMicroflow: vi.fn(async () => createResource("old-design")),
           getMicroflowSchema: vi.fn(async () => {
             throw {
               code: "MICROFLOW_SCHEMA_INVALID",

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../adapters";
+import { sampleMicroflowSchema } from "../__fixtures__/sample-microflow";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../node-registry";
 import type { MicroflowObject, MicroflowSchema } from "../schema";
-import { sampleMicroflowSchema } from "../schema";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { createMissingBooleanBranch } from "./problem-quick-fixes";
 

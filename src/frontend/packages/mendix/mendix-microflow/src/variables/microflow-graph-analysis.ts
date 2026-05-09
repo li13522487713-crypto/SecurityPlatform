@@ -6,7 +6,7 @@ import type {
   MicroflowSequenceFlow,
   MicroflowVariableGraphAnalysis,
 } from "../schema/types";
-import { collectFlowsRecursive, findObjectWithCollection, getObjectCollectionById } from "../schema/utils/object-utils";
+import { collectFlowsRecursive, findObjectWithCollection } from "../schema/utils/object-utils";
 
 export interface MicroflowGraphEdge {
   flowId: string;
@@ -26,17 +26,63 @@ export interface MicroflowGraph {
   startObjectIds: string[];
 }
 
+const EMPTY_ROOT_COLLECTION: MicroflowObjectCollection = {
+  id: "root-collection",
+  officialType: "Microflows$MicroflowObjectCollection",
+  objects: [],
+  flows: [],
+};
+
+function normalizeCollection(collection: MicroflowObjectCollection | undefined, fallbackCollectionId = EMPTY_ROOT_COLLECTION.id): MicroflowObjectCollection {
+  const nextId = collection?.id?.trim() || fallbackCollectionId;
+  return {
+    id: nextId,
+    officialType: collection?.officialType || EMPTY_ROOT_COLLECTION.officialType,
+    objects: Array.isArray(collection?.objects)
+      ? collection.objects.map(object => object.kind === "loopedActivity"
+        ? { ...object, objectCollection: normalizeCollection(object.objectCollection, `${object.id}-collection`) }
+        : object)
+      : [],
+    flows: Array.isArray(collection?.flows) ? collection.flows : [],
+  };
+}
+
+function normalizeSchema(schema: MicroflowSchema): MicroflowSchema {
+  return {
+    ...schema,
+    flows: Array.isArray(schema.flows) ? schema.flows : [],
+    parameters: Array.isArray(schema.parameters) ? schema.parameters : [],
+    objectCollection: normalizeCollection(schema.objectCollection),
+  };
+}
+
+function getCollectionById(collection: MicroflowObjectCollection, collectionId: string): MicroflowObjectCollection | undefined {
+  if (collection.id === collectionId) {
+    return collection;
+  }
+  for (const object of collection.objects) {
+    if (object.kind === "loopedActivity") {
+      const found = getCollectionById(object.objectCollection, collectionId);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return undefined;
+}
+
 function collectionFlows(schema: MicroflowSchema, collection: MicroflowObjectCollection): MicroflowFlow[] {
-  return collection.id === schema.objectCollection.id ? schema.flows : (collection.flows ?? []);
+  return collection.id === schema.objectCollection.id ? (schema.flows ?? []) : (collection.flows ?? []);
 }
 
 function collectCollections(
-  collection: MicroflowObjectCollection,
+  collection: MicroflowObjectCollection | undefined,
   parentLoopObjectId?: string,
 ): Array<{ collection: MicroflowObjectCollection; parentLoopObjectId?: string }> {
+  const safeCollection = normalizeCollection(collection, EMPTY_ROOT_COLLECTION.id);
   return [
-    { collection, parentLoopObjectId },
-    ...collection.objects.flatMap(object => object.kind === "loopedActivity"
+    { collection: safeCollection, parentLoopObjectId },
+    ...safeCollection.objects.flatMap(object => object.kind === "loopedActivity"
       ? collectCollections(object.objectCollection, object.id)
       : []),
   ];
@@ -64,7 +110,7 @@ function toNormalEdge(flow: MicroflowSequenceFlow, collectionId: string): Microf
 function loopEntryEdges(collection: MicroflowObjectCollection, collectionId: string): MicroflowGraphEdge[] {
   return collection.objects
     .filter(object => object.kind === "loopedActivity")
-    .flatMap(object => object.objectCollection.objects
+    .flatMap(object => normalizeCollection(object.objectCollection).objects
       .filter(child => child.kind === "startEvent")
       .map(child => ({
         flowId: `loop-entry:${object.id}:${child.id}`,
@@ -75,9 +121,10 @@ function loopEntryEdges(collection: MicroflowObjectCollection, collectionId: str
       })));
 }
 
-export function buildMicroflowGraph(schema: MicroflowSchema, collectionId = schema.objectCollection.id): MicroflowGraph {
-  const collection = getObjectCollectionById(schema, collectionId) ?? schema.objectCollection;
-  const flows = collectionFlows(schema, collection);
+export function buildMicroflowGraph(schema: MicroflowSchema, collectionId?: string): MicroflowGraph {
+  const normalizedSchema = normalizeSchema(schema);
+  const collection = getCollectionById(normalizedSchema.objectCollection, collectionId ?? normalizedSchema.objectCollection.id) ?? normalizedSchema.objectCollection;
+  const flows = collectionFlows(normalizedSchema, collection);
   const normalEdges = flows
     .filter((flow): flow is MicroflowSequenceFlow => flow.kind === "sequence")
     .map(flow => toNormalEdge(flow, collection.id))
@@ -97,8 +144,9 @@ export function buildMicroflowGraph(schema: MicroflowSchema, collectionId = sche
 }
 
 export function buildVariableGraphAnalysis(schema: MicroflowSchema): MicroflowVariableGraphAnalysis {
-  const collections = collectCollections(schema.objectCollection);
-  const graphs = collections.map(item => buildMicroflowGraph(schema, item.collection.id));
+  const normalizedSchema = normalizeSchema(schema);
+  const collections = collectCollections(normalizedSchema.objectCollection);
+  const graphs = collections.map(item => buildMicroflowGraph(normalizedSchema, item.collection.id));
   return {
     collectionIds: collections.map(item => item.collection.id),
     objectIds: collections.flatMap(item => item.collection.objects.map(object => object.id)),
@@ -110,42 +158,49 @@ export function buildVariableGraphAnalysis(schema: MicroflowSchema): MicroflowVa
 }
 
 export function getObjectSuccessors(schema: MicroflowSchema, objectId: string, collectionId?: string): string[] {
-  const graph = buildMicroflowGraph(schema, collectionId ?? findContainingCollection(schema, objectId)?.id);
+  const normalizedSchema = normalizeSchema(schema);
+  const graph = buildMicroflowGraph(normalizedSchema, collectionId ?? findContainingCollection(normalizedSchema, objectId)?.id);
   return graph.normalEdges.filter(edge => edge.fromObjectId === objectId).map(edge => edge.toObjectId);
 }
 
 export function getObjectPredecessors(schema: MicroflowSchema, objectId: string, collectionId?: string): string[] {
-  const graph = buildMicroflowGraph(schema, collectionId ?? findContainingCollection(schema, objectId)?.id);
+  const normalizedSchema = normalizeSchema(schema);
+  const graph = buildMicroflowGraph(normalizedSchema, collectionId ?? findContainingCollection(normalizedSchema, objectId)?.id);
   return graph.normalEdges.filter(edge => edge.toObjectId === objectId).map(edge => edge.fromObjectId);
 }
 
 export function getOutgoingNormalFlows(schema: MicroflowSchema, objectId: string, collectionId?: string): MicroflowSequenceFlow[] {
-  return buildMicroflowGraph(schema, collectionId ?? findContainingCollection(schema, objectId)?.id).flows
+  const normalizedSchema = normalizeSchema(schema);
+  return buildMicroflowGraph(normalizedSchema, collectionId ?? findContainingCollection(normalizedSchema, objectId)?.id).flows
     .filter((flow): flow is MicroflowSequenceFlow => flow.kind === "sequence" && !flow.isErrorHandler && flow.originObjectId === objectId && !isDecisionFlow(flow));
 }
 
 export function getOutgoingDecisionFlows(schema: MicroflowSchema, objectId: string, collectionId?: string): MicroflowSequenceFlow[] {
-  return buildMicroflowGraph(schema, collectionId ?? findContainingCollection(schema, objectId)?.id).flows
+  const normalizedSchema = normalizeSchema(schema);
+  return buildMicroflowGraph(normalizedSchema, collectionId ?? findContainingCollection(normalizedSchema, objectId)?.id).flows
     .filter((flow): flow is MicroflowSequenceFlow => flow.kind === "sequence" && !flow.isErrorHandler && flow.originObjectId === objectId && isDecisionFlow(flow));
 }
 
 export function getOutgoingErrorHandlerFlows(schema: MicroflowSchema, objectId: string, collectionId?: string): MicroflowSequenceFlow[] {
-  return buildMicroflowGraph(schema, collectionId ?? findContainingCollection(schema, objectId)?.id).flows
+  const normalizedSchema = normalizeSchema(schema);
+  return buildMicroflowGraph(normalizedSchema, collectionId ?? findContainingCollection(normalizedSchema, objectId)?.id).flows
     .filter((flow): flow is MicroflowSequenceFlow => flow.kind === "sequence" && flow.isErrorHandler && flow.originObjectId === objectId);
 }
 
 export function getIncomingFlows(schema: MicroflowSchema, objectId: string, collectionId?: string): MicroflowSequenceFlow[] {
-  return buildMicroflowGraph(schema, collectionId ?? findContainingCollection(schema, objectId)?.id).flows
+  const normalizedSchema = normalizeSchema(schema);
+  return buildMicroflowGraph(normalizedSchema, collectionId ?? findContainingCollection(normalizedSchema, objectId)?.id).flows
     .filter((flow): flow is MicroflowSequenceFlow => flow.kind === "sequence" && flow.destinationObjectId === objectId);
 }
 
 export function findContainingCollection(schema: MicroflowSchema, objectId: string): MicroflowObjectCollection | undefined {
-  return findObjectWithCollection(schema, objectId)?.collection;
+  return findObjectWithCollection({ ...normalizeSchema(schema) }, objectId)?.collection;
 }
 
 export function findParentLoopObject(schema: MicroflowSchema, collectionId: string): MicroflowObject | undefined {
-  const match = collectCollections(schema.objectCollection).find(item => item.collection.id === collectionId);
-  return match?.parentLoopObjectId ? findObjectWithCollection(schema, match.parentLoopObjectId)?.object : undefined;
+  const normalizedSchema = normalizeSchema(schema);
+  const match = collectCollections(normalizedSchema.objectCollection).find(item => item.collection.id === collectionId);
+  return match?.parentLoopObjectId ? findObjectWithCollection(normalizedSchema, match.parentLoopObjectId)?.object : undefined;
 }
 
 function reachableWithEdges(edges: MicroflowGraphEdge[], fromObjectId: string, toObjectId: string): boolean {
@@ -187,8 +242,9 @@ export function isReachableByErrorHandlerFlow(schema: MicroflowSchema, flowId: s
   return errorEdge.toObjectId === toObjectId || reachableWithEdges(analysis.normalEdges, errorEdge.toObjectId, toObjectId);
 }
 
-export function getReachableObjectsFromStart(schema: MicroflowSchema, collectionId = schema.objectCollection.id): string[] {
-  const graph = buildMicroflowGraph(schema, collectionId);
+export function getReachableObjectsFromStart(schema: MicroflowSchema, collectionId?: string): string[] {
+  const normalizedSchema = normalizeSchema(schema);
+  const graph = buildMicroflowGraph(normalizedSchema, collectionId ?? normalizedSchema.objectCollection.id);
   const starts = graph.startObjectIds;
   return graph.objects
     .map(object => object.id)
@@ -196,7 +252,8 @@ export function getReachableObjectsFromStart(schema: MicroflowSchema, collection
 }
 
 export function getAllPathsToObject(schema: MicroflowSchema, objectId: string, collectionId?: string): string[][] {
-  const graph = buildMicroflowGraph(schema, collectionId ?? findContainingCollection(schema, objectId)?.id);
+  const normalizedSchema = normalizeSchema(schema);
+  const graph = buildMicroflowGraph(normalizedSchema, collectionId ?? findContainingCollection(normalizedSchema, objectId)?.id);
   const starts = graph.startObjectIds.length ? graph.startObjectIds : graph.objects.map(object => object.id);
   const paths: string[][] = [];
   const walk = (current: string, path: string[]) => {
@@ -231,7 +288,8 @@ export function getMergePredecessorBranches(schema: MicroflowSchema, mergeObject
 }
 
 export function collectLoopInternalObjects(schema: MicroflowSchema, loopObjectId: string): MicroflowObject[] {
-  const loop = findObjectWithCollection(schema, loopObjectId)?.object;
+  const normalizedSchema = normalizeSchema(schema);
+  const loop = findObjectWithCollection(normalizedSchema, loopObjectId)?.object;
   if (loop?.kind !== "loopedActivity") {
     return [];
   }

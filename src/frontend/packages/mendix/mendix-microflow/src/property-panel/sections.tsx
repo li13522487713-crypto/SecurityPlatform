@@ -1,6 +1,6 @@
 import { Button, Checkbox, Collapse, Input, Select, Space, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
-import type { LegacyMicroflowNode, MicroflowNodeAdvancedConfig, MicroflowNodeDocumentation, MicroflowNodeOutput, MicroflowObject, MicroflowTypeRef } from "../schema";
+import type { MicroflowRegistryNode, MicroflowNodeAdvancedConfig, MicroflowNodeDocumentation, MicroflowNodeOutput, MicroflowObject, MicroflowTypeRef } from "../schema";
 import { flattenObjectCollection } from "../adapters";
 import { FieldRow, primitiveType } from "./controls";
 import type { MicroflowNodeFormProps } from "./types";
@@ -21,7 +21,7 @@ export function patchConfig<T extends object>(props: MicroflowNodeFormProps, con
 
 export function MicroflowBasicSection({ props }: { props: MicroflowNodeFormProps }) {
   const { node: rawNode, readonly, onPatch } = props;
-  const node = rawNode as unknown as LegacyMicroflowNode;
+  const node = rawNode as unknown as MicroflowRegistryNode;
   const typeLabel = node.type === "activity" ? node.config.activityType : node.type;
   const readonlyDisabledReason = readonly ? "Readonly mode cannot edit basic node settings." : "";
   return (
@@ -69,7 +69,7 @@ export function MicroflowBasicSection({ props }: { props: MicroflowNodeFormProps
 }
 
 export function MicroflowDocumentationSection({ props }: { props: MicroflowNodeFormProps }) {
-  const n = props.node as unknown as LegacyMicroflowNode;
+  const n = props.node as unknown as MicroflowRegistryNode;
   const rawDoc = n.documentation;
   const doc: MicroflowNodeDocumentation =
     rawDoc && typeof rawDoc === "object" && !Array.isArray(rawDoc)
@@ -103,7 +103,7 @@ export function MicroflowDocumentationSection({ props }: { props: MicroflowNodeF
 }
 
 export function MicroflowErrorHandlingSection({ props }: { props: MicroflowNodeFormProps }) {
-  const n = props.node as unknown as LegacyMicroflowNode;
+  const n = props.node as unknown as MicroflowRegistryNode;
   if (n.type !== "activity") {
     return <Text type="tertiary">This node does not expose error handling.</Text>;
   }
@@ -174,7 +174,7 @@ function outputTypeName(type?: MicroflowTypeRef): string {
 }
 
 export function MicroflowOutputSection({ props }: { props: MicroflowNodeFormProps }) {
-  const n = props.node as unknown as LegacyMicroflowNode;
+  const n = props.node as unknown as MicroflowRegistryNode;
   const outputs: MicroflowNodeOutput[] = n.outputs ?? inferNodeOutputs({ ...props, node: n as unknown as MicroflowObject });
   const updateOutputs = (nextOutputs: MicroflowNodeOutput[]) => props.onPatch({ outputs: nextOutputs });
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit output variables." : "";
@@ -214,7 +214,7 @@ export function MicroflowOutputSection({ props }: { props: MicroflowNodeFormProp
 }
 
 export function MicroflowAdvancedSection({ props }: { props: MicroflowNodeFormProps }) {
-  const n = props.node as unknown as LegacyMicroflowNode;
+  const n = props.node as unknown as MicroflowRegistryNode;
   const advanced: MicroflowNodeAdvancedConfig = n.advanced ?? {};
   const update = (patch: MicroflowNodeAdvancedConfig) => props.onPatch({ advanced: { ...advanced, ...patch } });
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit advanced settings." : "";
@@ -288,7 +288,7 @@ export function MicroflowAdvancedSection({ props }: { props: MicroflowNodeFormPr
 
 function inferNodeOutputs(props: MicroflowNodeFormProps): MicroflowNodeOutput[] {
   const { node: raw } = props;
-  const node = raw as unknown as LegacyMicroflowNode;
+  const node = raw as unknown as MicroflowRegistryNode;
   if (node.type === "activity") {
     if (node.config.activityType === "objectRetrieve" && node.config.listVariableName) {
       return [{ id: `${node.id}-retrieve`, name: node.config.listVariableName, type: { kind: "list", name: node.config.entity ?? "Object" }, source: "Retrieve result", downstreamAvailable: true }];

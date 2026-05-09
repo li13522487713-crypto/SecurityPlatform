@@ -1,7 +1,7 @@
 /**
- * @deprecated Legacy graph node kind (demo editor only). Use {@link MicroflowObject} / {@link MicroflowObjectKind} in production.
+ * @deprecated Registry node kind used by the toolbox and form registry.
  */
-export type LegacyMicroflowNodeKind =
+export type MicroflowRegistryNodeKind =
   | "event"
   | "decision"
   | "objectTypeDecision"
@@ -15,9 +15,9 @@ export type LegacyMicroflowNodeKind =
   | "errorHandler";
 
 /**
- * @deprecated Legacy graph node type (demo editor only). Use {@link MicroflowObjectKind} for persisted microflows.
+ * @deprecated Registry node type used by the toolbox and form registry.
  */
-export type LegacyMicroflowNodeType =
+export type MicroflowRegistryNodeType =
   | "startEvent"
   | "endEvent"
   | "errorEvent"
@@ -284,13 +284,13 @@ export interface MicroflowAttributeAssignment {
 }
 
 /**
- * @deprecated Legacy graph schema used only for migration from the old demo editor.
+ * @deprecated Registry graph schema retained for internal design-tool fixtures.
  * Do not use as runtime, resource, FlowGram, validator, or backend contract schema.
  */
-export interface LegacyMicroflowNodeBase<TKind extends LegacyMicroflowNodeType = LegacyMicroflowNodeType, TConfig extends object = Record<string, unknown>> {
+export interface MicroflowRegistryNodeBase<TKind extends MicroflowRegistryNodeType = MicroflowRegistryNodeType, TConfig extends object = Record<string, unknown>> {
   id: string;
   type: TKind;
-  kind?: LegacyMicroflowNodeKind;
+  kind?: MicroflowRegistryNodeKind;
   title: string;
   titleZh?: string;
   description?: string;
@@ -355,9 +355,9 @@ export interface MicroflowLoopConfig {
 }
 
 /**
- * @deprecated Legacy activity config bag for demo graph nodes. Authoring uses {@link MicroflowAction} on {@link MicroflowActionActivity}.
+ * @deprecated Action config bag used by registry-driven forms.
  */
-export interface LegacyMicroflowActivityConfig {
+export interface MicroflowActionActivityConfig {
   activityType: MicroflowActivityType;
   activityCategory?: MicroflowActivityCategory;
   entity?: string;
@@ -451,35 +451,35 @@ export interface MicroflowAnnotationConfig {
   exportToDocumentation?: boolean;
 }
 
-export type LegacyMicroflowEventNode = LegacyMicroflowNodeBase<
+export type MicroflowRegistryEventNode = MicroflowRegistryNodeBase<
   "startEvent" | "endEvent" | "errorEvent" | "breakEvent" | "continueEvent",
   MicroflowEventConfig
 >;
-export type LegacyMicroflowDecisionNode = LegacyMicroflowNodeBase<"decision", MicroflowDecisionConfig>;
-export type LegacyMicroflowObjectTypeDecisionNode = LegacyMicroflowNodeBase<"objectTypeDecision", MicroflowObjectTypeDecisionConfig>;
-export type LegacyMicroflowMergeNode = LegacyMicroflowNodeBase<"merge", MicroflowMergeConfig>;
-export type LegacyMicroflowLoopNode = LegacyMicroflowNodeBase<"loop", MicroflowLoopConfig>;
-export type LegacyMicroflowActivityNode = LegacyMicroflowNodeBase<"activity", LegacyMicroflowActivityConfig>;
-export type LegacyMicroflowParameterNode = LegacyMicroflowNodeBase<"parameter", MicroflowParameterConfig>;
-export type LegacyMicroflowAnnotationNode = LegacyMicroflowNodeBase<"annotation", MicroflowAnnotationConfig>;
+export type MicroflowRegistryDecisionNode = MicroflowRegistryNodeBase<"decision", MicroflowDecisionConfig>;
+export type MicroflowRegistryObjectTypeDecisionNode = MicroflowRegistryNodeBase<"objectTypeDecision", MicroflowObjectTypeDecisionConfig>;
+export type MicroflowRegistryMergeNode = MicroflowRegistryNodeBase<"merge", MicroflowMergeConfig>;
+export type MicroflowRegistryLoopNode = MicroflowRegistryNodeBase<"loop", MicroflowLoopConfig>;
+export type MicroflowRegistryActivityNode = MicroflowRegistryNodeBase<"activity", MicroflowActionActivityConfig>;
+export type MicroflowRegistryParameterNode = MicroflowRegistryNodeBase<"parameter", MicroflowParameterConfig>;
+export type MicroflowRegistryAnnotationNode = MicroflowRegistryNodeBase<"annotation", MicroflowAnnotationConfig>;
 
 /**
- * @deprecated Legacy demo graph node union. Migrate with {@link normalizeMicroflowSchema}.
+ * @deprecated Registry node union for toolbox and form rendering.
  */
-export type LegacyMicroflowNode =
-  | LegacyMicroflowEventNode
-  | LegacyMicroflowDecisionNode
-  | LegacyMicroflowObjectTypeDecisionNode
-  | LegacyMicroflowMergeNode
-  | LegacyMicroflowLoopNode
-  | LegacyMicroflowActivityNode
-  | LegacyMicroflowParameterNode
-  | LegacyMicroflowAnnotationNode;
+export type MicroflowRegistryNode =
+  | MicroflowRegistryEventNode
+  | MicroflowRegistryDecisionNode
+  | MicroflowRegistryObjectTypeDecisionNode
+  | MicroflowRegistryMergeNode
+  | MicroflowRegistryLoopNode
+  | MicroflowRegistryActivityNode
+  | MicroflowRegistryParameterNode
+  | MicroflowRegistryAnnotationNode;
 
 /**
- * @deprecated Legacy demo graph edge. Authoring uses {@link MicroflowFlow}.
+ * @deprecated Registry edge shape for internal form rendering.
  */
-export interface LegacyMicroflowEdgeBase<TKind extends MicroflowEdgeKind = MicroflowEdgeKind> {
+export interface MicroflowRegistryEdgeBase<TKind extends MicroflowEdgeKind = MicroflowEdgeKind> {
   id: string;
   type: TKind;
   kind?: TKind;
@@ -504,20 +504,20 @@ export interface LegacyMicroflowEdgeBase<TKind extends MicroflowEdgeKind = Micro
   bendPoints?: MicroflowPosition[];
 }
 
-export type LegacyMicroflowSequenceEdge = LegacyMicroflowEdgeBase<"sequence">;
-export type LegacyMicroflowDecisionConditionEdge = LegacyMicroflowEdgeBase<"decisionCondition">;
-export type LegacyMicroflowObjectTypeConditionEdge = LegacyMicroflowEdgeBase<"objectTypeCondition">;
-export type LegacyMicroflowErrorHandlerEdge = LegacyMicroflowEdgeBase<"errorHandler">;
-export type LegacyMicroflowAnnotationEdge = LegacyMicroflowEdgeBase<"annotation">;
+export type MicroflowRegistrySequenceEdge = MicroflowRegistryEdgeBase<"sequence">;
+export type MicroflowRegistryDecisionConditionEdge = MicroflowRegistryEdgeBase<"decisionCondition">;
+export type MicroflowRegistryObjectTypeConditionEdge = MicroflowRegistryEdgeBase<"objectTypeCondition">;
+export type MicroflowRegistryErrorHandlerEdge = MicroflowRegistryEdgeBase<"errorHandler">;
+export type MicroflowRegistryAnnotationEdge = MicroflowRegistryEdgeBase<"annotation">;
 /**
- * @deprecated Legacy demo graph edge union.
+ * @deprecated Registry edge union.
  */
-export type LegacyMicroflowEdge =
-  | LegacyMicroflowSequenceEdge
-  | LegacyMicroflowDecisionConditionEdge
-  | LegacyMicroflowObjectTypeConditionEdge
-  | LegacyMicroflowErrorHandlerEdge
-  | LegacyMicroflowAnnotationEdge;
+export type MicroflowRegistryEdge =
+  | MicroflowRegistrySequenceEdge
+  | MicroflowRegistryDecisionConditionEdge
+  | MicroflowRegistryObjectTypeConditionEdge
+  | MicroflowRegistryErrorHandlerEdge
+  | MicroflowRegistryAnnotationEdge;
 
 export type MicroflowObjectKind =
   | "startEvent"
@@ -1086,6 +1086,29 @@ export interface MicroflowLogMessageAction extends MicroflowActionBase {
   includeTraceId: boolean;
 }
 
+export interface MicroflowCounterAction extends MicroflowActionBase {
+  kind: "counter";
+  officialType: "Microflows$CounterAction";
+  metricName: string;
+  valueExpression: MicroflowExpression;
+  tags?: string[];
+}
+
+export interface MicroflowIncrementCounterAction extends MicroflowActionBase {
+  kind: "incrementCounter";
+  officialType: "Microflows$IncrementCounterAction";
+  metricName: string;
+  tags?: string[];
+}
+
+export interface MicroflowGaugeAction extends MicroflowActionBase {
+  kind: "gauge";
+  officialType: "Microflows$GaugeAction";
+  metricName: string;
+  valueExpression: MicroflowExpression;
+  tags?: string[];
+}
+
 export interface MicroflowGenericAction extends MicroflowActionBase {
   kind: Exclude<
     MicroflowActionKind,
@@ -1104,6 +1127,9 @@ export interface MicroflowGenericAction extends MicroflowActionBase {
     | MicroflowListOperationAction["kind"]
     | MicroflowRestCallAction["kind"]
     | MicroflowLogMessageAction["kind"]
+    | MicroflowCounterAction["kind"]
+    | MicroflowIncrementCounterAction["kind"]
+    | MicroflowGaugeAction["kind"]
   >;
   /** P1/P2 modeledOnly；不得用于 P0 kind（类型层已排除）。 */
   [key: string]: unknown;
@@ -1125,6 +1151,9 @@ export type MicroflowAction =
   | MicroflowListOperationAction
   | MicroflowRestCallAction
   | MicroflowLogMessageAction
+  | MicroflowCounterAction
+  | MicroflowIncrementCounterAction
+  | MicroflowGaugeAction
   | MicroflowGenericAction;
 
 export type MicroflowActionActivityColor = "default" | "blue" | "green" | "orange" | "red" | "purple" | "gray";
@@ -1509,17 +1538,17 @@ export interface MicroflowAuditState {
 }
 
 /**
- * @deprecated Legacy demo persistence shape (nodes/edges). Use {@link MicroflowAuthoringSchema} only for resources/API.
+ * @deprecated Registry graph persistence shape for internal fixtures. Resources and APIs use MicroflowAuthoringSchema.
  */
-export interface LegacyMicroflowGraphSchema {
+export interface MicroflowRegistryGraphSchema {
   id: string;
   name: string;
   version: string;
   description?: string;
   parameters: MicroflowParameter[];
   variables: MicroflowVariable[];
-  nodes: LegacyMicroflowNode[];
-  edges: LegacyMicroflowEdge[];
+  nodes: MicroflowRegistryNode[];
+  edges: MicroflowRegistryEdge[];
   viewport?: {
     zoom: number;
     offset: MicroflowPosition;
@@ -2180,8 +2209,8 @@ export interface MicroflowQuickFix {
 
 export interface MicroflowRuntimeNodeDto {
   nodeId: string;
-  type: LegacyMicroflowNodeType;
-  kind?: LegacyMicroflowNodeKind;
+  type: MicroflowRegistryNodeType;
+  kind?: MicroflowRegistryNodeKind;
   activityType?: MicroflowActivityType;
   title: string;
   config: Record<string, unknown>;

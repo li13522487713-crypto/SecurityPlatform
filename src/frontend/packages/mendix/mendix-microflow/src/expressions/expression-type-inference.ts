@@ -232,7 +232,7 @@ export function inferExpressionType(
     collectionId?: string;
     expectedType?: MicroflowDataType;
   } | MicroflowExpression | undefined,
-  legacyVariables?: MicroflowVariableSymbol[]
+  fallbackVariables?: MicroflowVariableSymbol[]
 ): ExpressionTypeInferenceResult | MicroflowDataType {
   if (!inputOrExpression || !("schema" in inputOrExpression)) {
     const raw = rawExpression(inputOrExpression);
@@ -250,7 +250,7 @@ export function inferExpressionType(
     }
     const variableMatch = raw.trim().match(/^\$([A-Za-z_][\w]*)$/);
     if (variableMatch) {
-      return legacyVariables?.find(variable => variable.name === variableMatch[1] || variable.name === `$${variableMatch[1]}`)?.dataType ?? { kind: "unknown", reason: raw };
+      return fallbackVariables?.find(variable => variable.name === variableMatch[1] || variable.name === `$${variableMatch[1]}`)?.dataType ?? { kind: "unknown", reason: raw };
     }
     return inputOrExpression?.inferredType ?? { kind: "unknown", reason: "expression" };
   }

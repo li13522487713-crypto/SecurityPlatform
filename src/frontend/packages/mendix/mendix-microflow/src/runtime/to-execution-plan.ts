@@ -10,7 +10,7 @@ import type {
   MicroflowWorkflowNodeJSON,
 } from "../schema/types";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData } from "../flowgram/FlowGramMicroflowTypes";
-import { tryMapP0ActionToDiscriminatedDto } from "./p0-action-runtime";
+import { toRuntimeP0ActionPayload } from "../node-registry/action-registry";
 import { resolveActionRuntimeSupportLevel } from "./runtime-action-support";
 import type { MicroflowRuntimeSupportLevel, MicroflowUnsupportedActionReason } from "./runtime-action-support";
 import type {
@@ -207,7 +207,7 @@ function toExecutionNode(node: MicroflowWorkflowNodeJSON, unsupported: Microflow
       officialType: nodeOfficialType(node),
       caption: nodeCaption(node),
     },
-    p0ActionRuntime: action ? tryMapP0ActionToDiscriminatedDto(action) ?? undefined : undefined,
+    p0ActionRuntime: action ? toRuntimeP0ActionPayload(action) ?? undefined : undefined,
     supportLevel: support.supportLevel,
     runtimeBehavior: nodeRuntimeBehavior(kind, support.supportLevel),
     errorHandling: buildErrorHandling(node),

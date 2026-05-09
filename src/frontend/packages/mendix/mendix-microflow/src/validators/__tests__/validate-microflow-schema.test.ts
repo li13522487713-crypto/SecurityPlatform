@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../../adapters";
+import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
 import { createMetadataCatalog, EMPTY_MICROFLOW_METADATA_CATALOG } from "../../metadata";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
-import { createBooleanCaseValue, sampleMicroflowSchema, validateMicroflowSchema, type MicroflowObject, type MicroflowSchema } from "../../schema";
+import { createBooleanCaseValue, validateMicroflowSchema, type MicroflowDesignSchema, type MicroflowObject, type MicroflowSchema } from "../../schema";
 
 function registry(key: string) {
   const item = defaultMicroflowNodeRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key || entry.type === key);
@@ -41,6 +42,31 @@ function validSchema(): MicroflowSchema {
   const start = objectFrom("startEvent", "start", 0, 0);
   const end = objectFrom("endEvent", "end", 240, 0);
   return schemaWith([start, end], [createSequenceFlow({ originObjectId: start.id, destinationObjectId: end.id })]);
+}
+
+function validDesignSchema(): MicroflowDesignSchema {
+  return {
+    schemaVersion: "flowgram.microflow.v1",
+    id: "MF_DESIGN_VALIDATION_TEST",
+    moduleId: "module-1",
+    name: "DesignValidationTest",
+    displayName: "Design Validation Test",
+    workflow: {
+      nodes: [
+        { id: "start", type: "startEvent", data: { objectId: "start", objectKind: "startEvent" }, meta: { position: { x: 0, y: 0 } } },
+        { id: "end", type: "endEvent", data: { objectId: "end", objectKind: "endEvent" }, meta: { position: { x: 240, y: 0 } } },
+      ],
+      edges: [
+        { id: "flow-start-end", sourceNodeID: "start", targetNodeID: "end", data: { flowId: "flow-start-end" } },
+      ],
+    },
+    editor: { viewport: { x: 0, y: 0, zoom: 1 }, zoom: 1, selection: {}, gridEnabled: true, showMiniMap: true },
+    parameters: [],
+    returnType: { kind: "void" },
+    variables: [],
+    validation: { issues: [] },
+    audit: { version: "1", status: "draft" },
+  };
 }
 
 function validate(schema: MicroflowSchema) {
@@ -238,5 +264,37 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     expect(issuesA.some(issue => issue.code === "MF_START_MISSING")).toBe(false);
     expect(issuesB.some(issue => issue.code === "MF_START_MISSING")).toBe(true);
     expect(JSON.stringify(schemaA)).toBe(before);
+  });
+
+  it("validates canonical design schema without requiring authoring objectCollection or flows", () => {
+    const issues = validateMicroflowSchema({
+      schema: validDesignSchema(),
+      metadata: EMPTY_MICROFLOW_METADATA_CATALOG,
+      options: { mode: "save", includeWarnings: true, includeInfo: true },
+    }).issues;
+
+    expect(issues.some(issue => issue.code === "MF_OBJECT_COLLECTION_MISSING")).toBe(false);
+    expect(issues.some(issue => issue.code === "MF_FLOWS_MISSING")).toBe(false);
+  });
+
+  it("reports dangling workflow edges on canonical design schema", () => {
+    const schema = validDesignSchema();
+    const issues = validateMicroflowSchema({
+      schema: {
+        ...schema,
+        workflow: {
+          ...schema.workflow,
+          edges: [{ id: "dangling", sourceNodeID: "start", targetNodeID: "missing-target" }],
+        },
+      },
+      metadata: EMPTY_MICROFLOW_METADATA_CATALOG,
+      options: { mode: "save", includeWarnings: true, includeInfo: true },
+    }).issues;
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_FLOW_INVALID_TARGET",
+      fieldPath: "workflow.edges.0.targetNodeID",
+      flowId: "dangling",
+    })]));
   });
 });

@@ -46,7 +46,6 @@ import {
   duplicateObject,
   duplicateObjectSelection,
   emptyVariableIndex,
-  ensureAuthoringSchema,
   findObject,
   moveObject,
   refreshDerivedState,
@@ -65,6 +64,8 @@ import {
   MICROFLOW_INLINE_NODE_INSPECT_EVENT,
   MICROFLOW_INLINE_NODE_TOGGLE_EVENT,
   MICROFLOW_INLINE_QUICK_FIX_EVENT,
+  subscribeInlineNodeInspect,
+  subscribeInlineNodeToggle,
   type MicroflowInlineFieldCommitDetail,
   type MicroflowInlineLineLabelCommitDetail,
   type MicroflowInlineNodeInspectDetail,
@@ -347,7 +348,6 @@ export interface MicroflowEditorProps {
    * 编辑器仍掌握所有真实业务逻辑，宿主只发起命令、读快照。
    */
   editorRef?: Ref<MicroflowEditorHandle>;
-  shellMode?: "legacy-host-layout" | "editor-native-layout";
   onLayoutStateChange?: (state: MicroflowWorkbenchLayoutState) => void;
   onWorkbenchStatusChange?: (status: MicroflowWorkbenchStatus) => void;
 }
@@ -378,7 +378,7 @@ export interface MicroflowEditorHandle {
   zoomIn: () => void;
   zoomOut: () => void;
   setZoom: (zoom: number) => void;
-  /** Toggle “pan / hand” mode on the native FlowGram canvas (Mendix Studio). No-op on legacy canvas. */
+  /** Toggle “pan / hand” mode on the FlowGram canvas. */
   togglePanTool: () => void;
   toggleFullscreen: () => void;
   toggleFocusMode: () => void;
@@ -417,7 +417,7 @@ export interface MicroflowEditorStatusSnapshot {
 }
 
 export interface MicroflowWorkbenchLayoutState {
-  shellMode: "legacy-host-layout" | "editor-native-layout";
+  shellMode: "editor-native-layout";
   activeBottomTab: MicroflowWorkbenchBottomTab;
   bottomDockMode: BottomDockMode;
   focusMode: boolean;
@@ -1189,193 +1189,6 @@ function EdgeLayer({
   );
 }
 
-// Legacy HTML/SVG canvas retained only as a rollback reference. The editor shell renders FlowGramMicroflowCanvas by default.
-function LegacyHtmlMicroflowCanvas({
-  schema,
-  graph,
-  traceFrames,
-  onPatch,
-  onDropRegistryItem,
-  onConnectPorts
-}: {
-  schema: MicroflowSchema;
-  graph: MicroflowEditorGraph;
-  traceFrames: MicroflowTraceFrame[];
-  onPatch: (schemaPatch: MicroflowEditorGraphPatch) => void;
-  onDropRegistryItem: (item: MicroflowNodeRegistryItem, position: { x: number; y: number }, insertFlowId?: string) => void;
-  onConnectPorts: (sourcePort: MicroflowEditorPort, targetPort: MicroflowEditorPort) => void;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<{ objectId: string; offsetX: number; offsetY: number } | null>(null);
-  const [connectingFrom, setConnectingFrom] = useState<string | undefined>();
-  const [dropActive, setDropActive] = useState(false);
-  const [connectionDraft, setConnectionDraft] = useState<{ sourceNodeId: string; sourcePort: MicroflowEditorPort; target: { x: number; y: number } }>();
-  const traceByObject = useMemo(() => new Map(traceFrames.map(frame => [frame.objectId, frame])), [traceFrames]);
-  const selectedFlowId = graph.selection.flowId;
-  const selectedObjectId = graph.selection.objectId;
-  const nodeByObjectId = useMemo(() => new Map(graph.nodes.map(node => [node.objectId, node])), [graph.nodes]);
-  const validTargetPortIds = useMemo(() => {
-    if (!connectionDraft) {
-      return new Set<string>();
-    }
-    const result = new Set<string>();
-    for (const node of graph.nodes) {
-      for (const port of node.ports) {
-        if (canConnectPorts(schema, connectionDraft.sourcePort, port).allowed) {
-          result.add(port.id);
-        }
-      }
-    }
-    return result;
-  }, [connectionDraft, graph.nodes, schema]);
-  const invalidTargetPortIds = useMemo(() => {
-    if (!connectionDraft) {
-      return new Set<string>();
-    }
-    const result = new Set<string>();
-    for (const node of graph.nodes) {
-      for (const port of node.ports) {
-        if (port.direction === "input" && !validTargetPortIds.has(port.id)) {
-          result.add(port.id);
-        }
-      }
-    }
-    return result;
-  }, [connectionDraft, graph.nodes, validTargetPortIds]);
-
-  const emitPatch = (patch: Parameters<typeof applyEditorGraphPatchToAuthoring>[1]) => {
-    onPatch(patch);
-  };
-
-  return (
-    <div
-      ref={containerRef}
-      style={canvasStyle}
-      onClick={() => emitPatch({ selectedObjectId: undefined, selectedFlowId: undefined })}
-      onDragEnter={event => {
-        event.preventDefault();
-        setDropActive(true);
-      }}
-      onDragOver={event => {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
-        setDropActive(true);
-      }}
-      onDragLeave={event => {
-        if (event.currentTarget === event.target) {
-          setDropActive(false);
-        }
-      }}
-      onDrop={(event: DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-        setDropActive(false);
-        const payload = parseDragPayload(event.dataTransfer.getData("application/x-atlas-microflow-node") || event.dataTransfer.getData("application/json"));
-        const registryKey = payload?.registryKey ?? event.dataTransfer.getData("text/plain");
-        if (!registryKey) {
-          return;
-        }
-        const entry = microflowNodeRegistryByKey.get(registryKey);
-        if (!entry) {
-          return;
-        }
-        const position = snapCanvasPoint(screenToCanvas(containerRef.current, event, graph));
-        onDropRegistryItem(entry, position, findNearestFlowAtPoint(graph, position));
-      }}
-      onPointerMove={event => {
-        if (connectionDraft) {
-          setConnectionDraft({ ...connectionDraft, target: screenToCanvas(containerRef.current, event, graph) });
-          return;
-        }
-        if (!drag) {
-          return;
-        }
-        const position = screenToCanvas(containerRef.current, event, graph);
-        emitPatch({ movedNodes: [{ objectId: drag.objectId, position: { x: position.x - drag.offsetX, y: position.y - drag.offsetY } }] });
-      }}
-      onPointerUp={() => {
-        setDrag(null);
-        setConnectionDraft(undefined);
-      }}
-      onKeyDown={event => {
-        if (event.key === "Escape") {
-          setConnectionDraft(undefined);
-        }
-      }}
-      tabIndex={0}
-    >
-      {dropActive ? (
-        <div style={{ position: "absolute", inset: 12, border: "2px dashed #165dff", borderRadius: 12, pointerEvents: "none", zIndex: 2 }} />
-      ) : null}
-      <div
-        style={{
-          position: "absolute",
-          transform: `translate(${graph.viewport.x}px, ${graph.viewport.y}px) scale(${graph.viewport.zoom})`,
-          transformOrigin: "0 0",
-          width: 3200,
-          height: 2200
-        }}
-      >
-        <EdgeLayer graph={graph} selectedFlowId={selectedFlowId} onSelect={flowId => emitPatch({ selectedObjectId: undefined, selectedFlowId: flowId })} />
-        {connectionDraft ? (() => {
-          const sourceNode = nodeByObjectId.get(connectionDraft.sourceNodeId);
-          if (!sourceNode) {
-            return null;
-          }
-          const sourcePosition = absolutePortPosition(sourceNode, connectionDraft.sourcePort);
-          return (
-            <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}>
-              <path d={connectionPath(sourcePosition, connectionDraft.target)} fill="none" stroke="#165dff" strokeWidth={2} strokeDasharray="6 4" />
-            </svg>
-          );
-        })() : null}
-        {graph.nodes.map(node => (
-          <NodeCard
-            key={node.id}
-            node={node}
-            selected={node.objectId === selectedObjectId}
-            connecting={connectingFrom === node.objectId}
-            connectionMode={Boolean(connectionDraft)}
-            validTargetPortIds={validTargetPortIds}
-            invalidTargetPortIds={invalidTargetPortIds}
-            trace={traceByObject.get(node.objectId)}
-            onSelect={() => {
-              if (connectingFrom && connectingFrom !== node.objectId) {
-                emitPatch({ addFlow: createFlowForConnection(schema, connectingFrom, node.objectId) });
-                setConnectingFrom(undefined);
-                return;
-              }
-              emitPatch({ selectedObjectId: node.objectId, selectedFlowId: undefined });
-            }}
-            onConnect={() => setConnectingFrom(connectingFrom === node.objectId ? undefined : node.objectId)}
-            onStartConnection={(port, event) => {
-              const position = screenToCanvas(containerRef.current, event, graph);
-              setConnectingFrom(undefined);
-              setConnectionDraft({ sourceNodeId: node.objectId, sourcePort: port, target: position });
-            }}
-            onFinishConnection={(port) => {
-              if (!connectionDraft) {
-                return;
-              }
-              if (canConnectPorts(schema, connectionDraft.sourcePort, port).allowed) {
-                onConnectPorts(connectionDraft.sourcePort, port);
-              }
-              setConnectionDraft(undefined);
-            }}
-            onPointerDown={event => {
-              if (connectionDraft) {
-                return;
-              }
-              event.stopPropagation();
-              const position = screenToCanvas(containerRef.current, event, graph);
-              setDrag({ objectId: node.objectId, offsetX: position.x - node.position.x, offsetY: position.y - node.position.y });
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function ProblemPanel({
   issues,
   status,
@@ -1884,7 +1697,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const bottomPanelFallback = props.defaultBottomPanelOpen ?? (props.immersive === true);
 
   const [schema, setSchema] = useState<MicroflowSchema>(() =>
-    refreshDerivedState(ensureAuthoringSchema(props.schema), props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG),
+    refreshDerivedState(props.schema, props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG),
   );
   const historyManagerRef = useRef<MicroflowHistoryManager | null>(null);
   if (!historyManagerRef.current) {
@@ -1947,8 +1760,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [dirty, setDirty] = useState(false);
   const schemaRevisionRef = useRef(0);
   const toolbarMode = props.toolbarMode ?? "internal";
-  const shellMode = props.shellMode ?? (toolbarMode === "external" ? "editor-native-layout" : "legacy-host-layout");
-  const externalLayout = shellMode === "editor-native-layout";
+  const shellMode = "editor-native-layout" as const;
+  const externalLayout = true;
   const [leftOpen, setLeftOpen] = useState(() => {
     if (props.toolbarMode === "external") {
       return Boolean(readMendixLayoutStorage().nodesDrawerOpen);
@@ -2012,10 +1825,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     writeStoredTestRunSamples(testRunSamplesByMicroflowId);
   }, [testRunSamplesByMicroflowId]);
 
-  const validateForMode = useCallback(async (targetSchema: MicroflowSchema, mode: MicroflowValidationMode) => {
-    const normalized = normalizeMicroflowAuthoringSchemaForRuntime(targetSchema);
-    const schemaForValidation = normalized.schema;
-    const normalizerIssues = createNormalizerIssues(schemaForValidation.id, normalized.report.blockingIssues);
+  const validateForMode = useCallback(async (targetSchema: MicroflowSchema | MicroflowDesignSchema, mode: MicroflowValidationMode) => {
+    const normalized = isDesignSchema(targetSchema) ? null : normalizeMicroflowAuthoringSchemaForRuntime(targetSchema);
+    const schemaForValidation = normalized?.schema ?? targetSchema;
+    const normalizerIssues = normalized
+      ? createNormalizerIssues(schemaForValidation.id, normalized.report.blockingIssues)
+      : [];
     try {
       const localResult = validateMicroflowSchema({
         schema: schemaForValidation,
@@ -2383,7 +2198,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         ...schema.objectCollection,
         objects: [...schema.objectCollection.objects, ...objects],
       },
-      flows: [...schema.flows, ...flows],
+      flows: [...(Array.isArray(schema.flows) ? schema.flows : []), ...flows],
       editor: {
         ...schema.editor,
         selection: {
@@ -3864,8 +3679,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       // Fallback: keep original seed so we at least store a mode for something.
       return [seeds[0]!];
     };
-    const onNodeToggle = (event: Event) => {
-      const detail = (event as CustomEvent<MicroflowInlineNodeToggleDetail>).detail;
+    const onNodeToggleDetail = (detail: MicroflowInlineNodeToggleDetail) => {
       const nodeIds = resolveInlineNodeIds(detail);
       if (nodeIds.length === 0) {
         return;
@@ -3875,8 +3689,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         ...Object.fromEntries(nodeIds.map(nodeId => [nodeId, detail.expanded ? "expanded" : "compact"])),
       }));
     };
-    const onNodeInspect = (event: Event) => {
-      const detail = (event as CustomEvent<MicroflowInlineNodeInspectDetail>).detail;
+    const onNodeInspectDetail = (detail: MicroflowInlineNodeInspectDetail) => {
       const nodeIds = resolveInlineNodeIds(detail);
       const primaryNodeId = nodeIds[0];
       if (!primaryNodeId) {
@@ -3888,6 +3701,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       }));
       applyPatch({ selectedObjectId: primaryNodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
       setRightOpen(true);
+    };
+    const onNodeToggle = (event: Event) => {
+      onNodeToggleDetail((event as CustomEvent<MicroflowInlineNodeToggleDetail>).detail);
+    };
+    const onNodeInspect = (event: Event) => {
+      onNodeInspectDetail((event as CustomEvent<MicroflowInlineNodeInspectDetail>).detail);
     };
     const onFieldCommit = (event: Event) => {
       if (props.readonly) {
@@ -3958,6 +3777,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         },
       }));
     };
+    const unsubscribeNodeToggle = subscribeInlineNodeToggle(onNodeToggleDetail);
+    const unsubscribeNodeInspect = subscribeInlineNodeInspect(onNodeInspectDetail);
     window.addEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, onNodeToggle as EventListener);
     window.addEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, onNodeInspect as EventListener);
     window.addEventListener(MICROFLOW_INLINE_FIELD_COMMIT_EVENT, onFieldCommit as EventListener);
@@ -3966,6 +3787,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     return () => {
       window.removeEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, onNodeToggle as EventListener);
       window.removeEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, onNodeInspect as EventListener);
+      unsubscribeNodeToggle();
+      unsubscribeNodeInspect();
       window.removeEventListener(MICROFLOW_INLINE_FIELD_COMMIT_EVENT, onFieldCommit as EventListener);
       window.removeEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
       window.removeEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);

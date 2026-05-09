@@ -8,7 +8,7 @@ export function InlineQuickFix(props: {
     fieldPath?: string;
     value?: unknown;
     flowId?: string;
-    editType?: "text" | "select" | "variable" | "expression" | "condition" | "http" | "assignment" | "branch" | "json" | "mapping" | "approval" | "loop";
+    editType?: "text" | "select" | "variable" | "expression" | "condition" | "http" | "assignment" | "branch" | "json" | "mapping" | "approval" | "loop" | "outputMappings";
   }>;
   onApply?: (suggestion: {
     id: string;
@@ -17,7 +17,7 @@ export function InlineQuickFix(props: {
     fieldPath?: string;
     value?: unknown;
     flowId?: string;
-    editType?: "text" | "select" | "variable" | "expression" | "condition" | "http" | "assignment" | "branch" | "json" | "mapping" | "approval" | "loop";
+    editType?: "text" | "select" | "variable" | "expression" | "condition" | "http" | "assignment" | "branch" | "json" | "mapping" | "approval" | "loop" | "outputMappings";
   }) => void;
 }) {
   if (!props.suggestions?.length) {

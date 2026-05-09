@@ -60,6 +60,31 @@ describe("buildNodeInlineVariableOptions", () => {
     expect(options.some(item => item.value === "$.incidentId")).toBe(true);
   });
 
+  it("normalizes a derived variable index before building inline options", () => {
+    const s = schema(true);
+    s.variables = {
+      parameters: {},
+      localVariables: {
+        approvalLevel: {
+          name: "approvalLevel",
+          dataType: { kind: "integer" },
+          source: { kind: "localVariable", variableId: "approvalLevel" },
+          scope: { collectionId: "root" },
+          readonly: false,
+        },
+      },
+      objectOutputs: {},
+      listOutputs: {},
+      loopVariables: {},
+      errorVariables: {},
+      systemVariables: {},
+    } as never;
+
+    const options = buildNodeInlineVariableOptions({ schema: s, node: s.workflow.nodes[1], mode: "expression" });
+
+    expect(options.some(item => item.value === "$approvalLevel")).toBe(true);
+  });
+
   it("parses reference counts from $.dot.path expressions", () => {
     const s = schema(true);
     (s.workflow.nodes[1] as { data: Record<string, unknown> }).data.condition = {

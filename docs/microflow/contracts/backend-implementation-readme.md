@@ -237,7 +237,7 @@ TestRun Runtime API + Trace 存储：
 
 ## 第 54 阶段加强版 Runtime ActionExecutor
 
-- 新增 `Runtime/Actions` 核心模型与 `MicroflowActionExecutorRegistry`，覆盖前端 51 个 actionKind，并保留后端 legacy aliases。
+- 新增 `Runtime/Actions` 核心模型与 `MicroflowActionExecutorRegistry`，覆盖前端 51 个 actionKind，并保留后端 deprecated aliases。
 - `MicroflowActionSupportMatrix` 改为读取 Registry descriptor，Validation / ExecutionPlan / Runtime 行为不再各自维护 P0 列表。
 - MockRuntimeRunner 接入 Registry：ServerExecutable 写变量/事务/日志/trace，RuntimeCommand 输出 `runtimeCommands`，ConnectorBacked 缺 capability 返回 `RUNTIME_CONNECTOR_REQUIRED`，ExplicitUnsupported 返回 `RUNTIME_UNSUPPORTED_ACTION`。
 - FlowNavigator 的 ActionActivity 输出包含 executorCategory/supportLevel/runtimeCommands/connectorRequests，不再只写模糊 placeholder。

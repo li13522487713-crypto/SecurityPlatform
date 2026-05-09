@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addFlow, applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteFlow, deleteObject, duplicateObject, moveObject, splitFlowWithObject, toEditorGraph, updateFlow, updateObject } from "./adapters";
+import { sampleMicroflowSchema } from "./__fixtures__/sample-microflow";
 import {
   addMicroflowObjectFromDragPayload,
   canCreateRegistryItem,
@@ -13,7 +14,7 @@ import {
   objectKindFromRegistryItem,
   searchMicroflowNodes,
 } from "./node-registry";
-import { sampleMicroflowSchema, validateMicroflowSchema } from "./schema";
+import { validateMicroflowSchema } from "./schema";
 import { createNoCaseValue, getCaseDisplayLabel, isCaseValueDuplicate, updateFlowCaseValue } from "./schema/utils";
 import { collectFlowsRecursive } from "./schema/utils/object-utils";
 import { buildVariableIndex } from "./variables";

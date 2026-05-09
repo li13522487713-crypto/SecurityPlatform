@@ -6,7 +6,7 @@ import type { MicroflowSchema } from "../schema/types";
 import type { FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 
 /**
- * Legacy export shim:
+ * Compatibility export shim:
  * editor/index.tsx still imports `FlowGramMicroflowCanvas`.
  * Keep this alias so existing call sites continue to work while the native canvas remains the single implementation.
  */

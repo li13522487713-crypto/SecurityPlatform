@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, deleteObject, duplicateObject, updateObject } from "../../adapters";
+import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
   buildMicroflowVariableIndex,
@@ -16,7 +17,6 @@ import {
   updateListOperationSource,
 } from "../../variables";
 import {
-  sampleMicroflowSchema,
   type MicroflowObject,
   type MicroflowSchema,
 } from "../index";

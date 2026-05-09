@@ -10,6 +10,5 @@ export function useNodeVariableScope(
 ): MicroflowVariableSymbol[] {
   const { getVariablesForNode } = useFlowGramMicroflowContext();
   // stringify options as memoization key since options are passed as literals
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(() => getVariablesForNode(objectId, options), [getVariablesForNode, objectId, JSON.stringify(options)]);
 }

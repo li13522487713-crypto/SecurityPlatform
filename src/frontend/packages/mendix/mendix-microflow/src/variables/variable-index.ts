@@ -26,6 +26,36 @@ import { buildVariableGraphAnalysis } from "./microflow-graph-analysis";
 
 const variableNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+const EMPTY_ROOT_COLLECTION: MicroflowObjectCollection = {
+  id: "root-collection",
+  officialType: "Microflows$MicroflowObjectCollection",
+  objects: [],
+  flows: [],
+};
+
+function normalizeCollection(collection: MicroflowObjectCollection | undefined, fallbackCollectionId = EMPTY_ROOT_COLLECTION.id): MicroflowObjectCollection {
+  const nextId = collection?.id?.trim() || fallbackCollectionId;
+  return {
+    id: nextId,
+    officialType: collection?.officialType || EMPTY_ROOT_COLLECTION.officialType,
+    objects: Array.isArray(collection?.objects)
+      ? collection.objects.map(object => object.kind === "loopedActivity"
+        ? { ...object, objectCollection: normalizeCollection(object.objectCollection, `${object.id}-collection`) }
+        : object)
+      : [],
+    flows: Array.isArray(collection?.flows) ? collection.flows : [],
+  };
+}
+
+function normalizeSchema(schema: MicroflowSchema): MicroflowSchema {
+  return {
+    ...schema,
+    flows: Array.isArray(schema.flows) ? schema.flows : [],
+    parameters: Array.isArray(schema.parameters) ? schema.parameters : [],
+    objectCollection: normalizeCollection(schema.objectCollection),
+  };
+}
+
 export interface MicroflowVariableIndexBuildOptions {
   includeDiagnostics?: boolean;
   mode?: "edit" | "save" | "publish" | "testRun";
@@ -38,8 +68,9 @@ export interface MicroflowVariableIndexBuildInput {
 }
 
 function emptyIndex(schema: MicroflowSchema): MicroflowVariableIndex {
+  const normalizedSchema = normalizeSchema(schema);
   return {
-    schemaId: schema.id,
+    schemaId: normalizedSchema.id,
     builtAt: new Date().toISOString(),
     all: [],
     byName: {},
@@ -48,7 +79,7 @@ function emptyIndex(schema: MicroflowSchema): MicroflowVariableIndex {
     byCollectionId: {},
     byScopeKey: {},
     diagnostics: [],
-    graphAnalysis: buildVariableGraphAnalysis(schema),
+    graphAnalysis: buildVariableGraphAnalysis(normalizedSchema),
     parameters: {},
     localVariables: {},
     objectOutputs: {},
@@ -59,13 +90,14 @@ function emptyIndex(schema: MicroflowSchema): MicroflowVariableIndex {
   };
 }
 
-function flattenObjects(collection: MicroflowObjectCollection, parentLoopId?: string): Array<{ object: MicroflowObject; collectionId: string; loopObjectId?: string }> {
-  return collection.objects.flatMap(object => {
+function flattenObjects(collection: MicroflowObjectCollection | undefined, parentLoopId?: string): Array<{ object: MicroflowObject; collectionId: string; loopObjectId?: string }> {
+  const safeCollection = normalizeCollection(collection, EMPTY_ROOT_COLLECTION.id);
+  return safeCollection.objects.flatMap(object => {
     if (object.kind !== "loopedActivity") {
-      return [{ object, collectionId: collection.id, loopObjectId: parentLoopId }];
+      return [{ object, collectionId: safeCollection.id, loopObjectId: parentLoopId }];
     }
     return [
-      { object, collectionId: collection.id, loopObjectId: parentLoopId },
+      { object, collectionId: safeCollection.id, loopObjectId: parentLoopId },
       ...flattenObjects(object.objectCollection, object.id),
     ];
   });
@@ -674,8 +706,9 @@ function addLoopVariables(index: MicroflowVariableIndex, object: Extract<Microfl
 }
 
 function addErrorContextVariables(index: MicroflowVariableIndex, schema: MicroflowSchema, flow: MicroflowSequenceFlow): void {
-  const sourceObject = flattenObjects(schema.objectCollection).find(item => item.object.id === flow.originObjectId)?.object;
-  const targetCollectionId = findObjectWithCollection(schema, flow.destinationObjectId)?.collectionId ?? schema.objectCollection.id;
+  const normalizedSchema = normalizeSchema(schema);
+  const sourceObject = flattenObjects(normalizedSchema.objectCollection).find(item => item.object.id === flow.originObjectId)?.object;
+  const targetCollectionId = findObjectWithCollection(normalizedSchema, flow.destinationObjectId)?.collectionId ?? normalizedSchema.objectCollection.id;
   const addErrorVariable = (name: "$latestError" | "$latestHttpResponse" | "$latestSoapFault", dataType: MicroflowDataType, kind: MicroflowVariableKind) => {
     addSymbol(index, createSymbol({
       name,
@@ -760,7 +793,7 @@ export function buildVariableIndex(
   metadataArg?: MicroflowMetadataCatalog,
   _options?: MicroflowVariableIndexBuildOptions,
 ): MicroflowVariableIndex {
-  const schema = "schema" in schemaOrInput ? schemaOrInput.schema : schemaOrInput;
+  const schema = normalizeSchema("schema" in schemaOrInput ? schemaOrInput.schema : schemaOrInput);
   const metadata = "schema" in schemaOrInput ? schemaOrInput.metadata : metadataArg;
   if (!metadata) {
     throw new Error("buildVariableIndex requires an explicit MetadataCatalog.");

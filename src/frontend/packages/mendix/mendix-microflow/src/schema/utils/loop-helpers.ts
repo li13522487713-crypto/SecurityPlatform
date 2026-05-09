@@ -162,14 +162,14 @@ export function assignLoopFlowKind(schema: MicroflowSchema, flowId: string, kind
   };
   const mapCollectionFlows = (collection: MicroflowObjectCollection): MicroflowObjectCollection => ({
     ...collection,
-    flows: collection.flows?.map(flow => flow.id === flowId ? nextFlow : flow),
+    flows: (collection.flows ?? []).map(flow => flow.id === flowId ? nextFlow : flow),
     objects: collection.objects.map(object => object.kind === "loopedActivity"
       ? { ...object, objectCollection: mapCollectionFlows(object.objectCollection) }
       : object),
   });
   return {
     ...schema,
-    flows: schema.flows.map(flow => flow.id === flowId ? nextFlow : flow),
+    flows: (Array.isArray(schema.flows) ? schema.flows : []).map(flow => flow.id === flowId ? nextFlow : flow),
     objectCollection: mapCollectionFlows(schema.objectCollection),
   };
 }

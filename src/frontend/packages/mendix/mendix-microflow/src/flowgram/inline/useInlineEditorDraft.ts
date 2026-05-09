@@ -49,7 +49,6 @@ export function useInlineEditorDraft(
   const resetDraft = useCallback((next?: InlineEditorDraft) => {
     setDraft(next ?? initial);
     setFieldErrors({});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { draft, fieldErrors, isDraftValid, updateField, resetDraft };

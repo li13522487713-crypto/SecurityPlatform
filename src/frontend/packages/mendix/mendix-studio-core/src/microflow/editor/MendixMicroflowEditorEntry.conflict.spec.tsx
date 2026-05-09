@@ -63,7 +63,7 @@ vi.mock("@douyinfe/semi-ui", () => ({
 }));
 
 vi.mock("@atlas/microflow", () => ({
-  NativeMicroflowEditor: ({ schema, onSchemaChange, apiClient, toolbarPrefix, toolbarSuffix }: MockMicroflowEditorProps) => (
+  MicroflowEditor: ({ schema, onSchemaChange, apiClient, toolbarPrefix, toolbarSuffix }: MockMicroflowEditorProps) => (
     <div>
       <div>{toolbarPrefix}</div>
       <div>{toolbarSuffix}</div>

@@ -19,6 +19,7 @@ import type {
   MicroflowObjectCollection,
   MicroflowParameter,
   MicroflowPoint,
+  MicroflowDesignSchema,
   MicroflowSchema,
   MicroflowSequenceFlow,
   MicroflowSize
@@ -30,6 +31,7 @@ import {
   findObjectWithCollection,
   removeFlowFromCollection,
 } from "../schema/utils/object-utils";
+import { normalizeDesignSchemaVariables } from "../schema/utils/design-schema-variables";
 import { caseValueIdentity } from "../schema/utils/case-utils";
 import { createStableId } from "../schema/utils/ids";
 import { emptyVariableIndex, flattenObjectCollection, toEditorGraph } from "./microflow-adapters";
@@ -261,7 +263,8 @@ export function deleteObject(schema: MicroflowSchema, objectId: string): Microfl
   const removedParameterIds = new Set(removedObjects
     .filter((object): object is Extract<MicroflowObject, { kind: "parameterObject" }> => object.kind === "parameterObject")
     .map(object => object.parameterId));
-  const flows = schema.flows.filter(flow => !removedObjectIds.has(flow.originObjectId) && !removedObjectIds.has(flow.destinationObjectId));
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
+  const flows = safeFlows.filter(flow => !removedObjectIds.has(flow.originObjectId) && !removedObjectIds.has(flow.destinationObjectId));
   const objectCollection = removeFlowsFromCollection(
     removeObjectFromCollection(schema.objectCollection, objectId),
     removedObjectIds,
@@ -563,7 +566,7 @@ export function updateFlow(schema: MicroflowSchema, flowId: string, mapper: (flo
   }
   return refreshDerivedState({
     ...schema,
-    flows: schema.flows.map(flow => flow.id === flowId ? mapper(flow) : flow)
+    flows: (Array.isArray(schema.flows) ? schema.flows : []).map(flow => flow.id === flowId ? mapper(flow) : flow)
   });
 }
 
@@ -593,7 +596,7 @@ export function deleteFlow(schema: MicroflowSchema, flowId: string): MicroflowSc
   }
   return refreshDerivedState(clearSelection({
     ...schema,
-    flows: schema.flows.filter(flow => flow.id !== flowId)
+    flows: (Array.isArray(schema.flows) ? schema.flows : []).filter(flow => flow.id !== flowId)
   }));
 }
 
@@ -1111,6 +1114,17 @@ export function refreshDerivedState(
   schema: MicroflowSchema,
   metadata: MicroflowMetadataCatalog = EMPTY_MICROFLOW_METADATA_CATALOG,
 ): MicroflowSchema {
+  if ((schema as unknown as { workflow?: unknown }).workflow) {
+    const designSchema = normalizeDesignSchemaVariables(schema as unknown as MicroflowDesignSchema);
+    return {
+      ...(designSchema as unknown as MicroflowSchema),
+      validation: schema.validation,
+      editor: {
+        ...schema.editor,
+        selection: schema.editor.selection
+      }
+    };
+  }
   return {
     ...schema,
     variables: buildVariableIndex(schema, metadata),

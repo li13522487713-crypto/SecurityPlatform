@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  detectLegacyAliasesInText,
+  detectDeprecatedAliasesInText,
   findWorkspaceRoot,
-  LEGACY_ACTION_ALIASES,
+  DEPRECATED_ACTION_ALIASES,
   parseBackendDescriptors,
   readWorkspaceFile,
   type CheckResult
@@ -24,7 +24,7 @@ function main(): void {
   const results: CheckResult[] = [];
   const descriptors = parseBackendDescriptors(root);
   const canonicalKinds = new Set(descriptors.map(descriptor => descriptor.actionKind));
-  const descriptorAliases = [...LEGACY_ACTION_ALIASES].filter(alias => canonicalKinds.has(alias));
+  const descriptorAliases = [...DEPRECATED_ACTION_ALIASES].filter(alias => canonicalKinds.has(alias));
   results.push({
     id: "descriptor-canonical-action-kind",
     status: descriptorAliases.length === 0 ? "pass" : "fail",
@@ -46,7 +46,7 @@ function main(): void {
     if (!existsSync(resolve(root, file))) {
       continue;
     }
-    const aliases = detectLegacyAliasesInText(readWorkspaceFile(file, root))
+    const aliases = detectDeprecatedAliasesInText(readWorkspaceFile(file, root))
       .filter(alias => !["aggregate", "filter", "sort"].includes(alias));
     const allowedInDocs = file.endsWith("production-node-capability-matrix.md")
       ? aliases.filter(alias => ["aggregate", "filter", "sort"].includes(alias))
@@ -57,7 +57,7 @@ function main(): void {
     }
   }
   results.push({
-    id: "legacy-alias-not-in-schema-or-registry",
+    id: "deprecated-alias-not-in-schema-or-registry",
     status: violations.length === 0 ? "pass" : "fail",
     summary: violations.length === 0
       ? "旧 actionKind 别名未进入 schema 样例、前端 registry 或后端 descriptor。"
@@ -69,7 +69,7 @@ function main(): void {
   const descriptorDoc = "docs/microflow/contracts/action-descriptor-naming.md";
   const docsOk = existsSync(resolve(root, namingDoc))
     && existsSync(resolve(root, descriptorDoc))
-    && LEGACY_ACTION_ALIASES.every(alias => readWorkspaceFile(namingDoc, root).includes(alias));
+    && DEPRECATED_ACTION_ALIASES.every(alias => readWorkspaceFile(namingDoc, root).includes(alias));
   results.push({
     id: "naming-documents",
     status: docsOk ? "pass" : "fail",

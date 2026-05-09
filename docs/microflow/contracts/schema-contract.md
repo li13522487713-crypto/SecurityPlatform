@@ -30,7 +30,7 @@ TypeScript 定义见 `@atlas/microflow`（`schema/types.ts`）中的 `MicroflowA
 ## 业务主模型
 
 - **唯一主模型**：`MicroflowAuthoringSchema`。资源/发布快照中的语义版本请使用 `audit.version` 与资源行 `version` 字段；**不再**在 schema 顶层使用已废弃的 `version` 字段。
-- **Legacy**：旧 demo 的 `nodes`/`edges` 图仅能通过 `normalizeMicroflowSchema` / `migrateLegacyMicroflowSchema`（`@atlas/microflow/schema/legacy`）迁入 Authoring；不得作为 Runtime、校验或 FlowGram 的持久化输入。
+- **旧设计态输入**：前端不再提供旧 `nodes`/`edges` 图到 Authoring 的运行期迁移入口；Studio、校验、Runtime 与 FlowGram 只接受 canonical `MicroflowAuthoringSchema` / `MicroflowDesignSchema`。历史快照如仍需处理，必须在后端或离线一次性迁移任务中闭环，不得放回设计器页面路径。
 - **禁止**：将 FlowGram `WorkflowJSON` 作为业务主 schema 落库；FlowGram 仅由 `authoringToFlowGram` 派生。
 
 ## 调试 trace 类型（与运行时区分）

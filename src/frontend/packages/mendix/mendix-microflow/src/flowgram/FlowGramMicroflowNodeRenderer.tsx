@@ -276,7 +276,6 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
     };
     btn.addEventListener("click", handle);
     return () => btn.removeEventListener("click", handle);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const canStartNodeDrag = (event: MouseEvent<HTMLDivElement>) => {

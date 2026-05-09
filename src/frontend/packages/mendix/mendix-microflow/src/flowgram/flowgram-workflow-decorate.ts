@@ -84,6 +84,36 @@ function normalizeWorkflow(workflow: WorkflowJSON): WorkflowJSON {
   };
 }
 
+function nodeViewModeAliases(nodeId: string, objectId?: string): string[] {
+  const aliases = new Set<string>();
+  for (const value of [nodeId, objectId]) {
+    if (!value) {
+      continue;
+    }
+    aliases.add(value);
+    if (value.startsWith("node-")) {
+      aliases.add(value.slice("node-".length));
+    } else {
+      aliases.add(`node-${value}`);
+    }
+  }
+  return [...aliases];
+}
+
+function resolveNodeViewMode(
+  nodeId: string,
+  data: FlowGramMicroflowNodeData,
+  nodeViewModes?: Record<string, MicroflowNodeViewMode>,
+): MicroflowNodeViewMode | undefined {
+  for (const alias of nodeViewModeAliases(nodeId, data.objectId)) {
+    const mode = nodeViewModes?.[alias];
+    if (mode) {
+      return mode;
+    }
+  }
+  return undefined;
+}
+
 export function runtimeStateFromTraceStatus(status: MicroflowTraceFrame["status"] | undefined): FlowGramMicroflowNodeData["runtimeState"] {
   if (!status) {
     return "idle";
@@ -140,7 +170,7 @@ export function decorateWorkflow(input: {
             ? "warning"
             : "valid";
       const runtimeState = runtimeStateFromTraceStatus(frame?.status);
-      const viewMode = input.nodeViewModes?.[node.id];
+      const viewMode = resolveNodeViewMode(node.id, data, input.nodeViewModes);
       const inlineConfig = deriveNodeInlineConfig({
         node,
         schema: input.schema,

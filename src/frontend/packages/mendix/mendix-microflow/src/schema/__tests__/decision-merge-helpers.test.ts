@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow, deleteFlow, deleteObject } from "../../adapters";
+import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
   assignDecisionBooleanCase,
@@ -8,7 +9,6 @@ import {
   getDecisionBranchConflicts,
   getMergeFlowSummary,
   releaseDecisionBranchCase,
-  sampleMicroflowSchema,
   updateDecisionExpression,
   updateFlowLabel,
   updateMergeBehavior,

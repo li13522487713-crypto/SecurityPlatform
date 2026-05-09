@@ -2,10 +2,10 @@ import type { MicroflowDesignSchema } from "@atlas/microflow/schema";
 
 import { microflowSampleManifest } from "./sample-manifest";
 
-const legacyObjectCollectionKey = `object${"Collection"}`;
-const legacyFlowsKey = "flows";
-const legacyPropertyObjectKey = `property${"Object"}`;
-const legacyPropertyFlowKey = `property${"Flow"}`;
+const oldObjectCollectionKey = `object${"Collection"}`;
+const oldFlowsKey = "flows";
+const oldPropertyObjectKey = `property${"Object"}`;
+const oldPropertyFlowKey = `property${"Flow"}`;
 
 export interface MicroflowContractVerificationResult {
   ok: boolean;
@@ -29,7 +29,7 @@ function verifyDesignSchema(schema: MicroflowDesignSchema, key: string, errors: 
   }
 
   const root = schema as unknown as Record<string, unknown>;
-  if (legacyObjectCollectionKey in root || legacyFlowsKey in root) {
+  if (oldObjectCollectionKey in root || oldFlowsKey in root) {
     errors.push(`${key}: 根级 schema 禁止包含旧集合/连线字段`);
   }
 
@@ -45,7 +45,7 @@ function verifyDesignSchema(schema: MicroflowDesignSchema, key: string, errors: 
     nodeIds.add(node.id);
 
     const data = isRecord(node.data) ? node.data : {};
-    if (legacyPropertyObjectKey in data || legacyObjectCollectionKey in data) {
+    if (oldPropertyObjectKey in data || oldObjectCollectionKey in data) {
       errors.push(`${key}: workflow.nodes.${index}.data 禁止包含旧节点对象字段`);
     }
     if (node.type === "actionActivity" && !isRecord(data.action)) {
@@ -64,7 +64,7 @@ function verifyDesignSchema(schema: MicroflowDesignSchema, key: string, errors: 
       errors.push(`${key}: workflow.edges.${index}.targetNodeID 不存在：${edge.targetNodeID}`);
     }
     const data = isRecord(edge.data) ? edge.data : {};
-    if (legacyPropertyFlowKey in data) {
+    if (oldPropertyFlowKey in data) {
       errors.push(`${key}: workflow.edges.${index}.data 禁止包含旧连线字段`);
     }
   }

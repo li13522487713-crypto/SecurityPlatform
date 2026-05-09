@@ -7,6 +7,7 @@ import type {
   MicroflowRestCallAction,
   MicroflowWorkflowNodeJSON,
 } from "../schema/types";
+import { normalizeDesignVariables } from "../schema/utils/design-schema-variables";
 
 type InlineVariableOptionMode = "name" | "expression";
 
@@ -216,7 +217,7 @@ export function buildNodeInlineVariableOptions(input: {
   const mergedLabels = new Map<string, string>();
   const refCounts = parseReferenceCounts(input.schema);
 
-  for (const parameter of input.schema.parameters) {
+  for (const parameter of input.schema.parameters ?? []) {
     pushOption(list, seen, mergedLabels, {
       source: "input",
       name: parameter.name,
@@ -226,7 +227,7 @@ export function buildNodeInlineVariableOptions(input: {
     }, mode);
   }
 
-  for (const variable of input.schema.variables) {
+  for (const variable of normalizeDesignVariables(input.schema.variables)) {
     pushOption(list, seen, mergedLabels, {
       source: variable.scope === "latestError" ? "error" : "context",
       name: variable.name,

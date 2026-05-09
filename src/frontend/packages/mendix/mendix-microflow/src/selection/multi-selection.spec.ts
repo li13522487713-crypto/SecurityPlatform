@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { applyEditorGraphPatchToAuthoring, createObjectFromRegistry, createSequenceFlow, deleteObject, duplicateObjectSelection } from "../adapters";
+import { sampleMicroflowSchema } from "../__fixtures__/sample-microflow";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../node-registry";
-import { sampleMicroflowSchema, type MicroflowObject, type MicroflowSchema } from "../schema";
+import type { MicroflowObject, MicroflowSchema } from "../schema";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
 
 function registry(key: string) {
@@ -23,7 +24,7 @@ function schemaWith(objects: MicroflowObject[], flows: MicroflowSchema["flows"] 
 }
 
 describe("microflow multi selection", () => {
-  it("keeps legacy primary selection while storing multi selection arrays", () => {
+  it("keeps primary selection while storing multi selection arrays", () => {
     const a = createObjectFromRegistry(registry("activity:logMessage"), { x: 120, y: 120 });
     const b = createObjectFromRegistry(registry("activity:variableCreate"), { x: 260, y: 120 });
     const schema = applyEditorGraphPatchToAuthoring(schemaWith([a, b]), {

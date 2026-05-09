@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Button, Modal, Space, Switch, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconArrowLeft } from "@douyinfe/semi-icons";
-import { NativeMicroflowEditor, type MicroflowApiClient, type MicroflowDesignSchema, type MicroflowEditorHandle, type MicroflowWorkbenchLayoutState, type MicroflowWorkbenchStatus, type SaveMicroflowRequest } from "@atlas/microflow";
+import { MicroflowEditor, type MicroflowApiClient, type MicroflowDesignSchema, type MicroflowEditorHandle, type MicroflowWorkbenchLayoutState, type MicroflowWorkbenchStatus, type SaveMicroflowRequest } from "@atlas/microflow";
 import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
@@ -58,7 +58,6 @@ export interface MendixMicroflowEditorEntryProps {
    */
   editorRef?: Ref<MicroflowEditorHandle>;
   toolbarMode?: "internal" | "external";
-  shellMode?: "legacy-host-layout" | "editor-native-layout";
   onLayoutStateChange?: (state: MicroflowWorkbenchLayoutState) => void;
   onWorkbenchStatusChange?: (status: MicroflowWorkbenchStatus) => void;
 }
@@ -130,7 +129,7 @@ function reconcileSavedResourceSchema(
   };
 }
 
-export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode, shellMode, onLayoutStateChange, onWorkbenchStatusChange }: MendixMicroflowEditorEntryProps) {
+export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode, onLayoutStateChange, onWorkbenchStatusChange }: MendixMicroflowEditorEntryProps) {
   const [schema, setSchema] = useState<MicroflowDesignSchema>(resource.schema);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -472,7 +471,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
   return (
     <div style={{ height: "100%", minHeight: 0, overflow: "hidden", background: "var(--semi-color-bg-0)", display: "flex", flexDirection: "column" }}>
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <NativeMicroflowEditor
+      <MicroflowEditor
         key={currentResource.id}
         schema={schema}
         apiClient={apiClient}
@@ -484,7 +483,6 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
         readonly={effectiveReadonly}
         editorRef={editorRef}
         toolbarMode={toolbarMode}
-        shellMode={shellMode}
         onLayoutStateChange={onLayoutStateChange}
         onWorkbenchStatusChange={onWorkbenchStatusChange}
         onSchemaChange={nextSchema => {

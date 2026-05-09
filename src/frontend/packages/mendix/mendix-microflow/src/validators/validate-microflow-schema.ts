@@ -1,6 +1,6 @@
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
-import { normalizeMicroflowSchema } from "../schema/legacy/legacy-migration";
-import type { MicroflowAuthoringSchema, MicroflowValidationIssue } from "../schema/types";
+import type { MicroflowAuthoringSchema, MicroflowDesignSchema, MicroflowValidationIssue } from "../schema/types";
+import { emptyVariableIndex } from "../adapters";
 import { buildVariableIndex } from "../variables";
 import { validateActions } from "./validate-actions";
 import { validateDecisions } from "./validate-decisions";
@@ -14,6 +14,7 @@ import { validateObjectCollection } from "./validate-object-collection";
 import { validateReachability } from "./validate-reachability";
 import { validateRoot } from "./validate-root";
 import { validateVariables } from "./validate-variables";
+import { isMicroflowDesignSchema, validateMicroflowDesignSchema } from "./validate-design-schema";
 import { issue } from "./shared";
 import type {
   MicroflowValidationInput,
@@ -213,10 +214,37 @@ function metadataCatalogMissingIssue(): MicroflowValidationIssue {
 export function validateMicroflowSchema(input: MicroflowValidationInput): MicroflowValidationResult;
 /** @deprecated 请使用 {@link validateMicroflowSchema}({ schema, metadata })；schema-only 调用不再回落 mock，仅返回元数据缺失问题。 */
 export function validateMicroflowSchema(schema: MicroflowAuthoringSchema): MicroflowValidationIssue[];
-export function validateMicroflowSchema(input: MicroflowAuthoringSchema | MicroflowValidationInput | unknown): MicroflowValidationResult | MicroflowValidationIssue[] {
+export function validateMicroflowSchema(input: MicroflowAuthoringSchema | MicroflowDesignSchema | MicroflowValidationInput | unknown): MicroflowValidationResult | MicroflowValidationIssue[] {
   if (isValidationInput(input)) {
+    if (isMicroflowDesignSchema(input.schema)) {
+      const designResult = validateMicroflowDesignSchema({
+        schema: input.schema,
+        variableIndex: input.variableIndex,
+        options: input.options,
+      });
+      const issues = normalizeIssues([
+        ...designResult.issues,
+        ...(input.metadata == null ? [metadataCatalogMissingIssue()] : []),
+      ]);
+      return {
+        ...designResult,
+        issues,
+        summary: summarizeIssues(issues),
+      };
+    }
     const rawShapeIssues = collectRawSchemaShapeIssues(input.schema);
-    const schema = normalizeMicroflowSchema(cloneValidationInput(input.schema) as unknown);
+    if (rawShapeIssues.some(item => item.severity === "error")) {
+      const issues = normalizeIssues([
+        ...rawShapeIssues,
+        ...(input.metadata == null ? [metadataCatalogMissingIssue()] : []),
+      ]);
+      return {
+        issues,
+        variableIndex: input.variableIndex ?? emptyVariableIndex(),
+        summary: summarizeIssues(issues),
+      };
+    }
+    const schema = cloneValidationInput(input.schema) as MicroflowAuthoringSchema;
     if (input.metadata == null) {
       const missing = metadataCatalogMissingIssue();
       const variableIndex = input.variableIndex ?? buildVariableIndex(schema, EMPTY_MICROFLOW_METADATA_CATALOG);

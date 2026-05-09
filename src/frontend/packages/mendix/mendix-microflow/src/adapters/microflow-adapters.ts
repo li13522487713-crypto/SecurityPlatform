@@ -13,9 +13,6 @@ import type {
   MicroflowCaseValue,
   MicroflowContinueEvent,
   MicroflowDataType,
-  LegacyMicroflowEdge,
-  LegacyMicroflowGraphSchema,
-  LegacyMicroflowNode,
   MicroflowEdgeKind,
   MicroflowEditorGraph,
   MicroflowEditorGraphPatch,
@@ -55,6 +52,29 @@ const defaultLineStyle: MicroflowLine["style"] = {
   arrow: "target"
 };
 
+const EMPTY_ROOT_COLLECTION: MicroflowObjectCollection = {
+  id: "root-collection",
+  officialType: "Microflows$MicroflowObjectCollection",
+  objects: [],
+  flows: [],
+};
+
+function normalizeCollection(collection: MicroflowObjectCollection | undefined, fallbackId = EMPTY_ROOT_COLLECTION.id): MicroflowObjectCollection {
+  const safeId = (collection?.id?.trim() || fallbackId).trim() || fallbackId;
+  return {
+    id: safeId,
+    officialType: collection?.officialType || EMPTY_ROOT_COLLECTION.officialType,
+    objects: Array.isArray(collection?.objects)
+      ? collection.objects.map(object =>
+        object.kind === "loopedActivity"
+          ? { ...object, objectCollection: normalizeCollection(object.objectCollection, `${object.id ?? "loop"}-collection`) }
+          : object,
+      )
+      : [],
+    flows: Array.isArray(collection?.flows) ? collection.flows : [],
+  };
+}
+
 export function emptyVariableIndex(): MicroflowVariableIndex {
   return {
     parameters: {},
@@ -75,31 +95,32 @@ export function emptyVariableIndex(): MicroflowVariableIndex {
   };
 }
 
-function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], collection: MicroflowObjectCollection, flows: MicroflowFlow[]): MicroflowVariableIndex {
+function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], collection: MicroflowObjectCollection | undefined, flows: MicroflowFlow[]): MicroflowVariableIndex {
+  const safeCollection = normalizeCollection(collection);
   const index = emptyVariableIndex();
   for (const parameter of parameters) {
     index.parameters[parameter.name] = {
       name: parameter.name,
       dataType: parameter.dataType ?? toMicroflowDataType(parameter.type),
       source: { kind: "parameter", parameterId: parameter.id },
-      scope: { collectionId: collection.id },
+      scope: { collectionId: safeCollection.id },
       readonly: true
     };
   }
-  for (const object of flattenObjectCollection(collection)) {
+  for (const object of flattenObjectCollection(safeCollection)) {
     if (object.kind === "loopedActivity" && object.loopSource.kind === "iterableList") {
       index.loopVariables[object.loopSource.iteratorVariableName] = {
         name: object.loopSource.iteratorVariableName,
         dataType: { kind: "unknown", reason: object.loopSource.listVariableName },
         source: { kind: "loopIterator", loopObjectId: object.id },
-        scope: { collectionId: object.objectCollection.id, loopObjectId: object.id },
+        scope: { collectionId: object.objectCollection?.id ?? safeCollection.id, loopObjectId: object.id },
         readonly: true
       };
       index.systemVariables.$currentIndex = {
         name: "$currentIndex",
         dataType: { kind: "integer" },
         source: { kind: "system", name: "$currentIndex" },
-        scope: { collectionId: object.objectCollection.id, loopObjectId: object.id },
+        scope: { collectionId: object.objectCollection?.id ?? safeCollection.id, loopObjectId: object.id },
         readonly: true
       };
     }
@@ -116,7 +137,7 @@ function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], 
           name: action.outputVariableName,
           dataType: outputType,
           source: { kind: "actionOutput", objectId: object.id, actionId: action.id },
-          scope: { collectionId: collection.id, startObjectId: object.id },
+          scope: { collectionId: safeCollection.id, startObjectId: object.id },
           readonly: false
         };
       }
@@ -125,7 +146,7 @@ function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], 
           name: action.outputVariableName,
           dataType: { kind: "object", entityQualifiedName: action.entityQualifiedName },
           source: { kind: "actionOutput", objectId: object.id, actionId: action.id },
-          scope: { collectionId: collection.id, startObjectId: object.id },
+          scope: { collectionId: safeCollection.id, startObjectId: object.id },
           readonly: false
         };
       }
@@ -134,32 +155,33 @@ function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], 
           name: action.returnValue.outputVariableName,
           dataType: action.returnValue.dataType ?? { kind: "unknown", reason: "microflow return" },
           source: { kind: "actionOutput", objectId: object.id, actionId: action.id },
-          scope: { collectionId: collection.id, startObjectId: object.id },
+          scope: { collectionId: safeCollection.id, startObjectId: object.id },
           readonly: false
         };
       }
     }
   }
-  for (const flow of flows.filter((item): item is MicroflowSequenceFlow => item.kind === "sequence" && item.isErrorHandler)) {
+  const safeFlows = Array.isArray(flows) ? flows : [];
+  for (const flow of safeFlows.filter((item): item is MicroflowSequenceFlow => item.kind === "sequence" && item.isErrorHandler)) {
     index.errorVariables.$latestError = {
       name: "$latestError",
       dataType: { kind: "object", entityQualifiedName: "System.Error" },
       source: { kind: "errorContext", flowId: flow.id },
-      scope: { collectionId: collection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
+      scope: { collectionId: safeCollection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
       readonly: true
     };
     index.errorVariables.$latestHttpResponse = {
       name: "$latestHttpResponse",
       dataType: { kind: "object", entityQualifiedName: "System.HttpResponse" },
       source: { kind: "errorContext", flowId: flow.id },
-      scope: { collectionId: collection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
+      scope: { collectionId: safeCollection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
       readonly: true
     };
     index.errorVariables.$latestSoapFault = {
       name: "$latestSoapFault",
       dataType: { kind: "object", entityQualifiedName: "System.SoapFault" },
       source: { kind: "errorContext", flowId: flow.id },
-      scope: { collectionId: collection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
+      scope: { collectionId: safeCollection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
       readonly: true
     };
   }
@@ -168,7 +190,7 @@ function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], 
 
 export function toMicroflowDataType(type?: MicroflowTypeRef): MicroflowDataType {
   if (!type) {
-    return { kind: "unknown", reason: "missing legacy type" };
+    return { kind: "unknown", reason: "missing type" };
   }
   if (type.kind === "void") {
     return { kind: "void" };
@@ -201,7 +223,7 @@ export function toMicroflowDataType(type?: MicroflowTypeRef): MicroflowDataType 
   return { kind: "unknown", reason: type.name };
 }
 
-export function toLegacyTypeRef(type: MicroflowDataType): MicroflowTypeRef {
+export function toMicroflowTypeRef(type: MicroflowDataType): MicroflowTypeRef {
   if (type.kind === "void") {
     return { kind: "void", name: "Void" };
   }
@@ -209,7 +231,7 @@ export function toLegacyTypeRef(type: MicroflowDataType): MicroflowTypeRef {
     return { kind: "entity", name: type.entityQualifiedName, entity: type.entityQualifiedName };
   }
   if (type.kind === "list") {
-    return { kind: "list", name: "List", itemType: toLegacyTypeRef(type.itemType) };
+    return { kind: "list", name: "List", itemType: toMicroflowTypeRef(type.itemType) };
   }
   if (type.kind === "enumeration") {
     return { kind: "primitive", name: type.enumerationQualifiedName };
@@ -264,617 +286,9 @@ function defaultLine(points: MicroflowPoint[] = []): MicroflowLine {
   };
 }
 
-function sizeFromNode(node: LegacyMicroflowNode): MicroflowSize {
-  return {
-    width: node.render.width ?? 160,
-    height: node.render.height ?? 72
-  };
-}
-
-function objectBase(node: LegacyMicroflowNode, kind: MicroflowObjectKind, officialType: string) {
-  return {
-    id: node.id,
-    stableId: node.id,
-    kind,
-    officialType,
-    caption: node.title,
-    documentation: node.documentation?.summary,
-    relativeMiddlePoint: node.position,
-    size: sizeFromNode(node),
-    disabled: node.enabled === false,
-    editor: {
-      selected: false,
-      collapsed: false,
-      iconKey: node.render.iconKey
-    }
-  };
-}
-
-function actionCategory(activityType: MicroflowActivityType): MicroflowActivityCategory {
-  if (activityType.startsWith("object")) {
-    return "object";
-  }
-  if (activityType.startsWith("list")) {
-    return "list";
-  }
-  if (activityType.startsWith("variable")) {
-    return "variable";
-  }
-  if (activityType.startsWith("call") && !["callRest", "callWebService", "callExternalAction"].includes(activityType)) {
-    return "call";
-  }
-  if (["showPage", "closePage", "downloadFile", "showHomePage", "showMessage", "validationFeedback", "synchronize"].includes(activityType)) {
-    return "client";
-  }
-  if (["callRest", "callWebService", "callExternalAction", "importWithMapping", "exportWithMapping", "queryExternalDatabase", "sendRestRequestBeta"].includes(activityType)) {
-    return "integration";
-  }
-  if (activityType === "logMessage") {
-    return "logging";
-  }
-  if (activityType === "generateDocument") {
-    return "documentGeneration";
-  }
-  if (["counter", "incrementCounter", "gauge"].includes(activityType)) {
-    return "metrics";
-  }
-  if (activityType === "callMlModel") {
-    return "mlKit";
-  }
-  if (activityType.includes("Workflow") || activityType.includes("UserTask") || activityType.includes("JumpTo")) {
-    return "workflow";
-  }
-  return "externalObject";
-}
-
-function makeAction(node: Extract<LegacyMicroflowNode, { type: "activity" }>): MicroflowAction {
-  const config = node.config;
-  const category = actionCategory(config.activityType);
-  const base = {
-    id: `${node.id}-action`,
-    errorHandlingType: config.errorHandling?.mode ?? "rollback",
-    documentation: node.documentation?.summary,
-    editor: {
-      category,
-      iconKey: config.activityType,
-      availability: node.availability ?? "supported",
-      availabilityReason: node.availabilityReason
-    }
-  };
-  if (config.activityType === "objectRetrieve") {
-    return {
-      ...base,
-      kind: "retrieve",
-      officialType: "Microflows$RetrieveAction",
-      outputVariableName: config.resultVariableName ?? config.objectVariableName ?? config.listVariableName ?? "retrievedObject",
-      retrieveSource: config.retrieveMode === "association" || config.association
-        ? {
-            kind: "association",
-            officialType: "Microflows$AssociationRetrieveSource",
-            associationQualifiedName: config.association ?? null,
-            startVariableName: config.objectVariableName ?? "sourceObject"
-          }
-        : {
-            kind: "database",
-            officialType: "Microflows$DatabaseRetrieveSource",
-            entityQualifiedName: config.entity ?? null,
-            xPathConstraint: config.valueExpression ?? null,
-            sortItemList: {
-              items: (config.sortRules ?? []).map(item => ({ attributeQualifiedName: item.attribute, direction: item.direction }))
-            },
-            range: config.range === "first"
-              ? { kind: "first", officialType: "Microflows$ConstantRange", value: "first" }
-              : config.range === "limit"
-                ? { kind: "custom", officialType: "Microflows$CustomRange", limitExpression: expression(String(config.limit ?? 10)) }
-                : { kind: "all", officialType: "Microflows$ConstantRange", value: "all" }
-          }
-    };
-  }
-  if (config.activityType === "objectCreate") {
-    return {
-      ...base,
-      kind: "createObject",
-      officialType: "Microflows$CreateObjectAction",
-      entityQualifiedName: config.entity ?? "",
-      outputVariableName: config.objectVariableName ?? "newObject",
-      memberChanges: [],
-      commit: {
-        enabled: Boolean(config.commitImmediately),
-        withEvents: Boolean(config.withEvents),
-        refreshInClient: Boolean(config.refreshClient)
-      }
-    };
-  }
-  if (config.activityType === "objectChange") {
-    return {
-      ...base,
-      kind: "changeMembers",
-      officialType: "Microflows$ChangeMembersAction",
-      changeVariableName: config.objectVariableName ?? "",
-      memberChanges: (config.assignments ?? []).map(item => ({
-        id: item.id,
-        memberQualifiedName: item.attribute,
-        memberKind: "attribute",
-        valueExpression: item.expression,
-        assignmentKind: "set"
-      })),
-      commit: {
-        enabled: Boolean(config.commitImmediately),
-        withEvents: Boolean(config.withEvents),
-        refreshInClient: Boolean(config.refreshClient)
-      },
-      validateObject: Boolean(config.validateObject)
-    };
-  }
-  if (config.activityType === "objectCommit") {
-    return {
-      ...base,
-      kind: "commit",
-      officialType: "Microflows$CommitAction",
-      objectOrListVariableName: config.objectVariableName ?? config.listVariableName ?? "",
-      withEvents: Boolean(config.withEvents),
-      refreshInClient: Boolean(config.refreshClient)
-    };
-  }
-  if (config.activityType === "objectDelete") {
-    return {
-      ...base,
-      kind: "delete",
-      officialType: "Microflows$DeleteAction",
-      objectOrListVariableName: config.objectVariableName ?? config.listVariableName ?? "",
-      withEvents: Boolean(config.withEvents),
-      deleteBehavior: config.refreshClient ? "deleteAndRefreshClient" : "deleteOnly"
-    };
-  }
-  if (config.activityType === "objectRollback") {
-    return {
-      ...base,
-      kind: "rollback",
-      officialType: "Microflows$RollbackAction",
-      objectOrListVariableName: config.objectVariableName ?? config.listVariableName ?? "",
-      refreshInClient: Boolean(config.refreshClient)
-    };
-  }
-  if (config.activityType === "callMicroflow") {
-    return {
-      ...base,
-      kind: "callMicroflow",
-      officialType: "Microflows$MicroflowCallAction",
-      targetMicroflowId: config.targetMicroflowId ?? "",
-      targetMicroflowName: config.targetMicroflowName ?? "",
-      targetMicroflowDisplayName: config.targetMicroflowDisplayName,
-      targetMicroflowQualifiedName: config.targetMicroflowQualifiedName ?? "",
-      targetModuleId: config.targetModuleId,
-      parameterMappings: (config.parameterMappings ?? []).map(item => ({
-        targetParameterId: item.targetParameterId,
-        targetParameterName: item.targetParameterName ?? item.parameterName,
-        parameterName: item.parameterName,
-        parameterType: { kind: "unknown", reason: "legacy mapping" },
-        targetType: item.targetType,
-        argumentExpression: item.argumentExpression ?? item.expression,
-        expression: item.expression ?? item.argumentExpression,
-        sourceVariableId: item.sourceVariableId,
-        sourceVariableName: item.sourceVariableName
-      })),
-      returnValue: {
-        storeResult: Boolean(config.resultVariableName),
-        outputVariableId: config.outputVariableId,
-        outputVariableName: config.resultVariableName,
-        resultVariableName: config.resultVariableName,
-        dataType: config.variableType ? toMicroflowDataType(config.variableType) : undefined
-      },
-      callMode: config.callMode === "async" ? "asyncReserved" : "sync"
-    };
-  }
-  if (config.activityType === "variableCreate") {
-    return {
-      ...base,
-      kind: "createVariable",
-      officialType: "Microflows$CreateVariableAction",
-      variableName: config.variableName ?? "variable",
-      dataType: config.variableType ? toMicroflowDataType(config.variableType) : { kind: "string" },
-      initialValue: config.valueExpression ?? expression(""),
-      readonly: Boolean(config.readonly)
-    };
-  }
-  if (config.activityType === "variableChange") {
-    return {
-      ...base,
-      kind: "changeVariable",
-      officialType: "Microflows$ChangeVariableAction",
-      targetVariableName: config.variableName ?? "",
-      newValueExpression: config.valueExpression ?? expression("")
-    };
-  }
-  if (config.activityType === "callRest") {
-    return {
-      ...base,
-      kind: "restCall",
-      officialType: "Microflows$RestCallAction",
-      request: {
-        method: config.method ?? "GET",
-        urlExpression: expression(config.url ?? ""),
-        headers: (config.headers ?? []).map((header, i) => ({ id: `hdr-${i}`, key: header.key, valueExpression: expression(header.value) })),
-        queryParameters: (config.query ?? []).map((query, i) => ({ id: `q-${i}`, key: query.key, valueExpression: expression(query.value) })),
-        body: config.bodyType === "json"
-          ? { kind: "json", expression: config.bodyExpression ?? expression("") }
-          : config.bodyType === "text"
-            ? { kind: "text", expression: config.bodyExpression ?? expression("") }
-            : { kind: "none" }
-      },
-      response: {
-        handling: config.resultVariableName ? { kind: "json", outputVariableName: config.resultVariableName } : { kind: "ignore" }
-      },
-      timeoutSeconds: Math.round((config.timeoutMs ?? 30000) / 1000)
-    };
-  }
-  if (config.activityType === "logMessage") {
-    return {
-      ...base,
-      kind: "logMessage",
-      officialType: "Microflows$LogMessageAction",
-      level: config.logLevel === "warn" ? "warning" : config.logLevel ?? "info",
-      logNodeName: "Microflow",
-      template: {
-        text: config.messageExpression?.text ?? "",
-        arguments: []
-      },
-      includeContextVariables: Boolean(config.logContextVariables),
-      includeTraceId: Boolean(config.logTraceId)
-    };
-  }
-  return {
-    ...base,
-    kind: mapActivityTypeToActionKind(config.activityType),
-    officialType: `Microflows$${config.activityType}`,
-    legacyActivityType: config.activityType,
-    legacyConfig: config
-  } as MicroflowAction;
-}
-
-function mapActivityTypeToActionKind(activityType: MicroflowActivityType): MicroflowAction["kind"] {
-  const map: Partial<Record<MicroflowActivityType, MicroflowAction["kind"]>> = {
-    objectCast: "cast",
-    listAggregate: "aggregateList",
-    listCreate: "createList",
-    listChange: "changeList",
-    listOperation: "listOperation",
-    callJavaAction: "callJavaAction",
-    callJavaScriptAction: "callJavaScriptAction",
-    callNanoflow: "callNanoflow",
-    variableCreate: "createVariable",
-    variableChange: "changeVariable",
-    closePage: "closePage",
-    downloadFile: "downloadFile",
-    showHomePage: "showHomePage",
-    showMessage: "showMessage",
-    showPage: "showPage",
-    validationFeedback: "validationFeedback",
-    synchronize: "synchronize",
-    callWebService: "webServiceCall",
-    importWithMapping: "importXml",
-    exportWithMapping: "exportXml",
-    callExternalAction: "callExternalAction",
-    sendRestRequestBeta: "restOperationCall",
-    generateDocument: "generateDocument",
-    callMlModel: "mlModelCall",
-    counter: "counter",
-    incrementCounter: "incrementCounter",
-    gauge: "gauge",
-    applyJumpToOption: "applyJumpToOption",
-    callWorkflow: "callWorkflow",
-    changeWorkflowState: "changeWorkflowState",
-    completeUserTask: "completeUserTask",
-    generateJumpToOptions: "generateJumpToOptions",
-    retrieveWorkflowActivityRecords: "retrieveWorkflowActivityRecords",
-    retrieveWorkflowContext: "retrieveWorkflowContext",
-    retrieveWorkflows: "retrieveWorkflows",
-    showUserTaskPage: "showUserTaskPage",
-    showWorkflowAdminPage: "showWorkflowAdminPage",
-    lockWorkflow: "lockWorkflow",
-    unlockWorkflow: "unlockWorkflow",
-    notifyWorkflow: "notifyWorkflow",
-    deleteExternalObject: "deleteExternalObject",
-    sendExternalObject: "sendExternalObject"
-  };
-  return map[activityType] ?? "callExternalAction";
-}
-
-export function legacyNodeToObject(node: LegacyMicroflowNode): MicroflowObject {
-  if (node.type === "startEvent") {
-    return {
-      ...objectBase(node, "startEvent", "Microflows$StartEvent"),
-      trigger: { type: node.config.startTrigger ?? "manual" }
-    } as MicroflowStartEvent;
-  }
-  if (node.type === "endEvent") {
-    return {
-      ...objectBase(node, "endEvent", "Microflows$EndEvent"),
-      returnValue: node.config.returnValue,
-      endBehavior: { type: "normalReturn" }
-    } as MicroflowEndEvent;
-  }
-  if (node.type === "errorEvent") {
-    return {
-      ...objectBase(node, "errorEvent", "Microflows$ErrorEvent"),
-      error: { sourceVariableName: "$latestError", messageExpression: node.config.returnValue }
-    } as MicroflowErrorEvent;
-  }
-  if (node.type === "breakEvent") {
-    return objectBase(node, "breakEvent", "Microflows$BreakEvent") as MicroflowBreakEvent;
-  }
-  if (node.type === "continueEvent") {
-    return objectBase(node, "continueEvent", "Microflows$ContinueEvent") as MicroflowContinueEvent;
-  }
-  if (node.type === "decision") {
-    return {
-      ...objectBase(node, "exclusiveSplit", "Microflows$ExclusiveSplit"),
-      splitCondition: {
-        kind: node.config.decisionType === "rule" ? "rule" : "expression",
-        expression: node.config.expression,
-        ruleQualifiedName: node.config.ruleReference ?? "",
-        parameterMappings: [],
-        resultType: node.config.resultType === "Enumeration" ? "enumeration" : "boolean"
-      },
-      errorHandlingType: "rollback"
-    } as MicroflowExclusiveSplit;
-  }
-  if (node.type === "objectTypeDecision") {
-    return {
-      ...objectBase(node, "inheritanceSplit", "Microflows$InheritanceSplit"),
-      inputObjectVariableName: node.config.inputObject,
-      generalizedEntityQualifiedName: node.config.generalizedEntity ?? "",
-      allowedSpecializations: [],
-      entity: {
-        generalizedEntityQualifiedName: node.config.generalizedEntity ?? "",
-        allowedSpecializations: []
-      },
-      errorHandlingType: "rollback"
-    } as MicroflowInheritanceSplit;
-  }
-  if (node.type === "merge") {
-    return {
-      ...objectBase(node, "exclusiveMerge", "Microflows$ExclusiveMerge"),
-      mergeBehavior: { strategy: "firstArrived" }
-    } as MicroflowExclusiveMerge;
-  }
-  if (node.type === "loop") {
-    return {
-      ...objectBase(node, "loopedActivity", "Microflows$LoopedActivity"),
-      documentation: node.documentation?.summary ?? "",
-      errorHandlingType: "rollback",
-      loopSource: node.config.loopType === "while"
-        ? { kind: "whileCondition", officialType: "Microflows$WhileLoopCondition", expression: node.config.whileExpression ?? expression("true", { kind: "boolean" }) }
-        : {
-            kind: "iterableList",
-            officialType: "Microflows$IterableList",
-            listVariableName: node.config.iterableVariableName,
-            iteratorVariableName: node.config.itemVariableName,
-            currentIndexVariableName: "$currentIndex"
-          },
-      objectCollection: {
-        id: `${node.id}-collection`,
-        officialType: "Microflows$MicroflowObjectCollection",
-        objects: [],
-        flows: []
-      }
-    } as MicroflowLoopedActivity;
-  }
-  if (node.type === "parameter") {
-    return {
-      ...objectBase(node, "parameterObject", "Microflows$MicroflowParameterObject"),
-      parameterId: node.config.parameter.id
-    } as MicroflowParameterObject;
-  }
-  if (node.type === "annotation") {
-    return {
-      ...objectBase(node, "annotation", "Microflows$Annotation"),
-      text: node.config.text
-    } as MicroflowAnnotation;
-  }
-  return {
-    ...objectBase(node, "actionActivity", "Microflows$ActionActivity"),
-    caption: node.title,
-    autoGenerateCaption: false,
-    backgroundColor: "default",
-    disabled: node.enabled === false,
-    action: makeAction(node as Extract<LegacyMicroflowNode, { type: "activity" }>)
-  } as MicroflowActionActivity;
-}
-
-function conditionToCaseValue(edge: LegacyMicroflowEdge): MicroflowCaseValue[] {
-  const value = edge.conditionValue;
-  if (!value) {
-    return [];
-  }
-  if (value.kind === "boolean") {
-    return [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: value.value, persistedValue: String(value.value) as "true" | "false" }];
-  }
-  if (value.kind === "enumeration") {
-    if (value.value === "empty") {
-      return [{ kind: "empty", officialType: "Microflows$NoCase" }];
-    }
-    return [{ kind: "enumeration", officialType: "Microflows$EnumerationCase", enumerationQualifiedName: "", value: value.value }];
-  }
-  if (value.kind === "objectType") {
-    if (value.entity === "empty") {
-      return [{ kind: "empty", officialType: "Microflows$NoCase" }];
-    }
-    if (value.entity === "fallback") {
-      return [{ kind: "fallback", officialType: "Microflows$NoCase" }];
-    }
-    return [{ kind: "inheritance", officialType: "Microflows$InheritanceCase", entityQualifiedName: value.entity }];
-  }
-  return [{ kind: "noCase", officialType: "Microflows$NoCase" }];
-}
-
-export function legacyEdgeToFlow(edge: LegacyMicroflowEdge, nodesById: Map<string, LegacyMicroflowNode>): MicroflowFlow {
-  const source = nodesById.get(edge.sourceNodeId);
-  const target = nodesById.get(edge.targetNodeId);
-  const points = source && target ? [source.position, target.position] : [];
-  if (edge.type === "annotation") {
-    return {
-      id: edge.id,
-      stableId: edge.id,
-      kind: "annotation",
-      officialType: "Microflows$AnnotationFlow",
-      originObjectId: edge.sourceNodeId,
-      destinationObjectId: edge.targetNodeId,
-      originConnectionIndex: 0,
-      destinationConnectionIndex: 0,
-      line: defaultLine(points),
-      editor: {
-        label: edge.label,
-        description: edge.description,
-        showInExport: edge.showInExport ?? true
-      }
-    } satisfies MicroflowAnnotationFlow;
-  }
-  return {
-    id: edge.id,
-    stableId: edge.id,
-    kind: "sequence",
-    officialType: "Microflows$SequenceFlow",
-    originObjectId: edge.sourceNodeId,
-    destinationObjectId: edge.targetNodeId,
-    originConnectionIndex: source?.ports.findIndex(port => port.id === edge.sourcePortId) ?? 0,
-    destinationConnectionIndex: target?.ports.findIndex(port => port.id === edge.targetPortId) ?? 0,
-    caseValues: conditionToCaseValue(edge),
-    isErrorHandler: edge.type === "errorHandler",
-    line: defaultLine(points),
-    editor: {
-      edgeKind: edge.type === "sequence" ? "sequence" : edge.type,
-      label: edge.label,
-      description: edge.description,
-      branchOrder: edge.branchOrder
-    }
-  } satisfies MicroflowSequenceFlow;
-}
-
-export function buildAuthoringFieldsFromLegacy(schema: LegacyMicroflowGraphSchema): MicroflowAuthoringSchema {
-  const synchronizedParameters = schema.nodes
-    .filter((node): node is Extract<LegacyMicroflowNode, { type: "parameter" }> => node.type === "parameter")
-    .map(node => ({
-      ...node.config.parameter,
-      stableId: node.config.parameter.stableId ?? node.config.parameter.id,
-      dataType: node.config.parameter.dataType ?? toMicroflowDataType(node.config.parameter.type),
-      documentation: node.config.parameter.documentation ?? node.config.parameter.description
-    }));
-  const parameters = synchronizedParameters.length > 0 ? synchronizedParameters : schema.parameters;
-  const loopObjects = new Map<string, MicroflowObject[]>();
-  const rootObjects: MicroflowObject[] = [];
-  for (const node of schema.nodes) {
-    const object = legacyNodeToObject(node);
-    if (node.parentLoopId) {
-      const list = loopObjects.get(node.parentLoopId) ?? [];
-      list.push(object);
-      loopObjects.set(node.parentLoopId, list);
-    } else {
-      rootObjects.push(object);
-    }
-  }
-  for (const object of rootObjects) {
-    if (object.kind === "loopedActivity") {
-      object.objectCollection = {
-        ...object.objectCollection,
-        objects: loopObjects.get(object.id) ?? [],
-        flows: [],
-      };
-    }
-  }
-  const nodesById = new Map(schema.nodes.map(node => [node.id, node]));
-  const objectCollection: MicroflowObjectCollection = {
-    id: "root",
-    officialType: "Microflows$MicroflowObjectCollection",
-    objects: rootObjects
-  };
-  const flows = schema.edges.map(edge => legacyEdgeToFlow(edge, nodesById));
-  const variableIndex = buildVariableIndex(parameters, objectCollection, flows);
-  const returnType = schema.nodes
-    .filter(node => node.type === "endEvent")
-    .map(node => {
-      const config = node.config as MicroflowEventConfig;
-      return toMicroflowDataType(config.returnValue?.expectedType ?? config.returnType);
-    })
-    .find(type => type.kind !== "unknown") ?? { kind: "void" as const };
-  return {
-    schemaVersion: "1.0.0",
-    mendixProfile: "mx11",
-    id: schema.id,
-    stableId: schema.id,
-    name: schema.name,
-    displayName: schema.name,
-    description: schema.description,
-    documentation: schema.description,
-    moduleId: "order",
-    moduleName: "Order",
-    parameters: parameters.map(parameter => ({
-      ...parameter,
-      stableId: parameter.stableId ?? parameter.id,
-      dataType: parameter.dataType ?? toMicroflowDataType(parameter.type),
-      documentation: parameter.documentation ?? parameter.description
-    })),
-    returnType,
-    returnVariableName: "result",
-    objectCollection,
-    flows,
-    security: {
-      applyEntityAccess: true,
-      allowedModuleRoleIds: []
-    },
-    concurrency: {
-      allowConcurrentExecution: true
-    },
-    exposure: {
-      exportLevel: "module",
-      markAsUsed: false
-    },
-    variables: variableIndex,
-    validation: {
-      issues: []
-    },
-    editor: {
-      viewport: {
-        x: schema.viewport?.offset.x ?? 0,
-        y: schema.viewport?.offset.y ?? 0,
-        zoom: schema.viewport?.zoom ?? 1
-      },
-      zoom: schema.viewport?.zoom ?? 1,
-      selection: {}
-    },
-    audit: {
-      version: schema.version,
-      status: "draft"
-    }
-  };
-}
-
-export function isLegacyGraphSchema(schema: MicroflowAuthoringSchema | LegacyMicroflowGraphSchema | unknown): schema is LegacyMicroflowGraphSchema {
-  const value = schema as Partial<LegacyMicroflowGraphSchema>;
-  return Array.isArray(value.nodes) && Array.isArray(value.edges);
-}
-
-/** @deprecated Use {@link normalizeMicroflowSchema} from `@atlas/microflow/schema/legacy`. */
-export function ensureAuthoringSchema(schema: MicroflowAuthoringSchema | LegacyMicroflowGraphSchema): MicroflowAuthoringSchema {
-  if (isLegacyGraphSchema(schema)) {
-    return buildAuthoringFieldsFromLegacy(schema);
-  }
-  return schema;
-}
-
-export function applyLegacyGraphPatch(schema: LegacyMicroflowGraphSchema, patch: Partial<Pick<LegacyMicroflowGraphSchema, "nodes" | "edges" | "viewport" | "variables">>): MicroflowAuthoringSchema {
-  const legacySchema = {
-    ...schema,
-    nodes: patch.nodes ?? schema.nodes,
-    edges: patch.edges ?? schema.edges,
-    viewport: patch.viewport ?? schema.viewport,
-    variables: patch.variables ?? schema.variables
-  };
-  return buildAuthoringFieldsFromLegacy(legacySchema);
-}
-
-export function flattenObjectCollection(collection: MicroflowObjectCollection): MicroflowObject[] {
-  return collection.objects.flatMap(object => object.kind === "loopedActivity" ? [object, ...flattenObjectCollection(object.objectCollection)] : [object]);
+export function flattenObjectCollection(collection: MicroflowObjectCollection | undefined): MicroflowObject[] {
+  const safeCollection = normalizeCollection(collection);
+  return safeCollection.objects.flatMap(object => object.kind === "loopedActivity" ? [object, ...flattenObjectCollection(object.objectCollection)] : [object]);
 }
 
 function portsForObject(object: MicroflowObject): MicroflowPort[] {
@@ -994,188 +408,9 @@ function portPosition(object: MicroflowObject, port: MicroflowPort, index: numbe
   return { x: width, y: height / 2 };
 }
 
-export function objectToLegacyNode(object: MicroflowObject, parentLoopId?: string): LegacyMicroflowNode {
-  const typeMap: Record<MicroflowObjectKind, LegacyMicroflowNode["type"]> = {
-    startEvent: "startEvent",
-    endEvent: "endEvent",
-    errorEvent: "errorEvent",
-    breakEvent: "breakEvent",
-    continueEvent: "continueEvent",
-    exclusiveSplit: "decision",
-    inheritanceSplit: "objectTypeDecision",
-    exclusiveMerge: "merge",
-    actionActivity: "activity",
-    loopedActivity: "loop",
-    parameterObject: "parameter",
-    annotation: "annotation",
-    // Gateway / TryCatch / ErrorHandler are modelling-only nodes; the legacy
-    // demo graph union does not include them, so fall back to the closest
-    // legacy shape so adapters keep working without crashing.
-    parallelGateway: "decision",
-    inclusiveGateway: "decision",
-    tryCatch: "activity",
-    errorHandler: "activity"
-  };
-  const type = typeMap[object.kind];
-  const renderShape = object.kind === "annotation" ? "annotation" : object.kind.includes("Split") || object.kind === "exclusiveMerge" ? "diamond" : object.kind === "loopedActivity" ? "loop" : object.kind.endsWith("Event") ? "event" : "roundedRect";
-  const base = {
-    id: object.id,
-    type,
-    kind: type === "decision" ? "decision" : type === "objectTypeDecision" ? "objectTypeDecision" : type === "merge" ? "merge" : type === "loop" ? "loop" : type === "parameter" ? "parameter" : type === "annotation" ? "annotation" : type === "activity" ? "activity" : "event",
-    title: object.caption ?? object.id,
-    titleZh: object.caption ?? object.id,
-    description: object.documentation,
-    category: type === "activity" ? "activities" : type === "loop" ? "loop" : type === "parameter" ? "parameters" : type === "annotation" ? "annotations" : type === "decision" || type === "objectTypeDecision" || type === "merge" ? "decisions" : "events",
-    position: object.relativeMiddlePoint,
-    ports: portsForObject(object),
-    render: { iconKey: object.editor.iconKey ?? object.kind, shape: renderShape, tone: "neutral", width: object.size.width, height: object.size.height },
-    propertyForm: { formKey: object.kind, sections: ["General"] },
-    parentLoopId
-  } as LegacyMicroflowNode;
-  if (object.kind === "actionActivity") {
-    return {
-      ...base,
-      config: {
-        activityType: actionToActivityType(object.action),
-        activityCategory: object.action.editor.category,
-        supportsErrorFlow: object.action.errorHandlingType !== "continue",
-        errorHandling: { mode: object.action.errorHandlingType }
-      }
-    } as LegacyMicroflowNode;
-  }
-  if (object.kind === "exclusiveSplit") {
-    return {
-      ...base,
-      config: object.splitCondition.kind === "expression"
-        ? { expression: object.splitCondition.expression, resultType: object.splitCondition.resultType === "boolean" ? "Boolean" : "Enumeration" }
-        : { expression: expression(""), decisionType: "rule", ruleReference: object.splitCondition.ruleQualifiedName, resultType: "Boolean" }
-    } as LegacyMicroflowNode;
-  }
-  if (object.kind === "inheritanceSplit") {
-    return {
-      ...base,
-      config: { inputObject: object.inputObjectVariableName, generalizedEntity: object.generalizedEntityQualifiedName }
-    } as LegacyMicroflowNode;
-  }
-  if (object.kind === "loopedActivity") {
-    return {
-      ...base,
-      config: object.loopSource.kind === "whileCondition"
-        ? { loopType: "while", iterableVariableName: "", itemVariableName: "", whileExpression: object.loopSource.expression }
-        : { loopType: "forEach", iterableVariableName: object.loopSource.listVariableName, itemVariableName: object.loopSource.iteratorVariableName, indexVariableName: "$currentIndex" }
-    } as LegacyMicroflowNode;
-  }
-  if (object.kind === "parameterObject") {
-    return {
-      ...base,
-      config: { parameter: { id: object.parameterId, name: object.caption ?? object.parameterId, required: true, type: { kind: "unknown", name: "Unknown" } } }
-    } as LegacyMicroflowNode;
-  }
-  if (object.kind === "annotation") {
-    return { ...base, config: { text: object.text } } as LegacyMicroflowNode;
-  }
-  if (object.kind === "endEvent") {
-    return { ...base, config: { returnValue: object.returnValue, returnType: object.returnValue?.expectedType } } as LegacyMicroflowNode;
-  }
-  return { ...base, config: {} } as LegacyMicroflowNode;
-}
-
-function actionToActivityType(action: MicroflowAction): MicroflowActivityType {
-  const map: Partial<Record<MicroflowAction["kind"], MicroflowActivityType>> = {
-    retrieve: "objectRetrieve",
-    createObject: "objectCreate",
-    changeMembers: "objectChange",
-    commit: "objectCommit",
-    delete: "objectDelete",
-    rollback: "objectRollback",
-    cast: "objectCast",
-    aggregateList: "listAggregate",
-    createList: "listCreate",
-    changeList: "listChange",
-    listOperation: "listOperation",
-    callMicroflow: "callMicroflow",
-    callJavaAction: "callJavaAction",
-    callJavaScriptAction: "callJavaScriptAction",
-    callNanoflow: "callNanoflow",
-    createVariable: "variableCreate",
-    changeVariable: "variableChange",
-    restCall: "callRest",
-    webServiceCall: "callWebService",
-    importXml: "importWithMapping",
-    exportXml: "exportWithMapping",
-    callExternalAction: "callExternalAction",
-    logMessage: "logMessage",
-    generateDocument: "generateDocument",
-    mlModelCall: "callMlModel"
-  };
-  return map[action.kind] ?? "logMessage";
-}
-
-export function flowToLegacyEdge(flow: MicroflowFlow): LegacyMicroflowEdge {
-  if (flow.kind === "annotation") {
-    return {
-      id: flow.id,
-      type: "annotation",
-      sourceNodeId: flow.originObjectId,
-      targetNodeId: flow.destinationObjectId,
-      sourcePortId: "note",
-      targetPortId: "in",
-      label: flow.editor.label,
-      description: flow.editor.description,
-      showInExport: flow.editor.showInExport
-    };
-  }
-  const edgeKind = flow.isErrorHandler ? "errorHandler" : flow.editor.edgeKind;
-  return {
-    id: flow.id,
-    type: edgeKind,
-    sourceNodeId: flow.originObjectId,
-    targetNodeId: flow.destinationObjectId,
-    sourcePortId: edgeKind === "errorHandler" ? "error" : flow.caseValues[0]?.kind === "boolean" ? String(flow.caseValues[0].value) : "out",
-    targetPortId: "in",
-    label: flow.editor.label,
-    description: flow.editor.description,
-    conditionValue: caseValueToCondition(flow.caseValues[0], edgeKind),
-    branchOrder: flow.editor.branchOrder,
-    errorHandlingType: flow.isErrorHandler ? "customWithRollback" : undefined
-  } as LegacyMicroflowEdge;
-}
-
-function caseValueToCondition(caseValue: MicroflowCaseValue | undefined, edgeKind: MicroflowEdgeKind) {
-  if (!caseValue) {
-    return undefined;
-  }
-  if (caseValue.kind === "boolean") {
-    return { kind: "boolean" as const, value: caseValue.value };
-  }
-  if (caseValue.kind === "enumeration") {
-    return { kind: "enumeration" as const, value: caseValue.value };
-  }
-  if (caseValue.kind === "inheritance") {
-    return { kind: "objectType" as const, entity: caseValue.entityQualifiedName };
-  }
-  if (edgeKind === "objectTypeCondition") {
-    return { kind: "objectType" as const, entity: caseValue.kind };
-  }
-  return { kind: "enumeration" as const, value: caseValue.kind };
-}
-
-export function toLegacyGraph(schema: MicroflowAuthoringSchema): { nodes: LegacyMicroflowNode[]; edges: LegacyMicroflowEdge[] } {
-  const nodes: LegacyMicroflowNode[] = [];
-  for (const object of schema.objectCollection.objects) {
-    nodes.push(objectToLegacyNode(object));
-    if (object.kind === "loopedActivity") {
-      nodes.push(...object.objectCollection.objects.map(child => objectToLegacyNode(child, object.id)));
-    }
-  }
-  return {
-    nodes,
-    edges: collectFlowsRecursive(schema).map(flowToLegacyEdge)
-  };
-}
-
-export function findMicroflowObject(collection: MicroflowObjectCollection, objectId: string): MicroflowObject | undefined {
-  for (const object of collection.objects) {
+export function findMicroflowObject(collection: MicroflowObjectCollection | undefined, objectId: string): MicroflowObject | undefined {
+  const safeCollection = normalizeCollection(collection);
+  for (const object of safeCollection.objects) {
     if (object.id === objectId) {
       return object;
     }
@@ -1270,19 +505,21 @@ export function toEditorGraph(schema: MicroflowAuthoringSchema): MicroflowEditor
 }
 
 function collectEditorObjects(
-  collection: MicroflowObjectCollection,
+  collection: MicroflowObjectCollection | undefined,
   parentObjectId?: string
 ): Array<{ object: MicroflowObject; collectionId: string; parentObjectId?: string }> {
-  return collection.objects.flatMap(object => [
-    { object, collectionId: collection.id, parentObjectId },
+  const safeCollection = normalizeCollection(collection);
+  return safeCollection.objects.flatMap(object => [
+    { object, collectionId: safeCollection.id, parentObjectId },
     ...(object.kind === "loopedActivity" ? collectEditorObjects(object.objectCollection, object.id) : [])
   ]);
 }
 
-function mapObject(collection: MicroflowObjectCollection, objectId: string, mapper: (object: MicroflowObject) => MicroflowObject): MicroflowObjectCollection {
+function mapObject(collection: MicroflowObjectCollection | undefined, objectId: string, mapper: (object: MicroflowObject) => MicroflowObject): MicroflowObjectCollection {
+  const safeCollection = normalizeCollection(collection);
   return {
-    ...collection,
-    objects: collection.objects.map(object => {
+    ...safeCollection,
+    objects: safeCollection.objects.map(object => {
       const current = object.id === objectId ? mapper(object) : object;
       if (current.kind === "loopedActivity") {
         return {
@@ -1303,7 +540,8 @@ export function applyEditorGraphPatch(schema: MicroflowAuthoringSchema, patch: M
   for (const resized of patch.resizedNodes ?? []) {
     objectCollection = mapObject(objectCollection, resized.objectId, object => ({ ...object, size: resized.size }));
   }
-  const flows = schema.flows.map(flow => {
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
+  const flows = safeFlows.map(flow => {
     const update = patch.updatedFlows?.find(item => item.flowId === flow.id);
     if (!update) {
       return flow;
@@ -1335,6 +573,8 @@ export function applyEditorGraphPatch(schema: MicroflowAuthoringSchema, patch: M
 }
 
 export function toMendixCompat(schema: MicroflowAuthoringSchema): MendixCompatMicroflow {
+  const safeObjectCollection = normalizeCollection(schema.objectCollection);
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
   return {
     $ID: schema.id,
     $Type: "Microflows$Microflow",
@@ -1344,8 +584,8 @@ export function toMendixCompat(schema: MicroflowAuthoringSchema): MendixCompatMi
     parameters: schema.parameters,
     microflowReturnType: toMendixCompatDataType(schema.returnType),
     returnVariableName: schema.returnVariableName ?? "",
-    objectCollection: schema.objectCollection,
-    flows: schema.flows,
+    objectCollection: safeObjectCollection,
+    flows: safeFlows,
     applyEntityAccess: schema.security.applyEntityAccess,
     allowedModuleRoleIds: schema.security.allowedModuleRoleIds,
     allowConcurrentExecution: schema.concurrency.allowConcurrentExecution,
@@ -1363,7 +603,10 @@ export function toMendixCompat(schema: MicroflowAuthoringSchema): MendixCompatMi
 }
 
 export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthoringSchema {
-  const variables = buildVariableIndex(input.parameters, input.objectCollection, input.flows);
+  const safeObjectCollection = normalizeCollection(input.objectCollection);
+  const safeParameters = input.parameters ?? [];
+  const safeFlows = Array.isArray(input.flows) ? input.flows : [];
+  const variables = buildVariableIndex(safeParameters, safeObjectCollection, safeFlows);
   return {
     schemaVersion: "1.0.0",
     mendixProfile: "mx11",
@@ -1373,11 +616,11 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
     displayName: input.name,
     documentation: input.documentation,
     moduleId: input.$UnitID ?? "default",
-    parameters: input.parameters,
+    parameters: safeParameters,
     returnType: fromMendixCompatDataType(input.microflowReturnType),
     returnVariableName: input.returnVariableName,
-    objectCollection: input.objectCollection,
-    flows: input.flows,
+    objectCollection: safeObjectCollection,
+    flows: safeFlows,
     security: {
       applyEntityAccess: input.applyEntityAccess,
       allowedModuleRoleIds: input.allowedModuleRoleIds
@@ -1402,6 +645,8 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
 }
 
 export function toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntimeDto {
+  const safeObjectCollection = normalizeCollection(schema.objectCollection);
+  const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
   const existingVariables = schema.variables;
   const hasExistingVariables = Boolean(existingVariables?.all?.length);
   return {
@@ -1409,9 +654,9 @@ export function toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntime
     schemaVersion: schema.schemaVersion,
     name: schema.name,
     returnType: schema.returnType,
-    parameters: schema.parameters,
-    objectCollection: schema.objectCollection,
-    flows: schema.flows.filter(flow => flow.kind === "sequence"),
+    parameters: schema.parameters ?? [],
+    objectCollection: safeObjectCollection,
+    flows: safeFlows.filter(flow => flow.kind === "sequence"),
     variables: hasExistingVariables && existingVariables ? existingVariables : buildVariableIndexV2(schema, EMPTY_MICROFLOW_METADATA_CATALOG),
     p0RuntimeActionBlocks: []
   };

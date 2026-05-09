@@ -6,7 +6,8 @@ import type {
   MicroflowSchema,
   MicroflowSequenceFlow,
 } from "./types";
-import { CURRENT_AUTHORING_SCHEMA_VERSION } from "./legacy/legacy-migration";
+
+const CURRENT_AUTHORING_SCHEMA_VERSION = "1.0.0";
 
 export interface MicroflowSchemaNormalizeChange {
   type: "schemaVersionRepair" | "loopCollectionIdRepair" | "decisionCaseRepair" | "edgeKindRepair" | "flowCollectionRepair";
