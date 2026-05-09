@@ -130,6 +130,52 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     expect(text.includes("if $riskScore >= 80")).toBe(true);
   });
 
+  it("uses projected inlineConfig view mode when FlowGram renders outside React context", () => {
+    const value = buildNodeValue("expanded");
+    const node = {
+      id: "node-1",
+      getData: () => ({
+        getFormModel: () => ({
+          getFormItemValueByPath: () => value,
+        }),
+      }),
+    };
+
+    render(
+      <MicroflowNodeViewModesContext.Provider value={{}}>
+        <FlowGramMicroflowNodeRenderer node={node as never} />
+      </MicroflowNodeViewModesContext.Provider>
+    );
+
+    expect(screen.getByRole("button", { name: "收起节点" })).toBeTruthy();
+    expect(screen.getByTestId("inline-node-editor")).toBeTruthy();
+  });
+
+  it("prefers projected doc JSON inline state over stale FlowGram form data", () => {
+    const staleFormValue = buildNodeValue("compact");
+    const projectedJsonValue = buildNodeValue("expanded");
+    const node = {
+      id: "node-1",
+      getData: () => ({
+        getFormModel: () => ({
+          getFormItemValueByPath: () => staleFormValue,
+        }),
+      }),
+      toJSON: () => ({
+        data: projectedJsonValue,
+      }),
+    };
+
+    render(
+      <MicroflowNodeViewModesContext.Provider value={{}}>
+        <FlowGramMicroflowNodeRenderer node={node as never} />
+      </MicroflowNodeViewModesContext.Provider>
+    );
+
+    expect(screen.getByRole("button", { name: "收起节点" })).toBeTruthy();
+    expect(screen.getByTestId("inline-node-editor")).toBeTruthy();
+  });
+
   it("dispatches inline node toggle event on double click", () => {
     const events: Array<{ nodeId?: string; expanded?: boolean }> = [];
     const unsub = subscribeInlineNodeToggle(detail => events.push(detail));

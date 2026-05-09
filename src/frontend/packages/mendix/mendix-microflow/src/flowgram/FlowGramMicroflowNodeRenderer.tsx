@@ -1,6 +1,5 @@
 import {
   useContext,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -36,7 +35,7 @@ import {
 } from "./flowgram-node-drag";
 import "./styles/flowgram-microflow-node.css";
 
-function stopEditorControlEvent(event: MouseEvent<HTMLElement>) {
+function stopEditorControlEvent(event: MouseEvent<HTMLElement> | ReactPointerEvent<HTMLElement>) {
   event.preventDefault();
   event.stopPropagation();
 }
@@ -65,9 +64,16 @@ function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeD
     if (!objectKind) {
       return undefined;
     }
-    return {
-      ...(normalizedJsonData ?? {}),
+    // FlowGram's form model can lag behind doc.fromJSON() when the editor projects
+    // transient render state such as inlineConfig.viewMode. Prefer the doc JSON
+    // snapshot for those projected fields, while still using the form model as a
+    // fallback for stable authoring data.
+    const merged = {
       ...(primary ?? {}),
+      ...(normalizedJsonData ?? {}),
+    };
+    return {
+      ...merged,
       objectId: String(primary?.objectId ?? normalizedJsonData?.objectId ?? props.node.id),
       objectKind: objectKind as FlowGramMicroflowNodeData["objectKind"],
       collectionId: String(primary?.collectionId ?? normalizedJsonData?.collectionId ?? ""),
@@ -187,10 +193,11 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   const readonly = usePlaygroundReadonlyState();
   const [focused, setFocused] = useState(false);
   const data = tryReadNodeData(props);
-  const expandBtnRef = useRef<HTMLButtonElement>(null);
   const resolvedNodeIdForState = String(data?.objectId || props.node.id);
   const nodeViewModesCtx = useContext(MicroflowNodeViewModesContext);
+  const dataProjectedViewMode = data?.inlineConfig?.viewMode;
   const projectedExpanded =
+    dataProjectedViewMode === "expanded" ||
     nodeViewModesCtx[resolvedNodeIdForState] === "expanded" ||
     nodeViewModesCtx[`node-${resolvedNodeIdForState}`] === "expanded" ||
     nodeViewModesCtx[resolvedNodeIdForState.replace(/^node-/, "")] === "expanded";
@@ -252,31 +259,6 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
     }
     setEditorMounted(false);
   };
-
-  // Ref keeps the latest toggle payload so the click handler never goes stale,
-  // while the effect itself runs only once per mount (empty deps = no listener churn).
-  const expandClickPayloadRef = useRef({
-    nodeId: resolvedNodeIdForState,
-    runtimeNodeId: String(props.node.id),
-    expanded: !currentExpanded,
-  });
-  expandClickPayloadRef.current = {
-    nodeId: resolvedNodeIdForState,
-    runtimeNodeId: String(props.node.id),
-    expanded: !currentExpanded,
-  };
-
-  useEffect(() => {
-    const btn = expandBtnRef.current;
-    if (!btn) return;
-    const handle = (e: Event) => {
-      e.stopPropagation();
-      e.preventDefault();
-      emitInlineNodeToggle(expandClickPayloadRef.current);
-    };
-    btn.addEventListener("click", handle);
-    return () => btn.removeEventListener("click", handle);
-  }, []);
 
   const canStartNodeDrag = (event: MouseEvent<HTMLDivElement>) => {
     if (readonly || event.button !== 0) {
@@ -431,13 +413,18 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
           ) : null}
         </div>
         <button
-          ref={expandBtnRef}
           type="button"
           className="microflow-flowgram-node__expand-btn"
           data-flow-editor-selectable="false"
           aria-label={isExpanded ? "收起节点" : "展开节点"}
           title={isExpanded ? "收起（Esc）" : "展开编辑（双击节点也可）"}
           style={{ pointerEvents: "auto", position: "relative", zIndex: 5 }}
+          onPointerDown={stopEditorControlEvent}
+          onMouseDown={stopEditorControlEvent}
+          onClick={event => {
+            stopEditorControlEvent(event);
+            emitInlineNodeToggle({ nodeId: resolvedNodeId, runtimeNodeId: String(props.node.id), expanded: !currentExpanded });
+          }}
         >
           {isExpanded
             ? <><IconTickCircle style={{ marginRight: 3, verticalAlign: "middle" }} />完成</>

@@ -336,6 +336,9 @@ function summarizeTraceFrameForTestRun(frame: MicroflowTraceFrame): Record<strin
   if (frame.outputVariables !== undefined) {
     row.outputVariables = frame.outputVariables;
   }
+  if (frame.variableDelta !== undefined) {
+    row.variableDelta = frame.variableDelta;
+  }
   if (frame.outputMappingsResolved !== undefined) {
     row.outputMappingsResolved = frame.outputMappingsResolved;
   }

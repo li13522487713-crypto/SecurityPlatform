@@ -75,7 +75,16 @@ function createSession(): MicroflowRunSession {
         startedAt: "2026-05-05T10:00:01.000Z",
         durationMs: 12,
         input: { url: "/api/order", timeoutMs: 800 },
-        output: { statusCode: 504, branchTrace: [] },
+        output: { statusCode: 504, calculatedScore: 188, branchTrace: [] },
+        outputVariables: {
+          calculatedScore: {
+            name: "calculatedScore",
+            type: { kind: "integer" } as never,
+            valuePreview: "188",
+            rawValue: 188,
+          },
+        },
+        variableDelta: { added: ["calculatedScore"], changed: [], removed: [] },
         error: {
           code: "RUNTIME_REST_TIMEOUT",
           message: "请求超时",
@@ -100,8 +109,27 @@ describe("MicroflowTracePanel", () => {
     );
 
     expect(screen.getByText("in{riskScore, tenantId} · out{nextObjectId}")).toBeTruthy();
-    expect(screen.getByText("in{url, timeoutMs} · out{statusCode, branchTrace}")).toBeTruthy();
+    expect(screen.getByText("in{url, timeoutMs} · out{statusCode, calculatedScore, branchTrace}")).toBeTruthy();
     expect(screen.getByText("RUNTIME_REST_TIMEOUT: 请求超时")).toBeTruthy();
+  });
+
+  it("在 Node Results 中保留逐节点输出变量、计算值和变量增量", () => {
+    render(
+      <MicroflowTracePanel
+        microflowId="mf-1"
+        microflowName="订单审批"
+        session={createSession()}
+        onSelectFrame={() => {}}
+        onSelectFlow={() => {}}
+      />,
+    );
+
+    expect(document.body.textContent).toContain("\"outputSnapshot\"");
+    expect(document.body.textContent).toContain("\"calculatedScore\": 188");
+    expect(document.body.textContent).toContain("\"outputVariables\"");
+    expect(document.body.textContent).toContain("\"rawValue\": 188");
+    expect(document.body.textContent).toContain("\"variableDelta\"");
+    expect(document.body.textContent).toContain("\"added\"");
   });
 
   it("点击 trace 交互可回调到画布对象", () => {

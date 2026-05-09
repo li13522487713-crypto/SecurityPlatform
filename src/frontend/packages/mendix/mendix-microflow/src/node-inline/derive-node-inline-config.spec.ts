@@ -195,6 +195,9 @@ describe("deriveNodeInlineConfig", () => {
   function findFieldOption(inline: ReturnType<typeof deriveNodeInlineConfig>, fieldPath: string) {
     return inline.sections.flatMap(section => section.fields).find(field => field.fieldPath === fieldPath)?.options;
   }
+  function findField(inline: ReturnType<typeof deriveNodeInlineConfig>, fieldPath: string) {
+    return inline.sections.flatMap(section => section.fields).find(field => field.fieldPath === fieldPath);
+  }
 
   it("derives decision inline config with condition and branch sections", () => {
     const node: MicroflowWorkflowNodeJSON = {
@@ -457,9 +460,19 @@ describe("deriveNodeInlineConfig", () => {
       } as never,
       meta: { position: { x: 200, y: 0 } },
     };
-    const startInline = deriveNodeInlineConfig({ node: startNode, schema: buildSchema(startNode) });
+    const startSchema = buildSchema(startNode);
+    startSchema.parameters = [
+      { id: "p-order", name: "orderId", dataType: { kind: "string" }, required: true } as never,
+      { id: "p-amount", name: "amount", dataType: { kind: "decimal" }, required: false } as never,
+    ];
+    const startInline = deriveNodeInlineConfig({ node: startNode, schema: startSchema });
     const endInline = deriveNodeInlineConfig({ node: endNode, schema: buildSchema(endNode) });
     expect(startInline.summaryLines.length).toBeGreaterThan(0);
+    expect(startInline.sections.some(section => section.kind === "inputs")).toBe(true);
+    expect(findField(startInline, "parameters.0.name")).toMatchObject({ value: "orderId", editType: "text" });
+    expect(findFieldOption(startInline, "parameters.0.dataType.kind")?.some(option => option.value === "string")).toBe(true);
+    expect(findFieldOption(startInline, "parameters.0.required")?.some(option => option.value === "true")).toBe(true);
+    expect(findField(startInline, "parameters.1.name")).toMatchObject({ value: "amount", editType: "text" });
     expect(endInline.sections.some(section => section.id === "output-mappings")).toBe(true);
   });
 

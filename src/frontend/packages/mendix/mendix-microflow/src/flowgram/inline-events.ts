@@ -44,6 +44,9 @@ const inlineNodeToggleListeners = new Set<InlineEventListener<MicroflowInlineNod
 const inlineNodeInspectListeners = new Set<InlineEventListener<MicroflowInlineNodeInspectDetail>>();
 
 function dispatchInlineEvent<T>(name: string, detail: T): void {
+  if (typeof window === "undefined") {
+    return;
+  }
   window.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
@@ -69,10 +72,12 @@ export function subscribeInlineNodeInspect(listener: InlineEventListener<Microfl
 
 export function emitInlineNodeToggle(detail: MicroflowInlineNodeToggleDetail): void {
   notifyInlineListeners(inlineNodeToggleListeners, detail);
+  dispatchInlineEvent(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, detail);
 }
 
 export function emitInlineNodeInspect(detail: MicroflowInlineNodeInspectDetail): void {
   notifyInlineListeners(inlineNodeInspectListeners, detail);
+  dispatchInlineEvent(MICROFLOW_INLINE_NODE_INSPECT_EVENT, detail);
 }
 
 export function emitInlineFieldCommit(detail: MicroflowInlineFieldCommitDetail): void {
@@ -86,4 +91,3 @@ export function emitInlineLineLabelCommit(detail: MicroflowInlineLineLabelCommit
 export function emitInlineQuickFix(detail: MicroflowInlineQuickFixDetail): void {
   dispatchInlineEvent(MICROFLOW_INLINE_QUICK_FIX_EVENT, detail);
 }
-
