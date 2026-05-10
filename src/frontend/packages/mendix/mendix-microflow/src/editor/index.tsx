@@ -807,8 +807,8 @@ const canvasStyle: CSSProperties = {
 function screenToCanvas(container: HTMLDivElement | null, event: { clientX: number; clientY: number }, graph: MicroflowEditorGraph) {
   const rect = container?.getBoundingClientRect();
   return {
-    x: ((event.clientX - (rect?.left ?? 0)) - graph.viewport.x) / graph.viewport.zoom,
-    y: ((event.clientY - (rect?.top ?? 0)) - graph.viewport.y) / graph.viewport.zoom
+    x: ((event.clientX - (rect?.left ?? 0)) + graph.viewport.x) / graph.viewport.zoom,
+    y: ((event.clientY - (rect?.top ?? 0)) + graph.viewport.y) / graph.viewport.zoom
   };
 }
 

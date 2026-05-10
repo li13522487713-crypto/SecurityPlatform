@@ -15,6 +15,10 @@
  */
 
 import 'reflect-metadata';
+import { Emitter as FlowGramEmitter } from '@flowgram.ai/utils';
+
+FlowGramEmitter.LEAK_WARNING_THRESHHOLD = Math.max(FlowGramEmitter.LEAK_WARNING_THRESHHOLD, 1000);
+
 export { useObserve, ReactiveState } from '@flowgram.ai/reactive';
 export {
   type IPoint,

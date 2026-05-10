@@ -2,8 +2,8 @@ import { toEditorGraph } from "../adapters/microflow-adapters";
 import type { MicroflowEditorGraphPatch, MicroflowEditorNode, MicroflowSchema } from "../schema/types";
 import type { MicroflowAutoLayoutInput, MicroflowLayoutBounds } from "./auto-layout-types";
 
-const defaultLayerGap = 280;
-const defaultNodeGap = 150;
+const defaultLayerGap = 360;
+const defaultNodeGap = 210;
 const startX = 120;
 const startY = 120;
 

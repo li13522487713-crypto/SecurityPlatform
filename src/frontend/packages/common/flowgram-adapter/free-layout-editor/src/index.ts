@@ -15,6 +15,10 @@
  */
 
 import 'reflect-metadata';
+import { Emitter as FlowGramEmitter } from '@flowgram.ai/free-layout-editor';
+
+FlowGramEmitter.LEAK_WARNING_THRESHHOLD = Math.max(FlowGramEmitter.LEAK_WARNING_THRESHHOLD, 1000);
+
 export {
   FlowMinimapService,
   MinimapRender,

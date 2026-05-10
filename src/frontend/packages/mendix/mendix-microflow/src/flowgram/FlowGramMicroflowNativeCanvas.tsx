@@ -65,6 +65,9 @@ import "./styles/flowgram-microflow-port.css";
 import "./styles/flowgram-microflow-line.css";
 
 const MICROFLOW_GRID_SIZE = 16;
+const INITIAL_START_VIEWPORT_ZOOM = 0.75;
+const INITIAL_START_VIEWPORT_LEFT_PADDING = 120;
+const INITIAL_START_VIEWPORT_TOP_RATIO = 0.32;
 // 拖放时用于居中节点：默认节点尺寸的一半（defaultNodeSize: 160×76）
 const NODE_DROP_HALF_W = 80;
 const NODE_DROP_HALF_H = 38;
@@ -333,6 +336,25 @@ function fitViewportForWorkflow(workflow: MicroflowWorkflowJSON | WorkflowJSON, 
   return {
     x: Math.round((bounds.minX + bounds.width / 2) * zoom - rect.width / 2),
     y: Math.round((bounds.minY + bounds.height / 2) * zoom - rect.height / 2),
+    zoom,
+  };
+}
+
+function findStartNodeForViewport(workflow: MicroflowWorkflowJSON | WorkflowJSON): MicroflowWorkflowNodeJSON | undefined {
+  const nodes = (workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[];
+  return nodes.find(node => ((node.data as Partial<FlowGramMicroflowNodeData> | undefined)?.objectKind ?? node.type) === "startEvent") ?? nodes[0];
+}
+
+function initialViewportFromStartNode(workflow: MicroflowWorkflowJSON | WorkflowJSON, rect: Pick<DOMRect, "width" | "height">): MicroflowDesignSchema["editor"]["viewport"] {
+  const startNode = findStartNodeForViewport(workflow);
+  if (!startNode) {
+    return { x: 0, y: 0, zoom: INITIAL_START_VIEWPORT_ZOOM };
+  }
+  const position = startNode.meta?.position ?? { x: 0, y: 0 };
+  const zoom = INITIAL_START_VIEWPORT_ZOOM;
+  return {
+    x: Math.round(Math.max(0, position.x * zoom - INITIAL_START_VIEWPORT_LEFT_PADDING)),
+    y: Math.round(Math.max(0, position.y * zoom - rect.height * INITIAL_START_VIEWPORT_TOP_RATIO)),
     zoom,
   };
 }
@@ -997,7 +1019,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       return;
     }
     initialViewportFitDoneRef.current = true;
-    props.onViewportChange?.(fitViewportForWorkflow(props.schema.workflow, rect), { skipDirty: true });
+    props.onViewportChange?.(initialViewportFromStartNode(props.schema.workflow, rect), { skipDirty: true });
   }, [props.schema.workflow, props.onViewportChange]);
 
   useEffect(() => {
