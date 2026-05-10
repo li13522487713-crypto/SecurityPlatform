@@ -1,8 +1,30 @@
-.gedit-flow-lines-layer svg path {
-  stroke: rgba(190, 199, 213, 0.66);
-  stroke-width: 1.35px;
+.microflow-flowgram-canvas .gedit-flow-lines-layer svg path,
+.microflow-flowgram-canvas .gedit-flow-lines-layer svg line,
+.microflow-flowgram-canvas .gedit-flow-activity-edge path,
+.microflow-flowgram-canvas .gedit-flow-activity-edge line {
+  stroke: #555e78 !important;
+  stroke-width: 1px !important;
+  fill: none !important;
   stroke-linecap: square;
   stroke-linejoin: miter;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge marker path {
+  fill: #555e78 !important;
+  stroke: #555e78 !important;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.selected path,
+.microflow-flowgram-canvas .gedit-flow-activity-edge.is-selected path {
+  stroke: #4a9eff !important;
+  stroke-width: 1.5px !important;
+}
+
+.microflow-flowgram-canvas .edge-executed path,
+.microflow-flowgram-canvas .is-runtime-visited path,
+.microflow-flowgram-canvas .is-runtime-selectedCase path {
+  stroke: #4ade80 !important;
+  stroke-width: 1.5px !important;
 }
 
 .microflow-flowgram-line--errorHandler {

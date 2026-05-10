@@ -27,6 +27,23 @@
   cursor: grabbing;
 }
 
+.microflow-flowgram-canvas .gedit-playground,
+.microflow-flowgram-canvas .gedit-scroll-container,
+.microflow-flowgram-canvas .gedit-flow-background-layer {
+  background-color: #171b22 !important;
+}
+
+.microflow-flowgram-canvas .gedit-playground::before,
+.microflow-flowgram-canvas .gedit-flow-background-layer::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgba(202, 210, 224, 0.22) 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.38;
+}
+
 .microflow-flowgram-canvas-controls {
   position: absolute;
   top: 12px;

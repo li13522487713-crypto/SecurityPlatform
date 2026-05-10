@@ -1,9 +1,9 @@
 import type { MicroflowObjectKind, MicroflowPoint, MicroflowSize } from "../schema";
 
-export const MICROFLOW_EVENT_NODE_SIZE: MicroflowSize = { width: 86, height: 34 };
-export const MICROFLOW_ACTIVITY_NODE_SIZE: MicroflowSize = { width: 104, height: 78 };
-export const MICROFLOW_DECISION_NODE_SIZE: MicroflowSize = { width: 132, height: 88 };
-export const MICROFLOW_MERGE_NODE_SIZE: MicroflowSize = { width: 82, height: 66 };
+export const MICROFLOW_EVENT_NODE_SIZE: MicroflowSize = { width: 80, height: 28 };
+export const MICROFLOW_ACTIVITY_NODE_SIZE: MicroflowSize = { width: 56, height: 56 };
+export const MICROFLOW_DECISION_NODE_SIZE: MicroflowSize = { width: 40, height: 40 };
+export const MICROFLOW_MERGE_NODE_SIZE: MicroflowSize = { width: 40, height: 40 };
 export const MICROFLOW_LOOP_NODE_SIZE: MicroflowSize = { width: 320, height: 190 };
 export const MICROFLOW_PARAMETER_NODE_SIZE: MicroflowSize = { width: 118, height: 56 };
 export const MICROFLOW_ANNOTATION_NODE_SIZE: MicroflowSize = { width: 210, height: 96 };

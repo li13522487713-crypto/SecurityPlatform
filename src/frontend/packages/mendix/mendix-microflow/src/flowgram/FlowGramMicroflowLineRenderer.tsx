@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { Input } from "@douyinfe/semi-ui";
 import {
@@ -79,7 +79,7 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   if (!data) {
     return null;
   }
-  const label = useMemo(() => lineLabelFromEdgeData(data), [data]);
+  const label = lineLabelFromEdgeData(data);
   const warningMissingTarget = !data.targetNodeId && (
     data.edgeKind === "decisionCondition"
     || data.edgeKind === "objectTypeCondition"
