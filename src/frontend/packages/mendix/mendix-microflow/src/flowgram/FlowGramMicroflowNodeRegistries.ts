@@ -13,11 +13,13 @@ import {
 
 import { defaultMicroflowObjectNodeRegistry, objectKindFromRegistryItem } from "../node-registry";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
+import { getMendixMicroflowNodeSize } from "./flowgram-node-geometry";
 
 export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] {
   const registries = defaultMicroflowObjectNodeRegistry.map(item => {
     const kind = objectKindFromRegistryItem(item);
     const isEndLike = ["endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(kind);
+    const size = getMendixMicroflowNodeSize(kind);
     return ({
       type: kind,
       meta: {
@@ -27,7 +29,7 @@ export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] 
         isNodeEnd: isEndLike,
         isContainer: kind === "loopedActivity",
         nodeDTOType: kind,
-        size: { width: item.render.width, height: item.render.height },
+        size,
         deleteDisable: false,
         copyDisable: false,
         useDynamicPort: true,
@@ -46,7 +48,7 @@ export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] 
         isNodeEnd: false,
         isContainer: false,
         nodeDTOType: "actionActivity",
-        size: { width: 178, height: 76 },
+        size: getMendixMicroflowNodeSize("actionActivity"),
         deleteDisable: false,
         copyDisable: false,
         useDynamicPort: true,

@@ -1,13 +1,16 @@
 .gedit-flow-lines-layer svg path {
-  stroke-linecap: round;
+  stroke: rgba(190, 199, 213, 0.66);
+  stroke-width: 1.35px;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
 }
 
 .microflow-flowgram-line--errorHandler {
-  stroke: #d73135;
+  stroke: #f05b5f;
 }
 
 .microflow-flowgram-line--annotation {
-  stroke: #86909c;
+  stroke: rgba(161, 171, 186, 0.62);
   stroke-dasharray: 6 6;
 }
 
@@ -21,13 +24,13 @@
 
 .microflow-flowgram-line.is-runtime-visited,
 .microflow-flowgram-line.is-runtime-selectedCase {
-  stroke: #00a870;
-  stroke-width: 2.5px;
+  stroke: #28c786;
+  stroke-width: 2.1px;
 }
 
 .microflow-flowgram-line.is-runtime-errorHandlerVisited {
-  stroke: #d73135;
-  stroke-width: 3px;
+  stroke: #f05b5f;
+  stroke-width: 2.2px;
 }
 
 .microflow-flowgram-line.is-runtime-skipped {
@@ -45,20 +48,21 @@
 }
 
 .microflow-branch-label {
-  border: 1px solid rgba(31, 35, 41, 0.18);
-  background: #fff;
+  border: 1px solid rgba(222, 229, 240, 0.24);
+  background: rgba(242, 245, 249, 0.96);
   border-radius: 999px;
-  padding: 0 8px;
-  line-height: 20px;
-  height: 22px;
-  font-size: 12px;
-  color: #1f2329;
+  padding: 0 7px;
+  line-height: 17px;
+  height: 19px;
+  font-size: 11px;
+  color: #1d2530;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
 }
-.microflow-branch-label.is-true { border-color: rgba(0, 168, 112, 0.35); color: #006b49; }
-.microflow-branch-label.is-false { border-color: rgba(215, 49, 53, 0.35); color: #9f1f22; }
+.microflow-branch-label.is-true { border-color: rgba(40, 199, 134, 0.45); color: #006b49; }
+.microflow-branch-label.is-false { border-color: rgba(240, 91, 95, 0.45); color: #9f1f22; }
 .microflow-branch-label.is-else { border-color: rgba(134, 144, 156, 0.45); color: #4e5969; }
 
 .microflow-branch-label.is-editing {
@@ -67,7 +71,7 @@
 }
 
 .microflow-branch-label.is-runtime-active {
-  border-color: #00a870;
+  border-color: #28c786;
   color: #006b49;
 }
 

@@ -25,6 +25,7 @@ import {
   getDisabledDragReason,
   hasMicroflowNodeDragType,
   microflowNodeRegistryByKey,
+  objectKindFromRegistryItem,
   readMicroflowNodeDragPayload,
   takeMicroflowNodePointerDrag,
   type MicroflowNodeDragPayload,
@@ -55,7 +56,15 @@ import {
   zoomViewportForPanToolWheel,
 } from "./flowgram-canvas-interactions";
 import { decorateWorkflow } from "./flowgram-workflow-decorate";
+import {
+  canDropRegistryObjectKindInLoop,
+  findLoopParentAtPoint,
+  isMicroflowDesignEdgeBusinessValid,
+  normalizeMicroflowDesignEdges,
+} from "./flowgram-design-edge-semantics";
+import { getMendixMicroflowDropOffset, getMendixMicroflowNodeSize } from "./flowgram-node-geometry";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
+import { MICROFLOW_GRID_SIZE, clientPointToFlowGramPoint, snapMicroflowPoint } from "./adapters/flowgram-coordinate";
 import { stripTransientWorkflowState } from "./transient-workflow-state";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
@@ -65,13 +74,9 @@ import "./styles/flowgram-microflow-canvas.css";
 import "./styles/flowgram-microflow-port.css";
 import "./styles/flowgram-microflow-line.css";
 
-const MICROFLOW_GRID_SIZE = 16;
 const INITIAL_START_VIEWPORT_ZOOM = 0.75;
 const INITIAL_START_VIEWPORT_LEFT_PADDING = 120;
 const INITIAL_START_VIEWPORT_TOP_RATIO = 0.32;
-// 拖放时用于居中节点：默认节点尺寸的一半（defaultNodeSize: 160×76）
-const NODE_DROP_HALF_W = 80;
-const NODE_DROP_HALF_H = 38;
 
 type FlowGramPlaygroundViewportConfig = {
   zoom?: number | ((zoom: number) => void);
@@ -221,7 +226,9 @@ function ensureNodeData(node: MicroflowWorkflowNodeJSON): MicroflowWorkflowNodeJ
         x: Number(node.meta?.position?.x ?? 0),
         y: Number(node.meta?.position?.y ?? 0),
       },
+      size: node.meta?.size ?? getMendixMicroflowNodeSize(objectKind),
       collectionId: node.meta?.collectionId ?? data?.collectionId ?? MICROFLOW_ROOT_COLLECTION_ID,
+      parentObjectId: node.meta?.parentObjectId ?? data?.parentObjectId,
       nodeDTOType: objectKind,
       useDynamicPort: true,
       defaultPorts: node.meta?.defaultPorts?.length
@@ -251,25 +258,26 @@ function ensureEdgeData(edge: MicroflowWorkflowEdgeJSON, index: number): Microfl
 }
 
 function normalizeWorkflow(workflow: WorkflowJSON | MicroflowWorkflowJSON, options: { snapToGrid?: boolean } = {}): WorkflowJSON {
+  const nodes = ((workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(node => {
+    const normalized = ensureNodeData(node);
+    if (!options.snapToGrid || !normalized.meta?.position) {
+      return normalized;
+    }
+    return {
+      ...normalized,
+      meta: {
+        ...normalized.meta,
+        position: {
+          x: Math.round(normalized.meta.position.x / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+          y: Math.round(normalized.meta.position.y / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+        },
+      },
+    };
+  });
   return {
     ...workflow,
-    nodes: ((workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(node => {
-      const normalized = ensureNodeData(node);
-      if (!options.snapToGrid || !normalized.meta?.position) {
-        return normalized;
-      }
-      return {
-        ...normalized,
-        meta: {
-          ...normalized.meta,
-          position: {
-            x: Math.round(normalized.meta.position.x / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
-            y: Math.round(normalized.meta.position.y / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
-          },
-        },
-      };
-    }) as WorkflowJSON["nodes"],
-    edges: ((workflow.edges ?? []) as MicroflowWorkflowEdgeJSON[]).map(ensureEdgeData) as WorkflowJSON["edges"],
+    nodes: nodes as WorkflowJSON["nodes"],
+    edges: normalizeMicroflowDesignEdges({ ...workflow, nodes } as WorkflowJSON).map(ensureEdgeData) as WorkflowJSON["edges"],
   };
 }
 
@@ -308,6 +316,23 @@ function fitViewportForWorkflow(workflow: MicroflowWorkflowJSON | WorkflowJSON, 
     return { x: 0, y: 0, zoom: 1 };
   }
   const zoom = Math.max(0.2, Math.min(1.2, Math.min((rect.width - 120) / bounds.width, (rect.height - 120) / bounds.height)));
+  return {
+    x: Math.round((bounds.minX + bounds.width / 2) * zoom - rect.width / 2),
+    y: Math.round((bounds.minY + bounds.height / 2) * zoom - rect.height / 2),
+    zoom,
+  };
+}
+
+function centerViewportForWorkflow(
+  workflow: MicroflowWorkflowJSON | WorkflowJSON,
+  rect: Pick<DOMRect, "width" | "height">,
+  currentZoom: number,
+): MicroflowDesignSchema["editor"]["viewport"] {
+  const bounds = graphBounds(workflow);
+  const zoom = Math.max(0.2, Math.min(2, currentZoom || 1));
+  if (!bounds) {
+    return { x: 0, y: 0, zoom };
+  }
   return {
     x: Math.round((bounds.minX + bounds.width / 2) * zoom - rect.width / 2),
     y: Math.round((bounds.minY + bounds.height / 2) * zoom - rect.height / 2),
@@ -356,25 +381,11 @@ function lineMatchesEdge(line: WorkflowLineEntity, edge: WorkflowEdgeJSON): bool
 }
 
 function edgeIsBusinessValid(workflow: WorkflowJSON, edge: WorkflowEdgeJSON): boolean {
-  const source = workflowNodeById(workflow, String(edge.sourceNodeID));
-  const target = workflowNodeById(workflow, String(edge.targetNodeID));
-  if (!source || !target || source.id === target.id) {
-    return false;
-  }
-  const sourceKind = (source.data as Partial<FlowGramMicroflowNodeData> | undefined)?.objectKind ?? source.type;
-  const targetKind = (target.data as Partial<FlowGramMicroflowNodeData> | undefined)?.objectKind ?? target.type;
-  if (sourceKind === "endEvent" || targetKind === "startEvent") {
-    return false;
-  }
-  const matchingEdges = ((workflow.edges ?? []) as WorkflowEdgeJSON[]).filter(candidate => edgeKey(candidate) === edgeKey(edge));
-  if (matchingEdges.length > 1) {
-    return false;
-  }
-  return true;
+  return isMicroflowDesignEdgeBusinessValid(workflow, edge);
 }
 
 function findInvalidBusinessEdge(workflow: WorkflowJSON): WorkflowEdgeJSON | undefined {
-  return ((workflow.edges ?? []) as WorkflowEdgeJSON[]).find(edge => !edgeIsBusinessValid(workflow, edge));
+  return [...((workflow.edges ?? []) as WorkflowEdgeJSON[])].reverse().find(edge => !edgeIsBusinessValid(workflow, edge));
 }
 
 function selectionFromIds(workflow: MicroflowWorkflowJSON, ids: string[]): FlowGramMicroflowSelection {
@@ -614,6 +625,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   }, [playground.config, props.readonly]);
 
   useEffect(() => {
+    if (draggingRef.current) {
+      return;
+    }
     const nextSignature = workflowSignature(renderedWorkflow);
     const currentDocSignature = workflowSignature(normalizeWorkflow(doc.toJSON() as WorkflowJSON));
     if (lastWorkflowSignatureRef.current === nextSignature && currentDocSignature === nextSignature) {
@@ -721,34 +735,38 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     };
   }, []);
 
-  const dropPointFromClient = (clientX: number, clientY: number, nativeEvent?: globalThis.MouseEvent): MicroflowPoint => {
+  const dropPlacementFromClient = (
+    clientX: number,
+    clientY: number,
+    item: MicroflowNodeRegistryItem,
+    nativeEvent?: globalThis.MouseEvent,
+  ): { position: MicroflowPoint; parentLoopObjectId?: string; valid: boolean } => {
     const rect = containerRef.current?.getBoundingClientRect();
     const viewport = props.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
-    const localX = rect ? clientX - rect.left : clientX;
-    const localY = rect ? clientY - rect.top : clientY;
-    const fallback = {
-      x: (localX + viewport.x) / Math.max(0.2, viewport.zoom),
-      y: (localY + viewport.y) / Math.max(0.2, viewport.zoom),
-    };
+    const fallback = clientPointToFlowGramPoint({ x: clientX, y: clientY }, rect, viewport);
     const dragPosition = nativeEvent
       ? playground.config.getPosFromMouseEvent?.(nativeEvent) as MicroflowPoint | undefined
       : undefined;
-    const position = dragPosition ?? fallback;
-    // 居中：让节点中心落在鼠标位置，而非左上角
+    const logicalCursor = dragPosition ?? fallback;
+    const objectKind = objectKindFromRegistryItem(item);
+    const parentLoopObjectId = findLoopParentAtPoint(
+      normalizeWorkflow(latestSchemaRef.current.workflow),
+      logicalCursor,
+    );
+    const offset = getMendixMicroflowDropOffset(objectKind);
     const centered = {
-      x: position.x - NODE_DROP_HALF_W,
-      y: position.y - NODE_DROP_HALF_H,
+      x: logicalCursor.x - offset.x,
+      y: logicalCursor.y - offset.y,
     };
-    return gridEnabled
-      ? {
-          x: Math.round(centered.x / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
-          y: Math.round(centered.y / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
-        }
-      : centered;
+    return {
+      position: gridEnabled ? snapMicroflowPoint(centered) : centered,
+      parentLoopObjectId,
+      valid: canDropRegistryObjectKindInLoop(objectKind, parentLoopObjectId),
+    };
   };
 
-  const dropPointFromEvent = (event: DragEvent<HTMLDivElement>): MicroflowPoint =>
-    dropPointFromClient(event.clientX, event.clientY, event.nativeEvent);
+  const dropPlacementFromEvent = (event: DragEvent<HTMLDivElement>, item: MicroflowNodeRegistryItem) =>
+    dropPlacementFromClient(event.clientX, event.clientY, item, event.nativeEvent);
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {
@@ -756,7 +774,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     }
     event.preventDefault();
     event.stopPropagation();
-    event.dataTransfer.dropEffect = "copy";
+    const payload = readMicroflowNodeDragPayload(event.dataTransfer);
+    const item = payload ? microflowNodeRegistryByKey.get(payload.registryKey) : undefined;
+    const placement = item ? dropPlacementFromEvent(event, item) : undefined;
+    event.dataTransfer.dropEffect = placement?.valid === false ? "none" : "copy";
     setDropActive(true);
   };
 
@@ -785,7 +806,12 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       Toast.warning("该节点当前不可拖拽创建。");
       return;
     }
-    props.onDropRegistryItem?.(item, dropPointFromEvent(event), payload);
+    const placement = dropPlacementFromEvent(event, item);
+    if (!placement.valid) {
+      Toast.warning("该节点不能放置在当前 Loop 区域。");
+      return;
+    }
+    props.onDropRegistryItem?.(item, placement.position, payload, { parentLoopObjectId: placement.parentLoopObjectId });
   };
 
   const handlePointerFallbackDrop = (event: MouseEvent<HTMLDivElement>) => {
@@ -814,7 +840,12 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     }
     event.preventDefault();
     event.stopPropagation();
-    props.onDropRegistryItem?.(item, dropPointFromClient(event.clientX, event.clientY, event.nativeEvent), payload);
+    const placement = dropPlacementFromClient(event.clientX, event.clientY, item, event.nativeEvent);
+    if (!placement.valid) {
+      Toast.warning("该节点不能放置在当前 Loop 区域。");
+      return;
+    }
+    props.onDropRegistryItem?.(item, placement.position, payload, { parentLoopObjectId: placement.parentLoopObjectId });
   };
 
   const openContextMenuFromTarget = (target: HTMLElement | undefined, point: { x: number; y: number }): boolean => {
@@ -985,6 +1016,16 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     props.onViewportChange?.(fitViewportForWorkflow(props.schema.workflow, rect));
   };
 
+  const centerViewportToWorkflow = () => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    const viewport = props.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+    if (!rect) {
+      props.onViewportChange?.({ x: 0, y: 0, zoom: viewport.zoom });
+      return;
+    }
+    props.onViewportChange?.(centerViewportForWorkflow(props.schema.workflow, rect, viewport.zoom));
+  };
+
   useEffect(() => {
     if (initialViewportFitDoneRef.current) {
       return;
@@ -1014,13 +1055,17 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         return;
       }
 
-      // Ctrl+滚轮：以鼠标位置为中心缩放（任何区域均生效）
-      if (e.ctrlKey || e.metaKey) {
+      if (isPointerTargetPanExempt(t, false)) {
+        return;
+      }
+
+      // 普通滚轮缩放；Ctrl/Meta+滚轮使用更小倍率，适合微调。
+      if (!panToolActiveRef.current || e.ctrlKey || e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
         const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
         const rect = root.getBoundingClientRect();
-        const scale = Math.exp(-e.deltaY * 0.004);
+        const scale = Math.exp(-e.deltaY * ((e.ctrlKey || e.metaKey) ? 0.0016 : 0.0032));
         const localX = e.clientX - rect.left;
         const localY = e.clientY - rect.top;
         const next = microflowZoomViewportAtLocalPoint(v, localX, localY, v.zoom * scale);
@@ -1037,13 +1082,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         return;
       }
 
-      // 平移工具模式下的普通滚轮平移
-      if (!panToolActiveRef.current) {
-        return;
-      }
-      if (isPointerTargetPanExempt(t, false)) {
-        return;
-      }
+      // 平移工具模式下保留滚轮平移/缩放体验。
       e.preventDefault();
       e.stopPropagation();
       const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
@@ -1111,6 +1150,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
           viewport={props.schema.editor.viewport}
           onViewportChange={viewport => props.onViewportChange?.(viewport)}
           onFitView={fitViewportToWorkflow}
+          onCenterView={centerViewportToWorkflow}
           gridEnabled={gridEnabled}
           onToggleGrid={() => props.onToggleGrid?.(!gridEnabled)}
           miniMapVisible={miniMapVisible}

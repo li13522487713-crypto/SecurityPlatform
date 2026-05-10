@@ -1,4 +1,5 @@
 import {
+  memo,
   useContext,
   useLayoutEffect,
   useRef,
@@ -172,6 +173,12 @@ function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): string {
   if (kind === "exclusiveSplit" || kind === "inheritanceSplit") {
     return "decision";
   }
+  if (kind === "parallelGateway" || kind === "inclusiveGateway") {
+    return "decision";
+  }
+  if (kind === "exclusiveMerge") {
+    return "merge";
+  }
   if (kind === "annotation") {
     return "annotation";
   }
@@ -189,7 +196,7 @@ function StaticTag(props: { children: ReactNode; color?: "blue" | "orange" | "gr
   );
 }
 
-export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
+function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   const { selected, activated, ports, selectNode, nodeRef, startDrag, onFocus, onBlur } = useNodeRender();
   const readonly = usePlaygroundReadonlyState();
   const [focused, setFocused] = useState(false);
@@ -394,29 +401,49 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
       data-node-active={String(activated)}
       tabIndex={0}
     >
-      <div className="microflow-flowgram-node__header">
-        <span className="microflow-flowgram-node__icon">
-          <NodeIcon kind={data.objectKind} />
-        </span>
-        <div className="microflow-flowgram-node__text">
-          <Typography.Text
-            strong
-            title={`${data.title}（双击切换编辑）`}
-            style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-          >
-            {data.title}
-          </Typography.Text>
-          {data.subtitle ? (
-            <Typography.Text
-              type="tertiary"
-              size="small"
-              title={`${data.subtitle}（双击编辑）`}
-              style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-            >
-              {data.subtitle}
-            </Typography.Text>
-          ) : null}
-        </div>
+      <div className="microflow-flowgram-node__compact" data-node-tone={tone}>
+        {tone === "start" || tone === "end" ? (
+          <div className="microflow-event-pill" title={data.title}>
+            <span className="microflow-event-pill__icon" aria-hidden="true"><NodeIcon kind={data.objectKind} /></span>
+            <span className="microflow-event-pill__label">{data.title}</span>
+          </div>
+        ) : tone === "decision" ? (
+          <div className="microflow-decision-compact">
+            <div className="microflow-decision-compact__diamond" aria-hidden="true">
+              <span><NodeIcon kind={data.objectKind} /></span>
+            </div>
+            <div className="microflow-node-caption" title={data.title}>{data.title}</div>
+          </div>
+        ) : tone === "merge" ? (
+          <div className="microflow-merge-compact">
+            <div className="microflow-merge-compact__diamond" aria-hidden="true">
+              <span><NodeIcon kind={data.objectKind} /></span>
+            </div>
+            <div className="microflow-node-caption" title={data.title}>{data.title}</div>
+          </div>
+        ) : tone === "loop" ? (
+          <div className="microflow-loop-frame" title={data.title}>
+            <div className="microflow-loop-frame__header">
+              <span aria-hidden="true"><NodeIcon kind={data.objectKind} /></span>
+              <span>{data.title}</span>
+            </div>
+            <div className="microflow-loop-frame__body">
+              <span>{data.loopSummary ? `${data.loopSummary.childCount} nodes` : nodeKindLabel(data.objectKind)}</span>
+            </div>
+          </div>
+        ) : tone === "annotation" ? (
+          <div className="microflow-annotation-compact" title={data.title}>
+            <span aria-hidden="true"><NodeIcon kind={data.objectKind} /></span>
+            <span>{data.title}</span>
+          </div>
+        ) : (
+          <div className="microflow-activity-compact">
+            <div className="microflow-activity-compact__icon" aria-hidden="true">
+              <NodeIcon kind={data.objectKind} />
+            </div>
+            <div className="microflow-node-caption" title={data.title}>{data.title}</div>
+          </div>
+        )}
         <button
           type="button"
           className="microflow-flowgram-node__expand-btn"
@@ -436,7 +463,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
             : <><IconEdit style={{ marginRight: 3, verticalAlign: "middle" }} />编辑</>}
         </button>
       </div>
-      <div className="microflow-flowgram-node__meta">
+      <div className="microflow-flowgram-node__meta" aria-hidden={!isExpanded}>
         <StaticTag>{nodeKindLabel(data.actionKind || data.objectKind)}</StaticTag>
       </div>
       {compactSummary.length > 0 ? (
@@ -519,3 +546,5 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
     </div>
   );
 }
+
+export const FlowGramMicroflowNodeRenderer = memo(FlowGramMicroflowNodeRendererInner);

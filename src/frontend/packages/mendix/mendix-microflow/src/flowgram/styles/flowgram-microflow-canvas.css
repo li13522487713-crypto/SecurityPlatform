@@ -4,9 +4,9 @@
   min-height: 560px;
   overflow: hidden;
   background:
-    linear-gradient(90deg, rgba(22, 93, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(rgba(22, 93, 255, 0.05) 1px, transparent 1px),
-    #f7f9fc;
+    linear-gradient(90deg, rgba(220, 226, 238, 0.055) 1px, transparent 1px),
+    linear-gradient(rgba(220, 226, 238, 0.055) 1px, transparent 1px),
+    #171b22;
   background-size: 24px 24px;
 }
 
@@ -16,7 +16,7 @@
 }
 
 .microflow-flowgram-canvas.is-grid-hidden {
-  background: #f7f9fc;
+  background: #171b22;
 }
 
 .microflow-flowgram-canvas.is-pan-cursor {
@@ -38,10 +38,23 @@
 .microflow-flowgram-toolbar {
   position: static;
   padding: 6px;
-  border: 1px solid rgba(31, 35, 41, 0.1);
+  border: 1px solid rgba(222, 229, 240, 0.12);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 2px 6px rgba(31, 35, 41, 0.05);
+  background: rgba(24, 28, 36, 0.92);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.microflow-flowgram-toolbar .semi-button {
+  border-color: rgba(222, 229, 240, 0.16);
+  color: #d8dee9;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.microflow-flowgram-toolbar .semi-button:hover {
+  border-color: rgba(94, 159, 255, 0.5);
+  color: #ffffff;
+  background: rgba(94, 159, 255, 0.16);
 }
 
 .microflow-flowgram-minimap {
@@ -52,10 +65,10 @@
   width: 180px;
   height: 124px;
   padding: 8px;
-  border: 1px solid rgba(31, 35, 41, 0.12);
+  border: 1px solid rgba(222, 229, 240, 0.14);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 2px 6px rgba(31, 35, 41, 0.05);
+  background: rgba(24, 28, 36, 0.9);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
 }
 
 .microflow-flowgram-minimap svg {

@@ -26,11 +26,12 @@ import { createDefaultEditorState } from "../schema/utils/schema-utils";
 import { createStableId } from "../schema/utils/ids";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
+import { getMendixMicroflowNodeSize } from "./flowgram-node-geometry";
 
 export const MICROFLOW_DESIGN_SCHEMA_VERSION = "flowgram.microflow.v1";
 export const MICROFLOW_ROOT_COLLECTION_ID = "root-collection";
 
-const defaultNodeSize: MicroflowSize = { width: 160, height: 76 };
+const defaultNodeSize: MicroflowSize = getMendixMicroflowNodeSize("actionActivity");
 
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -50,10 +51,7 @@ function entryForObjectKind(kind: string): MicroflowNodeRegistryEntry | undefine
 }
 
 function nodeSizeForEntry(entry: MicroflowNodeRegistryEntry | undefined): MicroflowSize {
-  return {
-    width: entry?.render.width ?? entry?.defaultSize?.width ?? defaultNodeSize.width,
-    height: entry?.render.height ?? entry?.defaultSize?.height ?? defaultNodeSize.height,
-  };
+  return getMendixMicroflowNodeSize(entry ? objectKindFromRegistryItem(entry) : undefined);
 }
 
 function createDefaultActionForEntry(entry: MicroflowNodeRegistryEntry | undefined, objectId: string): MicroflowAction | undefined {
@@ -139,6 +137,7 @@ export function createMicroflowWorkflowNode(input: {
       useDynamicPort: true,
       defaultPorts: flowGramPortsForObjectKind(objectKind, actionKind),
       collectionId: data.collectionId,
+      parentObjectId: data.parentObjectId,
     },
   };
 }
@@ -178,13 +177,13 @@ export function createBlankMicroflowWorkflow(): WorkflowJSON {
       createMicroflowWorkflowNode({
         id: "start",
         registryKey: "startEvent",
-        position: { x: 320, y: 220 },
+        position: { x: 360, y: 160 },
         title: "Start",
       }),
       createMicroflowWorkflowNode({
         id: "end",
         registryKey: "endEvent",
-        position: { x: 620, y: 220 },
+        position: { x: 360, y: 420 },
         title: "End",
       }),
     ],

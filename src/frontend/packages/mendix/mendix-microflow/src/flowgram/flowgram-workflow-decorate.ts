@@ -14,6 +14,8 @@ import type {
   MicroflowNodeViewMode,
 } from "./FlowGramMicroflowTypes";
 import { deriveEdgeRuntimeStateByFlowId } from "./runtime-edge-state";
+import { normalizeMicroflowDesignEdges } from "./flowgram-design-edge-semantics";
+import { getMendixMicroflowNodeSize } from "./flowgram-node-geometry";
 import type { WorkflowEdgeJSON, WorkflowJSON } from "@flowgram-adapter/free-layout-editor";
 
 function edgeId(edge: MicroflowWorkflowEdgeJSON | WorkflowEdgeJSON): string | undefined {
@@ -77,10 +79,11 @@ function ensureEdgeData(edge: MicroflowWorkflowEdgeJSON, index: number): Microfl
 }
 
 function normalizeWorkflow(workflow: WorkflowJSON): WorkflowJSON {
+  const nodes = ((workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(ensureNodeData);
   return {
     ...workflow,
-    nodes: ((workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(ensureNodeData) as WorkflowJSON["nodes"],
-    edges: ((workflow.edges ?? []) as MicroflowWorkflowEdgeJSON[]).map(ensureEdgeData) as WorkflowJSON["edges"],
+    nodes: nodes as WorkflowJSON["nodes"],
+    edges: normalizeMicroflowDesignEdges({ ...workflow, nodes } as WorkflowJSON).map(ensureEdgeData) as WorkflowJSON["edges"],
   };
 }
 
@@ -171,6 +174,7 @@ export function decorateWorkflow(input: {
             : "valid";
       const runtimeState = runtimeStateFromTraceStatus(frame?.status);
       const viewMode = resolveNodeViewMode(node.id, data, input.nodeViewModes);
+      const expanded = viewMode === "expanded" || viewMode === "editing" || viewMode === "inspectingError" || viewMode === "inspectingRuntime";
       const inlineConfig = deriveNodeInlineConfig({
         node,
         schema: input.schema,
@@ -182,7 +186,7 @@ export function decorateWorkflow(input: {
         ...node,
         meta: {
           ...node.meta,
-          size: { width: 240, height: 104 },
+          size: getMendixMicroflowNodeSize(data.objectKind, { expanded }),
         },
         data: {
           ...data,

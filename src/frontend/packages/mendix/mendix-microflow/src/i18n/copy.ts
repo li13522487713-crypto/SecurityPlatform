@@ -13,6 +13,8 @@ export interface MendixMicroflowCopy {
     readonly zoomResetTooltip: string;
     readonly fitView: string;
     readonly fitViewTooltip: string;
+    readonly centerView: string;
+    readonly centerViewTooltip: string;
     readonly undo: string;
     readonly undoTooltip: string;
     readonly redo: string;
@@ -109,6 +111,8 @@ const zhCN: MendixMicroflowCopy = {
     zoomResetTooltip: "重置为 100%（点击选择缩放级别）",
     fitView: "适应视图",
     fitViewTooltip: "将所有节点适配到视图 (Ctrl+Shift+H)",
+    centerView: "居中视图",
+    centerViewTooltip: "按当前缩放比例将微流居中",
     undo: "撤销",
     undoTooltip: "撤销 (Ctrl+Z)",
     redo: "重做",
@@ -213,6 +217,8 @@ const enUS: MendixMicroflowCopy = {
     zoomResetTooltip: "Reset to 100% (click to choose zoom level)",
     fitView: "Fit View",
     fitViewTooltip: "Fit all nodes into view (Ctrl+Shift+H)",
+    centerView: "Center View",
+    centerViewTooltip: "Center the microflow at the current zoom level",
     undo: "Undo",
     undoTooltip: "Undo (Ctrl+Z)",
     redo: "Redo",

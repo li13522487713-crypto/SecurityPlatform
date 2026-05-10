@@ -63,6 +63,7 @@ export interface FlowGramMicroflowToolbarProps {
   viewport: MicroflowToolbarViewport;
   onViewportChange: (viewport: MicroflowToolbarViewport) => void;
   onFitView?: () => void;
+  onCenterView?: () => void;
   gridEnabled: boolean;
   onToggleGrid: () => void;
   miniMapVisible: boolean;
@@ -218,6 +219,9 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
         </Tooltip>
         <Tooltip content={copy.canvasToolbar.fitViewTooltip} position="bottom">
           <Button icon={<IconRefresh />} size="small" aria-label={copy.canvasToolbar.fitView} onClick={fitView} />
+        </Tooltip>
+        <Tooltip content={copy.canvasToolbar.centerViewTooltip} position="bottom">
+          <Button icon={<IconMapPin />} size="small" aria-label={copy.canvasToolbar.centerView} onClick={props.onCenterView} />
         </Tooltip>
 
         <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />

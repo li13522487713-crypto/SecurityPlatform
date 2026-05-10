@@ -1,13 +1,16 @@
 .microflow-flowgram-node .workflow-point-bg {
-  border-color: #165dff;
+  width: 8px;
+  height: 8px;
+  border-color: rgba(94, 159, 255, 0.82);
+  background: #171b22;
 }
 
 .microflow-flowgram-node--end .workflow-point-bg {
-  border-color: #d73135;
+  border-color: #f05b5f;
 }
 
 .microflow-flowgram-node--annotation .workflow-point-bg {
-  border-color: #86909c;
+  border-color: #a1abb8;
 }
 
 .microflow-flowgram-node:not(:hover):not(.is-selected) .workflow-point-bg {
