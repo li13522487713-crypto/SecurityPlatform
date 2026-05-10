@@ -58,6 +58,7 @@ import { MicroflowHistoryManager, labelForHistoryReason, microflowSchemasEqual, 
 import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowCanvas } from "../flowgram";
+import { getMendixMicroflowNodeSize } from "../flowgram/flowgram-node-geometry";
 import { createMicroflowWorkflowNode } from "../flowgram/flowgram-native-schema";
 import { stripTransientDesignSchema } from "../flowgram/transient-workflow-state";
 import {
@@ -154,11 +155,13 @@ const RIGHT_PANEL_EXPANDED_PX = 380;
 const BOTTOM_STRIP_HEIGHT_PX = 32;
 const BOTTOM_DOCK_PEEK_HEIGHT_PX = 260;
 const BOTTOM_DOCK_FULL_DEFAULT_PX = 420;
+const LOOP_BODY_OFFSET_Y = 76;
+const NODE_COLLISION_GAP_PX = 24;
 const BOTTOM_DOCK_FULL_MIN_PX = 320;
 const MOVE_HISTORY_DEBOUNCE_MS = 250;
 const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest", "activity:logMessage"];
 const INTERNAL_TOOLBAR_ROW_PX = 60;
-const AUXILIARY_PANELS_ENABLED = false;
+const AUXILIARY_PANELS_ENABLED = true;
 
 function isDesignSchema(schema: unknown): schema is MicroflowDesignSchema {
   return (schema as { workflow?: unknown }).workflow != null;
@@ -1063,6 +1066,118 @@ function findLoopAtPosition(graph: MicroflowEditorGraph, position: { x: number; 
     return position.x >= left && position.x <= left + width && position.y >= top + headerHeight && position.y <= top + height;
   })
     .sort((a, b) => nodeDepth(graph, b) - nodeDepth(graph, a))[0]?.objectId;
+}
+
+function nodesOverlap(
+  a: { position: MicroflowPoint; size: { width: number; height: number } },
+  b: { position: MicroflowPoint; size: { width: number; height: number } },
+  gap = NODE_COLLISION_GAP_PX,
+): boolean {
+  return Math.abs(a.position.x - b.position.x) < (a.size.width + b.size.width) / 2 + gap
+    && Math.abs(a.position.y - b.position.y) < (a.size.height + b.size.height) / 2 + gap;
+}
+
+function resolveNonOverlappingPosition(
+  graph: MicroflowEditorGraph,
+  position: MicroflowPoint,
+  size: { width: number; height: number },
+  options: {
+    parentObjectId?: string;
+    excludeObjectId?: string;
+  } = {},
+): MicroflowPoint {
+  const normalizedParentId = String(options.parentObjectId ?? "");
+  const siblingNodes = graph.nodes.filter(node =>
+    node.objectId !== options.excludeObjectId
+    && String(node.parentObjectId ?? "") === normalizedParentId,
+  );
+  const stepX = Math.max(
+    MICROFLOW_GRID_SIZE * 2,
+    Math.ceil((size.width + NODE_COLLISION_GAP_PX) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+  );
+  const stepY = Math.max(
+    MICROFLOW_GRID_SIZE * 2,
+    Math.ceil((size.height + NODE_COLLISION_GAP_PX) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+  );
+  const candidates: MicroflowPoint[] = [position];
+  for (let ring = 1; ring <= 8; ring += 1) {
+    for (let dx = -ring; dx <= ring; dx += 1) {
+      for (let dy = -ring; dy <= ring; dy += 1) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) {
+          continue;
+        }
+        candidates.push({
+          x: position.x + dx * stepX,
+          y: position.y + dy * stepY,
+        });
+      }
+    }
+  }
+  for (const candidate of candidates) {
+    if (!siblingNodes.some(node => nodesOverlap({ position: candidate, size }, node))) {
+      return candidate;
+    }
+  }
+  return {
+    x: position.x + stepX,
+    y: position.y + stepY,
+  };
+}
+
+function resolveNonOverlappingWorkflowPosition(
+  nodes: MicroflowWorkflowNodeJSON[],
+  position: MicroflowPoint,
+  size: { width: number; height: number },
+  options: {
+    parentObjectId?: string;
+    excludeObjectId?: string;
+  } = {},
+): MicroflowPoint {
+  const normalizedParentId = String(options.parentObjectId ?? "");
+  const siblingNodes = nodes
+    .filter(node =>
+      node.id !== options.excludeObjectId
+      && String((node.data as { parentObjectId?: string } | undefined)?.parentObjectId ?? "") === normalizedParentId,
+    )
+    .map(node => ({
+      objectId: node.id,
+      position: {
+        x: Number(node.meta?.position?.x ?? 0),
+        y: Number(node.meta?.position?.y ?? 0),
+      },
+      size: node.meta?.size ?? { width: 160, height: 76 },
+    }));
+  const stepX = Math.max(
+    MICROFLOW_GRID_SIZE * 2,
+    Math.ceil((size.width + NODE_COLLISION_GAP_PX) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+  );
+  const stepY = Math.max(
+    MICROFLOW_GRID_SIZE * 2,
+    Math.ceil((size.height + NODE_COLLISION_GAP_PX) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+  );
+  const candidates: MicroflowPoint[] = [position];
+  for (let ring = 1; ring <= 8; ring += 1) {
+    for (let dx = -ring; dx <= ring; dx += 1) {
+      for (let dy = -ring; dy <= ring; dy += 1) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) {
+          continue;
+        }
+        candidates.push({
+          x: position.x + dx * stepX,
+          y: position.y + dy * stepY,
+        });
+      }
+    }
+  }
+  for (const candidate of candidates) {
+    if (!siblingNodes.some(node => nodesOverlap({ position: candidate, size }, node))) {
+      return candidate;
+    }
+  }
+  return {
+    x: position.x + stepX,
+    y: position.y + stepY,
+  };
 }
 
 function collectVariables(schema: MicroflowSchema) {
@@ -2384,16 +2499,32 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       parentLoopObjectId?: string;
     }
   ) => {
-    const position = options?.position ?? quickAddPosition();
-    const parentLoopObjectId = options?.parentLoopObjectId ?? findLoopAtPosition(graph, position);
+    const requestedPosition = options?.position ?? quickAddPosition();
+    const parentLoopObjectId = options?.parentLoopObjectId ?? findLoopAtPosition(graph, requestedPosition);
     const parentLoopNode = parentLoopObjectId ? graph.nodes.find(node => node.objectId === parentLoopObjectId) : undefined;
     const authoringPosition = parentLoopNode
       ? {
-          x: Math.max(24, position.x - parentLoopNode.position.x),
-          y: Math.max(24, position.y - parentLoopNode.position.y - 76),
+          x: Math.max(24, requestedPosition.x - parentLoopNode.position.x),
+          y: Math.max(24, requestedPosition.y - parentLoopNode.position.y - LOOP_BODY_OFFSET_Y),
         }
-      : position;
+      : requestedPosition;
     const itemObjectKind = objectKindFromRegistryItem(item);
+    const nodeSize = getMendixMicroflowNodeSize(itemObjectKind);
+    const projectedPosition = parentLoopNode
+      ? {
+          x: parentLoopNode.position.x + authoringPosition.x,
+          y: parentLoopNode.position.y + LOOP_BODY_OFFSET_Y + authoringPosition.y,
+        }
+      : authoringPosition;
+    const resolvedGraphPosition = resolveNonOverlappingPosition(graph, projectedPosition, nodeSize, {
+      parentObjectId: parentLoopObjectId,
+    });
+    const resolvedAuthoringPosition = parentLoopNode
+      ? {
+          x: Math.max(24, resolvedGraphPosition.x - parentLoopNode.position.x),
+          y: Math.max(24, resolvedGraphPosition.y - parentLoopNode.position.y - LOOP_BODY_OFFSET_Y),
+        }
+      : resolvedGraphPosition;
     if (["startEvent", "endEvent"].includes(itemObjectKind) && parentLoopObjectId) {
       Toast.warning("Start / End events cannot be placed inside Loop.");
       return;
@@ -2417,10 +2548,16 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       const collectionId = parentLoopObjectId
         ? parentLoopData?.bodyCollectionId ?? `${parentLoopObjectId}-collection`
         : undefined;
+      const resolvedWorkflowPosition = resolveNonOverlappingWorkflowPosition(
+        schema.workflow.nodes,
+        resolvedGraphPosition,
+        nodeSize,
+        { parentObjectId: parentLoopObjectId },
+      );
       const node = createMicroflowWorkflowNode({
         id: objectId,
         registryKey,
-        position,
+        position: resolvedWorkflowPosition,
         title: item.titleZh ?? item.title,
         data: parentLoopObjectId
           ? {
@@ -2457,7 +2594,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (options?.insertFlowId) {
       const object = createObjectFromRegistry(
         item,
-        authoringPosition,
+        resolvedAuthoringPosition,
         createUniqueMicroflowObjectId(schema, getMicroflowNodeRegistryKey(item))
       );
       const flow = collectFlowsRecursive(schema).find(item => item.id === options.insertFlowId);
@@ -2474,7 +2611,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       }, parentLoopObjectId ? "addLoopNode" : "addNode", { source: "nodePanel" });
       return;
     }
-    const result = addMicroflowObjectFromDragPayload({ schema, payload, position: authoringPosition, parentLoopObjectId });
+    const result = addMicroflowObjectFromDragPayload({ schema, payload, position: resolvedAuthoringPosition, parentLoopObjectId });
     if (result.blockedReason) {
       Toast.warning(result.blockedReason);
       return;
@@ -3541,12 +3678,61 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (props.readonly || !canvasNodeContextMenu) {
       return;
     }
+    const currentSchema = latestSchemaRef.current;
     const objectIds = canvasNodeContextMenu.objectId ? [canvasNodeContextMenu.objectId] : [];
     const flowIds = canvasNodeContextMenu.flowId ? [canvasNodeContextMenu.flowId] : [];
     if (objectIds.length === 0 && flowIds.length === 0) {
       return;
     }
-    if (isDesignSchema(schema)) {
+    if (objectIds.length === 1 && flowIds.length === 0) {
+      const objectId = objectIds[0];
+      if (isDesignSchema(currentSchema)) {
+        commitSchema(
+          deleteDesignSelection(currentSchema, objectIds, flowIds) as unknown as MicroflowSchema,
+          "flowgramNodeDelete",
+          { historyLabel: "Delete selection", source: "flowgram" },
+        );
+      } else {
+        const located = findObjectWithCollection(currentSchema, objectId);
+        if (!located) {
+          setCanvasNodeContextMenu(undefined);
+          return;
+        }
+        commitSchema(
+          deleteObject(currentSchema, objectId),
+          located.parentLoopObjectId ? "deleteLoopNode" : "deleteNode",
+          { source: "flowgram" },
+        );
+      }
+      Toast.info({ content: "已删除节点，可按 Ctrl+Z 撤销", duration: 4 });
+      setCanvasNodeContextMenu(undefined);
+      return;
+    }
+    if (flowIds.length === 1 && objectIds.length === 0) {
+      const flowId = flowIds[0];
+      if (isDesignSchema(currentSchema)) {
+        commitSchema(
+          deleteDesignSelection(currentSchema, objectIds, flowIds) as unknown as MicroflowSchema,
+          "flowgramLineDelete",
+          { historyLabel: "Delete selection", source: "flowgram" },
+        );
+      } else {
+        const located = findFlowWithCollection(currentSchema, flowId);
+        if (!located) {
+          setCanvasNodeContextMenu(undefined);
+          return;
+        }
+        commitSchema(
+          deleteFlow(currentSchema, flowId),
+          located.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow",
+          { source: "flowgram" },
+        );
+      }
+      Toast.info({ content: "已删除连线，可按 Ctrl+Z 撤销", duration: 4 });
+      setCanvasNodeContextMenu(undefined);
+      return;
+    }
+    if (isDesignSchema(currentSchema)) {
       const selectedObjectCount = objectIds.length;
       const selectedFlowCount = flowIds.length;
       Modal.confirm({
@@ -3557,7 +3743,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         content: `将删除节点 ${selectedObjectCount} 个、连线 ${selectedFlowCount} 条。`,
         onOk: () => {
           commitSchema(
-            deleteDesignSelection(schema, objectIds, flowIds) as unknown as MicroflowSchema,
+            deleteDesignSelection(currentSchema, objectIds, flowIds) as unknown as MicroflowSchema,
             selectedObjectCount > 0 ? "flowgramNodeDelete" : "flowgramNodeDelete",
             { historyLabel: "Delete selection", source: "flowgram" },
           );

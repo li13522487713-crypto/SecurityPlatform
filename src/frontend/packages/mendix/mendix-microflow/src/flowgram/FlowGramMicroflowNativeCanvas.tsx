@@ -275,9 +275,69 @@ function ensureEdgeData(edge: MicroflowWorkflowEdgeJSON, index: number): Microfl
   };
 }
 
-function normalizeWorkflow(workflow: WorkflowJSON | MicroflowWorkflowJSON, options: { snapToGrid?: boolean } = {}): WorkflowJSON {
+function workflowNodesOverlap(
+  a: MicroflowWorkflowNodeJSON,
+  b: MicroflowWorkflowNodeJSON,
+  gap = MICROFLOW_GRID_SIZE,
+): boolean {
+  const aPosition = a.meta?.position ?? { x: 0, y: 0 };
+  const bPosition = b.meta?.position ?? { x: 0, y: 0 };
+  const aSize = a.meta?.size ?? getMendixMicroflowNodeSize((a.data as Partial<FlowGramMicroflowNodeData> | undefined)?.objectKind ?? a.type);
+  const bSize = b.meta?.size ?? getMendixMicroflowNodeSize((b.data as Partial<FlowGramMicroflowNodeData> | undefined)?.objectKind ?? b.type);
+  return Math.abs(aPosition.x - bPosition.x) < (aSize.width + bSize.width) / 2 + gap
+    && Math.abs(aPosition.y - bPosition.y) < (aSize.height + bSize.height) / 2 + gap;
+}
+
+function resolveWorkflowNodeOverlaps(
+  nodes: MicroflowWorkflowNodeJSON[],
+  options: { snapToGrid?: boolean; preferredNodeIds?: string[] } = {},
+): MicroflowWorkflowNodeJSON[] {
+  const preferred = new Set(options.preferredNodeIds ?? []);
+  const ordered = [
+    ...nodes.filter(node => preferred.has(node.id)),
+    ...nodes.filter(node => !preferred.has(node.id)),
+  ];
+  const resolved = new Map<string, MicroflowWorkflowNodeJSON>();
+  const stepX = MICROFLOW_GRID_SIZE * 3;
+  const stepY = MICROFLOW_GRID_SIZE * 2;
+
+  for (const current of ordered) {
+    const parentObjectId = String(current.meta?.parentObjectId ?? current.data?.parentObjectId ?? "");
+    const siblings = [...resolved.values()].filter(node => String(node.meta?.parentObjectId ?? node.data?.parentObjectId ?? "") === parentObjectId);
+    let candidate = current;
+    let attempts = 0;
+    while (siblings.some(node => workflowNodesOverlap(candidate, node)) && attempts < 32) {
+      const position = candidate.meta?.position ?? { x: 0, y: 0 };
+      const ring = Math.floor(attempts / 4) + 1;
+      const direction = attempts % 4;
+      const nextPosition = direction === 0
+        ? { x: position.x + stepX * ring, y: position.y }
+        : direction === 1
+          ? { x: position.x, y: position.y + stepY * ring }
+          : direction === 2
+            ? { x: position.x - stepX * ring, y: position.y }
+            : { x: position.x, y: position.y - stepY * ring };
+      candidate = {
+        ...candidate,
+        meta: {
+          ...candidate.meta,
+          position: options.snapToGrid === false ? nextPosition : snapMicroflowPoint(nextPosition),
+        },
+      };
+      attempts += 1;
+    }
+    resolved.set(candidate.id, candidate);
+  }
+
+  return nodes.map(node => resolved.get(node.id) ?? node);
+}
+
+function normalizeWorkflow(
+  workflow: WorkflowJSON | MicroflowWorkflowJSON,
+  options: { snapToGrid?: boolean; preferredNodeIds?: string[] } = {},
+): WorkflowJSON {
   const flatWorkflow = flattenFlowGramWorkflowForPersistence(workflow);
-  const nodes = ((flatWorkflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(node => {
+  const normalizedNodes = ((flatWorkflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(node => {
     const normalized = ensureNodeData(node);
     if (!options.snapToGrid || !normalized.meta?.position) {
       return normalized;
@@ -293,6 +353,7 @@ function normalizeWorkflow(workflow: WorkflowJSON | MicroflowWorkflowJSON, optio
       },
     };
   });
+  const nodes = resolveWorkflowNodeOverlaps(normalizedNodes, options);
   return {
     ...flatWorkflow,
     nodes: nodes as WorkflowJSON["nodes"],
@@ -513,6 +574,11 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const lastWorkflowSignatureRef = useRef<string>();
   const initialViewportFitDoneRef = useRef(false);
   const [dropActive, setDropActive] = useState(false);
+  const [dropPreview, setDropPreview] = useState<{
+    position: MicroflowPoint;
+    size: { width: number; height: number };
+    valid: boolean;
+  }>();
   const [internalPanToolActive, setInternalPanToolActive] = useState(false);
   const panToolControlled = props.canvasPanToolActive !== undefined;
   const panToolActive = panToolControlled ? Boolean(props.canvasPanToolActive) : internalPanToolActive;
@@ -686,11 +752,17 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       }
       if (event.type === "onDragEnd") {
         draggingRef.current = false;
-        commitWorkflow(doc.toJSON() as WorkflowJSON, "flowgramNodeMove", { snapToGrid: propsRef.current.schema.editor.gridEnabled !== false });
+        const selectedIds = (selectService.selection ?? [])
+          .map(selection => selection?.id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0);
+        commitWorkflow(doc.toJSON() as WorkflowJSON, "flowgramNodeMove", {
+          snapToGrid: propsRef.current.schema.editor.gridEnabled !== false,
+          preferredNodeIds: selectedIds,
+        });
       }
     });
     return () => disposable.dispose();
-  }, [doc, dragService]);
+  }, [doc, dragService, selectService]);
 
   useEffect(() => {
     const disposable = doc.onContentChange(() => {
@@ -811,6 +883,13 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     const payload = readMicroflowNodeDragPayload(event.dataTransfer);
     const item = payload ? microflowNodeRegistryByKey.get(payload.registryKey) : undefined;
     const placement = item ? dropPlacementFromEvent(event, item) : undefined;
+    if (item && placement) {
+      setDropPreview({
+        position: placement.position,
+        size: getMendixMicroflowNodeSize(objectKindFromRegistryItem(item)),
+        valid: placement.valid,
+      });
+    }
     event.dataTransfer.dropEffect = placement?.valid === false ? "none" : "copy";
     setDropActive(true);
   };
@@ -822,6 +901,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     event.preventDefault();
     event.stopPropagation();
     setDropActive(false);
+    setDropPreview(undefined);
     const payload = readMicroflowNodeDragPayload(event.dataTransfer);
     if (!payload) {
       Toast.warning("无法读取拖拽的微流节点。");
@@ -875,6 +955,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     event.preventDefault();
     event.stopPropagation();
     const placement = dropPlacementFromClient(event.clientX, event.clientY, item, event.nativeEvent);
+    setDropPreview(undefined);
     if (!placement.valid) {
       Toast.warning("该节点不能放置在当前 Loop 区域。");
       return;
@@ -1195,6 +1276,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       onDragLeaveCapture={event => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           setDropActive(false);
+          setDropPreview(undefined);
         }
       }}
       onDropCapture={handleDrop}
@@ -1213,6 +1295,17 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       onLostPointerCapture={handleLostPointerCapture}
     >
       <PlaygroundReactRenderer />
+      {dropPreview ? (
+        <div
+          className={`microflow-flowgram-drop-preview${dropPreview.valid ? "" : " is-invalid"}`}
+          style={{
+            left: dropPreview.position.x - dropPreview.size.width / 2,
+            top: dropPreview.position.y - dropPreview.size.height / 2,
+            width: dropPreview.size.width,
+            height: dropPreview.size.height,
+          }}
+        />
+      ) : null}
       {showBuiltInToolbar ? (
         <div className="microflow-flowgram-canvas-controls">
           <FlowGramMicroflowToolbar

@@ -15,6 +15,35 @@
   outline-offset: -2px;
 }
 
+.microflow-flowgram-drop-preview {
+  position: absolute;
+  z-index: 4999;
+  border: 1.5px dashed rgba(22, 93, 255, 0.9);
+  border-radius: 8px;
+  background: rgba(22, 93, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(22, 93, 255, 0.18), 0 10px 24px rgba(22, 93, 255, 0.12);
+  pointer-events: none;
+  transform-origin: center;
+  animation: microflow-drop-preview-pulse 720ms ease-in-out infinite;
+}
+
+.microflow-flowgram-drop-preview.is-invalid {
+  border-color: rgba(215, 49, 53, 0.92);
+  background: rgba(215, 49, 53, 0.12);
+  box-shadow: 0 0 0 1px rgba(215, 49, 53, 0.18), 0 10px 24px rgba(215, 49, 53, 0.12);
+}
+
+@keyframes microflow-drop-preview-pulse {
+  0%, 100% {
+    transform: scale(0.985);
+    opacity: 0.78;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 1;
+  }
+}
+
 .microflow-flowgram-canvas.is-grid-hidden {
   background: #171b22;
 }

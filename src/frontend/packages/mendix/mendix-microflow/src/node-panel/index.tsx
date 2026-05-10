@@ -281,6 +281,7 @@ const mendixToolboxSections: MendixToolboxSection[] = [
       "activity:listAggregate",
       "activity:listChange",
       "activity:listCreate",
+      "activity:listOperation",
       "activity:listFilter",
       "activity:listSort",
     ],
@@ -291,6 +292,8 @@ const mendixToolboxSections: MendixToolboxSection[] = [
     itemKeys: [
       "activity:callMicroflow",
       "activity:callRest",
+      "activity:logMessage",
+      "activity:throwException",
     ],
   },
   {
@@ -309,12 +312,17 @@ const mendixToolboxSections: MendixToolboxSection[] = [
       "objectTypeDecision",
       "merge",
       "loop",
+      "parallelGateway",
+      "inclusiveGateway",
     ],
   },
   {
     key: "event",
     label: "Loop events",
     itemKeys: [
+      "startEvent",
+      "endEvent",
+      "errorEvent",
       "continueEvent",
       "breakEvent",
     ],
@@ -484,6 +492,7 @@ export function MicroflowNodeCard({
   const disabled = Boolean(disabledReason);
   const key = getMicroflowNodeRegistryKey(item);
   const draggingRef = useRef(false);
+  const dragImageRef = useRef<HTMLDivElement | null>(null);
   const [active, setActive] = useState(false);
   const [keyboardFocus, setKeyboardFocus] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -505,6 +514,13 @@ export function MicroflowNodeCard({
     justifyContent: toolboxLayout ? "center" : "flex-start",
     gap: toolboxLayout ? 6 : 8,
     minWidth: 0,
+    transform: dragging ? "translateY(-6px) scale(1.02)" : cardActive ? "translateY(-1px)" : "translateY(0)",
+    boxShadow: dragging
+      ? "0 14px 28px rgba(31, 35, 41, 0.18), 0 0 0 1px rgba(22, 93, 255, 0.18)"
+      : cardActive
+        ? "0 6px 14px rgba(31, 35, 41, 0.08)"
+        : "none",
+    transition: "transform 140ms ease, box-shadow 140ms ease, background 120ms ease, border-color 120ms ease",
   };
 
   return (
@@ -563,12 +579,28 @@ export function MicroflowNodeCard({
         event.dataTransfer.setData(MICROFLOW_NODE_DND_TYPE, JSON.stringify(payload));
         event.dataTransfer.setData("application/json", JSON.stringify(payload));
         event.dataTransfer.setData("text/plain", payload.registryKey);
+        const dragImage = event.currentTarget.cloneNode(true) as HTMLDivElement;
+        dragImage.style.position = "fixed";
+        dragImage.style.left = "-9999px";
+        dragImage.style.top = "-9999px";
+        dragImage.style.width = `${event.currentTarget.clientWidth}px`;
+        dragImage.style.pointerEvents = "none";
+        dragImage.style.transform = "rotate(-3deg) scale(1.03)";
+        dragImage.style.boxShadow = "0 18px 34px rgba(15, 23, 42, 0.24)";
+        dragImage.style.opacity = "0.96";
+        document.body.appendChild(dragImage);
+        dragImageRef.current = dragImage;
+        if (typeof event.dataTransfer.setDragImage === "function") {
+          event.dataTransfer.setDragImage(dragImage, Math.max(16, event.currentTarget.clientWidth / 2), 18);
+        }
         onStartDrag?.(payload);
       }}
       onDragEnd={() => {
         window.setTimeout(() => {
           draggingRef.current = false;
           setDragging(false);
+          dragImageRef.current?.remove();
+          dragImageRef.current = null;
         }, 0);
       }}
     >
