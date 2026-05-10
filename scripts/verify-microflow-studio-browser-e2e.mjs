@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -17,6 +18,13 @@ const workspaceId = process.env.MICROFLOW_WORKSPACE_ID ?? "1496769226340306944";
 const prefix = process.env.MICROFLOW_E2E_PREFIX ?? "R61_BROWSER_";
 const runName = `${prefix}${new Date().toISOString().replace(/[-:TZ.]/gu, "").slice(0, 14)}`;
 const artifactsDir = resolve(process.cwd(), "artifacts/microflow-studio-browser-e2e");
+const browserExecutablePath = process.env.PLAYWRIGHT_BROWSER_EXECUTABLE_PATH
+  ?? [
+    "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+    "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
+    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+  ].find(path => existsSync(path));
 
 function apiUrl(path) {
   return `${apiBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
@@ -76,8 +84,26 @@ async function findPanelItem(page, target) {
   }), target);
 }
 
+async function clickVisibleRunButton(page) {
+  const candidates = [
+    page.getByTestId("microflow-editor-run"),
+    page.getByTestId("microflow-workbench-run"),
+  ];
+  for (const candidate of candidates) {
+    if (await candidate.isVisible().catch(() => false)) {
+      await candidate.waitFor({ state: "visible", timeout: 10_000 });
+      await candidate.click();
+      return;
+    }
+  }
+  throw new Error("未找到可见的运行按钮。");
+}
+
 async function main() {
-  const browser = await chromium.launch({ headless: process.env.HEADED === "1" ? false : true });
+  const browser = await chromium.launch({
+    executablePath: browserExecutablePath,
+    headless: process.env.HEADED === "1" ? false : true
+  });
   const context = await browser.newContext({ viewport: { width: 1440, height: 950 } });
   const page = await context.newPage();
   page.on("pageerror", error => {
@@ -93,6 +119,9 @@ async function main() {
     runName,
     artifactsDir,
     createdThroughUi: false,
+    nodeDraggedThroughUi: false,
+    acceptance120Configured: false,
+    acceptance120Returned120: false,
     editorVisible: false,
     nodePanelVisible: false,
     saveVisible: false,
@@ -177,28 +206,65 @@ async function main() {
     }
     console.log(`PASS 节点面板 supported 目标节点可检索：${supportedTargets.length}`);
 
-    await runButton.click();
-    const runModal = page.getByTestId("microflow-test-run-modal");
-    if (await runModal.isVisible({ timeout: 10_000 }).catch(() => false)) {
-      await page.getByTestId("microflow-test-run-submit").click();
+    await searchInput.fill("createVariable");
+    await page.waitForTimeout(300);
+    const dragSource = page.locator("[data-testid^='microflow-node-panel-item-']").filter({ hasText: "Create Variable" });
+    const dragSourceCount = await dragSource.count();
+    if (dragSourceCount !== 1) {
+      throw new Error(`Create Variable 拖动源不唯一：${dragSourceCount}`);
     }
-    evidence.screenshots.push(await screenshot(page, "02-after-run-click"));
+    const canvas = page.getByTestId("microflow-flowgram-canvas");
+    await assertVisible(canvas, "微流画布可见");
+    const beforeDragNodeCount = await page.locator("[data-testid^='microflow-node-']").count();
+    await dragSource.dragTo(canvas, {
+      targetPosition: { x: 520, y: 260 },
+      force: true
+    });
+    await page.waitForTimeout(800);
+    const afterDragNodeCount = await page.locator("[data-testid^='microflow-node-']").count();
+    if (afterDragNodeCount <= beforeDragNodeCount) {
+      throw new Error(`拖动节点未落到画布：before=${beforeDragNodeCount}, after=${afterDragNodeCount}`);
+    }
+    evidence.nodeDraggedThroughUi = true;
+    evidence.screenshots.push(await screenshot(page, "02-dragged-create-variable"));
+    console.log(`PASS 真实拖动节点到画布：${beforeDragNodeCount} -> ${afterDragNodeCount}`);
+
+    const acceptanceButton = page.getByTestId("microflow-workbench-acceptance-120");
+    await assertVisible(acceptanceButton, "验收120入口可见");
+    await acceptanceButton.click();
+    await page.getByText("已配置并保存全节点验收计算图", { exact: false }).waitFor({ state: "visible", timeout: 45_000 });
+    evidence.acceptance120Configured = true;
+    evidence.screenshots.push(await screenshot(page, "03-acceptance-120-configured"));
+
+    await page.getByText("校验中", { exact: false }).waitFor({ state: "detached", timeout: 45_000 }).catch(() => undefined);
+    await clickVisibleRunButton(page);
+    evidence.screenshots.push(await screenshot(page, "04-run-modal-open-attempt"));
+    const runModal = page.getByTestId("microflow-test-run-modal-content");
+    await assertVisible(runModal, "测试运行输入面板可见");
+    const numbersInput = page.getByTestId("microflow-test-run-parameter-numbers").locator("textarea");
+    await numbersInput.fill("[1,2,3,4,5,6]");
+    const expectedResult = page.getByPlaceholder("期望结果 JSON，可留空");
+    if (await expectedResult.isVisible().catch(() => false)) {
+      await expectedResult.fill("120");
+    }
+    await page.getByTestId("microflow-test-run-submit").click();
+    evidence.screenshots.push(await screenshot(page, "05-after-run-click"));
     const tracePanel = page.getByTestId("microflow-trace-panel");
-    const problemsPanel = page.getByText("MF_START_NO_OUTGOING").or(page.getByText("Start 节点需要至少一条出线")).first();
+    const succeededStatus = page.getByText("Succeeded").or(page.getByText("success")).or(page.getByText("120")).first();
     const runOutcome = await tracePanel.waitFor({ state: "attached", timeout: 5_000 })
       .then(() => "trace")
       .catch(async () => {
-        await problemsPanel.waitFor({ state: "visible", timeout: 45_000 });
-        return "problems";
+        await succeededStatus.waitFor({ state: "visible", timeout: 45_000 });
+        return "result";
       });
-    if (runOutcome === "trace") {
-      evidence.traceVisible = true;
-      evidence.screenshots.push(await screenshot(page, "02-run-trace"));
-    } else {
-      evidence.validationBlockedRun = true;
-      evidence.screenshots.push(await screenshot(page, "02-run-validation-blocked"));
-      console.log("PASS strict validation blocked blank microflow run before runtime execution");
+    evidence.traceVisible = runOutcome === "trace";
+    const pageText = await page.locator("body").innerText({ timeout: 10_000 });
+    if (!pageText.includes("120")) {
+      throw new Error("验收120运行后页面未显示返回值 120。");
     }
+    evidence.acceptance120Returned120 = true;
+    evidence.screenshots.push(await screenshot(page, "06-acceptance-120-run"));
+    console.log("PASS 验收120通过真实浏览器输入 JSON 并显示返回值 120");
 
     writeFileSync(resolve(artifactsDir, `${runName}.json`), JSON.stringify(evidence, null, 2), "utf8");
     console.log(JSON.stringify(evidence, null, 2));

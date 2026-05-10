@@ -331,8 +331,8 @@ function fitViewportForWorkflow(workflow: MicroflowWorkflowJSON | WorkflowJSON, 
   }
   const zoom = Math.max(0.2, Math.min(1.2, Math.min((rect.width - 120) / bounds.width, (rect.height - 120) / bounds.height)));
   return {
-    x: Math.round(rect.width / 2 - (bounds.minX + bounds.width / 2) * zoom),
-    y: Math.round(rect.height / 2 - (bounds.minY + bounds.height / 2) * zoom),
+    x: Math.round((bounds.minX + bounds.width / 2) * zoom - rect.width / 2),
+    y: Math.round((bounds.minY + bounds.height / 2) * zoom - rect.height / 2),
     zoom,
   };
 }
@@ -457,8 +457,8 @@ function FlowGramMicroflowNativeMiniMap(props: { schema: MicroflowDesignSchema; 
           );
         })}
         <rect
-          x={-viewport.x / Math.max(0.2, viewport.zoom)}
-          y={-viewport.y / Math.max(0.2, viewport.zoom)}
+          x={viewport.x / Math.max(0.2, viewport.zoom)}
+          y={viewport.y / Math.max(0.2, viewport.zoom)}
           width={viewportWidth}
           height={viewportHeight}
           className="microflow-flowgram-minimap-viewport"
@@ -730,8 +730,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     const localX = rect ? clientX - rect.left : clientX;
     const localY = rect ? clientY - rect.top : clientY;
     const fallback = {
-      x: (localX - viewport.x) / Math.max(0.2, viewport.zoom),
-      y: (localY - viewport.y) / Math.max(0.2, viewport.zoom),
+      x: (localX + viewport.x) / Math.max(0.2, viewport.zoom),
+      y: (localY + viewport.y) / Math.max(0.2, viewport.zoom),
     };
     const dragPosition = nativeEvent
       ? playground.config.getPosFromMouseEvent?.(nativeEvent) as MicroflowPoint | undefined
@@ -1072,6 +1072,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   return (
     <div
       ref={containerRef}
+      data-testid="microflow-flowgram-canvas"
       className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}${gridEnabled ? "" : " is-grid-hidden"}${panToolActive || spacePressed ? " is-pan-cursor" : ""}${isViewportPanGrabbing ? " is-pan-grabbing" : ""}`}
       onDragEnterCapture={event => {
         if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {

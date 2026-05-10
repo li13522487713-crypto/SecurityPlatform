@@ -113,7 +113,7 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
       maskClosable={!props.running}
       data-testid="microflow-test-run-modal"
     >
-      <Space vertical align="start" spacing={14} style={{ width: "100%" }}>
+      <Space data-testid="microflow-test-run-modal-content" vertical align="start" spacing={14} style={{ width: "100%" }}>
         <Space wrap>
           <Tag color="blue">{props.schema.displayName || props.schema.name}</Tag>
           <Tag>{model.microflowId}</Tag>

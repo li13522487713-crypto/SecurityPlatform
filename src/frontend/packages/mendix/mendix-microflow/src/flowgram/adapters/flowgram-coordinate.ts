@@ -22,8 +22,8 @@ export function clientPointToFlowGramPoint(
   const localY = clientPoint.y - (rect?.top ?? 0);
   const zoom = viewport.zoom || 1;
   return {
-    x: (localX - viewport.x) / zoom,
-    y: (localY - viewport.y) / zoom,
+    x: (localX + viewport.x) / zoom,
+    y: (localY + viewport.y) / zoom,
   };
 }
 

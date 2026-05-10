@@ -13,7 +13,6 @@ import { ExplorerSplitLayout } from "./components/explorer-split-layout";
 import { WidgetToolbox } from "./components/widget-toolbox";
 import { WorkbenchTabs } from "./components/workbench-tabs";
 import { MicroflowWorkbenchToolbar } from "./components/microflow-workbench-toolbar";
-import { MicroflowStudioBottomPanel } from "./components/microflow-studio-bottom-panel";
 import { WorkbenchCommandPalette } from "./components/workbench-command-palette";
 import { ResourceReadonlyWorkbench } from "./components/resource-readonly-workbench";
 import { MendixDomainModelWorkbench } from "./components/mendix-domain-model-workbench";
@@ -521,11 +520,6 @@ export function MendixStudioApp({
                       </Card>
                     </div>
                   )}
-                  <MicroflowStudioBottomPanel
-                    microflowId={activeMicroflowId}
-                    resource={activeMicroflowResource}
-                    adapterBundle={_resolvedBundle}
-                  />
                   </div>
                 </div>
               ) : activeWorkbenchTab?.kind === "domainModel" ? (

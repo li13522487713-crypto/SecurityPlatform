@@ -58,6 +58,7 @@ import { MicroflowHistoryManager, labelForHistoryReason, microflowSchemasEqual, 
 import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowCanvas } from "../flowgram";
+import { createMicroflowWorkflowNode } from "../flowgram/flowgram-native-schema";
 import {
   MICROFLOW_INLINE_FIELD_COMMIT_EVENT,
   MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT,
@@ -74,6 +75,7 @@ import {
 } from "../flowgram/inline-events";
 import type { MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
 import { MICROFLOW_GRID_SIZE } from "../flowgram/adapters/flowgram-coordinate";
+import { createStableId } from "../schema/utils/ids";
 import {
   EMPTY_MICROFLOW_METADATA_CATALOG,
   MicroflowMetadataProvider,
@@ -130,7 +132,8 @@ import type {
   MicroflowObject,
   MicroflowPoint,
   MicroflowSchema,
-  MicroflowValidationIssue
+  MicroflowValidationIssue,
+  MicroflowWorkflowNodeJSON
 } from "../schema/types";
 
 const { Text, Title } = Typography;
@@ -152,9 +155,20 @@ const BOTTOM_DOCK_FULL_MIN_PX = 320;
 const MOVE_HISTORY_DEBOUNCE_MS = 250;
 const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest", "activity:logMessage"];
 const INTERNAL_TOOLBAR_ROW_PX = 60;
+const AUXILIARY_PANELS_ENABLED = false;
 
 function isDesignSchema(schema: unknown): schema is MicroflowDesignSchema {
   return (schema as { workflow?: unknown }).workflow != null;
+}
+
+function createUniqueDesignNodeId(schema: MicroflowDesignSchema, registryKey: string): string {
+  const prefix = registryKey.replace(/[^a-zA-Z0-9_-]/g, "-") || "node";
+  const existingIds = new Set(schema.workflow.nodes.map(node => node.id));
+  let id = createStableId(prefix);
+  while (existingIds.has(id)) {
+    id = createStableId(prefix);
+  }
+  return id;
 }
 
 type MendixLayoutInspectorMode = "floating" | "docked";
@@ -1888,6 +1902,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     display: "grid",
     gridTemplateRows: focusMode
       ? "minmax(0, 1fr)"
+      : !AUXILIARY_PANELS_ENABLED
+        ? externalLayout
+          ? "minmax(0, 1fr)"
+          : `${INTERNAL_TOOLBAR_ROW_PX}px minmax(0, 1fr)`
       : externalLayout
         ? `minmax(0, 1fr) ${BOTTOM_STRIP_HEIGHT_PX}px`
         : `${INTERNAL_TOOLBAR_ROW_PX}px minmax(0, 1fr) ${BOTTOM_STRIP_HEIGHT_PX}px`,
@@ -1899,7 +1917,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const bodyStyle = useMemo((): CSSProperties => {
     const leftCol = focusMode ? 0 : leftOpen ? LEFT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
-    const rightCol = focusMode ? 0 : externalLayout ? RAIL_WIDTH_PX : rightOpen ? RIGHT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
+    const rightCol = focusMode || !AUXILIARY_PANELS_ENABLED ? 0 : externalLayout ? RAIL_WIDTH_PX : rightOpen ? RIGHT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
     return {
       display: "grid",
       gridTemplateColumns: `${leftCol}px minmax(0, 1fr) ${rightCol}px`,
@@ -2085,8 +2103,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const viewport = schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
     const indexOffset = graph.nodes.length * 18;
     return {
-      x: Math.round(((360 - viewport.x) / Math.max(0.2, viewport.zoom) + indexOffset) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
-      y: Math.round(((220 - viewport.y) / Math.max(0.2, viewport.zoom) + indexOffset / 2) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE
+      x: Math.round(((360 + viewport.x) / Math.max(0.2, viewport.zoom) + indexOffset) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+      y: Math.round(((220 + viewport.y) / Math.max(0.2, viewport.zoom) + indexOffset / 2) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE
     };
   };
 
@@ -2119,6 +2137,44 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     const payload = options?.payload ?? createDragPayloadFromRegistryItem(item);
+    if (isDesignSchema(schema)) {
+      if (options?.insertFlowId) {
+        Toast.warning("FlowGram Studio 暂不支持从连线中插入节点，请直接拖入画布后再连接。");
+        return;
+      }
+      const registryKey = getMicroflowNodeRegistryKey(item);
+      const objectId = createUniqueDesignNodeId(schema, registryKey);
+      const node = createMicroflowWorkflowNode({
+        id: objectId,
+        registryKey,
+        position: authoringPosition,
+        title: item.titleZh ?? item.title,
+      }) as MicroflowWorkflowNodeJSON;
+      const nextSchema: MicroflowDesignSchema = {
+        ...schema,
+        workflow: {
+          ...schema.workflow,
+          nodes: [...schema.workflow.nodes, node],
+        },
+        editor: {
+          ...schema.editor,
+          selection: {
+            ...schema.editor.selection,
+            objectId,
+            flowId: undefined,
+            objectIds: [objectId],
+            flowIds: [],
+            mode: "single",
+          },
+        },
+        audit: {
+          ...schema.audit,
+          updatedAt: new Date().toISOString(),
+        },
+      };
+      commitSchema(nextSchema as unknown as MicroflowSchema, parentLoopObjectId ? "addLoopNode" : "addNode", { source: "nodePanel" });
+      return;
+    }
     if (options?.insertFlowId) {
       const object = createObjectFromRegistry(
         item,
@@ -2324,6 +2380,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (saving || running || props.readonly || !schema.id) {
       return;
     }
+    setTestRunModalOpen(true);
     const validation = await validateForMode(schema, "testRun");
     if (validation.summary.errorCount > 0) {
       setBottomTab("problems");
@@ -2333,7 +2390,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (validation.summary.warningCount > 0) {
       Toast.warning(`Test run allowed with ${validation.summary.warningCount} warning(s).`);
     }
-    setTestRunModalOpen(true);
   };
 
   const loadRunHistory = useCallback(async (microflowId: string, status: "all" | "success" | "failed" | "unsupported" | "cancelled" = "all") => {
@@ -3060,8 +3116,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     const zoom = Math.max(0.6, schema.editor.viewport?.zoom ?? 1);
     return {
-      x: Math.round(360 - target.x * zoom),
-      y: Math.round(260 - target.y * zoom),
+      x: Math.round(target.x * zoom - 360),
+      y: Math.round(target.y * zoom - 260),
       zoom,
     };
   };
@@ -3984,8 +4040,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       disabledReason: !(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length) ? "Select a node first." : undefined,
       run: () => handleEnterInlineEdit(),
     },
-    { id: "problems", label: "Open Problems", run: () => { setBottomDockMode("peek"); setBottomTab("problems"); } },
-    { id: "properties", label: rightOpen ? "Hide Properties" : "Show Properties", run: () => setRightOpen(open => !open) },
+    ...(AUXILIARY_PANELS_ENABLED ? [
+      { id: "problems", label: "Open Problems", run: () => { setBottomDockMode("peek"); setBottomTab("problems"); } },
+      { id: "properties", label: rightOpen ? "Hide Properties" : "Show Properties", run: () => setRightOpen(open => !open) },
+    ] : []),
     { id: "toolbox", label: leftOpen ? "Hide Toolbox" : "Show Toolbox", run: () => setLeftOpen(open => !open) },
     { id: "undo", label: "Undo", disabled: !historyState.canUndo, disabledReason: !historyState.canUndo ? "No history to undo." : undefined, run: handleUndo },
     { id: "redo", label: "Redo", disabled: !historyState.canRedo, disabledReason: !historyState.canRedo ? "No history to redo." : undefined, run: handleRedo },
@@ -4147,8 +4205,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 <Dropdown.Item icon={<IconRefresh />} onClick={handleAutoLayout}>{labels.format}</Dropdown.Item>
                 <Dropdown.Item onClick={focusNodeSearch}>搜索节点</Dropdown.Item>
                 <Dropdown.Item onClick={() => setLeftOpen(open => !open)}>{leftOpen ? "折叠节点面板" : "展开节点面板"}</Dropdown.Item>
-                <Dropdown.Item onClick={() => setRightOpen(open => !open)}>{rightOpen ? "折叠属性面板" : "展开属性面板"}</Dropdown.Item>
-                <Dropdown.Item onClick={toggleBottomDock}>{bottomOpen ? "折叠底部 Dock" : "展开底部 Dock"}</Dropdown.Item>
+                {AUXILIARY_PANELS_ENABLED ? (
+                  <>
+                    <Dropdown.Item onClick={() => setRightOpen(open => !open)}>{rightOpen ? "折叠属性面板" : "展开属性面板"}</Dropdown.Item>
+                    <Dropdown.Item onClick={toggleBottomDock}>{bottomOpen ? "折叠底部 Dock" : "展开底部 Dock"}</Dropdown.Item>
+                  </>
+                ) : null}
                 {runSession ? <Dropdown.Item type="danger" icon={<IconDelete />} onClick={clearTestRun}>清空调试</Dropdown.Item> : null}
               </Dropdown.Menu>
             )}
@@ -4285,14 +4347,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           dirty={dirty}
           saving={saving}
           validating={validationStatus === "validating"}
-          onOpenProblemsPanel={() => {
+          onOpenProblemsPanel={AUXILIARY_PANELS_ENABLED ? () => {
             openBottomDock("problems");
-          }}
+          } : undefined}
           canvasPanToolActive={canvasPanToolActive}
           onCanvasPanToolChange={setCanvasPanToolActive}
         />
         </div>
-        {canvasNodeContextMenu ? (
+        {AUXILIARY_PANELS_ENABLED && canvasNodeContextMenu ? (
           <div
             data-testid="microflow-canvas-node-context-menu"
             style={{
@@ -4332,7 +4394,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </Button>
           </div>
         ) : null}
-        {!focusMode ? <div
+        {AUXILIARY_PANELS_ENABLED && !focusMode ? <div
           data-testid="microflow-editor-right-shell"
           style={{
             display: "flex",
@@ -4479,7 +4541,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           </div>
         </div> : null}
       </div>
-      {!focusMode && bottomOpen ? (
+      {AUXILIARY_PANELS_ENABLED && !focusMode && bottomOpen ? (
         <div
           data-testid="microflow-bottom-panel"
           style={{
@@ -4667,7 +4729,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           </Tabs>
         </div>
       ) : null}
-      {!focusMode ? (
+      {AUXILIARY_PANELS_ENABLED && !focusMode ? (
         <div
           data-testid="microflow-bottom-status-strip"
           style={{

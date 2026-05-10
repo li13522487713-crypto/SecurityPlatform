@@ -29,8 +29,8 @@ export function microflowZoomViewportAtLocalPoint(
   }
   const ratio = z / viewport.zoom;
   return {
-    x: localX - ratio * (localX - viewport.x),
-    y: localY - ratio * (localY - viewport.y),
+    x: ratio * (localX + viewport.x) - localX,
+    y: ratio * (localY + viewport.y) - localY,
     zoom: z,
   };
 }

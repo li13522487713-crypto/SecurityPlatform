@@ -65,4 +65,23 @@ describe("FlowGramMicroflowNativeCanvas hand-tool interactions", () => {
     expect(cursorAnchored.x).not.toBeCloseTo(centerAnchored.x, 6);
     expect(cursorAnchored.y).not.toBeCloseTo(centerAnchored.y, 6);
   });
+
+  it("keeps the world point under the cursor stable while zooming scroll viewport", () => {
+    const viewport = { x: 120, y: 80, zoom: 1 };
+    const localX = 450;
+    const localY = 120;
+    const before = {
+      x: (localX + viewport.x) / viewport.zoom,
+      y: (localY + viewport.y) / viewport.zoom,
+    };
+
+    const next = zoomViewportForPanToolWheel(viewport, localX, localY, -120);
+    const after = {
+      x: (localX + next.x) / next.zoom,
+      y: (localY + next.y) / next.zoom,
+    };
+
+    expect(after.x).toBeCloseTo(before.x, 6);
+    expect(after.y).toBeCloseTo(before.y, 6);
+  });
 });
