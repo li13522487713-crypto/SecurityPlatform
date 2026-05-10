@@ -1,6 +1,11 @@
 import type { WorkflowNodeJSON } from "@flowgram-adapter/free-layout-editor";
 
-import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData } from "../flowgram/FlowGramMicroflowTypes";
+import {
+  canonicalizeFlowLine,
+  forceOrthogonalLineKind,
+  type FlowGramMicroflowEdgeData,
+  type FlowGramMicroflowNodeData,
+} from "../flowgram/FlowGramMicroflowTypes";
 import {
   MICROFLOW_ROOT_COLLECTION_ID,
   createMicroflowWorkflowNode,
@@ -189,6 +194,13 @@ function designObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microfl
 function designFlowForEdge(edge: MicroflowWorkflowEdgeJSON, fallback?: MicroflowFlow): MicroflowFlow {
   const data = edge.data as EdgeDataWithPropertyFlow | undefined;
   const flowId = data?.flowId ?? edge.id ?? createStableId("flow");
+  const fallbackLine = canonicalizeFlowLine((fallback as MicroflowFlow | undefined)?.line);
+  const canonicalFallbackLine = fallbackLine ?? {
+    kind: forceOrthogonalLineKind(),
+    points: [],
+    routing: { mode: "auto", bendPoints: [] },
+    style: { strokeType: "solid", strokeWidth: 2, arrow: "target" },
+  };
   const base = fallback ?? ({
     id: flowId,
     stableId: flowId,
@@ -200,12 +212,7 @@ function designFlowForEdge(edge: MicroflowWorkflowEdgeJSON, fallback?: Microflow
     destinationConnectionIndex: 0,
     caseValues: data?.caseValues ?? [],
     isErrorHandler: data?.isErrorHandler ?? false,
-    line: {
-      kind: "orthogonal",
-      points: [],
-      routing: { mode: "auto", bendPoints: [] },
-      style: { strokeType: "solid", strokeWidth: 2, arrow: "target" },
-    },
+    line: canonicalizeFlowLine(canonicalFallbackLine),
     editor: {
       edgeKind: data?.edgeKind ?? "sequence",
       label: data?.label,
@@ -224,7 +231,7 @@ function designFlowForEdge(edge: MicroflowWorkflowEdgeJSON, fallback?: Microflow
       destinationObjectId: edge.targetNodeID,
       originConnectionIndex: "originConnectionIndex" in base ? base.originConnectionIndex : 0,
       destinationConnectionIndex: "destinationConnectionIndex" in base ? base.destinationConnectionIndex : 0,
-      line: data?.line ?? base.line,
+      line: canonicalizeFlowLine(data?.line, base.line),
       caseValues: data?.caseValues ?? base.caseValues ?? [],
       isErrorHandler: false,
       editor: {
@@ -417,6 +424,7 @@ export function applyDesignFlowPatch(schema: MicroflowDesignSchema, flowId: stri
         }
         const existingData = edge.data as EdgeDataWithPropertyFlow | undefined;
         const edgeKind = nextFlow.kind === "annotation" ? "annotation" : nextFlow.isErrorHandler ? "errorHandler" : nextFlow.editor.edgeKind;
+        const canonicalLine = canonicalizeFlowLine(nextFlow.line, existingData?.line);
         const nextData: EdgeDataWithPropertyFlow = {
           ...existingData,
           flowId: nextFlow.id,
@@ -424,7 +432,7 @@ export function applyDesignFlowPatch(schema: MicroflowDesignSchema, flowId: stri
           edgeKind,
           isErrorHandler: nextFlow.kind === "sequence" ? nextFlow.isErrorHandler : false,
           caseValues: nextFlow.kind === "sequence" ? nextFlow.caseValues : nextFlow.caseValues ?? [],
-          line: nextFlow.line,
+          line: canonicalLine,
           label: nextFlow.editor.label,
           description: nextFlow.editor.description,
           branchOrder: (nextFlow.editor as { branchOrder?: number }).branchOrder,

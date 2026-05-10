@@ -185,7 +185,7 @@ export interface FlowGramMicroflowEdgeData {
   edgeKind: NonNullable<MicroflowFlow["editor"]["edgeKind"]>;
   isErrorHandler: boolean;
   caseValues: MicroflowCaseValue[];
-  lineKind?: MicroflowLine["kind"];
+  lineKind?: FlowGramMicroflowLineKind;
   label?: string;
   description?: string;
   branchOrder?: number;
@@ -232,10 +232,21 @@ export interface FlowGramMicroflowPendingLine {
 }
 
 export type FlowGramMicroflowIssueIndex = Map<string, MicroflowValidationIssue[]>;
-export type FlowGramMicroflowLineKind = MicroflowLine["kind"];
+export type FlowGramMicroflowLineKind = "orthogonal";
+export const DEFAULT_FLOWGRAM_LINE_KIND: FlowGramMicroflowLineKind = "orthogonal";
 
-export function forceOrthogonalLineKind(_lineKind?: FlowGramMicroflowLineKind): "orthogonal" {
-  return "orthogonal";
+export function forceOrthogonalLineKind(_lineKind?: MicroflowLine["kind"]): FlowGramMicroflowLineKind {
+  return DEFAULT_FLOWGRAM_LINE_KIND;
+}
+
+export function canonicalizeFlowLine(line?: MicroflowLine, fallback?: MicroflowLine): MicroflowLine | undefined {
+  const nextLine = line ?? fallback;
+  return nextLine
+    ? {
+      ...nextLine,
+      kind: forceOrthogonalLineKind(nextLine.kind),
+    }
+    : undefined;
 }
 
 import { createContext } from "react";

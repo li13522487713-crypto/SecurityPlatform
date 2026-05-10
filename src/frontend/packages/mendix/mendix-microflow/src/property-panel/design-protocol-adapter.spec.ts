@@ -92,6 +92,83 @@ describe("design protocol property panel adapter", () => {
     expect(Object.keys(next.workflow.edges[0].data ?? {})).not.toContain("property" + "Flow");
   });
 
+  it("forces orthogonal routing when flow patch contains non-orthogonal line kinds", () => {
+    const schema = designSchema();
+    const model = buildDesignPropertyPanelModel({
+      ...schema,
+      editor: {
+        ...schema.editor,
+        selectedFlowId: "flow-start-end",
+        selectedObjectId: undefined,
+        selection: {
+          flowId: "flow-start-end",
+          objectIds: [],
+          flowIds: ["flow-start-end"],
+          mode: "single",
+        },
+      },
+    });
+    const patchedFlow = {
+      ...model.selectedFlow!,
+      line: {
+        ...(model.selectedFlow?.line ?? {}),
+        kind: "bezier",
+      },
+    } as MicroflowSequenceFlow;
+
+    const next = applyDesignFlowPatch(schema, "flow-start-end", patchedFlow);
+
+    expect(next.workflow.edges[0].data).toMatchObject({
+      line: { kind: "orthogonal" },
+    });
+  });
+
+  it("normalizes annotation flow line kind to orthogonal even when persisted data is non-orthogonal", () => {
+    const schema = {
+      ...designSchema(),
+      workflow: {
+        ...designSchema().workflow,
+        edges: [
+          {
+            ...designSchema().workflow.edges[0],
+            data: {
+              ...(designSchema().workflow.edges[0].data as Record<string, unknown>),
+              flowKind: "annotation",
+              edgeKind: "annotation",
+              line: {
+                points: [],
+                kind: "bezier",
+                routing: { mode: "auto", bendPoints: [] },
+                style: { strokeType: "solid", strokeWidth: 2, arrow: "target" },
+              },
+            },
+          },
+        ],
+      },
+      editor: {
+        ...designSchema().editor,
+        selectedFlowId: "flow-start-end",
+        selection: {
+          objectId: undefined,
+          flowId: "flow-start-end",
+          collectionId: undefined,
+          objectIds: [],
+          flowIds: ["flow-start-end"],
+          mode: "single",
+        },
+      },
+    } as MicroflowDesignSchema;
+
+    const model = buildDesignPropertyPanelModel(schema);
+    const selectedFlow = model.selectedFlow;
+
+    expect(selectedFlow).toMatchObject({
+      id: "flow-start-end",
+      kind: "annotation",
+      line: { kind: "orthogonal" },
+    });
+  });
+
   it("deletes flows only and keeps node positions stable", () => {
     const schema = designSchema();
     const nodeSignature = JSON.stringify(schema.workflow.nodes.map(node => node.meta?.position));

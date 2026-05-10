@@ -322,12 +322,12 @@ export function createMicroflowWorkflowEdge(input: {
     flowId: id,
     flowKind: "sequence",
     edgeKind: input.data?.edgeKind ?? "sequence",
-    lineKind: forceOrthogonalLineKind(input.data?.lineKind),
     isErrorHandler: false,
     caseValues: [],
     validationState: "valid",
     runtimeState: "idle",
     ...input.data,
+    lineKind: forceOrthogonalLineKind(input.data?.lineKind),
   };
   return {
     id,

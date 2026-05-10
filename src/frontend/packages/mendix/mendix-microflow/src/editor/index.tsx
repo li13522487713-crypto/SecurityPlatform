@@ -618,6 +618,8 @@ export interface MicroflowEditorLabels {
   contextDelete: string;
   contextCenterView: string;
   contextCopyId: string;
+  contextDisable: string;
+  contextEnable: string;
   quickFix: string;
   quickFixUnavailable: string;
   missingDecisionBranchCreated: string;
@@ -644,6 +646,8 @@ const defaultLabels: MicroflowEditorLabels = {
   contextDelete: "Delete",
   contextCenterView: "Center View",
   contextCopyId: "Copy ID",
+  contextDisable: "Disable Node",
+  contextEnable: "Enable Node",
   quickFix: "Quick fix",
   quickFixUnavailable: "Quick fix is not available for this issue.",
   missingDecisionBranchCreated: "Missing Decision branch created."
@@ -3564,6 +3568,37 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setCanvasNodeContextMenu(undefined);
   };
 
+  const handleCanvasContextToggleDisabled = () => {
+    const objectId = canvasNodeContextMenu?.objectId;
+    if (props.readonly || !objectId) {
+      return;
+    }
+    if (isDesignSchema(schema)) {
+      const currentNode = schema.workflow.nodes.find(node => node.id === objectId);
+      if (!currentNode) {
+        return;
+      }
+      const nextDisabled = !Boolean(currentNode.data?.disabled);
+      commitSchema({
+        ...schema,
+        workflow: {
+          ...schema.workflow,
+          nodes: schema.workflow.nodes.map(node => node.id === objectId ? {
+            ...node,
+            data: { ...node.data, disabled: nextDisabled },
+          } : node),
+        },
+      } as unknown as MicroflowSchema, "updateNodeProperty", { source: "flowgram" });
+    } else {
+      commitSchema(
+        updateObject(schema, objectId, nextObject => ({ ...nextObject, disabled: !Boolean(nextObject.disabled) })),
+        "updateNodeProperty",
+        { source: "flowgram" },
+      );
+    }
+    setCanvasNodeContextMenu(undefined);
+  };
+
   const handleApplyProblemQuickFix = (issue: MicroflowValidationIssue) => {
     if (props.readonly) {
       return;
@@ -4905,6 +4940,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         </div>
         {shouldShowCanvasContextMenu && canvasNodeContextMenu ? (() => {
           const hasNode = Boolean(canvasNodeContextMenu.objectId);
+          const nodeDisabled = hasNode
+            ? isDesignSchema(schema)
+              ? Boolean(schema.workflow.nodes.find(node => node.id === canvasNodeContextMenu.objectId)?.data?.disabled)
+              : Boolean(findObject(schema, canvasNodeContextMenu.objectId!)?.disabled)
+            : false;
           return (
             <div
               data-testid="microflow-canvas-node-context-menu"
@@ -4984,6 +5024,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   {labels.contextDuplicate}
                 </Button>
               )}
+              {hasNode ? (
+                <Button
+                  block
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  style={{ justifyContent: "flex-start" }}
+                  disabled={props.readonly}
+                  onClick={handleCanvasContextToggleDisabled}
+                >
+                  {nodeDisabled ? labels.contextEnable : labels.contextDisable}
+                </Button>
+              ) : null}
               <div style={{ height: 1, margin: "4px 0", background: "var(--semi-color-border, #e5e6eb)" }} />
               <Button
                 block

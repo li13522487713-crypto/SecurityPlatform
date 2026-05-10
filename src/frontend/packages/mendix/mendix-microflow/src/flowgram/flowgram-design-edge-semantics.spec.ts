@@ -91,7 +91,7 @@ describe("flowgram design edge semantics", () => {
     expect(isMicroflowDesignEdgeBusinessValid(normalized, normalized.edges[1]!)).toBe(false);
   });
 
-  it("normalizes legacy non-orthogonal line kinds", () => {
+  it("forces canonical orthogonal line kind for edge routing", () => {
     const workflow: WorkflowJSON = {
       nodes: [
         node("root-a", "actionActivity"),

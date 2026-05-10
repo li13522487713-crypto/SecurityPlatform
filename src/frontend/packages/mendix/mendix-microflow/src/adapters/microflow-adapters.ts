@@ -45,6 +45,7 @@ import { createPortId } from "../schema/utils/port-utils";
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { buildVariableIndex as buildVariableIndexV2 } from "../variables/variable-index";
 import { microflowActionRegistryByKind } from "../node-registry/action-registry";
+import { canonicalizeFlowLine } from "../flowgram/FlowGramMicroflowTypes";
 
 const defaultLineStyle: MicroflowLine["style"] = {
   strokeType: "solid",
@@ -546,10 +547,11 @@ export function applyEditorGraphPatch(schema: MicroflowAuthoringSchema, patch: M
     if (!update) {
       return flow;
     }
+    const nextLine = canonicalizeFlowLine(update.line, flow.line);
     if (flow.kind === "annotation") {
-      return { ...flow, line: update.line ?? flow.line, editor: { ...flow.editor, label: update.label ?? flow.editor.label } };
+      return { ...flow, line: nextLine, editor: { ...flow.editor, label: update.label ?? flow.editor.label } };
     }
-    return { ...flow, line: update.line ?? flow.line, editor: { ...flow.editor, label: update.label ?? flow.editor.label } };
+    return { ...flow, line: nextLine, editor: { ...flow.editor, label: update.label ?? flow.editor.label } };
   });
   const hasSelectedObject = Object.prototype.hasOwnProperty.call(patch, "selectedObjectId");
   const hasSelectedFlow = Object.prototype.hasOwnProperty.call(patch, "selectedFlowId");
@@ -606,7 +608,16 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
   const safeObjectCollection = normalizeCollection(input.objectCollection);
   const safeParameters = input.parameters ?? [];
   const safeFlows = Array.isArray(input.flows) ? input.flows : [];
-  const variables = buildVariableIndex(safeParameters, safeObjectCollection, safeFlows);
+  const normalizedFlows = safeFlows.map(flow => ({
+    ...flow,
+    line: canonicalizeFlowLine(flow.line, {
+      kind: "orthogonal",
+      points: [],
+      routing: { mode: "auto", bendPoints: [] },
+      style: { strokeType: "solid", strokeWidth: 2, arrow: "target" },
+    }),
+  }));
+  const variables = buildVariableIndex(safeParameters, safeObjectCollection, normalizedFlows);
   return {
     schemaVersion: "1.0.0",
     mendixProfile: "mx11",
@@ -620,7 +631,7 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
     returnType: fromMendixCompatDataType(input.microflowReturnType),
     returnVariableName: input.returnVariableName,
     objectCollection: safeObjectCollection,
-    flows: safeFlows,
+    flows: normalizedFlows,
     security: {
       applyEntityAccess: input.applyEntityAccess,
       allowedModuleRoleIds: input.allowedModuleRoleIds

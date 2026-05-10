@@ -4,6 +4,7 @@ import type { WorkflowJSON } from "@flowgram-adapter/free-layout-editor";
 import {
   flattenFlowGramWorkflowForPersistence,
   nestLoopChildrenForFlowGram,
+  createMicroflowWorkflowEdge,
 } from "./flowgram-native-schema";
 
 function node(id: string, kind: string, x: number, y: number, parentObjectId?: string) {
@@ -100,5 +101,16 @@ describe("flowgram native schema loop parenting", () => {
 
     expect(movedOut?.meta?.parentObjectId).toBeUndefined();
     expect((movedOut?.data as { parentObjectId?: string } | undefined)?.parentObjectId).toBeUndefined();
+  });
+
+  it("always normalizes created edge lineKind to orthogonal", () => {
+    const edge = createMicroflowWorkflowEdge({
+      id: "legacy-bezier",
+      sourceNodeID: "source",
+      targetNodeID: "target",
+      data: { lineKind: "bezier" } as { lineKind: "bezier" },
+    });
+
+    expect((edge.data as { lineKind?: string }).lineKind).toBe("orthogonal");
   });
 });

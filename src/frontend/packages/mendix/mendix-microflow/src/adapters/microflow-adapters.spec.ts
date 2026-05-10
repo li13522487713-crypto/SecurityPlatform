@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MendixCompatMicroflow } from "../schema/types";
 import { refreshDerivedState } from "./authoring-operations";
-import { fromMendixCompat, toRuntimeDto } from "./microflow-adapters";
+import { applyEditorGraphPatch, fromMendixCompat, toRuntimeDto } from "./microflow-adapters";
 
 const missingCollectionCompat = {
   $ID: "mf-root-missing",
@@ -78,6 +78,80 @@ describe("microflow adapters compatibility", () => {
 
     expect(runtimeDto.objectCollection.id).toBe("root");
     expect(runtimeDto.variables?.loopVariables?.item).toBeDefined();
+  });
+
+  it("normalizes legacy bezier flow lines when reading mendix compat payloads", () => {
+    const compatWithBezier = {
+      ...missingCollectionCompat,
+      flows: [
+        {
+          id: "flow-1",
+          stableId: "flow-1",
+          kind: "sequence",
+          officialType: "Microflows$SequenceFlow",
+          originObjectId: "start",
+          destinationObjectId: "end",
+          originConnectionIndex: 0,
+          destinationConnectionIndex: 0,
+          caseValues: [],
+          isErrorHandler: false,
+          line: {
+            kind: "bezier",
+            points: [],
+            routing: { mode: "auto", bendPoints: [] },
+            style: { strokeType: "solid", strokeWidth: 2, arrow: "target" },
+          },
+          editor: { edgeKind: "sequence" },
+        },
+      ],
+    } as unknown as MendixCompatMicroflow;
+
+    const schema = fromMendixCompat(compatWithBezier);
+
+    expect(schema.flows[0]?.line.kind).toBe("orthogonal");
+  });
+
+  it("normalizes updated flow lines during editor graph patch application", () => {
+    const schema = fromMendixCompat({
+      ...missingCollectionCompat,
+      flows: [
+        {
+          id: "flow-1",
+          stableId: "flow-1",
+          kind: "sequence",
+          officialType: "Microflows$SequenceFlow",
+          originObjectId: "start",
+          destinationObjectId: "end",
+          originConnectionIndex: 0,
+          destinationConnectionIndex: 0,
+          caseValues: [],
+          isErrorHandler: false,
+          line: {
+            kind: "orthogonal",
+            points: [],
+            routing: { mode: "auto", bendPoints: [] },
+            style: { strokeType: "solid", strokeWidth: 2, arrow: "target" },
+          },
+          editor: { edgeKind: "sequence" },
+        },
+      ],
+    } as unknown as MendixCompatMicroflow);
+
+    const next = applyEditorGraphPatch(schema, {
+      updatedFlows: [
+        {
+          flowId: "flow-1",
+          line: {
+            kind: "bezier",
+            points: [],
+            routing: { mode: "auto", bendPoints: [] },
+            style: { strokeType: "solid", strokeWidth: 2, arrow: "target" },
+          },
+        },
+      ],
+    });
+
+    expect(next.flows[0]?.line.kind).toBe("orthogonal");
   });
 
   it("preserves design schema variables as an array when refreshing derived state", () => {

@@ -6,6 +6,7 @@ import {
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { buildVariableIndex } from "../variables";
 import type { MicroflowMetadataCatalog } from "../metadata";
+import { canonicalizeFlowLine } from "../flowgram/FlowGramMicroflowTypes";
 import type {
   MicroflowAction,
   MicroflowAnnotationFlow,
@@ -1010,8 +1011,8 @@ export function applyEditorGraphPatchToAuthoring(schema: MicroflowSchema, patch:
   }
   for (const update of patch.updatedFlows ?? []) {
     next = updateFlow(next, update.flowId, flow => flow.kind === "annotation"
-      ? { ...flow, line: update.line ?? flow.line, editor: { ...flow.editor, label: update.label ?? flow.editor.label } }
-      : { ...flow, line: update.line ?? flow.line, editor: { ...flow.editor, label: update.label ?? flow.editor.label } });
+      ? { ...flow, line: canonicalizeFlowLine(update.line, flow.line), editor: { ...flow.editor, label: update.label ?? flow.editor.label } }
+      : { ...flow, line: canonicalizeFlowLine(update.line, flow.line), editor: { ...flow.editor, label: update.label ?? flow.editor.label } });
   }
   if (patch.addObject) {
     next = addObject(next, patch.addObject.object, patch.addObject.parentLoopObjectId);
