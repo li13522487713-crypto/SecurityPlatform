@@ -51,6 +51,56 @@ describe("MicroflowStepDebugApiClient", () => {
     expect(JSON.parse(init.body)).toEqual({ command: "runToNode", targetNodeObjectId: "node-b" });
   });
 
+  it("upserts node breakpoint payloads through dedicated endpoint", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { id: "session-1", microflowId: "mf-1", status: "paused", breakpoints: [{ id: "bp-1", microflowObjectId: "node-a", scope: 0, stale: false }] },
+      }),
+    });
+    const client = new MicroflowStepDebugApiClient({ fetcher: fetcher as unknown as typeof fetch });
+
+    await client.upsertBreakpoint("session-1", {
+      id: "bp-1",
+      microflowObjectId: "node-a",
+      scope: 0,
+      stale: false,
+      enabled: true,
+      suspendPolicy: 0,
+    });
+
+    const [url, init] = fetcher.mock.calls[0];
+    expect(url).toBe("/api/v1/microflows/debug-sessions/session-1/breakpoints");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({
+      id: "bp-1",
+      microflowObjectId: "node-a",
+      scope: 0,
+      stale: false,
+      enabled: true,
+      suspendPolicy: 0,
+    });
+  });
+
+  it("removes breakpoint through dedicated endpoint", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { id: "session-1", microflowId: "mf-1", status: "paused", breakpoints: [] },
+      }),
+    });
+    const client = new MicroflowStepDebugApiClient({ fetcher: fetcher as unknown as typeof fetch });
+
+    await client.removeBreakpoint("session-1", "bp-1");
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/v1/microflows/debug-sessions/session-1/breakpoints/bp-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
   it("throws envelope errors without hiding backend code", async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: false,

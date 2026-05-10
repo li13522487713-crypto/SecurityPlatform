@@ -9,6 +9,33 @@ export type MicroflowDebugCommand =
   | "cancel"
   | "stop";
 
+export type MicroflowDebugBreakpointScopeDto = "node" | "flow" | "expression" | "errorHandler" | "gatewayBranch" | 0 | 1 | 2 | 3 | 4;
+export type MicroflowDebugBreakpointSuspendPolicyDto = "all" | "thread" | "branchOnly" | 0 | 1 | 2;
+
+export interface MicroflowDebugBreakpointDto {
+  id: string;
+  microflowObjectId: string;
+  scope: MicroflowDebugBreakpointScopeDto;
+  stale: boolean;
+  enabled?: boolean;
+  hitCount?: number;
+  hitTarget?: number;
+  suspendPolicy?: MicroflowDebugBreakpointSuspendPolicyDto;
+}
+
+export interface MicroflowDebugConditionalBreakpointDto {
+  id: string;
+  microflowObjectId: string;
+  conditionExpression: string;
+  hitTarget: number;
+  suspendPolicy: MicroflowDebugBreakpointSuspendPolicyDto;
+  logOnly: boolean;
+  stale: boolean;
+  enabled?: boolean;
+  hitCount?: number;
+  scope?: MicroflowDebugBreakpointScopeDto;
+}
+
 export interface MicroflowDebugSessionDto {
   id: string;
   microflowId: string;
@@ -21,6 +48,8 @@ export interface MicroflowDebugSessionDto {
   trace?: MicroflowDebugTraceEventDto[];
   state?: string;
   availableCommands?: MicroflowDebugCommand[];
+  breakpoints?: MicroflowDebugBreakpointDto[];
+  conditionalBreakpoints?: MicroflowDebugConditionalBreakpointDto[];
   lastUpdatedAt?: string;
 }
 
@@ -103,6 +132,17 @@ export interface MutateDebugVariableResponseDto {
   mutated: boolean;
 }
 
+export interface MicroflowDebugCommandTargetDto {
+  nodeObjectId?: string;
+  flowId?: string;
+}
+
+export interface MicroflowDebugCommandRequestDto {
+  command: MicroflowDebugCommand;
+  targetNodeObjectId?: string;
+  targetFlowId?: string;
+}
+
 export interface MicroflowDebugApiEnvelope<T> {
   success: boolean;
   data?: T;
@@ -142,14 +182,27 @@ export class MicroflowStepDebugApiClient {
     return this.request<MicroflowDebugSessionDto>(`/api/v1/microflows/debug-sessions/${encodeURIComponent(sessionId)}`);
   }
 
-  sendCommand(sessionId: string, command: MicroflowDebugCommand, target?: { nodeObjectId?: string; flowId?: string }): Promise<MicroflowDebugSessionDto> {
+  sendCommand(sessionId: string, command: MicroflowDebugCommand, target?: MicroflowDebugCommandTargetDto): Promise<MicroflowDebugSessionDto> {
     return this.request<MicroflowDebugSessionDto>(`/api/v1/microflows/debug-sessions/${encodeURIComponent(sessionId)}/commands`, {
       method: "POST",
       body: JSON.stringify({
         command,
         targetNodeObjectId: target?.nodeObjectId,
         targetFlowId: target?.flowId,
-      }),
+      } satisfies MicroflowDebugCommandRequestDto),
+    });
+  }
+
+  upsertBreakpoint(sessionId: string, breakpoint: MicroflowDebugBreakpointDto): Promise<MicroflowDebugSessionDto> {
+    return this.request<MicroflowDebugSessionDto>(`/api/v1/microflows/debug-sessions/${encodeURIComponent(sessionId)}/breakpoints`, {
+      method: "POST",
+      body: JSON.stringify(breakpoint),
+    });
+  }
+
+  removeBreakpoint(sessionId: string, breakpointId: string): Promise<MicroflowDebugSessionDto> {
+    return this.request<MicroflowDebugSessionDto>(`/api/v1/microflows/debug-sessions/${encodeURIComponent(sessionId)}/breakpoints/${encodeURIComponent(breakpointId)}`, {
+      method: "DELETE",
     });
   }
 

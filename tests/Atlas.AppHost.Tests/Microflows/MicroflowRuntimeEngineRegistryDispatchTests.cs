@@ -504,6 +504,12 @@ public sealed class MicroflowRuntimeEngineRegistryDispatchTests
         public MicroflowDebugSession? ApplyCommand(string debugSessionId, DebugCommand command)
             => null;
 
+        public MicroflowDebugSession? UpsertBreakpoint(string debugSessionId, BreakpointDescriptor breakpoint)
+            => null;
+
+        public MicroflowDebugSession? RemoveBreakpoint(string debugSessionId, string breakpointId)
+            => null;
+
         public void RemoveSession(string debugSessionId)
         {
         }

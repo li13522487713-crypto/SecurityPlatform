@@ -227,6 +227,51 @@ public sealed class MicroflowDebugCoordinator : IMicroflowDebugCoordinator
         }
     }
 
+    public MicroflowDebugSession? UpsertBreakpoint(string debugSessionId, BreakpointDescriptor breakpoint)
+    {
+        var session = _sessions.Get(debugSessionId);
+        if (session is null)
+        {
+            return null;
+        }
+
+        return _sessions.Upsert(session with
+        {
+            Breakpoints = UpsertBreakpoint(session.Breakpoints, breakpoint),
+            Trace = AppendTrace(session.Trace, new DebugTraceEvent
+            {
+                Kind = "breakpoint",
+                RunId = session.BoundEngineRunId ?? session.RunId,
+                NodeObjectId = breakpoint.MicroflowObjectId,
+                Message = $"upsert:{breakpoint.Scope}:{breakpoint.MicroflowObjectId}"
+            })
+        });
+    }
+
+    public MicroflowDebugSession? RemoveBreakpoint(string debugSessionId, string breakpointId)
+    {
+        var session = _sessions.Get(debugSessionId);
+        if (session is null)
+        {
+            return null;
+        }
+
+        var removed = session.Breakpoints.FirstOrDefault(item => string.Equals(item.Id, breakpointId, StringComparison.Ordinal));
+        return _sessions.Upsert(session with
+        {
+            Breakpoints = session.Breakpoints
+                .Where(item => !string.Equals(item.Id, breakpointId, StringComparison.Ordinal))
+                .ToArray(),
+            Trace = AppendTrace(session.Trace, new DebugTraceEvent
+            {
+                Kind = "breakpoint",
+                RunId = session.BoundEngineRunId ?? session.RunId,
+                NodeObjectId = removed?.MicroflowObjectId,
+                Message = $"remove:{breakpointId}"
+            })
+        });
+    }
+
     private static bool ShouldPause(MicroflowDebugSession session, MicroflowDebugSafePoint point)
     {
         if (session.Status is MicroflowDebugSessionLifecycle.Cancelled or MicroflowDebugSessionLifecycle.Expired)

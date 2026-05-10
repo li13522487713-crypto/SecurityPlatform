@@ -102,6 +102,8 @@ import {
   shouldBlockRun,
   writeStoredTestRunSamples,
   type MicroflowDebugCommand,
+  type MicroflowDebugBreakpointDto,
+  type MicroflowDebugConditionalBreakpointDto,
   type MicroflowDebugTraceEventDto,
   type MicroflowDebugTimelineEventDto,
   type MicroflowDebugSessionDto,
@@ -618,6 +620,8 @@ export interface MicroflowEditorLabels {
   contextDelete: string;
   contextCenterView: string;
   contextCopyId: string;
+  contextAddBreakpoint: string;
+  contextRemoveBreakpoint: string;
   contextDisable: string;
   contextEnable: string;
   quickFix: string;
@@ -646,6 +650,8 @@ const defaultLabels: MicroflowEditorLabels = {
   contextDelete: "Delete",
   contextCenterView: "Center View",
   contextCopyId: "Copy ID",
+  contextAddBreakpoint: "Add Breakpoint",
+  contextRemoveBreakpoint: "Remove Breakpoint",
   contextDisable: "Disable Node",
   contextEnable: "Enable Node",
   quickFix: "Quick fix",
@@ -1700,6 +1706,26 @@ function DebugPanel({
               value: watch.valuePreview,
               error: watch.error,
             }))}
+            breakpoints={[
+              ...((debugSession.breakpoints ?? []).map(item => ({
+                id: item.id,
+                targetId: item.microflowObjectId,
+                scope: normalizeDebugBreakpointScope(item.scope),
+                stale: item.stale,
+                hitTarget: item.hitTarget,
+                logpoint: false,
+                condition: undefined,
+              }))),
+              ...((debugSession.conditionalBreakpoints ?? []).map(item => ({
+                id: item.id,
+                targetId: item.microflowObjectId,
+                scope: normalizeDebugBreakpointScope(item.scope),
+                stale: item.stale,
+                hitTarget: item.hitTarget,
+                logpoint: item.logOnly,
+                condition: item.conditionExpression,
+              }))),
+            ]}
             labels={{
               statusPrefix: "Status",
               nodePrefix: "Node",
@@ -1858,6 +1884,25 @@ function DebugPanel({
       ) : null}
     </Space>
   );
+}
+
+function normalizeDebugBreakpointScope(scope: MicroflowDebugBreakpointDto["scope"] | MicroflowDebugConditionalBreakpointDto["scope"] | undefined): "node" | "flow" | "expression" | "error" | "gatewayBranch" {
+  switch (scope) {
+    case 1:
+    case "flow":
+      return "flow";
+    case 2:
+    case "expression":
+      return "expression";
+    case 3:
+    case "errorHandler":
+      return "error";
+    case 4:
+    case "gatewayBranch":
+      return "gatewayBranch";
+    default:
+      return "node";
+  }
 }
 
 function MicroflowCommandPalette({
@@ -3568,6 +3613,50 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setCanvasNodeContextMenu(undefined);
   };
 
+  const handleCanvasContextToggleBreakpoint = async () => {
+    const objectId = canvasNodeContextMenu?.objectId;
+    const debugAdapter = apiClient.debugAdapter;
+    if (props.readonly || !objectId || !debugAdapter?.upsertBreakpoint || !debugAdapter.removeBreakpoint) {
+      Toast.info("Current debug adapter does not support breakpoint editing.");
+      return;
+    }
+
+    let session = activeDebugSession;
+    if (!session) {
+      session = await debugAdapter.createSession(schema.id);
+      setDebugSessionByMicroflowId(current => ({ ...current, [schema.id]: session }));
+      setDebugSuspendPolicyBySessionId(current => ({ ...current, [session.id]: current[session.id] ?? "all" }));
+    }
+
+    const existingBreakpoint = session.breakpoints?.find(item =>
+      item.enabled !== false
+      && item.microflowObjectId === objectId
+      && normalizeDebugBreakpointScope(item.scope) === "node",
+    );
+
+    try {
+      const next = existingBreakpoint
+        ? await debugAdapter.removeBreakpoint(session.id, existingBreakpoint.id)
+        : await debugAdapter.upsertBreakpoint(session.id, {
+          id: `bp-node-${objectId}`,
+          microflowObjectId: objectId,
+          scope: 0,
+          stale: false,
+          enabled: true,
+          suspendPolicy: activeDebugSuspendPolicy === "branchOnly" ? 2 : 0,
+        });
+      setDebugSessionByMicroflowId(current => ({ ...current, [schema.id]: next }));
+      await refreshDebugSession(next.id, schema.id);
+      Toast.success(existingBreakpoint ? labels.contextRemoveBreakpoint : labels.contextAddBreakpoint);
+    } catch (error) {
+      Toast.error(getEditorApiErrorMessage(error));
+    } finally {
+      setCanvasNodeContextMenu(undefined);
+      setBottomDockMode("peek");
+      setBottomTab("debug");
+    }
+  };
+
   const handleCanvasContextToggleDisabled = () => {
     const objectId = canvasNodeContextMenu?.objectId;
     if (props.readonly || !objectId) {
@@ -4940,6 +5029,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         </div>
         {shouldShowCanvasContextMenu && canvasNodeContextMenu ? (() => {
           const hasNode = Boolean(canvasNodeContextMenu.objectId);
+          const nodeBreakpoint = hasNode
+            ? activeDebugSession?.breakpoints?.find(item =>
+              item.enabled !== false
+              && item.microflowObjectId === canvasNodeContextMenu.objectId
+              && normalizeDebugBreakpointScope(item.scope) === "node")
+            : undefined;
           const nodeDisabled = hasNode
             ? isDesignSchema(schema)
               ? Boolean(schema.workflow.nodes.find(node => node.id === canvasNodeContextMenu.objectId)?.data?.disabled)
@@ -5024,6 +5119,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   {labels.contextDuplicate}
                 </Button>
               )}
+              {hasNode ? (
+                <Button
+                  block
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  style={{ justifyContent: "flex-start" }}
+                  disabled={props.readonly || !apiClient.debugAdapter?.upsertBreakpoint || !apiClient.debugAdapter?.removeBreakpoint}
+                  onClick={() => { void handleCanvasContextToggleBreakpoint(); }}
+                >
+                  {nodeBreakpoint ? labels.contextRemoveBreakpoint : labels.contextAddBreakpoint}
+                </Button>
+              ) : null}
               {hasNode ? (
                 <Button
                   block

@@ -2419,6 +2419,8 @@ export function formatStudioTemplate(template: string, params: Record<string, st
     - `POST /api/v1/microflows/runtime/retention:run`，支持 `{ retentionDays, batchSize, dryRun, resourceId? }`，返回 `{ cutoffAt, dryRun, candidateRunCount, deletedRunCount, deletedTraceCount, deletedLogCount, sampleRunIds[] }`。
   - Debug 扩展接口：
     - `POST /api/v1/microflows/debug-sessions/{sessionId}/suspend-policy`，请求 `{ policy: "all" | "branchOnly" }`，返回 `{ sessionId, policy }`。
+    - `POST /api/v1/microflows/debug-sessions/{sessionId}/breakpoints`，请求 `BreakpointDescriptor { id, microflowObjectId, scope, stale, enabled?, hitCount?, hitTarget?, suspendPolicy? }`，返回更新后的 `MicroflowDebugSession`；当前前端默认写入节点级断点。
+    - `DELETE /api/v1/microflows/debug-sessions/{sessionId}/breakpoints/{breakpointId}`，返回更新后的 `MicroflowDebugSession`。
     - `GET /api/v1/microflows/debug-sessions/{sessionId}/timeline?take=200`，返回时间倒序 timeline，字段 `id/sessionId/runId/objectId/flowId/branchId/phase/occurredAt/summary`。
     - `POST /api/v1/microflows/debug-sessions/{sessionId}/variables:mutate` 仅允许暂停点调用，支持 `{ name, value?, valuePreview?, rawValueJson?, allowUnsafe }`，返回 `{ sessionId, name, valuePreview, updatedAt, mutated }`。
   - 前端内联编辑运行态门禁：`running` 时仅在 debug 暂停点允许提交内联字段；`continue/stepOver/stepInto/stepOut` 前必须执行快速校验，校验失败时阻断继续并定位到首个 error issue 对应字段/节点。

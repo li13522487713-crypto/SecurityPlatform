@@ -23,6 +23,10 @@ public interface IMicroflowDebugCoordinator
 
     MicroflowDebugSession? ApplyCommand(string debugSessionId, DebugCommand command);
 
+    MicroflowDebugSession? UpsertBreakpoint(string debugSessionId, BreakpointDescriptor breakpoint);
+
+    MicroflowDebugSession? RemoveBreakpoint(string debugSessionId, string breakpointId);
+
     /// <summary>会话删除时释放等待并移除本地闸。</summary>
     void RemoveSession(string debugSessionId);
 }

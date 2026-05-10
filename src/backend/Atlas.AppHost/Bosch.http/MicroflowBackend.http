@@ -3520,6 +3520,30 @@ X-Trace-Id: {{traceId}}
   "policy": "branchOnly"
 }
 
+### Debug - upsert node breakpoint
+POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/breakpoints
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "id": "bp-node-start",
+  "microflowObjectId": "start",
+  "scope": 0,
+  "stale": false,
+  "enabled": true,
+  "suspendPolicy": 0
+}
+
+### Debug - remove node breakpoint
+DELETE {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/breakpoints/bp-node-start
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Debug - timeline
 GET {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/timeline?take=200
 X-Workspace-Id: {{workspaceId}}

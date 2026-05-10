@@ -70,6 +70,44 @@ public sealed class MicroflowDebugController : MicroflowApiControllerBase
         return MicroflowOk(updated);
     }
 
+    [HttpPost("debug-sessions/{sessionId}/breakpoints")]
+    public ActionResult<MicroflowApiResponse<MicroflowDebugSession?>> UpsertBreakpoint(
+        string sessionId,
+        [FromBody] BreakpointDescriptor breakpoint)
+    {
+        if (ResolveOwnedSession(sessionId, out var error) is null)
+        {
+            return error!;
+        }
+
+        if (string.IsNullOrWhiteSpace(breakpoint.Id) || string.IsNullOrWhiteSpace(breakpoint.MicroflowObjectId))
+        {
+            return MicroflowError<MicroflowDebugSession?>(
+                new MicroflowApiError
+                {
+                    Code = MicroflowApiErrorCode.MicroflowValidationFailed,
+                    Message = "断点 Id 与目标节点不能为空。",
+                    HttpStatus = 422
+                },
+                422);
+        }
+
+        var updated = _debugCoordinator.UpsertBreakpoint(sessionId, breakpoint);
+        return MicroflowOk(updated);
+    }
+
+    [HttpDelete("debug-sessions/{sessionId}/breakpoints/{breakpointId}")]
+    public ActionResult<MicroflowApiResponse<MicroflowDebugSession?>> RemoveBreakpoint(string sessionId, string breakpointId)
+    {
+        if (ResolveOwnedSession(sessionId, out var error) is null)
+        {
+            return error!;
+        }
+
+        var updated = _debugCoordinator.RemoveBreakpoint(sessionId, breakpointId);
+        return MicroflowOk(updated);
+    }
+
     [HttpGet("debug-sessions/{sessionId}/variables")]
     public ActionResult<MicroflowApiResponse<IReadOnlyList<DebugVariableSnapshot>>> Variables(string sessionId)
     {

@@ -14,6 +14,7 @@ import type {
   MicroflowTraceFrame,
 } from "../debug/trace-types";
 import type {
+  MicroflowDebugBreakpointDto,
   MicroflowDebugCommand,
   MicroflowDebugSessionDto,
   MicroflowDebugTimelineEventDto,
@@ -176,6 +177,8 @@ export interface MicroflowDebugAdapter {
   createSession(microflowId: string): Promise<MicroflowDebugSessionDto>;
   getSession(sessionId: string): Promise<MicroflowDebugSessionDto>;
   sendCommand(sessionId: string, command: MicroflowDebugCommand, target?: { nodeObjectId?: string; flowId?: string }): Promise<MicroflowDebugSessionDto>;
+  upsertBreakpoint?(sessionId: string, breakpoint: MicroflowDebugBreakpointDto): Promise<MicroflowDebugSessionDto>;
+  removeBreakpoint?(sessionId: string, breakpointId: string): Promise<MicroflowDebugSessionDto>;
   listVariables(sessionId: string): Promise<MicroflowDebugVariableSnapshotDto[]>;
   evaluate(sessionId: string, expression: string): Promise<MicroflowDebugWatchExpressionDto>;
   trace(sessionId: string): Promise<MicroflowDebugTraceEventDto[]>;
