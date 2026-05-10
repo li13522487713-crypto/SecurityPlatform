@@ -285,7 +285,9 @@ function ParameterField(props: {
         <Text size="small" strong>{parameter.name}{parameter.required ? " *" : ""}</Text>
         <Tag size="small">{props.field.typeLabel}</Tag>
       </Space>
-      {renderInput(parameter.dataType, props.value, props.onChange)}
+      <div data-testid={`microflow-test-run-parameter-${parameter.name}`}>
+        {renderInput(parameter.dataType, props.value, props.onChange)}
+      </div>
       {parameter.documentation || parameter.description ? <Text type="tertiary" size="small">{parameter.documentation ?? parameter.description}</Text> : null}
       {props.field.warning ? <Text type="warning" size="small">{props.field.warning}</Text> : null}
       {props.error ? <Text type="danger" size="small">{props.error}</Text> : null}

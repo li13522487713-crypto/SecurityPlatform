@@ -842,6 +842,8 @@ export function toRuntimeP0ActionPayload(action: MicroflowAction): MicroflowDisc
       return runtimeDto(action, { objectOrListVariableName: action.objectOrListVariableName, withEvents: action.withEvents, deleteBehavior: action.deleteBehavior });
     case "rollback":
       return runtimeDto(action, { objectOrListVariableName: action.objectOrListVariableName, refreshInClient: action.refreshInClient });
+    case "cast":
+      return runtimeDto(action, { sourceVariable: action.sourceVariable ?? action.sourceObjectVariableName, sourceObjectVariableName: action.sourceObjectVariableName ?? action.sourceVariable, targetVariable: action.targetVariable ?? action.outputVariable ?? action.outputVariableName, outputVariable: action.outputVariable ?? action.outputVariableName ?? action.targetVariable, outputVariableName: action.outputVariableName ?? action.outputVariable ?? action.targetVariable, targetEntity: action.targetEntity ?? action.targetEntityQualifiedName, targetEntityQualifiedName: action.targetEntityQualifiedName ?? action.targetEntity } as unknown as MicroflowDiscriminatedRuntimeP0ActionDto["config"]);
     case "createList":
       return runtimeDto(action, { outputListVariableName: action.outputListVariableName, listVariableName: action.listVariableName, itemType: action.itemType, elementType: action.elementType, listType: action.listType, initialItemsExpression: action.initialItemsExpression });
     case "changeList":
@@ -850,6 +852,10 @@ export function toRuntimeP0ActionPayload(action: MicroflowAction): MicroflowDisc
       return runtimeDto(action, { sourceListVariableName: action.sourceListVariableName, listVariableName: action.listVariableName, aggregateFunction: action.aggregateFunction, attributeQualifiedName: action.attributeQualifiedName, member: action.member, aggregateExpression: action.aggregateExpression, outputVariableName: action.outputVariableName, resultVariableName: action.resultVariableName, resultType: action.resultType, emptyListBehavior: action.emptyListBehavior });
     case "listOperation":
       return runtimeDto(action, { leftListVariableName: action.leftListVariableName, sourceListVariableName: action.sourceListVariableName, rightListVariableName: action.rightListVariableName, operation: action.operation, objectVariableName: action.objectVariableName, expression: action.expression, filterExpression: action.filterExpression, sortExpression: action.sortExpression, sortKeys: action.sortKeys, outputListVariableName: action.outputListVariableName ?? action.outputVariableName, outputVariableName: action.outputVariableName, outputElementType: action.outputElementType, limit: action.limit, offset: action.offset });
+    case "filterList":
+      return runtimeDto(action, { sourceListVariableName: action.sourceListVariableName, listVariableName: action.listVariableName, outputVariableName: action.outputVariableName, itemVariableName: action.itemVariableName, conditionExpression: action.conditionExpression, filterExpression: action.filterExpression, itemType: action.itemType, outputElementType: action.outputElementType } as unknown as MicroflowDiscriminatedRuntimeP0ActionDto["config"]);
+    case "sortList":
+      return runtimeDto(action, { sourceListVariableName: action.sourceListVariableName, listVariableName: action.listVariableName, outputVariableName: action.outputVariableName, outputListVariableName: action.outputListVariableName ?? action.outputVariableName, direction: action.direction, sortExpression: action.sortExpression, sortKeys: action.sortKeys, outputElementType: action.outputElementType } as unknown as MicroflowDiscriminatedRuntimeP0ActionDto["config"]);
     case "counter":
       return runtimeDto(action, { metricName: action.metricName, valueExpression: action.valueExpression, tags: action.tags });
     case "incrementCounter":

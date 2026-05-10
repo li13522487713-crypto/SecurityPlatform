@@ -110,6 +110,7 @@ import {
 } from "../debug";
 import { createMicroflowGraphIndex, useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
 import { useMicroflowShortcuts } from "./shortcuts";
+import { buildAcceptance120Schema } from "./acceptance-120-fixture";
 import {
   consumeRuntimeCommand,
   createRuntimeCommandConsoleEntry,
@@ -380,6 +381,7 @@ export interface MicroflowEditorHandle {
   setZoom: (zoom: number) => void;
   /** Toggle “pan / hand” mode on the FlowGram canvas. */
   togglePanTool: () => void;
+  toggleToolbox: () => void;
   toggleFullscreen: () => void;
   toggleFocusMode: () => void;
   toggleMinimap: () => void;
@@ -1764,7 +1766,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const externalLayout = true;
   const [leftOpen, setLeftOpen] = useState(() => {
     if (props.toolbarMode === "external") {
-      return Boolean(readMendixLayoutStorage().nodesDrawerOpen);
+      return readMendixLayoutStorage().nodesDrawerOpen ?? true;
     }
     if (!persistAuxPanelState) {
       return true;
@@ -2213,6 +2215,33 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }, metadataForRefresh);
     commitSchema(nextSchema, "insertTemplate", { source: "nodePanel" });
     Toast.success(`${template.name} inserted`);
+  };
+
+  const handleConfigureAllNodeAcceptance120 = async () => {
+    if (!isDesignSchema(schema)) {
+      Toast.error("旧版 Authoring 编辑器不支持验收120配置，请使用新版 FlowGram Studio。");
+      return;
+    }
+    const nextDesignSchema = buildAcceptance120Schema(schema);
+    const nextSchema = nextDesignSchema as unknown as MicroflowSchema;
+    commitSchema(nextSchema, "insertTemplate", { historyLabel: "Configure acceptance 120 graph", source: "nodePanel" });
+    setSaving(true);
+    try {
+      const response = await apiClient.saveMicroflow({ schema: nextDesignSchema });
+      props.onSaveComplete?.(response);
+      savedSchemaRef.current = nextSchema;
+      historyManager.replaceCurrent(nextSchema, "bulkUpdate");
+      refreshHistoryState();
+      setDirty(false);
+      Toast.success("已配置并保存全节点验收计算图，预期输出 120。");
+    } catch (error) {
+      applyApiValidationIssues(error, setIssues, () => {
+        setBottomTab("problems");
+      });
+      Toast.error(getEditorApiErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const saveCurrentSchema = async (reason: "save" | "saveAndRun" = "save"): Promise<boolean> => {
@@ -3881,6 +3910,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     togglePanTool: () => {
       setCanvasPanToolActive(value => !value);
     },
+    toggleToolbox: () => {
+      setLeftOpen(value => !value);
+    },
+    configureAllNodeAcceptance120: handleConfigureAllNodeAcceptance120,
     resetLayout: resetWorkbenchLayout,
     openBottomTab: (tab: MicroflowWorkbenchBottomTab) => {
       openBottomDock(tab);
@@ -3892,7 +3925,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     getStatus: () => workbenchStatus,
   // The handle reads many derived values; React will re-create the impl each
   // render so callers always observe fresh values.
-  }), [commitSchema, dirty, focusMode, fullscreenActive, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, validationStatus, workbenchStatus]);
+  }), [commitSchema, dirty, focusMode, fullscreenActive, handleConfigureAllNodeAcceptance120, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, validationStatus, workbenchStatus]);
 
   const nodePaletteActions = useMemo<CommandPaletteAction[]>(() => (
     graph.nodes

@@ -15,6 +15,7 @@ describe("MF_AllNodeComplexComputation_Test fixture", () => {
     const plan = toExecutionPlan(schema);
     const validation = validateExecutionPlan(plan);
 
+    expect(validation.issues.filter(issue => issue.severity === "error")).toEqual([]);
     expect(validation.valid).toBe(true);
     expect(schema.parameters).toEqual([
       expect.objectContaining({ id: "numbers", name: "numbers", required: true }),

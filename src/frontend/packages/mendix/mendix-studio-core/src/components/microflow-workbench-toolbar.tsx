@@ -84,6 +84,34 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
 
   const disabled = !microflowId;
   const runCommand = (command: Parameters<MicroflowWorkbenchCommandBus["execute"]>[0], payload?: { panel: "problems" | "debug" | "references" | "info" | "console" }) => {
+    if (command !== "microflow.openPanel") {
+      switch (command) {
+        case "microflow.save":
+          callHandle("save");
+          return;
+        case "microflow.validate":
+          callHandle("validate");
+          return;
+        case "microflow.run":
+          callHandle("runTest");
+          return;
+        case "microflow.debugRun":
+          callHandle("runDebug");
+          return;
+        case "microflow.publish":
+          callHandle("publish");
+          return;
+        case "microflow.undo":
+          callHandle("undo");
+          return;
+        case "microflow.redo":
+          callHandle("redo");
+          return;
+        case "microflow.toggleFocusMode":
+          callHandle("toggleFocusMode");
+          return;
+      }
+    }
     if (commandBus) {
       void commandBus.execute(command as never, payload as never).finally(refreshStatus);
       return;
@@ -271,6 +299,18 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
             </Button>
           </Tooltip>
         ) : null}
+        <Tooltip content="节点工具箱">
+          <Button
+            data-testid="microflow-workbench-toolbox"
+            size="small"
+            theme="borderless"
+            icon={<IconBranch />}
+            disabled={disabled}
+            onClick={() => callHandle("toggleToolbox")}
+          >
+            节点
+          </Button>
+        </Tooltip>
       </Space>
     </div>
   );
