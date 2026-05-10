@@ -230,7 +230,9 @@ export function getBreakContinueWarnings(schema: MicroflowSchema, objectId: stri
     warnings.push("No Loop exists in the current microflow.");
   }
   if (!located?.parentLoopObjectId) {
-    warnings.push("This control event is not inside a Loop body. Full containment validation will be completed in Stage 20.");
+    if (!(object.kind === "breakEvent" && object.targetLoopObjectId && loopObjects.some(loop => loop.id === object.targetLoopObjectId))) {
+      warnings.push("This control event is not inside a Loop body. Full containment validation will be completed in Stage 20.");
+    }
   }
   if (object.targetLoopObjectId && !loopObjects.some(loop => loop.id === object.targetLoopObjectId)) {
     warnings.push("Target Loop is stale or has been deleted.");

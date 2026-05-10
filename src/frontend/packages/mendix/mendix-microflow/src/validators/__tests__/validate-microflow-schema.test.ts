@@ -210,6 +210,17 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_BREAK_OUTSIDE_LOOP", severity: "error" })]));
   });
 
+  it("allows Break outside Loop when targetLoopObjectId points to an existing loop", () => {
+    const loop = objectFrom("loop", "loop");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loop object.");
+    }
+    const brk = { ...objectFrom("breakEvent", "break"), targetLoopObjectId: loop.id };
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), loop, brk, objectFrom("endEvent", "end")]));
+
+    expect(issues.some(issue => issue.code === "MF_BREAK_OUTSIDE_LOOP")).toBe(false);
+  });
+
   it("reports List Operation missing source as an error", () => {
     const issues = validate(schemaWith([objectFrom("startEvent", "start"), actionObject("activity:listOperation", "list-operation"), objectFrom("endEvent", "end")]));
 

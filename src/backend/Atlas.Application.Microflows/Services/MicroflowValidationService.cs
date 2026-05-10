@@ -403,9 +403,14 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
             if (IsKind(obj, "breakEvent") || IsKind(obj, "continueEvent"))
             {
-                if (!obj.InsideLoop)
+                var targetLoopObjectId = MicroflowSchemaReader.ReadString(obj.Raw, "targetLoopObjectId");
+                var validExternalBreak = IsKind(obj, "breakEvent")
+                    && !string.IsNullOrWhiteSpace(targetLoopObjectId)
+                    && context.SchemaModel.Objects.Any(loop => IsKind(loop, "loopedActivity") && string.Equals(loop.Id, targetLoopObjectId, StringComparison.Ordinal));
+
+                if (!obj.InsideLoop && !validExternalBreak)
                 {
-                    Add(context, IsKind(obj, "breakEvent") ? MicroflowValidationCodes.BreakOutsideLoop : MicroflowValidationCodes.ContinueOutsideLoop, "Break/Continue 只能在 Loop 内使用。", "event", obj.FieldPath, objectId: obj.Id);
+                    Add(context, IsKind(obj, "breakEvent") ? MicroflowValidationCodes.BreakOutsideLoop : MicroflowValidationCodes.ContinueOutsideLoop, "Break/Continue 只能在 Loop 内使用；Break 若在框外必须显式指向一个现有 Loop。", "event", obj.FieldPath, objectId: obj.Id);
                 }
 
                 if (outgoing.Length > 0)

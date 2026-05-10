@@ -531,15 +531,22 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 return LoopBodyFailed(Error(RuntimeErrorCode.RuntimeObjectNotFound, $"Loop body 运行对象不存在：{currentNodeId}", currentNodeId, flowId: incomingFlowId));
             }
 
+            if (node.Kind == "breakEvent")
+            {
+                var targetLoopObjectId = ReadString(node.Raw, "targetLoopObjectId");
+                if (!string.IsNullOrWhiteSpace(targetLoopObjectId)
+                    && !string.Equals(targetLoopObjectId, loopCollection.LoopObjectId, StringComparison.Ordinal))
+                {
+                    return LoopBodyFailed(Error(RuntimeErrorCode.RuntimeLoopControlOutOfScope, $"BreakEvent target loop '{targetLoopObjectId}' is not in the current loop execution scope.", node.Id, flowId: incomingFlowId));
+                }
+
+                context.AddFrame(node, incomingFlowId, null, "success", JsonObj(new { node.Kind, signal = "break", targetLoopObjectId = targetLoopObjectId ?? loopCollection.LoopObjectId }), iteration.LoopIterationJson, null, "Break current loop iteration.");
+                return new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Break };
+            }
+
             if (!string.Equals(node.CollectionId, loopCollection.CollectionId, StringComparison.Ordinal))
             {
                 return LoopBodyFailed(Error(RuntimeErrorCode.RuntimeLoopDeadEnd, $"Loop body 节点不在当前 collection：{node.Id}", node.Id, flowId: incomingFlowId));
-            }
-
-            if (node.Kind == "breakEvent")
-            {
-                context.AddFrame(node, incomingFlowId, null, "success", JsonObj(new { node.Kind, signal = "break" }), iteration.LoopIterationJson, null, "Break current loop iteration.");
-                return new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Break };
             }
 
             if (node.Kind == "continueEvent")

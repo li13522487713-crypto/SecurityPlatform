@@ -40,7 +40,10 @@ export function validateLoop(schema: MicroflowSchema, _context: MicroflowValidat
       }
     }
     if ((object.kind === "breakEvent" || object.kind === "continueEvent") && !loopObjectId) {
-      issues.push(issue(object.kind === "breakEvent" ? "MF_BREAK_OUTSIDE_LOOP" : "MF_CONTINUE_OUTSIDE_LOOP", "Break/Continue must be inside LoopedActivity.objectCollection.", { objectId: object.id, collectionId }));
+      const validExternalBreak = object.kind === "breakEvent" && Boolean(object.targetLoopObjectId && loopIds.has(object.targetLoopObjectId));
+      if (!validExternalBreak) {
+        issues.push(issue(object.kind === "breakEvent" ? "MF_BREAK_OUTSIDE_LOOP" : "MF_CONTINUE_OUTSIDE_LOOP", "Break/Continue must be inside LoopedActivity.objectCollection unless Break explicitly targets a Loop exit.", { objectId: object.id, collectionId }));
+      }
     }
     if ((object.kind === "breakEvent" || object.kind === "continueEvent")) {
       const outgoing = flows.filter(flow => flow.originObjectId === object.id);

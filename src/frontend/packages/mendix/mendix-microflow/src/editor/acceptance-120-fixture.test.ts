@@ -25,15 +25,20 @@ describe("MF_AllNodeComplexComputation_Test fixture", () => {
     expect(plan.decisionFlows).toEqual(expect.arrayContaining([
       expect.objectContaining({ flowId: "f-decision-true", edgeKind: "decisionCondition" }),
       expect.objectContaining({ flowId: "f-decision-false", edgeKind: "decisionCondition" }),
+      expect.objectContaining({ flowId: "f-continue-true", edgeKind: "decisionCondition" }),
+      expect.objectContaining({ flowId: "f-continue-false", edgeKind: "decisionCondition" }),
+      expect.objectContaining({ flowId: "f-break-true", edgeKind: "decisionCondition" }),
+      expect.objectContaining({ flowId: "f-break-false", edgeKind: "decisionCondition" }),
     ]));
     expect(plan.objectTypeFlows.map(flow => flow.flowId)).toEqual(["f-object-student", "f-object-fallback"]);
     expect(plan.ignoredFlows).toEqual(expect.arrayContaining([
-      expect.objectContaining({ flowId: "f-loop-body-break-decision", edgeKind: "loopBody", controlFlow: "ignored" }),
+      expect.objectContaining({ flowId: "f-loop-body-continue-decision", edgeKind: "loopBody", controlFlow: "ignored" }),
+      expect.objectContaining({ flowId: "f-loop-note", edgeKind: "annotation", controlFlow: "ignored" }),
     ]));
     expect(plan.loopCollections.find(loop => loop.loopObjectId === "loop-numbers")).toMatchObject({
       collectionId: "loop-numbers-body",
-      nodeIds: expect.arrayContaining(["break-check", "continue-check", "loop-touch"]),
-      flowIds: expect.arrayContaining(["f-loop-body-break-decision", "f-break-true", "f-continue-false"]),
+      nodeIds: expect.arrayContaining(["continue-check", "continue-event", "break-check", "loop-touch"]),
+      flowIds: expect.arrayContaining(["f-loop-body-continue-decision", "f-continue-false", "f-break-false"]),
     });
     expect(plan.gateways.find(gateway => gateway.objectId === "parallel-fork")).toMatchObject({
       role: "split",

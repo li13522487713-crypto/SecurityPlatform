@@ -123,6 +123,14 @@ describe("loop / break / continue helpers", () => {
     expect(getBreakContinueWarnings(noLoop, cont.id).some(warning => warning.includes("No Loop"))).toBe(true);
   });
 
+  it("allows Break outside loop body when targetLoopObjectId explicitly points at an existing loop", () => {
+    const loop = loopObject();
+    const brk = breakObject();
+    const schema = updateBreakContinueTargetLoop(schemaWith([loop, brk]), brk.id, loop.id);
+
+    expect(getBreakContinueWarnings(schema, brk.id).some(warning => warning.includes("not inside a Loop body"))).toBe(false);
+  });
+
   it("keeps A/B schema loop variables isolated and duplicates loop variable names", () => {
     const aLoop = loopObject("loop-a");
     const bLoop = loopObject("loop-b");
