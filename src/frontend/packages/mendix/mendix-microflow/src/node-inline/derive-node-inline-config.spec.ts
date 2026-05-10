@@ -473,7 +473,7 @@ describe("deriveNodeInlineConfig", () => {
     expect(findFieldOption(startInline, "parameters.0.dataType.kind")?.some(option => option.value === "string")).toBe(true);
     expect(findFieldOption(startInline, "parameters.0.required")?.some(option => option.value === "true")).toBe(true);
     expect(findField(startInline, "parameters.1.name")).toMatchObject({ value: "amount", editType: "text" });
-    expect(endInline.sections.some(section => section.id === "output-mappings")).toBe(true);
+    expect(endInline.sections.some(section => section.id === "output-mappings")).toBe(false);
   });
 
   it("derives loop and error handler branch-like summaries", () => {
@@ -772,7 +772,7 @@ describe("deriveNodeInlineConfig", () => {
     expect(fix?.editType).toBe("branch");
   });
 
-  it("adds unified output-mappings section for executable nodes without compatibility fallback", () => {
+  it("shows unified output-mappings section only when mappings are configured", () => {
     const node: MicroflowWorkflowNodeJSON = {
       id: "action-2",
       type: "activity",
@@ -788,6 +788,11 @@ describe("deriveNodeInlineConfig", () => {
           kind: "invokeAction",
           outputVariableName: "canonicalResult",
         },
+        outputMappings: [{
+          key: "result",
+          source: "variable",
+          variableName: "canonicalResult",
+        }],
       } as never,
       meta: { position: { x: 520, y: 80 } },
     };
@@ -796,7 +801,11 @@ describe("deriveNodeInlineConfig", () => {
       .flatMap(section => section.fields)
       .find(field => field.fieldPath === "data.outputMappings");
     expect(mappingField?.editType).toBe("outputMappings");
-    expect(mappingField?.value).toBe("[]");
+    expect(JSON.parse(mappingField?.value ?? "[]")).toEqual([{
+      key: "result",
+      source: "variable",
+      variableName: "canonicalResult",
+    }]);
     expect(inline.sections.some(section => section.id === "output-mappings")).toBe(true);
   });
 });

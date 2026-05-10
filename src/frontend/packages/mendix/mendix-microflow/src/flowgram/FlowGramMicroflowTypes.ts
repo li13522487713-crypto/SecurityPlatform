@@ -9,6 +9,7 @@ import type {
   MicroflowLoopedActivity,
   MicroflowValidationIssue,
 } from "../schema";
+import type { MicroflowRuntimeValueGroup } from "../debug/runtime-value-view-model";
 import type { MicroflowCaseEditorKind } from "./adapters/flowgram-case-options";
 
 export type FlowGramMicroflowNodeType = MicroflowObjectKind;
@@ -134,9 +135,17 @@ export interface MicroflowNodeRuntimeInlineState {
   failed?: boolean;
   skipped?: boolean;
   durationMs?: number;
+  executionIndex?: number;
+  inputCount?: number;
+  outputCount?: number;
   selectedBranchLabel?: string;
   inputPreview?: string;
   outputPreview?: string;
+  outputSummaries?: string[];
+  inputGroup?: MicroflowRuntimeValueGroup;
+  outputGroup?: MicroflowRuntimeValueGroup;
+  variableGroup?: MicroflowRuntimeValueGroup;
+  rawTraceJson?: string;
   variableSnapshot?: Array<{ name: string; type?: string; valuePreview: string }>;
   error?: {
     code?: string;

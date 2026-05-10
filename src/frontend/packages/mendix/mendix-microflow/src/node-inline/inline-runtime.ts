@@ -1,4 +1,5 @@
 import type { MicroflowTraceFrame } from "../debug/trace-types";
+import { buildRuntimeValueGroups } from "../debug/runtime-value-view-model";
 import type { MicroflowNodeRuntimeInlineState } from "../flowgram/FlowGramMicroflowTypes";
 import type { MicroflowValidationIssue } from "../schema/types";
 import { runtimeInputPreview, runtimeOutputPreview } from "./inline-formatters";
@@ -47,6 +48,7 @@ export function deriveRuntimeInlineState(
     return undefined;
   }
   const errorMessage = frame.error?.message ?? frame.message;
+  const valueGroups = buildRuntimeValueGroups(frame);
   return {
     visited: frame.status === "success" || frame.status === "failed" || frame.status === "skipped",
     running: frame.status === "running",
@@ -54,6 +56,9 @@ export function deriveRuntimeInlineState(
     failed: frame.status === "failed",
     skipped: frame.status === "skipped",
     durationMs: frame.durationMs,
+    executionIndex: Number.isFinite(Number(frame.frameId)) ? Number(frame.frameId) : undefined,
+    inputCount: valueGroups.inputs.values.length,
+    outputCount: valueGroups.outputs.values.length,
     selectedBranchLabel: frame.selectedCaseValue?.kind === "boolean"
       ? String(frame.selectedCaseValue.value)
       : frame.selectedCaseValue?.kind === "enumeration"
@@ -61,6 +66,11 @@ export function deriveRuntimeInlineState(
         : undefined,
     inputPreview: runtimeInputPreview(frame),
     outputPreview: runtimeOutputPreview(frame),
+    outputSummaries: valueGroups.outputSummaries,
+    inputGroup: valueGroups.inputs,
+    outputGroup: valueGroups.outputs,
+    variableGroup: valueGroups.variables,
+    rawTraceJson: JSON.stringify(frame, null, 2),
     variableSnapshot: Object.values(frame.variablesSnapshot ?? {}).map(item => ({
       name: item.name,
       type: item.type.kind,

@@ -143,7 +143,7 @@
 }
 
 .microflow-flowgram-node.is-expanded {
-  min-width: 300px;
+  min-width: 420px;
   overflow: visible;
   border-color: rgba(22, 93, 255, 0.32);
   box-shadow: 0 8px 24px rgba(31, 35, 41, 0.12), 0 0 0 2px rgba(22, 93, 255, 0.14);
@@ -330,7 +330,7 @@
 
 .microflow-inline-editor {
   margin-top: 6px;
-  max-height: 200px;
+  max-height: 360px;
   overflow-y: auto;
   overflow-x: hidden;
   display: grid;
@@ -338,6 +338,98 @@
   /* 细滚动条，不抢视觉 */
   scrollbar-width: thin;
   scrollbar-color: rgba(22, 93, 255, 0.25) transparent;
+}
+
+.microflow-runtime-inline {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(31, 35, 41, 0.1);
+  border-radius: 6px;
+  background: rgba(245, 247, 250, 0.78);
+}
+
+.microflow-runtime-inspector__summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.microflow-runtime-inspector__tabs {
+  width: 100%;
+  min-width: 0;
+}
+
+.microflow-runtime-inspector__group {
+  display: grid;
+  gap: 8px;
+}
+
+.microflow-runtime-inspector__value-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(31, 35, 41, 0.1);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.microflow-runtime-inspector__value-head,
+.microflow-runtime-inspector__list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.microflow-runtime-inspector__tags,
+.microflow-runtime-inspector__mode-buttons {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.microflow-runtime-inspector__table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.microflow-runtime-inspector__table th,
+.microflow-runtime-inspector__table td {
+  overflow: hidden;
+  padding: 4px 6px;
+  border: 1px solid rgba(31, 35, 41, 0.08);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.microflow-runtime-inspector__table th {
+  background: rgba(31, 35, 41, 0.04);
+  color: #646a73;
+  font-weight: 600;
+}
+
+.microflow-runtime-inspector__list {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.microflow-runtime-inspector__json {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
 }
 
 .microflow-inline-editor::-webkit-scrollbar {

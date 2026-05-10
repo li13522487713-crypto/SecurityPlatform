@@ -59,6 +59,7 @@ import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowCanvas } from "../flowgram";
 import { createMicroflowWorkflowNode } from "../flowgram/flowgram-native-schema";
+import { stripTransientDesignSchema } from "../flowgram/transient-workflow-state";
 import {
   MICROFLOW_INLINE_FIELD_COMMIT_EVENT,
   MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT,
@@ -159,6 +160,13 @@ const AUXILIARY_PANELS_ENABLED = false;
 
 function isDesignSchema(schema: unknown): schema is MicroflowDesignSchema {
   return (schema as { workflow?: unknown }).workflow != null;
+}
+
+function stripTransientSchemaState<T extends MicroflowSchema | MicroflowDesignSchema>(targetSchema: T): T {
+  if (!isDesignSchema(targetSchema)) {
+    return targetSchema;
+  }
+  return stripTransientDesignSchema(targetSchema) as T;
 }
 
 function createUniqueDesignNodeId(schema: MicroflowDesignSchema, registryKey: string): string {
@@ -756,6 +764,59 @@ function setValueAtPath(target: Record<string, unknown>, path: string, value: un
   }
   cursor[segments[segments.length - 1]] = value;
   return true;
+}
+
+function parseInlineJsonValue(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeInlineCommitValue(detail: MicroflowInlineFieldCommitDetail): unknown {
+  if (detail.editType === "outputMappings") {
+    const parsed = parseInlineJsonValue(detail.value);
+    return Array.isArray(parsed) ? parsed : [];
+  }
+  if (detail.editType === "json" || detail.editType === "mapping") {
+    return parseInlineJsonValue(detail.value);
+  }
+  return detail.value;
+}
+
+function setInlineFieldOnDesignNode(node: MicroflowWorkflowNodeJSON, detail: MicroflowInlineFieldCommitDetail): boolean {
+  const value = normalizeInlineCommitValue(detail);
+  const fieldPath = detail.fieldPath.startsWith("data.") ? detail.fieldPath : `data.${detail.fieldPath}`;
+  return setValueAtPath(node as unknown as Record<string, unknown>, fieldPath, value);
+}
+
+function updateDesignNodeInlineField(schema: MicroflowDesignSchema, detail: MicroflowInlineFieldCommitDetail): MicroflowDesignSchema | undefined {
+  let changed = false;
+  const nodes = schema.workflow.nodes.map(node => {
+    const nodeData = node.data ?? {};
+    const objectId = typeof nodeData.objectId === "string" ? nodeData.objectId : node.id;
+    if (node.id !== detail.nodeId && objectId !== detail.nodeId) {
+      return node;
+    }
+    const nextNode = structuredClone(node) as MicroflowWorkflowNodeJSON;
+    changed = setInlineFieldOnDesignNode(nextNode, detail) || changed;
+    return nextNode;
+  });
+  if (!changed) {
+    return undefined;
+  }
+  return {
+    ...schema,
+    workflow: {
+      ...schema.workflow,
+      nodes,
+    },
+    audit: {
+      ...schema.audit,
+      updatedAt: new Date().toISOString(),
+    },
+  };
 }
 
 function waitForMs(ms: number): Promise<void> {
@@ -1713,7 +1774,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const bottomPanelFallback = props.defaultBottomPanelOpen ?? (props.immersive === true);
 
   const [schema, setSchema] = useState<MicroflowSchema>(() =>
-    refreshDerivedState(props.schema, props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG),
+    refreshDerivedState(stripTransientSchemaState(props.schema), props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG),
   );
   const historyManagerRef = useRef<MicroflowHistoryManager | null>(null);
   if (!historyManagerRef.current) {
@@ -1842,8 +1903,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, [testRunSamplesByMicroflowId]);
 
   const validateForMode = useCallback(async (targetSchema: MicroflowSchema | MicroflowDesignSchema, mode: MicroflowValidationMode) => {
-    const normalized = isDesignSchema(targetSchema) ? null : normalizeMicroflowAuthoringSchemaForRuntime(targetSchema);
-    const schemaForValidation = normalized?.schema ?? targetSchema;
+    const stableTargetSchema = stripTransientSchemaState(targetSchema);
+    const normalized = isDesignSchema(stableTargetSchema) ? null : normalizeMicroflowAuthoringSchemaForRuntime(stableTargetSchema);
+    const schemaForValidation = normalized?.schema ?? stableTargetSchema;
     const normalizerIssues = normalized
       ? createNormalizerIssues(schemaForValidation.id, normalized.report.blockingIssues)
       : [];
@@ -2035,18 +2097,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (historyReason !== "moveNode") {
       flushPendingMoveHistory();
     }
+    const stableNext = stripTransientSchemaState(next);
     const nextWithSelection = options.preserveSelection
       ? {
-          ...next,
+          ...stableNext,
           editor: {
-            ...next.editor,
+            ...stableNext.editor,
             selection: schema.editor.selection,
             selectedObjectId: schema.editor.selectedObjectId,
             selectedFlowId: schema.editor.selectedFlowId,
             selectedCollectionId: schema.editor.selectedCollectionId,
           },
         }
-      : next;
+      : stableNext;
     const refreshed = refreshDerivedState(nextWithSelection, metadataForRefresh);
     const shouldPushHistory = options.pushHistory !== false && source !== "history" && !historyManager.getState().isRestoring;
 
@@ -2310,9 +2373,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast.info("Already saved.");
       return true;
     }
-    const normalized = normalizeMicroflowAuthoringSchemaForRuntime(schema);
-    const schemaToSave = normalized.schema;
-    if (normalized.report.repaired && !microflowSchemasEqual(schemaToSave, schema)) {
+    const stableSchema = stripTransientSchemaState(schema);
+    const normalized = isDesignSchema(stableSchema) ? null : normalizeMicroflowAuthoringSchemaForRuntime(stableSchema);
+    const schemaToSave = normalized?.schema ?? stableSchema;
+    if (normalized?.report.repaired && !microflowSchemasEqual(schemaToSave, schema)) {
       commitSchema(schemaToSave, "bulkUpdate", { pushHistory: false, skipValidate: true });
     }
     const saveRevision = schemaRevisionRef.current;
@@ -2341,7 +2405,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         refreshHistoryState();
         setDirty(false);
       }
-      void runValidationNow(latestSchemaRef.current);
+      void runValidationNow(stripTransientSchemaState(latestSchemaRef.current));
       Toast.success(`Saved ${response.version}`);
       return true;
     } catch (error) {
@@ -2361,7 +2425,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const handleValidate = async () => {
     try {
-      const issues = await runValidationNow(schema);
+      const issues = await runValidationNow(stripTransientSchemaState(schema));
       const response: ValidateMicroflowResponse = {
         valid: issues.every(issue => issue.severity !== "error"),
         issues,
@@ -2381,7 +2445,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     setTestRunModalOpen(true);
-    const validation = await validateForMode(schema, "testRun");
+    const validation = await validateForMode(stripTransientSchemaState(schema), "testRun");
     if (validation.summary.errorCount > 0) {
       setBottomTab("problems");
       Toast.error("Fix validation errors before running.");
@@ -2521,7 +2585,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     try {
       if (command === "continue" || command === "stepOver" || command === "stepInto" || command === "stepOut") {
-        const validation = await validateForMode(schema, "testRun");
+        const validation = await validateForMode(stripTransientSchemaState(schema), "testRun");
         const gate = shouldBlockRun(validation.issues, {}, false, "saveAndRun");
         if (gate.blocked) {
           const blockingIssue = validation.issues.find(issue => issue.severity === "error");
@@ -2606,7 +2670,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const handleExecuteTestRun = async (input: MicroflowTestRunInput) => {
     const microflowId = schema.id;
-    const validation = await validateForMode(schema, "testRun");
+    const stableSchema = stripTransientSchemaState(schema);
+    const validation = await validateForMode(stableSchema, "testRun");
     const gate = shouldBlockRun(validation.issues, {}, dirty, "saveAndRun");
     if (gate.blocked) {
       if (gate.reason === "validation") {
@@ -2683,7 +2748,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       }
 
       const debugSessionId = pendingDebugSessionId;
-      const normalized = normalizeMicroflowAuthoringSchemaForRuntime(schema);
+      const normalized = normalizeMicroflowAuthoringSchemaForRuntime(stableSchema);
       const response = await apiClient.testRunMicroflow(buildRunRequest(normalized.schema, input.parameters, input.options, true, debugSessionId));
       const session = response.session;
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
@@ -3805,13 +3870,26 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再提交。");
         return;
       }
+      if (isDesignSchema(schema)) {
+        const nextSchema = updateDesignNodeInlineField(schema, detail);
+        if (!nextSchema) {
+          Toast.warning("当前字段暂不支持内联提交。");
+          return;
+        }
+        commitSchema(nextSchema as unknown as MicroflowSchema, "updateNodeProperty", { source: "propertyPanel" });
+        emitPanelSyncEvent({ type: "inline-edit", nodeId: detail.nodeId, fieldPath: detail.fieldPath });
+        applyPatch({ selectedObjectId: detail.nodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+        setRightOpen(true);
+        return;
+      }
       const located = findObjectWithCollection(schema, detail.nodeId);
       if (!located) {
         return;
       }
       const object = structuredClone(located.object) as MicroflowObject;
-      const patched = setValueAtPath(object as unknown as Record<string, unknown>, detail.fieldPath, detail.value)
-        || (detail.fieldPath.startsWith("data.") && setValueAtPath(object as unknown as Record<string, unknown>, detail.fieldPath.slice(5), detail.value));
+      const value = normalizeInlineCommitValue(detail);
+      const patched = setValueAtPath(object as unknown as Record<string, unknown>, detail.fieldPath, value)
+        || (detail.fieldPath.startsWith("data.") && setValueAtPath(object as unknown as Record<string, unknown>, detail.fieldPath.slice(5), value));
       if (!patched) {
         Toast.warning("当前字段暂不支持内联提交。");
         return;
@@ -4607,7 +4685,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   status={validationStatus}
                   lastValidatedAt={lastValidatedAt}
                   lastError={lastError}
-                  onRetry={() => void runValidationNow(schema)}
+                  onRetry={() => void runValidationNow(stripTransientSchemaState(schema))}
                   onApplyQuickFix={handleApplyProblemQuickFix}
                   quickFixLabel={labels.quickFix}
                   onSelect={focusProblemIssue}

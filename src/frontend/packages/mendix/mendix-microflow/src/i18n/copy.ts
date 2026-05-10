@@ -72,6 +72,29 @@ export interface MendixMicroflowCopy {
     readonly runAllSamplesDisabledNoSamplesReason: string;
     readonly saveSampleDisabledReason: string;
   };
+  readonly runtimeInspector: {
+    readonly title: string;
+    readonly outputTab: string;
+    readonly inputTab: string;
+    readonly variablesTab: string;
+    readonly jsonTab: string;
+    readonly status: string;
+    readonly duration: string;
+    readonly execution: string;
+    readonly inputs: string;
+    readonly outputs: string;
+    readonly noOutput: string;
+    readonly noInput: string;
+    readonly noVariables: string;
+    readonly tableMode: string;
+    readonly jsonMode: string;
+    readonly rowsFields: string;
+    readonly field: string;
+    readonly type: string;
+    readonly value: string;
+    readonly source: string;
+    readonly selected: string;
+  };
 }
 
 const zhCN: MendixMicroflowCopy = {
@@ -153,6 +176,29 @@ const zhCN: MendixMicroflowCopy = {
     runAllSamplesDisabledNoSamplesReason: "请先保存至少一个测试样例。",
     saveSampleDisabledReason: "运行中无法保存样例。",
   },
+  runtimeInspector: {
+    title: "运行结果",
+    outputTab: "输出",
+    inputTab: "输入",
+    variablesTab: "变量",
+    jsonTab: "JSON",
+    status: "状态",
+    duration: "耗时",
+    execution: "执行",
+    inputs: "输入",
+    outputs: "输出",
+    noOutput: "无输出",
+    noInput: "无输入",
+    noVariables: "无变量快照",
+    tableMode: "表格",
+    jsonMode: "JSON",
+    rowsFields: "{rows} 行 · {fields} 字段",
+    field: "字段",
+    type: "类型",
+    value: "值",
+    source: "来源",
+    selected: "selected",
+  },
 };
 
 const enUS: MendixMicroflowCopy = {
@@ -233,6 +279,29 @@ const enUS: MendixMicroflowCopy = {
     runAllSamplesDisabledRunningReason: "Cannot start batch run while a run is in progress.",
     runAllSamplesDisabledNoSamplesReason: "Save at least one sample first.",
     saveSampleDisabledReason: "Cannot save sample while a run is in progress.",
+  },
+  runtimeInspector: {
+    title: "Runtime Result",
+    outputTab: "Output",
+    inputTab: "Input",
+    variablesTab: "Variables",
+    jsonTab: "JSON",
+    status: "Status",
+    duration: "Duration",
+    execution: "Execution",
+    inputs: "Inputs",
+    outputs: "Outputs",
+    noOutput: "No output",
+    noInput: "No input",
+    noVariables: "No variable snapshot",
+    tableMode: "Table",
+    jsonMode: "JSON",
+    rowsFields: "{rows} rows · {fields} fields",
+    field: "Field",
+    type: "Type",
+    value: "Value",
+    source: "Source",
+    selected: "selected",
   },
 };
 

@@ -56,6 +56,7 @@ import {
 } from "./flowgram-canvas-interactions";
 import { decorateWorkflow } from "./flowgram-workflow-decorate";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
+import { stripTransientWorkflowState } from "./transient-workflow-state";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
 import { MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
@@ -162,8 +163,9 @@ function edgeKey(edge: MicroflowWorkflowEdgeJSON | WorkflowEdgeJSON): string {
 }
 
 function edgeStructureSignature(workflow: WorkflowJSON | MicroflowWorkflowJSON): string {
+  const stableWorkflow = stripTransientWorkflowState(workflow);
   return JSON.stringify(
-    ((workflow.edges ?? []) as Array<WorkflowEdgeJSON | MicroflowWorkflowEdgeJSON>)
+    ((stableWorkflow.edges ?? []) as Array<WorkflowEdgeJSON | MicroflowWorkflowEdgeJSON>)
       .map(edge => ({
         id: edgeId(edge),
         key: edgeKey(edge),
@@ -174,8 +176,9 @@ function edgeStructureSignature(workflow: WorkflowJSON | MicroflowWorkflowJSON):
 }
 
 function nodeStructureSignature(workflow: WorkflowJSON | MicroflowWorkflowJSON): string {
+  const stableWorkflow = stripTransientWorkflowState(workflow);
   return JSON.stringify(
-    ((workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[])
+    ((stableWorkflow.nodes ?? []) as MicroflowWorkflowNodeJSON[])
       .map(node => ({ id: node.id, type: node.type, data: node.data }))
       .sort((a, b) => String(a.id).localeCompare(String(b.id))),
   );
@@ -267,34 +270,6 @@ function normalizeWorkflow(workflow: WorkflowJSON | MicroflowWorkflowJSON, optio
       };
     }) as WorkflowJSON["nodes"],
     edges: ((workflow.edges ?? []) as MicroflowWorkflowEdgeJSON[]).map(ensureEdgeData) as WorkflowJSON["edges"],
-  };
-}
-
-function stripTransientNodeData(workflow: WorkflowJSON): WorkflowJSON {
-  return {
-    ...workflow,
-    nodes: ((workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(node => {
-      const data = (node.data ?? {}) as Partial<FlowGramMicroflowNodeData> & Record<string, unknown>;
-      const {
-        inlineConfig,
-        runtimeState,
-        runtimeErrorCode,
-        runtimeErrorMessage,
-        validationState,
-        issueCount,
-        ...stableData
-      } = data;
-      void inlineConfig;
-      void runtimeState;
-      void runtimeErrorCode;
-      void runtimeErrorMessage;
-      void validationState;
-      void issueCount;
-      return {
-        ...node,
-        data: stableData as MicroflowWorkflowNodeJSON["data"],
-      };
-    }) as WorkflowJSON["nodes"],
   };
 }
 
@@ -558,9 +533,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   }, [panToolActive, selectorBoxConfig, spacePressed]);
 
   const commitWorkflow = (workflow: WorkflowJSON, reason: string, options: { snapToGrid?: boolean } = {}) => {
-    const nextWorkflow = stripTransientNodeData(normalizeWorkflow(workflow, options));
+    const nextWorkflow = stripTransientWorkflowState(normalizeWorkflow(workflow, options));
     const nextSignature = workflowSignature(nextWorkflow);
-    if (nextSignature === workflowSignature(latestSchemaRef.current.workflow)) {
+    if (nextSignature === workflowSignature(stripTransientWorkflowState(latestSchemaRef.current.workflow))) {
       return;
     }
     const nextSchema: MicroflowDesignSchema = {
@@ -577,12 +552,12 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   };
 
   const commitEdgeStructure = (workflow: WorkflowJSON, reason: string) => {
-    const nextWorkflow = stripTransientNodeData(normalizeWorkflow({
+    const nextWorkflow = stripTransientWorkflowState(normalizeWorkflow({
       ...latestSchemaRef.current.workflow,
       edges: workflow.edges ?? [],
     } as WorkflowJSON));
     const nextSignature = workflowSignature(nextWorkflow);
-    if (nextSignature === workflowSignature(latestSchemaRef.current.workflow)) {
+    if (nextSignature === workflowSignature(stripTransientWorkflowState(latestSchemaRef.current.workflow))) {
       return;
     }
     const nextSchema: MicroflowDesignSchema = {

@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@douyinfe/semi-ui", () => ({
-  Button: ({ children, onClick, type }: { children?: React.ReactNode; onClick?: () => void; type?: "button" | "submit" | "reset" }) => (
-    <button type={type ?? "button"} onClick={onClick}>{children}</button>
+  Button: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void; type?: string; size?: string }) => (
+    <button type="button" onClick={onClick}>{children}</button>
   ),
   Input: (props: {
     value?: string;
@@ -27,6 +27,10 @@ vi.mock("@douyinfe/semi-ui", () => ({
   ),
   Space: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   Tag: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+  Tabs: Object.assign(
+    ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+    { TabPane: ({ children }: { children?: React.ReactNode; tab?: React.ReactNode; itemKey?: string }) => <div>{children}</div> },
+  ),
   Typography: {
     Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   },
@@ -63,8 +67,61 @@ function buildConfig(): MicroflowNodeInlineConfig {
     runtime: {
       failed: true,
       durationMs: 12,
+      inputCount: 1,
+      outputCount: 1,
       inputPreview: "riskScore=92",
       outputPreview: "statusCode=500",
+      inputGroup: {
+        title: "inputs",
+        emptyLabel: "no inputs",
+        values: [{
+          name: "riskScore",
+          type: "integer",
+          kind: "primitive",
+          summary: "riskScore = 92",
+          valuePreview: "92",
+          fields: [],
+          json: "92",
+        }],
+      },
+      outputGroup: {
+        title: "outputs",
+        emptyLabel: "no outputs",
+        values: [{
+          name: "statusCode",
+          type: "integer",
+          kind: "primitive",
+          summary: "statusCode = 500",
+          valuePreview: "500",
+          fields: [],
+          json: "500",
+        }],
+      },
+      variableGroup: {
+        title: "variables",
+        emptyLabel: "no variables",
+        values: [{
+          name: "orders",
+          type: "list",
+          kind: "list",
+          summary: "orders[2]",
+          valuePreview: "[...]",
+          fields: [],
+          list: {
+            rowCount: 2,
+            fieldCount: 2,
+            columns: ["id", "score"],
+            rows: [
+              { "#": "1", id: "1", score: "80" },
+              { "#": "2", id: "2", score: "90" },
+            ],
+            json: "[{\"id\":1,\"score\":80},{\"id\":2,\"score\":90}]",
+          },
+          json: "[{\"id\":1,\"score\":80},{\"id\":2,\"score\":90}]",
+        }],
+      },
+      outputSummaries: ["statusCode = 500"],
+      rawTraceJson: "{\"objectId\":\"node-1\"}",
       selectedBranchLabel: "true",
       error: {
         code: "RUNTIME_ASSERTION_FAILED",
@@ -111,9 +168,13 @@ describe("InlineNodeEditor", () => {
 
     expect(screen.getByText("输入")).not.toBeNull();
     expect(screen.getByText("incidentId")).not.toBeNull();
-    expect(screen.getByText("input: riskScore=92")).not.toBeNull();
-    expect(screen.getByText("output: statusCode=500")).not.toBeNull();
-    expect(screen.getByText("selected: true")).not.toBeNull();
+    expect(screen.getByText("riskScore")).not.toBeNull();
+    expect(screen.getByText("92")).not.toBeNull();
+    expect(screen.getByText("statusCode")).not.toBeNull();
+    expect(screen.getByText("500")).not.toBeNull();
+    expect(screen.getByText(/selected: true/)).not.toBeNull();
+    expect(screen.getByText("orders")).not.toBeNull();
+    expect(screen.getByText("2 行 · 2 字段")).not.toBeNull();
     expect(screen.getByText("RUNTIME_ASSERTION_FAILED")).not.toBeNull();
     expect(screen.getByText("boom")).not.toBeNull();
     expect(screen.getByText("展开错误详情")).not.toBeNull();

@@ -11,6 +11,7 @@ import {
 
 import { Tag, Typography } from "@douyinfe/semi-ui";
 import { IconEdit, IconTickCircle } from "@douyinfe/semi-icons";
+import { getMendixMicroflowCopy } from "../i18n/copy";
 import { InlineNodeEditor } from "../inline-edit";
 import {
   FlowNodeFormData,
@@ -329,6 +330,10 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
   const compactSummary = summaryLines.slice(0, 3);
   const summaryOverflowCount = Math.max(0, summaryLines.length - compactSummary.length);
   const runtime = data.inlineConfig?.runtime;
+  const runtimeCopy = getMendixMicroflowCopy().runtimeInspector;
+  const runtimeOutputSummaries = runtime?.outputSummaries ?? [];
+  const compactRuntimeOutputs = runtimeOutputSummaries.slice(0, 2);
+  const runtimeOutputOverflowCount = Math.max(0, runtimeOutputSummaries.length - compactRuntimeOutputs.length);
   const resolvedNodeId = resolvedNodeIdForState;
   const runtimeStateLabel = runtime?.error
     ? "× error"
@@ -465,8 +470,13 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
           {typeof runtime.durationMs === "number" ? (
             <Typography.Text type="tertiary" size="small">{runtime.durationMs}ms</Typography.Text>
           ) : null}
-          {runtime.selectedBranchLabel ? <Typography.Text type="tertiary" size="small">selected: {runtime.selectedBranchLabel}</Typography.Text> : null}
-          {!runtime.selectedBranchLabel && runtime.outputPreview ? <Typography.Text type="tertiary" size="small">{runtime.outputPreview}</Typography.Text> : null}
+          {runtime.selectedBranchLabel ? <Typography.Text type="tertiary" size="small">{runtimeCopy.selected}: {runtime.selectedBranchLabel}</Typography.Text> : null}
+          {!runtime.selectedBranchLabel && compactRuntimeOutputs.length > 0 ? (
+            <Typography.Text type="tertiary" size="small">
+              {compactRuntimeOutputs.join(" · ")}{runtimeOutputOverflowCount > 0 ? ` +${runtimeOutputOverflowCount}` : ""}
+            </Typography.Text>
+          ) : null}
+          {!runtime.selectedBranchLabel && compactRuntimeOutputs.length === 0 ? <Typography.Text type="tertiary" size="small">{runtimeCopy.noOutput}</Typography.Text> : null}
         </button>
       ) : null}
       {editorMounted ? (

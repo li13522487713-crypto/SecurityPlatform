@@ -75,19 +75,19 @@ function blankRow(): OutputMappingDraft {
 
 function parseRows(value: string): OutputMappingDraft[] {
   if (!value.trim()) {
-    return [blankRow()];
+    return [];
   }
   try {
     const parsed = JSON.parse(value) as unknown;
     if (!Array.isArray(parsed)) {
-      return [blankRow()];
+      return [];
     }
     const rows = parsed
       .filter(item => item && typeof item === "object")
       .map(item => toDraftRow(item as MicroflowOutputMapping));
-    return rows.length > 0 ? rows : [blankRow()];
+    return rows;
   } catch {
-    return [blankRow()];
+    return [];
   }
 }
 
@@ -95,9 +95,34 @@ function hasRowInput(row: OutputMappingDraft): boolean {
   return Boolean(row.key.trim() || row.variableName.trim() || row.expression.trim() || row.constantValueText.trim());
 }
 
+function hasPersistedMappings(value: string): boolean {
+  if (!value.trim()) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) && parsed.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function isCompleteRow(row: OutputMappingDraft): boolean {
+  if (!row.key.trim()) {
+    return false;
+  }
+  if (row.source === "variable") {
+    return Boolean(row.variableName.trim());
+  }
+  if (row.source === "expression") {
+    return Boolean(row.expression.trim());
+  }
+  return Boolean(row.constantValueText.trim());
+}
+
 function toMappings(rows: OutputMappingDraft[]): MicroflowOutputMapping[] {
   return rows
-    .filter(hasRowInput)
+    .filter(isCompleteRow)
     .map(row => {
       if (row.source === "variable") {
         return {
@@ -155,7 +180,9 @@ export function InlineOutputMappingsEditor(props: {
   const commitRows = (nextRows: OutputMappingDraft[]) => {
     setRows(nextRows);
     const mappings = toMappings(nextRows);
-    props.onCommit?.(JSON.stringify(mappings));
+    if (mappings.length > 0 || hasPersistedMappings(props.value)) {
+      props.onCommit?.(JSON.stringify(mappings));
+    }
   };
 
   const updateRow = (index: number, patch: Partial<OutputMappingDraft>) => {
@@ -164,12 +191,16 @@ export function InlineOutputMappingsEditor(props: {
   };
 
   const addRow = () => {
-    commitRows([...rows, blankRow()]);
+    setRows([...rows, blankRow()]);
   };
 
   const removeRow = (index: number) => {
     const next = rows.filter((_, rowIndex) => rowIndex !== index);
-    commitRows(next.length > 0 ? next : [blankRow()]);
+    setRows(next);
+    const mappings = toMappings(next);
+    if (mappings.length > 0 || hasPersistedMappings(props.value)) {
+      props.onCommit?.(JSON.stringify(mappings));
+    }
   };
 
   return (

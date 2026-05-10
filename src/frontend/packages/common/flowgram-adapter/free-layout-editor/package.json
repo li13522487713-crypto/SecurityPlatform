@@ -48,6 +48,7 @@
     "@flowgram.ai/node-core-plugin": "0.1.28",
     "@flowgram.ai/node-variable-plugin": "0.1.28",
     "@flowgram.ai/renderer": "0.1.28",
+    "@flowgram.ai/utils": "0.1.28",
     "@flowgram.ai/variable-plugin": "0.1.28",
     "reflect-metadata": "^0.1.13"
   },

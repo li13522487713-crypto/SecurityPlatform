@@ -87,6 +87,10 @@ export function appendOutputMappingsInlineSection(config: MicroflowNodeInlineCon
   }
 
   const mappings = resolveOutputMappings(input);
+  if (mappings.length === 0) {
+    return config;
+  }
+
   const variableNameOptions = buildNodeInlineVariableOptions({
     schema: input.schema,
     node: input.node,
