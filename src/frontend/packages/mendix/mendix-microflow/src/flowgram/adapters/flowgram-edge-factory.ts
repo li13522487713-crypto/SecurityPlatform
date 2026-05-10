@@ -3,11 +3,13 @@ import { inferEdgeKindFromPorts } from "../../node-registry";
 import type {
   MicroflowCaseValue,
   MicroflowEditorPort,
+  MicroflowLine,
   MicroflowFlow,
   MicroflowObject,
   MicroflowSchema,
 } from "../../schema";
 import { booleanCaseValue, fallbackCaseValue, inheritanceCaseValue, noCaseValue } from "./flowgram-case-options";
+import { forceOrthogonalLineKind } from "../FlowGramMicroflowTypes";
 
 export function defaultCaseValuesForPorts(sourcePort: MicroflowEditorPort, source?: MicroflowObject): MicroflowCaseValue[] {
   if (source?.kind === "exclusiveSplit" && source.splitCondition.resultType === "enumeration") {
@@ -34,7 +36,7 @@ export function createMicroflowFlowFromPorts(
   schema: MicroflowSchema,
   sourcePort: MicroflowEditorPort,
   targetPort: MicroflowEditorPort,
-  options?: { caseValues?: MicroflowCaseValue[]; label?: string },
+  options?: { caseValues?: MicroflowCaseValue[]; label?: string; lineKind?: MicroflowLine["kind"] },
 ): MicroflowFlow {
   const objects = new Map(flattenObjectCollection(schema.objectCollection).map(object => [object.id, object]));
   const source = objects.get(sourcePort.objectId);
@@ -56,7 +58,7 @@ export function createMicroflowFlowFromPorts(
     };
   }
   const caseValues = options?.caseValues ?? defaultCaseValuesForPorts(sourcePort, source);
-  return createSequenceFlow({
+  const flow = createSequenceFlow({
     id: createMicroflowFlowId(schema, "flow"),
     originObjectId: source.id,
     destinationObjectId: target.id,
@@ -67,4 +69,8 @@ export function createMicroflowFlowFromPorts(
     edgeKind,
     label: options?.label ?? (edgeKind === "errorHandler" ? "Error" : undefined),
   });
+  return {
+    ...flow,
+    line: { ...flow.line, kind: forceOrthogonalLineKind(options?.lineKind) },
+  };
 }

@@ -5,6 +5,7 @@ import type {
   MicroflowCaseValue,
   MicroflowFlow,
   MicroflowObjectKind,
+  MicroflowLine,
   MicroflowPoint,
   MicroflowLoopedActivity,
   MicroflowValidationIssue,
@@ -184,6 +185,7 @@ export interface FlowGramMicroflowEdgeData {
   edgeKind: NonNullable<MicroflowFlow["editor"]["edgeKind"]>;
   isErrorHandler: boolean;
   caseValues: MicroflowCaseValue[];
+  lineKind?: MicroflowLine["kind"];
   label?: string;
   description?: string;
   branchOrder?: number;
@@ -230,6 +232,12 @@ export interface FlowGramMicroflowPendingLine {
 }
 
 export type FlowGramMicroflowIssueIndex = Map<string, MicroflowValidationIssue[]>;
+export type FlowGramMicroflowLineKind = MicroflowLine["kind"];
+
+export function forceOrthogonalLineKind(_lineKind?: FlowGramMicroflowLineKind): "orthogonal" {
+  return "orthogonal";
+}
 
 import { createContext } from "react";
 export const MicroflowNodeViewModesContext = createContext<Record<string, MicroflowNodeViewMode>>({});
+export const MicroflowEdgeDataContext = createContext<ReadonlyMap<string, FlowGramMicroflowEdgeData>>(new Map());

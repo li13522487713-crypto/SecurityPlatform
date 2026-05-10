@@ -7,6 +7,7 @@ import type {
   MicroflowWorkflowNodeJSON,
 } from "../schema";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
+import { forceOrthogonalLineKind } from "./FlowGramMicroflowTypes";
 
 type EdgeKind = FlowGramMicroflowEdgeData["edgeKind"];
 
@@ -181,6 +182,7 @@ export function normalizeMicroflowDesignEdges(workflow: WorkflowJSON): Microflow
         edgeKind,
         isErrorHandler: edgeKind === "errorHandler",
         caseValues: defaultCaseValuesForEdge(edgeWorkflow, edge, edgeKind, sourceKind, id),
+        lineKind: forceOrthogonalLineKind(data?.lineKind),
         sourceNodeId: String(edge.sourceNodeID ?? ""),
         sourceObjectKind: sourceKind as MicroflowObjectKind | undefined,
         sourcePortId: portId(edge.sourcePortID),
@@ -258,10 +260,15 @@ export function isMicroflowDesignEdgeBusinessValid(workflow: WorkflowJSON, edge:
   const edgeKind = edgeBusinessKind(edge);
   const sourceCollection = nodeCollectionId(source);
   const targetCollection = nodeCollectionId(target);
+  const sourceParentObjectId = nodeParentObjectId(source);
+  const targetParentObjectId = nodeParentObjectId(target);
   const isLoopBodyEntry = edgeKind === "loopBody"
     && sourceKind === "loopedActivity"
     && nodeParentObjectId(target) === source.id;
   if (edgeKind !== "annotation" && !isLoopBodyEntry && sourceCollection !== targetCollection) {
+    return false;
+  }
+  if (edgeKind !== "annotation" && !isLoopBodyEntry && String(sourceParentObjectId ?? "") !== String(targetParentObjectId ?? "")) {
     return false;
   }
   if (edgeKind === "loopBody" && !isLoopBodyEntry) {

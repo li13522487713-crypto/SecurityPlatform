@@ -47,4 +47,8 @@ describe("FlowGramMicroflowLineRenderer helpers", () => {
       runtimeState: "errorHandlerVisited",
     }))).toContain("is-runtime-errorHandlerVisited");
   });
+
+  it("does not label ordinary sequence edges without explicit branch data", () => {
+    expect(lineLabelFromEdgeData(edgeData({ edgeKind: "sequence", caseValues: [] }))).toBe("");
+  });
 });

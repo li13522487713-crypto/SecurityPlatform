@@ -26,6 +26,7 @@ import { createDefaultEditorState } from "../schema/utils/schema-utils";
 import { createStableId } from "../schema/utils/ids";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
+import { forceOrthogonalLineKind } from "./FlowGramMicroflowTypes";
 import { getMendixMicroflowNodeSize } from "./flowgram-node-geometry";
 
 export const MICROFLOW_DESIGN_SCHEMA_VERSION = "flowgram.microflow.v1";
@@ -33,8 +34,174 @@ export const MICROFLOW_ROOT_COLLECTION_ID = "root-collection";
 
 const defaultNodeSize: MicroflowSize = getMendixMicroflowNodeSize("actionActivity");
 
+type LoopParentingNode = MicroflowWorkflowNodeJSON & {
+  blocks?: LoopParentingNode[];
+  parentNode?: string;
+  extent?: string;
+};
+
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function nodePosition(node: MicroflowWorkflowNodeJSON): MicroflowPoint {
+  return {
+    x: Number(node.meta?.position?.x ?? 0),
+    y: Number(node.meta?.position?.y ?? 0),
+  };
+}
+
+function nodeObjectKind(node: MicroflowWorkflowNodeJSON): string {
+  return String((node.data as Partial<FlowGramMicroflowNodeData> | undefined)?.objectKind ?? node.type ?? "");
+}
+
+function nodeParentObjectId(node: MicroflowWorkflowNodeJSON): string | undefined {
+  const data = node.data as Partial<FlowGramMicroflowNodeData> | undefined;
+  const parentObjectId = data?.parentObjectId ?? (node.meta?.parentObjectId as string | undefined);
+  return typeof parentObjectId === "string" && parentObjectId.length > 0 ? parentObjectId : undefined;
+}
+
+function cloneWorkflowNodeWithoutBlocks(node: LoopParentingNode): MicroflowWorkflowNodeJSON {
+  const { blocks: _blocks, parentNode: _parentNode, extent: _extent, ...rest } = node;
+  return cloneJson(rest) as MicroflowWorkflowNodeJSON;
+}
+
+function cloneWorkflowNodeForFlowGramRender(node: LoopParentingNode): LoopParentingNode {
+  const { blocks: _blocks, ...rest } = node;
+  return cloneJson(rest) as LoopParentingNode;
+}
+
+function workflowHasBlocks(nodes: readonly LoopParentingNode[]): boolean {
+  return nodes.some(node => Boolean(node.blocks?.length) || workflowHasBlocks(node.blocks ?? []));
+}
+
+function withAbsolutePosition(
+  node: MicroflowWorkflowNodeJSON,
+  position: MicroflowPoint,
+  parentObjectId?: string,
+): MicroflowWorkflowNodeJSON {
+  const data = (node.data ?? {}) as Record<string, unknown>;
+  const meta = (node.meta ?? {}) as NonNullable<MicroflowWorkflowNodeJSON["meta"]>;
+  const nextData = { ...data };
+  const nextMeta = { ...meta, position };
+  if (parentObjectId) {
+    nextData.parentObjectId = parentObjectId;
+    nextMeta.parentObjectId = parentObjectId;
+  } else {
+    delete nextData.parentObjectId;
+    delete nextMeta.parentObjectId;
+  }
+  return {
+    ...node,
+    data: nextData,
+    meta: nextMeta,
+  };
+}
+
+/**
+ * FlowGram free-layout stores child node coordinates relative to their parent
+ * container. Atlas persists microflow coordinates in the root canvas space.
+ */
+export function flattenFlowGramWorkflowForPersistence(workflow: WorkflowJSON | MicroflowWorkflowJSON): WorkflowJSON {
+  const flattenedNodes: MicroflowWorkflowNodeJSON[] = [];
+  const inputNodes = (workflow.nodes ?? []) as LoopParentingNode[];
+  const treeParentingPresent = workflowHasBlocks(inputNodes);
+  const visit = (
+    node: LoopParentingNode,
+    parentObjectId: string | undefined,
+    parentPosition: MicroflowPoint,
+  ) => {
+    const localPosition = nodePosition(node);
+    const absolutePosition = parentObjectId
+      ? { x: parentPosition.x + localPosition.x, y: parentPosition.y + localPosition.y }
+      : localPosition;
+    const cleanNode = cloneWorkflowNodeWithoutBlocks(node);
+    const resolvedParentObjectId = parentObjectId ?? (treeParentingPresent ? undefined : nodeParentObjectId(cleanNode));
+    flattenedNodes.push(withAbsolutePosition(cleanNode, absolutePosition, resolvedParentObjectId));
+    for (const child of node.blocks ?? []) {
+      visit(child, String(node.id), absolutePosition);
+    }
+  };
+
+  for (const node of inputNodes) {
+    visit(node, undefined, { x: 0, y: 0 });
+  }
+
+  return {
+    ...workflow,
+    nodes: flattenedNodes as WorkflowJSON["nodes"],
+    edges: cloneJson((workflow.edges ?? []) as WorkflowJSON["edges"]) as WorkflowJSON["edges"],
+  };
+}
+
+function withRelativePositionForParent(
+  node: MicroflowWorkflowNodeJSON,
+  parent: MicroflowWorkflowNodeJSON,
+): LoopParentingNode {
+  const childPosition = nodePosition(node);
+  const parentPosition = nodePosition(parent);
+  const data = (node.data ?? {}) as Record<string, unknown>;
+  const meta = (node.meta ?? {}) as NonNullable<MicroflowWorkflowNodeJSON["meta"]>;
+  return {
+    ...cloneJson(node),
+    parentNode: parent.id,
+    extent: "parent",
+    data: {
+      ...data,
+      parentObjectId: parent.id,
+    },
+    meta: {
+      ...meta,
+      parentObjectId: parent.id,
+      position: {
+        x: childPosition.x - parentPosition.x,
+        y: childPosition.y - parentPosition.y,
+      },
+    },
+  };
+}
+
+export function nestLoopChildrenForFlowGram(workflow: WorkflowJSON | MicroflowWorkflowJSON): WorkflowJSON {
+  const flattened = flattenFlowGramWorkflowForPersistence(workflow);
+  const nodes = cloneJson((flattened.nodes ?? []) as MicroflowWorkflowNodeJSON[]);
+  const nodeById = new Map(nodes.map(node => [String(node.id), node]));
+  const childrenByParentId = new Map<string, MicroflowWorkflowNodeJSON[]>();
+
+  for (const node of nodes) {
+    const parentObjectId = nodeParentObjectId(node);
+    const parent = parentObjectId ? nodeById.get(parentObjectId) : undefined;
+    if (!parent || nodeObjectKind(parent) !== "loopedActivity") {
+      continue;
+    }
+    const list = childrenByParentId.get(parent.id) ?? [];
+    list.push(node);
+    childrenByParentId.set(parent.id, list);
+  }
+
+  const build = (
+    node: MicroflowWorkflowNodeJSON,
+    absoluteNode: MicroflowWorkflowNodeJSON = node,
+  ): LoopParentingNode => {
+    const children = childrenByParentId.get(String(absoluteNode.id)) ?? [];
+    const cleanNode = cloneWorkflowNodeForFlowGramRender(node as LoopParentingNode);
+    if (!children.length) {
+      return cleanNode;
+    }
+    return {
+      ...cleanNode,
+      blocks: children.map(child => build(withRelativePositionForParent(child, absoluteNode), child)),
+    };
+  };
+
+  const rootNodes = nodes.filter(node => {
+    const parentObjectId = nodeParentObjectId(node);
+    return !parentObjectId || !childrenByParentId.has(parentObjectId) || !nodeById.has(parentObjectId);
+  });
+
+  return {
+    ...flattened,
+    nodes: rootNodes.map(node => build(node)) as WorkflowJSON["nodes"],
+  };
 }
 
 function nowIso(): string {
@@ -155,6 +322,7 @@ export function createMicroflowWorkflowEdge(input: {
     flowId: id,
     flowKind: "sequence",
     edgeKind: input.data?.edgeKind ?? "sequence",
+    lineKind: forceOrthogonalLineKind(input.data?.lineKind),
     isErrorHandler: false,
     caseValues: [],
     validationState: "valid",
@@ -241,7 +409,7 @@ export function workflowEdgeCount(workflow: WorkflowJSON | MicroflowWorkflowJSON
 }
 
 export function workflowNodeById(workflow: WorkflowJSON | MicroflowWorkflowJSON, nodeId?: string) {
-  return (workflow.nodes as MicroflowWorkflowNodeJSON[] | undefined)?.find(node => node.id === nodeId);
+  return (flattenFlowGramWorkflowForPersistence(workflow).nodes as MicroflowWorkflowNodeJSON[] | undefined)?.find(node => node.id === nodeId);
 }
 
 export function workflowEdgeById(workflow: WorkflowJSON | MicroflowWorkflowJSON, edgeId?: string) {

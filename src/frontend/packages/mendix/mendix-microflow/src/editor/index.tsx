@@ -356,7 +356,8 @@ interface MendixLayoutStorage {
 type MicroflowSchemaChangeSource = "propertyPanel" | "flowgram" | "nodePanel" | "autolayout" | "history" | "runtime";
 
 interface CanvasNodeContextMenuState {
-  objectId: string;
+  objectId?: string;
+  flowId?: string;
   collectionId?: string;
   x: number;
   y: number;
@@ -611,6 +612,12 @@ export interface MicroflowEditorLabels {
   properties: string;
   problems: string;
   debug: string;
+  contextProperties: string;
+  contextRename: string;
+  contextDuplicate: string;
+  contextDelete: string;
+  contextCenterView: string;
+  contextCopyId: string;
   quickFix: string;
   quickFixUnavailable: string;
   missingDecisionBranchCreated: string;
@@ -631,6 +638,12 @@ const defaultLabels: MicroflowEditorLabels = {
   properties: "Properties",
   problems: "Problems",
   debug: "Debug",
+  contextProperties: "Properties",
+  contextRename: "Rename",
+  contextDuplicate: "Duplicate",
+  contextDelete: "Delete",
+  contextCenterView: "Center View",
+  contextCopyId: "Copy ID",
   quickFix: "Quick fix",
   quickFixUnavailable: "Quick fix is not available for this issue.",
   missingDecisionBranchCreated: "Missing Decision branch created."
@@ -1980,6 +1993,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [dirty, setDirty] = useState(false);
   const schemaRevisionRef = useRef(0);
   const toolbarMode = props.toolbarMode ?? "internal";
+  const shouldShowCanvasContextMenu = toolbarMode === "external" || AUXILIARY_PANELS_ENABLED;
   const shellMode = "editor-native-layout" as const;
   const externalLayout = true;
   const [leftOpen, setLeftOpen] = useState(() => {
@@ -3382,6 +3396,174 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     );
   }, [applyPatch, schema]);
 
+  const viewportForCanvasContextSelection = (selection?: CanvasNodeContextMenuState) => {
+    if (!selection) {
+      return undefined;
+    }
+    if (selection.flowId) {
+      const edge = graph.edges.find(item => item.flowId === selection.flowId);
+      const source = edge ? graph.nodes.find(item => item.objectId === edge.sourceObjectId) : undefined;
+      const target = edge ? graph.nodes.find(item => item.objectId === edge.targetObjectId) : undefined;
+      if (source && target) {
+        return viewportCenteredOn({
+          x: (source.position.x + target.position.x) / 2,
+          y: (source.position.y + target.position.y) / 2,
+        });
+      }
+    }
+    return viewportCenteredOn(graph.nodes.find(item => item.objectId === selection.objectId)?.position);
+  };
+
+  const handleCanvasContextDuplicate = () => {
+    if (props.readonly || !canvasNodeContextMenu) {
+      return;
+    }
+    const objectId = canvasNodeContextMenu.objectId;
+    const flowId = canvasNodeContextMenu.flowId;
+    if (objectId) {
+      if (isDesignSchema(schema)) {
+        commitSchema(
+          duplicateDesignSelection(schema, [objectId], []) as unknown as MicroflowSchema,
+          "addNode",
+          { historyLabel: labels.contextDuplicate, source: "flowgram" },
+        );
+      } else {
+        const located = findObjectWithCollection(schema, objectId);
+        commitSchema(duplicateObject(schema, objectId), located?.parentLoopObjectId ? "addLoopNode" : "addNode", { source: "flowgram" });
+      }
+      setCanvasNodeContextMenu(undefined);
+      Toast.success(labels.contextDuplicate);
+      return;
+    }
+    if (flowId && !isDesignSchema(schema)) {
+      const locatedFlow = findFlowWithCollection(schema, flowId);
+      commitSchema(
+        duplicateObjectSelection(schema, { objectIds: [], flowIds: [flowId] }),
+        locatedFlow?.parentLoopObjectId ? "addLoopFlow" : "addFlow",
+        { historyLabel: labels.contextDuplicate, source: "flowgram" },
+      );
+      setCanvasNodeContextMenu(undefined);
+      Toast.success(labels.contextDuplicate);
+      return;
+    }
+    if (flowId && isDesignSchema(schema)) {
+      Toast.info("当前设计模式不支持连线快捷复制。");
+    }
+    setCanvasNodeContextMenu(undefined);
+  };
+
+  const handleCanvasContextRename = () => {
+    if (props.readonly || !canvasNodeContextMenu?.objectId) {
+      return;
+    }
+    const objectId = canvasNodeContextMenu.objectId;
+    const currentTitle = isDesignSchema(schema)
+      ? (schema.workflow.nodes.find(node => node.id === objectId)?.data?.title ?? objectId)
+      : (findObject(schema, objectId)?.title ?? objectId);
+    const value = window.prompt(labels.contextRename, String(currentTitle));
+    if (!value) {
+      return;
+    }
+    const nextTitle = value.trim();
+    if (!nextTitle) {
+      Toast.warning("名称不能为空。");
+      return;
+    }
+    if (isDesignSchema(schema)) {
+      commitSchema({
+        ...schema,
+        workflow: {
+          ...schema.workflow,
+          nodes: schema.workflow.nodes.map(node => node.id === objectId ? {
+            ...node,
+            data: { ...node.data, title: nextTitle },
+          } : node),
+        },
+      } as unknown as MicroflowSchema, "updateNodeProperty", { source: "flowgram" });
+    } else {
+      const located = findObjectWithCollection(schema, objectId);
+      commitSchema(
+        updateObject(schema, objectId, nextObject => ({ ...nextObject, title: nextTitle })),
+        located?.parentLoopObjectId ? "addLoopNode" : "addNode",
+        { source: "flowgram" },
+      );
+    }
+    setCanvasNodeContextMenu(undefined);
+  };
+
+  const handleCanvasContextDelete = () => {
+    if (props.readonly || !canvasNodeContextMenu) {
+      return;
+    }
+    const objectIds = canvasNodeContextMenu.objectId ? [canvasNodeContextMenu.objectId] : [];
+    const flowIds = canvasNodeContextMenu.flowId ? [canvasNodeContextMenu.flowId] : [];
+    if (objectIds.length === 0 && flowIds.length === 0) {
+      return;
+    }
+    if (isDesignSchema(schema)) {
+      const selectedObjectCount = objectIds.length;
+      const selectedFlowCount = flowIds.length;
+      Modal.confirm({
+        title: "删除前影响确认",
+        okText: "确认删除",
+        okButtonProps: { type: "danger" },
+        cancelText: "取消",
+        content: `将删除节点 ${selectedObjectCount} 个、连线 ${selectedFlowCount} 条。`,
+        onOk: () => {
+          commitSchema(
+            deleteDesignSelection(schema, objectIds, flowIds) as unknown as MicroflowSchema,
+            selectedObjectCount > 0 ? "flowgramNodeDelete" : "flowgramNodeDelete",
+            { historyLabel: "Delete selection", source: "flowgram" },
+          );
+        },
+      });
+      setCanvasNodeContextMenu(undefined);
+      return;
+    }
+    confirmDeleteTargets(objectIds, flowIds, "flowgram");
+    setCanvasNodeContextMenu(undefined);
+  };
+
+  const handleCanvasContextCenter = () => {
+    if (!canvasNodeContextMenu) {
+      return;
+    }
+    const selectedFlowId = canvasNodeContextMenu.flowId;
+    const selectedObjectId = selectedFlowId ? undefined : canvasNodeContextMenu.objectId;
+    applyPatch({
+      selectedObjectId,
+      selectedFlowId,
+      selectedCollectionId: selectedFlowId
+        ? findFlowWithCollection(schema, selectedFlowId)?.collectionId
+        : selectedObjectId
+          ? findObjectWithCollection(schema, selectedObjectId)?.collectionId
+          : canvasNodeContextMenu.collectionId,
+      viewport: viewportForCanvasContextSelection(canvasNodeContextMenu),
+    }, { pushHistory: false, skipDirty: true, skipValidate: true });
+    setCanvasNodeContextMenu(undefined);
+  };
+
+  const handleCanvasContextCopyId = () => {
+    const targetId = canvasNodeContextMenu?.objectId ?? canvasNodeContextMenu?.flowId;
+    if (!targetId) {
+      return;
+    }
+    const copyText = async () => {
+      if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+        window.prompt("请复制以下 ID", targetId);
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(targetId);
+        Toast.success(`已复制: ${targetId}`);
+      } catch (error) {
+        Toast.error(`复制失败: ${error instanceof Error ? error.message : "请稍后重试"}`);
+      }
+    };
+    void copyText();
+    setCanvasNodeContextMenu(undefined);
+  };
+
   const handleApplyProblemQuickFix = (issue: MicroflowValidationIssue) => {
     if (props.readonly) {
       return;
@@ -4669,9 +4851,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               selectionMode: "none",
             }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
           }}
-          onNodeContextMenu={(selection, point) => {
-            setCanvasNodeContextMenu(selection.objectId ? {
+        onNodeContextMenu={(selection, point) => {
+            setCanvasNodeContextMenu(selection.objectId || selection.flowId ? {
               objectId: selection.objectId,
+              flowId: selection.flowId,
               collectionId: selection.collectionId,
               x: point.x,
               y: point.y,
@@ -4717,48 +4900,126 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           } : undefined}
           canvasPanToolActive={canvasPanToolActive}
           onCanvasPanToolChange={setCanvasPanToolActive}
+          showBuiltInToolbar={toolbarMode === "internal"}
         />
         </div>
-        {AUXILIARY_PANELS_ENABLED && canvasNodeContextMenu ? (
-          <div
-            data-testid="microflow-canvas-node-context-menu"
-            style={{
-              position: "fixed",
-              left: canvasNodeContextMenu.x,
-              top: canvasNodeContextMenu.y,
-              zIndex: 1200,
-              minWidth: 152,
-              padding: 6,
-              borderRadius: 8,
-              border: "1px solid var(--semi-color-border, #e5e6eb)",
-              background: "var(--semi-color-bg-2, #fff)",
-              boxShadow: "0 8px 24px rgba(31, 35, 41, 0.14)"
-            }}
-            onClick={event => event.stopPropagation()}
-            onContextMenu={event => event.preventDefault()}
-          >
-            <Button
-              block
-              size="small"
-              theme="borderless"
-              type="tertiary"
-              icon={<IconSetting />}
-              style={{ justifyContent: "flex-start" }}
-              onClick={() => {
-                applyPatch({
-                  selectedObjectId: canvasNodeContextMenu.objectId,
-                  selectedFlowId: undefined,
-                  selectedCollectionId: canvasNodeContextMenu.collectionId,
-                }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-                setFocusMode(false);
-                setRightOpen(true);
-                setCanvasNodeContextMenu(undefined);
+        {shouldShowCanvasContextMenu && canvasNodeContextMenu ? (() => {
+          const hasNode = Boolean(canvasNodeContextMenu.objectId);
+          return (
+            <div
+              data-testid="microflow-canvas-node-context-menu"
+              style={{
+                position: "fixed",
+                left: canvasNodeContextMenu.x,
+                top: canvasNodeContextMenu.y,
+                zIndex: 1200,
+                minWidth: 152,
+                padding: 6,
+                borderRadius: 8,
+                border: "1px solid var(--semi-color-border, #e5e6eb)",
+                background: "var(--semi-color-bg-2, #fff)",
+                boxShadow: "0 8px 24px rgba(31, 35, 41, 0.14)"
               }}
+              onClick={event => event.stopPropagation()}
+              onContextMenu={event => event.preventDefault()}
             >
-              {labels.properties}
-            </Button>
-          </div>
-        ) : null}
+              {hasNode ? (
+                <Button
+                  block
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  icon={<IconSetting />}
+                  style={{ justifyContent: "flex-start" }}
+                  onClick={() => {
+                    applyPatch({
+                      selectedObjectId: canvasNodeContextMenu.objectId,
+                      selectedFlowId: undefined,
+                      selectedCollectionId: canvasNodeContextMenu.collectionId,
+                    }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+                    setFocusMode(false);
+                    setRightOpen(true);
+                    setCanvasNodeContextMenu(undefined);
+                  }}
+                >
+                  {labels.contextProperties}
+                </Button>
+              ) : null}
+              {hasNode ? (
+                <Button
+                  block
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  icon={<IconCopy />}
+                  style={{ justifyContent: "flex-start" }}
+                  onClick={handleCanvasContextRename}
+                >
+                  {labels.contextRename}
+                </Button>
+              ) : null}
+              {hasNode ? (
+                <Button
+                  block
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  icon={<IconCopy />}
+                  style={{ justifyContent: "flex-start" }}
+                  onClick={handleCanvasContextDuplicate}
+                >
+                  {labels.contextDuplicate}
+                </Button>
+              ) : (
+                <Button
+                  block
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  icon={<IconCopy />}
+                  style={{ justifyContent: "flex-start" }}
+                  disabled={props.readonly}
+                  onClick={handleCanvasContextDuplicate}
+                >
+                  {labels.contextDuplicate}
+                </Button>
+              )}
+              <div style={{ height: 1, margin: "4px 0", background: "var(--semi-color-border, #e5e6eb)" }} />
+              <Button
+                block
+                size="small"
+                theme="borderless"
+                type="tertiary"
+                style={{ justifyContent: "flex-start" }}
+                onClick={handleCanvasContextCenter}
+              >
+                {labels.contextCenterView}
+              </Button>
+              <Button
+                block
+                size="small"
+                theme="borderless"
+                type="tertiary"
+                style={{ justifyContent: "flex-start" }}
+                onClick={handleCanvasContextCopyId}
+              >
+                {labels.contextCopyId}
+              </Button>
+              <Button
+                block
+                size="small"
+                theme="borderless"
+                type="danger"
+                style={{ justifyContent: "flex-start", color: "var(--semi-color-danger, #f53f3f)" }}
+                disabled={props.readonly}
+                icon={<IconDelete />}
+                onClick={handleCanvasContextDelete}
+              >
+                {labels.contextDelete}
+              </Button>
+            </div>
+          );
+        })() : null}
         {AUXILIARY_PANELS_ENABLED && !focusMode ? <div
           data-testid="microflow-editor-right-shell"
           style={{

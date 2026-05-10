@@ -91,6 +91,24 @@ describe("flowgram design edge semantics", () => {
     expect(isMicroflowDesignEdgeBusinessValid(normalized, normalized.edges[1]!)).toBe(false);
   });
 
+  it("normalizes legacy non-orthogonal line kinds", () => {
+    const workflow: WorkflowJSON = {
+      nodes: [
+        node("root-a", "actionActivity"),
+        node("root-b", "actionActivity"),
+      ],
+      edges: [
+        edge("legacy-bezier", "root-a", "root-b", {
+          edgeKind: "sequence",
+          lineKind: "bezier",
+        }),
+      ],
+    };
+    const normalized = { ...workflow, edges: normalizeMicroflowDesignEdges(workflow) };
+
+    expect((normalized.edges[0]?.data as unknown as FlowGramMicroflowEdgeData).lineKind).toBe("orthogonal");
+  });
+
   it("keeps ordinary sequence flows inside one collection and blocks root to loop body crossing", () => {
     const loopChildPatch = {
       data: { collectionId: "loop-1-collection", parentObjectId: "loop-1" },
@@ -114,6 +132,52 @@ describe("flowgram design edge semantics", () => {
     expect(isMicroflowDesignEdgeBusinessValid(normalized, normalized.edges[0]!)).toBe(true);
     expect(isMicroflowDesignEdgeBusinessValid(normalized, normalized.edges[1]!)).toBe(false);
     expect(isMicroflowDesignEdgeBusinessValid(normalized, normalized.edges[2]!)).toBe(true);
+  });
+
+  it("restricts cross-loop boundary flow and allows same-loop sequence", () => {
+    const loopA = node("loop-A", "loopedActivity", 240, 200, {
+      meta: {
+        size: { width: 220, height: 140 },
+        collectionId: "root-collection",
+      },
+    });
+    const loopB = node("loop-B", "loopedActivity", 560, 200, {
+      meta: {
+        size: { width: 220, height: 140 },
+        collectionId: "root-collection",
+      },
+    });
+    const loopNodeA = node("in-loop-a", "actionActivity", 260, 220, {
+      data: { collectionId: "root-collection", parentObjectId: "loop-A" },
+      meta: { collectionId: "root-collection", parentObjectId: "loop-A" },
+    });
+    const loopNodeB = node("in-loop-b", "actionActivity", 320, 220, {
+      data: { collectionId: "root-collection", parentObjectId: "loop-A" },
+      meta: { collectionId: "root-collection", parentObjectId: "loop-A" },
+    });
+    const loopNodeC = node("in-loop-c", "actionActivity", 620, 220, {
+      data: { collectionId: "root-collection", parentObjectId: "loop-B" },
+      meta: { collectionId: "root-collection", parentObjectId: "loop-B" },
+    });
+    const rootNode = node("outside", "actionActivity", 80, 60, {
+      meta: { collectionId: "root-collection" },
+    });
+
+    const workflow: WorkflowJSON = {
+      nodes: [loopA, loopB, loopNodeA, loopNodeB, loopNodeC, rootNode],
+      edges: [
+        edge("inner", "in-loop-a", "in-loop-b", { edgeKind: "sequence" }),
+        edge("cross-collection-same", "outside", "in-loop-a", { edgeKind: "sequence" }),
+        edge("cross-loop", "in-loop-b", "in-loop-c", { edgeKind: "sequence" }),
+        edge("loop-enter", "loop-A", "in-loop-a", { edgeKind: "loopBody", sourcePortId: "bodyIn" }),
+      ],
+    };
+    const normalized = { ...workflow, edges: normalizeMicroflowDesignEdges(workflow) };
+
+    expect(isMicroflowDesignEdgeBusinessValid(normalized, normalized.edges[0]!)).toBe(true);
+    expect(isMicroflowDesignEdgeBusinessValid(normalized, normalized.edges[1]!)).toBe(false);
+    expect(isMicroflowDesignEdgeBusinessValid(normalized, normalized.edges[2]!)).toBe(false);
+    expect(isMicroflowDesignEdgeBusinessValid(normalized, normalized.edges[3]!)).toBe(true);
   });
 
   it("detects loop drop ownership and loop-only controls", () => {

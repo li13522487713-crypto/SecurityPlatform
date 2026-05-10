@@ -6,7 +6,7 @@ import type {
   MicroflowWorkflowEdgeJSON,
   MicroflowWorkflowNodeJSON,
 } from "../schema/types";
-import { MICROFLOW_ROOT_COLLECTION_ID } from "./flowgram-native-schema";
+import { MICROFLOW_ROOT_COLLECTION_ID, flattenFlowGramWorkflowForPersistence } from "./flowgram-native-schema";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import type {
   FlowGramMicroflowEdgeData,
@@ -79,11 +79,12 @@ function ensureEdgeData(edge: MicroflowWorkflowEdgeJSON, index: number): Microfl
 }
 
 function normalizeWorkflow(workflow: WorkflowJSON): WorkflowJSON {
-  const nodes = ((workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(ensureNodeData);
+  const flatWorkflow = flattenFlowGramWorkflowForPersistence(workflow);
+  const nodes = ((flatWorkflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(ensureNodeData);
   return {
-    ...workflow,
+    ...flatWorkflow,
     nodes: nodes as WorkflowJSON["nodes"],
-    edges: normalizeMicroflowDesignEdges({ ...workflow, nodes } as WorkflowJSON).map(ensureEdgeData) as WorkflowJSON["edges"],
+    edges: normalizeMicroflowDesignEdges({ ...flatWorkflow, nodes } as WorkflowJSON).map(ensureEdgeData) as WorkflowJSON["edges"],
   };
 }
 

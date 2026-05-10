@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 
 import { Input } from "@douyinfe/semi-ui";
 import {
@@ -7,16 +7,51 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
+import { MicroflowEdgeDataContext } from "./FlowGramMicroflowTypes";
 import { emitInlineLineLabelCommit } from "./inline-events";
 
-function edgeDataFromLine(line: LineRenderProps["line"]): FlowGramMicroflowEdgeData | undefined {
+function lineInfoKey(input: {
+  from?: unknown;
+  to?: unknown;
+  fromPort?: unknown;
+  toPort?: unknown;
+}): string {
+  return [
+    String(input.from ?? ""),
+    String(input.fromPort ?? ""),
+    String(input.to ?? ""),
+    String(input.toPort ?? ""),
+  ].join("::");
+}
+
+function edgeDataFromLine(
+  line: LineRenderProps["line"],
+  edgeDataByLineKey: ReadonlyMap<string, FlowGramMicroflowEdgeData>,
+): FlowGramMicroflowEdgeData | undefined {
   const maybeLine = line as unknown as {
     data?: FlowGramMicroflowEdgeData;
-    info?: { data?: FlowGramMicroflowEdgeData };
-    toJSON?: () => { data?: FlowGramMicroflowEdgeData };
+    info?: { data?: FlowGramMicroflowEdgeData; from?: unknown; to?: unknown; fromPort?: unknown; toPort?: unknown };
+    toJSON?: () => {
+      data?: FlowGramMicroflowEdgeData;
+      sourceNodeID?: unknown;
+      targetNodeID?: unknown;
+      sourcePortID?: unknown;
+      targetPortID?: unknown;
+    };
   };
-  const data = maybeLine.data ?? maybeLine.info?.data ?? maybeLine.toJSON?.().data;
-  return typeof data?.flowId === "string" ? data : undefined;
+  const json = maybeLine.toJSON?.();
+  const data = maybeLine.data ?? maybeLine.info?.data ?? json?.data;
+  if (typeof data?.flowId === "string") {
+    return data;
+  }
+  const infoKey = lineInfoKey(maybeLine.info ?? {});
+  const jsonKey = lineInfoKey({
+    from: json?.sourceNodeID,
+    fromPort: json?.sourcePortID,
+    to: json?.targetNodeID,
+    toPort: json?.targetPortID,
+  });
+  return edgeDataByLineKey.get(infoKey) ?? edgeDataByLineKey.get(jsonKey);
 }
 
 export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
@@ -32,9 +67,15 @@ export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
   if (data.edgeKind === "errorHandler") {
     return "error";
   }
+  if (data.edgeKind === "loopBody") {
+    return "body";
+  }
   const firstCase = data.caseValues[0];
   if (!firstCase) {
-    return "else";
+    if (data.edgeKind === "decisionCondition" || data.edgeKind === "objectTypeCondition") {
+      return data.targetNodeId ? "empty" : "else";
+    }
+    return "";
   }
   if (firstCase.kind === "boolean") {
     return String(firstCase.value);
@@ -44,6 +85,12 @@ export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
   }
   if (firstCase.kind === "enumeration") {
     return firstCase.value;
+  }
+  if (firstCase.kind === "expression") {
+    return firstCase.condition ?? firstCase.expression ?? "case";
+  }
+  if (firstCase.kind === "inheritance") {
+    return firstCase.entityQualifiedName;
   }
   return "else";
 }
@@ -72,7 +119,8 @@ export function lineClassNameFromEdgeData(data: FlowGramMicroflowEdgeData): stri
 
 export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   const readonly = usePlaygroundReadonlyState();
-  const data = edgeDataFromLine(line);
+  const edgeDataByLineKey = useContext(MicroflowEdgeDataContext);
+  const data = edgeDataFromLine(line, edgeDataByLineKey);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -84,14 +132,18 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
     data.edgeKind === "decisionCondition"
     || data.edgeKind === "objectTypeCondition"
     || data.edgeKind === "loopBody"
-    || data.edgeKind === "sequence"
     || data.edgeKind === "errorHandler"
   );
+  const branchLabel = label.toLowerCase();
+  if (!branchLabel && !warningMissingTarget) {
+    return null;
+  }
   const className = [
     "microflow-branch-label",
-    label === "true" ? "is-true" : "",
-    label === "false" ? "is-false" : "",
-    label === "else" ? "is-else" : "",
+    branchLabel === "true" ? "is-true" : "",
+    branchLabel === "false" ? "is-false" : "",
+    branchLabel === "else" ? "is-else" : "",
+    branchLabel === "empty" ? "is-empty" : "",
     editing ? "is-editing" : "",
     runtimeClass(data.runtimeState),
     data.validationState === "warning" || warningMissingTarget ? "is-warning" : "",

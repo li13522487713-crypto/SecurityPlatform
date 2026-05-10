@@ -29,7 +29,7 @@ vi.mock("@douyinfe/semi-ui", () => ({
 }));
 
 import { FlowGramMicroflowLineRenderer } from "./FlowGramMicroflowLineRenderer";
-import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
+import { MicroflowEdgeDataContext, type FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
 
 afterEach(() => {
   cleanup();
@@ -272,5 +272,41 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
       />,
     );
     expect(screen.getByRole("button").textContent).toContain("fallback");
+  });
+
+  it("renders decision labels from workflow edge context when FlowGram line JSON has no data payload", () => {
+    const data: FlowGramMicroflowEdgeData = {
+      flowId: "flow-decision-true",
+      flowKind: "sequence",
+      edgeKind: "decisionCondition",
+      isErrorHandler: false,
+      caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }],
+      validationState: "valid",
+    };
+    const edgeDataByLineKey = new Map([
+      ["decision::out::decision-true::in", data],
+    ]);
+
+    render(
+      <MicroflowEdgeDataContext.Provider value={edgeDataByLineKey}>
+        <FlowGramMicroflowLineRenderer
+          key="line-1"
+          lineType={"polyline" as never}
+          version="1"
+          line={{
+            info: { from: "decision", fromPort: "out", to: "decision-true", toPort: "in" },
+            toJSON: () => ({
+              sourceNodeID: "decision",
+              sourcePortID: "out",
+              targetNodeID: "decision-true",
+              targetPortID: "in",
+            }),
+          } as never}
+        />
+      </MicroflowEdgeDataContext.Provider>,
+    );
+
+    expect(screen.getByRole("button").textContent).toContain("true");
+    expect(screen.getByRole("button").getAttribute("data-flow-id")).toBe("flow-decision-true");
   });
 });

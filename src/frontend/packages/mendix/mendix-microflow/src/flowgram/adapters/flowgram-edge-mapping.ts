@@ -4,6 +4,7 @@ import { toEditorGraph } from "../../adapters";
 import { getDefaultSourcePortForEdgeKind, getDefaultTargetPortForEdgeKind, parsePortId } from "../../schema/utils/port-utils";
 import type { MicroflowCaseValue, MicroflowEditorPort, MicroflowFlow, MicroflowSchema } from "../../schema";
 import type { FlowGramMicroflowEdgeData } from "../FlowGramMicroflowTypes";
+import { forceOrthogonalLineKind } from "../FlowGramMicroflowTypes";
 import { createMicroflowFlowFromPorts } from "./flowgram-edge-factory";
 
 export type FlowGramEdgeLike = Pick<WorkflowEdgeJSON, "sourceNodeID" | "targetNodeID" | "sourcePortID" | "targetPortID"> & {
@@ -61,6 +62,7 @@ export function mapFlowGramEdgeToMicroflowFlow(schema: MicroflowSchema, edge: Fl
   return createMicroflowFlowFromPorts(schema, sourcePort, targetPort, {
     caseValues,
     label: edge.data?.label,
+    lineKind: forceOrthogonalLineKind(edge.data?.lineKind),
   });
 }
 
@@ -77,6 +79,7 @@ export function mapMicroflowFlowToFlowGramEdge(schema: MicroflowSchema, flow: Mi
         flowId: flow.id,
         flowKind: flow.kind,
         edgeKind: flowEdgeKind(flow),
+        lineKind: forceOrthogonalLineKind(flow.line?.kind),
         isErrorHandler: flow.kind === "sequence" ? flow.isErrorHandler : false,
         caseValues: flow.kind === "sequence" ? flow.caseValues : [],
         label: flow.editor.label,
@@ -95,15 +98,16 @@ export function mapMicroflowFlowToFlowGramEdge(schema: MicroflowSchema, flow: Mi
     targetNodeID: flow.destinationObjectId,
     sourcePortID: getSourceHandleFromConnectionIndex(flow.originObjectId, edgeKind, flow.originConnectionIndex ?? 0),
     targetPortID: getTargetHandleFromConnectionIndex(flow.destinationObjectId, edgeKind, flow.destinationConnectionIndex ?? 0),
-    data: {
-      flowId: flow.id,
-      flowKind: flow.kind,
-      edgeKind,
-      isErrorHandler: flow.kind === "sequence" ? flow.isErrorHandler : false,
-      caseValues: flow.kind === "sequence" ? flow.caseValues : [],
-      label: flow.editor.label,
-      description: flow.editor.description,
-      branchOrder: flow.kind === "sequence" ? flow.editor.branchOrder : undefined,
+      data: {
+        flowId: flow.id,
+        flowKind: flow.kind,
+        edgeKind,
+        lineKind: forceOrthogonalLineKind(flow.line?.kind),
+        isErrorHandler: flow.kind === "sequence" ? flow.isErrorHandler : false,
+        caseValues: flow.kind === "sequence" ? flow.caseValues : [],
+        label: flow.editor.label,
+        description: flow.editor.description,
+        branchOrder: flow.kind === "sequence" ? flow.editor.branchOrder : undefined,
       showInExport: flow.kind === "annotation" ? flow.editor.showInExport : undefined,
       validationState: "valid",
     } satisfies FlowGramMicroflowEdgeData,

@@ -163,7 +163,72 @@ function NodeIcon({ kind }: { kind: string }) {
   }
 }
 
-function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): string {
+type NodeCategory = "data" | "variable" | "list" | "flow" | "event";
+
+type NodeTone = "start" | "end" | "decision" | "merge" | "loop" | "annotation" | "action";
+
+const NODE_CATEGORY_STYLE: Record<NodeCategory, {
+  iconColor: string;
+  borderColor: string;
+}> = {
+  data: { iconColor: "#60a5fa", borderColor: "#1a3870" },
+  variable: { iconColor: "#f59e0b", borderColor: "#3a2800" },
+  list: { iconColor: "#34d399", borderColor: "#0a2e1e" },
+  flow: { iconColor: "#a78bfa", borderColor: "#2a1a4a" },
+  event: { iconColor: "#f472b6", borderColor: "#3a0a24" },
+};
+
+function nodeCategory(kind: string): NodeCategory {
+  if ([
+    "createObject",
+    "changeObject",
+    "retrieveObject",
+    "commitObject",
+    "deleteObject",
+  ].includes(kind)) {
+    return "data";
+  }
+  if ([
+    "createVariable",
+    "changeVariable",
+  ].includes(kind)) {
+    return "variable";
+  }
+  if ([
+    "filterList",
+    "sortList",
+    "aggregateList",
+  ].includes(kind)) {
+    return "list";
+  }
+  if ([
+    "callMicroflow",
+    "callRest",
+    "javaAction",
+    "microflowCall",
+    "nanoflowCall",
+    "httpRequest",
+    "actionActivity",
+    "tryCatch",
+    "parallelSplit",
+    "parallelMerge",
+    "exclusiveSplit",
+    "inheritanceSplit",
+    "loopedActivity",
+    "startEvent",
+    "endEvent",
+    "errorEvent",
+    "breakEvent",
+    "continueEvent",
+    "annotation",
+    "parameterObject",
+  ].includes(kind)) {
+    return "flow";
+  }
+  return "flow";
+}
+
+function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): NodeTone {
   if (kind === "startEvent") {
     return "start";
   }
@@ -374,6 +439,7 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
       className={[
         "microflow-flowgram-node",
         `microflow-flowgram-node--${tone}`,
+        `microflow-flowgram-node--category-${nodeCategory(data.objectKind)}`,
         selected ? "is-selected" : "",
         activated ? "is-active" : "",
         focused ? "is-focused" : "",
@@ -399,47 +465,77 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
       data-microflow-collection-id={data.collectionId}
       data-node-selected={String(selected)}
       data-node-active={String(activated)}
+      data-node-category={nodeCategory(data.objectKind)}
       tabIndex={0}
     >
       <div className="microflow-flowgram-node__compact" data-node-tone={tone}>
         {tone === "start" || tone === "end" ? (
           <div className="microflow-event-pill" title={data.title}>
-            <span className="microflow-event-pill__icon" aria-hidden="true"><NodeIcon kind={data.objectKind} /></span>
+            <span
+              className="microflow-event-pill__icon"
+              aria-hidden="true"
+              style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+            >
+              <NodeIcon kind={data.objectKind} />
+            </span>
             <span className="microflow-event-pill__label">{data.title}</span>
           </div>
         ) : tone === "decision" ? (
           <div className="microflow-decision-compact">
             <div className="microflow-decision-compact__diamond" aria-hidden="true">
-              <span><NodeIcon kind={data.objectKind} /></span>
+              <span
+                className="microflow-node-compact-icon-wrap"
+                style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+              >
+                <NodeIcon kind={data.objectKind} />
+              </span>
+              {data.runtimeState === "failed" ? <span className="microflow-node-runtime-error-dot" aria-hidden /> : null}
             </div>
             <div className="microflow-node-caption" title={data.title}>{data.title}</div>
           </div>
         ) : tone === "merge" ? (
           <div className="microflow-merge-compact">
             <div className="microflow-merge-compact__diamond" aria-hidden="true">
-              <span><NodeIcon kind={data.objectKind} /></span>
+              <span
+                className="microflow-node-compact-icon-wrap"
+                style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+              >
+                <NodeIcon kind={data.objectKind} />
+              </span>
+              {data.runtimeState === "failed" ? <span className="microflow-node-runtime-error-dot" aria-hidden /> : null}
             </div>
             <div className="microflow-node-caption" title={data.title}>{data.title}</div>
           </div>
         ) : tone === "loop" ? (
           <div className="microflow-loop-frame" title={data.title}>
-            <div className="microflow-loop-frame__header">
-              <span aria-hidden="true"><NodeIcon kind={data.objectKind} /></span>
-              <span>{data.title}</span>
-            </div>
+          <div className="microflow-loop-frame__header">
+            <span
+              aria-hidden="true"
+              style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+            >
+              <NodeIcon kind={data.objectKind} />
+            </span>
+            <span>{data.title}</span>
+          </div>
             <div className="microflow-loop-frame__body">
               <span>{data.loopSummary ? `${data.loopSummary.childCount} nodes` : nodeKindLabel(data.objectKind)}</span>
             </div>
           </div>
         ) : tone === "annotation" ? (
           <div className="microflow-annotation-compact" title={data.title}>
-            <span aria-hidden="true"><NodeIcon kind={data.objectKind} /></span>
+            <span
+              aria-hidden="true"
+              style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+            >
+              <NodeIcon kind={data.objectKind} />
+            </span>
             <span>{data.title}</span>
           </div>
         ) : (
           <div className="microflow-activity-compact">
             <div className="microflow-activity-compact__icon" aria-hidden="true">
               <NodeIcon kind={data.objectKind} />
+              {data.runtimeState === "failed" ? <span className="microflow-node-runtime-error-dot" aria-hidden /> : null}
             </div>
             <div className="microflow-node-caption" title={data.title}>{data.title}</div>
           </div>

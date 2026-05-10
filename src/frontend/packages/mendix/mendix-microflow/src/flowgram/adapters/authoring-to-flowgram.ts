@@ -17,6 +17,7 @@ import type {
 type MicroflowFlowGramTraceRow = MicroflowTraceFrame | MicroflowAuthoringPersistedTraceFrame;
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { flowCaseLabel } from "./flowgram-case-options";
+import { forceOrthogonalLineKind } from "../FlowGramMicroflowTypes";
 import { LOOP_HEADER_OFFSET_PX } from "./flowgram-coordinate";
 import { toFlowGramEdgeId, toFlowGramNodeId } from "./flowgram-identity";
 import { validationStateFromIssues } from "./flowgram-validation-sync";
@@ -259,6 +260,7 @@ export function authoringToFlowGram(
       flowId: edge.flowId,
       flowKind: flow?.kind ?? "sequence",
       edgeKind: edge.kind ?? edge.edgeKind,
+      lineKind: forceOrthogonalLineKind(flow?.line?.kind),
       isErrorHandler: flow?.kind === "sequence" ? flow.isErrorHandler : false,
       caseValues: flow?.kind === "sequence" ? flow.caseValues : [],
       label: flow ? flowCaseLabel(flow) : edge.label,

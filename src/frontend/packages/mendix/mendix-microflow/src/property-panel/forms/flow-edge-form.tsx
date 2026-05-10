@@ -8,6 +8,7 @@ import { collectLoopObjects, getDecisionBranchConflicts, getLoopFlowKind } from 
 import { ValidationIssueList } from "../common";
 import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "../types";
 import { Header, PropertyTabs, Field, flowPatch, getFlowTabs, issuesFor, objectName } from "../panel-shared";
+import { forceOrthogonalLineKind } from "../../flowgram/FlowGramMicroflowTypes";
 
 const { Text } = Typography;
 
@@ -166,17 +167,7 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
           <InputNumber value={flow.destinationConnectionIndex ?? 0} disabled />
         </Field>
         <Field label="Line Routing">
-          {withDisabledReason(
-            readonlyDisabledReason,
-            "Line routing",
-            <Select
-              value={flow.line.kind}
-              disabled={props.readonly}
-              style={{ width: "100%" }}
-              onChange={kind => patch(flowPatch(flow, { line: { ...flow.line, kind: String(kind) as typeof flow.line.kind } }))}
-              optionList={["orthogonal", "polyline", "bezier"].map(value => ({ label: value, value }))}
-            />
-          )}
+          <Input value={forceOrthogonalLineKind(flow.line.kind)} disabled />
         </Field>
         {flow.kind === "sequence" ? (
           <>

@@ -41,6 +41,8 @@ import type {
 } from "../schema/types";
 import {
   MICROFLOW_ROOT_COLLECTION_ID,
+  flattenFlowGramWorkflowForPersistence,
+  nestLoopChildrenForFlowGram,
   workflowEdgeById,
   workflowNodeById,
 } from "./flowgram-native-schema";
@@ -66,6 +68,8 @@ import { getMendixMicroflowDropOffset, getMendixMicroflowNodeSize } from "./flow
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import { MICROFLOW_GRID_SIZE, clientPointToFlowGramPoint, snapMicroflowPoint } from "./adapters/flowgram-coordinate";
 import { stripTransientWorkflowState } from "./transient-workflow-state";
+import { MicroflowEdgeDataContext } from "./FlowGramMicroflowTypes";
+import { forceOrthogonalLineKind } from "./FlowGramMicroflowTypes";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
 import { MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
@@ -112,6 +116,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
   dirty?: boolean;
   saving?: boolean;
   validating?: boolean;
+  showBuiltInToolbar?: boolean;
   onOpenProblemsPanel?: () => void;
   /** Controlled pan tool: when `canvasPanToolActive` is set, it wins over internal state. */
   canvasPanToolActive?: boolean;
@@ -165,6 +170,18 @@ function edgeKey(edge: MicroflowWorkflowEdgeJSON | WorkflowEdgeJSON): string {
     String(edge.targetNodeID ?? ""),
     String(edge.targetPortID ?? ""),
   ].join("::");
+}
+
+function createEdgeDataByLineKey(workflow: WorkflowJSON | MicroflowWorkflowJSON): ReadonlyMap<string, FlowGramMicroflowEdgeData> {
+  const map = new Map<string, FlowGramMicroflowEdgeData>();
+  const normalized = normalizeWorkflow(workflow);
+  for (const edge of (normalized.edges ?? []) as MicroflowWorkflowEdgeJSON[]) {
+    const data = edge.data as FlowGramMicroflowEdgeData | undefined;
+    if (data?.flowId) {
+      map.set(edgeKey(edge), data);
+    }
+  }
+  return map;
 }
 
 function edgeStructureSignature(workflow: WorkflowJSON | MicroflowWorkflowJSON): string {
@@ -251,6 +268,7 @@ function ensureEdgeData(edge: MicroflowWorkflowEdgeJSON, index: number): Microfl
       edgeKind: data?.edgeKind ?? "sequence",
       isErrorHandler: data?.isErrorHandler ?? false,
       caseValues: data?.caseValues ?? [],
+      lineKind: forceOrthogonalLineKind(data?.lineKind),
       validationState: data?.validationState ?? "valid",
       runtimeState: data?.runtimeState ?? "idle",
     },
@@ -258,7 +276,8 @@ function ensureEdgeData(edge: MicroflowWorkflowEdgeJSON, index: number): Microfl
 }
 
 function normalizeWorkflow(workflow: WorkflowJSON | MicroflowWorkflowJSON, options: { snapToGrid?: boolean } = {}): WorkflowJSON {
-  const nodes = ((workflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(node => {
+  const flatWorkflow = flattenFlowGramWorkflowForPersistence(workflow);
+  const nodes = ((flatWorkflow.nodes ?? []) as MicroflowWorkflowNodeJSON[]).map(node => {
     const normalized = ensureNodeData(node);
     if (!options.snapToGrid || !normalized.meta?.position) {
       return normalized;
@@ -275,9 +294,9 @@ function normalizeWorkflow(workflow: WorkflowJSON | MicroflowWorkflowJSON, optio
     };
   });
   return {
-    ...workflow,
+    ...flatWorkflow,
     nodes: nodes as WorkflowJSON["nodes"],
-    edges: normalizeMicroflowDesignEdges({ ...workflow, nodes } as WorkflowJSON).map(ensureEdgeData) as WorkflowJSON["edges"],
+    edges: normalizeMicroflowDesignEdges({ ...flatWorkflow, nodes } as WorkflowJSON).map(ensureEdgeData) as WorkflowJSON["edges"],
   };
 }
 
@@ -478,6 +497,7 @@ function FlowGramMicroflowNativeMiniMap(props: { schema: MicroflowDesignSchema; 
 
 function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvasProps) {
   const playground = usePlayground();
+  const showBuiltInToolbar = props.showBuiltInToolbar ?? false;
   const playgroundRef = useRef(playground);
   playgroundRef.current = playground;
   const doc = useService<WorkflowDocument>(WorkflowDocument);
@@ -524,7 +544,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   panToolActiveRef.current = panToolActive;
   spacePressedRef.current = spacePressed;
 
-  const renderedWorkflow = useMemo(
+  const decoratedWorkflow = useMemo(
     () => decorateWorkflow({
       schema: props.schema,
       validationIssues: props.validationIssues,
@@ -532,6 +552,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       nodeViewModes: props.nodeViewModes,
     }),
     [props.nodeViewModes, props.runtimeTrace, props.schema, props.validationIssues],
+  );
+  const renderedWorkflow = useMemo(
+    () => nestLoopChildrenForFlowGram(decoratedWorkflow),
+    [decoratedWorkflow],
   );
   const gridEnabled = props.schema.editor.gridEnabled !== false;
   const miniMapVisible = props.schema.editor.showMiniMap === true;
@@ -590,6 +614,15 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     return Boolean(line);
   };
 
+  const emitCanvasZoomChange = useCallback((zoom: number) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const normalizedZoom = Number.isFinite(zoom) ? zoom : 1;
+    const percent = Math.round(Math.max(0, normalizedZoom) * 100);
+    window.dispatchEvent(new CustomEvent("canvas:zoom-change", { detail: { zoom: percent } }));
+  }, []);
+
   const applyViewportZoomFromCanvasCenter = useCallback((normalizedZoom: number) => {
     const root = containerRef.current;
     const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
@@ -602,7 +635,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     cfg.updateConfig?.({ zoom: next.zoom, scrollX: next.x, scrollY: next.y });
     lastSyncedViewportRef.current = next;
     propsRef.current.onViewportChange?.(next);
-  }, [playground]);
+    emitCanvasZoomChange(next.zoom);
+  }, [emitCanvasZoomChange, playground]);
 
   const pushViewportToPlaygroundConfig = useCallback((viewport: MicroflowDesignSchema["editor"]["viewport"], options?: { force?: boolean }) => {
     const v = viewport ?? { x: 0, y: 0, zoom: 1 };
@@ -628,7 +662,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     if (draggingRef.current) {
       return;
     }
-    const nextSignature = workflowSignature(renderedWorkflow);
+    const nextSignature = workflowSignature(normalizeWorkflow(renderedWorkflow));
     const currentDocSignature = workflowSignature(normalizeWorkflow(doc.toJSON() as WorkflowJSON));
     if (lastWorkflowSignatureRef.current === nextSignature && currentDocSignature === nextSignature) {
       return;
@@ -1079,6 +1113,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         cfg.updateConfig?.({ zoom: next.zoom, scrollX: next.x, scrollY: next.y });
         lastSyncedViewportRef.current = next;
         propsRef.current.onViewportChange?.(next);
+        emitCanvasZoomChange(next.zoom);
         return;
       }
 
@@ -1100,10 +1135,49 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       cfg.updateConfig?.({ zoom: next.zoom, scrollX: next.x, scrollY: next.y });
       lastSyncedViewportRef.current = next;
       propsRef.current.onViewportChange?.(next);
+      emitCanvasZoomChange(next.zoom);
     };
     root.addEventListener("wheel", onWheel, { passive: false, capture: true });
     return () => root.removeEventListener("wheel", onWheel, { capture: true });
   }, []);
+
+  useEffect(() => {
+    emitCanvasZoomChange(props.schema.editor.viewport?.zoom ?? 1);
+  }, [emitCanvasZoomChange, props.schema.editor.viewport?.zoom]);
+
+  useEffect(() => {
+    const canvasAPI = {
+      zoomIn: () => {
+        const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+        applyViewportZoomFromCanvasCenter(v.zoom + 0.1);
+      },
+      zoomOut: () => {
+        const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+        applyViewportZoomFromCanvasCenter(Math.max(0.1, v.zoom - 0.1));
+      },
+      fitView: () => {
+        fitViewportToWorkflow();
+      },
+      resetZoom: () => {
+        applyViewportZoomFromCanvasCenter(1);
+      },
+      autoLayout: () => {
+        propsRef.current.onAutoLayout?.();
+      },
+      undo: () => {
+        propsRef.current.onUndo?.();
+      },
+      redo: () => {
+        propsRef.current.onRedo?.();
+      },
+    };
+    (window as any).__canvasAPI = canvasAPI;
+    return () => {
+      if ((window as any).__canvasAPI === canvasAPI) {
+        delete (window as any).__canvasAPI;
+      }
+    };
+  }, [applyViewportZoomFromCanvasCenter, fitViewportToWorkflow, props.onAutoLayout, props.onRedo, props.onUndo]);
 
   return (
     <div
@@ -1139,32 +1213,34 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       onLostPointerCapture={handleLostPointerCapture}
     >
       <PlaygroundReactRenderer />
-      <div className="microflow-flowgram-canvas-controls">
-        <FlowGramMicroflowToolbar
-          canUndo={props.canUndo}
-          canRedo={props.canRedo}
-          onUndo={props.onUndo}
-          onRedo={props.onRedo}
-          onAutoLayout={props.onAutoLayout}
-          readonly={props.readonly}
-          viewport={props.schema.editor.viewport}
-          onViewportChange={viewport => props.onViewportChange?.(viewport)}
-          onFitView={fitViewportToWorkflow}
-          onCenterView={centerViewportToWorkflow}
-          gridEnabled={gridEnabled}
-          onToggleGrid={() => props.onToggleGrid?.(!gridEnabled)}
-          miniMapVisible={miniMapVisible}
-          onToggleMiniMap={() => props.onToggleMiniMap?.(!miniMapVisible)}
-          panToolActive={panToolActive}
-          onTogglePanTool={togglePanTool}
-          applyZoomFromCanvasCenter={applyViewportZoomFromCanvasCenter}
-          dirty={props.dirty}
-          saving={props.saving}
-          validating={props.validating}
-          validationIssues={props.validationIssues}
-          onOpenProblemsPanel={props.onOpenProblemsPanel}
-        />
-      </div>
+      {showBuiltInToolbar ? (
+        <div className="microflow-flowgram-canvas-controls">
+          <FlowGramMicroflowToolbar
+            canUndo={props.canUndo}
+            canRedo={props.canRedo}
+            onUndo={props.onUndo}
+            onRedo={props.onRedo}
+            onAutoLayout={props.onAutoLayout}
+            readonly={props.readonly}
+            viewport={props.schema.editor.viewport}
+            onViewportChange={viewport => props.onViewportChange?.(viewport)}
+            onFitView={fitViewportToWorkflow}
+            onCenterView={centerViewportToWorkflow}
+            gridEnabled={gridEnabled}
+            onToggleGrid={() => props.onToggleGrid?.(!gridEnabled)}
+            miniMapVisible={miniMapVisible}
+            onToggleMiniMap={() => props.onToggleMiniMap?.(!miniMapVisible)}
+            panToolActive={panToolActive}
+            onTogglePanTool={togglePanTool}
+            applyZoomFromCanvasCenter={applyViewportZoomFromCanvasCenter}
+            dirty={props.dirty}
+            saving={props.saving}
+            validating={props.validating}
+            validationIssues={props.validationIssues}
+            onOpenProblemsPanel={props.onOpenProblemsPanel}
+          />
+        </div>
+      ) : null}
       {miniMapVisible ? <FlowGramMicroflowNativeMiniMap schema={props.schema} onFocusNode={focusNode} /> : null}
       <MicroflowMultiSelectBar
         selection={props.schema.editor.selection}
@@ -1233,11 +1309,17 @@ function MicroflowMultiSelectBar(props: {
 
 export function FlowGramMicroflowNativeCanvas(props: FlowGramMicroflowNativeCanvasProps) {
   const structureKey = workflowRenderStructureKey(props.schema.workflow);
+  const edgeDataByLineKey = useMemo(
+    () => createEdgeDataByLineKey(props.schema.workflow),
+    [props.schema.workflow],
+  );
   return (
     <MicroflowNodeViewModesContext.Provider value={props.nodeViewModes ?? {}}>
-      <FlowGramMicroflowProvider key={structureKey}>
-        <FlowGramMicroflowNativeCanvasInner {...props} />
-      </FlowGramMicroflowProvider>
+      <MicroflowEdgeDataContext.Provider value={edgeDataByLineKey}>
+        <FlowGramMicroflowProvider key={structureKey}>
+          <FlowGramMicroflowNativeCanvasInner {...props} />
+        </FlowGramMicroflowProvider>
+      </MicroflowEdgeDataContext.Provider>
     </MicroflowNodeViewModesContext.Provider>
   );
 }

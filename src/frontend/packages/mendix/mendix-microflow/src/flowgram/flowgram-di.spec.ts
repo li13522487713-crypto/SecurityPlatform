@@ -54,5 +54,14 @@ describe("FlowGram microflow DI", () => {
       port({ portType: "output", nodeId: "start", parentId: "root" }),
       port({ portType: "input", nodeId: "end", parentId: "nested" }),
     )).toBe(false);
+
+    expect(options.canAddLine(
+      port({ portType: "output", nodeId: "loop", parentId: "root" }),
+      port({ portType: "input", nodeId: "loop-child", parentId: "loop" }),
+    )).toBe(true);
+    expect(options.canAddLine(
+      port({ portType: "output", nodeId: "loop-child", parentId: "loop" }),
+      port({ portType: "input", nodeId: "outside", parentId: "root" }),
+    )).toBe(false);
   });
 });
