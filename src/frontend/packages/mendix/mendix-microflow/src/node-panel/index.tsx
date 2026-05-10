@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Button, Card, Empty, Input, Popover, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, Input, Popover, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
   IconChevronRight,
@@ -9,8 +9,7 @@ import {
   IconPlus,
   IconSearch,
   IconStar,
-  IconStarStroked,
-  IconStop
+  IconStarStroked
 } from "@douyinfe/semi-icons";
 import type { MicroflowRegistryNodeType, MicroflowActivityType } from "../schema";
 import {
@@ -34,7 +33,6 @@ import {
 
 const { Text } = Typography;
 const nodePanelCategoryStorageKey = "atlas_microflow_node_panel_categories";
-const nodePanelGroupStorageKey = "atlas_microflow_node_panel_groups";
 
 export interface MicroflowNodePanelLabels {
   nodesTab: string;
@@ -108,26 +106,6 @@ export interface MicroflowNodePanelTemplate {
   defaultOffset?: { x: number; y: number };
   requiredCapabilities?: string[];
 }
-
-const defaultMicroflowTemplates: MicroflowNodePanelTemplate[] = [
-  {
-    id: "component-decision-merge",
-    name: "Decision branch",
-    description: "Decision, two actions, and merge.",
-    category: "component",
-    nodeKeys: ["decision", "activity:changeVariable", "activity:logMessage", "merge"],
-    flowPairs: [{ from: 0, to: 1, label: "true" }, { from: 0, to: 2, label: "false" }, { from: 1, to: 3 }, { from: 2, to: 3 }],
-  },
-  {
-    id: "template-rest-validate-log",
-    name: "REST with validation",
-    description: "Retrieve inputs, call REST, then log the outcome.",
-    category: "template",
-    nodeKeys: ["activity:retrieve", "activity:restCall", "activity:logMessage"],
-    flowPairs: [{ from: 0, to: 1 }, { from: 1, to: 2 }],
-    requiredCapabilities: ["restCall"],
-  },
-];
 
 export interface MicroflowNodePanelProps {
   registry?: MicroflowNodeRegistryItem[];
@@ -276,21 +254,103 @@ function iconTone(item: MicroflowNodeRegistryItem): { background: string; color:
   return { background: "#f2f3f5", color: "#4e5969" };
 }
 
-function MicroflowNodeIcon({ item }: { item: MicroflowNodeRegistryItem }) {
+interface MendixToolboxSection {
+  key: string;
+  label: string;
+  itemKeys: string[];
+}
+
+const mendixToolboxSections: MendixToolboxSection[] = [
+  {
+    key: "object",
+    label: "Object activities",
+    itemKeys: [
+      "activity:objectCreate",
+      "activity:objectChange",
+      "activity:objectRetrieve",
+      "activity:objectCommit",
+      "activity:objectDelete",
+      "activity:objectRollback",
+      "activity:objectCast",
+    ],
+  },
+  {
+    key: "list",
+    label: "List activities",
+    itemKeys: [
+      "activity:listAggregate",
+      "activity:listChange",
+      "activity:listCreate",
+      "activity:listFilter",
+      "activity:listSort",
+    ],
+  },
+  {
+    key: "action",
+    label: "Action call activities",
+    itemKeys: [
+      "activity:callMicroflow",
+      "activity:callRest",
+    ],
+  },
+  {
+    key: "variable",
+    label: "Variable activities",
+    itemKeys: [
+      "activity:variableCreate",
+      "activity:variableChange",
+    ],
+  },
+  {
+    key: "flow",
+    label: "Flow control",
+    itemKeys: [
+      "decision",
+      "objectTypeDecision",
+      "merge",
+      "loop",
+    ],
+  },
+  {
+    key: "event",
+    label: "Loop events",
+    itemKeys: [
+      "continueEvent",
+      "breakEvent",
+    ],
+  },
+];
+
+function buildMendixToolboxSections(
+  registry: MicroflowNodeRegistryItem[],
+  keyword: string,
+): Array<MendixToolboxSection & { items: MicroflowNodeRegistryItem[] }> {
+  const searched = searchMicroflowNodes(keyword, registry);
+  return mendixToolboxSections
+    .map(section => ({
+      ...section,
+      items: section.itemKeys
+        .map(key => searched.find(item => getMicroflowNodeRegistryKey(item) === key))
+        .filter((item): item is MicroflowNodeRegistryItem => Boolean(item)),
+    }))
+    .filter(section => section.items.length > 0);
+}
+
+function MicroflowNodeIcon({ item, size = 22 }: { item: MicroflowNodeRegistryItem; size?: number }) {
   const tone = iconTone(item);
-  const label = item.activityType?.slice(0, 1) ?? item.type.slice(0, 1);
+  const label = (item.title.match(/\b[A-Z]/g)?.slice(0, 2).join("") || item.activityType?.slice(0, 2) || item.type.slice(0, 2)).toUpperCase();
   return (
     <span
       style={{
-        width: 22,
-        height: 22,
-        borderRadius: item.render.shape === "diamond" ? 7 : item.render.shape === "event" ? 999 : 8,
+        width: size,
+        height: size,
+        borderRadius: 6,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
         background: tone.background,
         color: tone.color,
-        fontSize: 11,
+        fontSize: Math.max(9, Math.round(size * 0.34)),
         fontWeight: 700,
         border: `1px solid ${tone.color}22`
       }}
@@ -403,6 +463,7 @@ export function MicroflowNodeCard({
   item,
   favorite,
   compact,
+  layout = "list",
   onAdd,
   onContextMenu,
   onStartDrag,
@@ -412,6 +473,7 @@ export function MicroflowNodeCard({
   favorite: boolean;
   labels: MicroflowNodePanelLabels;
   compact?: boolean;
+  layout?: "list" | "toolbox";
   onAdd: (item: MicroflowNodeRegistryItem) => void;
   onFavoriteToggle: (item: MicroflowNodeRegistryItem) => void;
   onContextMenu: (item: MicroflowNodeRegistryItem, point: { x: number; y: number }) => void;
@@ -426,10 +488,11 @@ export function MicroflowNodeCard({
   const [keyboardFocus, setKeyboardFocus] = useState(false);
   const [dragging, setDragging] = useState(false);
   const cardActive = active || keyboardFocus;
+  const toolboxLayout = layout === "toolbox";
   const cardStyle: CSSProperties = {
     ...cardBaseStyle,
-    minHeight: compact ? 30 : 34,
-    padding: compact ? "4px 8px" : cardBaseStyle.padding,
+    minHeight: toolboxLayout ? 76 : compact ? 30 : 34,
+    padding: toolboxLayout ? "8px 4px 6px" : compact ? "4px 8px" : cardBaseStyle.padding,
     opacity: disabled ? 0.58 : 1,
     cursor: disabled ? "not-allowed" : dragging ? "grabbing" : "grab",
     background: cardActive
@@ -437,7 +500,11 @@ export function MicroflowNodeCard({
       : favorite ? "var(--semi-color-warning-light-default, rgba(255, 250, 232, 0.4))" : cardBaseStyle.background,
     borderColor: cardActive
       ? favorite ? "rgba(255, 177, 0, 0.66)" : "var(--semi-color-border)"
-      : favorite ? "rgba(255, 177, 0, 0.38)" : cardBaseStyle.border as string
+      : favorite ? "rgba(255, 177, 0, 0.38)" : cardBaseStyle.border as string,
+    flexDirection: toolboxLayout ? "column" : "row",
+    justifyContent: toolboxLayout ? "center" : "flex-start",
+    gap: toolboxLayout ? 6 : 8,
+    minWidth: 0,
   };
 
   return (
@@ -505,31 +572,47 @@ export function MicroflowNodeCard({
         }, 0);
       }}
     >
-      <MicroflowNodeIcon item={item} />
+      <MicroflowNodeIcon item={item} size={toolboxLayout ? 32 : 22} />
       <div
         style={{
           flex: 1,
           minWidth: 0,
           display: "flex",
-          alignItems: "center",
-          gap: 6
+          alignItems: toolboxLayout ? "center" : "center",
+          flexDirection: toolboxLayout ? "column" : "row",
+          gap: toolboxLayout ? 4 : 6
         }}
       >
         <Text
-          strong
+          strong={!toolboxLayout}
           title={item.titleZh}
-          style={{ flexShrink: 0, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "18px" }}
-        >
-          {item.titleZh}
-        </Text>
-        <Text
-          type="tertiary"
-          size="small"
-          title={item.title}
-          style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "17px", textAlign: "right" }}
+          style={{
+            flexShrink: 0,
+            maxWidth: "100%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: toolboxLayout ? "normal" : "nowrap",
+            lineHeight: toolboxLayout ? "13px" : "18px",
+            textAlign: toolboxLayout ? "center" : "left",
+            fontSize: toolboxLayout ? 11 : undefined,
+            color: toolboxLayout ? "var(--semi-color-text-1, #1f2329)" : undefined,
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: toolboxLayout ? 2 : "unset",
+          }}
         >
           {item.title}
         </Text>
+        {!toolboxLayout ? (
+          <Text
+            type="tertiary"
+            size="small"
+            title={item.titleZh}
+            style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "17px", textAlign: "right" }}
+          >
+            {item.titleZh}
+          </Text>
+        ) : null}
       </div>
     </div>
   );
@@ -881,20 +964,13 @@ export function MicroflowNodePanel({
   createContext
 }: MicroflowNodePanelProps) {
   const labels = { ...defaultMicroflowNodePanelLabels, ...labelOverrides };
-  const [activeTab, setActiveTab] = useState<"nodes" | "components" | "templates">("nodes");
+  void onInsertTemplate;
   const [keyword, setKeyword] = useState("");
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
-  const [filterKey, setFilterKey] = useState<MicroflowNodeFilterKey>("all");
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => readStoredStringList(nodePanelCategoryStorageKey, ["events", "inputs", "flowControl", "loops", "objects", "integration"]));
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(() => readStoredStringList(nodePanelGroupStorageKey, []));
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => readStoredStringList(nodePanelCategoryStorageKey, mendixToolboxSections.map(section => section.key)));
   const [contextMenu, setContextMenu] = useState<ContextMenuState>();
 
-  const grouped = useMemo(() => MicroflowNodePanelRegistryAdapter({
-    registry,
-    keyword: debouncedKeyword,
-    filterKey,
-    favoriteNodeKeys
-  }), [debouncedKeyword, favoriteNodeKeys, filterKey, registry]);
+  const grouped = useMemo(() => buildMendixToolboxSections(registry, debouncedKeyword), [debouncedKeyword, registry]);
 
   const favoriteSet = useMemo(() => new Set(favoriteNodeKeys), [favoriteNodeKeys]);
 
@@ -907,8 +983,7 @@ export function MicroflowNodePanel({
     if (!debouncedKeyword.trim()) {
       return;
     }
-    setExpandedCategories(grouped.map(category => category.category.key));
-    setExpandedGroups(grouped.flatMap(category => category.groups.map(group => `${category.category.key}:${group.key}`)));
+    setExpandedCategories(grouped.map(category => category.key));
   }, [debouncedKeyword, grouped]);
 
   useEffect(() => {
@@ -916,8 +991,7 @@ export function MicroflowNodePanel({
       return;
     }
     writeStoredStringList(nodePanelCategoryStorageKey, expandedCategories);
-    writeStoredStringList(nodePanelGroupStorageKey, expandedGroups);
-  }, [debouncedKeyword, expandedCategories, expandedGroups]);
+  }, [debouncedKeyword, expandedCategories]);
 
   useEffect(() => {
     if (!contextMenu) {
@@ -942,85 +1016,82 @@ export function MicroflowNodePanel({
   }
 
   return (
-    <div data-testid="microflow-node-panel" style={{ height: "100%", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto", gap: 10 }}>
-      <MicroflowNodePanelTabs activeKey={activeTab} onChange={setActiveTab} labels={labels} />
-      {activeTab === "nodes" ? (
-        <MicroflowNodeSearch
+    <div data-testid="microflow-node-panel" style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr) auto", gap: 10 }}>
+      <div data-testid="microflow-node-panel-search">
+        <Input
+          className="microflow-node-search-input"
+          prefix={<IconSearch />}
           value={keyword}
           onChange={setKeyword}
-          filterKey={filterKey}
-          onFilterChange={setFilterKey}
-          labels={labels}
+          placeholder={labels.searchPlaceholder}
+          showClear
         />
-      ) : <div />}
+      </div>
       <div style={{ minHeight: 0, overflow: "auto", paddingRight: 2 }}>
-        {activeTab === "nodes" ? (
-          <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
-            <MicroflowNodeFavorites
-              items={registry}
-              favoriteNodeKeys={favoriteNodeKeys}
-              labels={labels}
-              createContext={createContext}
-              onAdd={item => handleAdd(item, "doubleClick")}
-              onFavoriteToggle={toggleFavorite}
-              onContextMenu={(item, point) => setContextMenu({ item, ...point })}
-              onStartDrag={onStartDrag}
-            />
-            {grouped.length === 0 ? (
-              <MicroflowNodePanelEmpty
-                labels={labels}
-                onClear={() => {
-                  setKeyword("");
-                  setFilterKey("all");
-                }}
-              />
-            ) : (
-              <MicroflowNodeCategoryList
-                grouped={grouped}
-                expandedCategories={expandedCategories}
-                expandedGroups={expandedGroups}
-                favoriteNodeKeys={favoriteNodeKeys}
-                labels={labels}
-                createContext={createContext}
-                onToggleCategory={key => setExpandedCategories(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])}
-                onToggleGroup={key => setExpandedGroups(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])}
-                onAdd={item => handleAdd(item, "doubleClick")}
-                onFavoriteToggle={toggleFavorite}
-                onContextMenu={(item, point) => setContextMenu({ item, ...point })}
-                onStartDrag={onStartDrag}
-              />
-            )}
-          </Space>
-        ) : defaultMicroflowTemplates.filter(template => template.category === (activeTab === "components" ? "component" : "template")).length > 0 ? (
-          <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
-            {defaultMicroflowTemplates
-              .filter(template => template.category === (activeTab === "components" ? "component" : "template"))
-              .map(template => (
-                <Card key={template.id} shadows="hover" bodyStyle={{ padding: 10 }} style={{ width: "100%" }}>
-                  <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
-                    <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                      <Text strong>{template.name}</Text>
-                      <Tag>{template.nodeKeys.length}</Tag>
-                    </Space>
-                    <Text size="small" type="tertiary">{template.description}</Text>
-                    <Tooltip content={onInsertTemplate ? labels.insertTemplate : "Current editor cannot insert templates in this context."}>
-                      <span style={{ display: "inline-flex" }}>
-                        <Button size="small" icon={<IconPlus />} disabled={!onInsertTemplate} onClick={() => onInsertTemplate?.(template)}>
-                          {labels.insertTemplate}
-                        </Button>
-                      </span>
-                    </Tooltip>
-                  </Space>
-                </Card>
-              ))}
-          </Space>
-        ) : (
-          <Empty
-            image={<IconInfoCircle />}
-            title={activeTab === "components" ? labels.componentsTab : labels.templatesTab}
-            description={activeTab === "components" ? labels.componentsPlaceholder : labels.templatesPlaceholder}
-            style={{ paddingTop: 42 }}
+        {grouped.length === 0 ? (
+          <MicroflowNodePanelEmpty
+            labels={labels}
+            onClear={() => {
+              setKeyword("");
+            }}
           />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {grouped.map(section => {
+              const open = expandedCategories.includes(section.key);
+              return (
+                <section key={section.key} data-testid={`microflow-node-panel-category-${section.key}`} style={categoryStyle}>
+                  <button
+                    type="button"
+                    data-testid={`microflow-node-panel-category-toggle-${section.key}`}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      border: 0,
+                      padding: "7px 4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      color: "var(--semi-color-text-2, #667085)",
+                    }}
+                    onClick={() => setExpandedCategories(current => current.includes(section.key) ? current.filter(item => item !== section.key) : [...current, section.key])}
+                  >
+                    <span style={{ display: "inline-flex", transition: "transform 120ms ease", transform: open ? "none" : "rotate(-90deg)" }}>
+                      <IconChevronDown size="small" />
+                    </span>
+                    <Text size="small" strong>{section.label}</Text>
+                  </button>
+                  {open ? (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                        gap: 6,
+                        padding: "2px 2px 8px",
+                        borderBottom: "1px solid rgba(78, 89, 105, 0.12)",
+                      }}
+                    >
+                      {section.items.map(item => (
+                        <MicroflowNodeCard
+                          key={getMicroflowNodeRegistryKey(item)}
+                          item={item}
+                          favorite={favoriteSet.has(getMicroflowNodeRegistryKey(item))}
+                          labels={labels}
+                          layout="toolbox"
+                          onAdd={item => handleAdd(item, "doubleClick")}
+                          onFavoriteToggle={toggleFavorite}
+                          onContextMenu={(item, point) => setContextMenu({ item, ...point })}
+                          onStartDrag={onStartDrag}
+                          createContext={createContext}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
+          </div>
         )}
       </div>
       <MicroflowNodePanelFooter labels={labels} />

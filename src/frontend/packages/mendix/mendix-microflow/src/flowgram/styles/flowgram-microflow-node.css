@@ -557,46 +557,36 @@
   --microflow-node-category-border-color: #3a0a24;
 }
 
-.microflow-event-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
+.microflow-event-dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+
+.microflow-event-dot__core {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
   box-sizing: border-box;
-  width: 80px;
-  height: 28px;
-  max-width: 80px;
-  padding: 0 8px;
-  border: 1px solid rgba(232, 236, 243, 0.9);
-  border-radius: 999px;
-  background: #f6f8fb;
-  color: #1d2530;
-  font-size: 12px;
-  line-height: 1;
-  font-weight: 600;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.22);
+  background: #16a34a;
+  border: 2px solid #4ade80;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.24);
 }
 
-.microflow-event-pill__icon {
-  display: inline-flex;
-  flex: 0 0 auto;
-  color: var(--microflow-node-category-icon-color);
-}
-
-.microflow-event-pill__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.microflow-event-dot[data-node-tone="end"] .microflow-event-dot__core {
+  background: #dc2626;
+  border-color: #f87171;
 }
 
 .microflow-activity-compact,
 .microflow-decision-compact,
 .microflow-merge-compact {
   position: relative;
-  display: grid;
-  place-items: center;
-  justify-items: center;
+  display: flex;
+  align-items: center;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -605,28 +595,63 @@
 }
 
 .microflow-activity-compact {
-  width: 56px;
-  height: 56px;
+  width: 110px;
+  height: 36px;
+  border: 1.5px solid var(--microflow-node-category-border-color);
+  border-radius: 5px;
+  background: #1a2040;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.26);
+  overflow: hidden;
 }
 
 .microflow-decision-compact,
 .microflow-merge-compact {
-  width: 40px;
-  height: 40px;
+  flex-direction: column;
+  justify-content: flex-start;
+  width: 44px;
+  height: 44px;
 }
 
 .microflow-activity-compact__icon {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
-  width: 56px;
-  height: 56px;
-  border: 1px solid var(--microflow-node-category-border-color);
-  border-radius: 6px;
-  background: #252b35;
-  color: var(--microflow-node-category-icon-color);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 5px 12px rgba(0, 0, 0, 0.25);
+  width: 34px;
+  height: 36px;
+  flex: 0 0 34px;
   position: relative;
+}
+
+.microflow-activity-compact__text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 0 7px;
+}
+
+.microflow-activity-compact__title,
+.microflow-activity-compact__subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.microflow-activity-compact__title {
+  color: #c8d0e8;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+.microflow-activity-compact__subtitle {
+  color: var(--microflow-node-category-icon-color);
+  font-size: 9px;
+  line-height: 1.2;
+  opacity: 0.86;
 }
 
 .microflow-decision-compact__diamond,
@@ -634,11 +659,11 @@
   display: grid;
   place-items: center;
   box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--microflow-node-category-border-color);
+  width: 38px;
+  height: 38px;
+  border: 1.5px solid #f97316;
   border-radius: 2px;
-  background: #242a34;
+  background: #7c2d12;
   color: #f6f7fb;
   transform: rotate(45deg);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035), 0 5px 12px rgba(0, 0, 0, 0.25);
@@ -651,15 +676,18 @@
 }
 
 .microflow-merge-compact__diamond {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
+  border-color: #9ca3af;
+  background: #374151;
 }
 
-.microflow-flowgram-node.is-runtime-running .microflow-event-pill,
+.microflow-flowgram-node.is-runtime-running .microflow-event-dot__core,
 .microflow-flowgram-node.is-runtime-running .microflow-activity-compact__icon,
 .microflow-flowgram-node.is-runtime-running .microflow-decision-compact__diamond,
 .microflow-flowgram-node.is-runtime-running .microflow-merge-compact__diamond,
 .microflow-flowgram-node.is-runtime-running .microflow-annotation-compact,
+.microflow-flowgram-node.is-runtime-running .microflow-activity-compact,
 .microflow-flowgram-node.is-runtime-running .microflow-node-caption,
 .microflow-flowgram-node.is-runtime-running .microflow-loop-frame__header {
   animation: microflow-node-pulse-run 1.2s ease-in-out infinite;
@@ -761,8 +789,8 @@
   overflow-wrap: anywhere;
 }
 
-.microflow-flowgram-node.is-selected .microflow-event-pill,
-.microflow-flowgram-node.is-selected .microflow-activity-compact__icon,
+.microflow-flowgram-node.is-selected .microflow-event-dot__core,
+.microflow-flowgram-node.is-selected .microflow-activity-compact,
 .microflow-flowgram-node.is-selected .microflow-decision-compact__diamond,
 .microflow-flowgram-node.is-selected .microflow-merge-compact__diamond,
 .microflow-flowgram-node.is-selected .microflow-loop-frame,
@@ -771,8 +799,8 @@
   box-shadow: 0 0 0 2px rgba(94, 159, 255, 0.42), 0 7px 16px rgba(0, 0, 0, 0.28);
 }
 
-.microflow-flowgram-node.is-error .microflow-event-pill,
-.microflow-flowgram-node.is-error .microflow-activity-compact__icon,
+.microflow-flowgram-node.is-error .microflow-event-dot__core,
+.microflow-flowgram-node.is-error .microflow-activity-compact,
 .microflow-flowgram-node.is-error .microflow-decision-compact__diamond,
 .microflow-flowgram-node.is-error .microflow-merge-compact__diamond,
 .microflow-flowgram-node.is-error .microflow-loop-frame {
@@ -780,24 +808,24 @@
   box-shadow: 0 0 0 2px rgba(240, 91, 95, 0.32), 0 7px 16px rgba(0, 0, 0, 0.28);
 }
 
-.microflow-flowgram-node.is-runtime-success .microflow-event-pill,
-.microflow-flowgram-node.is-runtime-success .microflow-activity-compact__icon,
+.microflow-flowgram-node.is-runtime-success .microflow-event-dot__core,
+.microflow-flowgram-node.is-runtime-success .microflow-activity-compact,
 .microflow-flowgram-node.is-runtime-success .microflow-decision-compact__diamond,
 .microflow-flowgram-node.is-runtime-success .microflow-merge-compact__diamond {
   border-color: #28c786;
   box-shadow: 0 0 0 2px rgba(40, 199, 134, 0.28), 0 7px 16px rgba(0, 0, 0, 0.28);
 }
 
-.microflow-flowgram-node.is-runtime-running .microflow-event-pill,
-.microflow-flowgram-node.is-runtime-running .microflow-activity-compact__icon,
+.microflow-flowgram-node.is-runtime-running .microflow-event-dot__core,
+.microflow-flowgram-node.is-runtime-running .microflow-activity-compact,
 .microflow-flowgram-node.is-runtime-running .microflow-decision-compact__diamond,
 .microflow-flowgram-node.is-runtime-running .microflow-merge-compact__diamond {
   border-color: #5e9fff;
   box-shadow: 0 0 0 2px rgba(94, 159, 255, 0.34), 0 7px 16px rgba(0, 0, 0, 0.28);
 }
 
-.microflow-flowgram-node.is-runtime-failed .microflow-event-pill,
-.microflow-flowgram-node.is-runtime-failed .microflow-activity-compact__icon,
+.microflow-flowgram-node.is-runtime-failed .microflow-event-dot__core,
+.microflow-flowgram-node.is-runtime-failed .microflow-activity-compact,
 .microflow-flowgram-node.is-runtime-failed .microflow-decision-compact__diamond,
 .microflow-flowgram-node.is-runtime-failed .microflow-merge-compact__diamond {
   border-color: #f05b5f;

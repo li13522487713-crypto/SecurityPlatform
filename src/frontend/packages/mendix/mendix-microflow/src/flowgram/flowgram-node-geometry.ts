@@ -1,20 +1,18 @@
 import type { MicroflowObjectKind, MicroflowPoint, MicroflowSize } from "../schema";
 
-export const MICROFLOW_EVENT_NODE_SIZE: MicroflowSize = { width: 80, height: 28 };
-export const MICROFLOW_ACTIVITY_NODE_SIZE: MicroflowSize = { width: 56, height: 56 };
-export const MICROFLOW_DECISION_NODE_SIZE: MicroflowSize = { width: 40, height: 40 };
-export const MICROFLOW_MERGE_NODE_SIZE: MicroflowSize = { width: 40, height: 40 };
+export const MICROFLOW_EVENT_NODE_SIZE: MicroflowSize = { width: 18, height: 18 };
+export const MICROFLOW_ACTIVITY_NODE_SIZE: MicroflowSize = { width: 110, height: 36 };
+export const MICROFLOW_DECISION_NODE_SIZE: MicroflowSize = { width: 44, height: 44 };
+export const MICROFLOW_MERGE_NODE_SIZE: MicroflowSize = { width: 24, height: 24 };
 export const MICROFLOW_LOOP_NODE_SIZE: MicroflowSize = { width: 320, height: 190 };
 export const MICROFLOW_PARAMETER_NODE_SIZE: MicroflowSize = { width: 118, height: 56 };
 export const MICROFLOW_ANNOTATION_NODE_SIZE: MicroflowSize = { width: 210, height: 96 };
 export const MICROFLOW_EXPANDED_NODE_SIZE: MicroflowSize = { width: 420, height: 240 };
 
-const eventKinds = new Set<string>([
+const startEndKinds = new Set<string>([
   "startEvent",
   "endEvent",
   "errorEvent",
-  "breakEvent",
-  "continueEvent",
 ]);
 
 const decisionKinds = new Set<string>([
@@ -43,7 +41,7 @@ export function getMendixMicroflowNodeSize(
   if (kind === "exclusiveMerge") {
     return MICROFLOW_MERGE_NODE_SIZE;
   }
-  if (kind && eventKinds.has(kind)) {
+  if (kind && startEndKinds.has(kind)) {
     return MICROFLOW_EVENT_NODE_SIZE;
   }
   if (kind && decisionKinds.has(kind)) {
@@ -61,7 +59,7 @@ export function getMendixMicroflowDropOffset(kind: MicroflowObjectKind | string 
 }
 
 export function isMendixMicroflowEventNode(kind: MicroflowObjectKind | string | undefined): boolean {
-  return Boolean(kind && eventKinds.has(kind));
+  return Boolean(kind && startEndKinds.has(kind));
 }
 
 export function isMendixMicroflowDecisionNode(kind: MicroflowObjectKind | string | undefined): boolean {

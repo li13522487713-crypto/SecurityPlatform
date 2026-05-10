@@ -13,8 +13,7 @@ import {
   IconTickCircle,
   IconUndo,
   IconRedo,
-  IconMore,
-  IconChevronRight
+  IconMore
 } from "@douyinfe/semi-icons";
 import { MicroflowNodePanel, type MicroflowNodePanelLabels, type MicroflowNodePanelTemplate } from "../node-panel";
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
@@ -151,7 +150,6 @@ const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
 const bottomTabStorageKey = "atlas_microflow_panel_bottom_tab";
 const mendixLayoutStorageKey = "lowcode-studio:mendix-layout:v1";
 const RAIL_WIDTH_PX = 44;
-const LEFT_PANEL_EXPANDED_PX = 300;
 const RIGHT_PANEL_EXPANDED_PX = 380;
 const BOTTOM_STRIP_HEIGHT_PX = 32;
 const BOTTOM_DOCK_PEEK_HEIGHT_PX = 260;
@@ -1001,15 +999,6 @@ const toolbarStyle: CSSProperties = {
   background: "var(--semi-color-bg-2, #fff)",
   minWidth: 0,
   overflow: "hidden"
-};
-
-const panelStyle: CSSProperties = {
-  minHeight: 0,
-  overflow: "auto",
-  borderRight: "1px solid var(--semi-color-border, #e5e6eb)",
-  background: "var(--semi-color-bg-1, #fff)",
-  padding: 12,
-  minWidth: 0
 };
 
 const propertyPaneStyle: CSSProperties = {
@@ -2071,6 +2060,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     return readStoredBoolean(rightPanelPinnedStorageKey) === true;
   });
+  useEffect(() => {
+    if (leftOpen && rightOpen) {
+      setRightOpen(false);
+    }
+  }, [leftOpen, rightOpen]);
   const bottomPanelFallbackMode: BottomDockMode = bottomPanelFallback ? "peek" : "collapsed";
   const [bottomDockMode, setBottomDockMode] = useState<BottomDockMode>(() => {
     if (props.toolbarMode === "external") {
@@ -2184,17 +2178,20 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }), [externalLayout, focusMode]);
 
   const bodyStyle = useMemo((): CSSProperties => {
-    const leftCol = focusMode ? 0 : leftOpen ? LEFT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
-    const rightCol = focusMode || !AUXILIARY_PANELS_ENABLED ? 0 : externalLayout ? RAIL_WIDTH_PX : rightOpen ? RIGHT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
+    const rightCol = focusMode || !AUXILIARY_PANELS_ENABLED
+      ? 0
+      : leftOpen || rightOpen
+        ? RIGHT_PANEL_EXPANDED_PX
+        : RAIL_WIDTH_PX;
     return {
       display: "grid",
-      gridTemplateColumns: `${leftCol}px minmax(0, 1fr) ${rightCol}px`,
+      gridTemplateColumns: `minmax(0, 1fr) ${rightCol}px`,
       minHeight: 0,
       minWidth: 0,
       overflow: "hidden",
       position: "relative"
     };
-  }, [externalLayout, focusMode, leftOpen, rightOpen]);
+  }, [focusMode, leftOpen, rightOpen]);
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const graphIndex = useMemo(() => createMicroflowGraphIndex(schema), [schema.objectCollection, schema.flows]);
@@ -2816,7 +2813,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               : selectedObjectId
                 ? findObjectWithCollection(schema, selectedObjectId)?.collectionId
                 : blockingIssue.collectionId;
-            setRightOpen(true);
+            openPropertiesPanel();
             applyPatch(
               {
                 selectedObjectId,
@@ -3333,7 +3330,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const selectTraceFrame = (frame: MicroflowTraceFrame) => {
     setActiveTraceFrameId(frame.id);
-    setRightOpen(true);
+    openPropertiesPanel();
     const targetObjectId = !frame.microflowId || frame.microflowId === schema.id
       ? frame.objectId
       : frame.callerObjectId;
@@ -3362,7 +3359,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const selectTraceFlow = (flowId: string) => {
-    setRightOpen(true);
+    openPropertiesPanel();
     const located = findFlowWithCollection(schema, flowId);
     applyPatch({
       selectedObjectId: undefined,
@@ -3385,7 +3382,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       if (frame) {
         selectTraceFrame(frame);
       } else {
-        setRightOpen(true);
+        openPropertiesPanel();
         applyPatch(
           { selectedObjectId: error.objectId, selectedFlowId: undefined, selectedCollectionId: findObjectWithCollection(schema, error.objectId)?.collectionId },
           { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" },
@@ -3433,7 +3430,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         : issue.collectionId;
     setBottomDockMode("peek");
     setBottomTab("problems");
-    setRightOpen(true);
+    openPropertiesPanel();
     applyPatch(
       {
         selectedObjectId,
@@ -3508,7 +3505,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const objectId = canvasNodeContextMenu.objectId;
     const currentTitle = isDesignSchema(schema)
       ? (schema.workflow.nodes.find(node => node.id === objectId)?.data?.title ?? objectId)
-      : (findObject(schema, objectId)?.title ?? objectId);
+      : (findObject(schema, objectId)?.caption ?? objectId);
     const value = window.prompt(labels.contextRename, String(currentTitle));
     if (!value) {
       return;
@@ -4057,7 +4054,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     setNodeViewModes(current => ({ ...current, [selectedObjectId]: "expanded" }));
-    setRightOpen(true);
+    openPropertiesPanel();
     applyPatch(
       {
         selectedObjectId,
@@ -4192,6 +4189,40 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     color: "var(--semi-color-text-1, rgba(28, 31, 35, 0.8))"
   };
 
+  const openNodePanel = useCallback(() => {
+    setLeftOpen(true);
+    setRightOpen(false);
+  }, []);
+
+  const closeNodePanel = useCallback(() => {
+    setLeftOpen(false);
+  }, []);
+
+  const openPropertiesPanel = useCallback(() => {
+    setLeftOpen(false);
+    setRightOpen(true);
+  }, []);
+
+  const closePropertiesPanel = useCallback(() => {
+    setRightOpen(false);
+  }, []);
+
+  const toggleNodePanel = useCallback(() => {
+    if (leftOpen) {
+      closeNodePanel();
+      return;
+    }
+    openNodePanel();
+  }, [closeNodePanel, leftOpen, openNodePanel]);
+
+  const togglePropertiesPanel = useCallback(() => {
+    if (rightOpen) {
+      closePropertiesPanel();
+      return;
+    }
+    openPropertiesPanel();
+  }, [closePropertiesPanel, openPropertiesPanel, rightOpen]);
+
   const openBottomDock = (tab: MicroflowWorkbenchBottomTab, mode: Exclude<BottomDockMode, "collapsed"> = "peek") => {
     setBottomTab(tab);
     setBottomDockMode(current => current === "full" ? "full" : mode);
@@ -4220,21 +4251,25 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const focusNodeSearch = useCallback(() => {
-    setLeftOpen(true);
+    openNodePanel();
     window.setTimeout(() => {
       const input = shellRef.current?.querySelector<HTMLInputElement>(".microflow-node-search-input input, input.microflow-node-search-input");
       input?.focus();
       input?.select();
     }, 0);
-  }, []);
+  }, [openNodePanel]);
 
   const clearSelection = useCallback(() => {
     if (canvasNodeContextMenu) {
       setCanvasNodeContextMenu(undefined);
       return;
     }
+    if (leftOpen) {
+      closeNodePanel();
+      return;
+    }
     if (rightOpen) {
-      setRightOpen(false);
+      closePropertiesPanel();
       return;
     }
     if (bottomDockMode === "full") {
@@ -4256,13 +4291,16 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       },
       { pushHistory: false, skipDirty: true, skipValidate: true },
     );
-  }, [bottomDockMode, canvasNodeContextMenu, rightOpen, schema]);
+  }, [bottomDockMode, canvasNodeContextMenu, closeNodePanel, closePropertiesPanel, leftOpen, rightOpen, schema]);
 
   const resetWorkbenchLayout = useCallback(() => {
     setFocusMode(false);
     setFullscreenActive(false);
-    setLeftOpen(true);
-    setRightOpen(Boolean(props.defaultRightPanelOpen ?? props.immersive));
+    if (Boolean(props.defaultRightPanelOpen ?? props.immersive)) {
+      openPropertiesPanel();
+    } else {
+      openNodePanel();
+    }
     setRightPinned(false);
     setBottomDockHeight(BOTTOM_DOCK_FULL_DEFAULT_PX);
     setBottomDockMode(bottomPanelFallbackMode);
@@ -4280,7 +4318,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       "bulkUpdate",
       { historyLabel: "Reset workbench layout", skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" }
     );
-  }, [bottomPanelFallbackMode, commitSchema, props.defaultRightPanelOpen, props.immersive, schema]);
+  }, [bottomPanelFallbackMode, commitSchema, openNodePanel, openPropertiesPanel, props.defaultRightPanelOpen, props.immersive, schema]);
 
   useMicroflowShortcuts({
     containerRef: shellRef,
@@ -4407,7 +4445,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         ...Object.fromEntries(nodeIds.map(nodeId => [nodeId, detail.inspect === "error" ? "inspectingError" : "inspectingRuntime"])),
       }));
       applyPatch({ selectedObjectId: primaryNodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-      setRightOpen(true);
+      openPropertiesPanel();
     };
     const onNodeToggle = (event: Event) => {
       onNodeToggleDetail((event as CustomEvent<MicroflowInlineNodeToggleDetail>).detail);
@@ -4436,7 +4474,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         commitSchema(nextSchema as unknown as MicroflowSchema, "updateNodeProperty", { source: "propertyPanel" });
         emitPanelSyncEvent({ type: "inline-edit", nodeId: detail.nodeId, fieldPath: detail.fieldPath });
         applyPatch({ selectedObjectId: detail.nodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-        setRightOpen(true);
+        openPropertiesPanel();
         return;
       }
       const located = findObjectWithCollection(schema, detail.nodeId);
@@ -4455,7 +4493,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       commitSchema(updateObject(schema, detail.nodeId, () => object), reason, { source: "propertyPanel" });
       emitPanelSyncEvent({ type: "inline-edit", nodeId: detail.nodeId, fieldPath: detail.fieldPath });
       applyPatch({ selectedObjectId: detail.nodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-      setRightOpen(true);
+      openPropertiesPanel();
     };
     const onLineLabelCommit = (event: Event) => {
       if (props.readonly) {
@@ -4481,7 +4519,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       )), "updateEdgeProperty", { source: "propertyPanel" });
       emitPanelSyncEvent({ type: "inline-edit", flowId });
       applyPatch({ selectedObjectId: undefined, selectedFlowId: flowId }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-      setRightOpen(true);
+      openPropertiesPanel();
     };
     const onQuickFix = (event: Event) => {
       const detail = (event as CustomEvent<MicroflowInlineQuickFixDetail>).detail;
@@ -4602,7 +4640,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setCanvasPanToolActive(value => !value);
     },
     toggleToolbox: () => {
-      setLeftOpen(value => !value);
+      toggleNodePanel();
     },
     configureAllNodeAcceptance120: handleConfigureAllNodeAcceptance120,
     resetLayout: resetWorkbenchLayout,
@@ -4616,7 +4654,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     getStatus: () => workbenchStatus,
   // The handle reads many derived values; React will re-create the impl each
   // render so callers always observe fresh values.
-  }), [commitSchema, dirty, focusMode, fullscreenActive, handleConfigureAllNodeAcceptance120, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, validationStatus, workbenchStatus]);
+  }), [commitSchema, dirty, focusMode, fullscreenActive, handleConfigureAllNodeAcceptance120, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, toggleNodePanel, validationStatus, workbenchStatus]);
 
   const nodePaletteActions = useMemo<CommandPaletteAction[]>(() => (
     graph.nodes
@@ -4625,7 +4663,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         id: `node:${node.objectId}`,
         label: `Go to node: ${node.title || node.objectId}`,
         run: () => {
-          setRightOpen(true);
+          openPropertiesPanel();
           applyPatch(
             {
               selectedObjectId: node.objectId,
@@ -4677,9 +4715,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     },
     ...(AUXILIARY_PANELS_ENABLED ? [
       { id: "problems", label: "Open Problems", run: () => { setBottomDockMode("peek"); setBottomTab("problems"); } },
-      { id: "properties", label: rightOpen ? "Hide Properties" : "Show Properties", run: () => setRightOpen(open => !open) },
+      { id: "properties", label: rightOpen ? "Hide Properties" : "Show Properties", run: () => togglePropertiesPanel() },
     ] : []),
-    { id: "toolbox", label: leftOpen ? "Hide Toolbox" : "Show Toolbox", run: () => setLeftOpen(open => !open) },
+    { id: "toolbox", label: leftOpen ? "Hide Toolbox" : "Show Toolbox", run: () => toggleNodePanel() },
     { id: "undo", label: "Undo", disabled: !historyState.canUndo, disabledReason: !historyState.canUndo ? "No history to undo." : undefined, run: handleUndo },
     { id: "redo", label: "Redo", disabled: !historyState.canRedo, disabledReason: !historyState.canRedo ? "No history to redo." : undefined, run: handleRedo },
     { id: "fit-view", label: "Fit View", run: () => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-fit-view")) },
@@ -4693,7 +4731,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     ...problemPaletteActions,
     ...tracePaletteActions,
     ...nodePaletteActions,
-  ], [apiClient.retryMicroflowRun, apiClient.runRetention, dirty, focusMode, handleEnterInlineEdit, handleRetentionDryRun, handleRetentionExecute, handleRetentionPreview, handleRetryQueuedRun, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, nodePaletteActions, problemPaletteActions, props.readonly, rightOpen, runSession?.id, running, saving, schema.editor.selection.objectId, schema.editor.selection.objectIds, schema.editor.viewport, selectedRunId, startDebugSession, tracePaletteActions]);
+  ], [apiClient.retryMicroflowRun, apiClient.runRetention, dirty, focusMode, handleEnterInlineEdit, handleRetentionDryRun, handleRetentionExecute, handleRetentionPreview, handleRetryQueuedRun, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, nodePaletteActions, problemPaletteActions, props.readonly, rightOpen, runSession?.id, running, saving, schema.editor.selection.objectId, schema.editor.selection.objectIds, schema.editor.viewport, selectedRunId, startDebugSession, toggleNodePanel, togglePropertiesPanel, tracePaletteActions]);
 
   const canCopySelection = Boolean(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length);
   const canPasteSelection = Boolean(clipboardObject);
@@ -4839,10 +4877,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 </Tooltip>
                 <Dropdown.Item icon={<IconRefresh />} onClick={handleAutoLayout}>{labels.format}</Dropdown.Item>
                 <Dropdown.Item onClick={focusNodeSearch}>搜索节点</Dropdown.Item>
-                <Dropdown.Item onClick={() => setLeftOpen(open => !open)}>{leftOpen ? "折叠节点面板" : "展开节点面板"}</Dropdown.Item>
+                <Dropdown.Item onClick={toggleNodePanel}>{leftOpen ? "折叠节点面板" : "展开节点面板"}</Dropdown.Item>
                 {AUXILIARY_PANELS_ENABLED ? (
                   <>
-                    <Dropdown.Item onClick={() => setRightOpen(open => !open)}>{rightOpen ? "折叠属性面板" : "展开属性面板"}</Dropdown.Item>
+                    <Dropdown.Item onClick={togglePropertiesPanel}>{rightOpen ? "折叠属性面板" : "展开属性面板"}</Dropdown.Item>
                     <Dropdown.Item onClick={toggleBottomDock}>{bottomOpen ? "折叠底部 Dock" : "展开底部 Dock"}</Dropdown.Item>
                   </>
                 ) : null}
@@ -4859,52 +4897,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       </div>
       ) : null}
       <div style={bodyStyle}>
-        {!focusMode && leftOpen ? (
-          <div data-testid="microflow-editor-left-panel" style={panelStyle}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-              <Text strong>{labels.nodePanel}</Text>
-              <Tooltip content="折叠节点面板">
-                <Button aria-label="折叠节点面板" size="small" theme="borderless" icon={<IconChevronDown style={{ transform: "rotate(90deg)" }} />} onClick={() => setLeftOpen(false)} />
-              </Tooltip>
-            </div>
-            <MicroflowNodePanel
-              favoriteNodeKeys={favoriteNodeKeys}
-              onFavoriteChange={keys => {
-                setFavoriteNodeKeys(keys);
-                saveFavoriteNodeKeys(keys);
-              }}
-              onAddNode={(item, options) => handleAddNode(item, options)}
-              onInsertTemplate={handleInsertTemplate}
-              onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
-              labels={props.nodePanelLabels}
-              createContext={{ microflowId: schema.id, moduleId: schema.moduleId, metadataAvailable: Boolean(loadedMetadata), schemaLoaded: true, readonly: props.readonly }}
-            />
-          </div>
-        ) : !focusMode ? (
-          <button
-            type="button"
-            data-testid="microflow-node-panel-rail"
-            aria-label="展开节点面板"
-            title={labels.nodePanel}
-            style={{
-              border: 0,
-              borderRight: "1px solid var(--semi-color-border, #e5e6eb)",
-              background: "var(--semi-color-bg-2, #fff)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "flex-start",
-              gap: 8,
-              padding: "12px 0",
-              cursor: "pointer",
-              color: "var(--semi-color-text-1, rgba(28, 31, 35, 0.8))"
-            }}
-            onClick={() => setLeftOpen(true)}
-          >
-            <IconChevronRight />
-            <Text size="small" strong style={{ writingMode: "vertical-rl", textOrientation: "mixed", letterSpacing: 1 }}>{labels.nodePanel}</Text>
-          </button>
-        ) : null}
         <div data-testid="microflow-canvas" style={{ minWidth: 0, minHeight: 0, display: "contents" }}>
         <FlowGramMicroflowCanvas
           schema={schema}
@@ -5073,7 +5065,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       selectedCollectionId: canvasNodeContextMenu.collectionId,
                     }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
                     setFocusMode(false);
-                    setRightOpen(true);
+                    openPropertiesPanel();
                     setCanvasNodeContextMenu(undefined);
                   }}
                 >
@@ -5196,13 +5188,52 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 top: 0,
                 right: 0,
                 bottom: 0,
-                width: rightOpen ? RIGHT_PANEL_EXPANDED_PX + RAIL_WIDTH_PX : RAIL_WIDTH_PX,
+                width: (leftOpen || rightOpen) ? RIGHT_PANEL_EXPANDED_PX + RAIL_WIDTH_PX : RAIL_WIDTH_PX,
                 zIndex: 22,
-                boxShadow: rightOpen ? "0 12px 32px rgba(31, 35, 41, 0.14)" : undefined
+                boxShadow: (leftOpen || rightOpen) ? "0 12px 32px rgba(31, 35, 41, 0.14)" : undefined
               } satisfies CSSProperties
               : {})
           }}
         >
+          {leftOpen ? (
+            <div data-testid="microflow-editor-right-node-panel" style={propertyPaneStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  padding: "0 0 8px",
+                  marginBottom: 8,
+                  borderBottom: "1px solid var(--semi-color-border, #e5e6eb)"
+                }}
+              >
+                <Space spacing={6}>
+                  <IconMore />
+                  <Text strong>{labels.nodePanel}</Text>
+                </Space>
+                <Button
+                  aria-label="关闭节点面板"
+                  size="small"
+                  theme="borderless"
+                  icon={<IconClose />}
+                  onClick={closeNodePanel}
+                />
+              </div>
+              <MicroflowNodePanel
+                favoriteNodeKeys={favoriteNodeKeys}
+                onFavoriteChange={keys => {
+                  setFavoriteNodeKeys(keys);
+                  saveFavoriteNodeKeys(keys);
+                }}
+                onAddNode={(item, options) => handleAddNode(item, options)}
+                onInsertTemplate={handleInsertTemplate}
+                onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
+                labels={props.nodePanelLabels}
+                createContext={{ microflowId: schema.id, moduleId: schema.moduleId, metadataAvailable: Boolean(loadedMetadata), schemaLoaded: true, readonly: props.readonly }}
+              />
+            </div>
+          ) : null}
           {rightOpen ? (
             <div data-testid="microflow-property-panel" style={propertyPaneStyle}>
               <div
@@ -5234,7 +5265,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     size="small"
                     theme="borderless"
                     icon={<IconClose />}
-                    onClick={() => setRightOpen(false)}
+                    onClick={closePropertiesPanel}
                   />
                 </Space>
               </div>
@@ -5293,38 +5324,72 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   onClose={() => {
                     applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true });
                     if (!rightPinned) {
-                      setRightOpen(false);
+                      closePropertiesPanel();
                     }
                   }}
                 />
             </div>
           ) : null}
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label={rightOpen ? "折叠属性面板" : "展开属性面板"}
-            title={labels.properties}
-            style={rightRailStyle}
-            onClick={() => setRightOpen(open => !open)}
-            onKeyDown={event => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setRightOpen(open => !open);
-              }
-            }}
-          >
-            <IconSetting style={{ fontSize: 18 }} />
-            <Text
-              size="small"
-              strong
+          <div style={rightRailStyle}>
+            <button
+              type="button"
+              data-testid="microflow-node-panel-rail"
+              aria-label={leftOpen ? "折叠节点面板" : "展开节点面板"}
+              title={labels.nodePanel}
               style={{
-                writingMode: "vertical-rl",
-                textOrientation: "mixed",
-                letterSpacing: 1
+                border: 0,
+                background: leftOpen ? "rgba(22, 93, 255, 0.08)" : "transparent",
+                width: "100%",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 6,
+                padding: "10px 0",
+                cursor: "pointer",
+                color: leftOpen ? "var(--semi-color-primary, #165dff)" : "inherit"
+              }}
+              onClick={toggleNodePanel}
+            >
+              <IconMore style={{ fontSize: 18 }} />
+              <Text size="small" strong style={{ writingMode: "vertical-rl", textOrientation: "mixed", letterSpacing: 1 }}>{labels.nodePanel}</Text>
+            </button>
+            <button
+              type="button"
+              aria-label={rightOpen ? "折叠属性面板" : "展开属性面板"}
+              title={labels.properties}
+              style={{
+                border: 0,
+                background: rightOpen ? "rgba(22, 93, 255, 0.08)" : "transparent",
+                width: "100%",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 6,
+                padding: "10px 0",
+                cursor: "pointer",
+                color: rightOpen ? "var(--semi-color-primary, #165dff)" : "inherit"
+              }}
+              onClick={togglePropertiesPanel}
+              onKeyDown={event => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  togglePropertiesPanel();
+                }
               }}
             >
-              {labels.properties}
-            </Text>
+              <IconSetting style={{ fontSize: 18 }} />
+              <Text
+                size="small"
+                strong
+                style={{
+                  writingMode: "vertical-rl",
+                  textOrientation: "mixed",
+                  letterSpacing: 1
+                }}
+              >
+                {labels.properties}
+              </Text>
+            </button>
           </div>
         </div> : null}
       </div>

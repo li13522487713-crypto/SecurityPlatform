@@ -169,13 +169,14 @@ type NodeTone = "start" | "end" | "decision" | "merge" | "loop" | "annotation" |
 
 const NODE_CATEGORY_STYLE: Record<NodeCategory, {
   iconColor: string;
+  iconBg: string;
   borderColor: string;
 }> = {
-  data: { iconColor: "#60a5fa", borderColor: "#1a3870" },
-  variable: { iconColor: "#f59e0b", borderColor: "#3a2800" },
-  list: { iconColor: "#34d399", borderColor: "#0a2e1e" },
-  flow: { iconColor: "#a78bfa", borderColor: "#2a1a4a" },
-  event: { iconColor: "#f472b6", borderColor: "#3a0a24" },
+  data: { iconColor: "#93c5fd", iconBg: "#1e4490", borderColor: "#1e3a70" },
+  variable: { iconColor: "#fcd34d", iconBg: "#4a3000", borderColor: "#3a2800" },
+  list: { iconColor: "#6ee7b7", iconBg: "#0d3824", borderColor: "#0a2e1e" },
+  flow: { iconColor: "#c4b5fd", iconBg: "#321e5a", borderColor: "#2a1a4a" },
+  event: { iconColor: "#f9a8d4", iconBg: "#4a0a2a", borderColor: "#3a0a24" },
 };
 
 function nodeCategory(kind: string): NodeCategory {
@@ -433,6 +434,11 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
     selectNode(event);
   };
 
+  const categoryStyle = NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)];
+  const activitySubtitle = data.subtitle?.trim()
+    ? data.subtitle
+    : nodeKindLabel(data.actionKind || data.objectKind);
+
   return (
     <div
       ref={nodeRef}
@@ -470,22 +476,22 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
     >
       <div className="microflow-flowgram-node__compact" data-node-tone={tone}>
         {tone === "start" || tone === "end" ? (
-          <div className="microflow-event-pill" title={data.title}>
+          <div
+            className="microflow-event-dot"
+            title={data.title}
+            data-node-tone={tone}
+          >
             <span
-              className="microflow-event-pill__icon"
+              className="microflow-event-dot__core"
               aria-hidden="true"
-              style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
-            >
-              <NodeIcon kind={data.objectKind} />
-            </span>
-            <span className="microflow-event-pill__label">{data.title}</span>
+            />
           </div>
         ) : tone === "decision" ? (
           <div className="microflow-decision-compact">
             <div className="microflow-decision-compact__diamond" aria-hidden="true">
               <span
                 className="microflow-node-compact-icon-wrap"
-                style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+                style={{ color: categoryStyle.iconColor }}
               >
                 <NodeIcon kind={data.objectKind} />
               </span>
@@ -533,11 +539,18 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
           </div>
         ) : (
           <div className="microflow-activity-compact">
-            <div className="microflow-activity-compact__icon" aria-hidden="true">
+            <div
+              className="microflow-activity-compact__icon"
+              aria-hidden="true"
+              style={{ background: categoryStyle.iconBg, color: categoryStyle.iconColor }}
+            >
               <NodeIcon kind={data.objectKind} />
               {data.runtimeState === "failed" ? <span className="microflow-node-runtime-error-dot" aria-hidden /> : null}
             </div>
-            <div className="microflow-node-caption" title={data.title}>{data.title}</div>
+            <div className="microflow-activity-compact__text">
+              <div className="microflow-activity-compact__title" title={data.title}>{data.title}</div>
+              <div className="microflow-activity-compact__subtitle" title={activitySubtitle}>{activitySubtitle}</div>
+            </div>
           </div>
         )}
         <button
