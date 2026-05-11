@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { MicroflowTraceFrame } from "../debug/trace-types";
 import type { MicroflowDesignSchema, MicroflowWorkflowNodeJSON } from "../schema/types";
 import { deriveNodeInlineConfig } from "./derive-node-inline-config";
+import { buildNodeInlineVariableOptions } from "./inline-variable-options";
 
 function buildSchema(node: MicroflowWorkflowNodeJSON): MicroflowDesignSchema {
   return {
@@ -220,6 +221,62 @@ describe("deriveNodeInlineConfig", () => {
         }
       }
     }
+  });
+
+  it("supports legacy callMicroflow outputVariableName when returnValue is absent", () => {
+    const callNode: MicroflowWorkflowNodeJSON = {
+      id: "call-legacy",
+      type: "activity",
+      data: {
+        objectId: "call-legacy",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "调用子微流",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "callMicroflow",
+        action: {
+          kind: "callMicroflow",
+          targetMicroflowId: "ChildFlow",
+          outputVariableName: "childResult",
+        },
+      } as never,
+      meta: { position: { x: 120, y: 120 } },
+    };
+    const consumerNode: MicroflowWorkflowNodeJSON = {
+      id: "consumer",
+      type: "activity",
+      data: {
+        objectId: "consumer",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "使用返回值",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "createVariable",
+        action: {
+          kind: "createVariable",
+          variableName: "copiedValue",
+          expression: { raw: "$childResult" },
+        },
+      } as never,
+      meta: { position: { x: 320, y: 120 } },
+    };
+    const schema = {
+      ...buildSchema(callNode),
+      workflow: {
+        nodes: [callNode, consumerNode],
+        edges: [{ id: "flow-call-consumer", sourceNodeID: "call-legacy", targetNodeID: "consumer", data: { flowId: "flow-call-consumer" } as never }],
+      },
+    } as MicroflowDesignSchema;
+
+    const expressionOptions = buildNodeInlineVariableOptions({
+      schema,
+      node: consumerNode,
+      mode: "expression",
+    }).map(option => option.value);
+
+    expect(expressionOptions).toContain("$childResult");
   });
   function findFieldOption(inline: ReturnType<typeof deriveNodeInlineConfig>, fieldPath: string) {
     return inline.sections.flatMap(section => section.fields).find(field => field.fieldPath === fieldPath)?.options;

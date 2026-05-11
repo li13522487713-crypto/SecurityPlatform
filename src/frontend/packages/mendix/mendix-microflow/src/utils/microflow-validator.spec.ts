@@ -4,7 +4,12 @@ import { createObjectFromRegistry } from "../adapters";
 import { sampleMicroflowSchema } from "../__fixtures__/sample-microflow";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../node-registry";
 import type { MicroflowObject, MicroflowSchema } from "../schema/types";
-import { collectMicroflowBestPracticeWarnings, summarizeMicroflowComplexity } from "./microflow-validator";
+import {
+  collectMicroflowBestPracticeWarnings,
+  summarizeMicroflowComplexity,
+  validateVariableNames,
+  validateMicroflowSize,
+} from "./microflow-validator";
 
 function registry(key: string) {
   const item = defaultMicroflowNodeRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key || entry.type === key);
@@ -117,6 +122,63 @@ describe("summarizeMicroflowComplexity", () => {
       code: "NESTED_IF_EXPRESSION",
       severity: "info",
       objectId: "decision",
+    })]));
+  });
+
+  it("detects duplicate output variable names in authoring schema (case-insensitive)", () => {
+    const createA = objectFrom("activity:variableCreate", "create-a");
+    const createB = objectFrom("activity:variableCreate", "create-b");
+    createA.action = { ...createA.action, variableName: "ApprovalLevel" } as typeof createA.action;
+    createB.action = { ...createB.action, variableName: "approvalLevel" } as typeof createB.action;
+
+    const conflicts = validateVariableNames(schemaWith([createA, createB]));
+
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].code).toBe("DUPLICATE_VARIABLE");
+    expect(conflicts[0].nodeIds).toEqual(expect.arrayContaining(["create-a", "create-b"]));
+  });
+
+  it("ignores empty output variable names when checking conflicts", () => {
+    const createA = objectFrom("activity:variableCreate", "create-a");
+    const createB = objectFrom("activity:variableCreate", "create-b");
+    createA.action = { ...createA.action, variableName: "" } as typeof createA.action;
+    createB.action = { ...createB.action, variableName: "OrderId" } as typeof createB.action;
+
+    const conflicts = validateVariableNames(schemaWith([createA, createB]));
+
+    expect(conflicts).toHaveLength(0);
+  });
+
+  it("emits MF_APPROACHING_LIMIT warning for 20~24 elements", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const nodes = [
+      start,
+      ...Array.from({ length: 20 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
+      end,
+    ];
+    const result = validateMicroflowSize(nodes.map(item => ({ type: item.kind })));
+
+    expect(result).toEqual(expect.arrayContaining([expect.objectContaining({
+      level: "warning",
+      code: "MF_APPROACHING_LIMIT",
+    })]));
+  });
+
+  it("emits MF_TOO_LARGE error and node-count badge message for 25+ elements", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const nodes = [
+      start,
+      ...Array.from({ length: 25 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
+      end,
+    ];
+    const result = validateMicroflowSize(nodes.map(item => ({ type: item.kind })));
+
+    expect(result).toEqual(expect.arrayContaining([expect.objectContaining({
+      level: "error",
+      code: "MF_TOO_LARGE",
+      message: expect.stringContaining("25"),
     })]));
   });
 });

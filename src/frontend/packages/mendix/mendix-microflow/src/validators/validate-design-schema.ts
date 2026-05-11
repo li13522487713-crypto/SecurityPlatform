@@ -8,7 +8,12 @@ import type {
   MicroflowWorkflowEdgeJSON,
   MicroflowWorkflowNodeJSON,
 } from "../schema/types";
-import { collectMicroflowBestPracticeWarnings, MICROFLOW_LIMITS, summarizeMicroflowComplexity } from "../utils/microflow-validator";
+import {
+  collectMicroflowBestPracticeWarnings,
+  MICROFLOW_LIMITS,
+  summarizeMicroflowComplexity,
+  validateVariableNames,
+} from "../utils/microflow-validator";
 import { issue } from "./shared";
 import { validateVariables } from "./validate-variables";
 import type { MicroflowValidationOptions, MicroflowValidationResult } from "./validator-types";
@@ -259,6 +264,23 @@ function validateDesignSchemaBestPractices(schema: MicroflowDesignSchema): Micro
   ));
 }
 
+function validateDesignSchemaVariableNames(schema: MicroflowDesignSchema): MicroflowValidationIssue[] {
+  return validateVariableNames(schema).map(conflict => issue(
+    conflict.code,
+    conflict.message,
+    {
+      microflowId: schema.id,
+      source: "action",
+      objectId: conflict.nodeIds[0],
+      relatedObjectIds: conflict.nodeIds.slice(1),
+      fieldPath: "workflow.nodes",
+      blockSave: true,
+      blockPublish: true,
+    },
+    "error",
+  ));
+}
+
 export function validateMicroflowDesignSchema(input: {
   schema: MicroflowDesignSchema;
   metadata?: MicroflowMetadataCatalog | null;
@@ -279,6 +301,7 @@ export function validateMicroflowDesignSchema(input: {
     ...validateDesignSchemaShape(input.schema),
     ...validateDesignSchemaComplexity(input.schema),
     ...validateDesignSchemaBestPractices(input.schema),
+    ...validateDesignSchemaVariableNames(input.schema),
     ...variableIssues,
   ], input.options);
   return {

@@ -54,9 +54,14 @@ export function VariableNameInput({
   const variableIndex = useMemo(() => buildVariableIndex(schema, catalog), [catalog, schema, version]);
   const localIssues = validateOutputVariableName(required || value ? value ?? "" : "")
     .map((issue, index) => toIssue(issue.message, fieldPath, index));
-  const duplicateIssues = (variableIndex.diagnostics ?? [])
-    .filter(issue => issue.variableName === value && (issue.fieldPath === fieldPath || issue.code === "MF_VARIABLE_DUPLICATED" || issue.code === "MF_VARIABLE_PARAMETER_CONFLICT"))
-    .map((issue, index) => toIssue(issue.message, fieldPath, index + localIssues.length));
+  const duplicateIssues = (variableIndex.diagnostics ?? []).filter(issue =>
+    issue.variableName === value && (
+      issue.fieldPath === fieldPath
+      || issue.code === "MF_VARIABLE_DUPLICATED"
+      || issue.code === "DUPLICATE_VARIABLE"
+      || issue.code === "MF_VARIABLE_PARAMETER_CONFLICT"
+    ),
+  ).map((issue, index) => toIssue(issue.message, fieldPath, index + localIssues.length));
   const allIssues = [...issues, ...localIssues, ...duplicateIssues];
 
   return (

@@ -5,6 +5,7 @@ import { WorkflowResetLayoutService, usePlayground, useService } from "@flowgram
 
 import { getMendixMicroflowCopy } from "../i18n/copy";
 import type { MicroflowValidationIssue } from "../schema";
+import type { MicroflowComplexitySummary } from "../utils/microflow-validator";
 
 interface MicroflowToolbarViewport {
   x: number;
@@ -78,6 +79,7 @@ export interface FlowGramMicroflowToolbarProps {
   validating?: boolean;
   validationIssues?: MicroflowValidationIssue[];
   onOpenProblemsPanel?: () => void;
+  microflowComplexity?: MicroflowComplexitySummary;
 }
 
 const draftTagStyle: CSSProperties = {
@@ -106,6 +108,21 @@ const warningTagStyle: CSSProperties = {
   color: "#854d0e",
   border: "1px solid rgba(202, 138, 4, 0.25)",
   cursor: "pointer",
+};
+const nodeCountSuccessStyle: CSSProperties = {
+  backgroundColor: "rgba(220, 252, 231, 0.95)",
+  color: "#166534",
+  border: "1px solid rgba(22, 163, 74, 0.2)",
+};
+const nodeCountWarningStyle: CSSProperties = {
+  backgroundColor: "rgba(254, 243, 199, 0.95)",
+  color: "#92400e",
+  border: "1px solid rgba(180, 83, 9, 0.25)",
+};
+const nodeCountErrorStyle: CSSProperties = {
+  backgroundColor: "rgba(254, 226, 226, 0.95)",
+  color: "#991b1b",
+  border: "1px solid rgba(185, 28, 28, 0.25)",
 };
 
 export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
@@ -166,6 +183,17 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
   };
 
   const zoomPercent = `${Math.round(props.viewport.zoom * 100)}%`;
+  const microflowNodeCountText = props.microflowComplexity == null
+    ? undefined
+    : `${props.microflowComplexity.level === "error" ? "✕" : props.microflowComplexity.level === "warning" ? "⚠" : "✓"} ${props.microflowComplexity.totalElements}/25`
+      + (props.microflowComplexity.level === "error" ? " 建议创建子微流" : "");
+  const microflowNodeCountStyle = props.microflowComplexity == null
+    ? undefined
+    : props.microflowComplexity.level === "error"
+      ? nodeCountErrorStyle
+      : props.microflowComplexity.level === "warning"
+        ? nodeCountWarningStyle
+        : nodeCountSuccessStyle;
 
   return (
     <div className="microflow-flowgram-toolbar">
@@ -288,6 +316,14 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
             {copy.canvasToolbar.autoLayout}
           </Button>
         </Tooltip>
+        {microflowNodeCountText ? (
+          <>
+            <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
+            <Tag size="small" style={microflowNodeCountStyle}>
+              {microflowNodeCountText}
+            </Tag>
+          </>
+        ) : null}
 
         {/* 保存/校验状态 */}
         {props.dirty !== undefined ? (

@@ -170,7 +170,17 @@ function extractActionOutputs(node: MicroflowWorkflowNodeJSON): string[] {
   }
   if (action.kind === "callMicroflow") {
     const call = action as MicroflowCallMicroflowAction;
-    return [...fallbackOutputs, ...genericOutputs, call.returnValue.outputVariableName ?? call.returnValue.resultVariableName ?? ""].filter(Boolean);
+    return [
+      ...fallbackOutputs,
+      ...genericOutputs,
+      call.returnValue?.outputVariableName ?? call.returnValue?.resultVariableName ?? "",
+      typeof (call as unknown as { outputVariableName?: string }).outputVariableName === "string"
+        ? (call as unknown as { outputVariableName?: string }).outputVariableName ?? ""
+        : "",
+      typeof (call as unknown as { resultVariableName?: string }).resultVariableName === "string"
+        ? (call as unknown as { resultVariableName?: string }).resultVariableName ?? ""
+        : "",
+    ].filter(Boolean);
   }
   return [...fallbackOutputs, ...genericOutputs].filter(Boolean);
 }

@@ -16,6 +16,7 @@ using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.DatabaseStructure;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.Microflows;
 
@@ -26,6 +27,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
 
     private readonly IMendixDomainModelDocumentRepository _documentRepository;
     private readonly IAppDefinitionRepository _appDefinitionRepository;
+    private readonly ISqlSugarClient _db;
     private readonly ILowCodeAppResourceBindingService _bindingService;
     private readonly IDatabaseManagementService _databaseManagementService;
     private readonly IDatabaseStructureService _databaseStructureService;
@@ -37,6 +39,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
     public MendixDomainModelService(
         IMendixDomainModelDocumentRepository documentRepository,
         IAppDefinitionRepository appDefinitionRepository,
+        ISqlSugarClient db,
         ILowCodeAppResourceBindingService bindingService,
         IDatabaseManagementService databaseManagementService,
         IDatabaseStructureService databaseStructureService,
@@ -47,6 +50,7 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
     {
         _documentRepository = documentRepository;
         _appDefinitionRepository = appDefinitionRepository;
+        _db = db;
         _bindingService = bindingService;
         _databaseManagementService = databaseManagementService;
         _databaseStructureService = databaseStructureService;
@@ -913,21 +917,35 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
     private static string BuildTableKey(string schemaName, string tableName)
         => $"{schemaName}::{tableName}";
 
-    private async Task<AppDefinition> ResolveAppAsync(string appId, string workspaceId, CancellationToken cancellationToken)
+    private async Task<ResolvedDomainModelApp> ResolveAppAsync(string appId, string workspaceId, CancellationToken cancellationToken)
     {
         if (!long.TryParse(appId, out var parsedAppId) || parsedAppId <= 0)
         {
             throw new BusinessException("appId 无效。", ErrorCodes.ValidationError);
         }
 
-        var app = await _appDefinitionRepository.FindByIdAsync(CurrentTenantId(), parsedAppId, cancellationToken)
+        var tenantId = CurrentTenantId();
+        var aiApp = await _db.Queryable<AiApp>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == parsedAppId)
+            .FirstAsync(cancellationToken);
+        if (aiApp is not null)
+        {
+            if (!long.TryParse(workspaceId, out var parsedWorkspaceId) || aiApp.WorkspaceId != parsedWorkspaceId)
+            {
+                throw new BusinessException("应用不属于当前工作区。", ErrorCodes.ValidationError);
+            }
+
+            return new ResolvedDomainModelApp(aiApp.TenantId, aiApp.Id);
+        }
+
+        var app = await _appDefinitionRepository.FindByIdAsync(tenantId, parsedAppId, cancellationToken)
             ?? throw new BusinessException("应用不存在。", ErrorCodes.NotFound);
         if (!string.Equals(app.WorkspaceId, workspaceId, StringComparison.OrdinalIgnoreCase))
         {
             throw new BusinessException("应用不属于当前工作区。", ErrorCodes.ValidationError);
         }
 
-        return app;
+        return new ResolvedDomainModelApp(app.TenantId, app.Id);
     }
 
     private async Task<AiDatabasePhysicalInstance> ResolveInstanceAsync(string sourceId, CancellationToken cancellationToken)
@@ -1110,4 +1128,6 @@ public sealed class MendixDomainModelService : IMendixDomainModelService
     private TenantId CurrentTenantId() => _requestContextAccessor.Current.TenantId is { Length: > 0 } tenantId && Guid.TryParse(tenantId, out var parsed)
         ? new TenantId(parsed)
         : TenantId.Empty;
+
+    private sealed record ResolvedDomainModelApp(TenantId TenantId, long Id);
 }

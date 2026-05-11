@@ -1,5 +1,5 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
-import { collectMicroflowBestPracticeWarnings, MICROFLOW_LIMITS, summarizeMicroflowComplexity } from "../utils/microflow-validator";
+import { collectMicroflowBestPracticeWarnings, MICROFLOW_LIMITS, summarizeMicroflowComplexity, validateVariableNames } from "../utils/microflow-validator";
 import { issue } from "./shared";
 import type { MicroflowValidatorContext } from "./validator-types";
 
@@ -62,6 +62,21 @@ export function validateMicroflowSize(schema: MicroflowSchema, _context: Microfl
       blockPublish: false,
     },
     warning.severity,
+  )));
+
+  issues.push(...validateVariableNames(schema).map(conflict => issue(
+    conflict.code,
+    conflict.message,
+    {
+      microflowId: schema.id,
+      source: "schema",
+      objectId: conflict.nodeIds[0],
+      fieldPath: "objectCollection",
+      relatedObjectIds: conflict.nodeIds.slice(1),
+      blockSave: false,
+      blockPublish: false,
+    },
+    "error",
   )));
 
   return issues;

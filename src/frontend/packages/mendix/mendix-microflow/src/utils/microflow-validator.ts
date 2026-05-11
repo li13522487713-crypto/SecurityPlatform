@@ -28,6 +28,21 @@ export interface MicroflowBestPracticeWarning {
   severity: "warning" | "info";
 }
 
+export interface MicroflowVariableConflict {
+  code: "MF_VARIABLE_DUPLICATED" | "DUPLICATE_VARIABLE";
+  message: string;
+  nodeIds: string[];
+}
+
+export interface ValidationResult {
+  level: "warning" | "error";
+  code: string;
+  message: string;
+  nodeIds: string[];
+}
+
+export type FlowNodeLike = { type: string };
+
 const startEndKinds = new Set(["startEvent", "endEvent"]);
 const decisionKinds = new Set(["exclusiveSplit", "inheritanceSplit", "parallelGateway", "inclusiveGateway"]);
 const activityExcludedKinds = new Set([
@@ -87,6 +102,144 @@ function lacksCustomErrorHandling(action: MicroflowAction | undefined): boolean 
 function hasNestedIfExpression(raw: string | undefined): boolean {
   const normalized = String(raw ?? "").toLowerCase();
   return (normalized.match(/\bif\b/g) ?? []).length > 1;
+}
+
+function collectOutputVariableNames(action: MicroflowAction | Record<string, unknown> | undefined): Array<{ name: string; fieldPath: string }> {
+  const record = (action as Record<string, unknown> | undefined) ?? {};
+  const out: Array<{ name: string; fieldPath: string }> = [];
+  const add = (name: unknown, fieldPath: string) => {
+    if (typeof name === "string" && name.trim()) {
+      out.push({ name, fieldPath });
+    }
+  };
+  if (record.kind === "createVariable") {
+    add(record.variableName, "action.variableName");
+    return out;
+  }
+  if (record.kind === "createList") {
+    add(record.outputListVariableName, "action.outputListVariableName");
+    add(record.listVariableName, "action.listVariableName");
+    return out;
+  }
+  if (record.kind === "aggregateList") {
+    add(record.outputVariableName, "action.outputVariableName");
+    add(record.resultVariableName, "action.resultVariableName");
+    return out;
+  }
+  if (record.kind === "listOperation") {
+    add(record.outputVariableName, "action.outputVariableName");
+    add(record.outputListVariableName, "action.outputListVariableName");
+    return out;
+  }
+  if (record.kind === "restCall") {
+    add(record.outputVariableName, "action.outputVariableName");
+    const response = record.response;
+    if (response && typeof response === "object") {
+      const handling = (response as Record<string, unknown>).handling;
+      if (handling && typeof handling === "object") {
+        const handlingRecord = handling as Record<string, unknown>;
+        add(handlingRecord.outputVariableName, "action.response.handling.outputVariableName");
+        add(handlingRecord.statusCodeVariableName, "action.response.statusCodeVariableName");
+        add(handlingRecord.headersVariableName, "action.response.headersVariableName");
+      }
+    }
+    return out;
+  }
+  if (record.kind === "createObject" || record.kind === "retrieve") {
+    add(record.outputVariableName, "action.outputVariableName");
+    return out;
+  }
+  if (record.kind === "cast" || record.kind === "exportXml") {
+    add(record.outputVariableName, "action.outputVariableName");
+    return out;
+  }
+  if (record.kind === "callMicroflow" || record.kind === "callJavaAction" || record.kind === "callJavaScriptAction" || record.kind === "callWorkflow" || record.kind === "callExternalAction") {
+    const returnValue = record.returnValue;
+    if (returnValue && typeof returnValue === "object") {
+      const returnRecord = returnValue as Record<string, unknown>;
+      add(returnRecord.outputVariableName, "action.returnValue.outputVariableName");
+      add(returnRecord.resultVariableName, "action.returnValue.resultVariableName");
+    }
+    if (record.kind === "callExternalAction") {
+      add(record.returnVariableName, "action.returnVariableName");
+    }
+    if (record.kind === "callWorkflow") {
+      add(record.outputWorkflowVariableName, "action.outputWorkflowVariableName");
+    }
+    return out;
+  }
+  add(record.outputVariableName, "action.outputVariableName");
+  add(record.outputListVariableName, "action.outputListVariableName");
+  add(record.resultVariableName, "action.resultVariableName");
+  if (record.kind === "generateJumpToOptions" || record.kind === "retrieveWorkflows") {
+    add(record.outputListVariableName, "action.outputListVariableName");
+  }
+  return out;
+}
+
+function addAuthoringVariableConflicts(
+  result: MicroflowVariableConflict[],
+  objects: Array<{ id: string; action?: MicroflowAction | undefined }>,
+): void {
+  const outputVariableMap = new Map<string, string[]>();
+  for (const item of objects) {
+    const action = item.action;
+    if (!action) {
+      continue;
+    }
+    const outputs = collectOutputVariableNames(action).map(item => item.name);
+    if (outputs.length === 0) {
+      continue;
+    }
+    const seenInNode = new Set<string>();
+    for (const outputName of outputs) {
+      const key = outputName.toLocaleLowerCase();
+      if (seenInNode.has(key)) {
+        continue;
+      }
+      seenInNode.add(key);
+      const nodeIds = outputVariableMap.get(key);
+      if (!nodeIds) {
+        outputVariableMap.set(key, [item.id]);
+        continue;
+      }
+      if (!nodeIds.includes(item.id)) {
+        nodeIds.push(item.id);
+      }
+      result.push({
+        code: "DUPLICATE_VARIABLE",
+        message: `变量名 "${outputName}" 重复定义，与节点 ${nodeIds[0]} 冲突。`,
+        nodeIds: [...new Set(nodeIds)],
+      });
+    }
+  }
+}
+
+function addDesignVariableConflicts(
+  result: MicroflowVariableConflict[],
+  nodes: Array<{ id: string; data?: Record<string, unknown> }>,
+): void {
+  const outputsByNode = nodes.flatMap(node => {
+    const action = node.data?.action as MicroflowAction | undefined;
+    return action ? [{ id: node.id, action }] : [];
+  }).map(item => ({ id: item.id, action: item.action }));
+  addAuthoringVariableConflicts(result, outputsByNode);
+}
+
+export function validateVariableNames(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): MicroflowVariableConflict[] {
+  if ("workflow" in schema) {
+    const conflicts: MicroflowVariableConflict[] = [];
+    const nodes = schema.workflow.nodes.map(node => ({ id: node.id, data: node.data as Record<string, unknown> | undefined }));
+    addDesignVariableConflicts(conflicts, nodes);
+    return conflicts;
+  }
+
+  const conflicts: MicroflowVariableConflict[] = [];
+  const objects = flattenAuthoringObjects(schema.objectCollection).flatMap(item => item.kind === "actionActivity"
+    ? [{ id: item.id, action: item.action }]
+    : []);
+  addAuthoringVariableConflicts(conflicts, objects);
+  return conflicts;
 }
 
 function countKinds(kinds: string[]): MicroflowComplexitySummary {
@@ -195,4 +348,61 @@ export function collectMicroflowBestPracticeWarnings(schema: MicroflowAuthoringS
     }
     return warnings;
   });
+}
+
+export function validateMicroflowSize(nodes: FlowNodeLike[]): ValidationResult[] {
+  const types = nodes.map(item => item.type);
+  const totalElements = types.filter(type => !["start", "end", "startEvent", "endEvent"].includes(type)).length;
+  const activityCount = types.filter(type => ![
+    "startEvent",
+    "endEvent",
+    "decision",
+    "exclusiveSplit",
+    "inheritanceSplit",
+    "parallelGateway",
+    "inclusiveGateway",
+    "merge",
+    "mergeNode",
+    "loopedActivity",
+    "loop",
+    "annotation",
+    "parameter",
+    "parameterObject",
+    "errorHandler",
+  ].includes(type)).length;
+  const decisionCount = types.filter(type => ["decision", "exclusiveSplit", "inheritanceSplit"].includes(type)).length;
+  const hasAnnotation = types.includes("annotation");
+  const results: ValidationResult[] = [];
+  if (totalElements >= MICROFLOW_LIMITS.ERROR_LEVEL) {
+    results.push({
+      level: "error",
+      code: "MF_TOO_LARGE",
+      message: `微流包含 ${totalElements} 个元素，超过推荐上限 25 个。建议将部分逻辑提取为子微流。`,
+      nodeIds: [],
+    });
+  } else if (totalElements >= MICROFLOW_LIMITS.WARN_LEVEL) {
+    results.push({
+      level: "warning",
+      code: "MF_APPROACHING_LIMIT",
+      message: `微流包含 ${totalElements} 个元素，接近推荐上限 25 个。`,
+      nodeIds: [],
+    });
+  }
+  if (!hasAnnotation && (activityCount > MICROFLOW_LIMITS.ANNOTATION_REQUIRED || decisionCount > MICROFLOW_LIMITS.MAX_DECISIONS_NO_WARN)) {
+    results.push({
+      level: "warning",
+      code: "MF_MISSING_ANNOTATION",
+      message: "复杂微流（超过 10 个活动或 2 个 Decision）建议在起始处添加注释说明目的和参数。",
+      nodeIds: [],
+    });
+  }
+  return results;
+}
+
+export function validateMicroflowSizeFromSchema(schema: MicroflowAuthoringSchema | MicroflowDesignSchema): ValidationResult[] {
+  if ("workflow" in schema) {
+    return validateMicroflowSize(schema.workflow.nodes.map(node => ({ type: node.type })));
+  }
+  const flattenKinds = flattenAuthoringObjects(schema.objectCollection).map(item => item.kind);
+  return validateMicroflowSize(flattenKinds.map(kind => ({ type: kind })));
 }

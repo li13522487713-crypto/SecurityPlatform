@@ -74,6 +74,7 @@ import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicr
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
 import { MicroflowNodeUsageHighlightsContext, MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeUsageHighlights } from "../variables";
+import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import "@flowgram-adapter/free-layout-editor/css-load";
 import "./styles/flowgram-microflow-canvas.css";
 import "./styles/flowgram-microflow-port.css";
@@ -679,6 +680,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   );
   const gridEnabled = props.schema.editor.gridEnabled !== false;
   const miniMapVisible = props.schema.editor.showMiniMap === true;
+  const microflowComplexity = useMemo(
+    () => summarizeMicroflowComplexity(props.schema),
+    [props.schema],
+  );
 
   useLayoutEffect(() => {
     selectorBoxConfig.disabled = panToolActive || spacePressed;
@@ -1360,6 +1365,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       {showBuiltInToolbar ? (
         <div className="microflow-flowgram-canvas-controls">
           <FlowGramMicroflowToolbar
+            microflowComplexity={microflowComplexity}
             canUndo={props.canUndo}
             canRedo={props.canRedo}
             onUndo={props.onUndo}
