@@ -16,6 +16,7 @@ import { getMendixMicroflowCopy } from "../i18n/copy";
 import { InlineNodeEditor } from "../inline-edit";
 import { AnnotationNode } from "../components/AnnotationNode";
 import { ActivityNode } from "../components/ActivityNode";
+import type { MicroflowActionActivityColor } from "../schema";
 import {
   FlowNodeFormData,
   type FormModelV2,
@@ -149,6 +150,15 @@ function NodeIcon({ kind }: { kind: string }) {
     case "errorEvent":
       // X 形
       return <svg {...base}><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" /></svg>;
+    case "continueEvent":
+      // 继续箭头
+      return <svg {...base}><path d="M3 8h8M8 4l4 4-4 4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
+    case "breakEvent":
+      // 停止方块
+      return <svg {...base}><rect x="4" y="4" width="8" height="8" rx="1.3" /></svg>;
+    case "parameterObject":
+      // 参数椭圆里的 P
+      return <svg {...base}><path d="M5 12V4h4.1a2.9 2.9 0 0 1 0 5.8H5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
     case "exclusiveSplit":
     case "inheritanceSplit":
       // 菱形
@@ -185,7 +195,8 @@ function NodeIcon({ kind }: { kind: string }) {
 
 type NodeCategory = "data" | "variable" | "list" | "flow" | "event";
 
-type NodeTone = "start" | "end" | "decision" | "merge" | "loop" | "annotation" | "action";
+type NodeTone = "start" | "end" | "error" | "continue" | "break" | "decision" | "merge" | "loop" | "parameter" | "annotation" | "action";
+type ErrorHandlingBadge = { text: "R" | "C" | "!"; className: string };
 
 const NODE_CATEGORY_STYLE: Record<NodeCategory, {
   iconColor: string;
@@ -198,6 +209,29 @@ const NODE_CATEGORY_STYLE: Record<NodeCategory, {
   flow: { iconColor: "#c4b5fd", iconBg: "#321e5a", borderColor: "#2a1a4a" },
   event: { iconColor: "#f9a8d4", iconBg: "#4a0a2a", borderColor: "#3a0a24" },
 };
+
+const ACTIVITY_BACKGROUND_COLOR_STYLE: Record<Exclude<MicroflowActionActivityColor, "default">, { iconBg: string; iconColor: string }> = {
+  blue: { iconBg: "#1e3a70", iconColor: "#93c5fd" },
+  green: { iconBg: "#0d3824", iconColor: "#6ee7b7" },
+  yellow: { iconBg: "#4a3000", iconColor: "#fcd34d" },
+  orange: { iconBg: "#4a2000", iconColor: "#fdba74" },
+  red: { iconBg: "#4a0a0a", iconColor: "#f87171" },
+  purple: { iconBg: "#321e5a", iconColor: "#c4b5fd" },
+  gray: { iconBg: "#1e2235", iconColor: "#d1d5db" },
+};
+
+function iconStyleForActionBackgroundColor(
+  backgroundColor: MicroflowActionActivityColor | undefined,
+  fallback: { iconBg: string; iconColor: string },
+): { background: string; color: string } {
+  if (!backgroundColor || backgroundColor === "default") {
+    return { background: fallback.iconBg, color: fallback.iconColor };
+  }
+  const mapped = ACTIVITY_BACKGROUND_COLOR_STYLE[backgroundColor];
+  return mapped
+    ? { background: mapped.iconBg, color: mapped.iconColor }
+    : { background: fallback.iconBg, color: fallback.iconColor };
+}
 
 function nodeCategory(kind: string): NodeCategory {
   if ([
@@ -253,8 +287,17 @@ function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): NodeTone {
   if (kind === "startEvent") {
     return "start";
   }
-  if (kind === "endEvent" || kind === "errorEvent") {
+  if (kind === "endEvent") {
     return "end";
+  }
+  if (kind === "errorEvent") {
+    return "error";
+  }
+  if (kind === "continueEvent") {
+    return "continue";
+  }
+  if (kind === "breakEvent") {
+    return "break";
   }
   if (kind === "exclusiveSplit" || kind === "inheritanceSplit") {
     return "decision";
@@ -268,10 +311,26 @@ function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): NodeTone {
   if (kind === "annotation") {
     return "annotation";
   }
+  if (kind === "parameterObject") {
+    return "parameter";
+  }
   if (kind === "loopedActivity") {
     return "loop";
   }
   return "action";
+}
+
+function errorHandlingBadge(type: string | undefined): ErrorHandlingBadge | undefined {
+  if (type === "customWithRollback") {
+    return { text: "R", className: "microflow-node-error-badge--rollback" };
+  }
+  if (type === "customWithoutRollback") {
+    return { text: "C", className: "microflow-node-error-badge--custom" };
+  }
+  if (type === "continue") {
+    return { text: "!", className: "microflow-node-error-badge--continue" };
+  }
+  return undefined;
 }
 
 function StaticTag(props: { children: ReactNode; color?: "blue" | "orange" | "grey" | "green" }) {
@@ -431,6 +490,7 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   const runtimeOutputSummaries = runtime?.outputSummaries ?? [];
   const compactRuntimeOutputs = runtimeOutputSummaries.slice(0, 2);
   const runtimeOutputOverflowCount = Math.max(0, runtimeOutputSummaries.length - compactRuntimeOutputs.length);
+  const decisionRuntimeResult = tone === "decision" ? String(runtime?.selectedBranchLabel ?? "").trim() : "";
   const resolvedNodeId = resolvedNodeIdForState;
   const usageSourceHighlight = Boolean(data?.usageSourceHighlight)
     || nodeUsageAliases(String(props.node.id), data?.objectId).some(alias => usageHighlights.sourceNodeIds.includes(alias));
@@ -463,9 +523,12 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   };
 
   const categoryStyle = NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)];
+  const actionIconStyle = iconStyleForActionBackgroundColor(data.backgroundColor, categoryStyle);
   const activitySubtitle = data.subtitle?.trim()
     ? data.subtitle
     : nodeKindLabel(data.actionKind || data.objectKind);
+  const nodeErrorHandling = data.action?.errorHandlingType ?? data.errorHandlingType;
+  const nodeErrorBadge = errorHandlingBadge(nodeErrorHandling);
 
   return (
     <div
@@ -507,7 +570,7 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
       tabIndex={0}
     >
       <div className="microflow-flowgram-node__compact" data-node-tone={tone}>
-        {tone === "start" || tone === "end" ? (
+        {tone === "start" || tone === "end" || tone === "error" || tone === "continue" || tone === "break" ? (
           <div
             className="microflow-event-dot"
             title={data.title}
@@ -517,6 +580,28 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
               className="microflow-event-dot__core"
               aria-hidden="true"
             />
+            {tone === "error" || tone === "continue" || tone === "break" ? (
+              <span className="microflow-event-dot__icon" aria-hidden="true">
+                <NodeIcon kind={data.objectKind} />
+              </span>
+            ) : null}
+          </div>
+        ) : tone === "parameter" ? (
+          <div
+            className="microflow-parameter-compact"
+            title={data.parameterTypeLabel ? `${data.title}\n${data.parameterTypeLabel}` : data.title}
+            data-parameter-kind={data.parameterKind ?? "primitive"}
+          >
+            <span
+              className="microflow-parameter-compact__icon"
+              aria-hidden="true"
+            >
+              <NodeIcon kind={data.objectKind} />
+            </span>
+            <span className="microflow-parameter-compact__text-wrap">
+              <span className="microflow-parameter-compact__name">{data.title}</span>
+              <span className="microflow-parameter-compact__type">{data.parameterTypeLabel ?? "unknown"}</span>
+            </span>
           </div>
         ) : tone === "decision" ? (
           <div className="microflow-decision-compact">
@@ -530,6 +615,15 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
               {data.runtimeState === "failed" ? <span className="microflow-node-runtime-error-dot" aria-hidden /> : null}
             </div>
             <div className="microflow-node-caption" title={data.title}>{data.title}</div>
+            {decisionRuntimeResult ? (
+              <div
+                className="microflow-decision-result-pill"
+                title={`result: ${decisionRuntimeResult}`}
+                data-testid={`microflow-decision-result-${data.objectId}`}
+              >
+                {decisionRuntimeResult}
+              </div>
+            ) : null}
           </div>
         ) : tone === "merge" ? (
           <div className="microflow-merge-compact">
@@ -576,10 +670,30 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
             title={data.title}
             subtitle={activitySubtitle}
             icon={<NodeIcon kind={data.objectKind} />}
-            iconStyle={{ background: categoryStyle.iconBg, color: categoryStyle.iconColor }}
+            iconStyle={actionIconStyle}
             showRuntimeErrorDot={data.runtimeState === "failed"}
           />
         )}
+        {nodeErrorBadge && (tone === "action" || tone === "loop") ? (
+          <span
+            className={`microflow-node-error-badge ${nodeErrorBadge.className}`}
+            title={nodeErrorBadge.text === "R"
+              ? "Custom with Rollback"
+              : nodeErrorBadge.text === "C"
+                ? "Custom without Rollback"
+                : "Continue on Error"}
+            aria-label={`error-handling-${nodeErrorBadge.text}`}
+          >
+            {nodeErrorBadge.text}
+          </span>
+        ) : null}
+        {data.hasBreakpoint ? (
+          <span
+            className={`microflow-node-breakpoint-dot ${data.breakpointKind === "conditional" ? "is-conditional" : "is-normal"}`}
+            title={data.breakpointKind === "conditional" ? "Conditional breakpoint" : "Breakpoint"}
+            aria-label={data.breakpointKind === "conditional" ? "conditional-breakpoint" : "breakpoint"}
+          />
+        ) : null}
         <button
           type="button"
           className="microflow-flowgram-node__expand-btn"

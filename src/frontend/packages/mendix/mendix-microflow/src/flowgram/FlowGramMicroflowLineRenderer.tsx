@@ -66,7 +66,7 @@ export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
     }
   }
   if (data.edgeKind === "errorHandler") {
-    return "error";
+    return "Error";
   }
   if (data.edgeKind === "loopBody") {
     return "body";
@@ -74,7 +74,7 @@ export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
   const firstCase = data.caseValues[0];
   if (!firstCase) {
     if (data.edgeKind === "decisionCondition" || data.edgeKind === "objectTypeCondition") {
-      return data.targetNodeId ? "empty" : "else";
+      return data.targetNodeId ? "(empty)" : "else";
     }
     return "";
   }
@@ -83,6 +83,9 @@ export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
   }
   if (firstCase.kind === "fallback") {
     return "else";
+  }
+  if (firstCase.kind === "empty" || firstCase.kind === "noCase") {
+    return "(empty)";
   }
   if (firstCase.kind === "enumeration") {
     return firstCase.value;
@@ -109,10 +112,24 @@ function runtimeClass(state: FlowGramMicroflowEdgeData["runtimeState"]): string 
   return "";
 }
 
+function errorHandlingClass(data: FlowGramMicroflowEdgeData): string {
+  if (data.edgeKind !== "errorHandler") {
+    return "";
+  }
+  if (data.sourceErrorHandlingType === "customWithoutRollback") {
+    return "microflow-flowgram-line--error-handler-customWithoutRollback";
+  }
+  if (data.sourceErrorHandlingType === "continue") {
+    return "microflow-flowgram-line--error-handler-continue";
+  }
+  return "microflow-flowgram-line--error-handler-customWithRollback";
+}
+
 export function lineClassNameFromEdgeData(data: FlowGramMicroflowEdgeData): string {
   return [
     "microflow-flowgram-line",
     `microflow-flowgram-line--${data.edgeKind}`,
+    errorHandlingClass(data),
     `is-validation-${data.validationState}`,
     data.runtimeState ? `is-runtime-${data.runtimeState}` : "",
   ].filter(Boolean).join(" ");
@@ -135,6 +152,8 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
     if (!edgeElement) {
       return;
     }
+    const previousFlowId = edgeElement.getAttribute("data-flow-id");
+    edgeElement.setAttribute("data-flow-id", data.flowId);
     const classNames = lineClassNameFromEdgeData(data).split(/\s+/).filter(Boolean);
     for (const className of classNames) {
       edgeElement.classList.add(className);
@@ -142,6 +161,13 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
     return () => {
       for (const className of classNames) {
         edgeElement.classList.remove(className);
+      }
+      if (edgeElement.getAttribute("data-flow-id") === data.flowId) {
+        if (previousFlowId) {
+          edgeElement.setAttribute("data-flow-id", previousFlowId);
+        } else {
+          edgeElement.removeAttribute("data-flow-id");
+        }
       }
     };
   }, [data]);
@@ -161,10 +187,12 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
     branchLabel === "true" ? "is-true" : "",
     branchLabel === "false" ? "is-false" : "",
     branchLabel === "else" ? "is-else" : "",
-    branchLabel === "empty" ? "is-empty" : "",
+    branchLabel === "empty" || branchLabel === "(empty)" ? "is-empty" : "",
     editing ? "is-editing" : "",
     runtimeClass(data.runtimeState),
     data.validationState === "warning" || warningMissingTarget ? "is-warning" : "",
+    data.edgeKind === "errorHandler" && data.sourceErrorHandlingType === "customWithoutRollback" ? "is-error-handler-customWithoutRollback" : "",
+    data.edgeKind === "errorHandler" && data.sourceErrorHandlingType !== "customWithoutRollback" ? "is-error-handler-customWithRollback" : "",
   ].filter(Boolean).join(" ");
 
   const commit = (value: string) => {

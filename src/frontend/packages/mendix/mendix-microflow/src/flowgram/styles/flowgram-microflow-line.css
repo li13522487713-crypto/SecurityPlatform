@@ -2,7 +2,7 @@
 .microflow-flowgram-canvas .gedit-flow-lines-layer svg line,
 .microflow-flowgram-canvas .gedit-flow-activity-edge path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge line {
-  stroke: #555e78 !important;
+  stroke: #3a4060 !important;
   stroke-width: 1px !important;
   fill: none !important;
   stroke-linecap: square;
@@ -10,14 +10,21 @@
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge marker path {
-  fill: #555e78 !important;
-  stroke: #555e78 !important;
+  fill: #3a4060 !important;
+  stroke: #3a4060 !important;
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.selected path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge.is-selected path {
   stroke: #4a9eff !important;
   stroke-width: 1.5px !important;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-edge-drop-target path,
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-edge-drop-target line {
+  stroke: #4a9eff !important;
+  stroke-width: 1.6px !important;
+  filter: drop-shadow(0 0 2px rgba(74, 158, 255, 0.65));
 }
 
 .microflow-flowgram-canvas .edge-executed path,
@@ -28,23 +35,46 @@
 }
 
 .microflow-flowgram-line--errorHandler {
-  stroke: #f05b5f;
+  stroke: #ef4444;
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--errorHandler path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--errorHandler line {
-  stroke: #f05b5f !important;
-  stroke-dasharray: 6 6 !important;
+  stroke: #ef4444 !important;
+  stroke-dasharray: 6 3 !important;
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--errorHandler marker path {
-  fill: #f05b5f !important;
-  stroke: #f05b5f !important;
+  fill: #ef4444 !important;
+  stroke: #ef4444 !important;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--error-handler-customWithoutRollback path,
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--error-handler-customWithoutRollback line {
+  stroke: #f97316 !important;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--error-handler-customWithoutRollback marker path {
+  fill: #f97316 !important;
+  stroke: #f97316 !important;
 }
 
 .microflow-flowgram-line--annotation {
-  stroke: rgba(161, 171, 186, 0.62);
-  stroke-dasharray: 6 6;
+  stroke: #3a4060;
+  stroke-width: 0.5px;
+  stroke-dasharray: 4 4;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--annotation path,
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--annotation line {
+  stroke: #3a4060 !important;
+  stroke-width: 0.5px !important;
+  stroke-dasharray: 4 4 !important;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--annotation marker path {
+  fill: transparent !important;
+  stroke: transparent !important;
 }
 
 .microflow-flowgram-line.is-error {
@@ -98,6 +128,16 @@
 .microflow-branch-label.is-false,
 .microflow-branch-label.is-else { border-color: #2e3450; color: #8892b0; background: #1e2540; }
 .microflow-branch-label.is-empty { border-color: #4a3200; color: #f59e0b; background: #271a00; }
+.microflow-branch-label.is-error-handler-customWithRollback {
+  border-color: #7f1d1d;
+  color: #fca5a5;
+  background: #450a0a;
+}
+.microflow-branch-label.is-error-handler-customWithoutRollback {
+  border-color: #9a3412;
+  color: #fdba74;
+  background: #4a2000;
+}
 
 .microflow-branch-label.is-editing {
   border-color: #165dff;

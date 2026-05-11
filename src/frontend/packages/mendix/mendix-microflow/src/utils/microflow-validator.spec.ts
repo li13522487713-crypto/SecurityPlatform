@@ -69,6 +69,21 @@ describe("summarizeMicroflowComplexity", () => {
     expect(errorSummary.recommendedMaxNodes).toBe(25);
   });
 
+  it("does not count annotation nodes toward the 25-node limit", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const annotation = objectFrom("annotation", "note");
+    const summary = summarizeMicroflowComplexity(schemaWith([
+      start,
+      ...Array.from({ length: 24 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
+      annotation,
+      end,
+    ]));
+
+    expect(summary.totalElements).toBe(24);
+    expect(summary.level).toBe("warning");
+  });
+
   it("detects loop commit and missing error handler best-practice warnings", () => {
     const createList = objectFrom("activity:listCreate", "create-list");
     const callJava = objectFrom("activity:callJavaAction", "call-java");
@@ -197,6 +212,22 @@ describe("summarizeMicroflowComplexity", () => {
       level: "warning",
       code: "MF_MISSING_ANNOTATION",
     })]));
+  });
+
+  it("ignores annotation node when validating size thresholds", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const nodes = [
+      start,
+      ...Array.from({ length: 24 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
+      objectFrom("annotation", "annotation-note"),
+      end,
+    ];
+
+    const result = validateMicroflowSize(nodes.map(item => ({ type: item.kind })));
+
+    expect(result.some(item => item.code === "MF_TOO_LARGE")).toBe(false);
+    expect(result.some(item => item.code === "MF_APPROACHING_LIMIT")).toBe(true);
   });
 });
 

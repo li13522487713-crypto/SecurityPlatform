@@ -144,7 +144,7 @@ export function computeAvailableVariables(
     context.fieldPath,
     queryFromContext(context),
   );
-  return symbols.map(toMicroflowVariable);
+  return symbols.map(symbol => toMicroflowVariable(symbol, metadata));
 }
 
 export function computeAvailableVariablesWithIndex(
@@ -159,7 +159,7 @@ export function computeAvailableVariablesWithIndex(
     context.fieldPath,
     queryFromContext(context),
   );
-  return symbols.map(toMicroflowVariable);
+  return symbols.map(symbol => toMicroflowVariable(symbol));
 }
 
 export function getVariableScopeForExpression(
@@ -177,7 +177,7 @@ export function getVariablesBeforeObject(
 ): MicroflowVariable[] {
   return getVariablesForExpressionFromIndex(schema, buildVariableIndex(schema, metadata ?? EMPTY_MICROFLOW_METADATA_CATALOG), {
     objectId,
-  }).map(toMicroflowVariable);
+  }).map(symbol => toMicroflowVariable(symbol, metadata));
 }
 
 export function getLoopIteratorVariables(schema: MicroflowSchema, objectId: string, metadata?: MicroflowMetadataCatalog): MicroflowVariable[] {
@@ -185,14 +185,14 @@ export function getLoopIteratorVariables(schema: MicroflowSchema, objectId: stri
   return getVariableSymbols(index)
     .filter(symbol => symbol.kind === "loopIterator")
     .filter(symbol => symbol.scope.kind === "loop" && symbol.scope.loopObjectId === objectId)
-    .map(toMicroflowVariable);
+    .map(symbol => toMicroflowVariable(symbol, metadata));
 }
 
 export function getMicroflowParameters(schema: MicroflowSchema, metadata?: MicroflowMetadataCatalog): MicroflowVariable[] {
   const index = buildVariableIndex(schema, metadata ?? EMPTY_MICROFLOW_METADATA_CATALOG);
   return getVariableSymbols(index)
     .filter(symbol => symbol.kind === "parameter")
-    .map(toMicroflowVariable);
+    .map(symbol => toMicroflowVariable(symbol, metadata));
 }
 
 export function isVariableDefined(schema: MicroflowSchema, objectId: string, variableName: string, metadata?: MicroflowMetadataCatalog): boolean {

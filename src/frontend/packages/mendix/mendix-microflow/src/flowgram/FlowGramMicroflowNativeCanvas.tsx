@@ -31,6 +31,7 @@ import {
   type MicroflowNodeDragPayload,
   type MicroflowNodeRegistryItem,
 } from "../node-registry";
+import { toEditorGraph } from "../adapters/microflow-adapters";
 import type {
   MicroflowDesignSchema,
   MicroflowPoint,
@@ -93,6 +94,9 @@ export interface FlowGramMicroflowNativeCanvasProps {
   schema: MicroflowDesignSchema;
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
+  pausedNodeIds?: string[];
+  breakpointNodeIds?: string[];
+  conditionalBreakpointNodeIds?: string[];
   nodeViewModes?: Record<string, MicroflowNodeViewMode>;
   usageHighlights?: MicroflowNodeUsageHighlights;
   focusObjectId?: string;
@@ -106,7 +110,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
     item: MicroflowNodeRegistryItem,
     position: MicroflowPoint,
     payload: MicroflowNodeDragPayload,
-    options?: { parentLoopObjectId?: string },
+    options?: { parentLoopObjectId?: string; insertFlowId?: string },
   ) => void;
   canUndo?: boolean;
   canRedo?: boolean;
@@ -464,6 +468,94 @@ function edgeIsBusinessValid(workflow: WorkflowJSON, edge: WorkflowEdgeJSON): bo
   return isMicroflowDesignEdgeBusinessValid(workflow, edge);
 }
 
+type GraphNodePortLike = {
+  id: string;
+  direction: "input" | "output";
+  position?: { x: number; y: number };
+};
+
+type GraphNodeLike = {
+  objectId: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  ports: GraphNodePortLike[];
+};
+
+function absolutePortPosition(node: GraphNodeLike, port?: GraphNodePortLike): { x: number; y: number } {
+  const relative = port?.position ?? {
+    x: port?.direction === "input" ? 0 : node.size.width,
+    y: node.size.height / 2,
+  };
+  return {
+    x: node.position.x + relative.x,
+    y: node.position.y + relative.y,
+  };
+}
+
+function distanceToSegment(point: { x: number; y: number }, source: { x: number; y: number }, target: { x: number; y: number }): number {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) {
+    return Math.hypot(point.x - source.x, point.y - source.y);
+  }
+  const t = Math.max(0, Math.min(1, ((point.x - source.x) * dx + (point.y - source.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (source.x + t * dx), point.y - (source.y + t * dy));
+}
+
+function findNearestDropInsertFlowId(
+  schema: MicroflowDesignSchema,
+  point: { x: number; y: number },
+  threshold = 12,
+): string | undefined {
+  const graph = toEditorGraph(schema);
+  const nodeById = new Map<string, GraphNodeLike>(
+    graph.nodes.map(node => [String(node.objectId), node]),
+  );
+  let nearest: { flowId: string; distance: number } | undefined;
+  for (const edge of graph.edges) {
+    if (edge.edgeKind === "annotation") {
+      continue;
+    }
+    const source = nodeById.get(String(edge.sourceNodeId).replace(/^node-/, ""));
+    const target = nodeById.get(String(edge.targetNodeId).replace(/^node-/, ""));
+    if (!source || !target) {
+      continue;
+    }
+    const sourcePort = source.ports.find(port => port.id === edge.sourcePortId) ?? source.ports.find(port => port.direction === "output");
+    const targetPort = target.ports.find(port => port.id === edge.targetPortId) ?? target.ports.find(port => port.direction === "input");
+    const distance = distanceToSegment(point, absolutePortPosition(source, sourcePort), absolutePortPosition(target, targetPort));
+    if (distance <= threshold && (!nearest || distance < nearest.distance)) {
+      nearest = { flowId: edge.flowId, distance };
+    }
+  }
+  return nearest?.flowId;
+}
+
+function resolveFlowInsertAnchor(schema: MicroflowDesignSchema, flowId: string): MicroflowPoint | undefined {
+  const graph = toEditorGraph(schema);
+  const edge = graph.edges.find(item => item.flowId === flowId);
+  if (!edge) {
+    return undefined;
+  }
+  const nodeById = new Map<string, GraphNodeLike>(
+    graph.nodes.map(node => [String(node.objectId), node]),
+  );
+  const source = nodeById.get(String(edge.sourceNodeId).replace(/^node-/, ""));
+  const target = nodeById.get(String(edge.targetNodeId).replace(/^node-/, ""));
+  if (!source || !target) {
+    return undefined;
+  }
+  const sourcePort = source.ports.find(port => port.id === edge.sourcePortId) ?? source.ports.find(port => port.direction === "output");
+  const targetPort = target.ports.find(port => port.id === edge.targetPortId) ?? target.ports.find(port => port.direction === "input");
+  const sourcePoint = absolutePortPosition(source, sourcePort);
+  const targetPoint = absolutePortPosition(target, targetPort);
+  return {
+    x: Math.round((sourcePoint.x + targetPoint.x) / 2),
+    y: Math.round((sourcePoint.y + targetPoint.y) / 2),
+  };
+}
+
 function findInvalidBusinessEdge(workflow: WorkflowJSON): WorkflowEdgeJSON | undefined {
   return [...((workflow.edges ?? []) as WorkflowEdgeJSON[])].reverse().find(edge => !edgeIsBusinessValid(workflow, edge));
 }
@@ -627,6 +719,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     position: MicroflowPoint;
     size: { width: number; height: number };
     valid: boolean;
+    insertFlowId?: string;
+    insertAnchor?: MicroflowPoint;
   }>();
   const [internalPanToolActive, setInternalPanToolActive] = useState(false);
   const panToolControlled = props.canvasPanToolActive !== undefined;
@@ -664,10 +758,22 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       schema: props.schema,
       validationIssues: props.validationIssues,
       runtimeTrace: props.runtimeTrace,
+      pausedNodeIds: props.pausedNodeIds,
+      breakpointNodeIds: props.breakpointNodeIds,
+      conditionalBreakpointNodeIds: props.conditionalBreakpointNodeIds,
       nodeViewModes: props.nodeViewModes,
       usageHighlights: props.usageHighlights,
     }),
-    [props.nodeViewModes, props.runtimeTrace, props.schema, props.usageHighlights, props.validationIssues],
+    [
+      props.pausedNodeIds,
+      props.breakpointNodeIds,
+      props.conditionalBreakpointNodeIds,
+      props.nodeViewModes,
+      props.runtimeTrace,
+      props.schema,
+      props.usageHighlights,
+      props.validationIssues,
+    ],
   );
   const renderedWorkflow = useMemo(
     () => nestLoopChildrenForFlowGram(decoratedWorkflow),
@@ -679,6 +785,23 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     () => summarizeMicroflowComplexity(props.schema),
     [props.schema],
   );
+  useEffect(() => {
+    const canvas = containerRef.current;
+    if (!canvas) {
+      return;
+    }
+    const activeFlowId = dropPreview?.insertFlowId;
+    const edgeElements = canvas.querySelectorAll<HTMLElement>(".gedit-flow-activity-edge");
+    edgeElements.forEach(edgeElement => {
+      const matches = Boolean(activeFlowId) && edgeElement.getAttribute("data-flow-id") === activeFlowId;
+      edgeElement.classList.toggle("microflow-flowgram-edge-drop-target", matches);
+    });
+    return () => {
+      edgeElements.forEach(edgeElement => {
+        edgeElement.classList.remove("microflow-flowgram-edge-drop-target");
+      });
+    };
+  }, [dropPreview?.insertFlowId, renderedWorkflow]);
 
   useLayoutEffect(() => {
     selectorBoxConfig.disabled = panToolActive || spacePressed;
@@ -900,7 +1023,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     clientY: number,
     item: MicroflowNodeRegistryItem,
     nativeEvent?: globalThis.MouseEvent,
-  ): { position: MicroflowPoint; parentLoopObjectId?: string; valid: boolean } => {
+  ): { position: MicroflowPoint; parentLoopObjectId?: string; valid: boolean; insertFlowId?: string } => {
     const rect = containerRef.current?.getBoundingClientRect();
     const viewport = props.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
     const fallback = clientPointToFlowGramPoint({ x: clientX, y: clientY }, rect, viewport);
@@ -909,6 +1032,11 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       : undefined;
     const logicalCursor = dragPosition ?? fallback;
     const objectKind = objectKindFromRegistryItem(item);
+    const hintedInsertFlowId = nativeEvent?.target instanceof HTMLElement
+      ? selectionFromTarget(nativeEvent.target, latestSchemaRef.current.workflow)?.flowId
+      : undefined;
+    const insertFlowId = hintedInsertFlowId
+      ?? findNearestDropInsertFlowId(latestSchemaRef.current, logicalCursor, 12);
     const parentLoopObjectId = findLoopParentAtPoint(
       normalizeWorkflow(latestSchemaRef.current.workflow),
       logicalCursor,
@@ -922,6 +1050,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       position: gridEnabled ? snapMicroflowPoint(centered) : centered,
       parentLoopObjectId,
       valid: canDropRegistryObjectKindInLoop(objectKind, parentLoopObjectId),
+      insertFlowId,
     };
   };
 
@@ -938,10 +1067,15 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     const item = payload ? microflowNodeRegistryByKey.get(payload.registryKey) : undefined;
     const placement = item ? dropPlacementFromEvent(event, item) : undefined;
     if (item && placement) {
+      const insertAnchor = placement.insertFlowId
+        ? resolveFlowInsertAnchor(latestSchemaRef.current, placement.insertFlowId)
+        : undefined;
       setDropPreview({
         position: placement.position,
         size: getMendixMicroflowNodeSize(objectKindFromRegistryItem(item)),
         valid: placement.valid,
+        insertFlowId: placement.insertFlowId,
+        insertAnchor,
       });
     }
     event.dataTransfer.dropEffect = placement?.valid === false ? "none" : "copy";
@@ -979,7 +1113,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       Toast.warning("该节点不能放置在当前 Loop 区域。");
       return;
     }
-    props.onDropRegistryItem?.(item, placement.position, payload, { parentLoopObjectId: placement.parentLoopObjectId });
+    props.onDropRegistryItem?.(item, placement.position, payload, {
+      parentLoopObjectId: placement.parentLoopObjectId,
+      insertFlowId: placement.insertFlowId,
+    });
   };
 
   const handlePointerFallbackDrop = (event: MouseEvent<HTMLDivElement>) => {
@@ -1014,7 +1151,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       Toast.warning("该节点不能放置在当前 Loop 区域。");
       return;
     }
-    props.onDropRegistryItem?.(item, placement.position, payload, { parentLoopObjectId: placement.parentLoopObjectId });
+    props.onDropRegistryItem?.(item, placement.position, payload, {
+      parentLoopObjectId: placement.parentLoopObjectId,
+      insertFlowId: placement.insertFlowId,
+    });
   };
 
   const openContextMenuFromTarget = (target: HTMLElement | undefined, point: { x: number; y: number }): boolean => {
@@ -1354,6 +1494,15 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
             top: dropPreview.position.y - dropPreview.size.height / 2,
             width: dropPreview.size.width,
             height: dropPreview.size.height,
+          }}
+        />
+      ) : null}
+      {dropPreview?.insertAnchor ? (
+        <div
+          className="microflow-flowgram-drop-insert-anchor"
+          style={{
+            left: dropPreview.insertAnchor.x - 7,
+            top: dropPreview.insertAnchor.y - 7,
           }}
         />
       ) : null}

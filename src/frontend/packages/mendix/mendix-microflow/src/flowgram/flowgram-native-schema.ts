@@ -12,10 +12,13 @@ import {
 import { microflowActionRegistryByKind } from "../node-registry/action-registry";
 import type {
   MicroflowAction,
+  MicroflowConcurrencyConfig,
   MicroflowDataType,
   MicroflowDesignSchema,
+  MicroflowExposureConfig,
   MicroflowParameter,
   MicroflowPoint,
+  MicroflowSecurityConfig,
   MicroflowSize,
   MicroflowVariable,
   MicroflowWorkflowEdgeJSON,
@@ -369,6 +372,9 @@ export function createMicroflowDesignSchema(input: {
   parameters?: MicroflowParameter[];
   returnType?: MicroflowDataType;
   returnVariableName?: string;
+  security?: MicroflowSecurityConfig;
+  concurrency?: MicroflowConcurrencyConfig;
+  exposure?: MicroflowExposureConfig;
   ownerName?: string;
   workflow?: WorkflowJSON;
 }): MicroflowDesignSchema {
@@ -387,6 +393,15 @@ export function createMicroflowDesignSchema(input: {
     parameters: input.parameters ?? [],
     returnType: input.returnType ?? { kind: "void" },
     returnVariableName: input.returnVariableName,
+    security: input.security ?? { applyEntityAccess: true, allowedModuleRoleIds: [] },
+    concurrency: input.concurrency ?? { allowConcurrentExecution: true, errorMicroflowId: null },
+    exposure: input.exposure ?? {
+      exportLevel: "module",
+      markAsUsed: true,
+      asMicroflowAction: { enabled: false },
+      asWorkflowAction: { enabled: false },
+      url: { enabled: false },
+    },
     variables: [] satisfies MicroflowVariable[],
     validation: { issues: [] },
     audit: {

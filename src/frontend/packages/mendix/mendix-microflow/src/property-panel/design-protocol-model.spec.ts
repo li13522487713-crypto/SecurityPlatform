@@ -8,6 +8,7 @@ import {
 import { defaultMicroflowNodePanelRegistry } from "../node-registry";
 import type { MicroflowActionActivity, MicroflowDesignSchema, MicroflowSequenceFlow, MicroflowWorkflowEdgeJSON } from "../schema";
 import {
+  applyDesignDocumentSchema,
   applyDesignFlowPatch,
   applyDesignObjectPatch,
   buildDesignPropertyPanelModel,
@@ -51,6 +52,47 @@ describe("design protocol property panel adapter", () => {
       id: "flow-start-end",
       originObjectId: "start",
       destinationObjectId: "end",
+    });
+    expect(model.authoringSchema.security.applyEntityAccess).toBe(true);
+  });
+
+  it("syncs document-level security, concurrency and exposure from authoring projection back to design schema", () => {
+    const schema = designSchema();
+    const model = buildDesignPropertyPanelModel(schema);
+    const next = applyDesignDocumentSchema(schema, {
+      ...model.authoringSchema,
+      security: {
+        ...model.authoringSchema.security,
+        applyEntityAccess: false,
+      },
+      concurrency: {
+        ...model.authoringSchema.concurrency,
+        allowConcurrentExecution: false,
+      },
+      exposure: {
+        ...model.authoringSchema.exposure,
+        asMicroflowAction: {
+          enabled: true,
+          caption: "Process Order",
+          category: "Sales",
+        },
+        url: {
+          enabled: true,
+          path: "/p/process-order",
+        },
+      },
+    });
+
+    expect(next.security?.applyEntityAccess).toBe(false);
+    expect(next.concurrency?.allowConcurrentExecution).toBe(false);
+    expect(next.exposure?.asMicroflowAction).toMatchObject({
+      enabled: true,
+      caption: "Process Order",
+      category: "Sales",
+    });
+    expect(next.exposure?.url).toMatchObject({
+      enabled: true,
+      path: "/p/process-order",
     });
   });
 

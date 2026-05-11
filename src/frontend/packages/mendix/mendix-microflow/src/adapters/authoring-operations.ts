@@ -259,6 +259,10 @@ export function updateObject(schema: MicroflowSchema, objectId: string, mapper: 
 }
 
 export function deleteObject(schema: MicroflowSchema, objectId: string): MicroflowSchema {
+  const target = findObject(schema, objectId);
+  if (target?.kind === "startEvent") {
+    return schema;
+  }
   const removedObjectIds = collectObjectAndDescendantIds(schema.objectCollection, objectId);
   const removedObjects = flattenObjectCollection(schema.objectCollection).filter(object => removedObjectIds.has(object.id));
   const removedParameterIds = new Set(removedObjects
@@ -513,6 +517,10 @@ export function duplicateObjectSelection(schema: MicroflowSchema, options: Dupli
 }
 
 export function moveObject(schema: MicroflowSchema, objectId: string, position: MicroflowPoint): MicroflowSchema {
+  const target = findObject(schema, objectId);
+  if (target?.kind === "startEvent") {
+    return schema;
+  }
   return updateObject(schema, objectId, object => ({ ...object, relativeMiddlePoint: position }));
 }
 

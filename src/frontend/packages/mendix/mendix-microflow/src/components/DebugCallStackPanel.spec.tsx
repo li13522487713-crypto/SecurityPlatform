@@ -24,19 +24,34 @@ import { DebugCallStackPanel } from "./DebugCallStackPanel";
 afterEach(() => cleanup());
 
 describe("DebugCallStackPanel", () => {
-  it("renders active frame indicator and highlighted style for the top frame", () => {
+  it("renders active frame indicator for the deepest frame", () => {
     const { container } = render(
       <DebugCallStackPanel
         frames={[
-          { id: "frame-1", name: "MF_Child", microflowId: "mf-child" },
-          { id: "frame-2", name: "MF_Parent", microflowId: "mf-parent" },
+          { id: "frame-1", name: "MF_Parent", microflowId: "mf-parent", depth: 0 },
+          { id: "frame-2", name: "MF_Child", microflowId: "mf-child", depth: 1 },
         ]}
       />,
     );
 
+    expect(screen.getByTestId("microflow-debug-callstack-active-frame-1").textContent).not.toContain("▶");
+    expect(screen.getByTestId("microflow-debug-callstack-active-frame-2").textContent).toContain("▶");
     expect(screen.getByText("MF_Child")).toBeTruthy();
     expect(screen.getByText("MF_Parent")).toBeTruthy();
     expect(container.textContent).toContain("▶");
+  });
+
+  it("falls back to treating the last frame as active when depth metadata is absent", () => {
+    render(
+      <DebugCallStackPanel
+        frames={[
+          { id: "frame-1", name: "MF_Parent", microflowId: "mf-parent" },
+          { id: "frame-2", name: "MF_Child", microflowId: "mf-child" },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("microflow-debug-callstack-active-frame-1").textContent).not.toContain("▶");
+    expect(screen.getByTestId("microflow-debug-callstack-active-frame-2").textContent).toContain("▶");
   });
 
   it("invokes onSelectFrame when clicking selectable frame", () => {
@@ -44,18 +59,18 @@ describe("DebugCallStackPanel", () => {
     render(
       <DebugCallStackPanel
         frames={[
-          { id: "frame-1", name: "MF_Child", microflowId: "mf-child" },
-          { id: "frame-2", name: "MF_Parent", microflowId: "mf-parent" },
+          { id: "frame-1", name: "MF_Parent", microflowId: "mf-parent", depth: 0 },
+          { id: "frame-2", name: "MF_Child", microflowId: "mf-child", depth: 1 },
         ]}
         onSelectFrame={onSelectFrame}
       />,
     );
 
-    fireEvent.click(screen.getByText("MF_Parent"));
+    fireEvent.click(screen.getByText("MF_Child"));
 
     expect(onSelectFrame).toHaveBeenCalledTimes(1);
     expect(onSelectFrame).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "frame-2", microflowId: "mf-parent" }),
+      expect.objectContaining({ id: "frame-2", microflowId: "mf-child" }),
       1,
     );
   });

@@ -220,6 +220,37 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     expect(button.textContent).toContain("else");
   });
 
+  it("renders (empty) pill style for explicit empty/noCase decision branches", () => {
+    const { rerender } = renderLine({
+      edgeKind: "decisionCondition",
+      caseValues: [{ kind: "empty", officialType: "Microflows$NoCase" }],
+    });
+    let button = screen.getByRole("button");
+    expect(button.textContent).toContain("(empty)");
+    expect(button.className).toContain("is-empty");
+
+    rerender(
+      <div className="gedit-flow-activity-edge">
+        <FlowGramMicroflowLineRenderer
+          key="line-1"
+          lineType={"polyline" as never}
+          version="1"
+          line={{ data: {
+            flowId: "flow-1",
+            flowKind: "sequence",
+            edgeKind: "decisionCondition",
+            isErrorHandler: false,
+            caseValues: [{ kind: "noCase", officialType: "Microflows$NoCase" }],
+            validationState: "valid",
+          } } as never}
+        />
+      </div>,
+    );
+    button = screen.getByRole("button");
+    expect(button.textContent).toContain("(empty)");
+    expect(button.className).toContain("is-empty");
+  });
+
   it("derives labels for approval/loop/error edges from edge kind and source port", () => {
     const { rerender } = render(
       <FlowGramMicroflowLineRenderer
@@ -287,6 +318,52 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     const wrapper = container.querySelector(".gedit-flow-activity-edge");
     expect(wrapper?.className).toContain("microflow-flowgram-line--errorHandler");
     expect(wrapper?.className).toContain("is-runtime-errorHandlerVisited");
+  });
+
+  it("projects rollback mode classes for error-handler edges", () => {
+    const { container, rerender } = render(
+      <div className="gedit-flow-activity-edge">
+        <FlowGramMicroflowLineRenderer
+          key="line-1"
+          lineType={"polyline" as never}
+          version="1"
+          line={{ data: {
+            flowId: "flow-1",
+            flowKind: "sequence",
+            edgeKind: "errorHandler",
+            isErrorHandler: true,
+            caseValues: [],
+            validationState: "valid",
+            sourceErrorHandlingType: "customWithoutRollback",
+          } } as never}
+        />
+      </div>,
+    );
+    let wrapper = container.querySelector(".gedit-flow-activity-edge");
+    expect(wrapper?.className).toContain("microflow-flowgram-line--error-handler-customWithoutRollback");
+    expect(screen.getByRole("button").className).toContain("is-error-handler-customWithoutRollback");
+
+    rerender(
+      <div className="gedit-flow-activity-edge">
+        <FlowGramMicroflowLineRenderer
+          key="line-1"
+          lineType={"polyline" as never}
+          version="1"
+          line={{ data: {
+            flowId: "flow-1",
+            flowKind: "sequence",
+            edgeKind: "errorHandler",
+            isErrorHandler: true,
+            caseValues: [],
+            validationState: "valid",
+            sourceErrorHandlingType: "customWithRollback",
+          } } as never}
+        />
+      </div>,
+    );
+    wrapper = container.querySelector(".gedit-flow-activity-edge");
+    expect(wrapper?.className).toContain("microflow-flowgram-line--error-handler-customWithRollback");
+    expect(screen.getByRole("button").className).toContain("is-error-handler-customWithRollback");
   });
 
   it("renders decision labels from workflow edge context when FlowGram line JSON has no data payload", () => {

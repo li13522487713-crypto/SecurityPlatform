@@ -61,7 +61,7 @@ import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowNativeCanvas } from "../flowgram";
 import { getMendixMicroflowNodeSize } from "../flowgram/flowgram-node-geometry";
-import { createMicroflowWorkflowNode } from "../flowgram/flowgram-native-schema";
+import { createMicroflowWorkflowEdge, createMicroflowWorkflowNode } from "../flowgram/flowgram-native-schema";
 import { stripTransientDesignSchema } from "../flowgram/transient-workflow-state";
 import {
   MICROFLOW_INLINE_FIELD_COMMIT_EVENT,
@@ -77,7 +77,7 @@ import {
   type MicroflowInlineNodeToggleDetail,
   type MicroflowInlineQuickFixDetail,
 } from "../flowgram/inline-events";
-import type { MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
+import type { FlowGramMicroflowEdgeData, MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
 import { MICROFLOW_GRID_SIZE } from "../flowgram/adapters/flowgram-coordinate";
 import { createStableId } from "../schema/utils/ids";
 import {
@@ -102,7 +102,6 @@ import {
   buildRunRequest,
   filterNodeResultsByMicroflowId,
   readStoredTestRunSamples,
-  resolveDeepestDebugMicroflowId,
   shouldBlockRun,
   writeStoredTestRunSamples,
   type MicroflowDebugCommand,
@@ -127,6 +126,7 @@ import { exportCanvasAsPng } from "./export-image";
 import { buildAcceptance120Schema } from "./acceptance-120-fixture";
 import { getDebugLatencyColor, getDebugWsStatusTag } from "./debug-status";
 import { composeTraceFramesForRuntimePreview } from "./ws-runtime-trace";
+import { buildSessionDebugRouteIntent, buildWsDebugRouteIntent } from "./debug-routing";
 import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import { buildNodeUsageHighlights, buildVariableUsageHighlights } from "../variables";
 import {
@@ -201,6 +201,14 @@ function designEdgeId(edge: MicroflowWorkflowEdgeJSON): string | undefined {
   return data?.flowId ?? edge.id;
 }
 
+function isDesignStartNode(node: MicroflowWorkflowNodeJSON | undefined): boolean {
+  if (!node) {
+    return false;
+  }
+  const data = node.data as { objectKind?: unknown } | undefined;
+  return node.type === "startEvent" || data?.objectKind === "startEvent";
+}
+
 function clearDesignSelection(schema: MicroflowDesignSchema): MicroflowDesignSchema {
   return {
     ...schema,
@@ -224,7 +232,7 @@ function deleteDesignSelection(
   objectIds: string[],
   flowIds: string[],
 ): MicroflowDesignSchema {
-  const removedObjects = new Set(objectIds);
+  const removedObjects = new Set(objectIds.filter(id => !isDesignStartNode(schema.workflow.nodes.find(node => node.id === id))));
   const removedFlows = new Set(flowIds);
   const nodes = schema.workflow.nodes.filter(node => !removedObjects.has(node.id));
   const edges = schema.workflow.edges.filter(edge => {
@@ -333,6 +341,91 @@ function duplicateDesignSelection(
         flowIds: [],
         mode: nextObjectIds.length > 1 ? "multi" : nextObjectIds.length === 1 ? "single" : "none",
       },
+    },
+  };
+}
+
+function splitDesignFlowWithNode(
+  schema: MicroflowDesignSchema,
+  flowId: string,
+  node: MicroflowWorkflowNodeJSON,
+): MicroflowDesignSchema {
+  const edgeIndex = schema.workflow.edges.findIndex(edge => designEdgeId(edge) === flowId || edge.id === flowId);
+  if (edgeIndex < 0) {
+    return schema;
+  }
+  const targetEdge = schema.workflow.edges[edgeIndex];
+  const targetData = (targetEdge.data ?? {}) as Partial<FlowGramMicroflowEdgeData> & Record<string, unknown>;
+  const edgeKind = targetData.edgeKind ?? "sequence";
+  if (edgeKind === "annotation") {
+    return schema;
+  }
+  const ports = (node.meta?.defaultPorts ?? []) as Array<{ type?: string; portID?: string; disabled?: boolean }>;
+  const inputPort = ports.find(port => port.type === "input" && !port.disabled)?.portID ?? "in";
+  const outputPort = ports.find(port => port.type === "output" && !port.disabled)?.portID ?? "out";
+  const firstId = createStableId("flow");
+  const secondId = createStableId("flow");
+  const firstEdge = createMicroflowWorkflowEdge({
+    id: firstId,
+    sourceNodeID: targetEdge.sourceNodeID,
+    targetNodeID: node.id,
+    sourcePortID: targetEdge.sourcePortID,
+    targetPortID: inputPort,
+    data: {
+      ...targetData,
+      flowId: firstId,
+      sourceNodeId: String(targetEdge.sourceNodeID ?? ""),
+      sourcePortId: String(targetEdge.sourcePortID ?? ""),
+      targetNodeId: node.id,
+      targetPortId: inputPort,
+      edgeKind,
+      flowKind: "sequence",
+      isErrorHandler: edgeKind === "errorHandler" || Boolean(targetData.isErrorHandler),
+      caseValues: Array.isArray(targetData.caseValues) ? targetData.caseValues : [],
+    },
+  }) as MicroflowWorkflowEdgeJSON;
+  const secondEdge = createMicroflowWorkflowEdge({
+    id: secondId,
+    sourceNodeID: node.id,
+    targetNodeID: targetEdge.targetNodeID,
+    sourcePortID: outputPort,
+    targetPortID: targetEdge.targetPortID,
+    data: {
+      ...targetData,
+      flowId: secondId,
+      sourceNodeId: node.id,
+      sourcePortId: outputPort,
+      targetNodeId: String(targetEdge.targetNodeID ?? ""),
+      targetPortId: String(targetEdge.targetPortID ?? ""),
+      edgeKind: "sequence",
+      flowKind: "sequence",
+      isErrorHandler: false,
+      caseValues: [],
+      label: undefined,
+    },
+  }) as MicroflowWorkflowEdgeJSON;
+  const nextEdges = schema.workflow.edges.filter((_, index) => index !== edgeIndex);
+  return {
+    ...schema,
+    workflow: {
+      ...schema.workflow,
+      nodes: [...schema.workflow.nodes, node],
+      edges: [...nextEdges, firstEdge, secondEdge],
+    },
+    editor: {
+      ...schema.editor,
+      selection: {
+        ...schema.editor.selection,
+        objectId: node.id,
+        flowId: undefined,
+        objectIds: [node.id],
+        flowIds: [],
+        mode: "single",
+      },
+    },
+    audit: {
+      ...schema.audit,
+      updatedAt: new Date().toISOString(),
     },
   };
 }
@@ -1766,6 +1859,9 @@ function DebugPanel({
   onHighlightVariableUsage,
   onDebugRefreshTimeline,
   onDebugMutateVariable,
+  onDebugBreakpointToggle,
+  onDebugBreakpointDelete,
+  onDebugBreakpointConditionChange,
   onOpenMicroflow,
 }: {
   microflowId: string;
@@ -1798,6 +1894,9 @@ function DebugPanel({
   onHighlightVariableUsage?: (variableName?: string) => void;
   onDebugRefreshTimeline?: () => void;
   onDebugMutateVariable?: (name: string, value: string) => void;
+  onDebugBreakpointToggle?: (breakpointId: string, enabled: boolean) => void;
+  onDebugBreakpointDelete?: (breakpointId: string) => void;
+  onDebugBreakpointConditionChange?: (breakpointId: string, condition: string) => void;
   onOpenMicroflow?: (microflowId: string) => void;
 }) {
   const [suspendPolicyDraft, setSuspendPolicyDraft] = useState<"all" | "branchOnly">(debugSuspendPolicy ?? "all");
@@ -1836,8 +1935,21 @@ function DebugPanel({
   const effectiveBranchId = debugSession?.currentSafePoint?.branchId ?? runtimeNodeState?.currentBranchId;
   const effectivePhase = debugSession?.pausePhase ?? debugSession?.currentSafePoint?.phase ?? runtimeNodeState?.currentSafePoint;
   const effectiveCallStack = (debugSession?.callStack?.length ?? 0) > 0
-    ? (debugSession?.callStack ?? []).map(frame => ({ id: frame.id, name: `${frame.depth}:${frame.microflowId}`, microflowId: frame.microflowId }))
-    : (runtimeCallStack ?? []).map(frame => ({ id: `${frame.runId}:${frame.depth}`, name: `${frame.depth}:${frame.microflowId}`, microflowId: frame.microflowId }));
+    ? (debugSession?.callStack ?? []).map(frame => ({
+      id: frame.id,
+      name: `${frame.depth}:${frame.microflowId}`,
+      microflowId: frame.microflowId,
+      runId: frame.runId,
+      depth: frame.depth,
+      status: frame.status,
+    }))
+    : (runtimeCallStack ?? []).map(frame => ({
+      id: `${frame.runId}:${frame.depth}`,
+      name: `${frame.depth}:${frame.microflowId}`,
+      microflowId: frame.microflowId,
+      runId: frame.runId,
+      depth: frame.depth,
+    }));
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       {debugAvailable && debugSession ? (
@@ -1853,6 +1965,7 @@ function DebugPanel({
             variables={(debugVariables ?? []).map(variable => ({
               name: variable.name,
               valuePreview: variable.valuePreview ?? "",
+              type: variable.type,
               scope: variable.scopeKind,
             }))}
             activeVariableName={activeUsageVariableName}
@@ -1871,6 +1984,8 @@ function DebugPanel({
                 hitTarget: item.hitTarget,
                 logpoint: false,
                 condition: undefined,
+                enabled: item.enabled !== false,
+                kind: "basic" as const,
               }))),
               ...((debugSession.conditionalBreakpoints ?? []).map(item => ({
                 id: item.id,
@@ -1880,6 +1995,8 @@ function DebugPanel({
                 hitTarget: item.hitTarget,
                 logpoint: item.logOnly,
                 condition: item.conditionExpression,
+                enabled: item.enabled !== false,
+                kind: "conditional" as const,
               }))),
             ]}
             loopIteration={loopIteration}
@@ -1912,6 +2029,9 @@ function DebugPanel({
             onCommand={onDebugCommand}
             onEvaluate={onDebugEvaluate}
             onVariableSelect={onHighlightVariableUsage}
+            onBreakpointToggle={onDebugBreakpointToggle}
+            onBreakpointDelete={onDebugBreakpointDelete}
+            onBreakpointConditionChange={onDebugBreakpointConditionChange}
             onCallStackFrameClick={frame => {
               if (!frame.microflowId || !onOpenMicroflow) {
                 return;
@@ -2067,16 +2187,6 @@ function normalizeDebugBreakpointScope(scope: MicroflowDebugBreakpointDto["scope
     default:
       return "node";
   }
-}
-
-function resolveDeepestDebugWsMicroflowId(callStack: DebugWsCallStackFrame[]): string | undefined {
-  for (let index = callStack.length - 1; index >= 0; index -= 1) {
-    const microflowId = String(callStack[index]?.microflowId ?? "").trim();
-    if (microflowId) {
-      return microflowId;
-    }
-  }
-  return undefined;
 }
 
 function MicroflowCommandPalette({
@@ -2431,24 +2541,24 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (!props.onOpenMicroflow) {
       return;
     }
-    const deepestWsDebugMicroflowId = resolveDeepestDebugWsMicroflowId(debugStoreSnapshot.callStack);
-    if (!deepestWsDebugMicroflowId || deepestWsDebugMicroflowId === activeMicroflowId) {
+    const routeIntent = buildWsDebugRouteIntent({
+      debugSessionId,
+      activeMicroflowId,
+      callStack: debugStoreSnapshot.callStack,
+      nodeState: {
+        currentNodeId: debugStoreSnapshot.nodeState.currentNodeId,
+        currentSafePoint: debugStoreSnapshot.nodeState.currentSafePoint,
+      },
+    });
+    if (!routeIntent) {
       return;
     }
-    const routeKey = [
-      "ws",
-      debugSessionId ?? "",
-      activeMicroflowId,
-      deepestWsDebugMicroflowId,
-      debugStoreSnapshot.nodeState.currentNodeId ?? "",
-      debugStoreSnapshot.nodeState.currentSafePoint ?? "",
-      String(debugStoreSnapshot.callStack.length),
-    ].join("|");
+    const { routeKey, targetMicroflowId } = routeIntent;
     if (lastDebugRouteKeyRef.current === routeKey) {
       return;
     }
     lastDebugRouteKeyRef.current = routeKey;
-    props.onOpenMicroflow(deepestWsDebugMicroflowId);
+    props.onOpenMicroflow(targetMicroflowId);
   }, [
     props.onOpenMicroflow,
     debugStoreSnapshot.callStack,
@@ -2486,6 +2596,34 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const activeDebugTimeline = activeDebugSession ? debugTimelineBySessionId[activeDebugSession.id] ?? [] : [];
   const activeDebugSuspendPolicy = activeDebugSession ? debugSuspendPolicyBySessionId[activeDebugSession.id] ?? "all" : "all";
   const activeDebugWatches = activeDebugSession ? debugWatchesBySessionId[activeDebugSession.id] ?? [] : [];
+  const pausedNodeIds = useMemo(() => {
+    const status = String(activeDebugSession?.status ?? "").toLowerCase();
+    if (!status.includes("paused")) {
+      return [] as string[];
+    }
+    const ids = new Set<string>();
+    const safePointNodeId = activeDebugSession?.currentSafePoint?.nodeObjectId;
+    const currentNodeId = activeDebugSession?.currentNodeObjectId;
+    if (safePointNodeId) {
+      ids.add(safePointNodeId);
+    }
+    if (currentNodeId) {
+      ids.add(currentNodeId);
+    }
+    return [...ids];
+  }, [activeDebugSession]);
+  const breakpointNodeIds = useMemo(
+    () => (activeDebugSession?.breakpoints ?? [])
+      .filter(item => item.enabled !== false && normalizeDebugBreakpointScope(item.scope) === "node")
+      .map(item => item.microflowObjectId),
+    [activeDebugSession],
+  );
+  const conditionalBreakpointNodeIds = useMemo(
+    () => (activeDebugSession?.conditionalBreakpoints ?? [])
+      .filter(item => item.enabled !== false && normalizeDebugBreakpointScope(item.scope ?? "node") === "node")
+      .map(item => item.microflowObjectId),
+    [activeDebugSession],
+  );
   const debugWsStatusTag = getDebugWsStatusTag(debugConnectionStatus);
   const traceFrames = useMemo(() => {
     const base = filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId);
@@ -2679,10 +2817,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     const payload = options?.payload ?? createDragPayloadFromRegistryItem(item);
     if (isDesignSchema(schema)) {
-      if (options?.insertFlowId) {
-        Toast.warning("FlowGram Studio 暂不支持从连线中插入节点，请直接拖入画布后再连接。");
-        return;
-      }
       const registryKey = getMicroflowNodeRegistryKey(item);
       const objectId = createUniqueDesignNodeId(schema, registryKey);
       const parentLoopWorkflowNode = parentLoopObjectId
@@ -2717,6 +2851,21 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               }
             : undefined,
       }) as MicroflowWorkflowNodeJSON;
+      if (options?.insertFlowId) {
+        const targetEdge = schema.workflow.edges.find(edge => designEdgeId(edge) === options.insertFlowId || edge.id === options.insertFlowId);
+        const edgeKind = ((targetEdge?.data as Partial<FlowGramMicroflowEdgeData> | undefined)?.edgeKind) ?? "sequence";
+        if (!targetEdge) {
+          Toast.warning("未找到目标连线，无法插入节点。");
+          return;
+        }
+        if (edgeKind === "annotation") {
+          Toast.warning("AnnotationFlow 暂不支持插入节点");
+          return;
+        }
+        const nextSchema = splitDesignFlowWithNode(schema, options.insertFlowId, node);
+        commitSchema(nextSchema as unknown as MicroflowSchema, parentLoopObjectId ? "addLoopNode" : "addNode", { source: "nodePanel" });
+        return;
+      }
       const nextSchema: MicroflowDesignSchema = {
         ...schema,
         workflow: {
@@ -3124,18 +3273,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         });
       }
     }
-    const targetMicroflowId = resolveDeepestDebugMicroflowId(session, sourceMicroflowId);
-    if (!props.onOpenMicroflow || !targetMicroflowId || targetMicroflowId === sourceMicroflowId) {
+    if (!props.onOpenMicroflow) {
       return;
     }
-    const routeKey = [
-      session.id,
+    const routeIntent = buildSessionDebugRouteIntent({
+      session,
       sourceMicroflowId,
-      targetMicroflowId,
-      session.currentSafePoint?.nodeObjectId ?? session.currentNodeObjectId ?? "",
-      session.currentSafePoint?.phase ?? session.pausePhase ?? "",
-      session.lastUpdatedAt ?? "",
-    ].join("|");
+    });
+    if (!routeIntent) {
+      return;
+    }
+    const { routeKey, targetMicroflowId } = routeIntent;
     if (lastDebugRouteKeyRef.current === routeKey) {
       return;
     }
@@ -3273,6 +3421,138 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast.error(getEditorApiErrorMessage(error));
     }
   }, [activeDebugSession, refreshDebugSession, schema.id, stepDebugApiClient]);
+
+  const patchActiveDebugSession = useCallback((patcher: (session: MicroflowDebugSessionDto) => MicroflowDebugSessionDto) => {
+    if (!activeDebugSession) {
+      return;
+    }
+    setDebugSessionByMicroflowId(current => {
+      const existing = current[activeMicroflowId] ?? activeDebugSession;
+      return {
+        ...current,
+        [activeMicroflowId]: patcher(existing),
+      };
+    });
+  }, [activeDebugSession, activeMicroflowId]);
+
+  const handleDebugBreakpointToggle = useCallback((breakpointId: string, enabled: boolean) => {
+    if (!activeDebugSession) {
+      return;
+    }
+    const basic = (activeDebugSession.breakpoints ?? []).find(item => item.id === breakpointId);
+    const conditional = (activeDebugSession.conditionalBreakpoints ?? []).find(item => item.id === breakpointId);
+    if (!basic && !conditional) {
+      return;
+    }
+    patchActiveDebugSession(session => ({
+      ...session,
+      breakpoints: (session.breakpoints ?? []).map(item => item.id === breakpointId ? { ...item, enabled } : item),
+      conditionalBreakpoints: (session.conditionalBreakpoints ?? []).map(item => item.id === breakpointId ? { ...item, enabled } : item),
+      lastUpdatedAt: new Date().toISOString(),
+    }));
+    const targetId = basic?.microflowObjectId ?? conditional?.microflowObjectId;
+    if (targetId) {
+      sendDebugConnectionCommand(DEBUG_WS_COMMANDS.SET_BP, {
+        breakpoint: {
+          id: breakpointId,
+          nodeId: targetId,
+          condition: conditional?.conditionExpression,
+          enabled,
+        },
+      });
+    }
+  }, [activeDebugSession, patchActiveDebugSession, sendDebugConnectionCommand]);
+
+  const handleDebugBreakpointDelete = useCallback(async (breakpointId: string) => {
+    if (!activeDebugSession) {
+      return;
+    }
+    const basic = (activeDebugSession.breakpoints ?? []).find(item => item.id === breakpointId);
+    const conditional = (activeDebugSession.conditionalBreakpoints ?? []).find(item => item.id === breakpointId);
+    if (!basic && !conditional) {
+      return;
+    }
+    const targetId = basic?.microflowObjectId ?? conditional?.microflowObjectId;
+    try {
+      if (basic) {
+        const next = await stepDebugApiClient.removeBreakpoint(activeDebugSession.id, breakpointId);
+        setDebugSessionByMicroflowId(current => ({ ...current, [activeMicroflowId]: next }));
+      } else {
+        patchActiveDebugSession(session => ({
+          ...session,
+          conditionalBreakpoints: (session.conditionalBreakpoints ?? []).filter(item => item.id !== breakpointId),
+          lastUpdatedAt: new Date().toISOString(),
+        }));
+      }
+      if (targetId) {
+        sendDebugConnectionCommand(DEBUG_WS_COMMANDS.REMOVE_BP, {
+          breakpoint: {
+            id: breakpointId,
+            nodeId: targetId,
+          },
+        });
+      }
+    } catch (error) {
+      Toast.error(getEditorApiErrorMessage(error));
+    }
+  }, [activeDebugSession, activeMicroflowId, patchActiveDebugSession, sendDebugConnectionCommand, stepDebugApiClient]);
+
+  const handleDebugBreakpointConditionChange = useCallback((breakpointId: string, condition: string) => {
+    if (!activeDebugSession) {
+      return;
+    }
+    const normalized = condition.trim();
+    const basic = (activeDebugSession.breakpoints ?? []).find(item => item.id === breakpointId);
+    const conditional = (activeDebugSession.conditionalBreakpoints ?? []).find(item => item.id === breakpointId);
+    if (!basic && !conditional) {
+      return;
+    }
+    let targetId: string | undefined;
+    patchActiveDebugSession(session => {
+      const next = { ...session, lastUpdatedAt: new Date().toISOString() };
+      if (conditional) {
+        targetId = conditional.microflowObjectId;
+        next.conditionalBreakpoints = (session.conditionalBreakpoints ?? []).map(item => item.id === breakpointId
+          ? { ...item, conditionExpression: normalized }
+          : item);
+        return next;
+      }
+      if (!basic) {
+        return next;
+      }
+      targetId = basic.microflowObjectId;
+      if (!normalized) {
+        return next;
+      }
+      next.breakpoints = (session.breakpoints ?? []).filter(item => item.id !== breakpointId);
+      next.conditionalBreakpoints = [
+        ...(session.conditionalBreakpoints ?? []),
+        {
+          id: breakpointId,
+          microflowObjectId: basic.microflowObjectId,
+          conditionExpression: normalized,
+          hitTarget: basic.hitTarget ?? 0,
+          suspendPolicy: basic.suspendPolicy ?? "all",
+          logOnly: false,
+          stale: basic.stale,
+          enabled: basic.enabled !== false,
+          hitCount: basic.hitCount,
+          scope: basic.scope,
+        },
+      ];
+      return next;
+    });
+    if (targetId) {
+      sendDebugConnectionCommand(DEBUG_WS_COMMANDS.SET_BP, {
+        breakpoint: {
+          id: breakpointId,
+          nodeId: targetId,
+          condition: normalized || undefined,
+          enabled: true,
+        },
+      });
+    }
+  }, [activeDebugSession, patchActiveDebugSession, sendDebugConnectionCommand]);
 
   const handleExecuteTestRun = async (input: MicroflowTestRunInput) => {
     const microflowId = schema.id;
@@ -4312,18 +4592,24 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const selection = schema.editor.selection;
     const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id)))];
     const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id)))];
+    const deletableObjectIds = isDesignSchema(schema)
+      ? objectIds.filter(id => !isDesignStartNode(schema.workflow.nodes.find(node => node.id === id)))
+      : objectIds.filter(id => findObject(schema, id)?.kind !== "startEvent");
+    if (deletableObjectIds.length < objectIds.length) {
+      Toast.warning("Start Event 不能删除。");
+    }
     if (isDesignSchema(schema)) {
-      if (objectIds.length === 0 && flowIds.length === 0) {
+      if (deletableObjectIds.length === 0 && flowIds.length === 0) {
         return;
       }
       commitSchema(
-        deleteDesignSelection(schema, objectIds, flowIds) as unknown as MicroflowSchema,
+        deleteDesignSelection(schema, deletableObjectIds, flowIds) as unknown as MicroflowSchema,
         "flowgramNodeDelete",
         { historyLabel: "Delete selection", source: "flowgram" },
       );
       return;
     }
-    confirmDeleteTargets(objectIds, flowIds, "flowgram");
+    confirmDeleteTargets(deletableObjectIds, flowIds, "flowgram");
   };
 
   const handleSelectAll = () => {
@@ -4394,9 +4680,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (props.readonly) return;
     const selection = schema.editor.selection;
     const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id)))];
+    const movableObjectIds = isDesignSchema(schema)
+      ? objectIds.filter(id => !isDesignStartNode(schema.workflow.nodes.find(node => node.id === id)))
+      : objectIds.filter(id => findObject(schema, id)?.kind !== "startEvent");
     if (objectIds.length === 0) return;
+    if (movableObjectIds.length === 0) return;
     if (isDesignSchema(schema)) {
-      const moved = new Set(objectIds);
+      const moved = new Set(movableObjectIds);
       commitSchema({
         ...schema,
         workflow: {
@@ -4421,7 +4711,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     let next = schema;
-    for (const objectId of objectIds) {
+    for (const objectId of movableObjectIds) {
       if (findObjectWithCollection(next, objectId)) {
         next = moveObject(next, objectId, { x: dx, y: dy });
       }
@@ -5226,10 +5516,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const canCopySelection = Boolean(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length);
   const canPasteSelection = Boolean(clipboardObject);
+  const selectionObjectIds = [...new Set([...(schema.editor.selection.objectIds ?? []), schema.editor.selection.objectId].filter((id): id is string => Boolean(id)))];
+  const deletableSelectionObjectIds = isDesignSchema(schema)
+    ? selectionObjectIds.filter(id => !isDesignStartNode(schema.workflow.nodes.find(node => node.id === id)))
+    : selectionObjectIds.filter(id => findObject(schema, id)?.kind !== "startEvent");
   const canDeleteSelection = Boolean(
-    schema.editor.selection.objectId
+    deletableSelectionObjectIds.length
       || schema.editor.selection.flowId
-      || schema.editor.selection.objectIds?.length
       || schema.editor.selection.flowIds?.length
   );
   const runDisabledReason = saving
@@ -5251,7 +5544,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const debugDisabledReason = running ? "A run is already in progress." : "";
   const copyDisabledReason = props.readonly ? "Readonly mode cannot copy nodes." : canCopySelection ? "" : "Select at least one node first.";
   const pasteDisabledReason = props.readonly ? "Readonly mode cannot paste nodes." : canPasteSelection ? "" : "Clipboard is empty.";
-  const deleteDisabledReason = props.readonly ? "Readonly mode cannot delete selection." : canDeleteSelection ? "" : "Select node/flow first.";
+  const deleteDisabledReason = props.readonly
+    ? "Readonly mode cannot delete selection."
+    : canDeleteSelection
+      ? ""
+      : selectionObjectIds.length > 0
+        ? "Start Event cannot be deleted."
+        : "Select node/flow first.";
 
   return (
     <div
@@ -5458,6 +5757,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           schema={schema}
           validationIssues={issues}
           runtimeTrace={traceFrames}
+          pausedNodeIds={pausedNodeIds}
+          breakpointNodeIds={breakpointNodeIds}
+          conditionalBreakpointNodeIds={conditionalBreakpointNodeIds}
           nodeViewModes={nodeViewModes}
           usageHighlights={usageHighlights}
           focusObjectId={focusObjectId}
@@ -6086,6 +6388,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                         }
                       }}
                       onDebugMutateVariable={(name, value) => void handleDebugMutateVariable(name, value)}
+                      onDebugBreakpointToggle={(breakpointId, enabled) => handleDebugBreakpointToggle(breakpointId, enabled)}
+                      onDebugBreakpointDelete={breakpointId => void handleDebugBreakpointDelete(breakpointId)}
+                      onDebugBreakpointConditionChange={(breakpointId, condition) => handleDebugBreakpointConditionChange(breakpointId, condition)}
                       onOpenMicroflow={props.onOpenMicroflow}
                     />
                     </div>

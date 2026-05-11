@@ -159,6 +159,63 @@
   z-index: 3;
 }
 
+.microflow-node-error-badge {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  z-index: 6;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  border: 1px solid transparent;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.microflow-node-error-badge--rollback {
+  color: #fca5a5;
+  background: #450a0a;
+  border-color: #7f1d1d;
+}
+
+.microflow-node-error-badge--custom {
+  color: #fdba74;
+  background: #4a2000;
+  border-color: #9a3412;
+}
+
+.microflow-node-error-badge--continue {
+  color: #fde68a;
+  background: #422006;
+  border-color: #92400e;
+}
+
+.microflow-node-breakpoint-dot {
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #0f1120;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.microflow-node-breakpoint-dot.is-normal {
+  background: #ef4444;
+}
+
+.microflow-node-breakpoint-dot.is-conditional {
+  background: #f59e0b;
+}
+
 .microflow-flowgram-node.is-expanded {
   min-width: 420px;
   overflow: visible;
@@ -598,6 +655,58 @@
   border-color: #f87171;
 }
 
+.microflow-event-dot[data-node-tone="error"] {
+  width: 22px;
+  height: 22px;
+}
+
+.microflow-event-dot[data-node-tone="error"] .microflow-event-dot__core {
+  width: 22px;
+  height: 22px;
+  background: #c2410c;
+  border-color: #f97316;
+}
+
+.microflow-event-dot[data-node-tone="continue"] .microflow-event-dot__core {
+  background: #1e3a70;
+  border-color: #60a5fa;
+}
+
+.microflow-event-dot[data-node-tone="break"] .microflow-event-dot__core {
+  background: #1a0a2a;
+  border-color: #a78bfa;
+}
+
+.microflow-event-dot__icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.microflow-event-dot[data-node-tone="continue"] .microflow-event-dot__icon {
+  color: #93c5fd;
+}
+
+.microflow-event-dot[data-node-tone="break"] .microflow-event-dot__icon {
+  color: #c4b5fd;
+}
+
+.microflow-event-dot[data-node-tone="error"] .microflow-event-dot__icon {
+  color: #fff;
+}
+
+.microflow-event-dot__icon > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.microflow-event-dot[data-node-tone="error"] .microflow-event-dot__icon > svg {
+  width: 13px;
+  height: 13px;
+}
+
 .microflow-activity-compact,
 .microflow-decision-compact,
 .microflow-merge-compact {
@@ -728,6 +837,29 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.48);
 }
 
+.microflow-decision-result-pill {
+  position: absolute;
+  top: calc(100% + 20px);
+  left: 50%;
+  max-width: 90px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #1a3870;
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+  height: 17px;
+  font-size: 10px;
+  color: #60a5fa;
+  background: #0c2042;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .microflow-node-runtime-error-dot {
   position: absolute;
   width: 10px;
@@ -804,6 +936,95 @@
   font-size: 12px;
   line-height: 16px;
   overflow-wrap: anywhere;
+  position: relative;
+}
+
+.microflow-annotation-compact::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  background:
+    linear-gradient(135deg, rgba(247, 231, 178, 0) 0 50%, rgba(42, 47, 69, 0.92) 50% 100%);
+  border-left: 1px solid rgba(246, 208, 112, 0.46);
+  border-bottom: 1px solid rgba(246, 208, 112, 0.46);
+}
+
+.microflow-parameter-compact {
+  --microflow-parameter-bg: #3a2800;
+  --microflow-parameter-border: #4a3000;
+  --microflow-parameter-accent: #fcd34d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100px;
+  height: 40px;
+  border-radius: 999px;
+  padding: 0 10px;
+  border: 1px solid var(--microflow-parameter-border);
+  background: var(--microflow-parameter-bg);
+  color: var(--microflow-parameter-accent);
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.22);
+}
+
+.microflow-parameter-compact[data-parameter-kind="object"] {
+  --microflow-parameter-bg: #1e3a70;
+  --microflow-parameter-border: #1e4490;
+  --microflow-parameter-accent: #93c5fd;
+}
+
+.microflow-parameter-compact[data-parameter-kind="list"] {
+  --microflow-parameter-bg: #0d3824;
+  --microflow-parameter-border: #0a2e1e;
+  --microflow-parameter-accent: #6ee7b7;
+}
+
+.microflow-parameter-compact[data-parameter-kind="primitive"] {
+  --microflow-parameter-bg: #3a2800;
+  --microflow-parameter-border: #4a3000;
+  --microflow-parameter-accent: #fcd34d;
+}
+
+.microflow-parameter-compact__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--microflow-parameter-accent);
+}
+
+.microflow-parameter-compact__text-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 58px;
+  min-width: 0;
+}
+
+.microflow-parameter-compact__name,
+.microflow-parameter-compact__type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.microflow-parameter-compact__name {
+  font-size: 10px;
+  line-height: 1.12;
+  color: #f8fafc;
+  font-weight: 500;
+}
+
+.microflow-parameter-compact__type {
+  margin-top: 1px;
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--microflow-parameter-accent);
 }
 
 .microflow-flowgram-node.is-selected .microflow-event-dot__core,
@@ -839,6 +1060,14 @@
 .microflow-flowgram-node.is-runtime-running .microflow-merge-compact__diamond {
   border-color: #5e9fff;
   box-shadow: 0 0 0 2px rgba(94, 159, 255, 0.34), 0 7px 16px rgba(0, 0, 0, 0.28);
+}
+
+.microflow-flowgram-node.is-runtime-paused .microflow-event-dot__core,
+.microflow-flowgram-node.is-runtime-paused .microflow-activity-compact,
+.microflow-flowgram-node.is-runtime-paused .microflow-decision-compact__diamond,
+.microflow-flowgram-node.is-runtime-paused .microflow-merge-compact__diamond {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.34), 0 7px 16px rgba(0, 0, 0, 0.28);
 }
 
 .microflow-flowgram-node.is-runtime-failed .microflow-event-dot__core,

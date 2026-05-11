@@ -12,8 +12,11 @@ function branchLabel(caseValues: MicroflowCaseValue[] | undefined): string {
   if (first.kind === "boolean") {
     return String(first.value);
   }
-  if (first.kind === "fallback" || first.kind === "noCase") {
+  if (first.kind === "fallback") {
     return "else";
+  }
+  if (first.kind === "empty" || first.kind === "noCase") {
+    return "(empty)";
   }
   if (first.kind === "enumeration") {
     return first.value;

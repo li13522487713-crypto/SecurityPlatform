@@ -135,6 +135,17 @@ describe("decorateWorkflow runtime projection", () => {
     expect(node.data?.inlineConfig?.viewMode).toBe("running");
   });
 
+  it("marks paused safe-point nodes as paused runtime state", () => {
+    const decorated = decorateWorkflow({
+      schema: createSchema(),
+      validationIssues: [],
+      runtimeTrace: [traceFrame({ status: "running" })],
+      pausedNodeIds: ["decision-1"],
+    });
+    const node = decorated.nodes?.[0] as { data?: { runtimeState?: string } };
+    expect(node.data?.runtimeState).toBe("paused");
+  });
+
   it("projects usage highlight flags onto decorated nodes", () => {
     const decorated = decorateWorkflow({
       schema: createSchema(),
@@ -152,10 +163,33 @@ describe("decorateWorkflow runtime projection", () => {
     expect(node.data?.usageSourceHighlight).toBe(true);
     expect(node.data?.usageConsumerHighlight).toBe(true);
   });
+
+  it("projects normal and conditional breakpoints onto node data", () => {
+    const normal = decorateWorkflow({
+      schema: createSchema(),
+      validationIssues: [],
+      runtimeTrace: [],
+      breakpointNodeIds: ["decision-1"],
+    });
+    const normalNode = normal.nodes?.[0] as { data?: { hasBreakpoint?: boolean; breakpointKind?: string } };
+    expect(normalNode.data?.hasBreakpoint).toBe(true);
+    expect(normalNode.data?.breakpointKind).toBe("normal");
+
+    const conditional = decorateWorkflow({
+      schema: createSchema(),
+      validationIssues: [],
+      runtimeTrace: [],
+      conditionalBreakpointNodeIds: ["decision-1"],
+    });
+    const conditionalNode = conditional.nodes?.[0] as { data?: { hasBreakpoint?: boolean; breakpointKind?: string } };
+    expect(conditionalNode.data?.hasBreakpoint).toBe(true);
+    expect(conditionalNode.data?.breakpointKind).toBe("conditional");
+  });
 });
 
 describe("runtimeStateFromTraceStatus", () => {
   it("maps supported statuses to renderer runtime states", () => {
+    expect(runtimeStateFromTraceStatus("paused")).toBe("paused");
     expect(runtimeStateFromTraceStatus("running")).toBe("running");
     expect(runtimeStateFromTraceStatus("failed")).toBe("failed");
     expect(runtimeStateFromTraceStatus("unsupported")).toBe("unsupported");

@@ -110,19 +110,19 @@ const warningTagStyle: CSSProperties = {
   cursor: "pointer",
 };
 const nodeCountSuccessStyle: CSSProperties = {
-  backgroundColor: "rgba(220, 252, 231, 0.95)",
-  color: "#166534",
-  border: "1px solid rgba(22, 163, 74, 0.2)",
+  backgroundColor: "#052e16",
+  color: "#4ade80",
+  border: "1px solid #1a4a2a",
 };
 const nodeCountWarningStyle: CSSProperties = {
-  backgroundColor: "rgba(254, 243, 199, 0.95)",
-  color: "#92400e",
-  border: "1px solid rgba(180, 83, 9, 0.25)",
+  backgroundColor: "#451a03",
+  color: "#f59e0b",
+  border: "1px solid #92400e",
 };
 const nodeCountErrorStyle: CSSProperties = {
-  backgroundColor: "rgba(254, 226, 226, 0.95)",
-  color: "#991b1b",
-  border: "1px solid rgba(185, 28, 28, 0.25)",
+  backgroundColor: "#450a0a",
+  color: "#f87171",
+  border: "1px solid #7f1d1d",
 };
 
 export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
@@ -185,8 +185,11 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
   const zoomPercent = `${Math.round(props.viewport.zoom * 100)}%`;
   const microflowNodeCountText = props.microflowComplexity == null
     ? undefined
-    : `${props.microflowComplexity.level === "error" ? "✕" : props.microflowComplexity.level === "warning" ? "⚠" : "✓"} ${props.microflowComplexity.totalElements}/25`
-      + (props.microflowComplexity.level === "error" ? " 建议创建子微流" : "");
+    : props.microflowComplexity.level === "error"
+      ? `✕ ${props.microflowComplexity.totalElements} / ${props.microflowComplexity.recommendedMaxNodes}`
+      : props.microflowComplexity.level === "warning"
+        ? `⚠ ${props.microflowComplexity.totalElements} / ${props.microflowComplexity.recommendedMaxNodes}`
+        : `✓ ${props.microflowComplexity.totalElements}`;
   const microflowNodeCountStyle = props.microflowComplexity == null
     ? undefined
     : props.microflowComplexity.level === "error"
@@ -194,6 +197,9 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
       : props.microflowComplexity.level === "warning"
         ? nodeCountWarningStyle
         : nodeCountSuccessStyle;
+  const microflowNodeCountTooltip = props.microflowComplexity?.level === "error"
+    ? "建议将部分逻辑提取为子微流"
+    : undefined;
 
   return (
     <div className="microflow-flowgram-toolbar">
@@ -319,9 +325,18 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
         {microflowNodeCountText ? (
           <>
             <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
-            <Tag size="small" style={microflowNodeCountStyle}>
-              {microflowNodeCountText}
-            </Tag>
+            <Tooltip content={microflowNodeCountTooltip} position="bottom">
+              <Tag
+                size="small"
+                style={{
+                  ...microflowNodeCountStyle,
+                  cursor: props.onOpenProblemsPanel ? "pointer" : "default",
+                }}
+                onClick={() => props.onOpenProblemsPanel?.()}
+              >
+                {microflowNodeCountText}
+              </Tag>
+            </Tooltip>
           </>
         ) : null}
 

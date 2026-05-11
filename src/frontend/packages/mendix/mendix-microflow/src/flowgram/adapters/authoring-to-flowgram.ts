@@ -7,10 +7,12 @@ import type {
   MicroflowAuthoringPersistedTraceFrame,
   MicroflowAuthoringSchema,
   MicroflowAction,
+  MicroflowDataType,
   MicroflowEditorPort,
   MicroflowFlow,
   MicroflowObject,
   MicroflowObjectCollection,
+  MicroflowParameter,
   MicroflowValidationIssue,
 } from "../../schema/types";
 
@@ -57,6 +59,54 @@ function subtitleForObject(object: MicroflowObject): string | undefined {
     return object.loopSource.kind === "iterableList" ? `iterator: ${object.loopSource.iteratorVariableName}` : "While condition";
   }
   return object.officialType;
+}
+
+function shortQualifiedName(qualifiedName: string): string {
+  const value = qualifiedName.trim();
+  if (!value) {
+    return "Unknown";
+  }
+  const parts = value.split(".");
+  return parts.length > 0 ? parts[parts.length - 1] : value;
+}
+
+function dataTypeSummary(dataType: MicroflowDataType): { parameterKind: "object" | "list" | "primitive"; parameterTypeLabel: string } {
+  if (dataType.kind === "object") {
+    return { parameterKind: "object", parameterTypeLabel: shortQualifiedName(dataType.entityQualifiedName) };
+  }
+  if (dataType.kind === "list") {
+    if (dataType.itemType.kind === "object") {
+      return { parameterKind: "list", parameterTypeLabel: `List of ${shortQualifiedName(dataType.itemType.entityQualifiedName)}` };
+    }
+    if (dataType.itemType.kind === "enumeration") {
+      return { parameterKind: "list", parameterTypeLabel: `List of ${shortQualifiedName(dataType.itemType.enumerationQualifiedName)}` };
+    }
+    return { parameterKind: "list", parameterTypeLabel: `List of ${dataType.itemType.kind}` };
+  }
+  if (dataType.kind === "enumeration") {
+    return { parameterKind: "primitive", parameterTypeLabel: shortQualifiedName(dataType.enumerationQualifiedName) };
+  }
+  return { parameterKind: "primitive", parameterTypeLabel: dataType.kind };
+}
+
+function parameterMeta(
+  object: MicroflowObject | undefined,
+  parameterById: ReadonlyMap<string, MicroflowParameter>,
+): { title?: string; parameterKind?: "object" | "list" | "primitive"; parameterTypeLabel?: string } {
+  if (!object || object.kind !== "parameterObject") {
+    return {};
+  }
+  const parameter = parameterById.get(object.parameterId);
+  const title = parameter?.name ?? object.parameterName ?? object.caption ?? object.parameterId;
+  if (!parameter) {
+    return { title };
+  }
+  const summary = dataTypeSummary(parameter.dataType);
+  return {
+    title,
+    parameterKind: summary.parameterKind,
+    parameterTypeLabel: summary.parameterTypeLabel,
+  };
 }
 
 function outputSummaryForAction(action: MicroflowAction): string | undefined {
@@ -203,6 +253,7 @@ export function authoringToFlowGram(
   const issueIndex = buildIssueIndex(issues);
   const graphNodes = new Map(graph.nodes.map(node => [node.objectId, node]));
   const flowById = new Map(collectFlowsRecursive(schema).map(flow => [flow.id, flow]));
+  const parameterById = new Map(schema.parameters.map(parameter => [parameter.id, parameter]));
 
   const nodes: WorkflowNodeJSON[] = graph.nodes.map(node => {
     const object = objects.get(node.objectId);
@@ -215,10 +266,13 @@ export function authoringToFlowGram(
         }
       : node.position;
     const runtime = runtimeStateForObject(node.objectId, trace);
+    const parameterProjection = parameterMeta(object, parameterById);
     const data: FlowGramMicroflowNodeData = {
       objectId: node.objectId,
       objectKind: object?.kind ?? node.nodeKind,
       collectionId: node.collectionId,
+      parameterKind: parameterProjection.parameterKind,
+      parameterTypeLabel: parameterProjection.parameterTypeLabel,
       parentObjectId: node.parentObjectId,
       loopSource: object?.kind === "loopedActivity" ? object.loopSource : undefined,
       iteratorVariableName: object?.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? object.loopSource.iteratorVariableName : undefined,
@@ -227,9 +281,15 @@ export function authoringToFlowGram(
       loopSummary: loopSummaryForObject(object, schema),
       actionKind: object?.kind === "actionActivity" ? object.action.kind : undefined,
       action: object?.kind === "actionActivity" ? object.action : undefined,
+      backgroundColor: object?.kind === "actionActivity" ? object.backgroundColor : undefined,
+      errorHandlingType: object?.kind === "actionActivity"
+        ? object.action.errorHandlingType
+        : object?.kind === "loopedActivity"
+          ? object.errorHandlingType
+          : undefined,
       availability: object?.kind === "actionActivity" ? object.action.editor.availability : undefined,
       availabilityReason: object?.kind === "actionActivity" ? object.action.editor.availabilityReason : undefined,
-      title: object ? titleForObject(object) : node.title,
+      title: parameterProjection.title ?? (object ? titleForObject(object) : node.title),
       subtitle: object ? subtitleForObject(object) : node.subtitle,
       documentation: object?.documentation,
       officialType: object?.officialType ?? node.nodeKind,

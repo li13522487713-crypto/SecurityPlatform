@@ -132,6 +132,9 @@ export function runtimeStateFromTraceStatus(status: MicroflowTraceFrame["status"
   if (!status) {
     return "idle";
   }
+  if (status === "paused") {
+    return "paused";
+  }
   if (status === "success") {
     return "success";
   }
@@ -154,8 +157,11 @@ export function decorateWorkflow(input: {
   schema: MicroflowDesignSchema;
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
+  pausedNodeIds?: string[];
   nodeViewModes?: Record<string, MicroflowNodeViewMode>;
   usageHighlights?: MicroflowNodeUsageHighlights;
+  breakpointNodeIds?: string[];
+  conditionalBreakpointNodeIds?: string[];
 }): WorkflowJSON {
   const normalized = normalizeWorkflow(input.schema.workflow as WorkflowJSON);
   const runtimeFrameByObjectId = new Map<string, MicroflowTraceFrame>();
@@ -169,6 +175,9 @@ export function decorateWorkflow(input: {
 
   const nodes = (normalized.nodes ?? []) as MicroflowWorkflowNodeJSON[];
   const edges = (normalized.edges ?? []) as MicroflowWorkflowEdgeJSON[];
+  const pausedNodeIds = new Set(input.pausedNodeIds ?? []);
+  const breakpointNodeIds = new Set(input.breakpointNodeIds ?? []);
+  const conditionalBreakpointNodeIds = new Set(input.conditionalBreakpointNodeIds ?? []);
   const nodeDataById = new Map<string, FlowGramMicroflowNodeData>(
     nodes.map(node => [node.id, (node.data ?? {}) as unknown as FlowGramMicroflowNodeData]),
   );
@@ -184,7 +193,9 @@ export function decorateWorkflow(input: {
           : nodeIssues.some(item => item.severity === "warning")
             ? "warning"
             : "valid";
-      const runtimeState = runtimeStateFromTraceStatus(frame?.status);
+      const runtimeState = pausedNodeIds.has(node.id) || pausedNodeIds.has(data.objectId)
+        ? "paused"
+        : runtimeStateFromTraceStatus(frame?.status);
       const viewMode = resolveNodeViewMode(node.id, data, input.nodeViewModes);
       const expanded = viewMode === "expanded" || viewMode === "editing" || viewMode === "inspectingError" || viewMode === "inspectingRuntime";
       const inlineConfig = deriveNodeInlineConfig({
@@ -194,6 +205,9 @@ export function decorateWorkflow(input: {
         issues: nodeIssues,
         viewMode,
       });
+      const hasConditionalBreakpoint = conditionalBreakpointNodeIds.has(node.id) || conditionalBreakpointNodeIds.has(data.objectId);
+      const hasNormalBreakpoint = breakpointNodeIds.has(node.id) || breakpointNodeIds.has(data.objectId);
+      const hasBreakpoint = hasConditionalBreakpoint || hasNormalBreakpoint;
       return {
         ...node,
         meta: {
@@ -207,6 +221,8 @@ export function decorateWorkflow(input: {
           runtimeState,
           runtimeErrorCode: frame?.error?.code,
           runtimeErrorMessage: frame?.error?.message,
+          hasBreakpoint,
+          breakpointKind: hasConditionalBreakpoint ? "conditional" : hasNormalBreakpoint ? "normal" : undefined,
           inlineConfig,
           usageSourceHighlight: usageMatchesNode(node.id, data, input.usageHighlights?.sourceNodeIds),
           usageConsumerHighlight: usageMatchesNode(node.id, data, input.usageHighlights?.consumerNodeIds),
@@ -230,6 +246,7 @@ export function decorateWorkflow(input: {
           sourceNodeId: String(next.sourceNodeID ?? ""),
           sourceObjectKind: sourceNode?.objectKind,
           sourceActionKind: sourceNode?.actionKind,
+          sourceErrorHandlingType: sourceNode?.action?.errorHandlingType ?? sourceNode?.errorHandlingType,
           sourcePortId: String(next.sourcePortID ?? ""),
           targetNodeId: String(next.targetNodeID ?? ""),
           targetObjectKind: targetNode?.objectKind,

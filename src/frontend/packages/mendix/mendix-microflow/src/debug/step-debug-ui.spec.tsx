@@ -11,6 +11,17 @@ vi.mock("@douyinfe/semi-ui", async () => {
   return {
     Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
     Card: ({ title, children }: { title?: React.ReactNode; children?: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
+    Checkbox: ({ checked, onChange, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
+      <input
+        {...props}
+        type="checkbox"
+        checked={Boolean(checked)}
+        onChange={event => onChange?.(event)}
+      />
+    ),
+    Input: (props: React.InputHTMLAttributes<HTMLInputElement> & { onChange?: (value: string) => void }) => (
+      <input {...props} onChange={event => props.onChange?.(event.currentTarget.value)} />
+    ),
     List,
     Space: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
     Tag: (props: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{props.children}</span>,
@@ -76,7 +87,11 @@ describe("MicroflowStepDebugPanel", () => {
     expect(screen.getByText("Phase: beforeRestRequest")).toBeTruthy();
     expect(screen.getByText("Variables")).toBeTruthy();
     expect(screen.getByText("Breakpoints")).toBeTruthy();
-    expect(screen.getByText("node: node-a ($amount > 10) #2 Logpoint Stale")).toBeTruthy();
+    expect(screen.getByText("node: node-a")).toBeTruthy();
+    expect(screen.getByDisplayValue("$amount > 10")).toBeTruthy();
+    expect(screen.getByText("#2")).toBeTruthy();
+    expect(screen.getByText("Logpoint")).toBeTruthy();
+    expect(screen.getByText("Stale")).toBeTruthy();
     expect(screen.getByText("amount: 42")).toBeTruthy();
     expect(screen.getByText("$amount: 42")).toBeTruthy();
     expect(screen.getAllByText("Order.Submit").length).toBeGreaterThan(0);
@@ -185,6 +200,21 @@ describe("MicroflowStepDebugPanel", () => {
         callStack={[
           { id: "frame-root", name: "0:MF_Main" },
           { id: "frame-child", name: "1:MF_Sub" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("microflow-debug-callstack-path").textContent).toContain("MF_Main > MF_Sub");
+  });
+
+  it("sorts call stack by depth before rendering hierarchy path", () => {
+    render(
+      <MicroflowStepDebugPanel
+        status="paused"
+        labels={labels}
+        callStack={[
+          { id: "frame-child", name: "1:MF_Sub", depth: 1, microflowId: "MF_Sub" },
+          { id: "frame-root", name: "0:MF_Main", depth: 0, microflowId: "MF_Main" },
         ]}
       />,
     );

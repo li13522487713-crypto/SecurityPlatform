@@ -287,9 +287,9 @@ function createTransientAuthoringSchema(schema: MicroflowDesignSchema): Microflo
       objects,
     },
     flows,
-    security: { applyEntityAccess: true, allowedModuleRoleIds: [] },
-    concurrency: { allowConcurrentExecution: true, errorMicroflowId: null },
-    exposure: {
+    security: schema.security ?? { applyEntityAccess: true, allowedModuleRoleIds: [] },
+    concurrency: schema.concurrency ?? { allowConcurrentExecution: true, errorMicroflowId: null },
+    exposure: schema.exposure ?? {
       exportLevel: "module",
       markAsUsed: true,
       asMicroflowAction: { enabled: false },
@@ -348,6 +348,9 @@ export function applyDesignDocumentSchema(schema: MicroflowDesignSchema, nextAut
     documentation: nextAuthoringSchema.documentation,
     returnType: nextAuthoringSchema.returnType,
     returnVariableName: nextAuthoringSchema.returnVariableName,
+    security: nextAuthoringSchema.security,
+    concurrency: nextAuthoringSchema.concurrency,
+    exposure: nextAuthoringSchema.exposure,
     parameters: nextAuthoringSchema.parameters,
     workflow: {
       ...schema.workflow,

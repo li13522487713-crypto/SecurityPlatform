@@ -8,6 +8,8 @@ import type {
   MicroflowLine,
   MicroflowPoint,
   MicroflowLoopedActivity,
+  MicroflowErrorHandlingType,
+  MicroflowActionActivityColor,
   MicroflowValidationIssue,
 } from "../schema";
 import type { MicroflowRuntimeValueGroup } from "../debug/runtime-value-view-model";
@@ -29,6 +31,8 @@ export interface FlowGramMicroflowNodeData {
   objectId: string;
   objectKind: MicroflowObjectKind;
   collectionId: string;
+  parameterKind?: "object" | "list" | "primitive";
+  parameterTypeLabel?: string;
   parentObjectId?: string;
   loopSource?: MicroflowLoopedActivity["loopSource"];
   iteratorVariableName?: string;
@@ -44,6 +48,8 @@ export interface FlowGramMicroflowNodeData {
   };
   actionKind?: MicroflowActionKind;
   action?: MicroflowAction;
+  backgroundColor?: MicroflowActionActivityColor;
+  errorHandlingType?: MicroflowErrorHandlingType;
   outputMappings?: MicroflowOutputMapping[];
   availability?: MicroflowNodeAvailability;
   availabilityReason?: string;
@@ -54,9 +60,11 @@ export interface FlowGramMicroflowNodeData {
   officialType: string;
   disabled: boolean;
   validationState: "valid" | "warning" | "error";
-  runtimeState?: "idle" | "success" | "visited" | "running" | "failed" | "skipped" | "unsupported";
+  runtimeState?: "idle" | "success" | "visited" | "running" | "paused" | "failed" | "skipped" | "unsupported";
   runtimeErrorCode?: string;
   runtimeErrorMessage?: string;
+  hasBreakpoint?: boolean;
+  breakpointKind?: "normal" | "conditional";
   issueCount: number;
   usageSourceHighlight?: boolean;
   usageConsumerHighlight?: boolean;
@@ -202,6 +210,7 @@ export interface FlowGramMicroflowEdgeData {
   sourceNodeId?: string;
   sourceObjectKind?: MicroflowObjectKind;
   sourceActionKind?: MicroflowActionKind;
+  sourceErrorHandlingType?: MicroflowErrorHandlingType;
   sourcePortId?: string;
   targetNodeId?: string;
   targetObjectKind?: MicroflowObjectKind;

@@ -44,6 +44,8 @@ export interface ValidationResult {
 export type FlowNodeLike = { type: string };
 
 const startEndKinds = new Set(["startEvent", "endEvent"]);
+const nodeCountExcludedKinds = new Set(["startEvent", "endEvent", "annotation"]);
+const nodeCountExcludedTypeNames = new Set(["start", "end", "startEvent", "endEvent", "annotation"]);
 const decisionKinds = new Set(["exclusiveSplit", "inheritanceSplit", "parallelGateway", "inclusiveGateway"]);
 const activityExcludedKinds = new Set([
   ...startEndKinds,
@@ -243,7 +245,7 @@ export function validateVariableNames(schema: MicroflowAuthoringSchema | Microfl
 }
 
 function countKinds(kinds: string[]): MicroflowComplexitySummary {
-  const totalElements = kinds.filter(kind => !startEndKinds.has(kind)).length;
+  const totalElements = kinds.filter(kind => !nodeCountExcludedKinds.has(kind)).length;
   const activityCount = kinds.filter(kind => !activityExcludedKinds.has(kind) && !decisionKinds.has(kind)).length;
   const decisionCount = kinds.filter(kind => decisionKinds.has(kind)).length;
   const hasAnnotation = kinds.includes("annotation");
@@ -352,7 +354,7 @@ export function collectMicroflowBestPracticeWarnings(schema: MicroflowAuthoringS
 
 export function validateMicroflowSize(nodes: FlowNodeLike[]): ValidationResult[] {
   const types = nodes.map(item => item.type);
-  const totalElements = types.filter(type => !["start", "end", "startEvent", "endEvent"].includes(type)).length;
+  const totalElements = types.filter(type => !nodeCountExcludedTypeNames.has(type)).length;
   const activityCount = types.filter(type => ![
     "startEvent",
     "endEvent",

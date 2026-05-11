@@ -37,3 +37,15 @@ export function resolveDeepestDebugMicroflowId(
   }
   return normalizeMicroflowId(session?.microflowId) ?? normalizeMicroflowId(fallbackMicroflowId);
 }
+
+export function resolveDeepestDebugWsMicroflowId(
+  callStack: Array<{ microflowId?: string | null }> | undefined,
+): string | undefined {
+  for (let index = (callStack?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const resolved = normalizeMicroflowId(callStack?.[index]?.microflowId ?? undefined);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return undefined;
+}

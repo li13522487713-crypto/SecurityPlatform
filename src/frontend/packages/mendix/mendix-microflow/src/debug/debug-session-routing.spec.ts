@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MicroflowDebugSessionDto } from "./step-debug-api";
-import { collectDebugSessionMicroflowIds, resolveDeepestDebugMicroflowId } from "./debug-session-routing";
+import { collectDebugSessionMicroflowIds, resolveDeepestDebugMicroflowId, resolveDeepestDebugWsMicroflowId } from "./debug-session-routing";
 
 function createSession(overrides: Partial<MicroflowDebugSessionDto> = {}): MicroflowDebugSessionDto {
   return {
@@ -61,5 +61,21 @@ describe("debug-session-routing", () => {
 
     expect(resolveDeepestDebugMicroflowId(childSession, "mf-fallback")).toBe("mf-child");
     expect(resolveDeepestDebugMicroflowId(parentSession, "mf-fallback")).toBe("mf-parent");
+  });
+
+  it("resolves deepest microflow id from ws call stack", () => {
+    expect(resolveDeepestDebugWsMicroflowId([
+      { microflowId: "mf-parent" },
+      { microflowId: "mf-child" },
+    ])).toBe("mf-child");
+  });
+
+  it("ignores empty ws call-stack microflow ids and falls back to undefined", () => {
+    expect(resolveDeepestDebugWsMicroflowId([
+      { microflowId: "   " },
+      { microflowId: undefined },
+      {},
+    ])).toBeUndefined();
+    expect(resolveDeepestDebugWsMicroflowId(undefined)).toBeUndefined();
   });
 });

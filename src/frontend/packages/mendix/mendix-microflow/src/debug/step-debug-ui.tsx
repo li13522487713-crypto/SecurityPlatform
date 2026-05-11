@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Card, List, Space, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { DebugCallStackPanel } from "../components/DebugCallStackPanel";
+import { DebugBreakpointsPanel } from "../components/DebugBreakpointsPanel";
 import { DebugVariablesPanel } from "../components/DebugVariablesPanel";
 
 const { Text } = Typography;
@@ -9,6 +10,7 @@ type DebugCommand = "continue" | "pause" | "stepOver" | "stepInto" | "stepOut" |
 export interface DebugVariableSnapshot {
   name: string;
   valuePreview: string;
+  type?: string;
   scope?: string;
 }
 
@@ -16,6 +18,9 @@ export interface DebugCallStackFrame {
   id: string;
   name: string;
   microflowId?: string;
+  runId?: string;
+  depth?: number;
+  status?: string;
   currentNodeCaption?: string;
 }
 
@@ -38,6 +43,8 @@ export interface DebugBreakpointView {
   condition?: string;
   hitTarget?: number;
   logpoint?: boolean;
+  enabled?: boolean;
+  kind?: "basic" | "conditional";
 }
 
 export interface MicroflowStepDebugPanelProps {
@@ -60,6 +67,9 @@ export interface MicroflowStepDebugPanelProps {
   onEvaluate?: (expression: string) => void;
   onVariableSelect?: (variableName: string) => void;
   onCallStackFrameClick?: (frame: DebugCallStackFrame, index: number) => void;
+  onBreakpointToggle?: (breakpointId: string, enabled: boolean) => void;
+  onBreakpointDelete?: (breakpointId: string) => void;
+  onBreakpointConditionChange?: (breakpointId: string, condition: string) => void;
 }
 
 export interface MicroflowStepDebugPanelLabels {
@@ -111,6 +121,17 @@ function normalizeCallStackSegment(name: string): string {
   return match?.[1]?.trim() || text;
 }
 
+function sortCallStackFrames(frames: DebugCallStackFrame[]): DebugCallStackFrame[] {
+  if (!frames.length) {
+    return [];
+  }
+  const withDepth = frames.filter(frame => Number.isFinite(frame.depth));
+  if (withDepth.length !== frames.length) {
+    return [...frames];
+  }
+  return [...frames].sort((left, right) => Number(left.depth) - Number(right.depth));
+}
+
 export function MicroflowStepDebugPanel({
   status,
   currentNodeId,
@@ -131,10 +152,14 @@ export function MicroflowStepDebugPanel({
   onEvaluate,
   onVariableSelect,
   onCallStackFrameClick,
+  onBreakpointToggle,
+  onBreakpointDelete,
+  onBreakpointConditionChange,
 }: MicroflowStepDebugPanelProps) {
   const [watch, setWatch] = useState("");
   const [showErrorStack, setShowErrorStack] = useState(false);
-  const callStackPath = callStack.map(frame => normalizeCallStackSegment(frame.name)).filter(Boolean).join(" > ");
+  const orderedCallStack = sortCallStackFrames(callStack);
+  const callStackPath = orderedCallStack.map(frame => normalizeCallStackSegment(frame.name)).filter(Boolean).join(" > ");
   useEffect(() => {
     if (!activeErrorStack) {
       setShowErrorStack(false);
@@ -211,27 +236,20 @@ export function MicroflowStepDebugPanel({
           ))}
         </Space>
       </Card>
-      <Card title={labels.breakpointsTitle}>
-        <List
-          dataSource={breakpoints}
-          renderItem={item => (
-            <List.Item>
-              <Text type={item.stale ? "tertiary" : "primary"}>
-                {item.scope}: {item.targetId}
-                {item.condition ? ` (${item.condition})` : ""}
-                {item.hitTarget ? ` #${item.hitTarget}` : ""}
-                {item.logpoint ? ` ${labels.logpoint}` : ""}
-                {item.stale ? ` ${labels.staleBreakpoint}` : ""}
-              </Text>
-            </List.Item>
-          )}
-        />
-      </Card>
+      <DebugBreakpointsPanel
+        title={labels.breakpointsTitle}
+        breakpoints={breakpoints}
+        staleBreakpointLabel={labels.staleBreakpoint}
+        logpointLabel={labels.logpoint}
+        onToggleEnabled={onBreakpointToggle}
+        onDelete={onBreakpointDelete}
+        onChangeCondition={onBreakpointConditionChange}
+      />
       <Card title={labels.callStackTitle}>
         {callStackPath ? (
           <Text type="tertiary" data-testid="microflow-debug-callstack-path">{callStackPath}</Text>
         ) : null}
-        <DebugCallStackPanel frames={callStack} onSelectFrame={onCallStackFrameClick} />
+        <DebugCallStackPanel frames={orderedCallStack} onSelectFrame={onCallStackFrameClick} />
       </Card>
       <Card title={labels.branchTreeTitle}>
         <List dataSource={branches} renderItem={item => <List.Item>{item.branchId}: {item.status}</List.Item>} />

@@ -65,14 +65,21 @@ describe("authoring schema canvas operations", () => {
     expect(createMicroflowFlowId(schema, "flow-fixed")).not.toBe("flow-fixed");
   });
 
-  it("moves nodes by writing relativeMiddlePoint back to schema", () => {
+  it("moves non-start nodes by writing relativeMiddlePoint back to schema", () => {
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 320, y: 120 }, "end");
+    const moved = moveObject(schemaWith([end]), "end", { x: 240, y: 320 });
+
+    expect(moved.objectCollection.objects.find(object => object.id === "end")?.relativeMiddlePoint).toEqual({ x: 240, y: 320 });
+  });
+
+  it("does not move StartEvent", () => {
     const start = createObjectFromRegistry(registry("startEvent"), { x: 80, y: 120 }, "start");
     const moved = moveObject(schemaWith([start]), "start", { x: 240, y: 320 });
 
-    expect(moved.objectCollection.objects.find(object => object.id === "start")?.relativeMiddlePoint).toEqual({ x: 240, y: 320 });
+    expect(moved.objectCollection.objects.find(object => object.id === "start")?.relativeMiddlePoint).toEqual({ x: 80, y: 120 });
   });
 
-  it("deletes nodes and clears related flows and selection", () => {
+  it("does not delete StartEvent", () => {
     const start = createObjectFromRegistry(registry("startEvent"), { x: 80, y: 120 }, "start");
     const end = createObjectFromRegistry(registry("endEvent"), { x: 320, y: 120 }, "end");
     const flow = createSequenceFlow({ id: "flow-start-end", originObjectId: "start", destinationObjectId: "end" });
@@ -90,7 +97,31 @@ describe("authoring schema canvas operations", () => {
 
     const deleted = deleteObject(schema, "start");
 
-    expect(deleted.objectCollection.objects.map(object => object.id)).toEqual(["end"]);
+    expect(deleted.objectCollection.objects.map(object => object.id)).toEqual(["start", "end"]);
+    expect(deleted.flows.map(item => item.id)).toEqual(["flow-start-end"]);
+    expect(deleted.editor.selection.objectId).toBe("start");
+    expect(deleted.editor.selection.flowId).toBe("flow-start-end");
+  });
+
+  it("deletes non-start nodes and clears related flows and selection", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 80, y: 120 }, "start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 320, y: 120 }, "end");
+    const flow = createSequenceFlow({ id: "flow-start-end", originObjectId: "start", destinationObjectId: "end" });
+    const schema = {
+      ...schemaWith([start, end]),
+      flows: [flow],
+      editor: {
+        ...schemaWith().editor,
+        selection: { objectId: "end", flowId: "flow-start-end", collectionId: "collection-root" },
+        selectedObjectId: "end",
+        selectedFlowId: "flow-start-end",
+        selectedCollectionId: "collection-root",
+      },
+    };
+
+    const deleted = deleteObject(schema, "end");
+
+    expect(deleted.objectCollection.objects.map(object => object.id)).toEqual(["start"]);
     expect(deleted.flows).toEqual([]);
     expect(deleted.editor.selection.objectId).toBeUndefined();
     expect(deleted.editor.selection.flowId).toBeUndefined();
@@ -118,7 +149,7 @@ describe("authoring schema canvas operations", () => {
     const a = moveObject(schemaWith([aStart]), "a-start", { x: 160, y: 200 });
     const b = { ...schemaWith([bStart]), id: "MF_CANVAS_B", stableId: "MF_CANVAS_B" };
 
-    expect(a.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 160, y: 200 });
+    expect(a.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 80, y: 120 });
     expect(b.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 80, y: 120 });
   });
 });

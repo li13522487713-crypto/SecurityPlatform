@@ -122,11 +122,33 @@ describe("property panel schema-bound update helpers", () => {
     expect(schemaB.objectCollection.objects[0]?.caption).not.toBe("A_Start");
   });
 
-  it("updates document properties without touching other schema fields", () => {
+  it("updates document properties, return type, security, concurrency and exposure without touching object graph", () => {
     const schema = schemaWith([]);
-    const updated = updateMicroflowDocumentProperties(schema, { documentation: "Release notes" });
+    const updated = updateMicroflowDocumentProperties(schema, {
+      documentation: "Release notes",
+      returnType: { kind: "boolean" },
+      applyEntityAccess: false,
+      allowConcurrentExecution: false,
+      exposureAsMicroflowActionEnabled: true,
+      exposureAsMicroflowActionCaption: "Process Order",
+      exposureAsMicroflowActionCategory: "Sales",
+      exposureUrlEnabled: true,
+      exposureUrlPath: "/p/process-order",
+    });
 
     expect(updated.documentation).toBe("Release notes");
+    expect(updated.returnType).toEqual({ kind: "boolean" });
+    expect(updated.security.applyEntityAccess).toBe(false);
+    expect(updated.concurrency.allowConcurrentExecution).toBe(false);
+    expect(updated.exposure.asMicroflowAction).toMatchObject({
+      enabled: true,
+      caption: "Process Order",
+      category: "Sales",
+    });
+    expect(updated.exposure.url).toMatchObject({
+      enabled: true,
+      path: "/p/process-order",
+    });
     expect(updated.objectCollection.objects).toEqual(schema.objectCollection.objects);
   });
 

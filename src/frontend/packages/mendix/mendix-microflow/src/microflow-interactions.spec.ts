@@ -162,13 +162,21 @@ describe("microflow editor interactions", () => {
     expect(microflowB.schema.objectCollection.objects[0]?.kind).toBe("exclusiveSplit");
   });
 
-  it("persists node move by updating relativeMiddlePoint in schema", () => {
+  it("persists non-start node move by updating relativeMiddlePoint in schema", () => {
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 0, y: 0 }, "move-retrieve");
+    const schema = schemaWith([retrieve]);
+    const moved = moveObject(schema, retrieve.id, { x: 240, y: 128 });
+
+    expect(moved.objectCollection.objects.find(object => object.id === retrieve.id)?.relativeMiddlePoint).toEqual({ x: 240, y: 128 });
+    expect(schema.objectCollection.objects.find(object => object.id === retrieve.id)?.relativeMiddlePoint).toEqual({ x: 0, y: 0 });
+  });
+
+  it("keeps StartEvent fixed when move is requested", () => {
     const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "move-start");
     const schema = schemaWith([start]);
     const moved = moveObject(schema, start.id, { x: 240, y: 128 });
 
-    expect(moved.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 240, y: 128 });
-    expect(schema.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 0, y: 0 });
+    expect(moved.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 0, y: 0 });
   });
 
   it("deletes nodes from schema and removes related flows and parameter definitions", () => {
@@ -204,6 +212,13 @@ describe("microflow editor interactions", () => {
     }
     expect(withoutParameter.parameters.some(parameter => parameter.id === parameterObject.parameterId)).toBe(false);
     expect(withoutParameter.editor.selection.objectId).toBeUndefined();
+
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 40, y: 40 }, "start-fixed-delete");
+    const endForStart = createObjectFromRegistry(registry("endEvent"), { x: 280, y: 40 }, "end-fixed-delete");
+    const fixedSchema = schemaWith([start, endForStart], [createSequenceFlow({ originObjectId: start.id, destinationObjectId: endForStart.id })]);
+    const withoutStart = deleteObject(fixedSchema, start.id);
+    expect(withoutStart.objectCollection.objects.map(object => object.id)).toEqual([start.id, endForStart.id]);
+    expect(withoutStart.flows).toHaveLength(1);
   });
 
   it("duplicates a node with a new id, offset position, new caption, and no copied flows", () => {
@@ -625,7 +640,7 @@ describe("microflow editor interactions", () => {
     ]);
     expect(patch.resizedNodes).toEqual([{ objectId: start.id, size: { width: 180, height: 80 } }]);
     const next = applyEditorGraphPatchToAuthoring(schema, patch);
-    expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 96.5, y: 64.25 });
+    expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 0, y: 0 });
     expect(next.objectCollection.objects[0]?.size).toEqual({ width: 180, height: 80 });
     expect(next.objectCollection.objects[1]?.relativeMiddlePoint).toEqual({ x: 360.75, y: 128.5 });
     expect(flowGramSelectionPatch({ objectId: start.id })).toEqual({ selectedObjectId: start.id, selectedFlowId: undefined });
@@ -654,7 +669,7 @@ describe("microflow editor interactions", () => {
     ]);
 
     const next = applyEditorGraphPatchToAuthoring(schema, patch);
-    expect(next.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 216, y: 192 });
+    expect(next.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 96, y: 120 });
     expect(next.objectCollection.objects.find(object => object.id === end.id)?.relativeMiddlePoint).toEqual({ x: 312, y: 264 });
     expect(next.flows).toEqual(schema.flows);
   });
@@ -709,7 +724,7 @@ describe("microflow editor interactions", () => {
       { objectId: end.id, position: { x: 360, y: 144 } },
     ]);
     const next = applyEditorGraphPatchToAuthoring(schema, patch);
-    expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 96, y: 72 });
+    expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 0, y: 0 });
     expect(next.objectCollection.objects[1]?.relativeMiddlePoint).toEqual({ x: 360, y: 144 });
   });
 

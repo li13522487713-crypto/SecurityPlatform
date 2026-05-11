@@ -118,7 +118,7 @@ describe("FlowGramMicroflowToolbar node-count badge", () => {
       />,
     );
 
-    expect(screen.getByText("✓ 12/25")).toBeTruthy();
+    expect(screen.getByText("✓ 12")).toBeTruthy();
   });
 
   it("renders orange badge for warning threshold", () => {
@@ -137,7 +137,7 @@ describe("FlowGramMicroflowToolbar node-count badge", () => {
       />,
     );
 
-    expect(screen.getByText("⚠ 22/25")).toBeTruthy();
+    expect(screen.getByText("⚠ 22 / 25")).toBeTruthy();
   });
 
   it("renders red badge with split recommendation for error threshold", () => {
@@ -156,7 +156,6 @@ describe("FlowGramMicroflowToolbar node-count badge", () => {
       />,
     );
 
-    expect(screen.getByText("✕ 27/25 建议创建子微流")).toBeTruthy();
+    expect(screen.getByText("✕ 27 / 25")).toBeTruthy();
   });
 });
-

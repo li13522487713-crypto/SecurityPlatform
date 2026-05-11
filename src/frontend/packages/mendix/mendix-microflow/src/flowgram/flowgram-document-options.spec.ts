@@ -46,7 +46,7 @@ describe("FlowGramMicroflowDocumentOptions", () => {
     )).toBe(true);
   });
 
-  it("disallows nested to root transitions and allows same-container transitions", () => {
+  it("disallows nested-to-root transitions while allowing same-container and loop-exit transitions", () => {
     const options = new FlowGramMicroflowDocumentOptions();
 
     expect(options.canAddLine(
@@ -60,6 +60,6 @@ describe("FlowGramMicroflowDocumentOptions", () => {
     expect(options.canAddLine(
       port({ nodeId: "loop-1", portType: "output" }),
       port({ nodeId: "outside", portType: "input" }),
-    )).toBe(false);
+    )).toBe(true);
   });
 });

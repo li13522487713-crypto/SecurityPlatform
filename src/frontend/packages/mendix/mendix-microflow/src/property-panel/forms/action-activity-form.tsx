@@ -181,7 +181,7 @@ export function ActionActivityForm({
             disabled={readonly}
             style={{ width: "100%" }}
             onChange={value => patchObject({ ...object, backgroundColor: String(value) as MicroflowActionActivity["backgroundColor"] })}
-            optionList={["default", "blue", "green", "orange", "red", "purple", "gray"].map(value => ({ label: value, value }))}
+            optionList={["default", "blue", "green", "yellow", "orange", "red", "purple", "gray"].map(value => ({ label: value, value }))}
           />
         )}
       </Field>

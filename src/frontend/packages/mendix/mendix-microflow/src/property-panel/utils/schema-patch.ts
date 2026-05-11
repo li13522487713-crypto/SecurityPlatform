@@ -113,12 +113,52 @@ export function updateObjectDescription<TObject extends MicroflowObject>(object:
 
 export function updateMicroflowDocumentProperties(
   schema: MicroflowAuthoringSchema,
-  patch: Partial<Pick<MicroflowAuthoringSchema, "description" | "documentation" | "returnType">>,
+  patch: Partial<Pick<MicroflowAuthoringSchema, "description" | "documentation" | "returnType">> & {
+    applyEntityAccess?: boolean;
+    allowConcurrentExecution?: boolean;
+    exposureAsMicroflowActionEnabled?: boolean;
+    exposureAsMicroflowActionCaption?: string;
+    exposureAsMicroflowActionCategory?: string;
+    exposureUrlEnabled?: boolean;
+    exposureUrlPath?: string;
+  },
 ): MicroflowAuthoringSchema {
   const withText = {
     ...schema,
     description: patch.description ?? schema.description,
     documentation: patch.documentation ?? schema.documentation,
+    security: patch.applyEntityAccess === undefined
+      ? schema.security
+      : {
+        ...schema.security,
+        applyEntityAccess: patch.applyEntityAccess,
+      },
+    concurrency: patch.allowConcurrentExecution === undefined
+      ? schema.concurrency
+      : {
+        ...schema.concurrency,
+        allowConcurrentExecution: patch.allowConcurrentExecution,
+      },
+    exposure: {
+      ...schema.exposure,
+      asMicroflowAction: patch.exposureAsMicroflowActionEnabled === undefined
+        && patch.exposureAsMicroflowActionCaption === undefined
+        && patch.exposureAsMicroflowActionCategory === undefined
+        ? schema.exposure.asMicroflowAction
+        : {
+          ...(schema.exposure.asMicroflowAction ?? { enabled: false }),
+          ...(patch.exposureAsMicroflowActionEnabled === undefined ? {} : { enabled: patch.exposureAsMicroflowActionEnabled }),
+          ...(patch.exposureAsMicroflowActionCaption === undefined ? {} : { caption: patch.exposureAsMicroflowActionCaption }),
+          ...(patch.exposureAsMicroflowActionCategory === undefined ? {} : { category: patch.exposureAsMicroflowActionCategory }),
+        },
+      url: patch.exposureUrlEnabled === undefined && patch.exposureUrlPath === undefined
+        ? schema.exposure.url
+        : {
+          ...(schema.exposure.url ?? { enabled: false }),
+          ...(patch.exposureUrlEnabled === undefined ? {} : { enabled: patch.exposureUrlEnabled }),
+          ...(patch.exposureUrlPath === undefined ? {} : { path: patch.exposureUrlPath }),
+        },
+    },
   };
   return patch.returnType ? updateMicroflowReturnType(withText, patch.returnType) : withText;
 }

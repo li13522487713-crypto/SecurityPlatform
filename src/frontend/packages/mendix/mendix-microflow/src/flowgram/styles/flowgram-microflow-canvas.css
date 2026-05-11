@@ -33,6 +33,18 @@
   box-shadow: 0 0 0 1px rgba(215, 49, 53, 0.18), 0 10px 24px rgba(215, 49, 53, 0.12);
 }
 
+.microflow-flowgram-drop-insert-anchor {
+  position: absolute;
+  z-index: 5000;
+  width: 14px;
+  height: 14px;
+  border: 1.5px dashed rgba(74, 158, 255, 0.95);
+  border-radius: 50%;
+  background: rgba(74, 158, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(74, 158, 255, 0.28);
+  pointer-events: none;
+}
+
 @keyframes microflow-drop-preview-pulse {
   0%, 100% {
     transform: scale(0.985);

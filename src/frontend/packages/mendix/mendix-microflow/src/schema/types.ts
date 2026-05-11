@@ -1156,7 +1156,7 @@ export type MicroflowAction =
   | MicroflowGaugeAction
   | MicroflowGenericAction;
 
-export type MicroflowActionActivityColor = "default" | "blue" | "green" | "orange" | "red" | "purple" | "gray";
+export type MicroflowActionActivityColor = "default" | "blue" | "green" | "yellow" | "orange" | "red" | "purple" | "gray";
 
 export interface MicroflowActionActivity extends MicroflowObjectBase {
   kind: "actionActivity";
@@ -1664,6 +1664,9 @@ export interface MicroflowDesignSchema {
   parameters: MicroflowParameter[];
   returnType: MicroflowDataType;
   returnVariableName?: string;
+  security?: MicroflowSecurityConfig;
+  concurrency?: MicroflowConcurrencyConfig;
+  exposure?: MicroflowExposureConfig;
   variables: MicroflowVariable[];
   validation: MicroflowValidationState;
   audit: MicroflowAuditState;

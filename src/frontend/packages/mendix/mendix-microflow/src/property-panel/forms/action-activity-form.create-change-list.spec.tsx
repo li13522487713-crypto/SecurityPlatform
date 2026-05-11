@@ -61,6 +61,20 @@ vi.mock("../selectors", async () => {
 afterEach(() => cleanup());
 
 describe("ActionActivityForm createList/changeList", () => {
+  it("supports yellow in background color options and patches node color", () => {
+    const onPatch = vi.fn();
+    render(<ActionActivityForm schema={schema()} object={createListObject()} issues={[]} onPatch={onPatch} />);
+
+    expect(screen.getByRole("option", { name: "yellow" })).toBeTruthy();
+    fireEvent.change(screen.getByDisplayValue("default"), { target: { value: "yellow" } });
+
+    expect(onPatch).toHaveBeenCalledWith(expect.objectContaining({
+      object: expect.objectContaining({
+        backgroundColor: "yellow",
+      }),
+    }));
+  });
+
   it("patches createList output and element type", () => {
     const onPatch = vi.fn();
     render(<ActionActivityForm schema={schema()} object={createListObject()} issues={[]} onPatch={onPatch} />);
