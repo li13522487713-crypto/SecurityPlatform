@@ -86,20 +86,25 @@ describe("MicroflowStepDebugPanel", () => {
   it("emits step and watch evaluation commands", () => {
     const onCommand = vi.fn();
     const onEvaluate = vi.fn();
+    const onVariableSelect = vi.fn();
     render(
       <MicroflowStepDebugPanel
         status="paused"
         labels={labels}
         onCommand={onCommand}
         onEvaluate={onEvaluate}
+        onVariableSelect={onVariableSelect}
+        variables={[{ name: "amount", valuePreview: "42" }]}
       />,
     );
 
     fireEvent.click(screen.getByText("Step Over"));
+    fireEvent.click(screen.getByTestId("microflow-debug-variable--amount"));
     fireEvent.change(screen.getByPlaceholderText("Watch expression"), { target: { value: "$amount" } });
     fireEvent.click(screen.getByText("Evaluate"));
 
     expect(onCommand).toHaveBeenCalledWith("stepOver");
+    expect(onVariableSelect).toHaveBeenCalledWith("amount");
     expect(onEvaluate).toHaveBeenCalledWith("$amount");
   });
 

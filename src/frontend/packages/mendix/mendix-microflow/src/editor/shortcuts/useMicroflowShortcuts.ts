@@ -10,6 +10,10 @@ export interface UseMicroflowShortcutsOptions {
   onRedo: () => void;
   onSave: () => void;
   onSearch: () => void;
+  onStepInto?: () => void;
+  onStepOver?: () => void;
+  onStepOut?: () => void;
+  onContinue?: () => void;
   onCopySelection?: () => void;
   onPasteSelection?: () => void;
   onDeleteSelection: () => void;
@@ -29,6 +33,10 @@ export function useMicroflowShortcuts({
   onRedo,
   onSave,
   onSearch,
+  onStepInto,
+  onStepOver,
+  onStepOut,
+  onContinue,
   onCopySelection,
   onPasteSelection,
   onDeleteSelection,
@@ -68,6 +76,29 @@ export function useMicroflowShortcuts({
         event.preventDefault();
         onSearch();
         return;
+      }
+
+      if (!isEditableShortcutTarget(event.target)) {
+        if (key === "f5" && onStepInto) {
+          event.preventDefault();
+          onStepInto();
+          return;
+        }
+        if (key === "f6" && onStepOver) {
+          event.preventDefault();
+          onStepOver();
+          return;
+        }
+        if (key === "f7" && onStepOut) {
+          event.preventDefault();
+          onStepOut();
+          return;
+        }
+        if (key === "f8" && onContinue) {
+          event.preventDefault();
+          onContinue();
+          return;
+        }
       }
 
       if (!isEditorShortcutEvent(event)) {
@@ -149,5 +180,5 @@ export function useMicroflowShortcuts({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [active, containerRef, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onMoveSelection, onPasteSelection, onRedo, onSave, onSearch, onSelectAll, onUndo, readonly]);
+  }, [active, containerRef, onContinue, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onMoveSelection, onPasteSelection, onRedo, onSave, onSearch, onSelectAll, onStepInto, onStepOut, onStepOver, onUndo, readonly]);
 }

@@ -8,7 +8,7 @@ import type {
   MicroflowTypeRef,
 } from "../types";
 
-const RESERVED_PARAMETER_NAMES = new Set(["currentUser", "latestError", "currentIndex"]);
+const RESERVED_PARAMETER_NAMES = new Set(["currentUser", "currentSession", "latestError", "currentIndex"]);
 
 function mapObjectCollection(
   collection: MicroflowObjectCollection,

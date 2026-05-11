@@ -134,6 +134,24 @@ describe("decorateWorkflow runtime projection", () => {
     expect(node.data?.runtimeState).toBe("success");
     expect(node.data?.inlineConfig?.viewMode).toBe("running");
   });
+
+  it("projects usage highlight flags onto decorated nodes", () => {
+    const decorated = decorateWorkflow({
+      schema: createSchema(),
+      validationIssues: [],
+      runtimeTrace: [],
+      usageHighlights: {
+        selectedObjectId: "decision-1",
+        sourceNodeIds: ["decision-1"],
+        consumerNodeIds: ["decision-1"],
+        usedVariableNames: ["amount"],
+        outputVariableNames: ["approvalLevel"],
+      },
+    });
+    const node = decorated.nodes?.[0] as { data?: { usageSourceHighlight?: boolean; usageConsumerHighlight?: boolean } };
+    expect(node.data?.usageSourceHighlight).toBe(true);
+    expect(node.data?.usageConsumerHighlight).toBe(true);
+  });
 });
 
 describe("runtimeStateFromTraceStatus", () => {

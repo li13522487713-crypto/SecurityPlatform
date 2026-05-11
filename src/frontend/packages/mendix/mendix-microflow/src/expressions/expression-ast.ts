@@ -25,7 +25,7 @@ export interface MicroflowExpressionMemberAccessNode extends MicroflowExpression
 
 export interface MicroflowExpressionBinaryNode extends MicroflowExpressionAstBase {
   kind: "binary";
-  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "and" | "or" | "+" | "-" | "*" | "/";
+  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "and" | "or" | "+" | "-" | "*" | "/" | "div" | ":" | "mod";
   left: MicroflowExpressionAstNode;
   right: MicroflowExpressionAstNode;
 }

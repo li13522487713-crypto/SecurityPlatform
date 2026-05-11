@@ -2,6 +2,7 @@ import type { MicroflowTraceFrame } from "../debug/trace-types";
 import type { MicroflowNodeViewMode, MicroflowNodeInlineConfig } from "../flowgram/FlowGramMicroflowTypes";
 import type { MicroflowDesignSchema, MicroflowValidationIssue, MicroflowWorkflowNodeJSON } from "../schema/types";
 import { deriveApprovalNodeInline } from "./approval-node-inline";
+import { deriveAnnotationNodeInline } from "./annotation-node-inline";
 import { deriveActionNodeInline } from "./action-node-inline";
 import { deriveCallMicroflowNodeInline } from "./call-microflow-node-inline";
 import { createDefaultInlineConfig, type DeriveNodeInlineInput } from "./default-node-inline";
@@ -183,6 +184,9 @@ export function deriveNodeInlineConfig(input: {
 
   if (objectKind === "startEvent") {
     return finalizeInlineConfig(deriveStartNodeInline(deriveInput), deriveInput);
+  }
+  if (objectKind === "annotation") {
+    return finalizeInlineConfig(deriveAnnotationNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "endEvent") {
     return finalizeInlineConfig(deriveEndNodeInline(deriveInput), deriveInput);

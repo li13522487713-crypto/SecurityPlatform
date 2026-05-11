@@ -374,7 +374,9 @@ export function applyDesignObjectPatch(schema: MicroflowDesignSchema, objectId: 
           objectId,
           objectKind: nextObject.kind,
           collectionId: existingData?.collectionId ?? String(node.meta?.collectionId ?? MICROFLOW_ROOT_COLLECTION_ID),
-          title: nextObject.caption,
+          title: nextObject.kind === "annotation"
+            ? nextObject.text || nextObject.caption
+            : nextObject.caption,
           documentation: nextObject.documentation,
           officialType: nextObject.officialType,
           disabled: "disabled" in nextObject ? Boolean(nextObject.disabled) : existingData?.disabled ?? false,

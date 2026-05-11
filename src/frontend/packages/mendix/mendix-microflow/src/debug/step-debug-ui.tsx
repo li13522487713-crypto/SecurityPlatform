@@ -37,6 +37,7 @@ export interface MicroflowStepDebugPanelProps {
   currentBranchId?: string;
   currentPhase?: string;
   variables?: DebugVariableSnapshot[];
+  activeVariableName?: string;
   watches?: Array<{ expression: string; value?: string; error?: string }>;
   callStack?: DebugCallStackFrame[];
   branches?: DebugBranchFrame[];
@@ -44,6 +45,7 @@ export interface MicroflowStepDebugPanelProps {
   labels: MicroflowStepDebugPanelLabels;
   onCommand?: (command: DebugCommand) => void;
   onEvaluate?: (expression: string) => void;
+  onVariableSelect?: (variableName: string) => void;
 }
 
 export interface MicroflowStepDebugPanelLabels {
@@ -89,6 +91,14 @@ function commandDisabledReason(command: DebugCommand, status: string): string {
   return "";
 }
 
+function normalizeVariableName(name: string | undefined): string {
+  const trimmed = String(name ?? "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.startsWith("$") ? trimmed : `$${trimmed}`;
+}
+
 export function MicroflowStepDebugPanel({
   status,
   currentNodeId,
@@ -96,6 +106,7 @@ export function MicroflowStepDebugPanel({
   currentBranchId,
   currentPhase,
   variables = [],
+  activeVariableName,
   watches = [],
   callStack = [],
   branches = [],
@@ -103,6 +114,7 @@ export function MicroflowStepDebugPanel({
   labels,
   onCommand,
   onEvaluate,
+  onVariableSelect,
 }: MicroflowStepDebugPanelProps) {
   const [watch, setWatch] = useState("");
   const commands: DebugCommand[] = [
@@ -139,7 +151,22 @@ export function MicroflowStepDebugPanel({
         })}
       </Space>
       <Card title={labels.variablesTitle}>
-        <List dataSource={variables} renderItem={item => <List.Item>{item.name}: {item.valuePreview}</List.Item>} />
+        <List
+          dataSource={variables}
+          renderItem={item => (
+            <List.Item>
+              <Button
+                theme="borderless"
+                type={normalizeVariableName(activeVariableName) === normalizeVariableName(item.name) ? "primary" : "tertiary"}
+                style={{ paddingInline: 0 }}
+                onClick={() => onVariableSelect?.(item.name)}
+                data-testid={`microflow-debug-variable-${normalizeVariableName(item.name).replace(/[^a-zA-Z0-9_-]/g, "-")}`}
+              >
+                {item.name}: {item.valuePreview}
+              </Button>
+            </List.Item>
+          )}
+        />
       </Card>
       <Card title={labels.watchesTitle}>
         <Space vertical align="start" style={{ width: "100%" }}>

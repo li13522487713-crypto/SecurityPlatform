@@ -4,6 +4,7 @@ import {
   IconBranch,
   IconCheckCircleStroked,
   IconClock,
+  IconDownloadStroked,
   IconFullScreenStroked,
   IconHandle,
   IconPlay,
@@ -53,12 +54,23 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
   const validating = status?.validationStatus === "validating";
   const errorCount = status?.errorCount ?? fallbackErrorCount;
   const warningCount = status?.warningCount ?? 0;
+  const nodeElementCount = status?.nodeElementCount ?? 0;
+  const recommendedMaxNodeCount = status?.recommendedMaxNodeCount ?? 25;
+  const nodeCountLevel = status?.nodeCountLevel ?? "ok";
+  const annotationRecommended = status?.annotationRecommended === true;
+  const hasAnnotation = status?.hasAnnotation === true;
   const canUndo = status?.canUndo ?? false;
   const canRedo = status?.canRedo ?? false;
   const fullscreen = status?.fullscreen ?? false;
   const canvasPanToolActive = status?.canvasPanToolActive === true;
   const degradedRunSession = "degradedRunSession" in (status ?? {}) ? Boolean((status as MicroflowWorkbenchStatus).degradedRunSession) : false;
   const sessionHydrated = "sessionHydrated" in (status ?? {}) ? Boolean((status as MicroflowWorkbenchStatus).sessionHydrated) : false;
+  const nodeCountText = nodeCountLevel === "error"
+    ? `✕ ${nodeElementCount} / ${recommendedMaxNodeCount} 建议拆分`
+    : nodeCountLevel === "warning"
+      ? `⚠ ${nodeElementCount} / ${recommendedMaxNodeCount}`
+      : `✓ ${nodeElementCount} / ${recommendedMaxNodeCount}`;
+  const nodeCountColor = nodeCountLevel === "error" ? "red" : nodeCountLevel === "warning" ? "orange" : "green";
 
   const refreshStatus = () => {
     if (!controlledStatus) {
@@ -245,6 +257,17 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
             发布
           </Button>
         </Tooltip>
+        <Tooltip content="导出当前画布为 PNG">
+          <Button
+            data-testid="microflow-workbench-export-image"
+            size="small"
+            icon={<IconDownloadStroked />}
+            disabled={disabled}
+            onClick={() => callHandle("exportAsImage")}
+          >
+            导出 PNG
+          </Button>
+        </Tooltip>
       </Space>
 
       <div style={{ width: 1, height: 20, background: "var(--semi-color-border)" }} />
@@ -285,6 +308,11 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
         <Tag color={dirty ? "orange" : "green"} size="small" prefixIcon={<IconClock />}>
           {dirty ? "草稿待保存" : saving ? "保存中" : "已保存"}
         </Tag>
+        <Tooltip content={annotationRecommended && !hasAnnotation ? "复杂微流建议补充注释说明目的和参数。" : "节点数量建议值 25。"}>
+          <Tag color={nodeCountColor} size="small">
+            {nodeCountText}
+          </Tag>
+        </Tooltip>
         {errorCount > 0 ? <Tag color="red" size="small">{errorCount} 错误</Tag> : null}
         {warningCount > 0 ? <Tag color="amber" size="small">{warningCount} 警告</Tag> : null}
         {validating ? <Tag color="blue" size="small" icon={<IconRefresh />}>校验中</Tag> : null}

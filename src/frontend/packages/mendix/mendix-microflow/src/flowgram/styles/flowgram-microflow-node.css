@@ -83,6 +83,16 @@
   filter: grayscale(0.6);
 }
 
+.microflow-flowgram-node.is-usage-source:not(.is-selected):not(.is-active):not(.is-focused) {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.16), 0 4px 12px rgba(31, 35, 41, 0.08);
+}
+
+.microflow-flowgram-node.is-usage-consumer:not(.is-selected):not(.is-active):not(.is-focused) {
+  border-color: #00a870;
+  box-shadow: 0 0 0 2px rgba(0, 168, 112, 0.14), 0 4px 12px rgba(31, 35, 41, 0.08);
+}
+
 .microflow-flowgram-node--start {
   border-left: 1px solid rgba(31, 35, 41, 0.12);
 }
@@ -140,6 +150,13 @@
   flex-wrap: wrap;
   gap: 4px;
   margin-top: 6px;
+}
+
+.microflow-node-usage-pill {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  z-index: 3;
 }
 
 .microflow-flowgram-node.is-expanded {

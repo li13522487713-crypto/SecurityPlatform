@@ -1382,7 +1382,7 @@ export type MicroflowVariableSource =
   | { kind: "listOperation"; objectId: string; actionId: string }
   | { kind: "localVariable"; objectId: string; actionId: string }
   | { kind: "loopIterator"; loopObjectId: string }
-  | { kind: "system"; name: "$currentUser" | "$currentIndex" }
+  | { kind: "system"; name: "$currentUser" | "$currentSession" | "$currentIndex" }
   | { kind: "errorContext"; flowId: string; sourceObjectId?: string; errorVariable?: "$latestError" | "$latestHttpResponse" | "$latestSoapFault" }
   | { kind: "microflowReturn"; objectId: string; targetMicroflowId: string }
   | { kind: "restResponse"; objectId: string; responseKind: "string" | "json" | "importMapping" | "statusCode" | "headers" }

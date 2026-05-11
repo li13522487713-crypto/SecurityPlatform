@@ -23,7 +23,7 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import type { FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
-import { MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
+import { MicroflowNodeUsageHighlightsContext, MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
 import { FlowGramMicroflowPortRenderer } from "./FlowGramMicroflowPortRenderer";
 import {
   emitInlineFieldCommit,
@@ -86,6 +86,8 @@ function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeD
       validationState: (primary?.validationState ?? normalizedJsonData?.validationState ?? "valid") as FlowGramMicroflowNodeData["validationState"],
       runtimeState: (primary?.runtimeState ?? normalizedJsonData?.runtimeState ?? "idle") as FlowGramMicroflowNodeData["runtimeState"],
       issueCount: Number(primary?.issueCount ?? normalizedJsonData?.issueCount ?? 0),
+      usageSourceHighlight: Boolean(primary?.usageSourceHighlight ?? normalizedJsonData?.usageSourceHighlight ?? false),
+      usageConsumerHighlight: Boolean(primary?.usageConsumerHighlight ?? normalizedJsonData?.usageConsumerHighlight ?? false),
     };
   } catch {
     return undefined;
@@ -114,6 +116,22 @@ const OBJECT_KIND_LABEL: Record<string, string> = {
 
 function nodeKindLabel(kind: string): string {
   return OBJECT_KIND_LABEL[kind] ?? kind;
+}
+
+function nodeUsageAliases(nodeId: string, objectId?: string): string[] {
+  const aliases = new Set<string>();
+  for (const value of [nodeId, objectId]) {
+    if (!value) {
+      continue;
+    }
+    aliases.add(value);
+    if (value.startsWith("node-")) {
+      aliases.add(value.slice("node-".length));
+    } else {
+      aliases.add(`node-${value}`);
+    }
+  }
+  return [...aliases];
 }
 
 /** 每种节点类型的语义 SVG 图标（16×16 viewBox） */
@@ -254,7 +272,7 @@ function nodeTone(kind: FlowGramMicroflowNodeData["objectKind"]): NodeTone {
   return "action";
 }
 
-function StaticTag(props: { children: ReactNode; color?: "blue" | "orange" | "grey" }) {
+function StaticTag(props: { children: ReactNode; color?: "blue" | "orange" | "grey" | "green" }) {
   return (
     <span draggable={false} data-flow-editor-selectable="false">
       <Tag size="small" color={props.color}>{props.children}</Tag>
@@ -269,6 +287,7 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   const data = tryReadNodeData(props);
   const resolvedNodeIdForState = String(data?.objectId || props.node.id);
   const nodeViewModesCtx = useContext(MicroflowNodeViewModesContext);
+  const usageHighlights = useContext(MicroflowNodeUsageHighlightsContext);
   const dataProjectedViewMode = data?.inlineConfig?.viewMode;
   const projectedExpanded =
     dataProjectedViewMode === "expanded" ||
@@ -348,6 +367,9 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   };
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.button === 0 && !isHeaderInlineControlRegion(event) && !isMicroflowNodeDragBlockedTarget(event.target)) {
+      selectNode(event);
+    }
     if (!canStartNodeDrag(event)) {
       return;
     }
@@ -408,6 +430,10 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   const compactRuntimeOutputs = runtimeOutputSummaries.slice(0, 2);
   const runtimeOutputOverflowCount = Math.max(0, runtimeOutputSummaries.length - compactRuntimeOutputs.length);
   const resolvedNodeId = resolvedNodeIdForState;
+  const usageSourceHighlight = Boolean(data?.usageSourceHighlight)
+    || nodeUsageAliases(String(props.node.id), data?.objectId).some(alias => usageHighlights.sourceNodeIds.includes(alias));
+  const usageConsumerHighlight = Boolean(data?.usageConsumerHighlight)
+    || nodeUsageAliases(String(props.node.id), data?.objectId).some(alias => usageHighlights.consumerNodeIds.includes(alias));
   const runtimeStateLabel = runtime?.error
     ? "× error"
     : runtime?.running
@@ -452,6 +478,8 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
         data.disabled ? "is-disabled" : "",
         data.validationState !== "valid" ? `is-${data.validationState}` : "",
         data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
+        usageSourceHighlight ? "is-usage-source" : "",
+        usageConsumerHighlight ? "is-usage-consumer" : "",
         isExpanded ? "is-expanded" : "",
       ].filter(Boolean).join(" ")}
       draggable={false}
@@ -472,6 +500,8 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
       data-node-selected={String(selected)}
       data-node-active={String(activated)}
       data-node-category={nodeCategory(data.objectKind)}
+      data-node-usage-source={String(usageSourceHighlight)}
+      data-node-usage-consumer={String(usageConsumerHighlight)}
       tabIndex={0}
     >
       <div className="microflow-flowgram-node__compact" data-node-tone={tone}>
@@ -572,6 +602,11 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
             : <><IconEdit style={{ marginRight: 3, verticalAlign: "middle" }} />编辑</>}
         </button>
       </div>
+      {usageConsumerHighlight ? (
+        <div className="microflow-node-usage-pill">
+          <StaticTag color="green">Usage</StaticTag>
+        </div>
+      ) : null}
       <div className="microflow-flowgram-node__meta" aria-hidden={!isExpanded}>
         <StaticTag>{nodeKindLabel(data.actionKind || data.objectKind)}</StaticTag>
       </div>

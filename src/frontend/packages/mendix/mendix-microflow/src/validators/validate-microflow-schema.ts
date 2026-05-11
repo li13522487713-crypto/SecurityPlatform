@@ -13,6 +13,7 @@ import { validateMetadataReferences } from "./validate-metadata-references";
 import { validateObjectCollection } from "./validate-object-collection";
 import { validateReachability } from "./validate-reachability";
 import { validateRoot } from "./validate-root";
+import { validateMicroflowSize } from "./validate-size";
 import { validateVariables } from "./validate-variables";
 import { isMicroflowDesignSchema, validateMicroflowDesignSchema } from "./validate-design-schema";
 import { issue } from "./shared";
@@ -177,6 +178,7 @@ function runValidators(schema: MicroflowAuthoringSchema, context: MicroflowValid
     { validate: validateVariables },
     { validate: validateExpressions },
     { validate: validateErrorHandling },
+    { validate: validateMicroflowSize },
     { validate: validateReachability },
   ];
   const issues: MicroflowValidationIssue[] = [];

@@ -81,8 +81,10 @@ function DesignMicroflowPropertyPanel(props: MicroflowDesignPropertyPanelProps) 
     validationIssues: props.validationIssues,
     traceFrames: props.traceFrames,
     readonly: props.readonly,
+    highlightedVariableName: props.highlightedVariableName,
     onClose: props.onClose,
     onLocateObject: props.onLocateObject,
+    onHighlightVariableUsage: props.onHighlightVariableUsage,
     onSchemaChange: (nextSchema: MicroflowAuthoringSchema, reason: string) => {
       props.onSchemaChange?.(applyDesignDocumentSchema(props.schema, nextSchema), reason);
     },

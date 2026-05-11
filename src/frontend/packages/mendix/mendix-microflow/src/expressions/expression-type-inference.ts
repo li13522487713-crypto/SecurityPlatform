@@ -3,6 +3,7 @@ import {
   getAttributeByQualifiedName,
   getEntityByQualifiedName,
   getEnumerationByQualifiedName,
+  getAssociationsForEntity,
   getMicroflowById,
   getTargetEntityByAssociation,
   EMPTY_MICROFLOW_METADATA_CATALOG,
@@ -13,6 +14,49 @@ import { buildVariableIndex, resolveVariableReferenceFromIndex } from "../variab
 import type { MicroflowExpressionAstNode } from "./expression-ast";
 import { parseExpression } from "./expression-parser";
 import { expressionDiagnostic, type ExpressionTypeInferenceResult } from "./expression-types";
+
+const BOOLEAN_TYPE: MicroflowDataType = { kind: "boolean" };
+const STRING_TYPE: MicroflowDataType = { kind: "string" };
+const INTEGER_TYPE: MicroflowDataType = { kind: "integer" };
+const LONG_TYPE: MicroflowDataType = { kind: "long" };
+const DECIMAL_TYPE: MicroflowDataType = { kind: "decimal" };
+const DATETIME_TYPE: MicroflowDataType = { kind: "dateTime" };
+
+const FUNCTION_RETURN_TYPES: Record<string, MicroflowDataType | ((args: MicroflowDataType[]) => MicroflowDataType)> = {
+  empty: BOOLEAN_TYPE,
+  toString: STRING_TYPE,
+  toLowerCase: STRING_TYPE,
+  toUpperCase: STRING_TYPE,
+  substring: STRING_TYPE,
+  trim: STRING_TYPE,
+  replaceAll: STRING_TYPE,
+  replaceFirst: STRING_TYPE,
+  urlEncode: STRING_TYPE,
+  urlDecode: STRING_TYPE,
+  contains: BOOLEAN_TYPE,
+  startsWith: BOOLEAN_TYPE,
+  endsWith: BOOLEAN_TYPE,
+  isMatch: BOOLEAN_TYPE,
+  isNew: BOOLEAN_TYPE,
+  isSynced: BOOLEAN_TYPE,
+  find: INTEGER_TYPE,
+  findLast: INTEGER_TYPE,
+  round: DECIMAL_TYPE,
+  floor: LONG_TYPE,
+  ceil: LONG_TYPE,
+  abs: args => args[0] && args[0].kind !== "unknown" ? args[0] : DECIMAL_TYPE,
+  pow: DECIMAL_TYPE,
+  sqrt: DECIMAL_TYPE,
+  max: args => args.some(arg => arg.kind === "decimal") ? DECIMAL_TYPE : INTEGER_TYPE,
+  min: args => args.some(arg => arg.kind === "decimal") ? DECIMAL_TYPE : INTEGER_TYPE,
+  random: DECIMAL_TYPE,
+  formatDateTime: STRING_TYPE,
+  toDateTime: DATETIME_TYPE,
+  dateTime: DATETIME_TYPE,
+  addDays: DATETIME_TYPE,
+  addMonths: DATETIME_TYPE,
+  addYears: DATETIME_TYPE,
+};
 
 export function sameMicroflowDataType(left: MicroflowDataType | undefined, right: MicroflowDataType | undefined): boolean {
   if (!left || !right || left.kind === "unknown" || right.kind === "unknown") {
@@ -37,8 +81,14 @@ function rawExpression(expression: MicroflowExpression | string | undefined): st
   return typeof expression === "string" ? expression : expression?.raw ?? expression?.text ?? "";
 }
 
-function inferMemberType(variable: MicroflowVariableSymbol, memberName: string, metadata: MicroflowMetadataCatalog): MicroflowDataType {
-  const dataType = variable.dataType;
+function sameEntityToken(raw: string, entityQualifiedName: string): boolean {
+  return raw === entityQualifiedName || raw === entityQualifiedName.split(".").pop();
+}
+
+function inferMemberTypeFromPath(dataType: MicroflowDataType, path: string[], metadata: MicroflowMetadataCatalog): MicroflowDataType {
+  if (path.length === 0) {
+    return dataType;
+  }
   if (dataType.kind === "list") {
     return { kind: "unknown", reason: "list member access" };
   }
@@ -47,18 +97,28 @@ function inferMemberType(variable: MicroflowVariableSymbol, memberName: string, 
   }
   const entityQn = dataType.entityQualifiedName;
   const entity = getEntityByQualifiedName(metadata, entityQn);
-  const attribute = entity?.attributes.find(item => item.name === memberName || item.qualifiedName.endsWith(`.${memberName}`)) ?? getAttributeByQualifiedName(metadata, `${entityQn}.${memberName}`);
+  const [segment, ...rest] = path;
+  const attribute = entity?.attributes.find(item => item.name === segment || item.qualifiedName.endsWith(`.${segment}`))
+    ?? getAttributeByQualifiedName(metadata, `${entityQn}.${segment}`);
   if (attribute) {
-    return attribute.type;
+    return rest.length === 0 ? attribute.type : { kind: "unknown", reason: `${entityQn}/${segment}` };
   }
-  const association = getAssociationByQualifiedName(metadata, `${entityQn}_${memberName}`)
-    ?? metadata.associations.find(item => item.name === memberName && (item.sourceEntityQualifiedName === entityQn || item.targetEntityQualifiedName === entityQn));
-  if (association) {
-    const target = getTargetEntityByAssociation(metadata, association.qualifiedName, entityQn);
-    const targetType: MicroflowDataType = target ? { kind: "object", entityQualifiedName: target.qualifiedName } : { kind: "unknown", reason: "association target" };
-    return association.multiplicity === "oneToMany" || association.multiplicity === "manyToMany" ? { kind: "list", itemType: targetType } : targetType;
+  const association = getAssociationByQualifiedName(metadata, segment)
+    ?? getAssociationByQualifiedName(metadata, `${entityQn}_${segment}`)
+    ?? getAssociationsForEntity(metadata, entityQn).find(item => item.name === segment || item.qualifiedName === segment);
+  if (!association) {
+    return { kind: "unknown", reason: `${entityQn}/${segment}` };
   }
-  return { kind: "unknown", reason: `${entityQn}/${memberName}` };
+  const target = getTargetEntityByAssociation(metadata, association.qualifiedName, entityQn);
+  if (!target) {
+    return { kind: "unknown", reason: "association target" };
+  }
+  const targetType: MicroflowDataType = { kind: "object", entityQualifiedName: target.qualifiedName };
+  const remaining = rest[0] && sameEntityToken(rest[0], target.qualifiedName) ? rest.slice(1) : rest;
+  if (association.multiplicity === "oneToMany" || association.multiplicity === "manyToMany") {
+    return remaining.length === 0 ? { kind: "list", itemType: targetType } : { kind: "unknown", reason: "association list member access" };
+  }
+  return inferMemberTypeFromPath(targetType, remaining, metadata);
 }
 
 function isNumberType(dataType: MicroflowDataType): boolean {
@@ -132,17 +192,7 @@ function inferAstType(input: {
         }));
         return { kind: "unknown", reason: "list member access" };
       }
-      const first = inferMemberType(variable, ast.path[0], metadata);
-      if (ast.path.length > 1) {
-        diagnostics.push(expressionDiagnostic({
-          code: "MF_EXPR_PARTIAL_PATH_INFERENCE",
-          message: "Only the first member path segment is inferred in this editor version.",
-          severity: "warning",
-          range: ast.range,
-        }));
-        return { kind: "unknown", reason: "multi-level path" };
-      }
-      return first;
+      return inferMemberTypeFromPath(variable.dataType, ast.path, metadata);
     }
     case "binary": {
       const left = inferAstType({ ...input, ast: ast.left });
@@ -153,6 +203,14 @@ function inferAstType(input: {
       if (ast.operator === "and" || ast.operator === "or") {
         return { kind: "boolean" };
       }
+      if (ast.operator === "/") {
+        diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_USE_DIV_OPERATOR",
+          message: "Mendix 表达式不能用 / 做除法；请使用 div 或 :。",
+          severity: "error",
+          range: ast.range,
+        }));
+      }
       if (!isNumberType(left) || !isNumberType(right)) {
         diagnostics.push(expressionDiagnostic({
           code: "MF_EXPR_ARITHMETIC_TYPE_MISMATCH",
@@ -161,6 +219,12 @@ function inferAstType(input: {
           range: ast.range,
           actualType: left.kind === "unknown" ? right : left,
         }));
+      }
+      if (ast.operator === "div" || ast.operator === ":") {
+        return { kind: "decimal" };
+      }
+      if (ast.operator === "mod") {
+        return left.kind === "long" || right.kind === "long" ? { kind: "long" } : { kind: "integer" };
       }
       return left.kind === "integer" && right.kind === "integer" ? { kind: "integer" } : { kind: "decimal" };
     }
@@ -172,19 +236,20 @@ function inferAstType(input: {
       return isNumberType(argument) ? argument : { kind: "unknown", reason: "unary number" };
     }
     case "functionCall":
-      if (ast.functionName === "empty") {
-        return { kind: "boolean" };
+      {
+        const argTypes = ast.args.map(arg => inferAstType({ ...input, ast: arg }));
+        const returnType = FUNCTION_RETURN_TYPES[ast.functionName];
+        if (!returnType) {
+          diagnostics.push(expressionDiagnostic({
+            code: "MF_EXPR_UNSUPPORTED_FUNCTION",
+            message: `Function "${ast.functionName}" is not supported by the P0 expression subset.`,
+            severity: "warning",
+            range: ast.range,
+          }));
+          return { kind: "unknown", reason: ast.functionName };
+        }
+        return typeof returnType === "function" ? returnType(argTypes) : returnType;
       }
-      if (ast.functionName === "toString") {
-        return { kind: "string" };
-      }
-      diagnostics.push(expressionDiagnostic({
-        code: "MF_EXPR_UNSUPPORTED_FUNCTION",
-        message: `Function "${ast.functionName}" is not supported by the P0 expression subset.`,
-        severity: "warning",
-        range: ast.range,
-      }));
-      return { kind: "unknown", reason: ast.functionName };
     case "if": {
       const thenType = inferAstType({ ...input, ast: ast.thenBranch });
       const elseType = inferAstType({ ...input, ast: ast.elseBranch });

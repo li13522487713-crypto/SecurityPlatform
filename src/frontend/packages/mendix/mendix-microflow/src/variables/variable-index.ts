@@ -808,6 +808,14 @@ export function buildVariableIndex(
     scope: { kind: "global", collectionId: schema.objectCollection.id },
     readonly: true,
   }));
+  addSymbol(index, createSymbol({
+    name: "$currentSession",
+    kind: "system",
+    dataType: getEntityByQualifiedName(metadata, "System.Session") ? { kind: "object", entityQualifiedName: "System.Session" } : { kind: "unknown", reason: "System.Session metadata missing" },
+    source: { kind: "system", name: "$currentSession" },
+    scope: { kind: "global", collectionId: schema.objectCollection.id },
+    readonly: true,
+  }));
   for (const parameter of schema.parameters) {
     validateOutputName(index, parameter.name, undefined, undefined, "parameters");
     addSymbol(index, createSymbol({

@@ -72,7 +72,8 @@ import { MicroflowEdgeDataContext } from "./FlowGramMicroflowTypes";
 import { forceOrthogonalLineKind } from "./FlowGramMicroflowTypes";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
-import { MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
+import { MicroflowNodeUsageHighlightsContext, MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
+import type { MicroflowNodeUsageHighlights } from "../variables";
 import "@flowgram-adapter/free-layout-editor/css-load";
 import "./styles/flowgram-microflow-canvas.css";
 import "./styles/flowgram-microflow-port.css";
@@ -92,6 +93,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
   nodeViewModes?: Record<string, MicroflowNodeViewMode>;
+  usageHighlights?: MicroflowNodeUsageHighlights;
   focusObjectId?: string;
   focusRequestKey?: number;
   readonly?: boolean;
@@ -236,6 +238,8 @@ function ensureNodeData(node: MicroflowWorkflowNodeJSON): MicroflowWorkflowNodeJ
       validationState: data?.validationState ?? "valid",
       runtimeState: data?.runtimeState ?? "idle",
       issueCount: data?.issueCount ?? 0,
+      usageSourceHighlight: data?.usageSourceHighlight ?? false,
+      usageConsumerHighlight: data?.usageConsumerHighlight ?? false,
     },
     meta: {
       ...node.meta,
@@ -469,7 +473,28 @@ function findInvalidBusinessEdge(workflow: WorkflowJSON): WorkflowEdgeJSON | und
 }
 
 function selectionFromIds(workflow: MicroflowWorkflowJSON, ids: string[]): FlowGramMicroflowSelection {
-  const objectIds = ids.filter(id => Boolean(workflowNodeById(workflow, id)));
+  const workflowNodes = workflow.nodes as MicroflowWorkflowNodeJSON[];
+  const resolveObjectId = (id: string): string | undefined => {
+    const direct = workflowNodeById(workflow, id);
+    if (direct) {
+      return String((direct.data as { objectId?: string } | undefined)?.objectId ?? direct.id);
+    }
+    const byObjectId = workflowNodes.find(node => String((node.data as { objectId?: string } | undefined)?.objectId ?? "") === id);
+    if (byObjectId) {
+      return String((byObjectId.data as { objectId?: string } | undefined)?.objectId ?? byObjectId.id);
+    }
+    if (id.startsWith("node-")) {
+      return resolveObjectId(id.slice("node-".length));
+    }
+    const prefixed = workflowNodeById(workflow, `node-${id}`);
+    if (prefixed) {
+      return String((prefixed.data as { objectId?: string } | undefined)?.objectId ?? prefixed.id);
+    }
+    return undefined;
+  };
+  const objectIds = ids
+    .map(resolveObjectId)
+    .filter((id): id is string => Boolean(id));
   const flowIds = ids
     .map(id => {
       const edge = workflowEdgeById(workflow, id);
@@ -485,6 +510,34 @@ function selectionFromIds(workflow: MicroflowWorkflowJSON, ids: string[]): FlowG
     flowIds,
     mode: count === 0 ? "none" : count === 1 ? "single" : "multi",
   };
+}
+
+function selectionFromTarget(target: HTMLElement | undefined, workflow: MicroflowWorkflowJSON): FlowGramMicroflowSelection | undefined {
+  const edgeElement = target?.closest<HTMLElement>("[data-flow-id]");
+  if (edgeElement) {
+    const flowId = edgeElement.dataset.flowId;
+    if (flowId) {
+      return { objectId: undefined, flowId, collectionId: undefined, objectIds: [], flowIds: [flowId], mode: "single" };
+    }
+  }
+  const nodeElement = target?.closest<HTMLElement>(".microflow-flowgram-node[data-microflow-object-id]");
+  if (!nodeElement) {
+    return undefined;
+  }
+  const objectId = nodeElement.dataset.microflowObjectId;
+  const workflowNodes = workflow.nodes as MicroflowWorkflowNodeJSON[];
+  const hasNode = Boolean(
+    objectId
+    && (
+      workflowNodeById(workflow, objectId)
+      || workflowNodeById(workflow, `node-${objectId}`)
+      || workflowNodes.find(node => String((node.data as { objectId?: string } | undefined)?.objectId ?? "") === objectId)
+    ),
+  );
+  if (!objectId || !hasNode) {
+    return undefined;
+  }
+  return { objectId, flowId: undefined, collectionId: MICROFLOW_ROOT_COLLECTION_ID, objectIds: [objectId], flowIds: [], mode: "single" };
 }
 
 function FlowGramMicroflowNativeMiniMap(props: { schema: MicroflowDesignSchema; onFocusNode: (objectId: string) => void }) {
@@ -616,8 +669,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       validationIssues: props.validationIssues,
       runtimeTrace: props.runtimeTrace,
       nodeViewModes: props.nodeViewModes,
+      usageHighlights: props.usageHighlights,
     }),
-    [props.nodeViewModes, props.runtimeTrace, props.schema, props.validationIssues],
+    [props.nodeViewModes, props.runtimeTrace, props.schema, props.usageHighlights, props.validationIssues],
   );
   const renderedWorkflow = useMemo(
     () => nestLoopChildrenForFlowGram(decoratedWorkflow),
@@ -633,7 +687,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     };
   }, [panToolActive, selectorBoxConfig, spacePressed]);
 
-  const commitWorkflow = (workflow: WorkflowJSON, reason: string, options: { snapToGrid?: boolean } = {}) => {
+  const commitWorkflow = (workflow: WorkflowJSON, reason: string, options: { snapToGrid?: boolean; preferredNodeIds?: string[] } = {}) => {
     const nextWorkflow = stripTransientWorkflowState(normalizeWorkflow(workflow, options));
     const nextSignature = workflowSignature(nextWorkflow);
     if (nextSignature === workflowSignature(stripTransientWorkflowState(latestSchemaRef.current.workflow))) {
@@ -964,28 +1018,24 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   };
 
   const openContextMenuFromTarget = (target: HTMLElement | undefined, point: { x: number; y: number }): boolean => {
-    const edgeElement = target?.closest<HTMLElement>("[data-flow-id]");
-    if (edgeElement && containerRef.current?.contains(edgeElement)) {
-      const flowId = edgeElement.dataset.flowId;
-      if (flowId) {
-        const selection = { objectId: undefined, flowId, collectionId: undefined, objectIds: [], flowIds: [flowId], mode: "single" as const };
-        props.onSelectionChange(selection);
-        props.onNodeContextMenu?.(selection, point);
-        return true;
-      }
-    }
-    const nodeElement = target?.closest<HTMLElement>(".microflow-flowgram-node[data-microflow-object-id]");
-    if (!nodeElement || !containerRef.current?.contains(nodeElement)) {
+    const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
+    if (!selection) {
       return false;
     }
-    const objectId = nodeElement.dataset.microflowObjectId;
-    if (!objectId) {
-      return false;
-    }
-    const selection = { objectId, flowId: undefined, collectionId: MICROFLOW_ROOT_COLLECTION_ID, objectIds: [objectId], flowIds: [], mode: "single" as const };
     props.onSelectionChange(selection);
     props.onNodeContextMenu?.(selection, point);
     return true;
+  };
+
+  const handleClickCapture = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
+    if (selection) {
+      props.onSelectionChange(selection);
+    }
   };
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
@@ -1285,6 +1335,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
           event.preventDefault();
         }
       }}
+      onClickCapture={handleClickCapture}
       onMouseDownCapture={handleMouseDown}
       onMouseUpCapture={handlePointerFallbackDrop}
       onContextMenuCapture={handleContextMenu}
@@ -1406,13 +1457,23 @@ export function FlowGramMicroflowNativeCanvas(props: FlowGramMicroflowNativeCanv
     () => createEdgeDataByLineKey(props.schema.workflow),
     [props.schema.workflow],
   );
+  const usageHighlightState = useMemo(
+    () => ({
+      selectedObjectId: props.usageHighlights?.selectedObjectId,
+      sourceNodeIds: props.usageHighlights?.sourceNodeIds ?? [],
+      consumerNodeIds: props.usageHighlights?.consumerNodeIds ?? [],
+    }),
+    [props.usageHighlights],
+  );
   return (
     <MicroflowNodeViewModesContext.Provider value={props.nodeViewModes ?? {}}>
-      <MicroflowEdgeDataContext.Provider value={edgeDataByLineKey}>
-        <FlowGramMicroflowProvider key={structureKey}>
-          <FlowGramMicroflowNativeCanvasInner {...props} />
-        </FlowGramMicroflowProvider>
-      </MicroflowEdgeDataContext.Provider>
+      <MicroflowNodeUsageHighlightsContext.Provider value={usageHighlightState}>
+        <MicroflowEdgeDataContext.Provider value={edgeDataByLineKey}>
+          <FlowGramMicroflowProvider key={structureKey}>
+            <FlowGramMicroflowNativeCanvasInner {...props} />
+          </FlowGramMicroflowProvider>
+        </MicroflowEdgeDataContext.Provider>
+      </MicroflowNodeUsageHighlightsContext.Provider>
     </MicroflowNodeViewModesContext.Provider>
   );
 }

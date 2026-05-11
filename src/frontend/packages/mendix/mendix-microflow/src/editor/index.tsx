@@ -5,6 +5,7 @@ import {
   IconClose,
   IconCopy,
   IconDelete,
+  IconDownloadStroked,
   IconExpand,
   IconPlay,
   IconRefresh,
@@ -17,6 +18,7 @@ import {
 } from "@douyinfe/semi-icons";
 import { MicroflowNodePanel, type MicroflowNodePanelLabels, type MicroflowNodePanelTemplate } from "../node-panel";
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
+import { buildDesignPropertyPanelModel } from "../property-panel/design-protocol-adapter";
 import {
   addMicroflowObjectFromDragPayload,
   createDragPayloadFromRegistryItem,
@@ -117,6 +119,8 @@ import {
 import { createMicroflowGraphIndex, useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
 import { useMicroflowShortcuts } from "./shortcuts";
 import { buildAcceptance120Schema } from "./acceptance-120-fixture";
+import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
+import { buildNodeUsageHighlights, buildVariableUsageHighlights } from "../variables";
 import {
   consumeRuntimeCommand,
   createRuntimeCommandConsoleEntry,
@@ -554,6 +558,7 @@ export interface MicroflowEditorHandle {
   toggleFullscreen: () => void;
   toggleFocusMode: () => void;
   toggleMinimap: () => void;
+  exportAsImage: () => Promise<void>;
   resetLayout: () => void;
   getStatus: () => MicroflowEditorStatusSnapshot;
   openBottomTab: (tab: MicroflowWorkbenchBottomTab) => void;
@@ -572,6 +577,11 @@ export interface MicroflowEditorStatusSnapshot {
   validationStatus: string;
   errorCount: number;
   warningCount: number;
+  nodeElementCount: number;
+  recommendedMaxNodeCount: number;
+  nodeCountLevel: "ok" | "warning" | "error";
+  annotationRecommended: boolean;
+  hasAnnotation: boolean;
   canUndo: boolean;
   canRedo: boolean;
   zoomPercent: number;
@@ -955,7 +965,13 @@ function normalizeInlineCommitValue(detail: MicroflowInlineFieldCommitDetail): u
 function setInlineFieldOnDesignNode(node: MicroflowWorkflowNodeJSON, detail: MicroflowInlineFieldCommitDetail): boolean {
   const value = normalizeInlineCommitValue(detail);
   const fieldPath = detail.fieldPath.startsWith("data.") ? detail.fieldPath : `data.${detail.fieldPath}`;
-  return setValueAtPath(node as unknown as Record<string, unknown>, fieldPath, value);
+  const changed = setValueAtPath(node as unknown as Record<string, unknown>, fieldPath, value);
+  const objectKind = String((node.data as { objectKind?: unknown } | undefined)?.objectKind ?? node.type ?? "");
+  if (objectKind === "annotation" && (fieldPath === "data.text" || fieldPath.endsWith(".text"))) {
+    const nextTitle = String(value ?? "").trim() || "Annotation";
+    return setValueAtPath(node as unknown as Record<string, unknown>, "data.title", nextTitle) || changed;
+  }
+  return changed;
 }
 
 function updateDesignNodeInlineField(schema: MicroflowDesignSchema, detail: MicroflowInlineFieldCommitDetail): MicroflowDesignSchema | undefined {
@@ -990,6 +1006,24 @@ function waitForMs(ms: number): Promise<void> {
   return new Promise(resolve => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function sanitizeExportFileName(name: string | undefined): string {
+  const trimmed = String(name ?? "").trim();
+  const base = trimmed || "microflow";
+  return base.replace(/[<>:"/\\|?*\u0000-\u001F]+/g, "_");
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 const toolbarStyle: CSSProperties = {
@@ -1721,6 +1755,7 @@ function DebugPanel({
   debugWatches,
   debugTimeline,
   debugSuspendPolicy,
+  activeUsageVariableName,
   activeFrameId,
   onSelectFrame,
   onSelectFlow,
@@ -1732,6 +1767,7 @@ function DebugPanel({
   onDebugCommand,
   onDebugEvaluate,
   onDebugSuspendPolicyChange,
+  onHighlightVariableUsage,
   onDebugRefreshTimeline,
   onDebugMutateVariable,
 }: {
@@ -1745,6 +1781,7 @@ function DebugPanel({
   debugWatches?: MicroflowDebugWatchExpressionDto[];
   debugTimeline?: MicroflowDebugTimelineEventDto[];
   debugSuspendPolicy?: "all" | "branchOnly";
+  activeUsageVariableName?: string;
   activeFrameId?: string;
   onSelectFrame: (frame: MicroflowTraceFrame) => void;
   onSelectFlow: (flowId: string) => void;
@@ -1756,6 +1793,7 @@ function DebugPanel({
   onDebugCommand?: (command: MicroflowDebugCommand) => void;
   onDebugEvaluate?: (expression: string) => void;
   onDebugSuspendPolicyChange?: (policy: "all" | "branchOnly") => void;
+  onHighlightVariableUsage?: (variableName?: string) => void;
   onDebugRefreshTimeline?: () => void;
   onDebugMutateVariable?: (name: string, value: string) => void;
 }) {
@@ -1805,6 +1843,7 @@ function DebugPanel({
               valuePreview: variable.valuePreview ?? "",
               scope: variable.scopeKind,
             }))}
+            activeVariableName={activeUsageVariableName}
             watches={(debugWatches ?? []).map(watch => ({
               expression: watch.expression,
               value: watch.valuePreview,
@@ -1858,6 +1897,7 @@ function DebugPanel({
             }}
             onCommand={onDebugCommand}
             onEvaluate={onDebugEvaluate}
+            onVariableSelect={onHighlightVariableUsage}
           />
           <Card title="Debug Controls" style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
             <Space vertical align="start" style={{ width: "100%" }}>
@@ -2310,8 +2350,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const graphIndex = useMemo(() => createMicroflowGraphIndex(schema), [schema.objectCollection, schema.flows]);
-  const selectedObject = schema.editor.selection.objectId ? graphIndex.objectsById.get(schema.editor.selection.objectId) ?? null : null;
-  const selectedFlow = schema.editor.selection.flowId ? graphIndex.flowsById.get(schema.editor.selection.flowId) ?? null : null;
+  const designPropertyPanelModel = useMemo(() => isDesignSchema(schema) ? buildDesignPropertyPanelModel(schema) : undefined, [schema]);
+  const selectedObject = designPropertyPanelModel?.selectedObject ?? (schema.editor.selection.objectId ? graphIndex.objectsById.get(schema.editor.selection.objectId) ?? null : null);
+  const selectedFlow = designPropertyPanelModel?.selectedFlow ?? (schema.editor.selection.flowId ? graphIndex.flowsById.get(schema.editor.selection.flowId) ?? null : null);
   const activeMicroflowId = schema.id;
   const saveBlockers = issues.filter(issue => issue.blockSave && issue.severity === "error");
   const publishBlockers = issues.filter(issue => issue.blockPublish && issue.severity === "error");
@@ -2775,6 +2816,32 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const handleSave = async () => {
     await saveCurrentSchema("save");
   };
+
+  const handleExportAsImage = useCallback(async () => {
+    const canvasElement = shellRef.current?.querySelector<HTMLElement>(".microflow-flowgram-canvas");
+    if (!canvasElement) {
+      Toast.warning("Microflow canvas is not ready for export.");
+      return;
+    }
+    try {
+      const { toBlob } = await import("html-to-image");
+      const blob = await toBlob(canvasElement, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+      });
+      if (!blob) {
+        Toast.error("PNG export returned an empty image.");
+        return;
+      }
+      const fileName = `${sanitizeExportFileName(schema.displayName || schema.name)}.png`;
+      downloadBlob(blob, fileName);
+      Toast.success("PNG exported.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Toast.error(`PNG export failed: ${message}`);
+    }
+  }, [schema.displayName, schema.name]);
 
   const handleValidate = async () => {
     try {
@@ -4513,6 +4580,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     onRedo: handleRedo,
     onSave: () => void handleSave(),
     onSearch: focusNodeSearch,
+    onStepInto: () => void handleDebugCommand("stepInto"),
+    onStepOver: () => void handleDebugCommand("stepOver"),
+    onStepOut: () => void handleDebugCommand("stepOut"),
+    onContinue: () => void handleDebugCommand("continue"),
     onCopySelection: handleCopySelection,
     onPasteSelection: handlePasteSelection,
     onDeleteSelection: handleDeleteSelection,
@@ -4525,6 +4596,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   });
 
   const [fullscreenActive, setFullscreenActive] = useState(false);
+  const [selectedUsageVariableName, setSelectedUsageVariableName] = useState<string>();
   const layoutState = useMemo<MicroflowWorkbenchLayoutState>(() => ({
     shellMode,
     activeBottomTab: bottomTab,
@@ -4533,6 +4605,34 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     minimapVisible: schema.editor.showMiniMap === true,
     gridVisible: schema.editor.gridEnabled !== false,
   }), [bottomDockMode, bottomTab, focusMode, schema.editor.gridEnabled, schema.editor.showMiniMap, shellMode]);
+  const complexitySummary = useMemo(() => summarizeMicroflowComplexity(schema), [schema]);
+  const usageHighlights = useMemo(() => {
+    const authoringSchema = isDesignSchema(schema)
+      ? buildDesignPropertyPanelModel(schema).authoringSchema
+      : schema;
+    if (selectedUsageVariableName) {
+      return buildVariableUsageHighlights(authoringSchema, selectedUsageVariableName);
+    }
+    const selectedObjectId = schema.editor.selection?.objectId ?? schema.editor.selectedObjectId;
+    if (!selectedObjectId) {
+      return undefined;
+    }
+    return buildNodeUsageHighlights(authoringSchema, selectedObjectId);
+  }, [schema, selectedUsageVariableName]);
+  const selectedUsageObjectId = schema.editor.selection?.objectId ?? schema.editor.selectedObjectId;
+  const selectedUsageFlowId = schema.editor.selection?.flowId ?? schema.editor.selectedFlowId;
+  useEffect(() => {
+    setSelectedUsageVariableName(undefined);
+  }, [selectedUsageFlowId, selectedUsageObjectId]);
+  const handleHighlightVariableUsage = useCallback((variableName?: string) => {
+    const trimmed = String(variableName ?? "").trim();
+    if (!trimmed) {
+      setSelectedUsageVariableName(undefined);
+      return;
+    }
+    const normalized = trimmed.startsWith("$") ? trimmed : `$${trimmed}`;
+    setSelectedUsageVariableName(current => current === normalized ? undefined : normalized);
+  }, []);
   const workbenchStatus = useMemo<MicroflowWorkbenchStatus>(() => {
     const currentRunSession = selectedRunSession ?? runSession;
     return {
@@ -4544,6 +4644,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       validationStatus,
       errorCount: issues.filter(issue => issue.severity === "error").length,
       warningCount: issues.filter(issue => issue.severity === "warning").length,
+      nodeElementCount: complexitySummary.totalElements,
+      recommendedMaxNodeCount: complexitySummary.recommendedMaxNodes,
+      nodeCountLevel: complexitySummary.level,
+      annotationRecommended: complexitySummary.annotationRecommended,
+      hasAnnotation: complexitySummary.hasAnnotation,
       canUndo: historyState.canUndo,
       canRedo: historyState.canRedo,
       zoomPercent: Math.round((schema.editor.viewport?.zoom ?? schema.editor.zoom ?? 1) * 100),
@@ -4558,7 +4663,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       canvasPanToolActive,
       layout: layoutState,
     };
-  }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, canvasPanToolActive, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, runSession, running, saving, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, validationStatus]);
+  }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, canvasPanToolActive, complexitySummary, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, runSession, running, saving, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, validationStatus]);
 
   useEffect(() => {
     props.onLayoutStateChange?.(layoutState);
@@ -4822,6 +4927,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         { historyLabel: "Toggle minimap", skipValidate: true, preserveSelection: true, source: "flowgram" }
       );
     },
+    exportAsImage: handleExportAsImage,
     togglePanTool: () => {
       setCanvasPanToolActive(value => !value);
     },
@@ -4840,7 +4946,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     getStatus: () => workbenchStatus,
   // The handle reads many derived values; React will re-create the impl each
   // render so callers always observe fresh values.
-  }), [commitSchema, dirty, focusMode, fullscreenActive, handleConfigureAllNodeAcceptance120, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, toggleNodePanel, validationStatus, workbenchStatus]);
+  }), [commitSchema, dirty, focusMode, fullscreenActive, handleConfigureAllNodeAcceptance120, handleExportAsImage, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, toggleNodePanel, validationStatus, workbenchStatus]);
 
   const nodePaletteActions = useMemo<CommandPaletteAction[]>(() => (
     graph.nodes
@@ -4906,6 +5012,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     { id: "toolbox", label: leftOpen ? "Hide Toolbox" : "Show Toolbox", run: () => toggleNodePanel() },
     { id: "undo", label: "Undo", disabled: !historyState.canUndo, disabledReason: !historyState.canUndo ? "No history to undo." : undefined, run: handleUndo },
     { id: "redo", label: "Redo", disabled: !historyState.canRedo, disabledReason: !historyState.canRedo ? "No history to redo." : undefined, run: handleRedo },
+    { id: "export-image", label: "Export PNG", run: () => void handleExportAsImage() },
     { id: "fit-view", label: "Fit View", run: () => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-fit-view")) },
     { id: "zoom-100", label: "Zoom 100%", run: () => applyPatch({ viewport: { ...schema.editor.viewport, zoom: 1 } }, { pushHistory: false, skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" }) },
     { id: "auto-layout", label: "Auto Layout", disabled: props.readonly, disabledReason: props.readonly ? "Readonly mode cannot change layout." : undefined, run: handleAutoLayout },
@@ -4917,7 +5024,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     ...problemPaletteActions,
     ...tracePaletteActions,
     ...nodePaletteActions,
-  ], [apiClient.retryMicroflowRun, apiClient.runRetention, dirty, focusMode, handleEnterInlineEdit, handleRetentionDryRun, handleRetentionExecute, handleRetentionPreview, handleRetryQueuedRun, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, nodePaletteActions, problemPaletteActions, props.readonly, rightOpen, runSession?.id, running, saving, schema.editor.selection.objectId, schema.editor.selection.objectIds, schema.editor.viewport, selectedRunId, startDebugSession, toggleNodePanel, togglePropertiesPanel, tracePaletteActions]);
+  ], [apiClient.retryMicroflowRun, apiClient.runRetention, dirty, focusMode, handleEnterInlineEdit, handleExportAsImage, handleRetentionDryRun, handleRetentionExecute, handleRetentionPreview, handleRetryQueuedRun, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, nodePaletteActions, problemPaletteActions, props.readonly, rightOpen, runSession?.id, running, saving, schema.editor.selection.objectId, schema.editor.selection.objectIds, schema.editor.viewport, selectedRunId, startDebugSession, toggleNodePanel, togglePropertiesPanel, tracePaletteActions]);
 
   const canCopySelection = Boolean(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length);
   const canPasteSelection = Boolean(clipboardObject);
@@ -4949,7 +5056,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const deleteDisabledReason = props.readonly ? "Readonly mode cannot delete selection." : canDeleteSelection ? "" : "Select node/flow first.";
 
   return (
-    <div ref={shellRef} data-testid="microflow-editor-shell" data-microflow-id={schema.id} style={shellStyle} tabIndex={0}>
+    <div
+      ref={shellRef}
+      data-testid="microflow-editor-shell"
+      data-microflow-id={schema.id}
+      data-usage-selected-object-id={usageHighlights?.selectedObjectId ?? ""}
+      data-usage-selected-variable={selectedUsageVariableName ?? ""}
+      data-usage-source-ids={(usageHighlights?.sourceNodeIds ?? []).join(",")}
+      data-usage-consumer-ids={(usageHighlights?.consumerNodeIds ?? []).join(",")}
+      style={shellStyle}
+      tabIndex={0}
+    >
       <MicroflowCommandPalette
         visible={commandPaletteOpen}
         query={commandPaletteQuery}
@@ -5006,6 +5123,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   </Button>
                 </span>
               </Tooltip>
+              <Tooltip content="Export current canvas as PNG">
+                <span style={{ display: "inline-flex" }}>
+                  <Button
+                    data-testid="microflow-editor-export-image"
+                    aria-label="Export PNG"
+                    icon={<IconDownloadStroked />}
+                    disabled={!schema.id}
+                    onClick={() => void handleExportAsImage()}
+                  >
+                    Export PNG
+                  </Button>
+                </span>
+              </Tooltip>
               <Tooltip content={debugDisabledReason || "Start debug run"}>
                 <span style={{ display: "inline-flex" }}>
                   <Button
@@ -5047,6 +5177,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               <Button data-testid="microflow-editor-save" aria-label={labels.save} icon={<IconSave />} loading={saving} disabled={saving || props.readonly || !dirty || !schema.id} type="primary" onClick={handleSave}>{labels.save}</Button>
             </span>
           </Tooltip>
+          <Tooltip content="Export current canvas as PNG">
+            <span style={{ display: "inline-flex" }}>
+              <Button data-testid="microflow-editor-export-image" aria-label="Export PNG" icon={<IconDownloadStroked />} disabled={!schema.id} onClick={() => void handleExportAsImage()}>Export PNG</Button>
+            </span>
+          </Tooltip>
           <Dropdown
             trigger="click"
             position="bottomRight"
@@ -5062,6 +5197,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   <Dropdown.Item icon={<IconDelete />} disabled={props.readonly || !canDeleteSelection} onClick={handleDeleteSelection}>删除选择</Dropdown.Item>
                 </Tooltip>
                 <Dropdown.Item icon={<IconRefresh />} onClick={handleAutoLayout}>{labels.format}</Dropdown.Item>
+                <Dropdown.Item icon={<IconDownloadStroked />} onClick={() => void handleExportAsImage()}>Export PNG</Dropdown.Item>
                 <Dropdown.Item onClick={focusNodeSearch}>搜索节点</Dropdown.Item>
                 <Dropdown.Item onClick={toggleNodePanel}>{leftOpen ? "折叠节点面板" : "展开节点面板"}</Dropdown.Item>
                 {AUXILIARY_PANELS_ENABLED ? (
@@ -5089,6 +5225,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           validationIssues={issues}
           runtimeTrace={traceFrames}
           nodeViewModes={nodeViewModes}
+          usageHighlights={usageHighlights}
           focusObjectId={focusObjectId}
           focusRequestKey={focusRequestSeq}
           readonly={props.readonly || runtimeInlineReadonly}
@@ -5112,7 +5249,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     mode: selection.mode,
                   },
                 },
-              }, "bulkUpdate", { pushHistory: false, skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" });
+              }, "bulkUpdate", { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
               return;
             }
             applyPatch({
@@ -5141,7 +5278,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     mode: "none",
                   },
                 },
-              }, "bulkUpdate", { pushHistory: false, skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" });
+              }, "bulkUpdate", { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
               return;
             }
             applyPatch({
@@ -5455,12 +5592,33 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   />
                 </Space>
               </div>
-              <MicroflowPropertyPanel
+              {isDesignSchema(schema) ? (
+                <MicroflowPropertyPanel
+                  schemaProtocol="design"
+                  schema={schema}
+                  validationIssues={issues}
+                  traceFrames={traceFrames}
+                  highlightedVariableName={selectedUsageVariableName}
+                  onSchemaChange={(nextSchema, reason) => {
+                    commitSchema(nextSchema, reason, { source: "propertyPanel" });
+                    emitPanelSyncEvent({ type: "property-edit" });
+                  }}
+                  onClose={() => {
+                    applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true });
+                    if (!rightPinned) {
+                      closePropertiesPanel();
+                    }
+                  }}
+                  onHighlightVariableUsage={handleHighlightVariableUsage}
+                />
+              ) : (
+                <MicroflowPropertyPanel
                   selectedObject={selectedObject}
                   selectedFlow={selectedFlow}
                   schema={schema}
                   validationIssues={issues}
                   traceFrames={traceFrames}
+                  highlightedVariableName={selectedUsageVariableName}
                   onSchemaChange={(nextSchema, reason) => {
                     commitSchema(nextSchema, reason, { source: "propertyPanel" });
                     emitPanelSyncEvent({ type: "property-edit" });
@@ -5513,7 +5671,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       closePropertiesPanel();
                     }
                   }}
+                  onHighlightVariableUsage={handleHighlightVariableUsage}
                 />
+              )}
             </div>
           ) : null}
           <div style={rightRailStyle}>
@@ -5668,6 +5828,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       debugTimeline={activeDebugTimeline}
                       debugSuspendPolicy={activeDebugSuspendPolicy}
                       debugWatches={activeDebugWatches}
+                      activeUsageVariableName={selectedUsageVariableName}
                       activeFrameId={activeTraceFrameId}
                       onSelectFrame={selectTraceFrame}
                       onSelectFlow={selectTraceFlow}
@@ -5679,6 +5840,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       onDebugCommand={command => void handleDebugCommand(command)}
                       onDebugEvaluate={expression => void handleDebugEvaluate(expression)}
                       onDebugSuspendPolicyChange={policy => void handleDebugSuspendPolicyChange(policy)}
+                      onHighlightVariableUsage={handleHighlightVariableUsage}
                       onDebugRefreshTimeline={() => {
                         if (activeDebugSession) {
                           void refreshDebugTimeline(activeDebugSession.id);

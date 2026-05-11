@@ -163,6 +163,35 @@ function buildMatrixSchema(): MicroflowDesignSchema {
 }
 
 describe("deriveNodeInlineConfig", () => {
+  it("derives editable annotation text fields for annotation nodes", () => {
+    const node: MicroflowWorkflowNodeJSON = {
+      id: "annotation-1",
+      type: "annotation",
+      data: {
+        objectId: "annotation-1",
+        objectKind: "annotation",
+        collectionId: "nodes",
+        title: "审批规则说明",
+        text: "审批规则说明",
+        validationState: "valid",
+        issueCount: 0,
+      } as never,
+      meta: { position: { x: 120, y: 80 } },
+    };
+
+    const inline = deriveNodeInlineConfig({ node, schema: buildSchema(node) });
+
+    expect(inline.summaryLines[0]).toMatchObject({
+      value: "审批规则说明",
+      fieldPath: "data.text",
+    });
+    expect(inline.sections[0]?.fields[0]).toMatchObject({
+      label: "内容",
+      fieldPath: "data.text",
+      editType: "text",
+    });
+  });
+
   it("provides variable options for all variable/expression-like editable fields", () => {
     const schema = buildMatrixSchema();
     for (const node of schema.workflow.nodes) {

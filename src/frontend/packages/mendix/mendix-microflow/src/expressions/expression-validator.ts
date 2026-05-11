@@ -2,6 +2,8 @@ import {
   getAssociationByQualifiedName,
   getAttributeByQualifiedName,
   getEntityByQualifiedName,
+  getAssociationsForEntity,
+  getTargetEntityByAssociation,
   EMPTY_MICROFLOW_METADATA_CATALOG,
   type MicroflowMetadataCatalog,
 } from "../metadata/metadata-catalog";
@@ -12,6 +14,49 @@ import { parseExpression } from "./expression-parser";
 import { inferExpressionType, sameMicroflowDataType } from "./expression-type-inference";
 import { expressionDiagnostic, type ExpressionDiagnostic, type ExpressionValidationResult } from "./expression-types";
 
+type SupportedFunctionRule = {
+  minArgs: number;
+  maxArgs: number;
+  category: "string" | "number" | "dateTime" | "utility" | "object";
+  returnKind: string;
+};
+
+const supportedFunctionRules: Record<string, SupportedFunctionRule> = {
+  empty: { minArgs: 1, maxArgs: 1, category: "utility", returnKind: "boolean" },
+  toString: { minArgs: 1, maxArgs: 1, category: "utility", returnKind: "string" },
+  toLowerCase: { minArgs: 1, maxArgs: 1, category: "string", returnKind: "string" },
+  toUpperCase: { minArgs: 1, maxArgs: 1, category: "string", returnKind: "string" },
+  substring: { minArgs: 2, maxArgs: 3, category: "string", returnKind: "string" },
+  find: { minArgs: 2, maxArgs: 2, category: "string", returnKind: "integer" },
+  findLast: { minArgs: 2, maxArgs: 2, category: "string", returnKind: "integer" },
+  contains: { minArgs: 2, maxArgs: 2, category: "string", returnKind: "boolean" },
+  startsWith: { minArgs: 2, maxArgs: 2, category: "string", returnKind: "boolean" },
+  endsWith: { minArgs: 2, maxArgs: 2, category: "string", returnKind: "boolean" },
+  trim: { minArgs: 1, maxArgs: 1, category: "string", returnKind: "string" },
+  isMatch: { minArgs: 2, maxArgs: 2, category: "string", returnKind: "boolean" },
+  replaceAll: { minArgs: 3, maxArgs: 3, category: "string", returnKind: "string" },
+  replaceFirst: { minArgs: 3, maxArgs: 3, category: "string", returnKind: "string" },
+  urlEncode: { minArgs: 1, maxArgs: 1, category: "string", returnKind: "string" },
+  urlDecode: { minArgs: 1, maxArgs: 1, category: "string", returnKind: "string" },
+  max: { minArgs: 2, maxArgs: Number.MAX_SAFE_INTEGER, category: "number", returnKind: "number" },
+  min: { minArgs: 2, maxArgs: Number.MAX_SAFE_INTEGER, category: "number", returnKind: "number" },
+  round: { minArgs: 1, maxArgs: 2, category: "number", returnKind: "decimal" },
+  floor: { minArgs: 1, maxArgs: 1, category: "number", returnKind: "long" },
+  ceil: { minArgs: 1, maxArgs: 1, category: "number", returnKind: "long" },
+  pow: { minArgs: 2, maxArgs: 2, category: "number", returnKind: "decimal" },
+  abs: { minArgs: 1, maxArgs: 1, category: "number", returnKind: "number" },
+  sqrt: { minArgs: 1, maxArgs: 1, category: "number", returnKind: "decimal" },
+  random: { minArgs: 0, maxArgs: 0, category: "utility", returnKind: "decimal" },
+  isNew: { minArgs: 1, maxArgs: 1, category: "object", returnKind: "boolean" },
+  isSynced: { minArgs: 1, maxArgs: 1, category: "object", returnKind: "boolean" },
+  dateTime: { minArgs: 6, maxArgs: 6, category: "number", returnKind: "dateTime" },
+  toDateTime: { minArgs: 2, maxArgs: 2, category: "string", returnKind: "dateTime" },
+  formatDateTime: { minArgs: 2, maxArgs: 2, category: "dateTime", returnKind: "string" },
+  addDays: { minArgs: 2, maxArgs: 2, category: "dateTime", returnKind: "dateTime" },
+  addMonths: { minArgs: 2, maxArgs: 2, category: "dateTime", returnKind: "dateTime" },
+  addYears: { minArgs: 2, maxArgs: 2, category: "dateTime", returnKind: "dateTime" },
+};
+
 function rawExpression(expression: MicroflowExpression | string | undefined): string {
   return typeof expression === "string" ? expression : expression?.raw ?? expression?.text ?? "";
 }
@@ -20,19 +65,44 @@ function isSystemErrorVariable(name: string): boolean {
   return name === "$latestError" || name === "$latestHttpResponse" || name === "$latestSoapFault";
 }
 
-function memberExists(variable: MicroflowVariableSymbol, memberName: string, metadata: MicroflowMetadataCatalog): boolean {
-  const dataType = variable.dataType;
+function sameEntityToken(raw: string, entityQualifiedName: string): boolean {
+  return raw === entityQualifiedName || raw === entityQualifiedName.split(".").pop();
+}
+
+function resolvePathSegments(dataType: MicroflowDataType, path: string[], metadata: MicroflowMetadataCatalog): boolean {
+  if (path.length === 0) {
+    return true;
+  }
   if (dataType.kind !== "object") {
     return false;
   }
   const entityQn = dataType.entityQualifiedName;
   const entity = getEntityByQualifiedName(metadata, entityQn);
-  return Boolean(
-    entity?.attributes.some(attribute => attribute.name === memberName || attribute.qualifiedName.endsWith(`.${memberName}`)) ||
-    getAttributeByQualifiedName(metadata, `${entityQn}.${memberName}`) ||
-    getAssociationByQualifiedName(metadata, `${entityQn}_${memberName}`) ||
-    metadata.associations.some(association => association.name === memberName && (association.sourceEntityQualifiedName === entityQn || association.targetEntityQualifiedName === entityQn))
-  );
+  const [segment, ...rest] = path;
+  if (!entity) {
+    return false;
+  }
+  const attribute = entity.attributes.find(item => item.name === segment || item.qualifiedName.endsWith(`.${segment}`))
+    ?? getAttributeByQualifiedName(metadata, `${entityQn}.${segment}`);
+  if (attribute) {
+    return rest.length === 0;
+  }
+  const association = getAssociationByQualifiedName(metadata, segment)
+    ?? getAssociationByQualifiedName(metadata, `${entityQn}_${segment}`)
+    ?? getAssociationsForEntity(metadata, entityQn).find(item => item.name === segment || item.qualifiedName === segment);
+  if (!association) {
+    return false;
+  }
+  const target = getTargetEntityByAssociation(metadata, association.qualifiedName, entityQn);
+  if (!target) {
+    return false;
+  }
+  const remaining = rest[0] && sameEntityToken(rest[0], target.qualifiedName) ? rest.slice(1) : rest;
+  return resolvePathSegments({ kind: "object", entityQualifiedName: target.qualifiedName }, remaining, metadata);
+}
+
+function memberExists(variable: MicroflowVariableSymbol, path: string[], metadata: MicroflowMetadataCatalog): boolean {
+  return resolvePathSegments(variable.dataType, path, metadata);
 }
 
 function typeMismatchSeverity(actual: MicroflowDataType, expected: MicroflowDataType): ExpressionDiagnostic["severity"] {
@@ -48,6 +118,18 @@ function isBooleanType(dataType: MicroflowDataType): boolean {
 
 function isNumberType(dataType: MicroflowDataType): boolean {
   return dataType.kind === "integer" || dataType.kind === "long" || dataType.kind === "decimal" || dataType.kind === "unknown";
+}
+
+function isStringType(dataType: MicroflowDataType): boolean {
+  return dataType.kind === "string" || dataType.kind === "unknown" || dataType.kind === "enumeration";
+}
+
+function isDateTimeType(dataType: MicroflowDataType): boolean {
+  return dataType.kind === "dateTime" || dataType.kind === "unknown";
+}
+
+function isObjectType(dataType: MicroflowDataType): boolean {
+  return dataType.kind === "object" || dataType.kind === "unknown";
 }
 
 function validateAstOperators(input: {
@@ -87,7 +169,15 @@ function validateAstOperators(input: {
           actualType: left.kind === "boolean" ? right : left,
         }));
       }
-      if (["+", "-", "*", "/"].includes(input.ast.operator) && (!isNumberType(left) || !isNumberType(right))) {
+      if (input.ast.operator === "/") {
+        input.diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_USE_DIV_OPERATOR",
+          message: "Mendix 表达式不能用 / 做除法；请使用 div 或 :。",
+          severity: "error",
+          range: input.ast.range,
+        }));
+      }
+      if (["+", "-", "*", "/", "div", ":", "mod"].includes(input.ast.operator) && (!isNumberType(left) || !isNumberType(right))) {
         input.diagnostics.push(expressionDiagnostic({
           code: "MF_EXPR_ARITHMETIC_TYPE_MISMATCH",
           message: "Arithmetic operators require number operands.",
@@ -125,19 +215,58 @@ function validateAstOperators(input: {
     }
     case "functionCall":
       input.ast.args.forEach(arg => validateAstOperators({ ...input, ast: arg }));
-      if (input.ast.functionName === "empty" && input.ast.args.length !== 1) {
-        input.diagnostics.push(expressionDiagnostic({
-          code: "MF_EXPR_FUNCTION_ARGUMENT_COUNT",
-          message: "empty() requires exactly one argument.",
-          severity: "error",
-          range: input.ast.range,
-        }));
-      } else if (input.ast.functionName !== "empty" && input.ast.functionName !== "toString") {
+      const rule = supportedFunctionRules[input.ast.functionName];
+      if (!rule) {
         input.diagnostics.push(expressionDiagnostic({
           code: "MF_EXPR_UNSUPPORTED_FUNCTION",
           message: `Function "${input.ast.functionName}" is not supported by the P0 expression subset.`,
           severity: "warning",
           range: input.ast.range,
+        }));
+        break;
+      }
+      if (input.ast.args.length < rule.minArgs || input.ast.args.length > rule.maxArgs) {
+        input.diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_FUNCTION_ARGUMENT_COUNT",
+          message: `Function "${input.ast.functionName}" argument count is invalid.`,
+          severity: "error",
+          range: input.ast.range,
+        }));
+      }
+      const firstArgType = input.ast.args[0] ? infer(input.ast.args[0]) : { kind: "unknown" as const, reason: "missing arg" };
+      if (rule.category === "string" && input.ast.args.length > 0 && !isStringType(firstArgType)) {
+        input.diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_FUNCTION_ARGUMENT_TYPE",
+          message: `Function "${input.ast.functionName}" requires string input.`,
+          severity: "error",
+          range: input.ast.args[0]?.range ?? input.ast.range,
+          actualType: firstArgType,
+        }));
+      }
+      if (rule.category === "number" && input.ast.args.some(arg => !isNumberType(infer(arg)))) {
+        input.diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_FUNCTION_ARGUMENT_TYPE",
+          message: `Function "${input.ast.functionName}" requires number arguments.`,
+          severity: "error",
+          range: input.ast.range,
+        }));
+      }
+      if (rule.category === "dateTime" && input.ast.args.length > 0 && !isDateTimeType(firstArgType)) {
+        input.diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_FUNCTION_ARGUMENT_TYPE",
+          message: `Function "${input.ast.functionName}" requires DateTime as the first argument.`,
+          severity: "error",
+          range: input.ast.args[0]?.range ?? input.ast.range,
+          actualType: firstArgType,
+        }));
+      }
+      if (rule.category === "object" && input.ast.args.length > 0 && !isObjectType(firstArgType)) {
+        input.diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_FUNCTION_ARGUMENT_TYPE",
+          message: `Function "${input.ast.functionName}" requires an object argument.`,
+          severity: "error",
+          range: input.ast.args[0]?.range ?? input.ast.range,
+          actualType: firstArgType,
         }));
       }
       break;
@@ -301,21 +430,11 @@ export function validateExpression(input: {
           variableName,
           memberName: reference.memberName,
         }));
-      } else if (!memberExists(variable, reference.memberName, metadata)) {
+      } else if (!memberExists(variable, reference.path, metadata)) {
         diagnostics.push(expressionDiagnostic({
           code: "MF_EXPR_MEMBER_NOT_FOUND",
-          message: `Member "${reference.memberName}" does not exist on ${variable.dataType.entityQualifiedName}.`,
+          message: `Member path "${reference.path.join("/")}" does not exist on ${variable.dataType.entityQualifiedName}.`,
           severity: "error",
-          range: reference.range,
-          variableName,
-          memberName: reference.memberName,
-        }));
-      }
-      if (reference.path.length > 1) {
-        diagnostics.push(expressionDiagnostic({
-          code: "MF_EXPR_PARTIAL_PATH_INFERENCE",
-          message: "Multi-level member access is parsed but only the first segment is fully validated in this version.",
-          severity: "warning",
           range: reference.range,
           variableName,
           memberName: reference.memberName,

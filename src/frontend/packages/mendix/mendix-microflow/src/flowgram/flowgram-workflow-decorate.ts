@@ -13,6 +13,7 @@ import type {
   FlowGramMicroflowNodeData,
   MicroflowNodeViewMode,
 } from "./FlowGramMicroflowTypes";
+import type { MicroflowNodeUsageHighlights } from "../variables";
 import { deriveEdgeRuntimeStateByFlowId } from "./runtime-edge-state";
 import { normalizeMicroflowDesignEdges } from "./flowgram-design-edge-semantics";
 import { getMendixMicroflowNodeSize } from "./flowgram-node-geometry";
@@ -42,6 +43,8 @@ function ensureNodeData(node: MicroflowWorkflowNodeJSON): MicroflowWorkflowNodeJ
       validationState: data?.validationState ?? "valid",
       runtimeState: data?.runtimeState ?? "idle",
       issueCount: data?.issueCount ?? 0,
+      usageSourceHighlight: data?.usageSourceHighlight ?? false,
+      usageConsumerHighlight: data?.usageConsumerHighlight ?? false,
     },
     meta: {
       ...node.meta,
@@ -118,6 +121,13 @@ function resolveNodeViewMode(
   return undefined;
 }
 
+function usageMatchesNode(nodeId: string, data: FlowGramMicroflowNodeData, objectIds: string[] | undefined): boolean {
+  if (!objectIds?.length) {
+    return false;
+  }
+  return nodeViewModeAliases(nodeId, data.objectId).some(alias => objectIds.includes(alias));
+}
+
 export function runtimeStateFromTraceStatus(status: MicroflowTraceFrame["status"] | undefined): FlowGramMicroflowNodeData["runtimeState"] {
   if (!status) {
     return "idle";
@@ -145,6 +155,7 @@ export function decorateWorkflow(input: {
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
   nodeViewModes?: Record<string, MicroflowNodeViewMode>;
+  usageHighlights?: MicroflowNodeUsageHighlights;
 }): WorkflowJSON {
   const normalized = normalizeWorkflow(input.schema.workflow as WorkflowJSON);
   const runtimeFrameByObjectId = new Map<string, MicroflowTraceFrame>();
@@ -197,6 +208,8 @@ export function decorateWorkflow(input: {
           runtimeErrorCode: frame?.error?.code,
           runtimeErrorMessage: frame?.error?.message,
           inlineConfig,
+          usageSourceHighlight: usageMatchesNode(node.id, data, input.usageHighlights?.sourceNodeIds),
+          usageConsumerHighlight: usageMatchesNode(node.id, data, input.usageHighlights?.consumerNodeIds),
         },
       };
     }) as WorkflowJSON["nodes"],

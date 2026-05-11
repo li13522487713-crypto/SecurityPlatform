@@ -102,6 +102,8 @@ describe("microflow variable foundation", () => {
     const index = buildMicroflowVariableIndex(schema());
     expect(index.parameters.amount.name).toBe("amount");
     expect(index.byName?.approvalLevel?.[0]?.source.kind).toBe("createVariable");
+    expect(index.byName?.["$currentUser"]?.[0]?.source.kind).toBe("system");
+    expect(index.byName?.["$currentSession"]?.[0]?.source.kind).toBe("system");
     expect(buildMicroflowExpressionContext(schema()).map(item => item.name)).toContain("approvalLevel");
   });
 

@@ -270,6 +270,7 @@ export function buildNodeInlineVariableOptions(input: {
   }
 
   pushOption(list, seen, mergedLabels, { source: "system", name: "$currentUser", readonly: true }, mode);
+  pushOption(list, seen, mergedLabels, { source: "system", name: "$currentSession", readonly: true }, mode);
   pushOption(list, seen, mergedLabels, { source: "system", name: "$now", readonly: true }, mode);
   pushOption(list, seen, mergedLabels, { source: "system", name: "$workspaceId", readonly: true }, mode);
   pushOption(list, seen, mergedLabels, { source: "error", name: "$latestError", maybe: true }, mode);

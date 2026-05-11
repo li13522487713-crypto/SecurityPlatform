@@ -34,11 +34,13 @@ export interface MicroflowPropertyPanelProps {
   validationIssues: MicroflowValidationIssue[];
   traceFrames?: MicroflowTraceFrame[];
   readonly?: boolean;
+  highlightedVariableName?: string;
   onSchemaChange?: (nextSchema: MicroflowAuthoringSchema, reason: string) => void;
   onObjectChange: (objectId: string, patch: MicroflowNodePatch) => void;
   onFlowChange?: (flowId: string, patch: MicroflowEdgePatch) => void;
   onClose: () => void;
   onLocateObject?: (objectId: string) => void;
+  onHighlightVariableUsage?: (variableName?: string) => void;
   onDuplicateObject?: (objectId: string) => void;
   onDeleteObject?: (objectId: string) => void;
   onDeleteFlow?: (flowId: string) => void;
@@ -52,9 +54,11 @@ export interface MicroflowDesignPropertyPanelProps {
   validationIssues: MicroflowValidationIssue[];
   traceFrames?: MicroflowTraceFrame[];
   readonly?: boolean;
+  highlightedVariableName?: string;
   onSchemaChange?: (nextSchema: MicroflowDesignSchema, reason: string) => void;
   onClose: () => void;
   onLocateObject?: (objectId: string) => void;
+  onHighlightVariableUsage?: (variableName?: string) => void;
 }
 
 export type MicroflowPropertyPanelRuntimeProps = MicroflowPropertyPanelProps | MicroflowDesignPropertyPanelProps;

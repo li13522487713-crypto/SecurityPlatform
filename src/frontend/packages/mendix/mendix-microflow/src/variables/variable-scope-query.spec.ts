@@ -1,9 +1,24 @@
 import { describe, expect, it } from "vitest";
 
+import { createObjectFromRegistry } from "../adapters";
+import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../node-registry";
 import type { MicroflowActionActivity, MicroflowAuthoringSchema } from "../schema";
+import type { MicroflowObject } from "../schema/types";
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { getVariablesForExpressionFromIndex, resolveVariableReferenceFromIndex } from "./variable-scope-query";
 import { buildVariableIndex } from "./variable-index";
+
+function registry(key: string) {
+  const item = defaultMicroflowNodeRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key || entry.type === key);
+  if (!item) {
+    throw new Error(`Missing registry item ${key}`);
+  }
+  return item;
+}
+
+function objectFrom(key: string, id: string, x = 0, y = 0): MicroflowObject {
+  return createObjectFromRegistry(registry(key), { x, y }, id);
+}
 
 function actionActivity(id: string, variableName: string): MicroflowActionActivity {
   return {
@@ -96,5 +111,50 @@ describe("variable scope by graph links", () => {
 
     expect(withDollar?.name).toBe("aOut");
     expect(withJsonRootDollar?.name).toBe("aOut");
+  });
+
+  it("adds loop iterator variables and $currentIndex inside loop body scope", () => {
+    const inner = actionActivity("loop-inner", "innerOut");
+    const loop = objectFrom("loop", "loop-node") as Extract<MicroflowObject, { kind: "loopedActivity" }>;
+    loop.objectCollection = {
+      ...loop.objectCollection,
+      id: "loop-body",
+      objects: [inner],
+      flows: [],
+    };
+    loop.loopSource = {
+      kind: "iterableList",
+      officialType: "Microflows$IterableList",
+      listVariableName: "orders",
+      iteratorVariableName: "orderItem",
+      currentIndexVariableName: "$currentIndex",
+      iteratorVariableDataType: { kind: "string" },
+    };
+    const createList = actionActivity("node-orders", "orders");
+    createList.action = {
+      id: "action-orders",
+      kind: "createList",
+      officialType: "Microflows$CreateListAction",
+      caption: "Create List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "list", availability: "supported" },
+      outputListVariableName: "orders",
+      elementType: { kind: "string" },
+      itemType: { kind: "string" },
+    } as any;
+    const loopSchema = {
+      ...schema(true),
+      objectCollection: {
+        ...schema(true).objectCollection,
+        objects: [createList, loop],
+      },
+      flows: [],
+    };
+    const index = buildVariableIndex({ schema: loopSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const names = getVariablesForExpressionFromIndex(loopSchema, index, { objectId: "loop-inner" }).map(item => item.name);
+
+    expect(names).toContain("orderItem");
+    expect(names).toContain("$currentIndex");
   });
 });

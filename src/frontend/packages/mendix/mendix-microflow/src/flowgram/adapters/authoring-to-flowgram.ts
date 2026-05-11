@@ -32,6 +32,9 @@ function authoringPortsToFlowGramPorts(ports: MicroflowEditorPort[]) {
 }
 
 function titleForObject(object: MicroflowObject): string {
+  if (object.kind === "annotation") {
+    return object.text?.trim() || ("caption" in object && object.caption ? object.caption : "") || "Annotation";
+  }
   if ("caption" in object && object.caption) {
     return object.caption;
   }

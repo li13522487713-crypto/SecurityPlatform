@@ -119,7 +119,7 @@ class Parser {
   }
 
   private parseMultiplicative(): MicroflowExpressionAstNode {
-    return this.parseBinary(() => this.parseUnary(), ["*", "/"]);
+    return this.parseBinary(() => this.parseUnary(), ["*", "/", "div", ":", "mod"]);
   }
 
   private parseBinary(parseOperand: () => MicroflowExpressionAstNode, operators: string[]): MicroflowExpressionAstNode {
@@ -175,6 +175,9 @@ class Parser {
       return this.variableNode(current);
     }
     if (current.kind === "identifier") {
+      if (current.value === "empty") {
+        return { kind: "literal", literalKind: "empty", value: null, raw: current.value, range: current.range };
+      }
       if (this.peek().kind === "parenOpen") {
         return this.functionNode(current);
       }

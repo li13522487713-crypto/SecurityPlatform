@@ -130,6 +130,32 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     expect(text.includes("if $riskScore >= 80")).toBe(true);
   });
 
+  it("renders usage consumer tag and source/consumer classes", () => {
+    const value = {
+      ...buildNodeValue(),
+      usageSourceHighlight: true,
+      usageConsumerHighlight: true,
+    };
+    const node = {
+      id: "node-1",
+      getData: () => ({
+        getFormModel: () => ({
+          getFormItemValueByPath: () => value,
+        }),
+      }),
+    };
+    render(
+      <MicroflowNodeViewModesContext.Provider value={{}}>
+        <FlowGramMicroflowNodeRenderer node={node as never} />
+      </MicroflowNodeViewModesContext.Provider>
+    );
+
+    const element = screen.getByTestId("microflow-node-node-1");
+    expect(element.className).toContain("is-usage-source");
+    expect(element.className).toContain("is-usage-consumer");
+    expect(screen.getByText("Usage")).toBeTruthy();
+  });
+
   it("uses projected inlineConfig view mode when FlowGram renders outside React context", () => {
     const value = buildNodeValue("expanded");
     const node = {

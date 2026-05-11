@@ -27,7 +27,7 @@ export interface MicroflowExpressionTokenizeResult {
   diagnostics: ExpressionDiagnostic[];
 }
 
-const keywordSet = new Set(["and", "or", "not", "if", "then", "else"]);
+const keywordSet = new Set(["and", "or", "not", "if", "then", "else", "div", "mod"]);
 
 function token(kind: MicroflowExpressionTokenKind, value: string, start: number, end: number): MicroflowExpressionToken {
   return { kind, value, range: { start, end } };
@@ -139,6 +139,11 @@ export function tokenizeExpression(raw: string): MicroflowExpressionTokenizeResu
       continue;
     }
     if (char === "/") {
+      diagnostics.push(expressionDiagnostic({
+        code: "MF_EXPR_USE_DIV_OPERATOR",
+        message: "Mendix 表达式不能用 / 做除法；请使用 div 或 :。",
+        range: { start: index, end: index + 1 },
+      }));
       tokens.push(token("operator", char, index, index + 1));
       index += 1;
       continue;
@@ -149,7 +154,7 @@ export function tokenizeExpression(raw: string): MicroflowExpressionTokenizeResu
       index += 2;
       continue;
     }
-    if ("=<>+-*".includes(char)) {
+    if ("=<>+-*:".includes(char)) {
       tokens.push(token("operator", char, index, index + 1));
       index += 1;
       continue;

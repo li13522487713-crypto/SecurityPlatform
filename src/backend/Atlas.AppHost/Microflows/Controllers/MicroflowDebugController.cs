@@ -43,12 +43,13 @@ public sealed class MicroflowDebugController : MicroflowApiControllerBase
         }
 
         var current = _requestContextAccessor.Current;
-        return MicroflowOk(_sessions.Create(microflowId, new MicroflowDebugSessionOwner
+        var created = _sessions.Create(microflowId, new MicroflowDebugSessionOwner
         {
             TenantId = current.TenantId,
             WorkspaceId = current.WorkspaceId,
             UserId = current.UserId
-        }));
+        });
+        return MicroflowOk(created);
     }
 
     [HttpGet("debug-sessions/{sessionId}")]

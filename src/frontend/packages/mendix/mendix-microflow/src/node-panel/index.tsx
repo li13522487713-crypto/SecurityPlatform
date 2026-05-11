@@ -327,6 +327,13 @@ const mendixToolboxSections: MendixToolboxSection[] = [
       "breakEvent",
     ],
   },
+  {
+    key: "documentation",
+    label: "Documentation",
+    itemKeys: [
+      "annotation",
+    ],
+  },
 ];
 
 function buildMendixToolboxSections(

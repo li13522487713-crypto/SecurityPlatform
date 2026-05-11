@@ -58,6 +58,8 @@ export interface FlowGramMicroflowNodeData {
   runtimeErrorCode?: string;
   runtimeErrorMessage?: string;
   issueCount: number;
+  usageSourceHighlight?: boolean;
+  usageConsumerHighlight?: boolean;
 }
 
 export type MicroflowNodeViewMode =
@@ -67,6 +69,12 @@ export type MicroflowNodeViewMode =
   | "running"
   | "inspectingError"
   | "inspectingRuntime";
+
+export interface MicroflowNodeUsageHighlightState {
+  selectedObjectId?: string;
+  sourceNodeIds: string[];
+  consumerNodeIds: string[];
+}
 
 export type MicroflowInlineEditType =
   | "text"
@@ -251,4 +259,5 @@ export function canonicalizeFlowLine(line?: MicroflowLine, fallback?: MicroflowL
 
 import { createContext } from "react";
 export const MicroflowNodeViewModesContext = createContext<Record<string, MicroflowNodeViewMode>>({});
+export const MicroflowNodeUsageHighlightsContext = createContext<MicroflowNodeUsageHighlightState>({ sourceNodeIds: [], consumerNodeIds: [] });
 export const MicroflowEdgeDataContext = createContext<ReadonlyMap<string, FlowGramMicroflowEdgeData>>(new Map());

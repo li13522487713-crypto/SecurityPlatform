@@ -221,6 +221,116 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     expect(issues.some(issue => issue.code === "MF_BREAK_OUTSIDE_LOOP")).toBe(false);
   });
 
+  it("warns when the microflow is approaching the recommended element limit", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end", 6000, 0);
+    const activities = Array.from({ length: 20 }, (_, index) => actionObject("activity:logMessage", `log-${index + 1}`));
+    const issues = validate(schemaWith([start, ...activities, end]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_APPROACHING_LIMIT", severity: "warning" })]));
+  });
+
+  it("warns when a complex microflow has no annotation", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end", 3200, 0);
+    const activities = Array.from({ length: 11 }, (_, index) => actionObject("activity:logMessage", `log-${index + 1}`));
+    const issues = validate(schemaWith([start, ...activities, end]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_MISSING_ANNOTATION", severity: "warning" })]));
+  });
+
+  it("reports duplicate variable definitions in Problems", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const first = actionObject("activity:variableCreate", "create-variable-a");
+    const second = actionObject("activity:variableCreate", "create-variable-b");
+    first.action = { ...first.action, variableName: "approvalLevel" } as typeof first.action;
+    second.action = { ...second.action, variableName: "ApprovalLevel" } as typeof second.action;
+    const issues = validate(schemaWith([start, first, second, end]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_VARIABLE_DUPLICATED",
+      severity: "error",
+    })]));
+  });
+
+  it("warns when Commit happens inside a Loop body", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const createList = actionObject("activity:listCreate", "create-list");
+    const loop = objectFrom("loop", "loop");
+    const commit = actionObject("activity:objectCommit", "commit-in-loop");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loop object.");
+    }
+    createList.action = {
+      ...createList.action,
+      outputListVariableName: "orders",
+      entityQualifiedName: "Sales.Order",
+    } as typeof createList.action;
+    loop.loopSource = {
+      kind: "iterableList",
+      officialType: "Microflows$IterableList",
+      listVariableName: "orders",
+      iteratorVariableName: "orderItem",
+      currentIndexVariableName: "$currentIndex",
+      iteratorVariableDataType: { kind: "object", entityQualifiedName: "Sales.Order" },
+    };
+    commit.action = {
+      ...commit.action,
+      objectOrListVariableName: "orderItem",
+    } as typeof commit.action;
+    loop.objectCollection = { ...loop.objectCollection, objects: [commit], flows: [] };
+
+    const issues = validate(schemaWith([start, createList, loop, end]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "LOOP_COMMIT",
+      severity: "warning",
+      objectId: "commit-in-loop",
+    })]));
+  });
+
+  it("warns when integration actions use rollback-only error handling", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const javaAction = actionObject("activity:callJavaAction", "call-java");
+    javaAction.action = {
+      ...javaAction.action,
+      javaActionQualifiedName: "Sales.DoWork",
+      errorHandlingType: "rollback",
+    } as typeof javaAction.action;
+
+    const issues = validate(schemaWith([start, javaAction, end]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MISSING_ERROR_HANDLER",
+      severity: "warning",
+      objectId: "call-java",
+    })]));
+  });
+
+  it("reports nested if expressions in Decision nodes as an info suggestion", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const decision = objectFrom("decision", "decision");
+    if (decision.kind !== "exclusiveSplit" || decision.splitCondition.kind !== "expression") {
+      throw new Error("Expected expression decision.");
+    }
+    decision.splitCondition = {
+      ...decision.splitCondition,
+      expression: { ...decision.splitCondition.expression, raw: "if $flag then (if $retry then true else false) else false" },
+    };
+
+    const issues = validate(schemaWith([start, decision, end]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "NESTED_IF_EXPRESSION",
+      severity: "info",
+      objectId: "decision",
+    })]));
+  });
+
   it("reports List Operation missing source as an error", () => {
     const issues = validate(schemaWith([objectFrom("startEvent", "start"), actionObject("activity:listOperation", "list-operation"), objectFrom("endEvent", "end")]));
 
@@ -306,6 +416,68 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
       code: "MF_FLOW_INVALID_TARGET",
       fieldPath: "workflow.edges.0.targetNodeID",
       flowId: "dangling",
+    })]));
+  });
+
+  it("reports node-count guidance on canonical design schema", () => {
+    const schema = validDesignSchema();
+    const issues = validateMicroflowSchema({
+      schema: {
+        ...schema,
+        workflow: {
+          ...schema.workflow,
+          nodes: [
+            ...schema.workflow.nodes,
+            ...Array.from({ length: 20 }, (_, index) => ({
+              id: `activity-${index + 1}`,
+              type: "actionActivity",
+              data: { objectId: `activity-${index + 1}`, objectKind: "actionActivity", actionKind: "logMessage" },
+              meta: { position: { x: 120 * (index + 1), y: 120 } },
+            })),
+          ],
+        },
+      },
+      metadata: EMPTY_MICROFLOW_METADATA_CATALOG,
+      options: { mode: "save", includeWarnings: true, includeInfo: true },
+    }).issues;
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_APPROACHING_LIMIT", severity: "warning" })]));
+  });
+
+  it("reports integration error-handling guidance on canonical design schema", () => {
+    const schema = validDesignSchema();
+    const issues = validateMicroflowSchema({
+      schema: {
+        ...schema,
+        workflow: {
+          ...schema.workflow,
+          nodes: [
+            ...schema.workflow.nodes,
+            {
+              id: "call-java",
+              type: "actionActivity",
+              data: {
+                objectId: "call-java",
+                objectKind: "actionActivity",
+                actionKind: "callJavaAction",
+                action: {
+                  kind: "callJavaAction",
+                  errorHandlingType: "rollback",
+                },
+              },
+              meta: { position: { x: 120, y: 120 } },
+            },
+          ],
+        },
+      },
+      metadata: EMPTY_MICROFLOW_METADATA_CATALOG,
+      options: { mode: "save", includeWarnings: true, includeInfo: true },
+    }).issues;
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MISSING_ERROR_HANDLER",
+      severity: "warning",
+      objectId: "call-java",
     })]));
   });
 });

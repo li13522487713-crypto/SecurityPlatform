@@ -6,6 +6,7 @@ import type {
   MicroflowWorkflowEdgeJSON,
   MicroflowWorkflowNodeJSON,
 } from "../schema/types";
+import { collectMicroflowBestPracticeWarnings, MICROFLOW_LIMITS, summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import { issue } from "./shared";
 import type { MicroflowValidationOptions, MicroflowValidationResult } from "./validator-types";
 
@@ -207,12 +208,64 @@ function validateDesignSchemaShape(schema: MicroflowDesignSchema): MicroflowVali
   return issues;
 }
 
+function validateDesignSchemaComplexity(schema: MicroflowDesignSchema): MicroflowValidationIssue[] {
+  const issues: MicroflowValidationIssue[] = [];
+  const summary = summarizeMicroflowComplexity(schema);
+
+  if (summary.totalElements >= MICROFLOW_LIMITS.ERROR_LEVEL) {
+    issues.push(issue(
+      "MF_TOO_LARGE",
+      `微流包含 ${summary.totalElements} 个元素，超过推荐上限 25 个。建议将部分逻辑提取为子微流。`,
+      { microflowId: schema.id, source: "schema", fieldPath: "workflow.nodes", blockSave: false, blockPublish: false },
+      "warning",
+    ));
+  } else if (summary.totalElements >= MICROFLOW_LIMITS.WARN_LEVEL) {
+    issues.push(issue(
+      "MF_APPROACHING_LIMIT",
+      `微流包含 ${summary.totalElements} 个元素，接近推荐上限 25 个。`,
+      { microflowId: schema.id, source: "schema", fieldPath: "workflow.nodes", blockSave: false, blockPublish: false },
+      "warning",
+    ));
+  }
+
+  if (summary.annotationRecommended && !summary.hasAnnotation) {
+    issues.push(issue(
+      "MF_MISSING_ANNOTATION",
+      "复杂微流（超过 10 个活动或 2 个 Decision）建议在起始处添加注释说明目的和参数。",
+      { microflowId: schema.id, source: "schema", fieldPath: "workflow.nodes", blockSave: false, blockPublish: false },
+      "warning",
+    ));
+  }
+
+  return issues;
+}
+
+function validateDesignSchemaBestPractices(schema: MicroflowDesignSchema): MicroflowValidationIssue[] {
+  return collectMicroflowBestPracticeWarnings(schema).map(warning => issue(
+    warning.code,
+    warning.message,
+    {
+      microflowId: schema.id,
+      source: "action",
+      objectId: warning.objectId,
+      fieldPath: warning.fieldPath,
+      blockSave: false,
+      blockPublish: false,
+    },
+    warning.severity,
+  ));
+}
+
 export function validateMicroflowDesignSchema(input: {
   schema: MicroflowDesignSchema;
   variableIndex?: MicroflowVariableIndex;
   options?: MicroflowValidationOptions;
 }): MicroflowValidationResult {
-  const issues = filterIssues(validateDesignSchemaShape(input.schema), input.options);
+  const issues = filterIssues([
+    ...validateDesignSchemaShape(input.schema),
+    ...validateDesignSchemaComplexity(input.schema),
+    ...validateDesignSchemaBestPractices(input.schema),
+  ], input.options);
   return {
     issues,
     variableIndex: input.variableIndex ?? emptyVariableIndex(),

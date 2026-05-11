@@ -14,6 +14,8 @@ const transientNodeDataKeys = [
   "runtimeErrorMessage",
   "validationState",
   "issueCount",
+  "usageSourceHighlight",
+  "usageConsumerHighlight",
 ] as const;
 
 const transientEdgeDataKeys = [

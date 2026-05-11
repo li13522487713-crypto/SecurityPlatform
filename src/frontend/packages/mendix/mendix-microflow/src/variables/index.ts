@@ -12,6 +12,7 @@ export * from "./variable-selector-model";
 export * from "./use-microflow-variable-index";
 export * from "./variable-snapshot";
 export * from "./variable-usage-metrics";
+export * from "./node-usage-highlights";
 export * from "./microflow-variable-foundation";
 export * from "./list-collection-foundation";
 export * from "./object-activity-foundation";

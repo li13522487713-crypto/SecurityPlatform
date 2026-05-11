@@ -48,6 +48,13 @@ describe("FlowGramMicroflowLineRenderer helpers", () => {
     }))).toContain("is-runtime-errorHandlerVisited");
   });
 
+  it("marks annotation edges with the annotation semantic class", () => {
+    expect(lineClassNameFromEdgeData(edgeData({
+      flowKind: "annotation",
+      edgeKind: "annotation",
+    }))).toContain("microflow-flowgram-line--annotation");
+  });
+
   it("does not label ordinary sequence edges without explicit branch data", () => {
     expect(lineLabelFromEdgeData(edgeData({ edgeKind: "sequence", caseValues: [] }))).toBe("");
   });

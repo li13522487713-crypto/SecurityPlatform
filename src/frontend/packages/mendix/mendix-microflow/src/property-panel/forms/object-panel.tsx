@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Input, Select, Space, Switch, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Button, Input, Select, Space, Switch, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowAction, MicroflowFlow, MicroflowObject, MicroflowParameter, MicroflowVariableIndex, MicroflowVariableSymbol } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
@@ -99,6 +99,18 @@ function outputLine(symbol: MicroflowVariableSymbol): string {
   return `${symbol.name}: ${dataTypeLabel(symbol.dataType)} | ${variableSourceLabel(symbol)} | ${symbol.scope.kind ?? "collection"} | ${symbol.visibility ?? "definite"}`;
 }
 
+function normalizeVariableName(name: string | undefined): string {
+  const trimmed = String(name ?? "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.startsWith("$") ? trimmed : `$${trimmed}`;
+}
+
+function variableUsageTestId(name: string): string {
+  return normalizeVariableName(name).replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
 function outputSymbolsForObject(index: MicroflowVariableIndex, object: MicroflowObject, parameter?: MicroflowParameter): MicroflowVariableSymbol[] {
   const direct = getOutputVariablesForObject(index, object.id);
   if (direct.length) {
@@ -137,6 +149,21 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   const registered = getMicroflowNodeFormForObject(object);
   const flowsForObject = useMemo<MicroflowFlow[]>(() => collectFlowsRecursive(props.schema), [props.schema]);
   const variablesForObject = useMemo<MicroflowVariableSymbol[]>(() => variableIndex.all ?? [], [variableIndex.all]);
+  const outputVariables = useMemo(() => outputSymbolsForObject(variableIndex, object, parameter), [object, parameter, variableIndex]);
+
+  const renderUsageButton = (symbol: MicroflowVariableSymbol) => (
+    <Button
+      key={symbol.id ?? `${symbol.name}:${symbol.scope.collectionId}`}
+      type={normalizeVariableName(props.highlightedVariableName) === normalizeVariableName(symbol.name) ? "primary" : "tertiary"}
+      theme="borderless"
+      size="small"
+      data-testid={`microflow-output-variable-${variableUsageTestId(symbol.name)}`}
+      onClick={() => props.onHighlightVariableUsage?.(symbol.name)}
+      style={{ paddingInline: 0 }}
+    >
+      {outputLine(symbol)}
+    </Button>
+  );
 
   if (!supportedObjectKinds.has(object.kind) && !registered) {
     return (
@@ -176,6 +203,13 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
           registered ? (
             <>
               <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
+              {outputVariables.length ? (
+                <Field label="变量使用高亮">
+                  <Space vertical align="start" spacing={6}>
+                    {outputVariables.map(renderUsageButton)}
+                  </Space>
+                </Field>
+              ) : null}
               {registered.renderProperties({
                 object,
                 node: object,
@@ -190,6 +224,13 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
           ) : (
             <>
               <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
+              {outputVariables.length ? (
+                <Field label="变量使用高亮">
+                  <Space vertical align="start" spacing={6}>
+                    {outputVariables.map(renderUsageButton)}
+                  </Space>
+                </Field>
+              ) : null}
               <EventNodesForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               <ExclusiveSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               <InheritanceSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} patch={patch} />
@@ -255,11 +296,11 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         {activeTab === "output" ? (
           <>
             <Field label="Variable Declarations">
-              {outputSymbolsForObject(variableIndex, object, parameter).length ? (
+              {outputVariables.length ? (
                 <Space vertical align="start" spacing={6}>
-                  {outputSymbolsForObject(variableIndex, object, parameter).map(symbol => (
+                  {outputVariables.map(symbol => (
                     <Space key={symbol.id ?? `${symbol.name}:${symbol.scope.collectionId}`} align="center" spacing={6}>
-                      <Text size="small">{outputLine(symbol)}</Text>
+                      {renderUsageButton(symbol)}
                       {symbol.dataType.kind === "unknown" ? <Tag size="small" color="red">unknown</Tag> : null}
                       {symbol.visibility === "maybe" ? <Tag size="small" color="orange">maybe</Tag> : null}
                     </Space>

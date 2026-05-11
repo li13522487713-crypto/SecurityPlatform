@@ -6,7 +6,7 @@ import { Decoration, EditorView, ViewPlugin, hoverTooltip, keymap, lineNumbers, 
 import { useEffect, useMemo, useRef } from "react";
 
 import { expressionRaw, expressionTypeLabel, validateExpression } from "../expressions";
-import { getEntityAttributes, getEnumerationValues, type MicroflowMetadataCatalog } from "../metadata";
+import { getAssociationsForEntity, getEntityAttributes, getEnumerationValues, getTargetEntityByAssociation, type MicroflowMetadataCatalog } from "../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../schema";
 import { buildVariableUsageMetrics, getVariablesForExpressionFromIndex, variableSourceLabel, type MicroflowExpressionScopeContext } from "../variables";
 import { tokenizeExpression, type MicroflowExpressionToken } from "../expressions/expression-tokenizer";
@@ -266,6 +266,8 @@ export function buildMicroflowExpressionCompletionOptions(input: {
   fieldPath?: string;
   expectedType?: MicroflowDataType;
 }): Array<{ label: string; value: string; detail?: string; disabled?: boolean }> {
+  const variableToken = (name: string) => name.startsWith("$") ? name : `$${name}`;
+  const jsonVariableToken = (name: string) => name.startsWith("$") ? `$.${name.slice(1)}` : `$.${name}`;
   const context: MicroflowExpressionScopeContext = { objectId: input.objectId ?? "", actionId: input.actionId, fieldPath: input.fieldPath };
   const variableMetrics = buildVariableUsageMetrics({ schema: input.schema, variableIndex: input.variableIndex, objectId: input.objectId });
   const variables = (input.objectId ? getVariablesForExpressionFromIndex(input.schema, input.variableIndex, context) : [])
@@ -286,24 +288,55 @@ export function buildMicroflowExpressionCompletionOptions(input: {
       variableSourceLabel(variable),
       variable.visibility === "maybe" ? "maybe" : undefined,
     ].filter(Boolean).join(", ");
-    const base = { label: `$${variable.name}`, value: `$${variable.name}`, detail };
-    const jsonPathBase = { label: `$.${variable.name}`, value: `$.${variable.name}`, detail };
+    const baseToken = variableToken(variable.name);
+    const jsonToken = jsonVariableToken(variable.name);
+    const base = { label: baseToken, value: baseToken, detail };
+    const jsonPathBase = { label: jsonToken, value: jsonToken, detail };
     if (variable.dataType.kind !== "object") {
       return [base, jsonPathBase];
     }
+    const variableObjectType = variable.dataType;
+    const associationOptions = getAssociationsForEntity(input.metadata, variableObjectType.entityQualifiedName).flatMap(association => {
+      const target = getTargetEntityByAssociation(input.metadata, association.qualifiedName, variableObjectType.entityQualifiedName);
+      const associationValue = `${baseToken}/${association.qualifiedName}`;
+      const associationJsonValue = `${jsonToken}/${association.qualifiedName}`;
+      if (!target) {
+        return [
+          { label: associationValue, value: associationValue, detail: "association" },
+          { label: associationJsonValue, value: associationJsonValue, detail: "association" },
+        ];
+      }
+      const nestedAttributes = getEntityAttributes(input.metadata, target.qualifiedName).map(attribute => ({
+        label: `${associationValue}/${target.qualifiedName}/${attribute.name}`,
+        value: `${associationValue}/${target.qualifiedName}/${attribute.name}`,
+        detail: `${target.name}.${attribute.name}: ${expressionTypeLabel(attribute.type)}`,
+      }));
+      const nestedJsonAttributes = getEntityAttributes(input.metadata, target.qualifiedName).map(attribute => ({
+        label: `${associationJsonValue}/${target.qualifiedName}/${attribute.name}`,
+        value: `${associationJsonValue}/${target.qualifiedName}/${attribute.name}`,
+        detail: `${target.name}.${attribute.name}: ${expressionTypeLabel(attribute.type)}`,
+      }));
+      return [
+        { label: associationValue, value: associationValue, detail: `association -> ${target.qualifiedName}` },
+        { label: associationJsonValue, value: associationJsonValue, detail: `association -> ${target.qualifiedName}` },
+        ...nestedAttributes,
+        ...nestedJsonAttributes,
+      ];
+    });
     return [
       base,
       jsonPathBase,
-      ...getEntityAttributes(input.metadata, variable.dataType.entityQualifiedName).map(attribute => ({
-        label: `$${variable.name}/${attribute.name}`,
-        value: `$${variable.name}/${attribute.name}`,
+      ...getEntityAttributes(input.metadata, variableObjectType.entityQualifiedName).map(attribute => ({
+        label: `${baseToken}/${attribute.name}`,
+        value: `${baseToken}/${attribute.name}`,
         detail: expressionTypeLabel(attribute.type),
       })),
-      ...getEntityAttributes(input.metadata, variable.dataType.entityQualifiedName).map(attribute => ({
-        label: `$.${variable.name}/${attribute.name}`,
-        value: `$.${variable.name}/${attribute.name}`,
+      ...getEntityAttributes(input.metadata, variableObjectType.entityQualifiedName).map(attribute => ({
+        label: `${jsonToken}/${attribute.name}`,
+        value: `${jsonToken}/${attribute.name}`,
         detail: expressionTypeLabel(attribute.type),
       })),
+      ...associationOptions,
     ];
   });
   const expectedEnumeration = input.expectedType?.kind === "enumeration" ? input.expectedType : undefined;
@@ -318,6 +351,30 @@ export function buildMicroflowExpressionCompletionOptions(input: {
     { label: "empty($variable)", value: "empty()", detail: "function" },
     { label: "not empty($variable)", value: "not empty()", detail: "function" },
     { label: "if condition then value else value", value: "if true then  else ", detail: "function" },
+    { label: "toLowerCase($text)", value: "toLowerCase()", detail: "toLowerCase(String) -> String" },
+    { label: "toUpperCase($text)", value: "toUpperCase()", detail: "toUpperCase(String) -> String" },
+    { label: "substring($text, 0, 1)", value: "substring()", detail: "substring(String, Integer, Integer?) -> String" },
+    { label: "contains($text, 'x')", value: "contains()", detail: "contains(String, String) -> Boolean" },
+    { label: "startsWith($text, 'x')", value: "startsWith()", detail: "startsWith(String, String) -> Boolean" },
+    { label: "endsWith($text, 'x')", value: "endsWith()", detail: "endsWith(String, String) -> Boolean" },
+    { label: "trim($text)", value: "trim()", detail: "trim(String) -> String" },
+    { label: "replaceAll($text, 'a', 'b')", value: "replaceAll()", detail: "replaceAll(String, String, String) -> String" },
+    { label: "isMatch($text, 'regex')", value: "isMatch()", detail: "isMatch(String, String) -> Boolean" },
+    { label: "max(1, 2)", value: "max()", detail: "max(Number...) -> Number" },
+    { label: "min(1, 2)", value: "min()", detail: "min(Number...) -> Number" },
+    { label: "round(1.23, 1)", value: "round()", detail: "round(Decimal, Integer?) -> Decimal" },
+    { label: "floor(1.23)", value: "floor()", detail: "floor(Decimal) -> Long" },
+    { label: "ceil(1.23)", value: "ceil()", detail: "ceil(Decimal) -> Long" },
+    { label: "pow(2, 3)", value: "pow()", detail: "pow(Number, Number) -> Decimal" },
+    { label: "abs(-1)", value: "abs()", detail: "abs(Number) -> Number" },
+    { label: "sqrt(9)", value: "sqrt()", detail: "sqrt(Number) -> Decimal" },
+    { label: "random()", value: "random()", detail: "random() -> Decimal" },
+    { label: "isNew($obj)", value: "isNew()", detail: "isNew(Object) -> Boolean" },
+    { label: "formatDateTime($dt, 'yyyy-MM-dd')", value: "formatDateTime()", detail: "formatDateTime(DateTime, String) -> String" },
+    { label: "toDateTime('2026-01-01', 'yyyy-MM-dd')", value: "toDateTime()", detail: "toDateTime(String, String) -> DateTime" },
+    { label: "addDays($dt, 1)", value: "addDays()", detail: "addDays(DateTime, Integer) -> DateTime" },
+    { label: "addMonths($dt, 1)", value: "addMonths()", detail: "addMonths(DateTime, Integer) -> DateTime" },
+    { label: "addYears($dt, 1)", value: "addYears()", detail: "addYears(DateTime, Integer) -> DateTime" },
   ];
   return [...variableOptions, ...enumOptions, ...functionOptions];
 }
