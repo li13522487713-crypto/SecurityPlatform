@@ -181,4 +181,21 @@ describe("summarizeMicroflowComplexity", () => {
       message: expect.stringContaining("25"),
     })]));
   });
+
+  it("emits MF_MISSING_ANNOTATION when activity count exceeds threshold without annotation", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const nodes = [
+      start,
+      ...Array.from({ length: 11 }, (_, index) => objectFrom("activity:logMessage", `activity-${index + 1}`)),
+      end,
+    ];
+
+    const result = validateMicroflowSize(nodes.map(item => ({ type: item.kind })));
+
+    expect(result).toEqual(expect.arrayContaining([expect.objectContaining({
+      level: "warning",
+      code: "MF_MISSING_ANNOTATION",
+    })]));
+  });
 });

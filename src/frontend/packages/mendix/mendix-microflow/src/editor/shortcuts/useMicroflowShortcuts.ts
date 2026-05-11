@@ -10,6 +10,7 @@ export interface UseMicroflowShortcutsOptions {
   onRedo: () => void;
   onSave: () => void;
   onSearch: () => void;
+  onSearchAll?: () => void;
   onStepInto?: () => void;
   onStepOver?: () => void;
   onStepOut?: () => void;
@@ -33,6 +34,7 @@ export function useMicroflowShortcuts({
   onRedo,
   onSave,
   onSearch,
+  onSearchAll,
   onStepInto,
   onStepOver,
   onStepOut,
@@ -74,6 +76,10 @@ export function useMicroflowShortcuts({
 
       if (commandKey && key === "f") {
         event.preventDefault();
+        if (event.shiftKey && onSearchAll) {
+          onSearchAll();
+          return;
+        }
         onSearch();
         return;
       }
@@ -180,5 +186,5 @@ export function useMicroflowShortcuts({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [active, containerRef, onContinue, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onMoveSelection, onPasteSelection, onRedo, onSave, onSearch, onSelectAll, onStepInto, onStepOut, onStepOver, onUndo, readonly]);
+  }, [active, containerRef, onContinue, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onMoveSelection, onPasteSelection, onRedo, onSave, onSearch, onSearchAll, onSelectAll, onStepInto, onStepOut, onStepOver, onUndo, readonly]);
 }

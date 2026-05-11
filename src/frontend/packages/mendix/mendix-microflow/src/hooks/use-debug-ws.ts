@@ -102,7 +102,7 @@ export function useDebugWebSocket(
   const sendNow = useCallback((command: DebugCommand, payload: Record<string, unknown> = {}) => {
     const ws = wsRef.current;
     if (ws?.readyState !== WebSocket.OPEN) {
-      store?.queueCommand(command);
+      store?.queueCommand(command, payload);
       return;
     }
     ws.send(JSON.stringify({ type: command, ...payload }));
@@ -132,8 +132,8 @@ export function useDebugWebSocket(
     if (!ws || ws.readyState !== WebSocket.OPEN || !store) {
       return;
     }
-    for (const command of store.popCommands()) {
-      ws.send(JSON.stringify({ type: command }));
+    for (const queued of store.popCommands()) {
+      ws.send(JSON.stringify({ type: queued.command, ...(queued.payload ?? {}) }));
     }
   }, [store]);
 
@@ -205,18 +205,17 @@ export function useDebugWebSocket(
   }, [
     autoReconnect,
     clearTimers,
-    connectImpl,
     flushQueuedCommands,
-      getUrl,
-      microflowId,
+    getUrl,
+    microflowId,
     onEvent,
     pingIntervalMs,
     registerBreakpoints,
     sessionId,
     sendNow,
     store,
-      updateStatus,
-    ]);
+    updateStatus,
+  ]);
   connectRef.current = connectImpl;
 
   const connect = useCallback(() => {

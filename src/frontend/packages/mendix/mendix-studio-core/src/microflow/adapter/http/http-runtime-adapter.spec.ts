@@ -238,48 +238,4 @@ describe("createHttpMicroflowRuntimeAdapter", () => {
     });
   });
 
-  it("maps debug suspend policy and timeline endpoints", async () => {
-    const apiClient = {
-      post: vi.fn(async (path: string) => {
-        if (path === "/microflows/debug-sessions/session-1/suspend-policy") {
-          return { sessionId: "session-1", policy: "branchOnly" };
-        }
-        throw new Error(`unexpected post path ${path}`);
-      }),
-      get: vi.fn(async (path: string) => {
-        if (path === "/microflows/debug-sessions/session-1/timeline") {
-          return [{
-            id: "evt-1",
-            sessionId: "session-1",
-            runId: "run-1",
-            objectId: "node-1",
-            flowId: "flow-1",
-            branchId: "branch-1",
-            phase: "pause",
-            occurredAt: "2026-05-06T10:00:00.000Z",
-            summary: "paused",
-          }];
-        }
-        throw new Error(`unexpected get path ${path}`);
-      }),
-      delete: vi.fn(),
-    } as any;
-
-    const adapter = createHttpMicroflowRuntimeAdapter({
-      apiBaseUrl: "/api/v1",
-      apiClient,
-    });
-
-    const policy = await adapter.debugAdapter?.updateSuspendPolicy?.("session-1", "branchOnly");
-    const timeline = await adapter.debugAdapter?.getTimeline?.("session-1");
-
-    expect(policy).toMatchObject({ sessionId: "session-1", policy: "branchOnly" });
-    expect(timeline?.[0]).toMatchObject({
-      id: "evt-1",
-      sessionId: "session-1",
-      objectId: "node-1",
-      phase: "pause",
-      summary: "paused",
-    });
-  });
 });

@@ -13,6 +13,10 @@ function ShortcutHarness(props: {
   onStepOver?: () => void;
   onStepOut?: () => void;
   onContinue?: () => void;
+  onFitView?: () => void;
+  onFocusMode?: () => void;
+  onSearchAll?: () => void;
+  onSearch?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useMicroflowShortcuts({
@@ -20,9 +24,12 @@ function ShortcutHarness(props: {
     onUndo: vi.fn(),
     onRedo: vi.fn(),
     onSave: vi.fn(),
-    onSearch: vi.fn(),
+    onSearch: props.onSearch ?? vi.fn(),
+    onSearchAll: props.onSearchAll,
     onDeleteSelection: vi.fn(),
     onEscape: vi.fn(),
+    onFitView: props.onFitView,
+    onFocusMode: props.onFocusMode,
     onStepInto: props.onStepInto,
     onStepOver: props.onStepOver,
     onStepOut: props.onStepOut,
@@ -71,5 +78,57 @@ describe("useMicroflowShortcuts", () => {
     fireEvent.keyDown(input, { key: "F5" });
 
     expect(onStepInto).not.toHaveBeenCalled();
+  });
+
+  it("maps Ctrl+Shift+F to the global search command", () => {
+    const onSearchAll = vi.fn();
+    const onSearch = vi.fn();
+    const { getByTestId } = render(<ShortcutHarness onSearch={onSearch} onSearchAll={onSearchAll} />);
+    const target = getByTestId("shortcut-target");
+
+    fireEvent.keyDown(target, { key: "F", ctrlKey: true, shiftKey: true });
+
+    expect(onSearchAll).toHaveBeenCalledTimes(1);
+    expect(onSearch).not.toHaveBeenCalled();
+  });
+
+  it("maps Ctrl+F to node search when global search callback is not used", () => {
+    const onSearch = vi.fn();
+    const { getByTestId } = render(<ShortcutHarness onSearch={onSearch} />);
+    const target = getByTestId("shortcut-target");
+
+    fireEvent.keyDown(target, { key: "F", ctrlKey: true, shiftKey: false });
+
+    expect(onSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to node search for Ctrl+Shift+F when global search callback is absent", () => {
+    const onSearch = vi.fn();
+    const { getByTestId } = render(<ShortcutHarness onSearch={onSearch} />);
+    const target = getByTestId("shortcut-target");
+
+    fireEvent.keyDown(target, { key: "F", ctrlKey: true, shiftKey: true });
+
+    expect(onSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps Ctrl+Shift+H to fit-view command", () => {
+    const onFitView = vi.fn();
+    const { getByTestId } = render(<ShortcutHarness onFitView={onFitView} />);
+    const target = getByTestId("shortcut-target");
+
+    fireEvent.keyDown(target, { key: "H", ctrlKey: true, shiftKey: true });
+
+    expect(onFitView).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps F11 to focus mode toggle", () => {
+    const onFocusMode = vi.fn();
+    const { getByTestId } = render(<ShortcutHarness onFocusMode={onFocusMode} />);
+    const target = getByTestId("shortcut-target");
+
+    fireEvent.keyDown(target, { key: "F11" });
+
+    expect(onFocusMode).toHaveBeenCalledTimes(1);
   });
 });

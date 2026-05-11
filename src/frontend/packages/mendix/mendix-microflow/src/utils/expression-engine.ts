@@ -1,10 +1,12 @@
-import type { MicroflowSchema, MicroflowMetadataCatalog, MicroflowVariableIndex } from "../schema/types";
+import type { MicroflowSchema, MicroflowVariableIndex } from "../schema/types";
 import type { ExpressionDiagnostic } from "../expressions/expression-types";
 import { validateExpression } from "../expressions/expression-validator";
 import { parseExpressionReferences } from "../expressions/expression-reference-parser";
 import { tokenizeExpression } from "../expressions/expression-tokenizer";
 import { buildVariableIndex, resolveVariableReferenceFromIndex } from "../variables";
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
+import type { MicroflowMetadataCatalog } from "../metadata/metadata-catalog";
+import { getAssociationsForEntity, getEntityByQualifiedName, getTargetEntityByAssociation, resolveStoredEntityQualifiedName } from "../metadata";
 import { MENDIX_FUNCTIONS, type MicroflowVariable, type MendixDataType, toMendixDataType } from "../types/mendix-types";
 
 export interface ExpressionParseSuggestion {
@@ -33,14 +35,30 @@ export interface ExpressionParseContext {
 }
 
 export const tokenize = tokenizeExpression;
+const BUILTIN_SYSTEM_VARIABLES: readonly MicroflowVariable[] = [
+  { name: "$currentUser", type: "Object", entityType: "System.User" },
+  { name: "$currentSession", type: "Object", entityType: "System.Session" },
+];
 
 function normalizeVariableName(name: string): string {
   return name.startsWith("$") ? name.slice(1) : name;
 }
 
+function withBuiltinSystemVariables(variables: MicroflowVariable[]): MicroflowVariable[] {
+  const names = new Set(variables.map(item => normalizeVariableName(item.name).toLowerCase()));
+  const merged = [...variables];
+  for (const builtin of BUILTIN_SYSTEM_VARIABLES) {
+    const key = normalizeVariableName(builtin.name).toLowerCase();
+    if (!names.has(key)) {
+      merged.push(builtin);
+    }
+  }
+  return merged;
+}
+
 function normalizeAvailableVariables(variables: MicroflowVariable[]): Map<string, MicroflowVariable> {
   const map = new Map<string, MicroflowVariable>();
-  for (const variable of variables) {
+  for (const variable of withBuiltinSystemVariables(variables)) {
     map.set(normalizeVariableName(variable.name), variable);
     map.set(`$${normalizeVariableName(variable.name)}`, variable);
   }
@@ -61,13 +79,112 @@ function toInvalidDivisionDiagnostic(diagnostic: ExpressionDiagnostic): Expressi
   };
 }
 
+function collectObjectMemberSuggestions(
+  metadata: MicroflowMetadataCatalog,
+  entityQualifiedName: string | undefined,
+  path: string,
+): string[] {
+  const resolvedEntityName = resolveStoredEntityQualifiedName(metadata, entityQualifiedName);
+  if (!resolvedEntityName) {
+    return [];
+  }
+  const trimmedPath = path.trim();
+  const segments = trimmedPath.split("/").filter(Boolean);
+  const withTrailingSlash = trimmedPath.endsWith("/");
+
+  const partial = withTrailingSlash
+    ? ""
+    : (segments.length ? segments[segments.length - 1] : "");
+  const associationChain = withTrailingSlash
+    ? segments
+    : (segments.length ? segments.slice(0, -1) : []);
+
+  let currentEntityName = resolvedEntityName;
+  for (const segment of associationChain) {
+    const candidates = getAssociationsForEntity(metadata, currentEntityName);
+    const segmentLower = segment.toLowerCase();
+    const matched = candidates.find(association =>
+      association.qualifiedName === segment ||
+      association.qualifiedName.toLowerCase().endsWith(`.${segmentLower}`) ||
+      association.qualifiedName.toLowerCase() === segmentLower
+    );
+    if (!matched) {
+      return [];
+    }
+    const target = getTargetEntityByAssociation(metadata, matched.qualifiedName, currentEntityName);
+    if (!target) {
+      return [];
+    }
+    currentEntityName = target.qualifiedName;
+  }
+
+  const entity = getEntityByQualifiedName(metadata, currentEntityName);
+  if (!entity) {
+    return [];
+  }
+  const tokens = new Set<string>([
+    ...entity.attributes.map(attribute => attribute.name),
+    ...getAssociationsForEntity(metadata, currentEntityName).map(association => association.name),
+  ]);
+  const normalizedPartial = partial.toLowerCase();
+  return [...tokens]
+    .filter(token => token.toLowerCase().startsWith(normalizedPartial))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function getMetadataSuggestions(
+  rawExpr: string,
+  availableVars: MicroflowVariable[],
+  metadata?: MicroflowMetadataCatalog,
+): ExpressionParseSuggestion[] {
+  if (!metadata) {
+    return [];
+  }
+  const byName = normalizeAvailableVariables(availableVars);
+  const objectMatch = rawExpr.match(/\$([A-Za-z_][\w]*)(\/[A-Za-z0-9_.]*)*$/);
+  if (!objectMatch) {
+    return [];
+  }
+
+  const raw = objectMatch[0];
+  const slashIndex = raw.indexOf("/");
+  if (slashIndex < 0) {
+    return [];
+  }
+
+  const variableName = normalizeVariableName(raw.slice(1, slashIndex));
+  const path = raw.slice(slashIndex + 1);
+  const variable = byName.get(variableName) ?? byName.get(`$${variableName}`);
+  const entityType = variable?.entityType;
+  if (!entityType) {
+    return [];
+  }
+
+  const members = collectObjectMemberSuggestions(metadata, entityType, path);
+  if (!members.length) {
+    return [];
+  }
+  return members.map(attribute => ({
+    label: attribute,
+    type: "attribute",
+    detail: "attribute",
+    insertText: attribute,
+  }));
+}
+
 export function getAutoCompleteSuggestions(
   expr: string,
   cursorPos: number,
   availableVars: MicroflowVariable[],
+  metadata?: MicroflowMetadataCatalog,
 ): ExpressionParseSuggestion[] {
+  const allVariables = withBuiltinSystemVariables(availableVars);
   const prefix = expr.slice(0, cursorPos);
-  const byName = normalizeAvailableVariables(availableVars);
+  const byName = normalizeAvailableVariables(allVariables);
+  const metadataSuggestions = getMetadataSuggestions(prefix, allVariables, metadata);
+  if (metadataSuggestions.length) {
+    return metadataSuggestions;
+  }
 
   const variableMatch = prefix.match(/\$([A-Za-z_][\w]*)?$/);
   if (variableMatch && (variableMatch[1] ?? "").length >= 0) {
@@ -83,7 +200,7 @@ export function getAutoCompleteSuggestions(
         }));
       }
     }
-    return availableVars
+    return allVariables
       .filter(v => variableMatch[1] ? normalizeVariableName(v.name).toLowerCase().includes((variableMatch[1] ?? "").toLowerCase()) : true)
       .map(variable => ({
         label: normalizeVariableName(variable.name),
@@ -128,9 +245,10 @@ export function parseExpression(
   availableVars: MicroflowVariable[],
   context?: ExpressionParseContext,
 ): ExpressionParseResult {
+  const allVariables = withBuiltinSystemVariables(availableVars);
   const raw = String(expression ?? "").trim();
   const parsed = parseExpressionReferences(raw);
-  const availableByName = normalizeAvailableVariables(availableVars);
+  const availableByName = normalizeAvailableVariables(allVariables);
   const used = new Set<string>();
   const unknown = new Set<string>();
   const diagnostics: ExpressionDiagnostic[] = [
@@ -160,7 +278,12 @@ export function parseExpression(
   }
 
   let inferredType = "Empty" as MendixDataType;
-  let suggestions = getAutoCompleteSuggestions(raw, raw.length, availableVars);
+  let suggestions = getAutoCompleteSuggestions(
+    raw,
+    raw.length,
+    allVariables,
+    context?.metadata ?? EMPTY_MICROFLOW_METADATA_CATALOG,
+  );
 
   if (context?.schema && (context.metadata ?? EMPTY_MICROFLOW_METADATA_CATALOG) && (context.objectId || context.actionId)) {
     const variableIndex = context.variableIndex
@@ -182,10 +305,14 @@ export function parseExpression(
       .map(name => normalizeReferenceName(name));
     for (const name of new Set(referenceByContext)) {
       used.add(name);
+      const objectId = context.objectId;
+      if (!objectId) {
+        continue;
+      }
       const symbol = resolveVariableReferenceFromIndex(
         context.schema,
         variableIndex,
-        { objectId: context.objectId, actionId: context.actionId, fieldPath: context.fieldPath },
+        { objectId, actionId: context.actionId, fieldPath: context.fieldPath },
         name,
       );
       if (symbol) {
@@ -198,7 +325,12 @@ export function parseExpression(
     }
     if (context.objectId && !parsed.references.some(ref => ref.range.end === raw.length)) {
       // keep default, keep existing behavior
-      suggestions = getAutoCompleteSuggestions(raw, raw.length, availableVars);
+      suggestions = getAutoCompleteSuggestions(
+        raw,
+        raw.length,
+        allVariables,
+        context?.metadata ?? EMPTY_MICROFLOW_METADATA_CATALOG,
+      );
     }
   }
 

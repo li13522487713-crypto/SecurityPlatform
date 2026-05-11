@@ -101,13 +101,19 @@ export interface DebugSnapshot {
   lastError?: string;
   breakpoints: DebugBreakpoint[];
   conditionalBreakpoints: DebugBreakpoint[];
-  pendingCommands: DebugCommand[];
+  pendingCommands: DebugQueuedCommand[];
   nodeState: DebugWsNodeHighlight;
   loopIteration?: DebugLoopIteration;
   callStack: DebugCallStackFrame[];
   variables: DebugVariableSnapshot[];
   activeError?: string;
+  activeErrorStack?: string;
   paused?: boolean;
+}
+
+export interface DebugQueuedCommand {
+  command: DebugCommand;
+  payload?: Record<string, unknown>;
 }
 
 export interface DebugStoreListener {
@@ -116,6 +122,26 @@ export interface DebugStoreListener {
 
 function commandKey(command: DebugCommand, target: string = ""): string {
   return `${command}:${target}`;
+}
+
+function deriveQueueTarget(payload: Record<string, unknown> | undefined): string {
+  if (!payload) {
+    return "";
+  }
+  const direct = payload.targetId;
+  if (typeof direct === "string") {
+    return direct;
+  }
+  const nodeId = payload.nodeId;
+  if (typeof nodeId === "string") {
+    return nodeId;
+  }
+  const breakpoint = payload.breakpoint;
+  if (breakpoint && typeof breakpoint === "object" && "nodeId" in breakpoint) {
+    const candidate = (breakpoint as { nodeId?: unknown }).nodeId;
+    return typeof candidate === "string" ? candidate : "";
+  }
+  return "";
 }
 
 export class DebugStore {
@@ -131,6 +157,7 @@ export class DebugStore {
     callStack: [],
     variables: [],
     activeError: undefined,
+    activeErrorStack: undefined,
     paused: false,
   };
   private readonly breakpointMap = new Map<string, DebugBreakpoint>();
@@ -183,12 +210,14 @@ export class DebugStore {
   setError(message?: string): void {
     this.state.lastError = message;
     this.state.activeError = message;
+    this.state.activeErrorStack = undefined;
     this.emit();
   }
 
   clearError(): void {
     this.state.lastError = undefined;
     this.state.activeError = undefined;
+    this.state.activeErrorStack = undefined;
     this.emit();
   }
 
@@ -224,12 +253,13 @@ export class DebugStore {
     this.emit();
   }
 
-  queueCommand(command: DebugCommand, targetId = ""): void {
+  queueCommand(command: DebugCommand, payload?: Record<string, unknown>): void {
+    const targetId = deriveQueueTarget(payload);
     const key = commandKey(command, targetId);
     if (this.commandSignatureSet.has(key)) {
       return;
     }
-    this.state.pendingCommands.push(command);
+    this.state.pendingCommands.push({ command, payload });
     this.commandSignatureSet.add(key);
     if (this.state.pendingCommands.length > 20) {
       this.state.pendingCommands = this.state.pendingCommands.slice(-20);
@@ -237,7 +267,7 @@ export class DebugStore {
     this.emit();
   }
 
-  popCommands(): DebugCommand[] {
+  popCommands(): DebugQueuedCommand[] {
     const next = [...this.state.pendingCommands];
     this.state.pendingCommands = [];
     this.commandSignatureSet = new Set();
@@ -255,6 +285,7 @@ export class DebugStore {
     this.state.callStack = [];
     this.state.variables = [];
     this.state.activeError = undefined;
+    this.state.activeErrorStack = undefined;
     this.state.paused = false;
     this.emit();
   }
@@ -296,13 +327,20 @@ export class DebugStore {
     if (event.type === DEBUG_WS_EVENTS.ERROR) {
       const message = event.error?.message ?? event.message ?? "Debug error";
       this.state.activeError = message;
+      this.state.activeErrorStack = event.error?.stack ?? undefined;
       this.state.lastError = message;
+      this.state.nodeState.currentNodeId = event.nodeId ?? this.state.nodeState.currentNodeId;
+      this.state.nodeState.currentSafePoint = event.safePoint ?? this.state.nodeState.currentSafePoint;
       this.state.paused = true;
       this.emit();
       return;
     }
     if (event.type === DEBUG_WS_EVENTS.COMPLETE) {
       this.state.loopIteration = undefined;
+      this.state.nodeState.currentNodeId = undefined;
+      this.state.nodeState.currentFlowId = undefined;
+      this.state.nodeState.currentBranchId = undefined;
+      this.state.nodeState.currentSafePoint = undefined;
       this.state.paused = false;
       this.emit();
       return;
@@ -334,6 +372,7 @@ export class DebugStore {
       pendingCommands: [],
       lastError: undefined,
       activeError: undefined,
+      activeErrorStack: undefined,
       paused: false,
     };
     this.state.breakpoints = [...this.breakpointMap.values()];

@@ -18,7 +18,7 @@ import type {
   TestRunMicroflowResponse,
   ValidateMicroflowResponse,
 } from "@atlas/microflow";
-import type { MicroflowDebugAdapter, MicroflowRunSession, MicroflowTraceFrame } from "@atlas/microflow";
+import type { MicroflowRunSession, MicroflowTraceFrame } from "@atlas/microflow";
 import type { MicroflowDebugSessionDto, MicroflowDebugTraceEventDto, MicroflowDebugVariableSnapshotDto, RunSessionViewModel } from "@atlas/microflow";
 
 import type { MicroflowResource } from "../../resource/resource-types";
@@ -97,7 +97,6 @@ function extractRuntimeCommands(session: MicroflowRunSession): TestRunMicroflowR
 async function runWithSessionHydration(
   client: MicroflowApiClient,
   request: Parameters<RuntimeMicroflowApiClient["testRunMicroflow"]>[0],
-  debugAdapter: MicroflowDebugAdapter | undefined,
 ): Promise<TestRunMicroflowResponse> {
   const id = request.microflowId ?? request.schema?.id;
   if (!id) {
@@ -121,9 +120,15 @@ async function runWithSessionHydration(
   const [hydratedSessionResult, hydratedTraceResult, hydratedDebugSessionResult, hydratedVariablesResult, hydratedDebugTraceResult] = await Promise.allSettled([
     client.get<MicroflowRunSession>(`/microflows/runs/${encodeURIComponent(runId)}`),
     client.get<{ trace: MicroflowTraceFrame[] }>(`/microflows/runs/${encodeURIComponent(runId)}/trace`),
-    request.debugSessionId && debugAdapter ? debugAdapter.getSession(request.debugSessionId) : Promise.resolve(undefined as MicroflowDebugSessionDto | undefined),
-    request.debugSessionId && debugAdapter ? debugAdapter.listVariables(request.debugSessionId) : Promise.resolve(undefined as MicroflowDebugVariableSnapshotDto[] | undefined),
-    request.debugSessionId && debugAdapter ? debugAdapter.trace(request.debugSessionId) : Promise.resolve(undefined as MicroflowDebugTraceEventDto[] | undefined),
+    request.debugSessionId
+      ? client.get<MicroflowDebugSessionDto>(`/microflows/debug-sessions/${encodeURIComponent(request.debugSessionId)}`)
+      : Promise.resolve(undefined as MicroflowDebugSessionDto | undefined),
+    request.debugSessionId
+      ? client.get<MicroflowDebugVariableSnapshotDto[]>(`/microflows/debug-sessions/${encodeURIComponent(request.debugSessionId)}/variables`)
+      : Promise.resolve(undefined as MicroflowDebugVariableSnapshotDto[] | undefined),
+    request.debugSessionId
+      ? client.get<MicroflowDebugTraceEventDto[]>(`/microflows/debug-sessions/${encodeURIComponent(request.debugSessionId)}/trace`)
+      : Promise.resolve(undefined as MicroflowDebugTraceEventDto[] | undefined),
   ]);
 
   const hydratedSession = hydratedSessionResult.status === "fulfilled" && hydratedSessionResult.value
@@ -202,87 +207,7 @@ function toRuntimeReference(reference: import("../../references/microflow-refere
 
 export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeAdapterOptions): RuntimeMicroflowApiClient {
   const client = options.apiClient ?? new MicroflowApiClient(options);
-  const debugAdapter: MicroflowDebugAdapter = {
-    createSession(microflowId) {
-      return client.post(`/microflows/${encodeURIComponent(microflowId)}/debug-sessions`, {});
-    },
-    getSession(sessionId) {
-      return client.get(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}`);
-    },
-    sendCommand(sessionId, command, target) {
-      return client.post(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/commands`, {
-        command,
-        targetNodeObjectId: target?.nodeObjectId,
-        targetFlowId: target?.flowId,
-      });
-    },
-    listVariables(sessionId) {
-      return client.get(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/variables`);
-    },
-    evaluate(sessionId, expression) {
-      return client.post(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/evaluate`, { expression });
-    },
-    trace(sessionId) {
-      return client.get(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/trace`);
-    },
-    async updateSuspendPolicy(sessionId, policy) {
-      return client.post<{
-        sessionId: string;
-        policy: "all" | "branchOnly";
-      }>(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/suspend-policy`, { policy });
-    },
-    async getTimeline(sessionId) {
-      const timeline = await client.get<Array<{
-        id: string;
-        sessionId?: string;
-        runId?: string;
-        objectId?: string;
-        flowId?: string;
-        branchId?: string;
-        phase?: string;
-        summary?: string;
-        occurredAt?: string;
-      }>>(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/timeline`);
-      return timeline.map(item => ({
-        id: item.id,
-        sessionId: item.sessionId ?? sessionId,
-        runId: item.runId,
-        objectId: item.objectId,
-        flowId: item.flowId,
-        branchId: item.branchId,
-        phase: item.phase,
-        occurredAt: item.occurredAt ?? new Date().toISOString(),
-        summary: item.summary,
-      }));
-    },
-    async mutateVariable(sessionId, payload) {
-      const serialized = typeof payload.value === "string"
-        ? payload.value
-        : JSON.stringify(payload.value);
-      const result = await client.post<{
-        sessionId: string;
-        name: string;
-        valuePreview?: string;
-      }>(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}/variables:mutate`, {
-        name: payload.name,
-        valuePreview: serialized,
-        rawValueJson: serialized,
-        allowUnsafe: true,
-      });
-      return {
-        sessionId: result.sessionId,
-        name: result.name,
-        valuePreview: result.valuePreview,
-        mutated: true,
-      };
-    },
-    deleteSession(sessionId) {
-      return client.delete(`/microflows/debug-sessions/${encodeURIComponent(sessionId)}`);
-    },
-  };
-
   return {
-    debugAdapter,
     async listMicroflows(query) {
       const result = await client.get<{ items: MicroflowResource[] }>("/microflows", query);
       return result.items.map(toRuntimeResource);
@@ -349,7 +274,7 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       };
     },
     async testRunMicroflow(request): Promise<TestRunMicroflowResponse> {
-      return runWithSessionHydration(client, request, debugAdapter);
+      return runWithSessionHydration(client, request);
     },
     async cancelMicroflowRun(runId: string) {
       return client.post<{ runId: string; status: "cancelled" | "success" | "failed" }>(`/microflows/runs/${encodeURIComponent(runId)}/cancel`, {});

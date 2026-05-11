@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, List, Space, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 
 const { Text } = Typography;
@@ -20,6 +20,12 @@ export interface DebugBranchFrame {
   status: string;
 }
 
+export interface DebugLoopIterationView {
+  nodeId?: string;
+  iterationIndex?: number;
+  totalIterations?: number;
+}
+
 export interface DebugBreakpointView {
   id: string;
   targetId: string;
@@ -36,11 +42,14 @@ export interface MicroflowStepDebugPanelProps {
   currentFlowId?: string;
   currentBranchId?: string;
   currentPhase?: string;
+  activeError?: string;
+  activeErrorStack?: string;
   variables?: DebugVariableSnapshot[];
   activeVariableName?: string;
   watches?: Array<{ expression: string; value?: string; error?: string }>;
   callStack?: DebugCallStackFrame[];
   branches?: DebugBranchFrame[];
+  loopIteration?: DebugLoopIterationView;
   breakpoints?: DebugBreakpointView[];
   labels: MicroflowStepDebugPanelLabels;
   onCommand?: (command: DebugCommand) => void;
@@ -99,17 +108,26 @@ function normalizeVariableName(name: string | undefined): string {
   return trimmed.startsWith("$") ? trimmed : `$${trimmed}`;
 }
 
+function normalizeCallStackSegment(name: string): string {
+  const text = String(name ?? "").trim();
+  const match = text.match(/^\d+:(.+)$/);
+  return match?.[1]?.trim() || text;
+}
+
 export function MicroflowStepDebugPanel({
   status,
   currentNodeId,
   currentFlowId,
   currentBranchId,
   currentPhase,
+  activeError,
+  activeErrorStack,
   variables = [],
   activeVariableName,
   watches = [],
   callStack = [],
   branches = [],
+  loopIteration,
   breakpoints = [],
   labels,
   onCommand,
@@ -117,6 +135,13 @@ export function MicroflowStepDebugPanel({
   onVariableSelect,
 }: MicroflowStepDebugPanelProps) {
   const [watch, setWatch] = useState("");
+  const [showErrorStack, setShowErrorStack] = useState(false);
+  const callStackPath = callStack.map(frame => normalizeCallStackSegment(frame.name)).filter(Boolean).join(" > ");
+  useEffect(() => {
+    if (!activeErrorStack) {
+      setShowErrorStack(false);
+    }
+  }, [activeErrorStack]);
   const commands: DebugCommand[] = [
     "continue",
     "pause",
@@ -135,7 +160,30 @@ export function MicroflowStepDebugPanel({
         {currentFlowId ? <Tag color="cyan">{labels.flowPrefix}: {currentFlowId}</Tag> : null}
         {currentBranchId ? <Tag color="orange">{labels.branchPrefix}: {currentBranchId}</Tag> : null}
         {currentPhase ? <Tag color="purple">{labels.phasePrefix}: {currentPhase}</Tag> : null}
+        {activeError ? <Tag color="red" data-testid="microflow-debug-error">{activeError}</Tag> : null}
+        {loopIteration?.iterationIndex != null || loopIteration?.totalIterations != null ? (
+          <Tag color="orange" data-testid="microflow-debug-loop-iteration">
+            第 {loopIteration?.iterationIndex ?? "-"} / {loopIteration?.totalIterations ?? "-"} 次
+          </Tag>
+        ) : null}
       </Space>
+      {activeErrorStack ? (
+        <Space wrap>
+          <Button
+            size="small"
+            theme="borderless"
+            data-testid="microflow-debug-toggle-stack"
+            onClick={() => setShowErrorStack(current => !current)}
+          >
+            {showErrorStack ? "Hide stack trace" : "View stack trace"}
+          </Button>
+        </Space>
+      ) : null}
+      {activeErrorStack && showErrorStack ? (
+        <Card title="Stack Trace" style={{ width: "100%" }}>
+          <TextArea value={activeErrorStack} readOnly autosize data-testid="microflow-debug-stacktrace" />
+        </Card>
+      ) : null}
       <Space wrap>
         {commands.map(command => {
           const disabledReason = commandDisabledReason(command, status);
@@ -194,6 +242,9 @@ export function MicroflowStepDebugPanel({
         />
       </Card>
       <Card title={labels.callStackTitle}>
+        {callStackPath ? (
+          <Text type="tertiary" data-testid="microflow-debug-callstack-path">{callStackPath}</Text>
+        ) : null}
         <List dataSource={callStack} renderItem={item => <List.Item>{item.name}</List.Item>} />
       </Card>
       <Card title={labels.branchTreeTitle}>

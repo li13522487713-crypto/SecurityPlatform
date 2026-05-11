@@ -135,4 +135,60 @@ describe("MicroflowStepDebugPanel", () => {
     fireEvent.click(stepOverButton);
     expect(onCommand).not.toHaveBeenCalledWith("stepOver");
   });
+
+  it("renders loop iteration progress tag when iteration info is provided", () => {
+    render(
+      <MicroflowStepDebugPanel
+        status="paused"
+        labels={labels}
+        loopIteration={{ iterationIndex: 3, totalIterations: 8 }}
+      />,
+    );
+
+    expect(screen.getByTestId("microflow-debug-loop-iteration").textContent).toContain("第 3 / 8 次");
+  });
+
+  it("renders active debug error when provided", () => {
+    render(
+      <MicroflowStepDebugPanel
+        status="paused"
+        labels={labels}
+        activeError="Request timeout"
+      />,
+    );
+
+    expect(screen.getByTestId("microflow-debug-error").textContent).toContain("Request timeout");
+  });
+
+  it("toggles stack trace panel when stack info is provided", () => {
+    render(
+      <MicroflowStepDebugPanel
+        status="paused"
+        labels={labels}
+        activeError="Runtime exploded"
+        activeErrorStack={"Error: Runtime exploded\n  at node-1\n  at node-2"}
+      />,
+    );
+
+    expect(screen.queryByTestId("microflow-debug-stacktrace")).toBeNull();
+    fireEvent.click(screen.getByTestId("microflow-debug-toggle-stack"));
+    expect(screen.getByTestId("microflow-debug-stacktrace").textContent).toContain("Runtime exploded");
+    fireEvent.click(screen.getByTestId("microflow-debug-toggle-stack"));
+    expect(screen.queryByTestId("microflow-debug-stacktrace")).toBeNull();
+  });
+
+  it("renders call stack hierarchy path", () => {
+    render(
+      <MicroflowStepDebugPanel
+        status="paused"
+        labels={labels}
+        callStack={[
+          { id: "frame-root", name: "0:MF_Main" },
+          { id: "frame-child", name: "1:MF_Sub" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("microflow-debug-callstack-path").textContent).toContain("MF_Main > MF_Sub");
+  });
 });

@@ -63,6 +63,18 @@ describe("deriveEdgeRuntimeStateByFlowId", () => {
     expect(states.get("branch-failed")).toBe("failed");
   });
 
+  it("promotes running frame branchTrace selection to selectedCase", () => {
+    const states = deriveEdgeRuntimeStateByFlowId([
+      frame({
+        status: "running",
+        output: {
+          branchTrace: [{ flowId: "branch-live", branchId: "branch-live", selected: true, status: "completed" }],
+        },
+      }),
+    ]);
+    expect(states.get("branch-live")).toBe("selectedCase");
+  });
+
   it("only projects runtime states from latest runId", () => {
     const states = deriveEdgeRuntimeStateByFlowId([
       frame({
