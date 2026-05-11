@@ -294,4 +294,41 @@ describe("design protocol property panel adapter", () => {
       kind: "logMessage",
     });
   });
+
+  it("syncs schema-level parameter renames back into parameter nodes", () => {
+    const schema = createMicroflowDesignSchema({
+      id: "mf-parameter-sync",
+      name: "MF_ParameterSync",
+      moduleId: "module-a",
+      parameters: [{ id: "param-amount", stableId: "param-amount", name: "parameter", dataType: { kind: "string" }, type: { kind: "primitive", name: "string" }, required: true }],
+      workflow: {
+        nodes: [
+          {
+            id: "parameter-node",
+            type: "parameterObject",
+            data: {
+              objectId: "parameter-node",
+              objectKind: "parameterObject",
+              title: "parameter",
+              parameterId: "param-amount",
+              parameterName: "parameter",
+            },
+            meta: { position: { x: 120, y: 80 } },
+          },
+        ],
+        edges: [],
+      } as never,
+    });
+
+    const next = applyDesignDocumentSchema(schema, {
+      ...buildDesignPropertyPanelModel(schema).authoringSchema,
+      parameters: [{ id: "param-amount", stableId: "param-amount", name: "amount", dataType: { kind: "string" }, type: { kind: "primitive", name: "string" }, required: true }],
+    });
+
+    expect(next.parameters[0]?.name).toBe("amount");
+    expect(next.workflow.nodes[0]?.data).toMatchObject({
+      title: "amount",
+      parameterName: "amount",
+    });
+  });
 });

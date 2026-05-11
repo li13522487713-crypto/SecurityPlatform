@@ -317,6 +317,13 @@ const mendixToolboxSections: MendixToolboxSection[] = [
     ],
   },
   {
+    key: "input",
+    label: "Input parameters",
+    itemKeys: [
+      "parameter",
+    ],
+  },
+  {
     key: "event",
     label: "Loop events",
     itemKeys: [

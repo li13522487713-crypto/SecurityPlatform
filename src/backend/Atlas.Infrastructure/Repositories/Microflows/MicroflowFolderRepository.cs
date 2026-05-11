@@ -26,7 +26,8 @@ public sealed class MicroflowFolderRepository : IMicroflowFolderRepository
         string moduleId,
         CancellationToken cancellationToken)
     {
-        var q = _db.Queryable<MicroflowFolderEntity>().Where(x => x.ModuleId == moduleId);
+        var normalizedModuleId = moduleId.Trim().ToLowerInvariant();
+        var q = _db.Queryable<MicroflowFolderEntity>().Where(x => x.ModuleId.ToLower() == normalizedModuleId);
         if (!string.IsNullOrWhiteSpace(workspaceId))
         {
             q = q.Where(x => x.WorkspaceId == workspaceId);
@@ -51,8 +52,9 @@ public sealed class MicroflowFolderRepository : IMicroflowFolderRepository
         string? excludeId,
         CancellationToken cancellationToken)
     {
+        var normalizedModuleId = moduleId.Trim().ToLowerInvariant();
         var q = _db.Queryable<MicroflowFolderEntity>()
-            .Where(x => x.ModuleId == moduleId && x.Name == name);
+            .Where(x => x.ModuleId.ToLower() == normalizedModuleId && x.Name == name);
         q = string.IsNullOrWhiteSpace(parentFolderId)
             ? q.Where(x => x.ParentFolderId == null || x.ParentFolderId == "")
             : q.Where(x => x.ParentFolderId == parentFolderId);

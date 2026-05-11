@@ -44,7 +44,7 @@ function readWorkspaceIdFromUrl(url: string): string | undefined {
 let authenticatedAccessToken = "";
 
 async function createMicroflow(page: import("@playwright/test").Page, workspaceId: string) {
-  const name = uniqueName("E2E_MF_DUP_VAR").replace(/-/g, "_");
+  const name = uniqueName("E2E_MF_PARAM_SCOPE").replace(/-/g, "_");
   const response = await page.request.post(`${appApiBase}/api/v1/microflows`, {
     headers: {
       "Content-Type": "application/json",
@@ -59,7 +59,7 @@ async function createMicroflow(page: import("@playwright/test").Page, workspaceI
         displayName: name,
         moduleId: "Sales",
         moduleName: "Sales",
-        tags: ["e2e", "duplicate-variable"],
+        tags: ["e2e", "parameter-scope"],
         parameters: [],
         returnType: { kind: "void" },
         template: "blank",
@@ -82,7 +82,7 @@ async function createMicroflow(page: import("@playwright/test").Page, workspaceI
   return { id: String(created.id), name };
 }
 
-async function saveDuplicateVariableSchema(page: import("@playwright/test").Page, microflowId: string) {
+async function saveParameterSchema(page: import("@playwright/test").Page, microflowId: string) {
   const schemaResp = await page.request.get(`${appApiBase}/api/v1/microflows/${encodeURIComponent(microflowId)}/schema`, {
     headers: {
       "X-Tenant-Id": defaultTenantId,
@@ -94,43 +94,41 @@ async function saveDuplicateVariableSchema(page: import("@playwright/test").Page
   const baseSchema = clone(schemaPayload?.data?.schema);
   const baseVersion = schemaPayload?.data?.schemaVersion;
 
+  baseSchema.parameters = [
+    {
+      id: "param-amount",
+      stableId: "param-amount",
+      name: "amount",
+      dataType: { kind: "decimal" },
+      type: { kind: "primitive", name: "Decimal" },
+      required: true,
+      description: "审批金额",
+      documentation: "审批金额",
+    },
+  ];
+
   baseSchema.workflow.nodes = [
     ...baseSchema.workflow.nodes.filter((node: { id?: string }) => node.id === "start" || node.id === "end"),
     {
-      id: "create-level-a",
-      type: "actionActivity",
+      id: "parameter-amount",
+      type: "parameterObject",
       data: {
-        objectId: "create-level-a",
-        objectKind: "actionActivity",
-        officialType: "Microflows$ActionActivity",
-        title: "Create Variable",
-        subtitle: "createVariable",
+        objectId: "parameter-amount",
+        objectKind: "parameterObject",
+        officialType: "Microflows$MicroflowParameterObject",
+        title: "amount",
         documentation: "",
         collectionId: "root-collection",
-        autoGenerateCaption: false,
-        backgroundColor: "default",
-        disabled: false,
-        actionKind: "createVariable",
-        action: {
-          id: "action-create-level-a",
-          kind: "createVariable",
-          officialType: "Microflows$CreateVariableAction",
-          errorHandlingType: "rollback",
-          documentation: "",
-          editor: { category: "variable", iconKey: "variable", availability: "supported" },
-          variableName: "approvalLevel",
-          dataType: { kind: "string" },
-          initialValue: expression("'L1'"),
-          readonly: false,
-        },
+        parameterId: "param-amount",
+        parameterName: "amount",
       },
-      meta: { nodeDTOType: "actionActivity", collectionId: "root-collection", position: { x: 320, y: 180 }, size: { width: 110, height: 36 } },
+      meta: { nodeDTOType: "parameterObject", collectionId: "root-collection", position: { x: 120, y: 80 }, size: { width: 158, height: 70 } },
     },
     {
-      id: "create-level-b",
+      id: "create-variable",
       type: "actionActivity",
       data: {
-        objectId: "create-level-b",
+        objectId: "create-variable",
         objectKind: "actionActivity",
         officialType: "Microflows$ActionActivity",
         title: "Create Variable",
@@ -142,26 +140,25 @@ async function saveDuplicateVariableSchema(page: import("@playwright/test").Page
         disabled: false,
         actionKind: "createVariable",
         action: {
-          id: "action-create-level-b",
+          id: "action-create-variable",
           kind: "createVariable",
           officialType: "Microflows$CreateVariableAction",
           errorHandlingType: "rollback",
           documentation: "",
           editor: { category: "variable", iconKey: "variable", availability: "supported" },
-          variableName: "ApprovalLevel",
-          dataType: { kind: "string" },
-          initialValue: expression("'L2'"),
+          variableName: "threshold",
+          dataType: { kind: "decimal" },
+          initialValue: expression("$amount"),
           readonly: false,
         },
       },
-      meta: { nodeDTOType: "actionActivity", collectionId: "root-collection", position: { x: 520, y: 180 }, size: { width: 110, height: 36 } },
+      meta: { nodeDTOType: "actionActivity", collectionId: "root-collection", position: { x: 320, y: 220 }, size: { width: 110, height: 36 } },
     },
   ];
 
   baseSchema.workflow.edges = [
-    edge("flow-start-a", "start", "create-level-a"),
-    edge("flow-a-b", "create-level-a", "create-level-b"),
-    edge("flow-b-end", "create-level-b", "end"),
+    edge("flow-start-create", "start", "create-variable"),
+    edge("flow-create-end", "create-variable", "end"),
   ];
   baseSchema.audit = { ...(baseSchema.audit ?? {}), updatedAt: new Date().toISOString(), status: "draft" };
 
@@ -174,42 +171,15 @@ async function saveDuplicateVariableSchema(page: import("@playwright/test").Page
     data: {
       schema: baseSchema,
       baseVersion,
-      saveReason: "e2e-duplicate-variable",
-      clientRequestId: `e2e-duplicate-variable-${Date.now()}`,
+      saveReason: "e2e-parameter-scope",
+      clientRequestId: `e2e-parameter-scope-${Date.now()}`,
       force: true,
     },
   });
   expect(saveResp.ok()).toBeTruthy();
 }
 
-async function openDuplicateVariablePage(page: import("@playwright/test").Page, appKey: string) {
-  void appKey;
-  if (!/\/space\/[^/]+\//.test(page.url()) && !/\/workspace\/[^/]+\//.test(page.url())) {
-    await page.goto(`${appBaseUrl}${selectWorkspacePath()}`, { waitUntil: "domcontentloaded" });
-    const onSelectPage = await page.getByTestId("coze-select-workspace-page").isVisible({ timeout: 5_000 }).catch(() => false);
-    if (onSelectPage) {
-      const matchedWorkspaceButton = page.locator('[data-testid^="coze-select-workspace-"]', { hasText: appKey }).first();
-      if (await matchedWorkspaceButton.count()) {
-        await matchedWorkspaceButton.click();
-      } else {
-        await page.locator('[data-testid^="coze-select-workspace-"]').first().click();
-      }
-      await page.waitForURL(/\/(space|workspace)\/[^/]+\/.+/, { timeout: 45_000 });
-    }
-  }
-  const workspaceId = readWorkspaceIdFromUrl(page.url());
-  if (!workspaceId) {
-    throw new Error(`Workspace id not found in ${page.url()}`);
-  }
-  const microflow = await createMicroflow(page, workspaceId);
-  await saveDuplicateVariableSchema(page, microflow.id);
-  await page.goto(`${appBaseUrl}/microflow/${encodeURIComponent(microflow.id)}/editor`, {
-    waitUntil: "domcontentloaded",
-  });
-  await expect(page.getByTestId("microflow-editor-shell")).toBeVisible({ timeout: 30_000 });
-}
-
-async function loginForDuplicateVariable(page: import("@playwright/test").Page, appKey: string) {
+async function loginForParameterScope(page: import("@playwright/test").Page, appKey: string) {
   const tokenResp = await page.request.post(`${appApiBase}/api/v1/auth/token`, {
     headers: {
       "Content-Type": "application/json",
@@ -258,9 +228,33 @@ async function loginForDuplicateVariable(page: import("@playwright/test").Page, 
   }, {
     timeout: 90_000,
   }).toMatch(/workspace|select/);
+
+  const onSelectPage = await page.getByTestId("coze-select-workspace-page").isVisible().catch(() => false);
+  if (onSelectPage) {
+    const matchedWorkspaceButton = page.locator('[data-testid^="coze-select-workspace-"]', { hasText: appKey }).first();
+    if (await matchedWorkspaceButton.count()) {
+      await matchedWorkspaceButton.click();
+    } else {
+      await page.locator('[data-testid^="coze-select-workspace-"]').first().click();
+    }
+    await page.waitForURL(/\/(space|workspace)\/[^/]+\/.+/, { timeout: 45_000 });
+  }
 }
 
-test.describe.serial("@microflow Mendix Studio Duplicate Variable", () => {
+async function openParameterScopePage(page: import("@playwright/test").Page, appKey: string) {
+  const workspaceId = readWorkspaceIdFromUrl(page.url());
+  if (!workspaceId) {
+    throw new Error(`Workspace id not found in ${page.url()}`);
+  }
+  const microflow = await createMicroflow(page, workspaceId);
+  await saveParameterSchema(page, microflow.id);
+  await page.goto(`${appBaseUrl}/microflow/${encodeURIComponent(microflow.id)}/editor`, {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page.getByTestId("microflow-editor-shell")).toBeVisible({ timeout: 30_000 });
+}
+
+test.describe.serial("@microflow Mendix Studio Parameter Scope", () => {
   test.describe.configure({ timeout: 300_000 });
   let appKey = "";
 
@@ -269,13 +263,25 @@ test.describe.serial("@microflow Mendix Studio Duplicate Variable", () => {
     appKey = await ensureAppSetup(request);
   });
 
-  test("重复变量名会在 Problems 面板显示 MF_VARIABLE_DUPLICATED", async ({ page }) => {
-    await loginForDuplicateVariable(page, appKey);
-    await openDuplicateVariablePage(page, appKey);
+  test("参数节点显示在 Start 上方，且后续节点引用参数不会报变量缺失", async ({ page }) => {
+    await loginForParameterScope(page, appKey);
+    await openParameterScopePage(page, appKey);
+
+    const parameterNode = page.getByTestId("microflow-node-parameter-amount");
+    const startNode = page.getByTestId("microflow-node-start");
+    await expect(parameterNode).toBeVisible({ timeout: 20_000 });
+    await expect(startNode).toBeVisible({ timeout: 20_000 });
+
+    const parameterBox = await parameterNode.boundingBox();
+    const startBox = await startNode.boundingBox();
+    expect(parameterBox).toBeTruthy();
+    expect(startBox).toBeTruthy();
+    expect(parameterBox!.y).toBeLessThan(startBox!.y);
 
     await page.getByTestId("microflow-editor-validate").click();
     await page.getByTestId("microflow-bottom-status-strip").getByRole("button", { name: /Problems|问题/ }).click();
     await expect(page.getByTestId("microflow-bottom-panel")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("MF_VARIABLE_DUPLICATED")).toHaveCount(2, { timeout: 20_000 });
+    await expect(page.getByText("MF_VARIABLE_REFERENCE_UNKNOWN")).toHaveCount(0);
+    await expect(page.getByText("MF_VARIABLE_NOT_FOUND")).toHaveCount(0);
   });
 });

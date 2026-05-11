@@ -50,6 +50,7 @@ export interface MicroflowDebugSessionDto {
   availableCommands?: MicroflowDebugCommand[];
   breakpoints?: MicroflowDebugBreakpointDto[];
   conditionalBreakpoints?: MicroflowDebugConditionalBreakpointDto[];
+  callStack?: MicroflowDebugCallStackFrameDto[];
   lastUpdatedAt?: string;
 }
 
@@ -89,6 +90,17 @@ export interface MicroflowDebugVariableSnapshotDto {
   objectId?: string;
   flowId?: string;
   branchId?: string;
+}
+
+export interface MicroflowDebugCallStackFrameDto {
+  id: string;
+  microflowId: string;
+  parentRunId?: string;
+  runId: string;
+  callerObjectId?: string;
+  callerActionId?: string;
+  depth: number;
+  status: string;
 }
 
 export interface MicroflowDebugWatchExpressionDto {

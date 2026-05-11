@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MicroflowRunSession } from "../trace-types";
 import {
+  buildCallStackPaths,
   buildExecutionPath,
   buildRunHistoryItemFromSession,
   filterNodeResultsByMicroflowId,
@@ -34,6 +35,7 @@ function createSession(): MicroflowRunSession {
         status: "success",
         startedAt: "2026-04-28T01:00:00.020Z",
         endedAt: "2026-04-28T01:00:00.030Z",
+        callStack: ["MF_Parent", "MF_Child"],
         input: {},
         output: undefined,
         trace: [
@@ -65,6 +67,14 @@ describe("trace history utils", () => {
     const path = buildExecutionPath(createSession());
     expect(path.map(item => item.frame.id)).toEqual(["f1", "f2", "c1"]);
     expect(path.at(-1)?.callDepth).toBe(1);
+  });
+
+  it("builds unique call stack paths across nested child runs", () => {
+    const paths = buildCallStackPaths(createSession());
+    expect(paths).toEqual([
+      ["MF_Parent"],
+      ["MF_Parent", "MF_Child"],
+    ]);
   });
 
   it("filters node results by microflow id", () => {

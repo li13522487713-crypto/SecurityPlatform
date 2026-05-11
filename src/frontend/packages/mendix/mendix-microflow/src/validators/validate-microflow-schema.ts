@@ -221,6 +221,7 @@ export function validateMicroflowSchema(input: MicroflowAuthoringSchema | Microf
     if (isMicroflowDesignSchema(input.schema)) {
       const designResult = validateMicroflowDesignSchema({
         schema: input.schema,
+        metadata: input.metadata,
         variableIndex: input.variableIndex,
         options: input.options,
       });

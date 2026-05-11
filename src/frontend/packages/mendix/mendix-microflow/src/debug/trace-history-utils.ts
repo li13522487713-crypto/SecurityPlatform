@@ -64,6 +64,29 @@ export function buildExecutionPath(session?: MicroflowRunSession): MicroflowExec
   return result;
 }
 
+export function buildCallStackPaths(session?: MicroflowRunSession): string[][] {
+  if (!session) {
+    return [];
+  }
+
+  const result: string[][] = [];
+  const seen = new Set<string>();
+  const walk = (current: MicroflowRunSession, inheritedPath: string[]) => {
+    const currentPath = (current.callStack?.length ?? 0) > 0
+      ? [...(current.callStack ?? [])]
+      : [...inheritedPath, current.resourceId || current.schemaId || "unknown"];
+    const key = currentPath.join(" -> ");
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      result.push(currentPath);
+    }
+    current.childRuns?.forEach(child => walk(child, currentPath));
+  };
+
+  walk(session, []);
+  return result;
+}
+
 export function filterNodeResultsByMicroflowId(session: MicroflowRunSession | undefined, microflowId: string): MicroflowTraceFrame[] {
   if (!session) {
     return [];

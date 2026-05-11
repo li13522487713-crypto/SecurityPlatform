@@ -485,6 +485,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
         toolbarMode={toolbarMode}
         onLayoutStateChange={onLayoutStateChange}
         onWorkbenchStatusChange={onWorkbenchStatusChange}
+        onOpenMicroflow={onOpenMicroflow}
         onSchemaChange={nextSchema => {
           setSchema(nextSchema);
           latestSchemaRef.current = nextSchema;

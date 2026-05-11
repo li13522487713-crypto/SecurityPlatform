@@ -119,6 +119,17 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         ParentCallContext? parent,
         CancellationToken cancellationToken)
     {
+        parent ??= request.ParentRuntimeContext is null
+            ? null
+            : new ParentCallContext(
+                request.ParentRuntimeContext.RunId,
+                request.ParentRuntimeContext.RootRunId,
+                request.ParentRuntimeContext.CallCorrelationId,
+                request.CallFrame?.Depth ?? ((request.ParentRuntimeContext.CurrentCallFrame?.Depth ?? 0) + 1),
+                BuildChildCallStack(request.ParentRuntimeContext, request.ResourceId),
+                request.CallFrame?.CallerObjectId,
+                request.CallFrame?.CallerActionId,
+                request.CallFrame?.ChildRunId ?? Guid.NewGuid().ToString("N"));
         var startedAt = _clock.UtcNow;
         var runId = parent?.ChildRunId ?? request.RequestContext.TraceId;
         if (string.IsNullOrWhiteSpace(runId))
@@ -1239,6 +1250,14 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         foreach (var log in result.Logs)
         {
             context.Logs.Add(log);
+        }
+
+        // Registry executors (notably callMicroflow) can spawn nested run sessions.
+        // Those child runs must be attached to the parent runtime context so the
+        // final run session graph persists childRunIds/childRuns recursively.
+        foreach (var childRun in result.ChildRunSessions)
+        {
+            context.AddChildRun(childRun);
         }
 
         // Client-executed family: runtimeCommand 类动作在 executor 层仍返回
@@ -2594,6 +2613,30 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
     private sealed class CallExecutionState
     {
+    }
+
+    private static IReadOnlyList<string> BuildChildCallStack(RuntimeExecutionContext parentRuntimeContext, string childResourceId)
+    {
+        var stack = new List<string>();
+        if (!string.IsNullOrWhiteSpace(parentRuntimeContext.ResourceId))
+        {
+            stack.Add(parentRuntimeContext.ResourceId!);
+        }
+
+        foreach (var frame in parentRuntimeContext.CallStackFrames)
+        {
+            if (!string.IsNullOrWhiteSpace(frame.TargetResourceId))
+            {
+                stack.Add(frame.TargetResourceId!);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(childResourceId))
+        {
+          stack.Add(childResourceId);
+        }
+
+        return stack.Distinct(StringComparer.Ordinal).ToArray();
     }
 
     private sealed record ParentCallContext(

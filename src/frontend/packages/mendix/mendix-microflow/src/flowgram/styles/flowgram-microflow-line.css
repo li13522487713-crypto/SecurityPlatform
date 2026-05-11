@@ -31,6 +31,17 @@
   stroke: #f05b5f;
 }
 
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--errorHandler path,
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--errorHandler line {
+  stroke: #f05b5f !important;
+  stroke-dasharray: 6 6 !important;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--errorHandler marker path {
+  fill: #f05b5f !important;
+  stroke: #f05b5f !important;
+}
+
 .microflow-flowgram-line--annotation {
   stroke: rgba(161, 171, 186, 0.62);
   stroke-dasharray: 6 6;

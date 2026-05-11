@@ -341,6 +341,7 @@ export function buildDesignPropertyPanelModel(schema: MicroflowDesignSchema): De
 }
 
 export function applyDesignDocumentSchema(schema: MicroflowDesignSchema, nextAuthoringSchema: MicroflowAuthoringSchema): MicroflowDesignSchema {
+  const parameterById = new Map(nextAuthoringSchema.parameters.map(parameter => [parameter.id, parameter]));
   return {
     ...schema,
     description: nextAuthoringSchema.description,
@@ -348,6 +349,28 @@ export function applyDesignDocumentSchema(schema: MicroflowDesignSchema, nextAut
     returnType: nextAuthoringSchema.returnType,
     returnVariableName: nextAuthoringSchema.returnVariableName,
     parameters: nextAuthoringSchema.parameters,
+    workflow: {
+      ...schema.workflow,
+      nodes: schema.workflow.nodes.map(node => {
+        const data = node.data as NodeDataWithPropertyObject | undefined;
+        const parameterId = data?.parameterId;
+        if (node.type !== "parameterObject" || !parameterId) {
+          return node;
+        }
+        const parameter = parameterById.get(parameterId);
+        if (!parameter) {
+          return node;
+        }
+        return {
+          ...node,
+          data: {
+            ...data,
+            title: parameter.name,
+            parameterName: parameter.name,
+          },
+        };
+      }),
+    },
     audit: {
       ...schema.audit,
       updatedAt: new Date().toISOString(),

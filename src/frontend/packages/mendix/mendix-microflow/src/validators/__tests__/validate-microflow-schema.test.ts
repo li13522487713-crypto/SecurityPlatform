@@ -444,6 +444,74 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_APPROACHING_LIMIT", severity: "warning" })]));
   });
 
+  it("reports duplicate variable definitions on canonical design schema", () => {
+    const schema = validDesignSchema();
+    const issues = validateMicroflowSchema({
+      schema: {
+        ...schema,
+        workflow: {
+          ...schema.workflow,
+          nodes: [
+            ...schema.workflow.nodes,
+            {
+              id: "create-variable-a",
+              type: "actionActivity",
+              data: {
+                objectId: "create-variable-a",
+                objectKind: "actionActivity",
+                title: "Create Variable",
+                actionKind: "createVariable",
+                action: {
+                  id: "action-create-variable-a",
+                  kind: "createVariable",
+                  officialType: "Microflows$CreateVariableAction",
+                  errorHandlingType: "rollback",
+                  documentation: "",
+                  editor: { category: "variable", iconKey: "variable", availability: "supported" },
+                  variableName: "approvalLevel",
+                  dataType: { kind: "string" },
+                  initialValue: { raw: "'L1'", referencedVariables: [], references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+                  readonly: false,
+                },
+              },
+              meta: { position: { x: 120, y: 120 } },
+            },
+            {
+              id: "create-variable-b",
+              type: "actionActivity",
+              data: {
+                objectId: "create-variable-b",
+                objectKind: "actionActivity",
+                title: "Create Variable",
+                actionKind: "createVariable",
+                action: {
+                  id: "action-create-variable-b",
+                  kind: "createVariable",
+                  officialType: "Microflows$CreateVariableAction",
+                  errorHandlingType: "rollback",
+                  documentation: "",
+                  editor: { category: "variable", iconKey: "variable", availability: "supported" },
+                  variableName: "ApprovalLevel",
+                  dataType: { kind: "string" },
+                  initialValue: { raw: "'L2'", referencedVariables: [], references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+                  readonly: false,
+                },
+              },
+              meta: { position: { x: 300, y: 120 } },
+            },
+          ],
+        },
+      },
+      metadata: EMPTY_MICROFLOW_METADATA_CATALOG,
+      options: { mode: "save", includeWarnings: true, includeInfo: true },
+    }).issues;
+
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "MF_VARIABLE_DUPLICATED", severity: "error", objectId: "create-variable-a" }),
+      expect.objectContaining({ code: "MF_VARIABLE_DUPLICATED", severity: "error", objectId: "create-variable-b" }),
+    ]));
+  });
+
   it("reports integration error-handling guidance on canonical design schema", () => {
     const schema = validDesignSchema();
     const issues = validateMicroflowSchema({

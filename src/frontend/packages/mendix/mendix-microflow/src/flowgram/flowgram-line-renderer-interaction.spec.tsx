@@ -47,12 +47,14 @@ function renderLine(dataPatch: Partial<FlowGramMicroflowEdgeData>) {
     ...dataPatch,
   };
   return render(
-    <FlowGramMicroflowLineRenderer
-      key="line-1"
-      lineType={"polyline" as never}
-      version="1"
-      line={{ data } as never}
-    />,
+    <div className="gedit-flow-activity-edge">
+      <FlowGramMicroflowLineRenderer
+        key="line-1"
+        lineType={"polyline" as never}
+        version="1"
+        line={{ data } as never}
+      />
+    </div>,
   );
 }
 
@@ -272,6 +274,19 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
       />,
     );
     expect(screen.getByRole("button").textContent).toContain("fallback");
+  });
+
+  it("projects edge kind classes onto the closest line wrapper", () => {
+    const { container } = renderLine({
+      edgeKind: "errorHandler",
+      isErrorHandler: true,
+      validationState: "error",
+      runtimeState: "errorHandlerVisited",
+    });
+
+    const wrapper = container.querySelector(".gedit-flow-activity-edge");
+    expect(wrapper?.className).toContain("microflow-flowgram-line--errorHandler");
+    expect(wrapper?.className).toContain("is-runtime-errorHandlerVisited");
   });
 
   it("renders decision labels from workflow edge context when FlowGram line JSON has no data payload", () => {

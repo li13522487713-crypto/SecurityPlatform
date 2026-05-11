@@ -55,9 +55,20 @@ public sealed class MicroflowAppAssetService : IMicroflowAppAssetService
             },
             cancellationToken);
 
-        var domainModelSummaries = _domainModelService is null
-            ? Array.Empty<MendixDomainModelModuleSummaryDto>()
-            : await _domainModelService.ListModuleSummariesAsync(appId, workspaceId, cancellationToken);
+        IReadOnlyList<MendixDomainModelModuleSummaryDto> domainModelSummaries = Array.Empty<MendixDomainModelModuleSummaryDto>();
+        if (_domainModelService is not null)
+        {
+            try
+            {
+                domainModelSummaries = await _domainModelService.ListModuleSummariesAsync(appId, workspaceId, cancellationToken);
+            }
+            catch
+            {
+                // 新建 workspace app 还没有 domain-model 文档或底层表尚未就绪时，
+                // 资源树应退化为“无实体摘要”而不是整体 500。
+                domainModelSummaries = Array.Empty<MendixDomainModelModuleSummaryDto>();
+            }
+        }
 
         var modules = catalog.Modules
             .Select(module => CreateModuleAsset(module, catalog))

@@ -92,6 +92,7 @@ import { normalizeMicroflowAuthoringSchemaForRuntime } from "../schema/normalize
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
 import { canApplyBooleanBranchQuickFix, createMissingBooleanBranch } from "./problem-quick-fixes";
 import {
+  collectDebugSessionMicroflowIds,
   MicroflowRunHistoryPanel,
   MicroflowStepDebugPanel,
   MicroflowTracePanel,
@@ -101,6 +102,7 @@ import {
   buildRunRequest,
   filterNodeResultsByMicroflowId,
   readStoredTestRunSamples,
+  resolveDeepestDebugMicroflowId,
   shouldBlockRun,
   writeStoredTestRunSamples,
   type MicroflowDebugCommand,
@@ -524,6 +526,7 @@ export interface MicroflowEditorProps {
   editorRef?: Ref<MicroflowEditorHandle>;
   onLayoutStateChange?: (state: MicroflowWorkbenchLayoutState) => void;
   onWorkbenchStatusChange?: (status: MicroflowWorkbenchStatus) => void;
+  onOpenMicroflow?: (microflowId: string) => void;
 }
 
 /**
@@ -1849,6 +1852,10 @@ function DebugPanel({
               value: watch.valuePreview,
               error: watch.error,
             }))}
+            callStack={(debugSession.callStack ?? []).map(frame => ({
+              id: frame.id,
+              name: `${frame.depth}:${frame.microflowId}`,
+            }))}
             breakpoints={[
               ...((debugSession.breakpoints ?? []).map(item => ({
                 id: item.id,
@@ -2184,6 +2191,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const lastDebugRouteKeyRef = useRef<string>();
   const schemaRevisionRef = useRef(0);
   const toolbarMode = props.toolbarMode ?? "internal";
   const shouldShowCanvasContextMenu = toolbarMode === "external" || AUXILIARY_PANELS_ENABLED;
@@ -2595,17 +2603,24 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         nodeSize,
         { parentObjectId: parentLoopObjectId },
       );
+      const parameterId = itemObjectKind === "parameterObject" ? createStableId("param") : undefined;
+      const parameterName = itemObjectKind === "parameterObject" ? "parameter" : undefined;
       const node = createMicroflowWorkflowNode({
         id: objectId,
         registryKey,
         position: resolvedWorkflowPosition,
-        title: item.titleZh ?? item.title,
+        title: parameterName ?? item.titleZh ?? item.title,
         data: parentLoopObjectId
           ? {
               parentObjectId: parentLoopObjectId,
               collectionId,
             }
-          : undefined,
+          : itemObjectKind === "parameterObject"
+            ? {
+                parameterId,
+                parameterName,
+              }
+            : undefined,
       }) as MicroflowWorkflowNodeJSON;
       const nextSchema: MicroflowDesignSchema = {
         ...schema,
@@ -2613,6 +2628,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           ...schema.workflow,
           nodes: [...schema.workflow.nodes, node],
         },
+        parameters: itemObjectKind === "parameterObject" && parameterId && parameterName
+          ? [
+              ...schema.parameters,
+              {
+                id: parameterId,
+                stableId: parameterId,
+                name: parameterName,
+                dataType: { kind: "string" },
+                type: { kind: "primitive", name: "string" },
+                required: true,
+              },
+            ]
+          : schema.parameters,
         editor: {
           ...schema.editor,
           selection: {
@@ -2935,13 +2963,18 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const selectRunHistoryItem = useCallback(async (microflowId: string, runId: string) => {
     setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: runId }));
     const cached = runDetailsByRunId[runId];
-    if (cached) {
+    const cachedNeedsHydration = cached
+      ? (cached.childRuns?.length ?? 0) === 0 && (cached.childRunIds?.length ?? 0) > 0
+        || (cached.callStack?.length ?? 0) === 0
+        || cached.hasHydratedTrace === false
+      : false;
+    if (cached && !cachedNeedsHydration) {
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: cached }));
       setActiveTraceFrameId(cached.trace[0]?.id);
       return;
     }
     try {
-      const detail = await apiClient.getMicroflowRunDetail(microflowId, runId);
+      const detail = await hydrateRunSession(microflowId, runId);
       setRunDetailsByRunId(current => ({ ...current, [runId]: detail }));
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: detail }));
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
@@ -2953,7 +2986,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setBottomDockMode("peek");
       setBottomTab("debug");
     }
-  }, [apiClient, runDetailsByRunId]);
+  }, [hydrateRunSession, runDetailsByRunId]);
 
   const refreshDebugSession = useCallback(async (sessionId: string, microflowId = schema.id) => {
     if (!apiClient.debugAdapter) {
@@ -2964,11 +2997,71 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       apiClient.debugAdapter.listVariables(sessionId).catch(() => []),
       apiClient.debugAdapter.getTimeline?.(sessionId).catch(() => []) ?? Promise.resolve([] as MicroflowDebugTimelineEventDto[]),
     ]);
-    setDebugSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
+    const debugMicroflowIds = collectDebugSessionMicroflowIds(session, microflowId);
+    setDebugSessionByMicroflowId(current => {
+      const next = { ...current };
+      for (const id of debugMicroflowIds) {
+        next[id] = session;
+      }
+      return next;
+    });
     setDebugVariablesBySessionId(current => ({ ...current, [sessionId]: variables }));
     setDebugTimelineBySessionId(current => ({ ...current, [sessionId]: timeline }));
     return session;
   }, [apiClient.debugAdapter, schema.id]);
+
+  const syncDebugSessionNavigation = useCallback((
+    session: MicroflowDebugSessionDto | undefined,
+    sourceMicroflowId: string,
+    linkedRunSession?: MicroflowRunSession,
+  ) => {
+    if (!session) {
+      return;
+    }
+    const debugMicroflowIds = collectDebugSessionMicroflowIds(session, sourceMicroflowId);
+    if (debugMicroflowIds.length > 0) {
+      setDebugSessionByMicroflowId(current => {
+        const next = { ...current };
+        for (const id of debugMicroflowIds) {
+          next[id] = session;
+        }
+        return next;
+      });
+      if (linkedRunSession) {
+        setRunSessionByMicroflowId(current => {
+          const next = { ...current };
+          for (const id of debugMicroflowIds) {
+            next[id] = linkedRunSession;
+          }
+          return next;
+        });
+        setSelectedRunIdByMicroflowId(current => {
+          const next = { ...current };
+          for (const id of debugMicroflowIds) {
+            next[id] = linkedRunSession.id;
+          }
+          return next;
+        });
+      }
+    }
+    const targetMicroflowId = resolveDeepestDebugMicroflowId(session, sourceMicroflowId);
+    if (!props.onOpenMicroflow || !targetMicroflowId || targetMicroflowId === sourceMicroflowId) {
+      return;
+    }
+    const routeKey = [
+      session.id,
+      sourceMicroflowId,
+      targetMicroflowId,
+      session.currentSafePoint?.nodeObjectId ?? session.currentNodeObjectId ?? "",
+      session.currentSafePoint?.phase ?? session.pausePhase ?? "",
+      session.lastUpdatedAt ?? "",
+    ].join("|");
+    if (lastDebugRouteKeyRef.current === routeKey) {
+      return;
+    }
+    lastDebugRouteKeyRef.current = routeKey;
+    props.onOpenMicroflow(targetMicroflowId);
+  }, [props.onOpenMicroflow]);
 
   const refreshDebugTimeline = useCallback(async (sessionId: string) => {
     if (!apiClient.debugAdapter?.getTimeline) {
@@ -2992,12 +3085,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     const session = await apiClient.debugAdapter.createSession(schema.id);
     setPendingDebugSessionId(session.id);
-    setDebugSessionByMicroflowId(current => ({ ...current, [schema.id]: session }));
+    syncDebugSessionNavigation(session, schema.id);
     setDebugSuspendPolicyBySessionId(current => ({ ...current, [session.id]: current[session.id] ?? "all" }));
     setBottomDockMode("peek");
     setBottomTab("debug");
     setTestRunModalOpen(true);
-  }, [apiClient.debugAdapter, schema.id]);
+  }, [apiClient.debugAdapter, schema.id, syncDebugSessionNavigation]);
 
   const handleDebugCommand = useCallback(async (command: MicroflowDebugCommand) => {
     if (!apiClient.debugAdapter || !activeDebugSession) {
@@ -3037,12 +3130,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         }
       }
       const next = await apiClient.debugAdapter.sendCommand(activeDebugSession.id, command);
-      setDebugSessionByMicroflowId(current => ({ ...current, [schema.id]: next }));
-      await refreshDebugSession(next.id, schema.id);
+      syncDebugSessionNavigation(next, schema.id, selectedRunSession);
+      const refreshed = await refreshDebugSession(next.id, schema.id);
+      syncDebugSessionNavigation(refreshed, schema.id, selectedRunSession);
     } catch (error) {
       Toast.error(getEditorApiErrorMessage(error));
     }
-  }, [activeDebugSession, apiClient.debugAdapter, applyPatch, refreshDebugSession, schema, schema.id, validateForMode]);
+  }, [activeDebugSession, apiClient.debugAdapter, applyPatch, refreshDebugSession, schema, schema.id, selectedRunSession, syncDebugSessionNavigation, validateForMode]);
 
   const handleDebugEvaluate = useCallback(async (expression: string) => {
     if (!apiClient.debugAdapter || !activeDebugSession || !expression.trim()) {
@@ -3203,7 +3297,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setBottomDockMode("peek");
       setBottomTab("debug");
       if (response.debugSession) {
-        setDebugSessionByMicroflowId(current => ({ ...current, [microflowId]: response.debugSession }));
+        syncDebugSessionNavigation(response.debugSession, microflowId, session);
       }
       if (response.debugVariables && (response.debugSession?.id ?? debugSessionId)) {
         const responseDebugSessionId = response.debugSession?.id ?? debugSessionId!;

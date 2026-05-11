@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 
 import { Input } from "@douyinfe/semi-ui";
 import {
@@ -123,10 +123,27 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   const data = edgeDataFromLine(line, edgeDataByLineKey);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const hostRef = useRef<HTMLInputElement | HTMLButtonElement | null>(null);
 
   if (!data) {
     return null;
   }
+  useEffect(() => {
+    const host = hostRef.current;
+    const edgeElement = host?.closest(".gedit-flow-activity-edge");
+    if (!edgeElement) {
+      return;
+    }
+    const classNames = lineClassNameFromEdgeData(data).split(/\s+/).filter(Boolean);
+    for (const className of classNames) {
+      edgeElement.classList.add(className);
+    }
+    return () => {
+      for (const className of classNames) {
+        edgeElement.classList.remove(className);
+      }
+    };
+  }, [data]);
   const label = lineLabelFromEdgeData(data);
   const warningMissingTarget = !data.targetNodeId && (
     data.edgeKind === "decisionCondition"
@@ -161,6 +178,7 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   if (editing && !readonly) {
     return (
       <Input
+        ref={hostRef}
         className="microflow-branch-label is-editing"
         autoFocus
         value={draft}
@@ -181,6 +199,7 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
 
   return (
     <button
+      ref={hostRef}
       type="button"
       className={className}
       data-testid="microflow-flowgram-line-label"

@@ -1,4 +1,6 @@
 import { emptyVariableIndex } from "../adapters";
+import type { MicroflowMetadataCatalog } from "../metadata";
+import { buildDesignPropertyPanelModel } from "../property-panel/design-protocol-adapter";
 import type {
   MicroflowDesignSchema,
   MicroflowValidationIssue,
@@ -8,6 +10,7 @@ import type {
 } from "../schema/types";
 import { collectMicroflowBestPracticeWarnings, MICROFLOW_LIMITS, summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import { issue } from "./shared";
+import { validateVariables } from "./validate-variables";
 import type { MicroflowValidationOptions, MicroflowValidationResult } from "./validator-types";
 
 function summarizeIssues(issues: MicroflowValidationIssue[]): MicroflowValidationResult["summary"] {
@@ -258,17 +261,29 @@ function validateDesignSchemaBestPractices(schema: MicroflowDesignSchema): Micro
 
 export function validateMicroflowDesignSchema(input: {
   schema: MicroflowDesignSchema;
+  metadata?: MicroflowMetadataCatalog | null;
   variableIndex?: MicroflowVariableIndex;
   options?: MicroflowValidationOptions;
 }): MicroflowValidationResult {
+  const authoringModel = input.metadata ? buildDesignPropertyPanelModel(input.schema) : undefined;
+  const variableIndex = input.variableIndex
+    ?? (authoringModel && input.metadata ? authoringModel.authoringSchema.variables ?? emptyVariableIndex() : emptyVariableIndex());
+  const variableIssues = authoringModel && input.metadata
+    ? validateVariables(authoringModel.authoringSchema, {
+      metadata: input.metadata,
+      variableIndex,
+      mode: input.options?.mode ?? "edit",
+    })
+    : [];
   const issues = filterIssues([
     ...validateDesignSchemaShape(input.schema),
     ...validateDesignSchemaComplexity(input.schema),
     ...validateDesignSchemaBestPractices(input.schema),
+    ...variableIssues,
   ], input.options);
   return {
     issues,
-    variableIndex: input.variableIndex ?? emptyVariableIndex(),
+    variableIndex,
     summary: summarizeIssues(issues),
   };
 }

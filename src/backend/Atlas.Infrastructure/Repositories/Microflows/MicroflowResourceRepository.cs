@@ -182,7 +182,8 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
 
         if (!string.IsNullOrWhiteSpace(query.ModuleId))
         {
-            q = q.Where(x => x.ModuleId == query.ModuleId);
+            var moduleId = query.ModuleId.Trim().ToLowerInvariant();
+            q = q.Where(x => x.ModuleId.ToLower() == moduleId);
         }
 
         if (query.FolderId is not null)

@@ -1,7 +1,7 @@
 import { Button, Card, Empty, Space, Tabs, Tag, Typography } from "@douyinfe/semi-ui";
 
 import { extractGatewayBranchTrace, type MicroflowRunSession, type MicroflowRuntimeError, type MicroflowTraceFrame } from "./trace-types";
-import { buildExecutionPath } from "./trace-history-utils";
+import { buildCallStackPaths, buildExecutionPath } from "./trace-history-utils";
 import { buildMicroflowNodeIoViewModel } from "./node-io-view-model";
 
 const { Text } = Typography;
@@ -101,6 +101,7 @@ export function MicroflowTracePanel({
     return <Empty title="No trace" description="Run this microflow or select a run history item." />;
   }
   const executionPath = buildExecutionPath(session);
+  const callStackPaths = buildCallStackPaths(session);
   const activeFrame = activeFrameId ? executionPath.find(item => item.frame.id === activeFrameId)?.frame : executionPath[0]?.frame;
   const errors = collectErrors(session);
   const activeNodeIo = activeFrame ? buildMicroflowNodeIoViewModel(activeFrame) : undefined;
@@ -256,9 +257,9 @@ export function MicroflowTracePanel({
         </Tabs.TabPane>
         <Tabs.TabPane tab="Call Stack" itemKey="call-stack">
           <Space vertical align="start" style={{ width: "100%" }}>
-            {(session.callStack?.length ?? 0) === 0 ? <Empty title="No call stack" /> : (
-              <Text>{session.callStack?.join(" -> ")}</Text>
-            )}
+            {callStackPaths.length === 0 ? <Empty title="No call stack" /> : callStackPaths.map((path, index) => (
+              <Text key={`${path.join("->")}:${index}`}>{path.join(" -> ")}</Text>
+            ))}
             {session.childRuns?.length ? <Text type="tertiary">child runs: {session.childRuns.length}</Text> : null}
           </Space>
         </Tabs.TabPane>
