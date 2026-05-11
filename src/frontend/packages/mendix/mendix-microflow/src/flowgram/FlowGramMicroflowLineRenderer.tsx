@@ -122,7 +122,10 @@ function errorHandlingClass(data: FlowGramMicroflowEdgeData): string {
   if (data.sourceErrorHandlingType === "continue") {
     return "microflow-flowgram-line--error-handler-continue";
   }
-  return "microflow-flowgram-line--error-handler-customWithRollback";
+  if (data.sourceErrorHandlingType === "customWithRollback") {
+    return "microflow-flowgram-line--error-handler-customWithRollback";
+  }
+  return "";
 }
 
 export function lineClassNameFromEdgeData(data: FlowGramMicroflowEdgeData): string {
@@ -192,7 +195,8 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
     runtimeClass(data.runtimeState),
     data.validationState === "warning" || warningMissingTarget ? "is-warning" : "",
     data.edgeKind === "errorHandler" && data.sourceErrorHandlingType === "customWithoutRollback" ? "is-error-handler-customWithoutRollback" : "",
-    data.edgeKind === "errorHandler" && data.sourceErrorHandlingType !== "customWithoutRollback" ? "is-error-handler-customWithRollback" : "",
+    data.edgeKind === "errorHandler" && data.sourceErrorHandlingType === "customWithRollback" ? "is-error-handler-customWithRollback" : "",
+    data.edgeKind === "errorHandler" && data.sourceErrorHandlingType === "continue" ? "is-error-handler-continue" : "",
   ].filter(Boolean).join(" ");
 
   const commit = (value: string) => {

@@ -1,4 +1,4 @@
-import { applyEditorGraphPatchToAuthoring, flattenObjectCollection } from "../adapters";
+import { alignRootParameterObjectsToStartEvent, applyEditorGraphPatchToAuthoring, flattenObjectCollection } from "../adapters";
 import { createStableId } from "../schema/utils/ids";
 import { findObjectWithCollection, getObjectCollectionById } from "../schema/utils/object-utils";
 import type {
@@ -241,10 +241,10 @@ export function addMicroflowObjectFromDragPayload(
         parameterName,
       },
     });
-    const nextSchema = applyEditorGraphPatchToAuthoring(
+    const nextSchema = alignRootParameterObjectsToStartEvent(applyEditorGraphPatchToAuthoring(
       { ...schema, parameters: [...schema.parameters, parameter] },
       { addObject: { object, parentLoopObjectId }, ...selectCreatedObject(object.id) },
-    );
+    ));
     return { schema: nextSchema, objectId: object.id, warnings };
   }
 

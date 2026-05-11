@@ -19,13 +19,13 @@ export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] 
   const registries = defaultMicroflowObjectNodeRegistry.map(item => {
     const kind = objectKindFromRegistryItem(item);
     const isEndLike = ["endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(kind);
+    const isStartLike = kind === "startEvent";
     const size = getMendixMicroflowNodeSize(kind);
     return ({
       type: kind,
       meta: {
-        // Keep Start as business data only. FlowGram's special start-node flag
-        // pins the node in free-layout interactions and blocks single-node drag.
-        isStart: false,
+        // StartEvent is the unique flow entry and should stay pinned.
+        isStart: isStartLike,
         isNodeEnd: isEndLike,
         isContainer: kind === "loopedActivity",
         nodeDTOType: kind,

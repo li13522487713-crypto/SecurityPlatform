@@ -118,6 +118,69 @@ function collectDescendantIds(object: MicroflowObject): Set<string> {
   return ids;
 }
 
+const ROOT_PARAMETER_VERTICAL_OFFSET_PX = 96;
+const ROOT_PARAMETER_HORIZONTAL_SPACING_PX = 120;
+
+export function alignRootParameterObjectsToStartEvent(schema: MicroflowSchema): MicroflowSchema {
+  const rootObjects = schema.objectCollection.objects;
+  const start = rootObjects.find((object): object is Extract<MicroflowObject, { kind: "startEvent" }> => object.kind === "startEvent");
+  if (!start) {
+    return schema;
+  }
+  const parameterObjects = rootObjects.filter((object): object is Extract<MicroflowObject, { kind: "parameterObject" }> => object.kind === "parameterObject");
+  if (parameterObjects.length === 0) {
+    return schema;
+  }
+  const parameterOrder = new Map(schema.parameters.map((parameter, index) => [parameter.id, index]));
+  const sortedParameterIds = [...parameterObjects]
+    .sort((a, b) => {
+      const aOrder = parameterOrder.get(a.parameterId) ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = parameterOrder.get(b.parameterId) ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) {
+        return aOrder - bOrder;
+      }
+      return a.relativeMiddlePoint.x - b.relativeMiddlePoint.x;
+    })
+    .map(object => object.id);
+
+  const targetY = start.relativeMiddlePoint.y - ROOT_PARAMETER_VERTICAL_OFFSET_PX;
+  const leftX = start.relativeMiddlePoint.x - ((sortedParameterIds.length - 1) * ROOT_PARAMETER_HORIZONTAL_SPACING_PX) / 2;
+  const positionByObjectId = new Map<string, MicroflowPoint>();
+  for (let index = 0; index < sortedParameterIds.length; index += 1) {
+    const objectId = sortedParameterIds[index];
+    positionByObjectId.set(objectId, {
+      x: leftX + index * ROOT_PARAMETER_HORIZONTAL_SPACING_PX,
+      y: targetY,
+    });
+  }
+
+  let changed = false;
+  const nextRootObjects = rootObjects.map(object => {
+    const target = positionByObjectId.get(object.id);
+    if (!target) {
+      return object;
+    }
+    if (object.relativeMiddlePoint.x === target.x && object.relativeMiddlePoint.y === target.y) {
+      return object;
+    }
+    changed = true;
+    return {
+      ...object,
+      relativeMiddlePoint: target,
+    };
+  });
+  if (!changed) {
+    return schema;
+  }
+  return {
+    ...schema,
+    objectCollection: {
+      ...schema.objectCollection,
+      objects: nextRootObjects,
+    },
+  };
+}
+
 function collectSchemaIds(schema: MicroflowSchema): Set<string> {
   const ids = new Set<string>([
     schema.id,
@@ -281,7 +344,7 @@ export function deleteObject(schema: MicroflowSchema, objectId: string): Microfl
   const selectedObjectIds = (schema.editor.selection.objectIds ?? []).filter(id => !removedObjectIds.has(id));
   const selectedFlowIds = (schema.editor.selection.flowIds ?? []).filter(id => remainingFlows.some(flow => flow.id === id));
   const selectionCount = selectedObjectIds.length + selectedFlowIds.length;
-  return refreshDerivedState({
+  const nextSchema = {
     ...schema,
     objectCollection,
     flows,
@@ -308,7 +371,8 @@ export function deleteObject(schema: MicroflowSchema, objectId: string): Microfl
         ? undefined
         : schema.editor.selectedCollectionId
     }
-  });
+  };
+  return refreshDerivedState(removedParameterIds.size > 0 ? alignRootParameterObjectsToStartEvent(nextSchema) : nextSchema);
 }
 
 export function duplicateObject(schema: MicroflowSchema, objectId: string): MicroflowSchema {
@@ -1093,14 +1157,14 @@ export function addParameter(schema: MicroflowSchema, parameter: MicroflowParame
     editor: { iconKey: "parameter" },
     parameterId: parameter.id
   };
-  return refreshDerivedState({
+  return refreshDerivedState(alignRootParameterObjectsToStartEvent({
     ...schema,
     parameters: [...schema.parameters, parameter],
     objectCollection: {
       ...schema.objectCollection,
       objects: [...schema.objectCollection.objects, object]
     }
-  });
+  }));
 }
 
 export function renameParameter(schema: MicroflowSchema, parameterId: string, nextName: string): MicroflowSchema {

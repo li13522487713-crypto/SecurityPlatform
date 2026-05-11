@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
 
@@ -70,7 +70,11 @@ vi.mock("@douyinfe/semi-ui", () => ({
   Divider: () => <span>|</span>,
   Dropdown: ({ children }: any) => <span>{children}</span>,
   Space: ({ children }: any) => <div>{children}</div>,
-  Tag: ({ children }: any) => <span>{children}</span>,
+  Tag: ({ children, onClick }: any) => (
+    <button type="button" onClick={onClick}>
+      {children}
+    </button>
+  ),
   Tooltip: ({ children }: any) => <>{children}</>,
 }));
 
@@ -157,5 +161,27 @@ describe("FlowGramMicroflowToolbar node-count badge", () => {
     );
 
     expect(screen.getByText("✕ 27 / 25")).toBeTruthy();
+  });
+
+  it("opens Problems panel when clicking the node-count badge", () => {
+    const onOpenProblemsPanel = vi.fn();
+    render(
+      <FlowGramMicroflowToolbar
+        {...baseProps()}
+        onOpenProblemsPanel={onOpenProblemsPanel}
+        microflowComplexity={{
+          totalElements: 22,
+          activityCount: 15,
+          decisionCount: 2,
+          hasAnnotation: true,
+          annotationRecommended: true,
+          level: "warning",
+          recommendedMaxNodes: 25,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("⚠ 22 / 25"));
+    expect(onOpenProblemsPanel).toHaveBeenCalledTimes(1);
   });
 });

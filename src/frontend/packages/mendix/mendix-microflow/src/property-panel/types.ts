@@ -19,6 +19,7 @@ export interface MicroflowPropertyChangePayload {
   advanced?: unknown;
   object?: Partial<MicroflowObject>;
   flow?: Partial<MicroflowFlow>;
+  addFlow?: MicroflowFlow;
   fieldPath?: string;
   value?: unknown;
 }

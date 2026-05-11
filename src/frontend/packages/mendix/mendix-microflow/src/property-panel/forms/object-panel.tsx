@@ -233,7 +233,14 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
               ) : null}
               <EventNodesForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               <ExclusiveSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
-              <InheritanceSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} patch={patch} />
+              <InheritanceSplitForm
+                props={props}
+                object={object}
+                issues={issues}
+                metadata={effectiveCatalog}
+                patch={patch}
+                onAddFlow={nextFlow => props.onObjectChange(object.id, { addFlow: nextFlow })}
+              />
               <MergeNodeForm props={props} object={object} patch={patch} />
               <LoopNodeForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               {object.kind === "actionActivity" ? (

@@ -160,9 +160,11 @@ function NodeIcon({ kind }: { kind: string }) {
       // 参数椭圆里的 P
       return <svg {...base}><path d="M5 12V4h4.1a2.9 2.9 0 0 1 0 5.8H5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
     case "exclusiveSplit":
-    case "inheritanceSplit":
       // 菱形
       return <svg {...base}><polygon points="8,1 15,8 8,15 1,8" /></svg>;
+    case "inheritanceSplit":
+      // 继承分支（主干 + 子分支）
+      return <svg {...base}><path d="M8 2v3M4 7h8M4 7v5M12 7v5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
     case "loopedActivity":
       // 循环箭头
       return <svg {...base}><path d="M8 2a6 6 0 1 1-4.24 1.76M8 2V6M8 2L5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
@@ -605,7 +607,14 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
           </div>
         ) : tone === "decision" ? (
           <div className="microflow-decision-compact">
-            <div className="microflow-decision-compact__diamond" aria-hidden="true">
+            <div
+              className={[
+                "microflow-decision-compact__diamond",
+                data.objectKind === "inheritanceSplit" ? "is-object-type" : "",
+              ].filter(Boolean).join(" ")}
+              aria-hidden="true"
+              data-decision-kind={data.objectKind === "inheritanceSplit" ? "objectType" : "expression"}
+            >
               <span
                 className="microflow-node-compact-icon-wrap"
                 style={{ color: categoryStyle.iconColor }}

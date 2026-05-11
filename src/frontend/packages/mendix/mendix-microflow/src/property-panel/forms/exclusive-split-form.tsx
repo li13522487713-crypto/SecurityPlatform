@@ -1,4 +1,4 @@
-import { Input, Select, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Button, Input, Select, Space, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
 import type { MicroflowCaseValue } from "../../schema/types";
 import type { MicroflowMetadataCatalog } from "../../metadata";
@@ -7,12 +7,16 @@ import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { getDecisionBranchConflicts } from "../../schema/utils";
 import { FieldError } from "../common";
 import { ExpressionEditor } from "../expression";
-import { EnumerationSelector } from "../selectors";
+import { EnumerationSelector, VariableSelector } from "../selectors";
 import type { MicroflowPropertyPanelProps } from "../types";
 import { getIssuesForField, getIssuesForObject } from "../utils";
 import { expression, Field } from "../panel-shared";
 
 const { Text } = Typography;
+
+function dataTypeText(kind: unknown): string {
+  return typeof kind === "string" ? kind : "unknown";
+}
 
 function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
   return (
@@ -153,22 +157,181 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
           </Field>
         </>
       ) : (
-        <Field label="Rule Reference">
-          {withDisabledReason(
-            readonlyDisabledReason,
-            "Rule reference",
-            <Input
-              value={object.splitCondition.ruleQualifiedName}
-              disabled={props.readonly}
-              onChange={ruleQualifiedName => {
-                if (object.splitCondition.kind !== "rule") {
-                  return;
-                }
-                patch({ ...object, splitCondition: { ...object.splitCondition, ruleQualifiedName } });
-              }}
-            />
-          )}
-        </Field>
+        <>
+          <Field label="Rule">
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Rule reference",
+              <Select
+                value={object.splitCondition.ruleQualifiedName}
+                disabled={props.readonly}
+                style={{ width: "100%" }}
+                optionList={metadata.microflows.map(item => ({
+                  label: item.qualifiedName || item.name,
+                  value: item.qualifiedName || item.name,
+                }))}
+                onChange={ruleQualifiedName => {
+                  if (object.splitCondition.kind !== "rule") {
+                    return;
+                  }
+                  patch({ ...object, splitCondition: { ...object.splitCondition, ruleQualifiedName: String(ruleQualifiedName) } });
+                }}
+              />
+            )}
+          </Field>
+          <Field label="Result Type">
+            <Input value="boolean" disabled />
+          </Field>
+          <Field label="Parameters">
+            <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
+              {object.splitCondition.parameterMappings.map((mapping, index) => (
+                <div
+                  key={`${mapping.targetParameterName ?? mapping.parameterName}-${index}`}
+                  style={{ display: "grid", gap: 6, width: "100%" }}
+                >
+                  <Space align="center" spacing={6} wrap>
+                    <Tag color="blue">
+                      {(mapping.targetParameterName ?? mapping.parameterName) || "(parameter)"}: {dataTypeText(mapping.targetType?.kind ?? mapping.parameterType?.kind)}
+                    </Tag>
+                    <Input
+                      placeholder="Parameter name"
+                      value={mapping.parameterName}
+                      disabled={props.readonly}
+                      onChange={parameterName => {
+                        if (object.splitCondition.kind !== "rule") {
+                          return;
+                        }
+                        patch({
+                          ...object,
+                          splitCondition: {
+                            ...object.splitCondition,
+                            parameterMappings: object.splitCondition.parameterMappings.map((item, itemIndex) => (
+                              itemIndex === index
+                                ? {
+                                  ...item,
+                                  parameterName,
+                                  targetParameterName: parameterName,
+                                }
+                                : item
+                            )),
+                          },
+                        });
+                      }}
+                    />
+                    <Button
+                      disabled={props.readonly}
+                      type="danger"
+                      theme="borderless"
+                      onClick={() => {
+                        if (object.splitCondition.kind !== "rule") {
+                          return;
+                        }
+                        patch({
+                          ...object,
+                          splitCondition: {
+                            ...object.splitCondition,
+                            parameterMappings: object.splitCondition.parameterMappings.filter((_, itemIndex) => itemIndex !== index),
+                          },
+                        });
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </Space>
+                  <VariableSelector
+                    schema={props.schema}
+                    metadata={metadata}
+                    variableIndex={variableIndex}
+                    objectId={object.id}
+                    fieldPath={`splitCondition.parameterMappings.${index}.sourceVariableName`}
+                    allowedTypeKinds={mapping.parameterType ? [mapping.parameterType.kind] : undefined}
+                    value={mapping.sourceVariableName}
+                    readonly={props.readonly}
+                    onChange={sourceVariableName => {
+                      if (object.splitCondition.kind !== "rule") {
+                        return;
+                      }
+                      patch({
+                        ...object,
+                        splitCondition: {
+                          ...object.splitCondition,
+                          parameterMappings: object.splitCondition.parameterMappings.map((item, itemIndex) => (
+                            itemIndex === index
+                              ? {
+                                ...item,
+                                sourceVariableName,
+                                argumentExpression: expression(sourceVariableName ?? "", item.targetType ?? item.parameterType),
+                                expression: expression(sourceVariableName ?? "", item.targetType ?? item.parameterType),
+                              }
+                              : item
+                          )),
+                        },
+                      });
+                    }}
+                  />
+                  <ExpressionEditor
+                    value={mapping.argumentExpression}
+                    schema={props.schema}
+                    metadata={metadata}
+                    variableIndex={variableIndex}
+                    objectId={object.id}
+                    fieldPath={`splitCondition.parameterMappings.${index}.argumentExpression`}
+                    expectedType={mapping.parameterType}
+                    readonly={props.readonly}
+                    onChange={argumentExpression => {
+                      if (object.splitCondition.kind !== "rule") {
+                        return;
+                      }
+                      patch({
+                        ...object,
+                        splitCondition: {
+                          ...object.splitCondition,
+                          parameterMappings: object.splitCondition.parameterMappings.map((item, itemIndex) => (
+                            itemIndex === index
+                              ? {
+                                ...item,
+                                argumentExpression,
+                                expression: argumentExpression,
+                              }
+                              : item
+                          )),
+                        },
+                      });
+                    }}
+                  />
+                </div>
+              ))}
+              <Button
+                disabled={props.readonly}
+                onClick={() => {
+                  if (object.splitCondition.kind !== "rule") {
+                    return;
+                  }
+                  patch({
+                    ...object,
+                    splitCondition: {
+                      ...object.splitCondition,
+                      parameterMappings: [
+                        ...object.splitCondition.parameterMappings,
+                        {
+                          parameterName: `param${object.splitCondition.parameterMappings.length + 1}`,
+                          targetParameterName: `param${object.splitCondition.parameterMappings.length + 1}`,
+                          argumentExpression: expression(""),
+                          expression: expression(""),
+                        },
+                      ],
+                    },
+                  });
+                }}
+              >
+                Add parameter mapping
+              </Button>
+              {object.splitCondition.parameterMappings.length === 0 ? (
+                <Tag color="grey">No parameters</Tag>
+              ) : null}
+            </Space>
+          </Field>
+        </>
       )}
     </>
   );

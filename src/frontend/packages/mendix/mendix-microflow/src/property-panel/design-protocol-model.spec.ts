@@ -14,6 +14,7 @@ import {
   buildDesignPropertyPanelModel,
   deleteDesignFlow,
   deleteDesignObject,
+  duplicateDesignObject,
 } from "./design-protocol-model";
 
 function designSchema(): MicroflowDesignSchema {
@@ -372,6 +373,90 @@ describe("design protocol property panel adapter", () => {
       title: "amount",
       parameterName: "amount",
     });
+  });
+
+  it("deletes parameter node with stale schema parameter cleanup and reflow", () => {
+    const schema = createMicroflowDesignSchema({
+      id: "mf-parameter-delete-reflow",
+      name: "MF_ParameterDeleteReflow",
+      moduleId: "module-a",
+      parameters: [
+        { id: "param-a", stableId: "param-a", name: "A", dataType: { kind: "string" }, type: { kind: "primitive", name: "string" }, required: true },
+        { id: "param-b", stableId: "param-b", name: "B", dataType: { kind: "string" }, type: { kind: "primitive", name: "string" }, required: true },
+      ],
+      workflow: {
+        nodes: [
+          {
+            id: "start",
+            type: "startEvent",
+            data: { objectId: "start", objectKind: "startEvent", title: "Start" },
+            meta: { position: { x: 400, y: 240 } },
+          },
+          {
+            id: "param-node-a",
+            type: "parameterObject",
+            data: { objectId: "param-node-a", objectKind: "parameterObject", title: "A", parameterId: "param-a", parameterName: "A" },
+            meta: { position: { x: 320, y: 120 } },
+          },
+          {
+            id: "param-node-b",
+            type: "parameterObject",
+            data: { objectId: "param-node-b", objectKind: "parameterObject", title: "B", parameterId: "param-b", parameterName: "B" },
+            meta: { position: { x: 520, y: 120 } },
+          },
+        ],
+        edges: [],
+      } as never,
+    });
+
+    const next = deleteDesignObject(schema, "param-node-b");
+
+    expect(next.parameters.map(parameter => parameter.id)).toEqual(["param-a"]);
+    const remaining = next.workflow.nodes.find(node => node.id === "param-node-a");
+    expect(remaining?.meta?.position).toEqual({ x: 400, y: 144 });
+  });
+
+  it("duplicates parameter node and keeps root parameter row aligned", () => {
+    const schema = createMicroflowDesignSchema({
+      id: "mf-parameter-duplicate-reflow",
+      name: "MF_ParameterDuplicateReflow",
+      moduleId: "module-a",
+      parameters: [
+        { id: "param-a", stableId: "param-a", name: "A", dataType: { kind: "string" }, type: { kind: "primitive", name: "string" }, required: true },
+        { id: "param-b", stableId: "param-b", name: "B", dataType: { kind: "string" }, type: { kind: "primitive", name: "string" }, required: true },
+      ],
+      workflow: {
+        nodes: [
+          {
+            id: "start",
+            type: "startEvent",
+            data: { objectId: "start", objectKind: "startEvent", title: "Start" },
+            meta: { position: { x: 400, y: 240 } },
+          },
+          {
+            id: "param-node-a",
+            type: "parameterObject",
+            data: { objectId: "param-node-a", objectKind: "parameterObject", title: "A", parameterId: "param-a", parameterName: "A" },
+            meta: { position: { x: 320, y: 120 } },
+          },
+          {
+            id: "param-node-b",
+            type: "parameterObject",
+            data: { objectId: "param-node-b", objectKind: "parameterObject", title: "B", parameterId: "param-b", parameterName: "B" },
+            meta: { position: { x: 520, y: 120 } },
+          },
+        ],
+        edges: [],
+      } as never,
+    });
+
+    const next = duplicateDesignObject(schema, "param-node-a");
+
+    const parameterNodes = next.workflow.nodes
+      .filter(node => node.type === "parameterObject")
+      .map(node => Number(node.meta?.position?.x ?? 0))
+      .sort((a, b) => a - b);
+    expect(parameterNodes).toEqual([280, 400, 520]);
   });
 });
 

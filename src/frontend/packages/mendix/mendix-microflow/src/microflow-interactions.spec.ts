@@ -221,6 +221,59 @@ describe("microflow editor interactions", () => {
     expect(withoutStart.flows).toHaveLength(1);
   });
 
+  it("auto-aligns root parameter nodes above StartEvent when adding parameters", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 400, y: 240 }, "start-parameter-layout");
+    const baseSchema = schemaWith([start]);
+    const first = addMicroflowObjectFromDragPayload({
+      schema: baseSchema,
+      payload: createDragPayloadFromRegistryItem(registry("parameter")),
+      position: { x: 120, y: 60 },
+    });
+    const second = addMicroflowObjectFromDragPayload({
+      schema: first.schema,
+      payload: createDragPayloadFromRegistryItem(registry("parameter")),
+      position: { x: 760, y: 80 },
+    });
+    const parameterObjects = second.schema.objectCollection.objects
+      .filter((object): object is Extract<MicroflowObject, { kind: "parameterObject" }> => object.kind === "parameterObject")
+      .sort((a, b) => a.relativeMiddlePoint.x - b.relativeMiddlePoint.x);
+
+    expect(parameterObjects).toHaveLength(2);
+    expect(parameterObjects.map(object => object.relativeMiddlePoint.y)).toEqual([144, 144]);
+    expect(parameterObjects.map(object => object.relativeMiddlePoint.x)).toEqual([340, 460]);
+    expect(second.schema.parameters.slice(-2).map(parameter => parameter.name)).toEqual(["parameter", "parameter1"]);
+  });
+
+  it("reflows remaining root parameters after deleting one parameter node", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 400, y: 240 }, "start-parameter-delete-layout");
+    const baseSchema = schemaWith([start]);
+    const first = addMicroflowObjectFromDragPayload({
+      schema: baseSchema,
+      payload: createDragPayloadFromRegistryItem(registry("parameter")),
+      position: { x: 120, y: 60 },
+    });
+    const second = addMicroflowObjectFromDragPayload({
+      schema: first.schema,
+      payload: createDragPayloadFromRegistryItem(registry("parameter")),
+      position: { x: 760, y: 80 },
+    });
+    const toDelete = second.objectId;
+    if (!toDelete) {
+      throw new Error("Expected the second parameter object id.");
+    }
+    const deletedObject = second.schema.objectCollection.objects.find((object): object is Extract<MicroflowObject, { kind: "parameterObject" }> => object.id === toDelete && object.kind === "parameterObject");
+    if (!deletedObject) {
+      throw new Error("Expected to find deleted parameter object.");
+    }
+    const afterDelete = deleteObject(second.schema, toDelete);
+    const remaining = afterDelete.objectCollection.objects.find((object): object is Extract<MicroflowObject, { kind: "parameterObject" }> => object.kind === "parameterObject");
+
+    expect(remaining).toBeDefined();
+    expect(remaining?.relativeMiddlePoint).toEqual({ x: 400, y: 144 });
+    expect(afterDelete.parameters.some(parameter => parameter.id === deletedObject.parameterId)).toBe(false);
+    expect(remaining ? afterDelete.parameters.some(parameter => parameter.id === remaining.parameterId) : false).toBe(true);
+  });
+
   it("duplicates a node with a new id, offset position, new caption, and no copied flows", () => {
     const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 96 }, "dup-retrieve");
     const end = createObjectFromRegistry(registry("endEvent"), { x: 440, y: 96 }, "dup-end");

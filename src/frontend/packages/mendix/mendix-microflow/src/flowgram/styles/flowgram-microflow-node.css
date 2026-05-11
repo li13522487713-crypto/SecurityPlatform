@@ -46,6 +46,8 @@
 
 .microflow-flowgram-node.is-disabled {
   opacity: 0.55;
+  border-style: dashed;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .microflow-flowgram-node.is-error {
@@ -84,7 +86,8 @@
 }
 
 .microflow-flowgram-node.is-usage-source:not(.is-selected):not(.is-active):not(.is-focused) {
-  border-color: #3b82f6;
+  border-color: #1d4ed8;
+  background: rgba(29, 78, 216, 0.08);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.16), 0 4px 12px rgba(31, 35, 41, 0.08);
 }
 
@@ -157,6 +160,13 @@
   right: 8px;
   bottom: 6px;
   z-index: 3;
+  background: #052e16;
+  color: #4ade80;
+  border: 1px solid #1a4a2a;
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-size: 9px;
+  line-height: 14px;
 }
 
 .microflow-node-error-badge {
@@ -799,6 +809,15 @@
 .microflow-merge-compact__diamond > span {
   transform: rotate(-45deg);
   color: var(--microflow-node-category-icon-color);
+}
+
+.microflow-decision-compact__diamond.is-object-type {
+  border-color: #60a5fa;
+  background: #1a2a3a;
+}
+
+.microflow-decision-compact__diamond.is-object-type > span {
+  color: #93c5fd;
 }
 
 .microflow-merge-compact__diamond {

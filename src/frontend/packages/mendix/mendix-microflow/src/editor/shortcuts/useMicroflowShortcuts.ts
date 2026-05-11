@@ -24,6 +24,8 @@ export interface UseMicroflowShortcutsOptions {
   onDuplicateSelection?: () => void;
   onFitView?: () => void;
   onMoveSelection?: (dx: number, dy: number) => void;
+  onGoTo?: () => void;
+  onOpenProperties?: () => void;
 }
 
 export function useMicroflowShortcuts({
@@ -48,6 +50,8 @@ export function useMicroflowShortcuts({
   onDuplicateSelection,
   onFitView,
   onMoveSelection,
+  onGoTo,
+  onOpenProperties,
 }: UseMicroflowShortcutsOptions) {
   useEffect(() => {
     if (!active) {
@@ -166,6 +170,12 @@ export function useMicroflowShortcuts({
         return;
       }
 
+      if (commandKey && key === "g" && onGoTo) {
+        event.preventDefault();
+        onGoTo();
+        return;
+      }
+
       // 方向键微移选中节点（普通 1格，Shift+方向键 8格）
       if (!readonly && onMoveSelection && ["arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) {
         // 只在有选中节点时生效，避免影响滚动
@@ -182,9 +192,14 @@ export function useMicroflowShortcuts({
         event.preventDefault();
         onEscape();
       }
+
+      if (!isEditableShortcutTarget(event.target) && key === "enter" && onOpenProperties) {
+        event.preventDefault();
+        onOpenProperties();
+      }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [active, containerRef, onContinue, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onMoveSelection, onPasteSelection, onRedo, onSave, onSearch, onSearchAll, onSelectAll, onStepInto, onStepOut, onStepOver, onUndo, readonly]);
+  }, [active, containerRef, onContinue, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onGoTo, onMoveSelection, onOpenProperties, onPasteSelection, onRedo, onSave, onSearch, onSearchAll, onSelectAll, onStepInto, onStepOut, onStepOver, onUndo, readonly]);
 }

@@ -89,7 +89,17 @@ function DesignMicroflowPropertyPanel(props: MicroflowDesignPropertyPanelProps) 
       props.onSchemaChange?.(applyDesignDocumentSchema(props.schema, nextSchema), reason);
     },
     onObjectChange: (objectId: string, patch: MicroflowNodePatch) => {
-      props.onSchemaChange?.(applyDesignObjectPatch(props.schema, objectId, patch), patch.object && "action" in patch.object ? "updateActionProperty" : "updateNodeProperty");
+      if (!patch.object && !patch.addFlow) {
+        return;
+      }
+      const nextSchema = applyDesignObjectPatch(props.schema, objectId, patch);
+      let reason = "updateNodeProperty";
+      if (patch.addFlow) {
+        reason = "addFlow";
+      } else if (patch.object && "action" in patch.object) {
+        reason = "updateActionProperty";
+      }
+      props.onSchemaChange?.(nextSchema, reason);
     },
     onFlowChange: (flowId: string, patch: MicroflowEdgePatch) => {
       props.onSchemaChange?.(applyDesignFlowPatch(props.schema, flowId, patch), "updateEdgeProperty");

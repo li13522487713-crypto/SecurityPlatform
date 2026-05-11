@@ -303,6 +303,30 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     }
   });
 
+  it("renders start/end events as solid dots without inner icon", () => {
+    const cases = [
+      { kind: "startEvent", tone: "start" },
+      { kind: "endEvent", tone: "end" },
+    ] as const;
+    for (const item of cases) {
+      cleanup();
+      renderNode("compact", item.kind);
+      const node = screen.getByTestId("microflow-node-node-1");
+      const dot = node.querySelector(".microflow-event-dot");
+      expect(dot?.getAttribute("data-node-tone")).toBe(item.tone);
+      expect(node.querySelector(".microflow-event-dot__icon")).toBeNull();
+    }
+  });
+
+  it("renders inheritance split with object-type decision styling", () => {
+    renderNode("compact", "inheritanceSplit");
+    const node = screen.getByTestId("microflow-node-node-1");
+    const diamond = node.querySelector(".microflow-decision-compact__diamond");
+    expect(diamond).not.toBeNull();
+    expect(diamond?.className).toContain("is-object-type");
+    expect(diamond?.getAttribute("data-decision-kind")).toBe("objectType");
+  });
+
   it("renders parameter object as compact oval pill with type line", () => {
     const value = {
       ...buildNodeValue("compact", "parameterObject"),

@@ -17,6 +17,8 @@ function ShortcutHarness(props: {
   onFocusMode?: () => void;
   onSearchAll?: () => void;
   onSearch?: () => void;
+  onGoTo?: () => void;
+  onOpenProperties?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useMicroflowShortcuts({
@@ -34,6 +36,8 @@ function ShortcutHarness(props: {
     onStepOver: props.onStepOver,
     onStepOut: props.onStepOut,
     onContinue: props.onContinue,
+    onGoTo: props.onGoTo,
+    onOpenProperties: props.onOpenProperties,
   });
   return (
     <div ref={ref}>
@@ -120,6 +124,36 @@ describe("useMicroflowShortcuts", () => {
     fireEvent.keyDown(target, { key: "H", ctrlKey: true, shiftKey: true });
 
     expect(onFitView).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps Ctrl+G to go-to command", () => {
+    const onGoTo = vi.fn();
+    const { getByTestId } = render(<ShortcutHarness onGoTo={onGoTo} />);
+    const target = getByTestId("shortcut-target");
+
+    fireEvent.keyDown(target, { key: "G", ctrlKey: true });
+
+    expect(onGoTo).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps Enter to open properties command", () => {
+    const onOpenProperties = vi.fn();
+    const { getByTestId } = render(<ShortcutHarness onOpenProperties={onOpenProperties} />);
+    const target = getByTestId("shortcut-target");
+
+    fireEvent.keyDown(target, { key: "Enter" });
+
+    expect(onOpenProperties).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not open properties while typing in editable target", () => {
+    const onOpenProperties = vi.fn();
+    const { getByTestId } = render(<ShortcutHarness onOpenProperties={onOpenProperties} />);
+    const input = getByTestId("editable-target");
+
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(onOpenProperties).not.toHaveBeenCalled();
   });
 
   it("maps F11 to focus mode toggle", () => {

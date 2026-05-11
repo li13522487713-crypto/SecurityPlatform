@@ -9,6 +9,7 @@ import {
 import {
   MICROFLOW_ROOT_COLLECTION_ID,
   createMicroflowWorkflowNode,
+  createMicroflowWorkflowEdge,
   workflowEdgeById,
   workflowNodeById,
 } from "../flowgram/flowgram-native-schema";
@@ -32,6 +33,7 @@ import type {
   MicroflowWorkflowNodeJSON,
 } from "../schema";
 import { createStableId } from "../schema/utils/ids";
+import { alignRootDesignParameterNodesToStart, removeStaleDesignParameters } from "../schema/utils/design-parameter-layout";
 import type { MicroflowEdgePatch, MicroflowNodePatch } from "./types";
 
 type NodeDataWithPropertyObject = Partial<FlowGramMicroflowNodeData> & {
@@ -74,6 +76,59 @@ function nodePosition(node: MicroflowWorkflowNodeJSON): MicroflowPoint {
 
 function nodeSize(node: MicroflowWorkflowNodeJSON) {
   return node.meta?.size ?? { width: 160, height: 76 };
+}
+
+function edgeKindForFlow(flow: MicroflowFlow): "sequence" | "annotation" | "decisionCondition" | "objectTypeCondition" | "loopBody" | "errorHandler" {
+  if (flow.kind === "annotation") {
+    return "annotation";
+  }
+  return flow.editor.edgeKind;
+}
+
+function mapFlowToWorkflowEdge(flow: MicroflowFlow): MicroflowWorkflowEdgeJSON {
+  const canonicalLine = canonicalizeFlowLine(flow.line, {
+    kind: forceOrthogonalLineKind(flow.line.kind),
+    points: [],
+    routing: { mode: "auto", bendPoints: [] },
+    style: { strokeType: "solid", strokeWidth: 2, arrow: "target" },
+  });
+  const flowId = flow.id || createStableId("flow");
+  const edgeKind = flow.kind === "annotation" ? "annotation" : edgeKindForFlow(flow);
+  const nextData: FlowGramMicroflowEdgeData = {
+    flowId,
+    flowKind: flow.kind,
+    edgeKind,
+    isErrorHandler: flow.kind === "sequence" ? flow.isErrorHandler : false,
+    caseValues: flow.kind === "annotation" ? flow.caseValues ?? [] : flow.caseValues,
+    validationState: "valid",
+    runtimeState: "idle",
+    label: flow.editor.label,
+    description: flow.editor.description,
+    lineKind: forceOrthogonalLineKind(flow.line.kind),
+    line: canonicalLine,
+    showInExport: flow.kind === "annotation" ? flow.editor.showInExport : undefined,
+  };
+  if (flow.kind === "sequence") {
+    return createMicroflowWorkflowEdge({
+      id: flowId,
+      sourceNodeID: flow.originObjectId,
+      targetNodeID: flow.destinationObjectId,
+      data: {
+        ...nextData,
+        originConnectionIndex: flow.originConnectionIndex,
+        destinationConnectionIndex: flow.destinationConnectionIndex,
+        exposeLatestError: flow.exposeLatestError,
+        targetErrorVariableName: flow.targetErrorVariableName,
+        logError: flow.logError,
+      },
+    });
+  }
+  return createMicroflowWorkflowEdge({
+    id: flowId,
+    sourceNodeID: flow.originObjectId,
+    targetNodeID: flow.destinationObjectId,
+    data: nextData,
+  });
 }
 
 function findRegistryKeyForNode(node: MicroflowWorkflowNodeJSON): string | undefined {
@@ -382,57 +437,83 @@ export function applyDesignDocumentSchema(schema: MicroflowDesignSchema, nextAut
 }
 
 export function applyDesignObjectPatch(schema: MicroflowDesignSchema, objectId: string, patch: MicroflowNodePatch): MicroflowDesignSchema {
+  let nextSchema = schema;
   const nextObject = patch.object as MicroflowObject | undefined;
-  if (!nextObject) {
-    return schema;
+  if (nextObject) {
+    nextSchema = {
+      ...nextSchema,
+      workflow: {
+        ...nextSchema.workflow,
+        nodes: nextSchema.workflow.nodes.map(node => {
+          if (node.id !== objectId) {
+            return node;
+          }
+          const existingData = node.data as NodeDataWithPropertyObject | undefined;
+          const nextData: NodeDataWithPropertyObject = {
+            ...existingData,
+            objectId,
+            objectKind: nextObject.kind,
+            collectionId: existingData?.collectionId ?? String(node.meta?.collectionId ?? MICROFLOW_ROOT_COLLECTION_ID),
+            title: nextObject.kind === "annotation"
+              ? nextObject.text || nextObject.caption
+              : nextObject.caption,
+            documentation: nextObject.documentation,
+            officialType: nextObject.officialType,
+            disabled: "disabled" in nextObject ? Boolean(nextObject.disabled) : existingData?.disabled ?? false,
+            actionKind: nextObject.kind === "actionActivity" ? nextObject.action.kind : existingData?.actionKind,
+            action: nextObject.kind === "actionActivity" ? nextObject.action : existingData?.action,
+            parameterId: nextObject.kind === "parameterObject" ? nextObject.parameterId : existingData?.parameterId,
+            parameterName: nextObject.kind === "parameterObject" ? nextObject.parameterName : existingData?.parameterName,
+            loopSource: nextObject.kind === "loopedActivity" ? nextObject.loopSource : existingData?.loopSource,
+            iteratorVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.iteratorVariableName : existingData?.iteratorVariableName,
+            listVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.listVariableName : existingData?.listVariableName,
+            currentIndexVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.currentIndexVariableName : existingData?.currentIndexVariableName,
+            text: nextObject.kind === "annotation" ? nextObject.text : existingData?.text,
+            autoGenerateCaption: nextObject.kind === "actionActivity" ? nextObject.autoGenerateCaption : existingData?.autoGenerateCaption,
+            backgroundColor: nextObject.kind === "actionActivity" ? nextObject.backgroundColor : existingData?.backgroundColor,
+          };
+          delete (nextData as Record<string, unknown>).objectCollection;
+          return {
+            ...node,
+            type: nextObject.kind,
+            data: nextData as Record<string, unknown>,
+            meta: {
+              ...node.meta,
+              position: node.meta?.position,
+              size: nextObject.size ?? node.meta?.size,
+              nodeDTOType: nextObject.kind,
+              collectionId: nextData.collectionId,
+            },
+          };
+        }),
+      },
+    };
   }
+  if (patch.addFlow) {
+    const incomingFlow = patch.addFlow as MicroflowFlow;
+    const nextFlow = {
+      ...incomingFlow,
+      id: incomingFlow.id || createStableId("flow"),
+      stableId: incomingFlow.stableId || incomingFlow.id || createStableId("flow"),
+      originConnectionIndex: incomingFlow.kind === "sequence" ? incomingFlow.originConnectionIndex : incomingFlow.originConnectionIndex ?? 0,
+      destinationConnectionIndex: incomingFlow.kind === "sequence" ? incomingFlow.destinationConnectionIndex : incomingFlow.destinationConnectionIndex ?? 0,
+      line: incomingFlow.line,
+      editor: incomingFlow.editor,
+    };
+    const hasFlowId = nextSchema.workflow.edges.some(edge => (edge.data as { flowId?: string } | undefined)?.flowId === nextFlow.id || edge.id === nextFlow.id);
+    const nextId = hasFlowId && typeof nextFlow.id === "string" ? createStableId("flow") : nextFlow.id;
+    const nextEdges = [...nextSchema.workflow.edges, mapFlowToWorkflowEdge({ ...nextFlow, id: nextId, stableId: nextFlow.stableId || nextId })];
+    nextSchema = {
+      ...nextSchema,
+      workflow: {
+        ...nextSchema.workflow,
+        edges: nextEdges,
+      },
+    };
+  }
+
   return {
-    ...schema,
-    workflow: {
-      ...schema.workflow,
-      nodes: schema.workflow.nodes.map(node => {
-        if (node.id !== objectId) {
-          return node;
-        }
-        const existingData = node.data as NodeDataWithPropertyObject | undefined;
-        const nextData: NodeDataWithPropertyObject = {
-          ...existingData,
-          objectId,
-          objectKind: nextObject.kind,
-          collectionId: existingData?.collectionId ?? String(node.meta?.collectionId ?? MICROFLOW_ROOT_COLLECTION_ID),
-          title: nextObject.kind === "annotation"
-            ? nextObject.text || nextObject.caption
-            : nextObject.caption,
-          documentation: nextObject.documentation,
-          officialType: nextObject.officialType,
-          disabled: "disabled" in nextObject ? Boolean(nextObject.disabled) : existingData?.disabled ?? false,
-          actionKind: nextObject.kind === "actionActivity" ? nextObject.action.kind : existingData?.actionKind,
-          action: nextObject.kind === "actionActivity" ? nextObject.action : existingData?.action,
-          parameterId: nextObject.kind === "parameterObject" ? nextObject.parameterId : existingData?.parameterId,
-          parameterName: nextObject.kind === "parameterObject" ? nextObject.parameterName : existingData?.parameterName,
-          loopSource: nextObject.kind === "loopedActivity" ? nextObject.loopSource : existingData?.loopSource,
-          iteratorVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.iteratorVariableName : existingData?.iteratorVariableName,
-          listVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.listVariableName : existingData?.listVariableName,
-          currentIndexVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.currentIndexVariableName : existingData?.currentIndexVariableName,
-          text: nextObject.kind === "annotation" ? nextObject.text : existingData?.text,
-          autoGenerateCaption: nextObject.kind === "actionActivity" ? nextObject.autoGenerateCaption : existingData?.autoGenerateCaption,
-          backgroundColor: nextObject.kind === "actionActivity" ? nextObject.backgroundColor : existingData?.backgroundColor,
-        };
-        delete (nextData as Record<string, unknown>).objectCollection;
-        return {
-          ...node,
-          type: nextObject.kind,
-          data: nextData as Record<string, unknown>,
-          meta: {
-            ...node.meta,
-            position: node.meta?.position,
-            size: nextObject.size ?? node.meta?.size,
-            nodeDTOType: nextObject.kind,
-            collectionId: nextData.collectionId,
-          },
-        };
-      }),
-    },
+    ...nextSchema,
     audit: {
       ...schema.audit,
       updatedAt: new Date().toISOString(),
@@ -493,7 +574,7 @@ export function deleteDesignObject(schema: MicroflowDesignSchema, objectId: stri
   if (objectId === "start" || objectId === "end" || kind === "startEvent" || kind === "endEvent") {
     return schema;
   }
-  return withSelection({
+  return withSelection(alignRootDesignParameterNodesToStart(removeStaleDesignParameters({
     ...schema,
     workflow: {
       ...schema.workflow,
@@ -504,7 +585,7 @@ export function deleteDesignObject(schema: MicroflowDesignSchema, objectId: stri
       ...schema.audit,
       updatedAt: new Date().toISOString(),
     },
-  });
+  })));
 }
 
 export function deleteDesignFlow(schema: MicroflowDesignSchema, flowId: string): MicroflowDesignSchema {
@@ -542,7 +623,7 @@ export function duplicateDesignObject(schema: MicroflowDesignSchema, objectId: s
       title: `${String((node.data as Partial<FlowGramMicroflowNodeData> | undefined)?.title ?? node.id)} Copy`,
     },
   }) as WorkflowNodeJSON;
-  return withSelection({
+  return withSelection(alignRootDesignParameterNodesToStart({
     ...schema,
     workflow: {
       ...schema.workflow,
@@ -552,5 +633,5 @@ export function duplicateDesignObject(schema: MicroflowDesignSchema, objectId: s
       ...schema.audit,
       updatedAt: new Date().toISOString(),
     },
-  }, id);
+  }), id);
 }

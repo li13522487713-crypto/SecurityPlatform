@@ -80,6 +80,7 @@ import {
 import type { FlowGramMicroflowEdgeData, MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
 import { MICROFLOW_GRID_SIZE } from "../flowgram/adapters/flowgram-coordinate";
 import { createStableId } from "../schema/utils/ids";
+import { alignRootDesignParameterNodesToStart, removeStaleDesignParameters } from "../schema/utils/design-parameter-layout";
 import {
   EMPTY_MICROFLOW_METADATA_CATALOG,
   MicroflowMetadataProvider,
@@ -241,14 +242,14 @@ function deleteDesignSelection(
       && !removedObjects.has(edge.targetNodeID)
       && !(flowId && removedFlows.has(flowId));
   });
-  return clearDesignSelection({
+  return clearDesignSelection(alignRootDesignParameterNodesToStart(removeStaleDesignParameters({
     ...schema,
     workflow: {
       ...schema.workflow,
       nodes,
       edges,
     },
-  });
+  })));
 }
 
 function createUniqueDesignCopyId(existingIds: Set<string>, sourceId: string): string {
@@ -324,7 +325,7 @@ function duplicateDesignSelection(
     });
 
   const nextObjectIds = copiedNodes.map(node => node.id);
-  return {
+  return alignRootDesignParameterNodesToStart({
     ...schema,
     workflow: {
       ...schema.workflow,
@@ -342,7 +343,7 @@ function duplicateDesignSelection(
         mode: nextObjectIds.length > 1 ? "multi" : nextObjectIds.length === 1 ? "single" : "none",
       },
     },
-  };
+  });
 }
 
 function splitDesignFlowWithNode(
@@ -2866,7 +2867,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         commitSchema(nextSchema as unknown as MicroflowSchema, parentLoopObjectId ? "addLoopNode" : "addNode", { source: "nodePanel" });
         return;
       }
-      const nextSchema: MicroflowDesignSchema = {
+      const nextSchema: MicroflowDesignSchema = alignRootDesignParameterNodesToStart({
         ...schema,
         workflow: {
           ...schema.workflow,
@@ -2900,7 +2901,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           ...schema.audit,
           updatedAt: new Date().toISOString(),
         },
-      };
+      });
       commitSchema(nextSchema as unknown as MicroflowSchema, parentLoopObjectId ? "addLoopNode" : "addNode", { source: "nodePanel" });
       return;
     }
@@ -5081,6 +5082,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     onDuplicateSelection: handleDuplicateSelection,
     onFitView: () => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-fit-view")),
     onMoveSelection: handleMoveSelection,
+    onGoTo: focusNodeSearch,
+    onOpenProperties: openPropertiesPanel,
   });
 
   const [fullscreenActive, setFullscreenActive] = useState(false);
@@ -6160,6 +6163,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     emitPanelSyncEvent({ type: "property-edit" });
                   }}
                   onObjectChange={(objectId, patch: MicroflowNodePatch) => {
+                    if (patch.addFlow) {
+                      const nextSchema = applyEditorGraphPatchToAuthoring(schema, { addFlow: patch.addFlow, selectedObjectId: schema.editor.selectedObjectId });
+                      const reason = "addFlow";
+                      commitSchema(nextSchema, reason, { source: "propertyPanel" });
+                      emitPanelSyncEvent({ type: "property-edit", flowId: patch.addFlow.id });
+                      return;
+                    }
                     if (!patch.object) {
                       return;
                     }
