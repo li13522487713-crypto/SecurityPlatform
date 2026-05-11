@@ -12,7 +12,7 @@ import {
   deleteDesignFlow,
   deleteDesignObject,
   duplicateDesignObject,
-} from "./design-protocol-adapter";
+} from "./design-protocol-model";
 import type { MicroflowDesignPropertyPanelProps, MicroflowEdgePatch, MicroflowNodePatch, MicroflowPropertyPanelProps, MicroflowPropertyPanelRuntimeProps } from "./types";
 
 export * from "./types";
@@ -113,3 +113,4 @@ export const MicroflowPropertyPanel = memo(function MicroflowPropertyPanel(props
   }
   return <AuthoringMicroflowPropertyPanel {...props} />;
 });
+

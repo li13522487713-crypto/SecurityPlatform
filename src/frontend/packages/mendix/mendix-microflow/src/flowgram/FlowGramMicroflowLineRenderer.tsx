@@ -9,6 +9,7 @@ import {
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
 import { MicroflowEdgeDataContext } from "./FlowGramMicroflowTypes";
 import { emitInlineLineLabelCommit } from "./inline-events";
+import { MicroflowEdge } from "../components/MicroflowEdge";
 
 function lineInfoKey(input: {
   from?: unknown;
@@ -123,7 +124,7 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   const data = edgeDataFromLine(line, edgeDataByLineKey);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const hostRef = useRef<HTMLInputElement | HTMLButtonElement | null>(null);
+  const hostRef = useRef<HTMLInputElement | HTMLDivElement | null>(null);
 
   if (!data) {
     return null;
@@ -198,29 +199,27 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   }
 
   return (
-    <button
-      ref={hostRef}
-      type="button"
-      className={className}
-      data-testid="microflow-flowgram-line-label"
-      data-flow-id={data.flowId}
-      data-edge-kind={data.edgeKind}
-      onMouseDown={event => {
-        event.stopPropagation();
-      }}
-      onClick={event => {
-        event.stopPropagation();
-        if (readonly) {
-          return;
-        }
-        setDraft(label);
-        setEditing(true);
-      }}
-      title={warningMissingTarget ? "缺少目标节点" : label}
-    >
-      {label}
-      {!readonly ? <span className="microflow-branch-label__edit" aria-hidden="true">✎</span> : null}
-      {warningMissingTarget ? <span aria-hidden="true" className="microflow-branch-label__warning-dot" /> : null}
-    </button>
+    <div ref={hostRef}>
+      <MicroflowEdge
+        className={className}
+        flowId={data.flowId}
+        edgeKind={data.edgeKind}
+        label={label}
+        warningMissingTarget={warningMissingTarget}
+        readonly={readonly}
+        onMouseDown={event => {
+          event.stopPropagation();
+        }}
+        onClick={event => {
+          event.stopPropagation();
+          if (readonly) {
+            return;
+          }
+          setDraft(label);
+          setEditing(true);
+        }}
+        editAdornment={<span className="microflow-branch-label__edit" aria-hidden="true">✎</span>}
+      />
+    </div>
   );
 }

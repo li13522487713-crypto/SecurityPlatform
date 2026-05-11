@@ -126,11 +126,6 @@ export interface FlowGramMicroflowNativeCanvasProps {
   onCanvasPanToolChange?: (active: boolean) => void;
   onDeleteSelection?: () => void;
   onClearSelection?: () => void;
-  /** Compatibility fields consumed by editor wrappers; native canvas does not persist them directly. */
-  metadataCatalog?: unknown;
-  expandedObjectId?: string | null;
-  onExpandChange?: (objectId: string | null) => void;
-  registerDraftValidator?: (validator: () => { valid: boolean; summary: string }) => void;
 }
 
 type DisposableLineSnapshot = {

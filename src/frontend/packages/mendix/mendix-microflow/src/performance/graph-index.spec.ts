@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../adapters";
-import { sampleMicroflowSchema } from "../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../node-registry";
 import type { MicroflowObject, MicroflowSchema } from "../schema";
 import { createMicroflowGraphIndex } from "./graph-index";
@@ -36,3 +36,4 @@ describe("createMicroflowGraphIndex", () => {
     expect(index.incomingFlowIdsByObjectId.get(b.id)).toEqual([flow.id]);
   });
 });
+

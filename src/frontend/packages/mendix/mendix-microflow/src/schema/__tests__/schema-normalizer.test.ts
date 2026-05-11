@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../../adapters";
-import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
   collectFlowsRecursive,
@@ -146,3 +146,4 @@ describe("microflow schema runtime normalizer", () => {
     expect(result.schema.flows.every(flow => flow.kind === "sequence" && flow.caseValues.length === 0)).toBe(true);
   });
 });
+

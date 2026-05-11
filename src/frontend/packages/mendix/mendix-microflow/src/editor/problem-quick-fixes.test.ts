@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../adapters";
-import { sampleMicroflowSchema } from "../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../node-registry";
 import type { MicroflowObject, MicroflowSchema } from "../schema";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
@@ -95,3 +95,4 @@ describe("problem quick fixes", () => {
     expect(allFlows.every(flow => flow.originObjectId !== decision.id || loopFlows?.some(loopFlow => loopFlow.id === flow.id))).toBe(true);
   });
 });
+

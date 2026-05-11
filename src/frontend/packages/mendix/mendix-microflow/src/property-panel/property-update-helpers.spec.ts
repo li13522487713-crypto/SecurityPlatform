@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../adapters";
-import { sampleMicroflowSchema } from "../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../schema/sample";
 import { getMicroflowNodeRegistryKey, defaultMicroflowNodeRegistry } from "../node-registry";
 import type { MicroflowObject, MicroflowSchema } from "../schema";
 import {
@@ -187,3 +187,4 @@ describe("property panel schema-bound update helpers", () => {
     expect(updatedObject?.caption).toBe("amount");
   });
 });
+

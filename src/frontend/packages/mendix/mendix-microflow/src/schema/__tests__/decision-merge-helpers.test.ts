@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow, deleteFlow, deleteObject } from "../../adapters";
-import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
   assignDecisionBooleanCase,
@@ -142,3 +142,4 @@ describe("decision and merge branch helpers", () => {
     expect(schemaB.flows[0]?.kind === "sequence" ? schemaB.flows[0].caseValues : undefined).toEqual([]);
   });
 });
+

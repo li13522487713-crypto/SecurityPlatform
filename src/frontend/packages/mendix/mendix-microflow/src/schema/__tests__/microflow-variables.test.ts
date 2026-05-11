@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, deleteObject, duplicateObject, updateObject } from "../../adapters";
-import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
   buildMicroflowVariableIndex,
@@ -132,3 +132,4 @@ describe("microflow variable foundation", () => {
     expect(buildMicroflowVariableIndex(b).localVariables.newVariable).toBeDefined();
   });
 });
+

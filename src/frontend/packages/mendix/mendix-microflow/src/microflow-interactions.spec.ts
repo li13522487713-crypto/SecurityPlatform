@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addFlow, applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteFlow, deleteObject, duplicateObject, moveObject, splitFlowWithObject, toEditorGraph, updateFlow, updateObject } from "./adapters";
-import { sampleMicroflowSchema } from "./__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "./schema/sample";
 import {
   addMicroflowObjectFromDragPayload,
   canCreateRegistryItem,
@@ -1228,3 +1228,4 @@ describe("microflow editor interactions", () => {
     expect(issues.some(issue => issue.code === "MF_EXPRESSION_INVALID" || issue.code === "MF_EXPRESSION_UNKNOWN_VARIABLE")).toBe(true);
   });
 });
+

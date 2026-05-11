@@ -14,6 +14,8 @@ import { Tag, Typography } from "@douyinfe/semi-ui";
 import { IconEdit, IconTickCircle } from "@douyinfe/semi-icons";
 import { getMendixMicroflowCopy } from "../i18n/copy";
 import { InlineNodeEditor } from "../inline-edit";
+import { AnnotationNode } from "../components/AnnotationNode";
+import { ActivityNode } from "../components/ActivityNode";
 import {
   FlowNodeFormData,
   type FormModelV2,
@@ -558,30 +560,25 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
             </div>
           </div>
         ) : tone === "annotation" ? (
-          <div className="microflow-annotation-compact" title={data.title}>
-            <span
-              aria-hidden="true"
-              style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
-            >
-              <NodeIcon kind={data.objectKind} />
-            </span>
-            <span>{data.title}</span>
-          </div>
+          <AnnotationNode
+            title={data.title}
+            icon={(
+              <span
+                aria-hidden="true"
+                style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+              >
+                <NodeIcon kind={data.objectKind} />
+              </span>
+            )}
+          />
         ) : (
-          <div className="microflow-activity-compact">
-            <div
-              className="microflow-activity-compact__icon"
-              aria-hidden="true"
-              style={{ background: categoryStyle.iconBg, color: categoryStyle.iconColor }}
-            >
-              <NodeIcon kind={data.objectKind} />
-              {data.runtimeState === "failed" ? <span className="microflow-node-runtime-error-dot" aria-hidden /> : null}
-            </div>
-            <div className="microflow-activity-compact__text">
-              <div className="microflow-activity-compact__title" title={data.title}>{data.title}</div>
-              <div className="microflow-activity-compact__subtitle" title={activitySubtitle}>{activitySubtitle}</div>
-            </div>
-          </div>
+          <ActivityNode
+            title={data.title}
+            subtitle={activitySubtitle}
+            icon={<NodeIcon kind={data.objectKind} />}
+            iconStyle={{ background: categoryStyle.iconBg, color: categoryStyle.iconColor }}
+            showRuntimeErrorDot={data.runtimeState === "failed"}
+          />
         )}
         <button
           type="button"

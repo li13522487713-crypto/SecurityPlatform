@@ -1,6 +1,6 @@
 import { emptyVariableIndex } from "../adapters";
 import type { MicroflowMetadataCatalog } from "../metadata";
-import { buildDesignPropertyPanelModel } from "../property-panel/design-protocol-adapter";
+import { buildDesignPropertyPanelModel } from "../property-panel/design-protocol-model";
 import type {
   MicroflowDesignSchema,
   MicroflowValidationIssue,
@@ -310,3 +310,4 @@ export function validateMicroflowDesignSchema(input: {
     summary: summarizeIssues(issues),
   };
 }
+

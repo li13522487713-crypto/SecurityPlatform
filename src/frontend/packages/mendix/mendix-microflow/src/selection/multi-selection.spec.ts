@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applyEditorGraphPatchToAuthoring, createObjectFromRegistry, createSequenceFlow, deleteObject, duplicateObjectSelection } from "../adapters";
-import { sampleMicroflowSchema } from "../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../node-registry";
 import type { MicroflowObject, MicroflowSchema } from "../schema";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
@@ -67,3 +67,4 @@ describe("microflow multi selection", () => {
     expect(duplicated.editor.selection.objectIds?.every(id => id !== a.id && id !== b.id)).toBe(true);
   });
 });
+

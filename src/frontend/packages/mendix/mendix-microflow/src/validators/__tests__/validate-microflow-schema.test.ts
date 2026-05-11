@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow } from "../../adapters";
-import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../../schema/sample";
 import { createMetadataCatalog, EMPTY_MICROFLOW_METADATA_CATALOG } from "../../metadata";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import { createBooleanCaseValue, validateMicroflowSchema, type MicroflowDesignSchema, type MicroflowObject, type MicroflowSchema } from "../../schema";
@@ -549,3 +549,4 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     })]));
   });
 });
+

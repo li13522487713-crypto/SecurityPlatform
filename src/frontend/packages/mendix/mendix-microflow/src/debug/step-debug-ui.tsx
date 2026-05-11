@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Card, List, Space, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { DebugVariablesPanel } from "../components/DebugVariablesPanel";
 
 const { Text } = Typography;
 type DebugCommand = "continue" | "pause" | "stepOver" | "stepInto" | "stepOut" | "runToNode" | "cancel" | "stop";
@@ -100,14 +101,6 @@ function commandDisabledReason(command: DebugCommand, status: string): string {
   return "";
 }
 
-function normalizeVariableName(name: string | undefined): string {
-  const trimmed = String(name ?? "").trim();
-  if (!trimmed) {
-    return "";
-  }
-  return trimmed.startsWith("$") ? trimmed : `$${trimmed}`;
-}
-
 function normalizeCallStackSegment(name: string): string {
   const text = String(name ?? "").trim();
   const match = text.match(/^\d+:(.+)$/);
@@ -198,24 +191,12 @@ export function MicroflowStepDebugPanel({
           );
         })}
       </Space>
-      <Card title={labels.variablesTitle}>
-        <List
-          dataSource={variables}
-          renderItem={item => (
-            <List.Item>
-              <Button
-                theme="borderless"
-                type={normalizeVariableName(activeVariableName) === normalizeVariableName(item.name) ? "primary" : "tertiary"}
-                style={{ paddingInline: 0 }}
-                onClick={() => onVariableSelect?.(item.name)}
-                data-testid={`microflow-debug-variable-${normalizeVariableName(item.name).replace(/[^a-zA-Z0-9_-]/g, "-")}`}
-              >
-                {item.name}: {item.valuePreview}
-              </Button>
-            </List.Item>
-          )}
-        />
-      </Card>
+      <DebugVariablesPanel
+        title={labels.variablesTitle}
+        variables={variables}
+        activeVariableName={activeVariableName}
+        onSelectVariable={onVariableSelect}
+      />
       <Card title={labels.watchesTitle}>
         <Space vertical align="start" style={{ width: "100%" }}>
           <TextArea value={watch} onChange={setWatch} placeholder={labels.watchPlaceholder} />

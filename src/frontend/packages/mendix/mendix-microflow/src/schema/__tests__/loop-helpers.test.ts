@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, createSequenceFlow, deleteObject, duplicateObject } from "../../adapters";
-import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import { buildMicroflowVariableIndex } from "../../variables";
 import {
@@ -144,3 +144,4 @@ describe("loop / break / continue helpers", () => {
     expect(JSON.stringify(duplicated)).not.toContain("Sales.");
   });
 });
+

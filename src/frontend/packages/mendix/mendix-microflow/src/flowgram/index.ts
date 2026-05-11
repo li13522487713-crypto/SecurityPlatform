@@ -1,4 +1,3 @@
-export * from "./FlowGramMicroflowCanvas";
 export * from "./FlowGramMicroflowNativeCanvas";
 export * from "./FlowGramMicroflowLineRenderer";
 export * from "./FlowGramMicroflowNodeRenderer";

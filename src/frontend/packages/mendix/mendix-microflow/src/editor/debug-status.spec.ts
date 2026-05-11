@@ -17,4 +17,8 @@ describe("getDebugWsStatusTag", () => {
   it("maps disconnected to grey tag", () => {
     expect(getDebugWsStatusTag("disconnected")).toEqual({ text: "WS disconnected", color: "grey" });
   });
+
+  it("falls back to disconnected style for unknown values", () => {
+    expect(getDebugWsStatusTag("unknown" as never)).toEqual({ text: "WS disconnected", color: "grey" });
+  });
 });

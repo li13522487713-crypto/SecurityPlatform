@@ -33,7 +33,7 @@ function port(options: {
 }
 
 describe("FlowGram microflow DI", () => {
-  it("binds document options without a runtime schema bridge service", () => {
+  it("binds document options without runtime schema fallback service", () => {
     const container = new Container({ defaultScope: "Singleton" });
     container.bind(FlowGramMicroflowDocumentOptions).to(FlowGramMicroflowDocumentOptions).inSingletonScope();
     container.bind(WorkflowDocumentOptions).toService(FlowGramMicroflowDocumentOptions);

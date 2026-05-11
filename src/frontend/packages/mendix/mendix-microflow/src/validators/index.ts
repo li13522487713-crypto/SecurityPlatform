@@ -10,7 +10,6 @@ export * from "./validate-loop";
 export * from "./validate-actions";
 export * from "./validate-metadata-references";
 export * from "./validate-variables";
-export * from "./validate-variable-scope";
 export * from "./validate-expressions";
 export * from "./validate-error-handling";
 export * from "./validate-reachability";

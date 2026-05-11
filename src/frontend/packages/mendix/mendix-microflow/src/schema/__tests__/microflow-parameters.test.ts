@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { deleteObject, duplicateObject, createObjectFromRegistry } from "../../adapters";
-import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../../schema/sample";
 import { getDefaultMockMetadataCatalog } from "../../metadata";
 import { addMicroflowObjectFromDragPayload, createDragPayloadFromRegistryItem, defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
@@ -130,3 +130,4 @@ describe("microflow parameter and return schema helpers", () => {
     expect(validateMicroflowSchema({ schema: duplicated, metadata: getDefaultMockMetadataCatalog() }).issues.some(issue => issue.code === "MF_PARAMETER_DUPLICATED")).toBe(true);
   });
 });
+

@@ -49,7 +49,7 @@ export interface MicroflowMetadataAdapter {
 
 /**
  * 与 {@link createMockMicroflowMetadataAdapter} 默认 catalog 相同。
- * 仅用于测试、契约验收、以及暂时无法注入 {@link MicroflowMetadataAdapter} 的同步桥接；编辑器与宿主应通过 Provider / Adapter 获取元数据。
+ * 仅用于测试、契约验收、以及暂时无法注入 {@link MicroflowMetadataAdapter} 的同步模式；编辑器与宿主应通过 Provider / Adapter 获取元数据。
  */
 export function getDefaultMockMetadataCatalog(): MicroflowMetadataCatalog {
   return mockMicroflowMetadataCatalog;

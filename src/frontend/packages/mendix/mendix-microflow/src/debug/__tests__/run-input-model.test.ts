@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../../schema/sample";
 import type { MicroflowSchema } from "../../schema";
 import {
   buildRunInputModel,
@@ -104,3 +104,4 @@ describe("Microflow Stage 21 run input model", () => {
     expect(withBError.runResultByMicroflowId.MF_B).toBeUndefined();
   });
 });
+

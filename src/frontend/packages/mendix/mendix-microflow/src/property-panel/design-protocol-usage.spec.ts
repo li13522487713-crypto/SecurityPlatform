@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MicroflowDesignSchema } from "../schema/types";
 import { buildNodeUsageHighlights } from "../variables";
-import { buildDesignPropertyPanelModel } from "./design-protocol-adapter";
+import { buildDesignPropertyPanelModel } from "./design-protocol-model";
 
 function expression(raw: string) {
   return {
@@ -153,7 +153,7 @@ function schema(selectedObjectId = "change-level"): MicroflowDesignSchema {
   } as unknown as MicroflowDesignSchema;
 }
 
-describe("buildDesignPropertyPanelModel usage bridge", () => {
+describe("buildDesignPropertyPanelModel usage mapping", () => {
   it("preserves variable producer/consumer relations for usage highlighting", () => {
     const model = buildDesignPropertyPanelModel(schema("change-level"));
     const usage = buildNodeUsageHighlights(model.authoringSchema, "change-level");
@@ -162,3 +162,4 @@ describe("buildDesignPropertyPanelModel usage bridge", () => {
     expect(usage.usedVariableNames).toContain("approvalLevel");
   });
 });
+

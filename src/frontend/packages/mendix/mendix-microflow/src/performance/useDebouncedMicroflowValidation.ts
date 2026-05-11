@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { validateMicroflowSchema } from "../schema/validator";
+import { validateMicroflowSchema } from "../validators/validate-microflow-schema";
 import type { MicroflowDesignSchema, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import type { MicroflowMetadataCatalog } from "../metadata";
 

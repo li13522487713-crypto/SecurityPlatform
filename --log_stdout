@@ -1,0 +1,28 @@
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1330: This NanoMQ instance configured as:
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1333: tcp url:                  nmq-tcp://0.0.0.0:1883 
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1337: websocket url:            nmq-ws://0.0.0.0:8083/mqtt
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1363: daemon:                   false
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1365: num_taskq_thread:         32
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1367: max_taskq_thread:         32
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1368: parallel:                 32
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1369: property_size:            32
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1370: max_packet_size:          268435456
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1372: client_max_packet_size:   268435456
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1373: max_mqueue_len:           2048
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1374: max_inflight_window:      2048
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1375: max_awaiting_rel:         10s
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1376: await_rel_timeout:        10s
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1377: retry_interval:           10s
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1378: keepalive_multiplier:     1.250000
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1382: http server port:         8081
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1383: http server url:          (null)
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1384: http server limit_conn:   2
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1385: http server max body:     1048576
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1386: http server username:     admin
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1388: http server auth type:    basic
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1397: 	public key file:      /etc/certs/jwt/jwtRS256.key.pub
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1417: allow_anonymous:          true
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1421: acl_nomatch:              allow
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nng\src\supplemental\nanolib\conf.c:1424: acl_deny_action:          ignore
+2026-05-11 15:18:39 [33096] INFO  D:\a\nanomq\nanomq\nanomq\apps\broker.c:1532: 33096
+2026-05-11 15:18:39 [33096] FATAL D:\a\nanomq\nanomq\nanomq\apps\broker.c:1150: broker nng_listen

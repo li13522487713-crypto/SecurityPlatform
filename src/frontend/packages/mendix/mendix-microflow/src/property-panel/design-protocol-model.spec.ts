@@ -13,7 +13,7 @@ import {
   buildDesignPropertyPanelModel,
   deleteDesignFlow,
   deleteDesignObject,
-} from "./design-protocol-adapter";
+} from "./design-protocol-model";
 
 function designSchema(): MicroflowDesignSchema {
   const schema = createMicroflowDesignSchema({
@@ -332,3 +332,4 @@ describe("design protocol property panel adapter", () => {
     });
   });
 });
+

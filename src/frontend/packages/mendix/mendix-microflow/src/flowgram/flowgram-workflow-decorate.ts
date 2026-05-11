@@ -1,5 +1,5 @@
 import type { MicroflowTraceFrame } from "../debug/trace-types";
-import { deriveNodeInlineConfig } from "../node-inline";
+import { deriveNodeInlineConfig } from "../node-inline/derive-node-inline-config";
 import type {
   MicroflowDesignSchema,
   MicroflowValidationIssue,

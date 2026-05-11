@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createObjectFromRegistry, toEditorGraph } from "../../adapters";
-import { sampleMicroflowSchema } from "../../__fixtures__/sample-microflow";
+import { sampleMicroflowSchema } from "../../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import type { MicroflowObject, MicroflowSchema } from "../../schema";
 import { mapFlowGramEdgeToMicroflowFlow } from "./flowgram-edge-mapping";
@@ -58,3 +58,4 @@ describe("flowgram edge mapping", () => {
     ]);
   });
 });
+

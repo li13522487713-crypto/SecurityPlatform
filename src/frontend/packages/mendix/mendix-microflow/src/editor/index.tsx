@@ -18,7 +18,7 @@ import {
 } from "@douyinfe/semi-icons";
 import { MicroflowNodePanel, type MicroflowNodePanelLabels, type MicroflowNodePanelTemplate } from "../node-panel";
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
-import { buildDesignPropertyPanelModel } from "../property-panel/design-protocol-adapter";
+import { buildDesignPropertyPanelModel } from "../property-panel/design-protocol-model";
 import {
   addMicroflowObjectFromDragPayload,
   createDragPayloadFromRegistryItem,
@@ -59,7 +59,7 @@ import {
 import { MicroflowHistoryManager, labelForHistoryReason, microflowSchemasEqual, type MicroflowHistoryReason, type MicroflowHistorySelection, type MicroflowHistoryState } from "../history";
 import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
-import { FlowGramMicroflowCanvas } from "../flowgram";
+import { FlowGramMicroflowNativeCanvas } from "../flowgram";
 import { getMendixMicroflowNodeSize } from "../flowgram/flowgram-node-geometry";
 import { createMicroflowWorkflowNode } from "../flowgram/flowgram-native-schema";
 import { stripTransientDesignSchema } from "../flowgram/transient-workflow-state";
@@ -87,7 +87,7 @@ import {
   type MicroflowMetadataAdapter,
   type MicroflowMetadataCatalog,
 } from "../metadata";
-import { validateMicroflowSchema } from "../schema/validator";
+import { validateMicroflowSchema } from "../validators/validate-microflow-schema";
 import { normalizeMicroflowAuthoringSchemaForRuntime } from "../schema/normalizer";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
 import { canApplyBooleanBranchQuickFix, createMissingBooleanBranch } from "./problem-quick-fixes";
@@ -126,6 +126,7 @@ import { useMicroflowShortcuts } from "./shortcuts";
 import { exportCanvasAsPng } from "./export-image";
 import { buildAcceptance120Schema } from "./acceptance-120-fixture";
 import { getDebugWsStatusTag } from "./debug-status";
+import { composeTraceFramesForRuntimePreview } from "./ws-runtime-trace";
 import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import { buildNodeUsageHighlights, buildVariableUsageHighlights } from "../variables";
 import {
@@ -2479,34 +2480,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const debugWsStatusTag = getDebugWsStatusTag(debugConnectionStatus);
   const traceFrames = useMemo(() => {
     const base = filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId);
-    const wsCurrentNodeId = String(debugStoreSnapshot.nodeState.currentNodeId ?? "").trim();
-    const wsCurrentBranchId = String(debugStoreSnapshot.nodeState.currentBranchId ?? "").trim();
-    if (!wsCurrentNodeId) {
-      return base;
-    }
-    const alreadyRunning = base.some(frame => frame.objectId === wsCurrentNodeId && frame.status === "running");
-    if (alreadyRunning) {
-      return base;
-    }
-    const syntheticRunningFrame = {
-      id: `ws-live-${wsCurrentNodeId}`,
-      runId: debugSessionId ?? "ws-live",
-      objectId: wsCurrentNodeId,
-      status: "running",
-      startedAt: "1970-01-01T00:00:00.000Z",
-      durationMs: 0,
-      output: wsCurrentBranchId
-        ? {
-            branchTrace: [{
-              flowId: wsCurrentBranchId,
-              branchId: wsCurrentBranchId,
-              selected: true,
-              status: "completed",
-            }],
-          }
-        : undefined,
-    } as MicroflowTraceFrame;
-    return [...base, syntheticRunningFrame];
+    return composeTraceFramesForRuntimePreview({
+      baseFrames: base,
+      wsCurrentNodeId: debugStoreSnapshot.nodeState.currentNodeId,
+      wsCurrentBranchId: debugStoreSnapshot.nodeState.currentBranchId,
+      sessionId: debugSessionId,
+    });
   }, [
     selectedRunSession,
     activeMicroflowId,
@@ -5431,7 +5410,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       ) : null}
       <div style={bodyStyle}>
         <div data-testid="microflow-canvas" style={{ minWidth: 0, minHeight: 0, display: "contents" }}>
-        <FlowGramMicroflowCanvas
+        <FlowGramMicroflowNativeCanvas
           schema={schema}
           validationIssues={issues}
           runtimeTrace={traceFrames}
@@ -6217,3 +6196,4 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     </MicroflowMetadataProvider>
   );
 }
+
