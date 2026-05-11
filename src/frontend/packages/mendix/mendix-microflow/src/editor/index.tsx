@@ -125,7 +125,7 @@ import { createMicroflowGraphIndex, useDebouncedMicroflowValidation, type Microf
 import { useMicroflowShortcuts } from "./shortcuts";
 import { exportCanvasAsPng } from "./export-image";
 import { buildAcceptance120Schema } from "./acceptance-120-fixture";
-import { getDebugWsStatusTag } from "./debug-status";
+import { getDebugLatencyColor, getDebugWsStatusTag } from "./debug-status";
 import { composeTraceFramesForRuntimePreview } from "./ws-runtime-trace";
 import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import { buildNodeUsageHighlights, buildVariableUsageHighlights } from "../variables";
@@ -1766,6 +1766,7 @@ function DebugPanel({
   onHighlightVariableUsage,
   onDebugRefreshTimeline,
   onDebugMutateVariable,
+  onOpenMicroflow,
 }: {
   microflowId: string;
   microflowName?: string;
@@ -1797,6 +1798,7 @@ function DebugPanel({
   onHighlightVariableUsage?: (variableName?: string) => void;
   onDebugRefreshTimeline?: () => void;
   onDebugMutateVariable?: (name: string, value: string) => void;
+  onOpenMicroflow?: (microflowId: string) => void;
 }) {
   const [suspendPolicyDraft, setSuspendPolicyDraft] = useState<"all" | "branchOnly">(debugSuspendPolicy ?? "all");
   const [mutateVariableName, setMutateVariableName] = useState("");
@@ -1834,8 +1836,8 @@ function DebugPanel({
   const effectiveBranchId = debugSession?.currentSafePoint?.branchId ?? runtimeNodeState?.currentBranchId;
   const effectivePhase = debugSession?.pausePhase ?? debugSession?.currentSafePoint?.phase ?? runtimeNodeState?.currentSafePoint;
   const effectiveCallStack = (debugSession?.callStack?.length ?? 0) > 0
-    ? (debugSession?.callStack ?? []).map(frame => ({ id: frame.id, name: `${frame.depth}:${frame.microflowId}` }))
-    : (runtimeCallStack ?? []).map(frame => ({ id: `${frame.runId}:${frame.depth}`, name: `${frame.depth}:${frame.microflowId}` }));
+    ? (debugSession?.callStack ?? []).map(frame => ({ id: frame.id, name: `${frame.depth}:${frame.microflowId}`, microflowId: frame.microflowId }))
+    : (runtimeCallStack ?? []).map(frame => ({ id: `${frame.runId}:${frame.depth}`, name: `${frame.depth}:${frame.microflowId}`, microflowId: frame.microflowId }));
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       {debugAvailable && debugSession ? (
@@ -1910,6 +1912,12 @@ function DebugPanel({
             onCommand={onDebugCommand}
             onEvaluate={onDebugEvaluate}
             onVariableSelect={onHighlightVariableUsage}
+            onCallStackFrameClick={frame => {
+              if (!frame.microflowId || !onOpenMicroflow) {
+                return;
+              }
+              onOpenMicroflow(frame.microflowId);
+            }}
           />
           <Card title="Debug Controls" style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
             <Space vertical align="start" style={{ width: "100%" }}>
@@ -2395,13 +2403,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const debugSessionId = activeDebugSession?.id ?? debugStoreSnapshot.sessionId;
   const {
     status: debugConnectionStatus,
+    latencyMs: debugLatencyMs,
     connect: connectDebugConnection,
     disconnect: disconnectDebugConnection,
     send: sendDebugConnectionCommand,
   } = useDebugWebSocket(activeMicroflowId, {
     sessionId: debugSessionId,
     store: debugStoreRef.current,
-    autoReconnect: 3,
+    autoReconnect: 5,
     pingIntervalMs: 30_000,
   });
   useEffect(() => {
@@ -5263,6 +5272,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         onQueryChange={setCommandPaletteQuery}
         onClose={() => setCommandPaletteOpen(false)}
       />
+      <style>{`@keyframes microflow-ws-blink { 50% { opacity: 0.45; } }`}</style>
       {toolbarMode === "internal" ? (
       <div data-testid="microflow-editor-toolbar" style={toolbarStyle}>
         <Space style={{ minWidth: 0, overflow: "hidden" }}>
@@ -5279,7 +5289,41 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           {!focusMode && inlineEditState === "editing" ? <Tag color="green">Inline edit: editing</Tag> : null}
           {!focusMode && inlineEditState === "paused-edit" ? <Tag color="blue">Inline edit: paused-edit</Tag> : null}
           {!focusMode && runSession ? <Tag color={runSession.status === "success" ? "green" : "red"}>{runSession.status} · {runSession.trace.length} frames</Tag> : null}
-          {!focusMode ? <Tag color={debugWsStatusTag.color} data-testid="microflow-debug-ws-status">{debugWsStatusTag.text}</Tag> : null}
+          {!focusMode ? (
+            <span
+              data-testid="microflow-debug-ws-status"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "2px 8px",
+                borderRadius: 12,
+                border: "1px solid var(--semi-color-border, #e5e6eb)",
+                animation: debugConnectionStatus === "reconnecting" ? "microflow-ws-blink 1s step-end infinite" : undefined,
+              }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: debugWsStatusTag.color === "green"
+                    ? "#4ade80"
+                    : debugWsStatusTag.color === "blue"
+                      ? "#fcd34d"
+                      : debugWsStatusTag.color === "red"
+                        ? "#ef4444"
+                        : debugWsStatusTag.color === "orange"
+                          ? "#f59e0b"
+                          : "#6b7280",
+                }}
+              />
+              <span>{debugWsStatusTag.text}</span>
+              <span style={{ color: getDebugLatencyColor(debugLatencyMs) }}>
+                {debugLatencyMs}ms
+              </span>
+            </span>
+          ) : null}
         </Space>
         <Space wrap style={{ justifyContent: "flex-end", rowGap: 4 }}>
           {focusMode ? (
@@ -6042,6 +6086,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                         }
                       }}
                       onDebugMutateVariable={(name, value) => void handleDebugMutateVariable(name, value)}
+                      onOpenMicroflow={props.onOpenMicroflow}
                     />
                     </div>
                   </Tabs.TabPane>

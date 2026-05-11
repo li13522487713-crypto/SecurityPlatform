@@ -24,7 +24,7 @@ function createRunSession(id: string, overrides: Partial<MicroflowRunSession> = 
 }
 
 describe("createHttpMicroflowRuntimeAdapter", () => {
-  it("hydrates run session, trace and debug session into a unified response", async () => {
+  it("hydrates run session and trace into a unified response", async () => {
     const apiClient = {
       post: vi.fn(async () => ({
         session: createRunSession("run-1", { trace: [{ id: "bootstrap-frame", runId: "run-1", objectId: "start", status: "success", startedAt: "2026-04-30T08:00:00.000Z", durationMs: 1 }] as MicroflowRunSession["trace"] })
@@ -35,12 +35,6 @@ describe("createHttpMicroflowRuntimeAdapter", () => {
             return createRunSession("run-1", { persistedAt: "2026-04-30T08:00:01.500Z", finalized: true, traceFrameCount: 1, hasHydratedTrace: true });
           case "/microflows/runs/run-1/trace":
             return { trace: [{ id: "hydrated-frame", runId: "run-1", objectId: "end", status: "success", startedAt: "2026-04-30T08:00:00.000Z", durationMs: 3 }] };
-          case "/microflows/debug-sessions/debug-1":
-            return { id: "debug-1", microflowId: "mf-1", status: "paused", state: "paused", lastUpdatedAt: "2026-04-30T08:00:01.600Z", availableCommands: ["continue"] };
-          case "/microflows/debug-sessions/debug-1/variables":
-            return [{ name: "$amount", type: "decimal", valuePreview: "120" }];
-          case "/microflows/debug-sessions/debug-1/trace":
-            return [{ id: "evt-1", kind: "pause", message: "paused", createdAt: "2026-04-30T08:00:01.600Z" }];
           default:
             throw new Error(`unexpected path ${path}`);
         }
@@ -56,7 +50,6 @@ describe("createHttpMicroflowRuntimeAdapter", () => {
     const response = await adapter.testRunMicroflow({
       microflowId: "mf-1",
       input: {},
-      debugSessionId: "debug-1",
     });
 
     expect(response.session.persistedAt).toBe("2026-04-30T08:00:01.500Z");
@@ -64,12 +57,12 @@ describe("createHttpMicroflowRuntimeAdapter", () => {
     expect(response.hydration).toMatchObject({
       sessionHydrated: true,
       traceHydrated: true,
-      debugSessionHydrated: true,
+      debugSessionHydrated: false,
       degraded: false,
     });
-    expect(response.debugSession).toMatchObject({ id: "debug-1", state: "paused" });
-    expect(response.debugVariables?.[0]).toMatchObject({ name: "$amount" });
-    expect(response.debugTrace?.[0]).toMatchObject({ id: "evt-1" });
+    expect(response.debugSession).toBeUndefined();
+    expect(response.debugVariables).toBeUndefined();
+    expect(response.debugTrace).toBeUndefined();
   });
 
   it("extracts runtimeCommands from hydrated trace frames", async () => {

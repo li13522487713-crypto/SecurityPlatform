@@ -45,4 +45,21 @@ describe("debug-session-routing", () => {
     expect(resolveDeepestDebugMicroflowId(createSession({ callStack: [] }), "mf-fallback")).toBe("mf-parent");
     expect(resolveDeepestDebugMicroflowId(createSession({ microflowId: "", callStack: [] }), "mf-fallback")).toBe("mf-fallback");
   });
+
+  it("routes back to parent microflow when child frame is popped (step out)", () => {
+    const childSession = createSession({
+      callStack: [
+        { id: "frame-parent", microflowId: "mf-parent", runId: "run-parent", depth: 0, status: "paused" },
+        { id: "frame-child", microflowId: "mf-child", runId: "run-child", depth: 1, status: "paused" },
+      ],
+    });
+    const parentSession = createSession({
+      callStack: [
+        { id: "frame-parent", microflowId: "mf-parent", runId: "run-parent", depth: 0, status: "paused" },
+      ],
+    });
+
+    expect(resolveDeepestDebugMicroflowId(childSession, "mf-fallback")).toBe("mf-child");
+    expect(resolveDeepestDebugMicroflowId(parentSession, "mf-fallback")).toBe("mf-parent");
+  });
 });

@@ -19,7 +19,7 @@ import type {
   ValidateMicroflowResponse,
 } from "@atlas/microflow";
 import type { MicroflowRunSession, MicroflowTraceFrame } from "@atlas/microflow";
-import type { MicroflowDebugSessionDto, MicroflowDebugTraceEventDto, MicroflowDebugVariableSnapshotDto, RunSessionViewModel } from "@atlas/microflow";
+import type { RunSessionViewModel } from "@atlas/microflow";
 
 import type { MicroflowResource } from "../../resource/resource-types";
 import type { GetMicroflowSchemaResponse, SaveMicroflowSchemaResponse } from "../../contracts/api/microflow-schema-api-contract";
@@ -117,18 +117,9 @@ async function runWithSessionHydration(
 
   const bootstrapSession = normalizeRunDetail(response.session);
   const runId = bootstrapSession.id;
-  const [hydratedSessionResult, hydratedTraceResult, hydratedDebugSessionResult, hydratedVariablesResult, hydratedDebugTraceResult] = await Promise.allSettled([
+  const [hydratedSessionResult, hydratedTraceResult] = await Promise.allSettled([
     client.get<MicroflowRunSession>(`/microflows/runs/${encodeURIComponent(runId)}`),
     client.get<{ trace: MicroflowTraceFrame[] }>(`/microflows/runs/${encodeURIComponent(runId)}/trace`),
-    request.debugSessionId
-      ? client.get<MicroflowDebugSessionDto>(`/microflows/debug-sessions/${encodeURIComponent(request.debugSessionId)}`)
-      : Promise.resolve(undefined as MicroflowDebugSessionDto | undefined),
-    request.debugSessionId
-      ? client.get<MicroflowDebugVariableSnapshotDto[]>(`/microflows/debug-sessions/${encodeURIComponent(request.debugSessionId)}/variables`)
-      : Promise.resolve(undefined as MicroflowDebugVariableSnapshotDto[] | undefined),
-    request.debugSessionId
-      ? client.get<MicroflowDebugTraceEventDto[]>(`/microflows/debug-sessions/${encodeURIComponent(request.debugSessionId)}/trace`)
-      : Promise.resolve(undefined as MicroflowDebugTraceEventDto[] | undefined),
   ]);
 
   const hydratedSession = hydratedSessionResult.status === "fulfilled" && hydratedSessionResult.value
@@ -156,7 +147,7 @@ async function runWithSessionHydration(
   const hydration = createHydrationSummary({
     sessionHydrated: Boolean(hydratedSession),
     traceHydrated: Boolean(hydratedTrace),
-    debugSessionHydrated: hydratedDebugSessionResult.status === "fulfilled" && Boolean(hydratedDebugSessionResult.value),
+    debugSessionHydrated: false,
   });
   const runtimeCommands = extractRuntimeCommands(session);
 
@@ -170,9 +161,9 @@ async function runWithSessionHydration(
     session,
     runtimeCommands,
     hydration,
-    debugSession: hydratedDebugSessionResult.status === "fulfilled" ? hydratedDebugSessionResult.value : undefined,
-    debugVariables: hydratedVariablesResult.status === "fulfilled" ? hydratedVariablesResult.value : undefined,
-    debugTrace: hydratedDebugTraceResult.status === "fulfilled" ? hydratedDebugTraceResult.value : undefined,
+    debugSession: undefined,
+    debugVariables: undefined,
+    debugTrace: undefined,
   };
 }
 

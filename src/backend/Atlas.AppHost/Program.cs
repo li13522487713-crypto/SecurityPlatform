@@ -451,6 +451,10 @@ app.UseCors("AppHostCors");
 app.UseResponseCompression();
 app.UseRequestLocalization();
 app.UseMiddleware<ClientContextMiddleware>();
+app.UseWebSockets(new Microsoft.AspNetCore.Builder.WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(30)
+});
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -592,3 +596,5 @@ sealed class NamespaceExcludingControllerFeatureProvider(string excludedNamespac
         return !typeNamespace.StartsWith(excludedNamespacePrefix, StringComparison.Ordinal);
     }
 }
+
+

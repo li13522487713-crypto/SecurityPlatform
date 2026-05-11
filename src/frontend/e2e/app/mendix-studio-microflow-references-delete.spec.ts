@@ -86,32 +86,5 @@ test.describe.serial("Mendix Studio Microflow references delete", () => {
 
     const authToken = await page.evaluate(() => window.localStorage.getItem("atlas_app_access_token") ?? "");
     expect(authToken).not.toBe("");
-    const debugHeaders = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authToken}`,
-      "X-Tenant-Id": defaultTenantId,
-      "X-Workspace-Id": "atlas-space",
-      "X-User-Id": "admin"
-    };
-    const createDebugResp = await request.post(`${appApiBase}/api/v1/microflows/${encodeURIComponent(validateId)}/debug-sessions`, {
-      headers: debugHeaders
-    });
-    expect(createDebugResp.ok()).toBeTruthy();
-    const debugSessionId = String((await createDebugResp.json())?.data?.id ?? "");
-    expect(debugSessionId).not.toBe("");
-
-    const stepResp = await request.post(`${appApiBase}/api/v1/microflows/debug-sessions/${encodeURIComponent(debugSessionId)}/commands`, {
-      headers: debugHeaders,
-      data: { command: "stepOver", targetNodeObjectId: "start" }
-    });
-    expect(stepResp.ok()).toBeTruthy();
-    const stepSession = (await stepResp.json())?.data;
-    expect(stepSession?.lastCommand).toBe("stepOver");
-    expect(["stepping", "running", "paused", "created"]).toContain(String(stepSession?.status));
-
-    const cleanupResp = await request.delete(`${appApiBase}/api/v1/microflows/debug-sessions/${encodeURIComponent(debugSessionId)}`, {
-      headers: debugHeaders
-    });
-    expect(cleanupResp.ok()).toBeTruthy();
   });
 });

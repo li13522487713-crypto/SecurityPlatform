@@ -13,10 +13,10 @@ vi.mock("@douyinfe/semi-ui", async () => {
     Card: ({ title, children }: { title?: React.ReactNode; children?: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
     List,
     Space: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-    Tag: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+    Tag: (props: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{props.children}</span>,
     TextArea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { onChange?: (value: string) => void }) => <textarea {...props} onChange={event => props.onChange?.(event.currentTarget.value)} />,
     Tooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-    Typography: { Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span> },
+    Typography: { Text: (props: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{props.children}</span> },
   };
 });
 
@@ -79,7 +79,7 @@ describe("MicroflowStepDebugPanel", () => {
     expect(screen.getByText("node: node-a ($amount > 10) #2 Logpoint Stale")).toBeTruthy();
     expect(screen.getByText("amount: 42")).toBeTruthy();
     expect(screen.getByText("$amount: 42")).toBeTruthy();
-    expect(screen.getByText("Order.Submit")).toBeTruthy();
+    expect(screen.getAllByText("Order.Submit").length).toBeGreaterThan(0);
     expect(screen.getByText("branch-1: active")).toBeTruthy();
   });
 

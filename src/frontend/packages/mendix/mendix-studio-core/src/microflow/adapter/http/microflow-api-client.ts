@@ -267,7 +267,7 @@ export class MicroflowApiClient {
 
   private resolveTimeoutMs(method: string, path: string): number {
     const normalizedPath = path.toLowerCase();
-    const operation: MicroflowApiOperation = normalizedPath.includes("/debug-sessions/")
+    const operation: MicroflowApiOperation = normalizedPath.includes("/debug/")
       ? "debug"
       : normalizedPath.endsWith("/validate")
         ? "validate"

@@ -1,8 +1,12 @@
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
 using Atlas.AppHost.Microflows.Controllers;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Runtime.Debug;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
 
@@ -11,455 +15,203 @@ namespace Atlas.AppHost.Tests.Microflows;
 public sealed class MicroflowDebugControllerTests
 {
     [Fact]
-    public void Create_returns_429_when_debug_session_cap_reached()
+    public async Task Connect_returns_400_when_request_is_not_websocket()
     {
         var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
+        var accessor = CreateAccessor("workspace-1", "tenant-1", "user-1");
+        var controller = CreateController(store, accessor, isWebSocketRequest: false);
+
+        await controller.Connect("microflow-any", null, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, controller.HttpContext.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Connect_returns_429_when_debug_session_cap_reached()
+    {
+        var store = new InMemoryDebugSessionStore();
+        var accessor = CreateAccessor("workspace-1", "tenant-1", "user-1");
+        var controller = CreateController(store, accessor, isWebSocketRequest: true);
+        for (var i = 0; i < 256; i++)
         {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            TraceId = "trace-debug"
-        });
-        var coordinator = new MicroflowDebugCoordinator(store);
-        var controller = new MicroflowDebugController(store, coordinator, accessor)
-        {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
-        };
-        for (var i = 0; i < 128; i++)
             store.Create("microflow-any");
+        }
 
-        var result = controller.Create("microflow-any");
-        var obj = Assert.IsType<ObjectResult>(result.Result);
-        Assert.Equal(429, obj.StatusCode);
+        await controller.Connect("microflow-any", null, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status429TooManyRequests, controller.HttpContext.Response.StatusCode);
     }
 
     [Fact]
-    public void Get_returns_403_for_cross_workspace_debug_session()
+    public async Task Connect_returns_403_when_reusing_cross_workspace_session()
     {
         var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
+        var ownerAccessor = CreateAccessor("workspace-1", "tenant-1", "user-1");
+        var ownerSession = store.Create("microflow-any", new MicroflowDebugSessionOwner
         {
-            WorkspaceId = "workspace-2",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
+            WorkspaceId = ownerAccessor.Current.WorkspaceId,
+            TenantId = ownerAccessor.Current.TenantId,
+            UserId = ownerAccessor.Current.UserId
         });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        var controller = CreateController(store, accessor);
+        var accessor = CreateAccessor("workspace-2", "tenant-1", "user-1");
+        var controller = CreateController(store, accessor, isWebSocketRequest: true);
 
-        var result = controller.Get(session.Id);
+        await controller.Connect("microflow-any", ownerSession.Id, CancellationToken.None);
 
-        var obj = Assert.IsType<ObjectResult>(result.Result);
-        Assert.Equal(403, obj.StatusCode);
+        Assert.Equal(StatusCodes.Status403Forbidden, controller.HttpContext.Response.StatusCode);
     }
 
     [Fact]
-    public void Variables_returns_current_paused_snapshot_with_redaction()
+    public async Task Connect_websocket_flow_sends_session_status_state_sync_and_pong()
     {
         var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
+        var accessor = CreateAccessor("workspace-1", "tenant-1", "user-1");
+        var feature = new StubWebSocketFeature(isWebSocketRequest: true)
         {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        store.Upsert(session with
-        {
-            Variables =
+            SocketFactory = () => new FakeWebSocket(
             [
-                new DebugVariableSnapshot
-                {
-                    Name = "apiToken",
-                    Type = "string",
-                    ValuePreview = "***",
-                    RedactionApplied = true
-                }
-            ]
-        });
-        var controller = CreateController(store, accessor);
+                """{"type":"ping","data":{"sequence":123}}"""
+            ])
+        };
+        var controller = CreateController(store, accessor, feature);
 
-        var result = controller.Variables(session.Id);
+        await controller.Connect("microflow-any", "session-ws-1", CancellationToken.None);
 
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var envelope = Assert.IsType<MicroflowApiResponse<IReadOnlyList<DebugVariableSnapshot>>>(ok.Value);
-        var variable = Assert.Single(envelope.Data!);
-        Assert.True(variable.RedactionApplied);
-        Assert.Equal("***", variable.ValuePreview);
-    }
-
-    [Fact]
-    public void Evaluate_reads_current_snapshot_variable_without_mutating_runtime()
-    {
-        var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        store.Upsert(session with
-        {
-            Variables =
-            [
-                new DebugVariableSnapshot
-                {
-                    Name = "amount",
-                    Type = "integer",
-                    ValuePreview = "42"
-                }
-            ]
-        });
-        var controller = CreateController(store, accessor);
-
-        var result = controller.Evaluate(session.Id, new DebugWatchExpression { Expression = "$amount" });
-
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var envelope = Assert.IsType<MicroflowApiResponse<DebugWatchExpression>>(ok.Value);
-        Assert.Equal("integer", envelope.Data!.Type);
-        Assert.Equal("42", envelope.Data.ValuePreview);
-        Assert.Null(envelope.Data.Error);
-    }
-
-    [Fact]
-    public void Evaluate_reads_member_path_from_current_snapshot_json()
-    {
-        var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        store.Upsert(session with
-        {
-            Variables =
-            [
-                new DebugVariableSnapshot
-                {
-                    Name = "order",
-                    Type = "object",
-                    ValuePreview = "{...}",
-                    RawValueJson = """{"amount":42,"customer":{"name":"Ada"}}"""
-                }
-            ]
-        });
-        var controller = CreateController(store, accessor);
-
-        var result = controller.Evaluate(session.Id, new DebugWatchExpression { Expression = "$order.customer.name" });
-
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var envelope = Assert.IsType<MicroflowApiResponse<DebugWatchExpression>>(ok.Value);
-        Assert.Equal("string", envelope.Data!.Type);
-        Assert.Equal("Ada", envelope.Data.ValuePreview);
-        Assert.Null(envelope.Data.Error);
-    }
-
-    [Fact]
-    public void Evaluate_reports_error_without_changing_session_when_watch_is_invalid()
-    {
-        var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        var controller = CreateController(store, accessor);
-
-        var result = controller.Evaluate(session.Id, new DebugWatchExpression { Expression = "$missing" });
-
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var envelope = Assert.IsType<MicroflowApiResponse<DebugWatchExpression>>(ok.Value);
-        Assert.NotNull(envelope.Data!.Error);
-        Assert.Equal("created", store.Get(session.Id)?.Status);
-    }
-
-    [Fact]
-    public void Get_exposes_state_available_commands_and_last_updated_at()
-    {
-        var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        store.Upsert(session with
-        {
-            Status = MicroflowDebugSessionLifecycle.Paused,
-            CurrentSafePoint = new MicroflowDebugSafePointSnapshot
+        var socket = Assert.IsType<FakeWebSocket>(feature.AcceptedSocket);
+        var payloadTypes = socket.SentPayloads
+            .Select(payload =>
             {
-                NodeObjectId = "node-1",
-                NodeKind = "actionActivity",
-                Phase = "beforeNode",
-                CallDepth = 0,
-                SemanticKind = "node",
-                ArrivedAt = DateTimeOffset.UtcNow
-            }
-        });
-        var controller = CreateController(store, accessor);
+                using var doc = JsonDocument.Parse(payload);
+                return doc.RootElement.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : null;
+            })
+            .Where(type => !string.IsNullOrWhiteSpace(type))
+            .ToArray();
 
-        var result = controller.Get(session.Id);
-
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var envelope = Assert.IsType<MicroflowApiResponse<MicroflowDebugSession?>>(ok.Value);
-        Assert.Equal(MicroflowDebugSessionLifecycle.Paused, envelope.Data!.State);
-        Assert.NotEmpty(envelope.Data.AvailableCommands);
-        Assert.Contains(DebugCommandKind.Continue, envelope.Data.AvailableCommands);
-        Assert.True(envelope.Data.LastUpdatedAt > envelope.Data.CreatedAt);
+        Assert.Contains("session-status", payloadTypes);
+        Assert.Contains("state-sync", payloadTypes);
+        Assert.Contains("pong", payloadTypes);
     }
 
-    [Fact]
-    public void SetSuspendPolicy_rejects_invalid_policy()
-    {
-        var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        var controller = CreateController(store, accessor);
-
-        var result = controller.SetSuspendPolicy(session.Id, new MicroflowDebugController.DebugSuspendPolicyRequest
-        {
-            Policy = "invalid-policy"
-        });
-
-        var obj = Assert.IsType<ObjectResult>(result.Result);
-        Assert.Equal(422, obj.StatusCode);
-    }
-
-    [Fact]
-    public void SetSuspendPolicy_accepts_branch_only()
-    {
-        var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        var controller = CreateController(store, accessor);
-
-        var result = controller.SetSuspendPolicy(session.Id, new MicroflowDebugController.DebugSuspendPolicyRequest
-        {
-            Policy = "branchOnly"
-        });
-
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var envelope = Assert.IsType<MicroflowApiResponse<MicroflowDebugController.DebugSuspendPolicyResult>>(ok.Value);
-        Assert.Equal(session.Id, envelope.Data!.SessionId);
-        Assert.Equal("branchOnly", envelope.Data.Policy);
-    }
-
-    [Fact]
-    public void Timeline_returns_items_ordered_descending_by_created_at()
-    {
-        var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        var older = DateTimeOffset.UtcNow.AddMinutes(-2);
-        var newer = DateTimeOffset.UtcNow.AddMinutes(-1);
-        store.Upsert(session with
-        {
-            Trace =
-            [
-                new DebugTraceEvent { Id = "evt-older", Kind = "beforeNode", Message = "older", CreatedAt = older, RunId = "run-1", NodeObjectId = "node-1" },
-                new DebugTraceEvent { Id = "evt-newer", Kind = "afterNode", Message = "newer", CreatedAt = newer, RunId = "run-1", NodeObjectId = "node-2" }
-            ]
-        });
-        var controller = CreateController(store, accessor);
-
-        var result = controller.Timeline(session.Id, take: 10);
-
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var envelope = Assert.IsType<MicroflowApiResponse<IReadOnlyList<MicroflowDebugController.DebugTimelineItem>>>(ok.Value);
-        Assert.Equal(2, envelope.Data!.Count);
-        Assert.Equal("evt-newer", envelope.Data[0].Id);
-        Assert.Equal("evt-older", envelope.Data[1].Id);
-    }
-
-    [Fact]
-    public void MutateVariable_requires_pause_point()
-    {
-        var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        store.Upsert(session with
-        {
-            Variables =
-            [
-                new DebugVariableSnapshot
-                {
-                    Name = "flag",
-                    Type = "boolean",
-                    ValuePreview = "false"
-                }
-            ]
-        });
-        var controller = CreateController(store, accessor);
-
-        var result = controller.MutateVariable(session.Id, new MicroflowDebugController.DebugVariableMutateRequest
-        {
-            Name = "flag",
-            ValuePreview = "true",
-            AllowUnsafe = true
-        });
-
-        var obj = Assert.IsType<ObjectResult>(result.Result);
-        Assert.Equal(409, obj.StatusCode);
-    }
-
-    [Fact]
-    public void MutateVariable_updates_snapshot_when_paused()
-    {
-        var store = new InMemoryDebugSessionStore();
-        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
-        accessor.Current.Returns(new MicroflowRequestContext
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1",
-            TraceId = "trace-debug"
-        });
-        var session = store.Create("microflow-any", new MicroflowDebugSessionOwner
-        {
-            WorkspaceId = "workspace-1",
-            TenantId = "tenant-1",
-            UserId = "user-1"
-        });
-        store.Upsert(session with
-        {
-            CurrentSafePoint = new MicroflowDebugSafePointSnapshot
-            {
-                NodeObjectId = "node-1",
-                NodeKind = "actionActivity",
-                Phase = "beforeNode",
-                CallDepth = 0,
-                SemanticKind = "node",
-                ArrivedAt = DateTimeOffset.UtcNow
-            },
-            Variables =
-            [
-                new DebugVariableSnapshot
-                {
-                    Name = "flag",
-                    Type = "boolean",
-                    ValuePreview = "false"
-                }
-            ]
-        });
-        var controller = CreateController(store, accessor);
-
-        var result = controller.MutateVariable(session.Id, new MicroflowDebugController.DebugVariableMutateRequest
-        {
-            Name = "flag",
-            ValuePreview = "true",
-            RawValueJson = "true",
-            AllowUnsafe = true
-        });
-
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var envelope = Assert.IsType<MicroflowApiResponse<MicroflowDebugController.DebugVariableMutationResult>>(ok.Value);
-        Assert.True(envelope.Data!.Mutated);
-        Assert.Equal("flag", envelope.Data.Name);
-        Assert.Equal("true", envelope.Data.ValuePreview);
-    }
-
-    private static MicroflowDebugController CreateController(InMemoryDebugSessionStore store, IMicroflowRequestContextAccessor accessor)
+    private static MicroflowDebugController CreateController(
+        InMemoryDebugSessionStore store,
+        IMicroflowRequestContextAccessor accessor,
+        bool isWebSocketRequest)
     {
         var coordinator = new MicroflowDebugCoordinator(store);
+        var context = new DefaultHttpContext();
+        context.Features.Set<IHttpWebSocketFeature>(new StubWebSocketFeature(isWebSocketRequest));
+
         return new MicroflowDebugController(store, coordinator, accessor)
         {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = context
+            }
         };
+    }
+
+    private static MicroflowDebugController CreateController(
+        InMemoryDebugSessionStore store,
+        IMicroflowRequestContextAccessor accessor,
+        StubWebSocketFeature webSocketFeature)
+    {
+        var coordinator = new MicroflowDebugCoordinator(store);
+        var context = new DefaultHttpContext();
+        context.Features.Set<IHttpWebSocketFeature>(webSocketFeature);
+
+        return new MicroflowDebugController(store, coordinator, accessor)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = context
+            }
+        };
+    }
+
+    private static IMicroflowRequestContextAccessor CreateAccessor(string workspaceId, string tenantId, string userId)
+    {
+        var accessor = Substitute.For<IMicroflowRequestContextAccessor>();
+        accessor.Current.Returns(new MicroflowRequestContext
+        {
+            WorkspaceId = workspaceId,
+            TenantId = tenantId,
+            UserId = userId,
+            TraceId = "trace-debug"
+        });
+        return accessor;
+    }
+
+    private sealed class StubWebSocketFeature(bool isWebSocketRequest) : IHttpWebSocketFeature
+    {
+        public bool IsWebSocketRequest { get; } = isWebSocketRequest;
+
+        public Func<WebSocket>? SocketFactory { get; init; }
+
+        public WebSocket? AcceptedSocket { get; private set; }
+
+        public Task<WebSocket> AcceptAsync(WebSocketAcceptContext context)
+        {
+            AcceptedSocket = SocketFactory?.Invoke() ?? new FakeWebSocket([]);
+            return Task.FromResult(AcceptedSocket);
+        }
+    }
+
+    private sealed class FakeWebSocket(IReadOnlyList<string> incomingMessages) : WebSocket
+    {
+        private readonly Queue<string> _incomingMessages = new(incomingMessages);
+        private WebSocketState _state = WebSocketState.Open;
+
+        public IReadOnlyList<string> SentPayloads => _sentPayloads;
+        private readonly List<string> _sentPayloads = [];
+
+        public override WebSocketCloseStatus? CloseStatus => WebSocketCloseStatus.NormalClosure;
+
+        public override string? CloseStatusDescription => "closed";
+
+        public override WebSocketState State => _state;
+
+        public override string? SubProtocol => null;
+
+        public override void Abort()
+        {
+            _state = WebSocketState.Aborted;
+        }
+
+        public override Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
+        {
+            _state = WebSocketState.Closed;
+            return Task.CompletedTask;
+        }
+
+        public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
+        {
+            _state = WebSocketState.CloseSent;
+            return Task.CompletedTask;
+        }
+
+        public override void Dispose()
+        {
+            _state = WebSocketState.Closed;
+        }
+
+        public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        {
+            if (_incomingMessages.Count == 0)
+            {
+                _state = WebSocketState.CloseReceived;
+                return Task.FromResult(new WebSocketReceiveResult(0, WebSocketMessageType.Close, true));
+            }
+
+            var payload = _incomingMessages.Dequeue();
+            var bytes = Encoding.UTF8.GetBytes(payload);
+            Array.Copy(bytes, 0, buffer.Array!, buffer.Offset, bytes.Length);
+            return Task.FromResult(new WebSocketReceiveResult(bytes.Length, WebSocketMessageType.Text, true));
+        }
+
+        public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
+        {
+            _sentPayloads.Add(Encoding.UTF8.GetString(buffer.Array!, buffer.Offset, buffer.Count));
+            return Task.CompletedTask;
+        }
     }
 }

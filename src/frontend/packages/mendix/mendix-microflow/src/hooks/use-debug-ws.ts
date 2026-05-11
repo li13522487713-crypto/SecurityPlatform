@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  DebugCommand,
-  DebugConnectionStatus,
   DEBUG_WS_EVENTS,
+  type DebugCommand,
+  type DebugConnectionStatus,
   type DebugStore,
   type DebugWsEvent,
 } from "../stores/debug-store";
@@ -22,7 +22,7 @@ export const DEBUG_WS_COMMANDS = {
   REMOVE_BP: "remove-breakpoint",
 } as const;
 
-export type DebugWebSocketState = "disconnected" | "connecting" | "connected" | "error";
+export type DebugWebSocketState = "disconnected" | "connecting" | "reconnecting" | "connected" | "error";
 export type DebugEventType = DebugWsEvent["type"];
 
 export interface UseDebugWebSocketOptions {
@@ -38,26 +38,31 @@ export interface UseDebugWebSocketOptions {
 
 export interface UseDebugWebSocketReturn {
   status: DebugWebSocketState;
+  latencyMs: number;
   connect: () => void;
   disconnect: () => void;
   send: (command: DebugCommand, payload?: Record<string, unknown>) => void;
 }
 
 const DEFAULT_RECONNECT_DELAY_MS = 1_000;
-const MAX_RECONNECT_ATTEMPTS = 3;
+const MAX_RECONNECT_ATTEMPTS = 5;
 const DEFAULT_PING_INTERVAL_MS = 30_000;
 
-function resolveDefaultDebugUrl(microflowId: string, sessionId?: string): string {
+function createSessionId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `dbg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function resolveDefaultDebugUrl(microflowId: string, sessionId: string): string {
   if (typeof window === "undefined") {
     return "";
   }
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const host = window.location.host;
   const encodedMicroflow = encodeURIComponent(microflowId);
-  if (sessionId) {
-    return `${protocol}//${host}/debug/microflow/${encodedMicroflow}?sessionId=${encodeURIComponent(sessionId)}`;
-  }
-  return `${protocol}//${host}/debug/microflow/${encodedMicroflow}`;
+  return `${protocol}//${host}/api/debug/microflow/${encodedMicroflow}?sessionId=${encodeURIComponent(sessionId)}`;
 }
 
 export function useDebugWebSocket(
@@ -77,10 +82,13 @@ export function useDebugWebSocket(
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const closingRef = useRef(false);
+  const sessionIdRef = useRef<string>(sessionId ?? store?.getSnapshot().sessionId ?? createSessionId());
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const [status, setStatus] = useState<DebugWebSocketState>("disconnected");
+  const [latencyMs, setLatencyMs] = useState(0);
 
   const clearTimers = useCallback(() => {
     if (reconnectTimerRef.current !== null) {
@@ -88,7 +96,7 @@ export function useDebugWebSocket(
       reconnectTimerRef.current = null;
     }
     if (pingTimerRef.current !== null) {
-      clearInterval(pingTimerRef.current);
+      clearTimeout(pingTimerRef.current);
       pingTimerRef.current = null;
     }
   }, []);
@@ -116,13 +124,21 @@ export function useDebugWebSocket(
     for (const breakpoint of store?.breakpointItems ?? []) {
       ws.send(JSON.stringify({
         type: DEBUG_WS_COMMANDS.SET_BP,
-        breakpoint,
+        data: {
+          nodeId: breakpoint.nodeId,
+          condition: breakpoint.condition,
+          enabled: breakpoint.enabled ?? true,
+        },
       }));
     }
     for (const breakpoint of store?.conditionalBreakpointItems ?? []) {
       ws.send(JSON.stringify({
         type: DEBUG_WS_COMMANDS.SET_BP,
-        breakpoint,
+        data: {
+          nodeId: breakpoint.nodeId,
+          condition: breakpoint.condition,
+          enabled: breakpoint.enabled ?? true,
+        },
       }));
     }
   }, [store]);
@@ -137,10 +153,35 @@ export function useDebugWebSocket(
     }
   }, [store]);
 
+  const scheduleHeartbeat = useCallback((ws: WebSocket) => {
+    if (pingTimerRef.current !== null) {
+      clearTimeout(pingTimerRef.current);
+      pingTimerRef.current = null;
+    }
+    const tick = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping", data: { sequence: Date.now() }, timestamp: Date.now() }));
+        pingTimerRef.current = setTimeout(tick, pingIntervalMs);
+        return;
+      }
+      pingTimerRef.current = null;
+    };
+    pingTimerRef.current = setTimeout(tick, pingIntervalMs);
+  }, [pingIntervalMs]);
+
   const connectRef = useRef<(() => void) | null>(null);
 
   const connectImpl = useCallback(() => {
-    const url = getUrl ? getUrl(microflowId, sessionId) : resolveDefaultDebugUrl(microflowId, sessionId);
+    if (!sessionIdRef.current) {
+      sessionIdRef.current = sessionId ?? store?.getSnapshot().sessionId ?? createSessionId();
+    }
+
+    const isReconnect = reconnectAttemptsRef.current > 0;
+    updateStatus(isReconnect ? "reconnecting" : "connecting");
+
+    const url = getUrl
+      ? getUrl(microflowId, sessionIdRef.current)
+      : resolveDefaultDebugUrl(microflowId, sessionIdRef.current);
     if (!url) {
       updateStatus("error");
       return;
@@ -150,22 +191,19 @@ export function useDebugWebSocket(
       return;
     }
 
-    updateStatus("connecting");
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
       reconnectAttemptsRef.current = 0;
       updateStatus("connected");
+      store?.setSession(sessionIdRef.current);
       registerBreakpoints();
       flushQueuedCommands();
-      if (pingTimerRef.current === null) {
-        pingTimerRef.current = setInterval(() => sendNow("ping", { at: Date.now() }), pingIntervalMs);
-      }
-      if (sessionId) {
-        store?.setSession(sessionId);
-      }
-      ws.send(JSON.stringify({ type: "hello", sessionId }));
+
+      scheduleHeartbeat(ws);
+
+      ws.send(JSON.stringify({ type: "hello", sessionId: sessionIdRef.current }));
     };
 
     ws.onmessage = event => {
@@ -176,6 +214,34 @@ export function useDebugWebSocket(
         store?.setError(error instanceof Error ? error.message : String(error));
         return;
       }
+
+      if (payload.id) {
+        if (seenMessageIdsRef.current.has(payload.id)) {
+          return;
+        }
+        seenMessageIdsRef.current.add(payload.id);
+        if (seenMessageIdsRef.current.size > 5000) {
+          const next = Array.from(seenMessageIdsRef.current).slice(-2500);
+          seenMessageIdsRef.current = new Set(next);
+        }
+      }
+
+      if (typeof payload.timestamp === "number") {
+        setLatencyMs(Math.max(0, Date.now() - payload.timestamp));
+      }
+
+      if (payload.type === DEBUG_WS_EVENTS.PING) {
+        const sequence = typeof (payload.data as { sequence?: unknown } | undefined)?.sequence === "number"
+          ? Number((payload.data as { sequence?: unknown }).sequence)
+          : Date.now();
+        ws.send(JSON.stringify({ type: "pong", data: { sequence }, timestamp: Date.now() }));
+      }
+
+      if (payload.type === DEBUG_WS_EVENTS.PONG) {
+        onEvent?.(payload);
+        return;
+      }
+
       onEvent?.(payload);
       store?.handleEvent(payload);
     };
@@ -187,19 +253,20 @@ export function useDebugWebSocket(
 
     ws.onclose = () => {
       clearTimers();
-      if (!closingRef.current) {
+      if (closingRef.current) {
         updateStatus("disconnected");
-        if (reconnectAttemptsRef.current < autoReconnect) {
-          const delay = Math.min(reconnectDelayMs * (2 ** reconnectAttemptsRef.current), 30_000);
-          reconnectAttemptsRef.current += 1;
-          reconnectTimerRef.current = setTimeout(() => {
-            connectRef.current?.();
-          }, delay);
-        } else {
-          updateStatus("error");
-        }
+        return;
+      }
+
+      updateStatus("disconnected");
+      if (reconnectAttemptsRef.current < autoReconnect) {
+        const delay = Math.min(reconnectDelayMs * (2 ** reconnectAttemptsRef.current), 30_000);
+        reconnectAttemptsRef.current += 1;
+        reconnectTimerRef.current = setTimeout(() => {
+          connectRef.current?.();
+        }, delay);
       } else {
-        updateStatus("disconnected");
+        updateStatus("error");
       }
     };
   }, [
@@ -210,9 +277,10 @@ export function useDebugWebSocket(
     microflowId,
     onEvent,
     pingIntervalMs,
+    reconnectDelayMs,
     registerBreakpoints,
+    scheduleHeartbeat,
     sessionId,
-    sendNow,
     store,
     updateStatus,
   ]);
@@ -243,5 +311,5 @@ export function useDebugWebSocket(
     disconnect();
   }, [disconnect]);
 
-  return { status, connect, disconnect, send };
+  return { status, latencyMs, connect, disconnect, send };
 }

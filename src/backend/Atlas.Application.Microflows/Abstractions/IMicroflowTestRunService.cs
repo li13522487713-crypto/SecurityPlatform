@@ -82,7 +82,7 @@ public sealed record MicroflowExecutionRequest
 
     /// <summary>
     /// 可选调试会话 ID；非空时引擎在主路径 BeforeNode/AfterNode 安全点协作暂停，
-    /// 客户端通过 POST …/debug-sessions/{id}/commands 放行。
+    /// 客户端通过 WebSocket 调试命令放行。
     /// </summary>
     public string? DebugSessionId { get; init; }
 
@@ -90,3 +90,4 @@ public sealed record MicroflowExecutionRequest
 
     public int MaxCallDepth { get; init; } = 10;
 }
+

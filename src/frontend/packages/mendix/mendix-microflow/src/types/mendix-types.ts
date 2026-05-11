@@ -47,6 +47,7 @@ export const MENDIX_FUNCTIONS: readonly MendixFunctionSignature[] = [
   { name: "replaceFirst", signature: "replaceFirst(String, String, String) → String" },
   { name: "urlEncode", signature: "urlEncode(String) → String" },
   { name: "urlDecode", signature: "urlDecode(String) → String" },
+  { name: "htmlEncode", signature: "htmlEncode(String) → String" },
   { name: "round", signature: "round(Decimal, Integer?) → Decimal" },
   { name: "floor", signature: "floor(Decimal) → Long" },
   { name: "ceil", signature: "ceil(Decimal) → Long" },
@@ -63,6 +64,23 @@ export const MENDIX_FUNCTIONS: readonly MendixFunctionSignature[] = [
   { name: "addDays", signature: "addDays(DateTime, Integer) → DateTime" },
   { name: "addMonths", signature: "addMonths(DateTime, Integer) → DateTime" },
   { name: "addYears", signature: "addYears(DateTime, Integer) → DateTime" },
+  { name: "addHours", signature: "addHours(DateTime, Integer) → DateTime" },
+  { name: "addMinutes", signature: "addMinutes(DateTime, Integer) → DateTime" },
+  { name: "addSeconds", signature: "addSeconds(DateTime, Integer) → DateTime" },
+  { name: "addWeeks", signature: "addWeeks(DateTime, Integer) → DateTime" },
+  { name: "addQuarters", signature: "addQuarters(DateTime, Integer) → DateTime" },
+  { name: "getYear", signature: "getYear(DateTime) → Integer" },
+  { name: "getMonth", signature: "getMonth(DateTime) → Integer" },
+  { name: "getDay", signature: "getDay(DateTime) → Integer" },
+  { name: "getHour", signature: "getHour(DateTime) → Integer" },
+  { name: "getMinute", signature: "getMinute(DateTime) → Integer" },
+  { name: "getSecond", signature: "getSecond(DateTime) → Integer" },
+  { name: "getDayOfWeek", signature: "getDayOfWeek(DateTime) → Integer" },
+  { name: "dateDiff", signature: "dateDiff(DateTime, DateTime, String) → Integer" },
+  { name: "currentDateTime", signature: "currentDateTime() → DateTime" },
+  { name: "parseInteger", signature: "parseInteger(String) → Integer" },
+  { name: "parseDecimal", signature: "parseDecimal(String) → Decimal" },
+  { name: "formatDecimal", signature: "formatDecimal(Decimal, String) → String" },
 ] as const;
 
 export function toMendixDataType(value: MicroflowDataType): MendixDataType {
@@ -129,4 +147,3 @@ export function fromMendixDataType(type: MendixDataType): MicroflowDataType {
   }
   return { kind: "unknown", reason: "mendix-empty" };
 }
-

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Card, List, Space, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { DebugCallStackPanel } from "../components/DebugCallStackPanel";
 import { DebugVariablesPanel } from "../components/DebugVariablesPanel";
 
 const { Text } = Typography;
@@ -14,6 +15,8 @@ export interface DebugVariableSnapshot {
 export interface DebugCallStackFrame {
   id: string;
   name: string;
+  microflowId?: string;
+  currentNodeCaption?: string;
 }
 
 export interface DebugBranchFrame {
@@ -56,6 +59,7 @@ export interface MicroflowStepDebugPanelProps {
   onCommand?: (command: DebugCommand) => void;
   onEvaluate?: (expression: string) => void;
   onVariableSelect?: (variableName: string) => void;
+  onCallStackFrameClick?: (frame: DebugCallStackFrame, index: number) => void;
 }
 
 export interface MicroflowStepDebugPanelLabels {
@@ -126,6 +130,7 @@ export function MicroflowStepDebugPanel({
   onCommand,
   onEvaluate,
   onVariableSelect,
+  onCallStackFrameClick,
 }: MicroflowStepDebugPanelProps) {
   const [watch, setWatch] = useState("");
   const [showErrorStack, setShowErrorStack] = useState(false);
@@ -226,7 +231,7 @@ export function MicroflowStepDebugPanel({
         {callStackPath ? (
           <Text type="tertiary" data-testid="microflow-debug-callstack-path">{callStackPath}</Text>
         ) : null}
-        <List dataSource={callStack} renderItem={item => <List.Item>{item.name}</List.Item>} />
+        <DebugCallStackPanel frames={callStack} onSelectFrame={onCallStackFrameClick} />
       </Card>
       <Card title={labels.branchTreeTitle}>
         <List dataSource={branches} renderItem={item => <List.Item>{item.branchId}: {item.status}</List.Item>} />

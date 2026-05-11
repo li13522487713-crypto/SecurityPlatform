@@ -3427,65 +3427,6 @@ X-Trace-Id: {{traceId}}
   "metadataVersion": "9.9.9-invalid"
 }
 
-### Debug — create session (returns $.data.id as debugSessionId)
-# @name microflowDebugSessionCreate
-POST {{host}}/api/v1/microflows/{{microflowId}}/debug-sessions
-Content-Type: application/json
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
-### Debug — continue until next breakpoint / runTo target
-# Replace {{debugSessionId}} with microflowDebugSessionCreate response $.data.id
-POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/commands
-Content-Type: application/json
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
-{
-  "command": "continue"
-}
-
-### Debug — step over current activity / call
-POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/commands
-Content-Type: application/json
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
-{
-  "command": "stepOver"
-}
-
-### Debug — step into current call / RestCall internals
-POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/commands
-Content-Type: application/json
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
-{
-  "command": "stepInto"
-}
-
-### Debug — get session safe point
-# RestCall internal phases: beforeRestRequest, afterRestResponse, afterRestHandled.
-# Expected JSON path:
-# - $.success=true
-# - $.data.state exists
-# - $.data.availableCommands is array
-# - $.data.lastUpdatedAt exists
-GET {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
 ### Runtime runs - retry
 POST {{host}}/api/v1/microflows/runs/{{runId}}:retry
 Content-Type: application/json
@@ -3506,63 +3447,6 @@ X-Trace-Id: {{traceId}}
   "retentionDays": 30,
   "batchSize": 200,
   "dryRun": true
-}
-
-### Debug - suspend policy
-POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/suspend-policy
-Content-Type: application/json
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
-{
-  "policy": "branchOnly"
-}
-
-### Debug - upsert node breakpoint
-POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/breakpoints
-Content-Type: application/json
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
-{
-  "id": "bp-node-start",
-  "microflowObjectId": "start",
-  "scope": 0,
-  "stale": false,
-  "enabled": true,
-  "suspendPolicy": 0
-}
-
-### Debug - remove node breakpoint
-DELETE {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/breakpoints/bp-node-start
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
-### Debug - timeline
-GET {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/timeline?take=200
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
-### Debug - mutate variable at paused safe-point
-POST {{host}}/api/v1/microflows/debug-sessions/{{debugSessionId}}/variables:mutate
-Content-Type: application/json
-X-Workspace-Id: {{workspaceId}}
-X-Tenant-Id: {{tenantId}}
-X-User-Id: {{userId}}
-X-Trace-Id: {{traceId}}
-
-{
-  "name": "$latestError",
-  "valuePreview": "{\"code\":\"MUTATED\"}",
-  "allowUnsafe": true
 }
 
 ### Debug — test-run with debugSessionId

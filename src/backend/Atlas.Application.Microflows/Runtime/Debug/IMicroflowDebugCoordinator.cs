@@ -18,7 +18,7 @@ public interface IMicroflowDebugCoordinator
         MicroflowDebugRuntimeSnapshot snapshot,
         CancellationToken cancellationToken);
 
-    /// <summary>对应 POST .../debug-sessions/{id}/commands（continue/stepOver/...）。</summary>
+    /// <summary>对应 WebSocket 调试命令（continue/stepOver/...）。</summary>
     void ReleaseOnePause(string debugSessionId);
 
     MicroflowDebugSession? ApplyCommand(string debugSessionId, DebugCommand command);

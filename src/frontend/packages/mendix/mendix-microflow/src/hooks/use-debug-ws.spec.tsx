@@ -141,7 +141,7 @@ describe("useDebugWebSocket", () => {
 
     const messages = decodeMessages(socket);
     expect(messages).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "set-breakpoint", breakpoint: expect.objectContaining({ id: "bp-1", nodeId: "node-1" }) }),
+      expect.objectContaining({ type: "set-breakpoint", data: expect.objectContaining({ nodeId: "node-1", enabled: true }) }),
       expect.objectContaining({ type: "hello", sessionId: "session-1" }),
     ]));
   });
@@ -234,7 +234,7 @@ describe("useDebugWebSocket", () => {
     expect(secondMessages).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: "set-breakpoint",
-        breakpoint: expect.objectContaining({ id: "bp-reconnect", nodeId: "node-reconnect" }),
+        data: expect.objectContaining({ nodeId: "node-reconnect", enabled: true }),
       }),
     ]));
   });
@@ -493,5 +493,93 @@ describe("useDebugWebSocket", () => {
     expect(messages).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "step-over" }),
     ]));
+  });
+
+  it("deduplicates repeated server messages by id", () => {
+    const store = createDebugStore();
+    let api: ReturnType<typeof useDebugWebSocket> | undefined;
+    render(
+      <HookHarness
+        microflowId="mf-dedup"
+        sessionId="session-dedup"
+        store={store}
+        onReady={next => { api = next; }}
+      />,
+    );
+
+    act(() => {
+      api?.connect();
+    });
+    const socket = FakeWebSocket.instances[0];
+    if (!socket) {
+      throw new Error("Expected websocket instance.");
+    }
+    act(() => {
+      socket.open();
+      socket.onmessage?.({
+        data: JSON.stringify({
+          id: "evt-1",
+          type: DEBUG_WS_EVENTS.NODE_ENTER,
+          nodeId: "node-a",
+          flowId: "flow-a",
+        }),
+      });
+      socket.onmessage?.({
+        data: JSON.stringify({
+          id: "evt-1",
+          type: DEBUG_WS_EVENTS.NODE_ENTER,
+          nodeId: "node-b",
+          flowId: "flow-b",
+        }),
+      });
+    });
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.nodeState.currentNodeId).toBe("node-a");
+    expect(snapshot.nodeState.currentFlowId).toBe("flow-a");
+  });
+
+  it("restores runtime state from state-sync payload", () => {
+    const store = createDebugStore();
+    let api: ReturnType<typeof useDebugWebSocket> | undefined;
+    render(
+      <HookHarness
+        microflowId="mf-state-sync"
+        sessionId="session-state-sync"
+        store={store}
+        onReady={next => { api = next; }}
+      />,
+    );
+
+    act(() => {
+      api?.connect();
+    });
+    const socket = FakeWebSocket.instances[0];
+    if (!socket) {
+      throw new Error("Expected websocket instance.");
+    }
+    act(() => {
+      socket.open();
+      socket.onmessage?.({
+        data: JSON.stringify({
+          type: DEBUG_WS_EVENTS.STATE_SYNC,
+          id: "evt-state-sync",
+          data: {
+            nodeStatuses: { "node-sync": "running" },
+            executedEdgeIds: ["edge-sync"],
+            variables: [{ name: "v1", valuePreview: "42", type: "integer" }],
+            breakpoints: [{ nodeId: "node-sync", enabled: true }],
+            callStack: [{ runId: "run-sync", microflowId: "mf-state-sync", depth: 0 }],
+          },
+        }),
+      });
+    });
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.nodeStatuses["node-sync"]).toBe("running");
+    expect(snapshot.executedEdgeIds).toContain("edge-sync");
+    expect(snapshot.variables).toEqual(expect.arrayContaining([expect.objectContaining({ name: "v1", value: "42" })]));
+    expect(snapshot.breakpoints).toEqual(expect.arrayContaining([expect.objectContaining({ nodeId: "node-sync", enabled: true })]));
+    expect(snapshot.callStack).toEqual(expect.arrayContaining([expect.objectContaining({ runId: "run-sync", microflowId: "mf-state-sync" })]));
   });
 });

@@ -1,10 +1,11 @@
-export type DebugConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+export type DebugConnectionStatus = "disconnected" | "connecting" | "reconnecting" | "connected" | "error";
 
 export const DEBUG_WS_EVENTS = {
   NODE_ENTER: "node-enter",
   NODE_EXIT: "node-exit",
   EDGE_TAKEN: "edge-taken",
   BREAKPOINT_HIT: "breakpoint",
+  PAUSED: "paused",
   LOOP_ITER: "loop-iter",
   ERROR: "error",
   COMPLETE: "complete",
@@ -13,6 +14,9 @@ export const DEBUG_WS_EVENTS = {
   STACK_TOP: "stack-top",
   VAR_SNAPSHOT: "vars",
   SESSION: "session",
+  SESSION_STATUS: "session-status",
+  STATE_SYNC: "state-sync",
+  VARIABLE_DETAILS: "variable-details",
   PING: "ping",
   PONG: "pong",
 } as const;
@@ -29,6 +33,9 @@ export type DebugCommand =
   | "stop"
   | "set-breakpoint"
   | "remove-breakpoint"
+  | "toggle-breakpoint"
+  | "get-variable-details"
+  | "set-variable"
   | "ping"
   | "pong";
 
@@ -71,8 +78,18 @@ export interface DebugWsNodeHighlight {
   currentSafePoint?: string;
 }
 
+export interface DebugStateSyncSnapshot {
+  nodeStatuses?: Record<string, string>;
+  executedEdgeIds?: string[];
+  variables?: DebugVariableSnapshot[];
+  breakpoints?: Array<{ nodeId?: string; condition?: string; enabled?: boolean }>;
+  callStack?: DebugCallStackFrame[];
+}
+
 export interface DebugWsEvent {
   type: DebugWsEventType;
+  id?: string;
+  timestamp?: number;
   nodeId?: string;
   flowId?: string;
   branchId?: string;
@@ -85,6 +102,7 @@ export interface DebugWsEvent {
     nodeId: string;
     scope?: string;
     condition?: string;
+    enabled?: boolean;
   };
   callStack?: DebugCallStackFrame[];
   variables?: DebugVariableSnapshot[];
@@ -93,6 +111,7 @@ export interface DebugWsEvent {
     message: string;
     stack?: string;
   };
+  data?: unknown;
 }
 
 export interface DebugSnapshot {
@@ -103,6 +122,8 @@ export interface DebugSnapshot {
   conditionalBreakpoints: DebugBreakpoint[];
   pendingCommands: DebugQueuedCommand[];
   nodeState: DebugWsNodeHighlight;
+  nodeStatuses: Record<string, string>;
+  executedEdgeIds: string[];
   loopIteration?: DebugLoopIteration;
   callStack: DebugCallStackFrame[];
   variables: DebugVariableSnapshot[];
@@ -144,6 +165,67 @@ function deriveQueueTarget(payload: Record<string, unknown> | undefined): string
   return "";
 }
 
+function normalizeVariables(value: unknown): DebugVariableSnapshot[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter(item => typeof item === "object" && item !== null)
+    .map(item => {
+      const data = item as Record<string, unknown>;
+      return {
+        name: typeof data.name === "string" ? data.name : "",
+        value: typeof data.value === "string" ? data.value : typeof data.valuePreview === "string" ? data.valuePreview : undefined,
+        type: typeof data.type === "string" ? data.type : undefined,
+        typeHint: typeof data.typeHint === "string" ? data.typeHint : undefined,
+      };
+    })
+    .filter(item => item.name.length > 0);
+}
+
+function normalizeCallStack(value: unknown): DebugCallStackFrame[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter(item => typeof item === "object" && item !== null)
+    .map(item => {
+      const data = item as Record<string, unknown>;
+      return {
+        runId: typeof data.runId === "string" ? data.runId : "",
+        microflowId: typeof data.microflowId === "string" ? data.microflowId : "",
+        depth: typeof data.depth === "number" ? data.depth : 0,
+        callerNodeId: typeof data.callerNodeId === "string" ? data.callerNodeId : undefined,
+        callerActionId: typeof data.callerActionId === "string" ? data.callerActionId : undefined,
+      };
+    });
+}
+
+function normalizeBreakpoints(value: unknown): DebugBreakpoint[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const normalized: DebugBreakpoint[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "object" || raw === null) {
+      continue;
+    }
+    const data = raw as Record<string, unknown>;
+    const nodeId = typeof data.nodeId === "string" ? data.nodeId : "";
+    if (!nodeId) {
+      continue;
+    }
+    normalized.push({
+      id: `bp:${nodeId}`,
+      nodeId,
+      condition: typeof data.condition === "string" ? data.condition : undefined,
+      enabled: typeof data.enabled === "boolean" ? data.enabled : true,
+      scope: "node",
+    });
+  }
+  return normalized;
+}
+
 export class DebugStore {
   private state: DebugSnapshot = {
     status: "disconnected",
@@ -153,6 +235,8 @@ export class DebugStore {
     conditionalBreakpoints: [],
     pendingCommands: [],
     nodeState: {},
+    nodeStatuses: {},
+    executedEdgeIds: [],
     loopIteration: undefined,
     callStack: [],
     variables: [],
@@ -173,6 +257,8 @@ export class DebugStore {
       pendingCommands: [...this.state.pendingCommands],
       callStack: [...this.state.callStack],
       variables: [...this.state.variables],
+      nodeStatuses: { ...this.state.nodeStatuses },
+      executedEdgeIds: [...this.state.executedEdgeIds],
       loopIteration: this.state.loopIteration ? { ...this.state.loopIteration } : undefined,
       nodeState: { ...this.state.nodeState },
     };
@@ -261,8 +347,8 @@ export class DebugStore {
     }
     this.state.pendingCommands.push({ command, payload });
     this.commandSignatureSet.add(key);
-    if (this.state.pendingCommands.length > 20) {
-      this.state.pendingCommands = this.state.pendingCommands.slice(-20);
+    if (this.state.pendingCommands.length > 50) {
+      this.state.pendingCommands = this.state.pendingCommands.slice(-50);
     }
     this.emit();
   }
@@ -281,6 +367,8 @@ export class DebugStore {
 
   clearRuntimeState(): void {
     this.state.nodeState = {};
+    this.state.nodeStatuses = {};
+    this.state.executedEdgeIds = [];
     this.state.loopIteration = undefined;
     this.state.callStack = [];
     this.state.variables = [];
@@ -290,12 +378,57 @@ export class DebugStore {
     this.emit();
   }
 
+  restoreState(snapshot: DebugStateSyncSnapshot): void {
+    if (snapshot.nodeStatuses) {
+      this.state.nodeStatuses = { ...snapshot.nodeStatuses };
+    }
+    if (snapshot.executedEdgeIds) {
+      this.state.executedEdgeIds = [...snapshot.executedEdgeIds];
+    }
+    if (snapshot.variables) {
+      this.state.variables = snapshot.variables.map(item => ({ ...item }));
+    }
+    if (snapshot.breakpoints) {
+      const parsed = normalizeBreakpoints(snapshot.breakpoints);
+      this.breakpointMap.clear();
+      this.conditionalMap.clear();
+      for (const item of parsed) {
+        if (item.condition) {
+          this.conditionalMap.set(item.id, item);
+        } else {
+          this.breakpointMap.set(item.id, item);
+        }
+      }
+      this.state.breakpoints = [...this.breakpointMap.values()];
+      this.state.conditionalBreakpoints = [...this.conditionalMap.values()];
+    }
+    if (snapshot.callStack) {
+      this.state.callStack = snapshot.callStack.map(item => ({ ...item }));
+    }
+    this.emit();
+  }
+
   handleEvent(event: DebugWsEvent): void {
+    if (event.type === DEBUG_WS_EVENTS.STATE_SYNC) {
+      const payload = (event.data ?? {}) as Record<string, unknown>;
+      this.restoreState({
+        nodeStatuses: typeof payload.nodeStatuses === "object" && payload.nodeStatuses ? payload.nodeStatuses as Record<string, string> : {},
+        executedEdgeIds: Array.isArray(payload.executedEdgeIds) ? payload.executedEdgeIds.filter(item => typeof item === "string") as string[] : [],
+        variables: normalizeVariables(payload.variables),
+        breakpoints: normalizeBreakpoints(payload.breakpoints),
+        callStack: normalizeCallStack(payload.callStack),
+      });
+      return;
+    }
+
     if (event.type === DEBUG_WS_EVENTS.NODE_ENTER) {
       this.state.nodeState.currentNodeId = event.nodeId;
       this.state.nodeState.currentFlowId = event.flowId;
       this.state.nodeState.currentBranchId = event.branchId;
       this.state.nodeState.currentSafePoint = event.safePoint;
+      if (event.nodeId) {
+        this.state.nodeStatuses[event.nodeId] = "running";
+      }
       this.state.paused = false;
       this.emit();
       return;
@@ -303,18 +436,30 @@ export class DebugStore {
     if (event.type === DEBUG_WS_EVENTS.NODE_EXIT) {
       this.state.nodeState.currentSafePoint = event.safePoint ?? this.state.nodeState.currentSafePoint;
       this.state.nodeState.currentNodeId = event.nodeId ?? this.state.nodeState.currentNodeId;
+      if (event.nodeId) {
+        this.state.nodeStatuses[event.nodeId] = "success";
+      }
       this.emit();
       return;
     }
     if (event.type === DEBUG_WS_EVENTS.EDGE_TAKEN) {
       this.state.nodeState.currentBranchId = event.branchId;
+      if (event.flowId && !this.state.executedEdgeIds.includes(event.flowId)) {
+        this.state.executedEdgeIds.push(event.flowId);
+      }
       this.emit();
       return;
     }
-    if (event.type === DEBUG_WS_EVENTS.BREAKPOINT_HIT) {
+    if (event.type === DEBUG_WS_EVENTS.BREAKPOINT_HIT || event.type === DEBUG_WS_EVENTS.PAUSED) {
       this.state.paused = true;
       this.state.nodeState.currentNodeId = event.nodeId ?? this.state.nodeState.currentNodeId;
       this.state.nodeState.currentSafePoint = event.safePoint ?? this.state.nodeState.currentSafePoint;
+      if (event.variables) {
+        this.state.variables = event.variables.map(item => ({ ...item }));
+      }
+      if (event.callStack) {
+        this.state.callStack = event.callStack.map(item => ({ ...item }));
+      }
       this.state.lastError = undefined;
       this.emit();
       return;
@@ -331,6 +476,9 @@ export class DebugStore {
       this.state.lastError = message;
       this.state.nodeState.currentNodeId = event.nodeId ?? this.state.nodeState.currentNodeId;
       this.state.nodeState.currentSafePoint = event.safePoint ?? this.state.nodeState.currentSafePoint;
+      if (event.nodeId) {
+        this.state.nodeStatuses[event.nodeId] = "error";
+      }
       this.state.paused = true;
       this.emit();
       return;
@@ -355,10 +503,9 @@ export class DebugStore {
       this.emit();
       return;
     }
-    if (event.type === DEBUG_WS_EVENTS.SESSION && event.sessionId) {
+    if ((event.type === DEBUG_WS_EVENTS.SESSION || event.type === DEBUG_WS_EVENTS.SESSION_STATUS) && event.sessionId) {
       this.state.sessionId = event.sessionId;
       this.emit();
-      return;
     }
   }
 
@@ -381,6 +528,8 @@ export class DebugStore {
     this.state.loopIteration = undefined;
     this.state.variables = [];
     this.state.nodeState = {};
+    this.state.nodeStatuses = {};
+    this.state.executedEdgeIds = [];
     this.commandSignatureSet = new Set();
     this.emit();
   }

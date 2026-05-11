@@ -202,4 +202,44 @@ describe("expression validator", () => {
     expect(options.some(option => option.value === "$customer/Name")).toBe(true);
     expect(options.some(option => option.value === "$customer/CRM.Customer_Order/CRM.Order/Number")).toBe(true);
   });
+
+  it("infers newly completed function signatures", () => {
+    const cases: Array<{ expression: string; expected: string }> = [
+      { expression: "replaceFirst('abc','a','x')", expected: "string" },
+      { expression: "urlEncode('a b')", expected: "string" },
+      { expression: "urlDecode('a%20b')", expected: "string" },
+      { expression: "htmlEncode('<a>')", expected: "string" },
+      { expression: "addMonths(dateTime(2026,1,1,0,0,0),1)", expected: "dateTime" },
+      { expression: "addYears(dateTime(2026,1,1,0,0,0),1)", expected: "dateTime" },
+      { expression: "addHours(dateTime(2026,1,1,0,0,0),1)", expected: "dateTime" },
+      { expression: "addMinutes(dateTime(2026,1,1,0,0,0),1)", expected: "dateTime" },
+      { expression: "addSeconds(dateTime(2026,1,1,0,0,0),1)", expected: "dateTime" },
+      { expression: "addWeeks(dateTime(2026,1,1,0,0,0),1)", expected: "dateTime" },
+      { expression: "addQuarters(dateTime(2026,1,1,0,0,0),1)", expected: "dateTime" },
+      { expression: "getYear(dateTime(2026,1,1,0,0,0))", expected: "integer" },
+      { expression: "getMonth(dateTime(2026,1,1,0,0,0))", expected: "integer" },
+      { expression: "getDay(dateTime(2026,1,1,0,0,0))", expected: "integer" },
+      { expression: "getHour(dateTime(2026,1,1,0,0,0))", expected: "integer" },
+      { expression: "getMinute(dateTime(2026,1,1,0,0,0))", expected: "integer" },
+      { expression: "getSecond(dateTime(2026,1,1,0,0,0))", expected: "integer" },
+      { expression: "getDayOfWeek(dateTime(2026,1,1,0,0,0))", expected: "integer" },
+      { expression: "dateDiff(dateTime(2026,1,1,0,0,0),dateTime(2026,1,2,0,0,0),'day')", expected: "integer" },
+      { expression: "currentDateTime()", expected: "dateTime" },
+      { expression: "parseInteger('1')", expected: "integer" },
+      { expression: "parseDecimal('1.23')", expected: "decimal" },
+      { expression: "formatDecimal(1.23,'0.00')", expected: "string" },
+    ];
+
+    for (const item of cases) {
+      const result = inferExpressionType({
+        expression: item.expression,
+        schema,
+        metadata,
+        variableIndex,
+        objectId: start.id,
+        fieldPath: "test",
+      });
+      expect(result.inferredType.kind, item.expression).toBe(item.expected);
+    }
+  });
 });
