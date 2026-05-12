@@ -75,6 +75,7 @@ import { forceOrthogonalLineKind } from "./FlowGramMicroflowTypes";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
 import { MicroflowNodeUsageHighlightsContext, MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
+import { FlowGramNodeToolbar } from "./FlowGramNodeToolbar";
 import type { MicroflowNodeUsageHighlights } from "../variables";
 import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import "@flowgram-adapter/free-layout-editor/css-load";
@@ -132,7 +133,9 @@ export interface FlowGramMicroflowNativeCanvasProps {
   canvasPanToolActive?: boolean;
   onCanvasPanToolChange?: (active: boolean) => void;
   onDeleteSelection?: () => void;
+  onDuplicateSelection?: () => void;
   onClearSelection?: () => void;
+  onCanvasBlankContextMenu?: (point: { x: number; y: number }) => void;
 }
 
 type DisposableLineSnapshot = {
@@ -727,6 +730,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   }>();
   const [internalPanToolActive, setInternalPanToolActive] = useState(false);
   const panToolControlled = props.canvasPanToolActive !== undefined;
+  const [canvasNodeToolbar, setCanvasNodeToolbar] = useState<{ x: number; y: number; objectId: string } | undefined>();
   const panToolActive = panToolControlled ? Boolean(props.canvasPanToolActive) : internalPanToolActive;
   const togglePanTool = () => {
     const next = !panToolActive;
@@ -749,6 +753,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     zoom: number;
   } | null>(null);
   const viewportPanMovedRef = useRef(false);
+  const suppressNextContextMenuRef = useRef(false);
   const userViewportPanningRef = useRef(false);
   const lastSyncedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   propsRef.current = props;
@@ -1162,6 +1167,28 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     });
   };
 
+  useEffect(() => {
+    const sel = props.schema.editor.selection;
+    const objectId = sel.objectId;
+    const hasMulti = (sel.objectIds?.length ?? 0) > 1 || (sel.flowIds?.length ?? 0) > 1;
+    if (!objectId || hasMulti) {
+      setCanvasNodeToolbar(undefined);
+      return;
+    }
+    const nodeEl = containerRef.current?.querySelector<HTMLElement>(`[data-microflow-object-id="${objectId}"]`);
+    if (!nodeEl || !containerRef.current) {
+      setCanvasNodeToolbar(undefined);
+      return;
+    }
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const nodeRect = nodeEl.getBoundingClientRect();
+    setCanvasNodeToolbar({
+      x: nodeRect.left - containerRect.left + nodeRect.width / 2 - 44,
+      y: nodeRect.bottom - containerRect.top + 8,
+      objectId,
+    });
+  }, [props.schema.editor.selection]);
+
   const openContextMenuFromTarget = (target: HTMLElement | undefined, point: { x: number; y: number }): boolean => {
     const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
     if (!selection) {
@@ -1196,15 +1223,31 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       return;
     }
     const target = event.target instanceof HTMLElement ? event.target : undefined;
-    if (openContextMenuFromTarget(target, { x: event.clientX, y: event.clientY })) {
+    const point = { x: event.clientX, y: event.clientY };
+    if (openContextMenuFromTarget(target, point)) {
       event.preventDefault();
       event.stopPropagation();
+    } else {
+      props.onCanvasBlankContextMenu?.(point);
     }
   };
 
   const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    if (suppressNextContextMenuRef.current) {
+      suppressNextContextMenuRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     const target = event.target instanceof HTMLElement ? event.target : undefined;
-    if (openContextMenuFromTarget(target, { x: event.clientX, y: event.clientY })) {
+    const point = { x: event.clientX, y: event.clientY };
+    if (openContextMenuFromTarget(target, point)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    props.onCanvasBlankContextMenu?.(point);
+    if (!isPointerTargetPanExempt(target, spacePressedRef.current)) {
       event.preventDefault();
       event.stopPropagation();
     }
@@ -1276,6 +1319,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         ne.stopImmediatePropagation();
       }
       viewportPanMovedRef.current = false;
+      suppressNextContextMenuRef.current = event.button === 2;
       viewportPanPointerIdRef.current = event.pointerId;
       userViewportPanningRef.current = true;
       setIsViewportPanGrabbing(true);
@@ -1542,6 +1586,14 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         </div>
       ) : null}
       {miniMapVisible ? <FlowGramMicroflowNativeMiniMap schema={props.schema} onFocusNode={focusNode} /> : null}
+      {canvasNodeToolbar && !props.readonly ? (
+        <FlowGramNodeToolbar
+          x={canvasNodeToolbar.x}
+          y={canvasNodeToolbar.y}
+          onDelete={() => props.onDeleteSelection?.()}
+          onDuplicate={() => props.onDuplicateSelection?.()}
+        />
+      ) : null}
       <MicroflowMultiSelectBar
         selection={props.schema.editor.selection}
         readonly={props.readonly}

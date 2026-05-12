@@ -34,7 +34,12 @@ export function shouldViewportPanFromPointerDown(args: {
     return false;
   }
   const exempt = isFlowgramPanExemptTarget(target, spacePressed);
-  return !exempt && (button === 1 || (button === 0 && (panToolActive || spacePressed)));
+  // 右键仅在空白画布启用拖拽平移，避免吞掉节点/连线的上下文菜单。
+  return !exempt && (
+    button === 1
+    || (button === 0 && (panToolActive || spacePressed))
+    || (button === 2 && !nodeHit)
+  );
 }
 
 export function zoomViewportAtLocalPoint(

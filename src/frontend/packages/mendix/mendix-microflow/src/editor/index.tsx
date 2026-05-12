@@ -768,6 +768,7 @@ export interface MicroflowEditorLabels {
   problems: string;
   debug: string;
   contextProperties: string;
+  contextEditMode: string;
   contextRename: string;
   contextDuplicate: string;
   contextDelete: string;
@@ -799,6 +800,7 @@ const defaultLabels: MicroflowEditorLabels = {
   problems: "Problems",
   debug: "Debug",
   contextProperties: "Properties",
+  contextEditMode: "Edit Node",
   contextRename: "Rename",
   contextDuplicate: "Duplicate",
   contextDelete: "Delete",
@@ -2372,6 +2374,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [focusObjectId, setFocusObjectId] = useState<string>();
   const [focusRequestSeq, setFocusRequestSeq] = useState(0);
   const [canvasNodeContextMenu, setCanvasNodeContextMenu] = useState<CanvasNodeContextMenuState>();
+  const [canvasBlankContextMenu, setCanvasBlankContextMenu] = useState<{ x: number; y: number } | undefined>();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
   const runHistoryRequestSeqRef = useRef<Record<string, number>>({});
@@ -4283,6 +4286,28 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       : undefined;
   };
 
+  const handleCanvasContextEditMode = () => {
+    if (props.readonly || !canvasNodeContextMenu?.objectId) {
+      return;
+    }
+    const objectId = canvasNodeContextMenu.objectId;
+    const nodeAlias = objectId.startsWith("node-") ? objectId.slice("node-".length) : `node-${objectId}`;
+    setNodeViewModes(current => ({
+      ...current,
+      [objectId]: "editing",
+      [nodeAlias]: "editing",
+    }));
+    applyPatch({
+      selectedObjectId: objectId,
+      selectedFlowId: undefined,
+      selectedCollectionId: canvasNodeContextMenu.collectionId,
+    }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+    setFocusMode(false);
+    openPropertiesPanel();
+    emitPanelSyncEvent({ type: "inline-edit", nodeId: objectId });
+    setCanvasNodeContextMenu(undefined);
+  };
+
   const handleCanvasContextDuplicate = () => {
     if (props.readonly || !canvasNodeContextMenu) {
       return;
@@ -6042,6 +6067,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }}
           onCanvasBlankClick={() => {
             setCanvasNodeContextMenu(undefined);
+            setCanvasBlankContextMenu(undefined);
             closePropertiesPanel();
             if (isDesignSchema(schema)) {
               commitSchema({
@@ -6079,6 +6105,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               y: point.y,
             } : undefined);
           }}
+          onCanvasBlankContextMenu={point => {
+            setCanvasNodeContextMenu(undefined);
+            setCanvasBlankContextMenu(point);
+          }}
+          onDeleteSelection={handleDeleteSelection}
+          onDuplicateSelection={handleDuplicateSelection}
           onDropRegistryItem={(item, position, payload, options) => handleAddNode(item, {
             position,
             payload,
@@ -6154,6 +6186,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               onClick={event => event.stopPropagation()}
               onContextMenu={event => event.preventDefault()}
             >
+              {hasNode ? (
+                <Button
+                  block
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  icon={<IconSetting />}
+                  style={{ justifyContent: "flex-start" }}
+                  onClick={handleCanvasContextEditMode}
+                >
+                  {labels.contextEditMode}
+                </Button>
+              ) : null}
               {hasNode ? (
                 <Button
                   block
@@ -6290,6 +6335,22 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </div>
           );
         })() : null}
+        {canvasBlankContextMenu ? (
+          <div
+            data-testid="microflow-canvas-blank-context-menu"
+            style={{ position: "fixed", left: canvasBlankContextMenu.x, top: canvasBlankContextMenu.y, zIndex: 1000 }}
+            onMouseLeave={() => setCanvasBlankContextMenu(undefined)}
+          >
+            <div className="microflow-canvas-context-menu">
+              <button
+                className="microflow-canvas-context-menu__item"
+                onClick={() => { setCanvasBlankContextMenu(undefined); openBottomDock("debug"); }}
+              >
+                Open Debug Panel
+              </button>
+            </div>
+          </div>
+        ) : null}
         {AUXILIARY_PANELS_ENABLED && !focusMode && (leftOpen || (rightOpen && (selectedObject || selectedFlow))) ? <div
           data-testid="microflow-editor-right-shell"
           style={{
@@ -6712,4 +6773,3 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     </MicroflowMetadataProvider>
   );
 }
-

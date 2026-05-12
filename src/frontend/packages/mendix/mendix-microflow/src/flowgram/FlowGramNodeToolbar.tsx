@@ -15,7 +15,7 @@ export const FlowGramNodeToolbar = ({ x, y, onDelete, onDuplicate }: FlowGramNod
     style={{
       position: "absolute",
       left: x,
-      top: y - 40,
+      top: y,
       zIndex: 100,
       padding: "4px",
       background: "var(--semi-color-bg-1)",

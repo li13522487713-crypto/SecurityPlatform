@@ -53,6 +53,34 @@ describe("FlowGramMicroflowNativeCanvas hand-tool interactions", () => {
     expect(shouldPan).toBe(false);
   });
 
+  it("supports right-button pan on blank canvas", () => {
+    const blank = makeTarget(() => false);
+
+    const shouldPan = shouldViewportPanFromPointerDown({
+      target: blank,
+      button: 2,
+      panToolActive: false,
+      spacePressed: false,
+      draggingNode: false,
+    });
+
+    expect(shouldPan).toBe(true);
+  });
+
+  it("keeps node context-menu path when right button is pressed on a node", () => {
+    const nodeTarget = makeTarget(selector => selector.includes("[data-microflow-object-id]"));
+
+    const shouldPan = shouldViewportPanFromPointerDown({
+      target: nodeTarget,
+      button: 2,
+      panToolActive: false,
+      spacePressed: false,
+      draggingNode: false,
+    });
+
+    expect(shouldPan).toBe(false);
+  });
+
   it("zooms around cursor position instead of canvas center in pan tool mode", () => {
     const viewport = { x: 120, y: 80, zoom: 1 };
     const deltaY = -120;

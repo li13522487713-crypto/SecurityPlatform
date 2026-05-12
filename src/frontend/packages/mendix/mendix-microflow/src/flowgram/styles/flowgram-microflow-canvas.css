@@ -245,3 +245,32 @@
   padding-right: 4px;
   border-right: 1px solid rgba(31, 35, 41, 0.12);
 }
+
+.microflow-canvas-context-menu {
+  min-width: 160px;
+  padding: 4px 0;
+  border: 1px solid rgba(222, 229, 240, 0.14);
+  border-radius: 6px;
+  background: rgba(24, 28, 36, 0.96);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+.microflow-canvas-context-menu__item {
+  display: block;
+  width: 100%;
+  padding: 7px 14px;
+  border: none;
+  background: transparent;
+  color: #d8dee9;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.microflow-canvas-context-menu__item:hover {
+  background: rgba(94, 159, 255, 0.14);
+  color: #ffffff;
+}
