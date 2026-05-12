@@ -27,7 +27,11 @@
       "Bash(findstr \"@typescript-eslint\")",
       "Bash(awk '/^export type LegacyMicroflow|^export interface LegacyMicroflow/{flag=1; line=NR} flag && /^export type [^L]|^export interface [^L]/{print line \"-\" NR-1; flag=0}' \"D:\\\\Code\\\\Web_SaaS_Backend\\\\SecurityPlatform\\\\src\\\\frontend\\\\packages\\\\mendix\\\\mendix-microflow\\\\src\\\\schema\\\\types.ts\")",
       "Bash(awk -F: '{print $1, $2}')",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Code\\\\Web_SaaS_Backend\\\\SecurityPlatform\\\\src\\\\frontend\\\\packages\\\\mendix\\\\mendix-microflow\\\\src\" -Directory)",
+      "Bash(Select-Object -First 20)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")",
+      "Bash(findstr /i \"dev\\\\|start\\\\|serve\")"
     ]
   }
 }

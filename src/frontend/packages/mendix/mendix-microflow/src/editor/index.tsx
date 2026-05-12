@@ -2398,7 +2398,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const shouldShowCanvasContextMenu = toolbarMode === "external" || AUXILIARY_PANELS_ENABLED;
   const shellMode = "editor-native-layout" as const;
   const externalLayout = true;
-  const toolboxRegistryCount = Object.keys(microflowNodeRegistryByKey).length;
+  const toolboxRegistryCount = microflowNodeRegistryByKey.size;
   const [leftOpen, setLeftOpen] = useState(() => {
     if (props.toolbarMode === "external") {
       return readMendixLayoutStorage().nodesDrawerOpen ?? true;
@@ -6008,9 +6008,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }}
           onSelectionChange={selection => {
             setCanvasNodeContextMenu(undefined);
-            if (selection.objectId || selection.flowId) {
-              openPropertiesPanel();
-            }
             if (isDesignSchema(schema)) {
               commitSchema({
                 ...schema,
@@ -6037,6 +6034,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               selectedFlowIds: selection.flowIds,
               selectionMode: selection.mode,
             }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+          }}
+          onNodeClickChange={selection => {
+            if (selection.objectId || selection.flowId) {
+              openPropertiesPanel();
+            }
           }}
           onCanvasBlankClick={() => {
             setCanvasNodeContextMenu(undefined);

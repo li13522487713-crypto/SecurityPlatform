@@ -106,6 +106,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
   readonly?: boolean;
   onSchemaChange: (nextSchema: MicroflowDesignSchema, reason: string) => void;
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
+  onNodeClickChange?: (selection: FlowGramMicroflowSelection) => void;
   onCanvasBlankClick?: () => void;
   onNodeContextMenu?: (selection: FlowGramMicroflowSelection, point: { x: number; y: number }) => void;
   onDropRegistryItem?: (
@@ -1179,6 +1180,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
     if (selection) {
       props.onSelectionChange(selection);
+      props.onNodeClickChange?.(selection);
     }
   };
 
