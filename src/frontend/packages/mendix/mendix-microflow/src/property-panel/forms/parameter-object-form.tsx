@@ -17,6 +17,23 @@ function withDisabledReason(disabledReason: string, enabledHint: string, control
   );
 }
 
+function parameterEntityLabel(parameter: MicroflowParameter | undefined): string | undefined {
+  const dataType = parameter?.dataType;
+  if (!dataType) {
+    return undefined;
+  }
+  if (dataType.kind === "object") {
+    return dataType.entityQualifiedName || "(select entity)";
+  }
+  if (dataType.kind === "list") {
+    if (dataType.itemType.kind === "object") {
+      return dataType.itemType.entityQualifiedName || "(select entity)";
+    }
+    return `List item type: ${dataType.itemType.kind}`;
+  }
+  return undefined;
+}
+
 export function ParameterObjectForm({ props, object, issues, parameter }: {
   props: MicroflowPropertyPanelProps;
   object: MicroflowObject;
@@ -27,6 +44,7 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
     return null;
   }
   const parameterName = parameter?.name ?? object.parameterName ?? "";
+  const entityLabel = parameterEntityLabel(parameter);
   const nameWarning = parameter ? getParameterNameWarning(props.schema, parameter.id, parameterName) : "Parameter definition is missing from schema.parameters.";
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit parameter settings." : !parameter ? "Parameter definition is missing from schema.parameters." : "";
   const patchParameter = (parameterPatch: Partial<MicroflowParameter>) => {
@@ -44,7 +62,7 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
       <Field label="Node ID">
         <Input value={object.id} disabled />
       </Field>
-      <Field label="Parameter Name">
+      <Field label="Name">
         {withDisabledReason(
           readonlyDisabledReason,
           "Parameter name",
@@ -57,9 +75,9 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
           />
         )}
         {nameWarning ? <Text type="warning" size="small">{nameWarning}</Text> : null}
-        <Text type="tertiary" size="small">Renaming a parameter does not rewrite existing expressions.</Text>
+        <Text type="tertiary" size="small">Parameter rename rewrites parameter-scoped expressions and direct variable reference fields; unrelated shadowed loop/local variables stay unchanged.</Text>
       </Field>
-      <Field label="Data Type">
+      <Field label="Type">
         {withDisabledReason(
           readonlyDisabledReason,
           "Data type",
@@ -73,14 +91,19 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
           <Text type="warning" size="small">Object/List parameter types must use real metadata; no fallback entity is generated.</Text>
         ) : null}
       </Field>
-      <Field label="Required">
+      {entityLabel ? (
+        <Field label="Entity">
+          <Input value={entityLabel} disabled />
+        </Field>
+      ) : null}
+      <Field label="Optional">
         {withDisabledReason(
           readonlyDisabledReason,
-          "Required",
-          <Switch checked={parameter?.required ?? false} disabled={props.readonly || !parameter} onChange={required => patchParameter({ required })} />
+          "Optional",
+          <Switch checked={!(parameter?.required ?? false)} disabled={props.readonly || !parameter} onChange={optional => patchParameter({ required: !optional })} />
         )}
       </Field>
-      <Field label="Default Value Expression">
+      <Field label="Default Value Expression" issues={getIssuesForField(issues, "defaultValue")}>
         {withDisabledReason(
           readonlyDisabledReason,
           "Default value expression",
@@ -95,10 +118,10 @@ export function ParameterObjectForm({ props, object, issues, parameter }: {
           <Input value={parameter?.exampleValue ?? ""} disabled={props.readonly || !parameter} onChange={exampleValue => patchParameter({ exampleValue })} />
         )}
       </Field>
-      <Field label="Description">
+      <Field label="Documentation">
         {withDisabledReason(
           readonlyDisabledReason,
-          "Description",
+          "Documentation",
           <TextArea value={parameter?.description ?? parameter?.documentation ?? ""} autosize disabled={props.readonly || !parameter} onChange={description => patchParameter({ description, documentation: description })} />
         )}
       </Field>

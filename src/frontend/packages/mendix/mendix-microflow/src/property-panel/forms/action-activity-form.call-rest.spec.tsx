@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MicroflowActionActivity, MicroflowAuthoringSchema } from "../../schema";
+import { createSequenceFlow } from "../../adapters";
 import { ActionActivityForm } from "./action-activity-form";
 
 vi.mock("@douyinfe/semi-ui", () => ({
@@ -112,17 +113,75 @@ describe("ActionActivityForm callMicroflow/restCall", () => {
       }),
     }));
   });
+
+  it("routes callMicroflow return variable rename through schema-level rewrite when onSchemaChange is available", () => {
+    const onPatch = vi.fn();
+    const onSchemaChange = vi.fn();
+    render(
+      <ActionActivityForm
+        schema={schema(
+          [callMicroflowObject({ storeResult: true, outputVariableName: "result" }), downstreamChangeVariableObject("result", "$result")],
+          [createSequenceFlow({ originObjectId: "callMicroflow-activity", destinationObjectId: "downstream-change-variable-activity" })],
+        )}
+        object={callMicroflowObject({ storeResult: true, outputVariableName: "result" })}
+        issues={[]}
+        onPatch={onPatch}
+        onSchemaChange={onSchemaChange}
+      />,
+    );
+
+    const returnNameInput = screen.getAllByDisplayValue("result").find(element => element.tagName === "INPUT");
+    if (!returnNameInput) {
+      throw new Error("Expected return variable name input.");
+    }
+    fireEvent.change(returnNameInput, { target: { value: "finalResult" } });
+
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(onSchemaChange).toHaveBeenCalledTimes(1);
+    const [nextSchema, reason] = onSchemaChange.mock.calls[0] ?? [];
+    const changed = nextSchema?.objectCollection?.objects?.find((item: any) => item.id === "downstream-change-variable-activity");
+    expect(reason).toBe("renameActionOutputVariable");
+    expect(changed?.kind === "actionActivity" && changed.action.kind === "changeVariable" ? changed.action.targetVariableName : undefined).toBe("finalResult");
+    expect(changed?.kind === "actionActivity" && changed.action.kind === "changeVariable" ? changed.action.newValueExpression.raw : undefined).toBe("$finalResult");
+  });
+
+  it("routes rest response variable rename through schema-level rewrite when onSchemaChange is available", () => {
+    const onPatch = vi.fn();
+    const onSchemaChange = vi.fn();
+    render(
+      <ActionActivityForm
+        schema={schema(
+          [restCallObject({ handling: { kind: "json", outputVariableName: "response" } }), downstreamChangeVariableObject("response", "$response")],
+          [createSequenceFlow({ originObjectId: "restCall-activity", destinationObjectId: "downstream-change-variable-activity" })],
+        )}
+        object={restCallObject({ handling: { kind: "json", outputVariableName: "response" } })}
+        issues={[]}
+        onPatch={onPatch}
+        onSchemaChange={onSchemaChange}
+      />,
+    );
+
+    fireEvent.change(screen.getAllByDisplayValue("response")[0], { target: { value: "payload" } });
+
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(onSchemaChange).toHaveBeenCalledTimes(1);
+    const [nextSchema, reason] = onSchemaChange.mock.calls[0] ?? [];
+    const changed = nextSchema?.objectCollection?.objects?.find((item: any) => item.id === "downstream-change-variable-activity");
+    expect(reason).toBe("renameActionOutputVariable");
+    expect(changed?.kind === "actionActivity" && changed.action.kind === "changeVariable" ? changed.action.targetVariableName : undefined).toBe("payload");
+    expect(changed?.kind === "actionActivity" && changed.action.kind === "changeVariable" ? changed.action.newValueExpression.raw : undefined).toBe("$payload");
+  });
 });
 
-function schema(): MicroflowAuthoringSchema {
+function schema(objects: MicroflowActionActivity[] = [], flows: unknown[] = []): MicroflowAuthoringSchema {
   return {
     schemaVersion: "1.0.0",
     id: "mf",
     name: "MF",
     parameters: [],
     returnType: { kind: "void" },
-    objectCollection: { objects: [] },
-    flows: [],
+    objectCollection: { objects },
+    flows,
     variables: {
       localVariables: {
         orderId: { name: "orderId", dataType: { kind: "string" }, source: { kind: "localVariable", objectId: "var", actionId: "var-action" }, scope: {} },
@@ -158,16 +217,16 @@ function activity(kind: string, patch: Record<string, unknown>): MicroflowAction
   } as unknown as MicroflowActionActivity;
 }
 
-function callMicroflowObject(): MicroflowActionActivity {
+function callMicroflowObject(options?: { storeResult?: boolean; outputVariableName?: string }): MicroflowActionActivity {
   return activity("callMicroflow", {
     targetMicroflowId: "",
     parameterMappings: [],
-    returnValue: { storeResult: false },
+    returnValue: { storeResult: options?.storeResult ?? false, outputVariableName: options?.outputVariableName, resultVariableName: options?.outputVariableName },
     callMode: "sync",
   });
 }
 
-function restCallObject(): MicroflowActionActivity {
+function restCallObject(options?: { handling?: { kind: "ignore" } | { kind: "string" | "json" | "importMapping"; outputVariableName: string; importMappingQualifiedName?: string } }): MicroflowActionActivity {
   return activity("restCall", {
     request: {
       method: "GET",
@@ -178,9 +237,36 @@ function restCallObject(): MicroflowActionActivity {
     },
     timeoutSeconds: 30,
     response: {
-      handling: { kind: "ignore" },
+      handling: options?.handling ?? { kind: "ignore" },
       statusCodeVariableName: "",
       headersVariableName: "",
     },
   });
+}
+
+function downstreamChangeVariableObject(targetVariableName: string, expressionRaw: string): MicroflowActionActivity {
+  return {
+    id: "downstream-change-variable-activity",
+    stableId: "downstream-change-variable-activity",
+    kind: "actionActivity",
+    officialType: "Microflows$ActionActivity",
+    caption: "changeVariable",
+    documentation: "",
+    relativeMiddlePoint: { x: 200, y: 0 },
+    size: { width: 160, height: 80 },
+    ports: [],
+    autoGenerateCaption: false,
+    backgroundColor: "default",
+    action: {
+      id: "downstream-change-variable-action",
+      officialType: "Microflows$ChangeVariableAction",
+      kind: "changeVariable",
+      caption: "changeVariable",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "variable", iconKey: "changeVariable", availability: "supported" },
+      targetVariableName,
+      newValueExpression: { raw: expressionRaw, inferredType: { kind: "string" }, referencedVariables: [expressionRaw], references: { variables: [expressionRaw], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+    } as never,
+  } as unknown as MicroflowActionActivity;
 }

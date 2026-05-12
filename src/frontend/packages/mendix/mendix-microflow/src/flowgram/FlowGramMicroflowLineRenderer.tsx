@@ -56,8 +56,8 @@ function edgeDataFromLine(
 }
 
 export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
-  if (data.label) {
-    return data.label;
+  if (data.edgeKind === "errorHandler") {
+    return "Error";
   }
   if (typeof data.sourcePortId === "string" && data.sourcePortId.includes(":")) {
     const inferred = data.sourcePortId.split(":").at(-1) ?? "";
@@ -65,23 +65,26 @@ export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
       return inferred;
     }
   }
-  if (data.edgeKind === "errorHandler") {
-    return "Error";
-  }
   if (data.edgeKind === "loopBody") {
     return "body";
   }
   const firstCase = data.caseValues[0];
   if (!firstCase) {
-    if (data.edgeKind === "decisionCondition" || data.edgeKind === "objectTypeCondition") {
-      return data.targetNodeId ? "(empty)" : "else";
+    if (data.edgeKind === "objectTypeCondition") {
+      return "(empty)";
     }
-    return "";
+    if (data.edgeKind === "decisionCondition") {
+      return data.label || (data.targetNodeId ? "(empty)" : "else");
+    }
+    return data.label || "";
   }
   if (firstCase.kind === "boolean") {
     return String(firstCase.value);
   }
   if (firstCase.kind === "fallback") {
+    if (data.edgeKind === "objectTypeCondition") {
+      return "(empty)";
+    }
     return "else";
   }
   if (firstCase.kind === "empty" || firstCase.kind === "noCase") {
@@ -96,7 +99,7 @@ export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
   if (firstCase.kind === "inheritance") {
     return firstCase.entityQualifiedName;
   }
-  return "else";
+  return data.label || "else";
 }
 
 function runtimeClass(state: FlowGramMicroflowEdgeData["runtimeState"]): string {

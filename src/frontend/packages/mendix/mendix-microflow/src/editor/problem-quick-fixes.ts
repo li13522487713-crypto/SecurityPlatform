@@ -18,6 +18,7 @@ import {
   collectFlowsRecursive,
   findObjectWithCollection,
 } from "../schema/utils/object-utils";
+import { isBooleanExclusiveSplit } from "../schema/utils/exclusive-split-utils";
 
 export function missingBooleanBranchValue(issue: MicroflowValidationIssue): boolean | undefined {
   if (issue.code === "MF_DECISION_BOOLEAN_TRUE_MISSING") {
@@ -43,7 +44,7 @@ export function createMissingBooleanBranch(schema: MicroflowSchema, issue: Micro
   }
   const located = findObjectWithCollection(schema, decisionId);
   const decision = located?.object;
-  if (!located || !decision || decision.kind !== "exclusiveSplit" || decision.splitCondition.kind !== "expression" || decision.splitCondition.resultType !== "boolean") {
+  if (!located || !decision || !isBooleanExclusiveSplit(decision)) {
     return undefined;
   }
   const existing = collectFlowsRecursive(schema).filter(

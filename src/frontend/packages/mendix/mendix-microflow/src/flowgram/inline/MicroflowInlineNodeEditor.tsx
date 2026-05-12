@@ -1,16 +1,19 @@
 import { useCallback, type ReactElement } from "react";
 
-import { Button, Input, TextArea, Typography } from "@douyinfe/semi-ui";
+import { Button, Input, Select, TextArea, Typography } from "@douyinfe/semi-ui";
 
-import type { MicroflowActionActivity, MicroflowAnnotation, MicroflowAuthoringSchema, MicroflowEndEvent, MicroflowIterableListLoopSource, MicroflowLoopedActivity } from "../../schema";
+import type { MicroflowActionActivity, MicroflowAnnotation, MicroflowAuthoringSchema, MicroflowErrorHandler, MicroflowLoopedActivity, MicroflowTryCatch } from "../../schema";
 import type { MicroflowDesignSchema } from "../../schema/types";
+import { renameActionOutputVariable, renameLoopIteratorVariable } from "../../schema/utils";
+import { renameMicroflowVariable } from "../../variables";
 import { VariableSelector } from "../../property-panel/selectors/VariableSelector";
+import { updateCallMicroflowReturnBinding } from "../../property-panel/utils/call-microflow-config";
 import {
   updateAnnotationObjectConfig,
-  updateEndEventConfig,
   updateObject,
 } from "../../property-panel/utils/schema-patch";
 import type { FlowGramMicroflowNodeData } from "../FlowGramMicroflowTypes";
+import { applyEndEventDraft, buildEndEventDraft } from "./end-event-inline";
 import { useInlineEditorDraft, type InlineEditorDraft } from "./useInlineEditorDraft";
 import { useFlowGramMicroflowContext } from "./useFlowGramMicroflowContext";
 
@@ -35,26 +38,22 @@ function FieldRow({ label, children }: { label: string; children: ReactElement }
 }
 
 function InlineEndEventSection({
-  objectId,
-  schema,
   draft,
   updateField,
   readonly,
 }: {
-  objectId: string;
-  schema: MicroflowAuthoringSchema;
   draft: InlineEditorDraft;
   updateField: (key: string, value: unknown) => void;
   readonly: boolean;
 }) {
   return (
-    <FieldRow label="返回变量">
-      <VariableSelector
-        schema={schema}
-        objectId={objectId}
-        value={draft.returnVariableName as string | undefined}
-        onChange={name => updateField("returnVariableName", name)}
-        placeholder="选择返回变量"
+    <FieldRow label="返回表达式">
+      <TextArea
+        rows={2}
+        value={String(draft.returnExpression ?? "")}
+        onChange={value => updateField("returnExpression", value)}
+        placeholder="输入返回表达式"
+        data-flow-editor-selectable="false"
         disabled={readonly}
       />
     </FieldRow>
@@ -300,13 +299,137 @@ function InlineStartEventSection({ schema }: { schema: MicroflowAuthoringSchema 
   );
 }
 
-function buildInitialDraft(data: FlowGramMicroflowNodeData): InlineEditorDraft {
+function InlineErrorHandlerSection({
+  draft,
+  updateField,
+  readonly,
+}: {
+  draft: InlineEditorDraft;
+  updateField: (key: string, value: unknown) => void;
+  readonly: boolean;
+}) {
+  return (
+    <>
+      <FieldRow label="策略">
+        <Select
+          value={String(draft.policy ?? "rollback")}
+          style={{ width: "100%" }}
+          optionList={[
+            { label: "rollback", value: "rollback" },
+            { label: "continue", value: "continue" },
+            { label: "custom", value: "custom" },
+          ]}
+          onChange={value => updateField("policy", String(value))}
+          disabled={readonly}
+        />
+      </FieldRow>
+      <FieldRow label="错误变量">
+        <Input
+          size="small"
+          value={String(draft.customHandlerVariable ?? "")}
+          onChange={value => updateField("customHandlerVariable", value)}
+          placeholder="输入错误变量名（可选）"
+          disabled={readonly}
+        />
+      </FieldRow>
+      <FieldRow label="继续执行">
+        <Select
+          value={draft.continueOnError ? "true" : "false"}
+          style={{ width: "100%" }}
+          optionList={[
+            { label: "false", value: "false" },
+            { label: "true", value: "true" },
+          ]}
+          onChange={value => updateField("continueOnError", String(value) === "true")}
+          disabled={readonly}
+        />
+      </FieldRow>
+    </>
+  );
+}
+
+function InlineTryCatchSection({
+  draft,
+  updateField,
+  readonly,
+}: {
+  draft: InlineEditorDraft;
+  updateField: (key: string, value: unknown) => void;
+  readonly: boolean;
+}) {
+  return (
+    <>
+      <FieldRow label="Try Branch">
+        <Input
+          size="small"
+          value={String(draft.tryBranchKey ?? "")}
+          onChange={value => updateField("tryBranchKey", value)}
+          placeholder="try"
+          disabled={readonly}
+        />
+      </FieldRow>
+      <FieldRow label="Catch Branch">
+        <Input
+          size="small"
+          value={String(draft.catchBranchKey ?? "")}
+          onChange={value => updateField("catchBranchKey", value)}
+          placeholder="catch"
+          disabled={readonly}
+        />
+      </FieldRow>
+      <FieldRow label="Finally Branch">
+        <Input
+          size="small"
+          value={String(draft.finallyBranchKey ?? "")}
+          onChange={value => updateField("finallyBranchKey", value)}
+          placeholder="optional"
+          disabled={readonly}
+        />
+      </FieldRow>
+      <FieldRow label="Error Variable">
+        <Input
+          size="small"
+          value={String(draft.errorVariableName ?? "")}
+          onChange={value => updateField("errorVariableName", value)}
+          placeholder="latestError"
+          disabled={readonly}
+        />
+      </FieldRow>
+    </>
+  );
+}
+
+function simpleVariableReferenceName(raw: unknown): string {
+  if (typeof raw !== "string") {
+    return "";
+  }
+  const trimmed = raw.trim();
+  const match = /^\$([A-Za-z_][A-Za-z0-9_]*)$/.exec(trimmed);
+  return match?.[1] ?? "";
+}
+
+function variableReferenceExpression(variableName: string) {
+  const trimmed = variableName.trim();
+  return {
+    raw: trimmed ? `$${trimmed}` : "",
+    inferredType: { kind: "unknown" as const, reason: trimmed || "inline-variable-selector" },
+    references: {
+      variables: trimmed ? [`$${trimmed}`] : [],
+      entities: [],
+      attributes: [],
+      associations: [],
+      enumerations: [],
+      functions: [],
+    },
+    diagnostics: [],
+  };
+}
+
+export function buildInitialDraft(data: FlowGramMicroflowNodeData): InlineEditorDraft {
   const action = data.action as Record<string, unknown> | undefined;
 
   if (data.objectKind === "endEvent") {
-    return {
-      returnVariableName: String(action?.outputVariableName ?? data.subtitle ?? ""),
-    };
+    return buildEndEventDraft(data);
   }
   if (data.objectKind === "loopedActivity") {
     return {
@@ -318,27 +441,63 @@ function buildInitialDraft(data: FlowGramMicroflowNodeData): InlineEditorDraft {
     // annotation 的文本内容存在 title/subtitle 或直接在 action 中
     return { caption: String(action?.text ?? data.title ?? "") };
   }
+  if (data.objectKind === "tryCatch") {
+    return {
+      tryBranchKey: String(data.tryBranchKey ?? "try"),
+      catchBranchKey: String(data.catchBranchKey ?? "catch"),
+      finallyBranchKey: String(data.finallyBranchKey ?? ""),
+      errorVariableName: String(data.errorVariableName ?? "latestError"),
+    };
+  }
+  if (data.objectKind === "errorHandler") {
+    return {
+      policy: String(data.policy ?? "rollback"),
+      customHandlerVariable: String(data.customHandlerVariable ?? ""),
+      continueOnError: Boolean(data.continueOnError ?? false),
+    };
+  }
   if (data.objectKind === "actionActivity") {
     switch (data.actionKind) {
       case "createVariable":
         return {
           variableName: String(action?.variableName ?? ""),
-          initialValue: String((action?.value as Record<string, unknown> | undefined)?.variableName ?? action?.value ?? ""),
+          initialValue: simpleVariableReferenceName((action?.initialValue as Record<string, unknown> | undefined)?.raw),
         };
       case "changeVariable":
         return {
-          changeVariableName: String(action?.variableName ?? ""),
-          newValue: String((action?.value as Record<string, unknown> | undefined)?.variableName ?? action?.value ?? ""),
+          changeVariableName: String(action?.targetVariableName ?? ""),
+          newValue: simpleVariableReferenceName((action?.newValueExpression as Record<string, unknown> | undefined)?.raw),
         };
       case "restCall":
-        return {
-          responseVariableName: String(
-            (action?.response as Record<string, unknown> | undefined)?.outputVariableName ?? action?.outputVariableName ?? "",
-          ),
-        };
+        {
+          const response = action?.response as Record<string, unknown> | undefined;
+          const handling = response?.handling as Record<string, unknown> | undefined;
+          return {
+            responseVariableName: String(
+              handling?.outputVariableName
+              ?? (response?.outputVariableName as string | undefined)
+              ?? action?.outputVariableName
+              ?? "",
+            ),
+          };
+        }
       case "callMicroflow":
+        {
+          const returnValue = action?.returnValue as Record<string, unknown> | undefined;
+          return {
+            returnVariableName: String(
+              returnValue?.outputVariableName
+              ?? returnValue?.resultVariableName
+              ?? action?.outputVariableName
+              ?? "",
+            ),
+          };
+        }
+      case "errorHandler":
         return {
-          returnVariableName: String(action?.outputVariableName ?? ""),
+          policy: String(action?.policy ?? "rollback"),
+          customHandlerVariable: String(action?.customHandlerVariable ?? action?.errorVariableName ?? ""),
+          continueOnError: Boolean(action?.continueOnError ?? false),
         };
       default:
         return {};
@@ -372,7 +531,7 @@ function buildValidators(data: FlowGramMicroflowNodeData): Record<string, (v: un
   return {};
 }
 
-function applyDraft(
+export function applyDraft(
   schema: MicroflowAuthoringSchema,
   objectId: string,
   data: FlowGramMicroflowNodeData,
@@ -380,69 +539,128 @@ function applyDraft(
 ): MicroflowAuthoringSchema {
   switch (data.objectKind) {
     case "endEvent":
-      return updateEndEventConfig(schema, objectId, {
-        returnValue: draft.returnVariableName
-          ? { kind: "variable", variableName: String(draft.returnVariableName) } as unknown as MicroflowEndEvent["returnValue"]
-          : undefined,
-      } as Partial<MicroflowEndEvent>);
+      return applyEndEventDraft(schema, objectId, draft);
 
     case "annotation":
       return updateAnnotationObjectConfig(schema, objectId, { text: String(draft.caption ?? "") } as Partial<MicroflowAnnotation>);
 
-    case "loopedActivity":
-      return updateObject<MicroflowLoopedActivity>(schema, objectId, loop => ({
-        ...loop,
-        loopSource: loop.loopSource?.kind === "iterableList"
-          ? {
-              ...loop.loopSource,
-              listVariableName: String(draft.listVariableName ?? (loop.loopSource as MicroflowIterableListLoopSource).listVariableName),
-              iteratorVariableName: String(draft.iteratorVariableName ?? (loop.loopSource as MicroflowIterableListLoopSource).iteratorVariableName),
-            } as MicroflowIterableListLoopSource
-          : loop.loopSource,
+    case "tryCatch":
+      return updateObject<MicroflowTryCatch>(schema, objectId, tryCatch => ({
+        ...tryCatch,
+        tryBranchKey: String(draft.tryBranchKey ?? tryCatch.tryBranchKey).trim() || "try",
+        catchBranchKey: String(draft.catchBranchKey ?? tryCatch.catchBranchKey).trim() || "catch",
+        finallyBranchKey: String(draft.finallyBranchKey ?? "").trim() || undefined,
+        errorVariableName: String(draft.errorVariableName ?? tryCatch.errorVariableName).trim() || "latestError",
       }));
+
+    case "errorHandler":
+      return updateObject<MicroflowErrorHandler>(schema, objectId, errorHandler => ({
+        ...errorHandler,
+        policy: String(draft.policy ?? errorHandler.policy) as MicroflowErrorHandler["policy"],
+        customHandlerVariable: String(draft.customHandlerVariable ?? "").trim() || undefined,
+        continueOnError: Boolean(draft.continueOnError),
+      }));
+
+    case "loopedActivity":
+      return renameLoopIteratorVariable(
+        updateObject<MicroflowLoopedActivity>(schema, objectId, loop => ({
+          ...loop,
+          loopSource: loop.loopSource?.kind === "iterableList"
+            ? {
+                ...loop.loopSource,
+                listVariableName: String(draft.listVariableName ?? loop.loopSource.listVariableName),
+              }
+            : loop.loopSource,
+        })),
+        objectId,
+        String(draft.iteratorVariableName ?? ""),
+      );
 
     case "actionActivity":
       switch (data.actionKind) {
         case "createVariable":
-          return updateObject<MicroflowActionActivity>(schema, objectId, activity => ({
-            ...activity,
-            action: {
-              ...(activity.action as Record<string, unknown>),
-              variableName: String(draft.variableName ?? ""),
-              value: draft.initialValue
-                ? { kind: "variable", variableName: String(draft.initialValue) }
-                : (activity.action as unknown as Record<string, unknown>).value,
-            } as unknown as MicroflowActionActivity["action"],
-          }));
+          return updateObject<MicroflowActionActivity>(
+            renameMicroflowVariable(schema, objectId, String(draft.variableName ?? "")),
+            objectId,
+            activity => {
+              const caption = activity.autoGenerateCaption
+                ? `Create ${String(draft.variableName ?? "").trim() || "Variable"}`
+                : activity.caption;
+              return {
+                ...activity,
+                caption,
+                action: {
+                  ...(activity.action as Record<string, unknown>),
+                  caption,
+                  initialValue: draft.initialValue
+                    ? variableReferenceExpression(String(draft.initialValue))
+                    : undefined,
+                } as unknown as MicroflowActionActivity["action"],
+              };
+            },
+          );
 
         case "changeVariable":
           return updateObject<MicroflowActionActivity>(schema, objectId, activity => ({
             ...activity,
             action: {
               ...(activity.action as Record<string, unknown>),
-              variableName: String(draft.changeVariableName ?? ""),
-              value: draft.newValue
-                ? { kind: "variable", variableName: String(draft.newValue) }
-                : (activity.action as unknown as Record<string, unknown>).value,
+              targetVariableName: String(draft.changeVariableName ?? ""),
+              newValueExpression: draft.newValue
+                ? variableReferenceExpression(String(draft.newValue))
+                : (activity.action as unknown as Record<string, unknown>).newValueExpression,
             } as unknown as MicroflowActionActivity["action"],
           }));
 
-        case "restCall":
-          return updateObject<MicroflowActionActivity>(schema, objectId, activity => ({
-            ...activity,
-            action: {
-              ...activity.action,
-              outputVariableName: String(draft.responseVariableName ?? ""),
-            } as MicroflowActionActivity["action"],
-          }));
+        case "restCall": {
+          const nextName = String(draft.responseVariableName ?? "").trim();
+          if (nextName) {
+            return renameActionOutputVariable(schema, objectId, nextName);
+          }
+          return updateObject<MicroflowActionActivity>(schema, objectId, activity => activity.action.kind === "restCall" && activity.action.response.handling.kind !== "ignore"
+            ? {
+                ...activity,
+                action: {
+                  ...activity.action,
+                  response: {
+                    ...activity.action.response,
+                    handling: {
+                      ...activity.action.response.handling,
+                      outputVariableName: "",
+                    },
+                  },
+                },
+              }
+            : activity);
+        }
 
-        case "callMicroflow":
+        case "callMicroflow": {
+          const nextName = String(draft.returnVariableName ?? "").trim();
+          if (nextName) {
+            const actionRecord = data.action as Record<string, unknown> | undefined;
+            const currentReturnValue = actionRecord?.returnValue as Record<string, unknown> | undefined;
+            const currentName = String(currentReturnValue?.outputVariableName ?? currentReturnValue?.resultVariableName ?? "");
+            if (currentName) {
+              return renameActionOutputVariable(schema, objectId, nextName);
+            }
+          }
+          return updateObject<MicroflowActionActivity>(schema, objectId, activity => activity.action.kind === "callMicroflow"
+            ? {
+                ...activity,
+                action: updateCallMicroflowReturnBinding(activity.action, nextName || undefined),
+              }
+            : activity);
+        }
+
+        case "errorHandler":
           return updateObject<MicroflowActionActivity>(schema, objectId, activity => ({
             ...activity,
             action: {
-              ...activity.action,
-              outputVariableName: String(draft.returnVariableName ?? ""),
-            } as MicroflowActionActivity["action"],
+              ...(activity.action as Record<string, unknown>),
+              policy: String(draft.policy ?? (activity.action as Record<string, unknown>).policy ?? "rollback"),
+              customHandlerVariable: String(draft.customHandlerVariable ?? "").trim() || undefined,
+              continueOnError: Boolean(draft.continueOnError),
+            } as unknown as MicroflowActionActivity["action"],
           }));
 
         default:
@@ -495,8 +713,6 @@ export function MicroflowInlineNodeEditor({
     case "endEvent":
       fields = (
         <InlineEndEventSection
-          objectId={objectId}
-          schema={authoringSchema}
           draft={draft}
           updateField={updateField}
           readonly={readonly}
@@ -505,6 +721,12 @@ export function MicroflowInlineNodeEditor({
       break;
     case "annotation":
       fields = <InlineAnnotationSection draft={draft} updateField={updateField} readonly={readonly} />;
+      break;
+    case "tryCatch":
+      fields = <InlineTryCatchSection draft={draft} updateField={updateField} readonly={readonly} />;
+      break;
+    case "errorHandler":
+      fields = <InlineErrorHandlerSection draft={draft} updateField={updateField} readonly={readonly} />;
       break;
     case "loopedActivity":
       fields = (
@@ -566,6 +788,9 @@ export function MicroflowInlineNodeEditor({
               readonly={readonly}
             />
           );
+          break;
+        case "errorHandler":
+          fields = <InlineErrorHandlerSection draft={draft} updateField={updateField} readonly={readonly} />;
           break;
         default:
           return null;

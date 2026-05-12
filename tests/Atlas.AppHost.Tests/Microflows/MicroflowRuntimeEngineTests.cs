@@ -313,6 +313,9 @@ public sealed class MicroflowRuntimeEngineTests
         Assert.Equal("High", result.Output?.GetString());
         Assert.Single(result.ChildRuns);
         Assert.Equal("success", result.ChildRuns[0].Status);
+        Assert.Single(result.ChildRuns[0].CallStackFrames);
+        Assert.Equal(childResourceId, result.ChildRuns[0].CallStackFrames[0].MicroflowId);
+        Assert.Equal("call", result.ChildRuns[0].CallStackFrames[0].CallerObjectId);
         Assert.Contains(result.Trace, frame => frame.ObjectId == "call" && frame.MicroflowId == "mf-parent");
         Assert.Contains(result.ChildRuns[0].Trace, frame => frame.ObjectId == "decision" && frame.MicroflowId == childResourceId);
     }

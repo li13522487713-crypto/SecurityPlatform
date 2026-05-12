@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Atlas.Application.Microflows.Runtime;
+using Atlas.Application.Microflows.Runtime.Calls;
 using Atlas.Application.Microflows.Runtime.ErrorHandling;
 using Atlas.Application.Microflows.Runtime.Transactions;
 
@@ -118,6 +119,72 @@ public sealed record TestRunMicroflowApiResponse
 
     [JsonPropertyName("callStack")]
     public IReadOnlyList<string> CallStack { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("callStackFrames")]
+    public IReadOnlyList<MicroflowRunCallStackFrameDto> CallStackFrames { get; init; } = Array.Empty<MicroflowRunCallStackFrameDto>();
+}
+
+public sealed record MicroflowRunCallStackFrameDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("parentFrameId")]
+    public string? ParentFrameId { get; init; }
+
+    [JsonPropertyName("runId")]
+    public string RunId { get; init; } = string.Empty;
+
+    [JsonPropertyName("parentRunId")]
+    public string? ParentRunId { get; init; }
+
+    [JsonPropertyName("rootRunId")]
+    public string? RootRunId { get; init; }
+
+    [JsonPropertyName("microflowId")]
+    public string? MicroflowId { get; init; }
+
+    [JsonPropertyName("schemaId")]
+    public string? SchemaId { get; init; }
+
+    [JsonPropertyName("version")]
+    public string? Version { get; init; }
+
+    [JsonPropertyName("qualifiedName")]
+    public string? QualifiedName { get; init; }
+
+    [JsonPropertyName("callerResourceId")]
+    public string? CallerResourceId { get; init; }
+
+    [JsonPropertyName("callerSchemaId")]
+    public string? CallerSchemaId { get; init; }
+
+    [JsonPropertyName("callerObjectId")]
+    public string? CallerObjectId { get; init; }
+
+    [JsonPropertyName("callerActionId")]
+    public string? CallerActionId { get; init; }
+
+    [JsonPropertyName("callerTraceFrameId")]
+    public string? CallerTraceFrameId { get; init; }
+
+    [JsonPropertyName("depth")]
+    public int Depth { get; init; }
+
+    [JsonPropertyName("callMode")]
+    public string CallMode { get; init; } = MicroflowCallMode.Sync;
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = MicroflowCallStackFrameStatus.Entering;
+
+    [JsonPropertyName("startedAt")]
+    public DateTimeOffset StartedAt { get; init; }
+
+    [JsonPropertyName("endedAt")]
+    public DateTimeOffset? EndedAt { get; init; }
+
+    [JsonPropertyName("durationMs")]
+    public int DurationMs { get; init; }
 }
 
 public record CancelMicroflowRunResponse
@@ -240,6 +307,9 @@ public sealed record MicroflowRunSessionDto
 
     [JsonPropertyName("callStack")]
     public IReadOnlyList<string> CallStack { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("callStackFrames")]
+    public IReadOnlyList<MicroflowRunCallStackFrameDto> CallStackFrames { get; init; } = Array.Empty<MicroflowRunCallStackFrameDto>();
 
     [JsonPropertyName("startedAt")]
     public DateTimeOffset StartedAt { get; init; }

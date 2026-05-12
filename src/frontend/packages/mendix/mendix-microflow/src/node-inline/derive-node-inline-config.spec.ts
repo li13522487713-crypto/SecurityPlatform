@@ -193,6 +193,38 @@ describe("deriveNodeInlineConfig", () => {
     });
   });
 
+  it("derives tryCatch inline fields from structural branch keys instead of approval placeholders", () => {
+    const node: MicroflowWorkflowNodeJSON = {
+      id: "try-catch-1",
+      type: "tryCatch",
+      data: {
+        objectId: "try-catch-1",
+        objectKind: "tryCatch",
+        collectionId: "nodes",
+        title: "Try Catch",
+        validationState: "valid",
+        issueCount: 0,
+        tryBranchKey: "try-main",
+        catchBranchKey: "catch-main",
+        finallyBranchKey: "finally-main",
+        errorVariableName: "$latestError",
+      } as never,
+      meta: { position: { x: 120, y: 80 } },
+    };
+
+    const inline = deriveNodeInlineConfig({ node, schema: buildSchema(node) });
+
+    expect(inline.summaryLines.map(line => line.value)).toContain("异常捕获");
+    expect(inline.sections[0]?.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldPath: "data.tryBranchKey", value: "try-main" }),
+        expect.objectContaining({ fieldPath: "data.catchBranchKey", value: "catch-main" }),
+        expect.objectContaining({ fieldPath: "data.finallyBranchKey", value: "finally-main" }),
+        expect.objectContaining({ fieldPath: "data.errorVariableName", value: "$latestError" }),
+      ]),
+    );
+  });
+
   it("provides variable options for all variable/expression-like editable fields", () => {
     const schema = buildMatrixSchema();
     for (const node of schema.workflow.nodes) {
@@ -277,6 +309,33 @@ describe("deriveNodeInlineConfig", () => {
     }).map(option => option.value);
 
     expect(expressionOptions).toContain("$childResult");
+  });
+
+  it("surfaces EndEvent return value in inline summary", () => {
+    const endNode: MicroflowWorkflowNodeJSON = {
+      id: "end-inline",
+      type: "event",
+      data: {
+        objectId: "end-inline",
+        objectKind: "endEvent",
+        collectionId: "nodes",
+        title: "结束",
+        validationState: "valid",
+        issueCount: 0,
+        returnValue: { raw: "$totalAmount" },
+      } as never,
+      meta: { position: { x: 240, y: 120 } },
+    };
+
+    const inline = deriveNodeInlineConfig({ node: endNode, schema: buildSchema(endNode) });
+
+    expect(inline.summaryLines).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: "return",
+        value: "$totalAmount",
+        fieldPath: "data.returnValue.raw",
+      }),
+    ]));
   });
   function findFieldOption(inline: ReturnType<typeof deriveNodeInlineConfig>, fieldPath: string) {
     return inline.sections.flatMap(section => section.fields).find(field => field.fieldPath === fieldPath)?.options;
@@ -489,6 +548,51 @@ describe("deriveNodeInlineConfig", () => {
     expect(inputField?.options?.some(option => option.value === "$.response")).toBe(true);
     expect(Array.isArray(outputField?.options)).toBe(true);
     expect(outputField?.options?.some(option => option.value === "response")).toBe(true);
+  });
+
+  it("derives specialized output field paths for generic action alias outputs", () => {
+    const generateDocumentNode: MicroflowWorkflowNodeJSON = {
+      id: "generate-document-1",
+      type: "activity",
+      data: {
+        objectId: "generate-document-1",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "生成文档",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "generateDocument",
+        action: {
+          kind: "generateDocument",
+          outputFileDocumentVariableName: "invoiceDoc",
+        },
+      } as never,
+      meta: { position: { x: 0, y: 0 } },
+    };
+    const callWorkflowNode: MicroflowWorkflowNodeJSON = {
+      id: "call-workflow-1",
+      type: "activity",
+      data: {
+        objectId: "call-workflow-1",
+        objectKind: "actionActivity",
+        collectionId: "nodes",
+        title: "调用工作流",
+        validationState: "valid",
+        issueCount: 0,
+        actionKind: "callWorkflow",
+        action: {
+          kind: "callWorkflow",
+          outputWorkflowVariableName: "workflowInstance",
+        },
+      } as never,
+      meta: { position: { x: 200, y: 0 } },
+    };
+
+    const generateInline = deriveNodeInlineConfig({ node: generateDocumentNode, schema: buildSchema(generateDocumentNode) });
+    const workflowInline = deriveNodeInlineConfig({ node: callWorkflowNode, schema: buildSchema(callWorkflowNode) });
+
+    expect(findField(generateInline, "data.action.outputFileDocumentVariableName")?.value).toBe("invoiceDoc");
+    expect(findField(workflowInline, "data.action.outputWorkflowVariableName")?.value).toBe("workflowInstance");
   });
 
   it("injects runtime/error projection from trace frame", () => {
@@ -893,5 +997,50 @@ describe("deriveNodeInlineConfig", () => {
       variableName: "canonicalResult",
     }]);
     expect(inline.sections.some(section => section.id === "output-mappings")).toBe(true);
+  });
+
+  it("surfaces inheritance and empty decision runtime labels", () => {
+    const objectTypeNode: MicroflowWorkflowNodeJSON = {
+      id: "inheritance-decision-1",
+      type: "decision",
+      data: {
+        objectId: "inheritance-decision-1",
+        objectKind: "inheritanceSplit",
+        collectionId: "nodes",
+        title: "对象类型判断",
+        validationState: "valid",
+        issueCount: 0,
+      } as never,
+      meta: { position: { x: 240, y: 120 } },
+    };
+
+    const inheritanceInline = deriveNodeInlineConfig({
+      node: objectTypeNode,
+      schema: buildSchema(objectTypeNode),
+      runtimeFrame: {
+        ...runtimeFrame("inheritance-decision-1"),
+        status: "success",
+        selectedCaseValue: {
+          kind: "inheritance",
+          officialType: "Microflows$InheritanceCase",
+          entityQualifiedName: "Sales.SpecialOrder",
+        },
+      },
+    });
+    expect(inheritanceInline.summaryLines.some(line => line.value.includes("SpecialOrder"))).toBe(true);
+
+    const emptyInline = deriveNodeInlineConfig({
+      node: objectTypeNode,
+      schema: buildSchema(objectTypeNode),
+      runtimeFrame: {
+        ...runtimeFrame("inheritance-decision-1"),
+        status: "success",
+        selectedCaseValue: {
+          kind: "empty",
+          officialType: "Microflows$NoCase",
+        },
+      },
+    });
+    expect(emptyInline.summaryLines.some(line => line.value.includes("(empty)"))).toBe(true);
   });
 });

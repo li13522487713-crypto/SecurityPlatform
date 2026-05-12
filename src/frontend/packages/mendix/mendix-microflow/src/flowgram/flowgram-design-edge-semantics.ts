@@ -83,6 +83,10 @@ function fallbackCase(): MicroflowCaseValue {
   return { kind: "fallback", officialType: "Microflows$NoCase" };
 }
 
+function emptyCase(): MicroflowCaseValue {
+  return { kind: "empty", officialType: "Microflows$NoCase" };
+}
+
 function inferEdgeKind(edge: MicroflowWorkflowEdgeJSON, source: MicroflowWorkflowNodeJSON | undefined, target: MicroflowWorkflowNodeJSON | undefined): EdgeKind {
   const data = edge.data as Partial<FlowGramMicroflowEdgeData> | undefined;
   const existingKind = data?.edgeKind;
@@ -156,7 +160,7 @@ function defaultCaseValuesForEdge(
     return [fallbackCase()];
   }
   if (edgeKind === "objectTypeCondition") {
-    return [fallbackCase()];
+    return [emptyCase()];
   }
   return [];
 }

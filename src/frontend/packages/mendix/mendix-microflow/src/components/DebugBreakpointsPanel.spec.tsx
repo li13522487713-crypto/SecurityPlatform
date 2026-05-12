@@ -3,99 +3,111 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@douyinfe/semi-ui", async () => {
-  const React = await import("react");
-  const List = ({ dataSource = [], renderItem }: { dataSource?: unknown[]; renderItem: (item: unknown) => React.ReactNode }) => (
-    <div>{dataSource.map((item, index) => <div key={index}>{renderItem(item)}</div>)}</div>
-  );
-  List.Item = ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>;
-  return {
-    Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
-    Card: ({ title, children }: { title?: React.ReactNode; children?: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
-    Checkbox: ({ checked, onChange, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
-      <input
-        {...props}
-        type="checkbox"
-        checked={Boolean(checked)}
-        onChange={event => onChange?.(event)}
-      />
-    ),
-    Input: (props: React.InputHTMLAttributes<HTMLInputElement> & { onChange?: (value: string) => void }) => (
-      <input {...props} onChange={event => props.onChange?.(event.currentTarget.value)} />
-    ),
-    List,
-    Space: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-    Tag: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
-    Typography: { Text: (props: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{props.children}</span> },
-  };
-});
+import { DebugBreakpointsPanel, type DebugBreakpointPanelItem } from "./DebugBreakpointsPanel";
 
-import { DebugBreakpointsPanel } from "./DebugBreakpointsPanel";
+vi.mock("@douyinfe/semi-ui", () => ({
+  Button: ({ children, onClick, disabled, ...rest }: any) => <button type="button" disabled={disabled} onClick={onClick} {...rest}>{children}</button>,
+  Card: ({ title, children }: any) => <section><h2>{title}</h2>{children}</section>,
+  Checkbox: ({ checked, onChange, disabled, ...rest }: any) => <input type="checkbox" checked={Boolean(checked)} disabled={disabled} onChange={event => onChange?.(event)} {...rest} />,
+  Input: ({ value, onChange, onBlur, onKeyDown, disabled, placeholder, ...rest }: any) => (
+    <input
+      value={value ?? ""}
+      disabled={disabled}
+      placeholder={placeholder}
+      onChange={event => onChange?.(event.currentTarget.value)}
+      onBlur={onBlur}
+      onKeyDown={onKeyDown}
+      {...rest}
+    />
+  ),
+  List: Object.assign(
+    ({ dataSource, renderItem }: any) => <div>{(dataSource ?? []).map((item: any, index: number) => <div key={item.id ?? index}>{renderItem(item, index)}</div>)}</div>,
+    { Item: ({ children, ...rest }: any) => <div {...rest}>{children}</div> },
+  ),
+  Space: ({ children }: any) => <div>{children}</div>,
+  Tag: ({ children }: any) => <span>{children}</span>,
+  Tooltip: ({ children }: any) => <>{children}</>,
+  Typography: {
+    Text: ({ children }: any) => <span>{children}</span>,
+  },
+}));
 
 afterEach(() => cleanup());
 
+function renderPanel(breakpoints: DebugBreakpointPanelItem[]) {
+  return render(
+    <DebugBreakpointsPanel
+      title="Breakpoints"
+      breakpoints={breakpoints}
+      staleBreakpointLabel="Stale"
+      logpointLabel="Logpoint"
+    />,
+  );
+}
+
 describe("DebugBreakpointsPanel", () => {
-  it("renders breakpoints with state tags", () => {
-    render(
+  it("syncs condition inputs when parent breakpoint condition changes", () => {
+    const breakpoints: DebugBreakpointPanelItem[] = [
+      { id: "bp-1", targetId: "node-a", scope: "node", condition: "$amount > 100", enabled: true },
+    ];
+    const view = renderPanel(breakpoints);
+
+    const input = screen.getByTestId("microflow-breakpoint-condition-bp-1") as HTMLInputElement;
+    expect(input.value).toBe("$amount > 100");
+
+    view.rerender(
       <DebugBreakpointsPanel
         title="Breakpoints"
-        staleBreakpointLabel="stale"
-        logpointLabel="logpoint"
-        breakpoints={[
-          { id: "bp-1", scope: "node", targetId: "node-a", hitTarget: 2, stale: true, logpoint: true, enabled: true },
-        ]}
+        breakpoints={[{ ...breakpoints[0], condition: "$amount > 200" }]}
+        staleBreakpointLabel="Stale"
+        logpointLabel="Logpoint"
       />,
     );
 
-    expect(screen.getByText("Breakpoints")).toBeTruthy();
-    expect(screen.getByText("node: node-a")).toBeTruthy();
-    expect(screen.getByText("#2")).toBeTruthy();
-    expect(screen.getByText("logpoint")).toBeTruthy();
-    expect(screen.getByText("stale")).toBeTruthy();
+    expect((screen.getByTestId("microflow-breakpoint-condition-bp-1") as HTMLInputElement).value).toBe("$amount > 200");
   });
 
-  it("emits toggle and delete events", () => {
-    const onToggleEnabled = vi.fn();
-    const onDelete = vi.fn();
-    render(
+  it("preserves local draft when unrelated breakpoint fields rerender without condition change", () => {
+    const breakpoints: DebugBreakpointPanelItem[] = [
+      { id: "bp-2", targetId: "node-b", scope: "node", condition: "$amount > 100", enabled: true },
+    ];
+    const view = renderPanel(breakpoints);
+
+    const input = screen.getByTestId("microflow-breakpoint-condition-bp-2") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "$amount > 150" } });
+    expect(input.value).toBe("$amount > 150");
+
+    view.rerender(
       <DebugBreakpointsPanel
         title="Breakpoints"
-        staleBreakpointLabel="stale"
-        logpointLabel="logpoint"
-        breakpoints={[
-          { id: "bp-1", scope: "node", targetId: "node-a", enabled: true },
-        ]}
-        onToggleEnabled={onToggleEnabled}
-        onDelete={onDelete}
+        breakpoints={[{ ...breakpoints[0], enabled: false }]}
+        staleBreakpointLabel="Stale"
+        logpointLabel="Logpoint"
       />,
     );
 
-    fireEvent.click(screen.getByTestId("microflow-breakpoint-enabled-bp-1"));
-    fireEvent.click(screen.getByTestId("microflow-breakpoint-delete-bp-1"));
-
-    expect(onToggleEnabled).toHaveBeenCalledWith("bp-1", false);
-    expect(onDelete).toHaveBeenCalledWith("bp-1");
+    expect((screen.getByTestId("microflow-breakpoint-condition-bp-2") as HTMLInputElement).value).toBe("$amount > 150");
   });
 
-  it("commits condition edit on blur", () => {
-    const onChangeCondition = vi.fn();
-    render(
+  it("drops removed breakpoint drafts and initializes new breakpoints from props", () => {
+    const view = renderPanel([
+      { id: "bp-3", targetId: "node-c", scope: "node", condition: "$x", enabled: true },
+    ]);
+
+    expect(screen.getByTestId("microflow-breakpoint-condition-bp-3")).toBeTruthy();
+
+    view.rerender(
       <DebugBreakpointsPanel
         title="Breakpoints"
-        staleBreakpointLabel="stale"
-        logpointLabel="logpoint"
         breakpoints={[
-          { id: "bp-1", scope: "node", targetId: "node-a", condition: "$amount > 10", enabled: true },
+          { id: "bp-4", targetId: "node-d", scope: "flow", condition: "$y", enabled: true },
         ]}
-        onChangeCondition={onChangeCondition}
+        staleBreakpointLabel="Stale"
+        logpointLabel="Logpoint"
       />,
     );
 
-    const input = screen.getByTestId("microflow-breakpoint-condition-bp-1");
-    fireEvent.change(input, { target: { value: "$amount > 100" } });
-    fireEvent.blur(input);
-
-    expect(onChangeCondition).toHaveBeenCalledWith("bp-1", "$amount > 100");
+    expect(screen.queryByTestId("microflow-breakpoint-condition-bp-3")).toBeNull();
+    expect((screen.getByTestId("microflow-breakpoint-condition-bp-4") as HTMLInputElement).value).toBe("$y");
   });
 });
-

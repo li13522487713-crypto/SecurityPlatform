@@ -69,7 +69,7 @@ export function ErrorHandlerForm({ object, readonly, patch }: {
         )}
       </Field>
       <Text type="tertiary" size="small">
-        Error Handler 节点本身在 runtime 中目前透明；同等语义可通过 Activity errorHandling 字段（rollback / continue / customWithRollback）落地。
+        Error Handler 节点本身在 runtime 中目前透明；同等语义由节点的 Error Handling Type 落地，包括 Rollback、Custom with Rollback、Custom without Rollback 与 Continue。
       </Text>
     </>
   );

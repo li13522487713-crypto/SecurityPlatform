@@ -1,6 +1,7 @@
 import type { MicroflowNodeInlineConfig } from "../flowgram/FlowGramMicroflowTypes";
 import { expressionText } from "./inline-formatters";
 import { buildNodeInlineVariableOptions } from "./inline-variable-options";
+import { resolveInlineActionOutputMeta } from "./action-output-meta";
 import { createDefaultInlineConfig, type DeriveNodeInlineInput } from "./default-node-inline";
 
 export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowNodeInlineConfig {
@@ -13,7 +14,8 @@ export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowN
   const mappingText = Array.isArray(action.inputMappings)
     ? (action.inputMappings as Array<{ name?: string; valueExpression?: { raw?: string } }>).map(item => `${item.name ?? ""}=${item.valueExpression?.raw ?? ""}`).join("\n")
     : "";
-  const outputVar = String(action.outputVariableName ?? action.resultVariableName ?? "");
+  const outputMeta = resolveInlineActionOutputMeta(action);
+  const outputVar = outputMeta?.name ?? "";
   const errorVar = String(action.errorVariableName ?? "");
   const expressionOptions = buildNodeInlineVariableOptions({
     schema: input.schema,
@@ -33,7 +35,7 @@ export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowN
     summaryLines: [
       { id: "title", value: String(data.title ?? actionKind), kind: "text" },
       { id: "input", value: `in: ${inputExpr || "-"}`, kind: "input", editable: Boolean(inputExpr), fieldPath: "data.action.inputExpression.raw" },
-      { id: "output", value: `out: ${outputVar || "-"}`, kind: "output", editable: true, fieldPath: "data.action.outputVariableName" },
+      { id: "output", value: `out: ${outputVar || "-"}`, kind: "output", editable: true, fieldPath: outputMeta?.fieldPath ?? "data.action.outputVariableName" },
     ],
     sections: [
       {
@@ -70,7 +72,7 @@ export function deriveActionNodeInline(input: DeriveNodeInlineInput): MicroflowN
             id: "outputVariable",
             label: "输出变量",
             value: outputVar,
-            fieldPath: "data.action.outputVariableName",
+            fieldPath: outputMeta?.fieldPath ?? "data.action.outputVariableName",
             editType: "variable",
             placeholder: "result",
             options: variableNameOptions,

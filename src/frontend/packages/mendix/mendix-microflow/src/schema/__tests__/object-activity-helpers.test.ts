@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createObjectFromRegistry, deleteObject, duplicateObject } from "../../adapters";
+import { createObjectFromRegistry, createSequenceFlow, deleteObject, duplicateObject } from "../../adapters";
 import { sampleMicroflowSchema } from "../../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
@@ -35,14 +35,14 @@ function registry(key: string) {
   return item;
 }
 
-function schemaWith(objects: MicroflowObject[] = []): MicroflowSchema {
+function schemaWith(objects: MicroflowObject[] = [], flows: MicroflowSchema["flows"] = []): MicroflowSchema {
   return {
     ...sampleMicroflowSchema,
     id: "MF_OBJECT_ACTIVITY_TEST",
     stableId: "MF_OBJECT_ACTIVITY_TEST",
     parameters: [],
     objectCollection: { ...sampleMicroflowSchema.objectCollection, objects },
-    flows: [],
+    flows,
     editor: { ...sampleMicroflowSchema.editor, selection: {} },
   };
 }
@@ -87,6 +87,41 @@ describe("microflow object activity foundation", () => {
     const changed = schema.objectCollection.objects.find(object => object.id === changeObject.id);
 
     expect(changed?.kind === "actionActivity" && changed.action.kind === "changeMembers" ? changed.action.memberChanges[0]?.memberQualifiedName : undefined).toBe("Procurement.PurchaseRequest.title");
+  });
+
+  it("rewrites downstream object references when renaming Create Object and Retrieve outputs", () => {
+    const createObject = actionObject("activity:objectCreate", "create-object");
+    const retrieve = actionObject("activity:objectRetrieve", "retrieve-object");
+    const commit = actionObject("activity:objectCommit", "commit-object");
+    const del = actionObject("activity:objectDelete", "delete-object");
+    const retrieveSource = {
+      kind: "database" as const,
+      officialType: "Microflows$DatabaseRetrieveSource" as const,
+      entityQualifiedName: "Procurement.PurchaseRequest",
+      xPathConstraint: null,
+      sortItemList: { items: [] },
+      range: { kind: "all" as const, officialType: "Microflows$ConstantRange" as const, value: "all" as const },
+    };
+    const flows = [
+      createSequenceFlow({ originObjectId: createObject.id, destinationObjectId: commit.id }),
+      createSequenceFlow({ originObjectId: retrieve.id, destinationObjectId: del.id }),
+    ];
+    let schema = updateObjectOutputVariable(
+      updateObjectActionEntity(schemaWith([createObject, retrieve, commit, del], flows), createObject.id, { qualifiedName: "Procurement.PurchaseRequest" }),
+      createObject.id,
+      { name: "purchaseRequest" },
+    );
+    schema = updateObjectOutputVariable(updateRetrieveObjectSource(schema, retrieve.id, retrieveSource), retrieve.id, { name: "purchaseRequests" });
+    schema = updateCommitObjectTarget(schema, commit.id, { name: "purchaseRequest" });
+    schema = updateDeleteObjectTarget(schema, del.id, { name: "purchaseRequests" });
+
+    const renamedCreate = updateObjectOutputVariable(schema, createObject.id, { name: "request" });
+    const renamedRetrieve = updateObjectOutputVariable(renamedCreate, retrieve.id, { name: "requestList" });
+    const nextCommit = renamedRetrieve.objectCollection.objects.find(object => object.id === commit.id);
+    const nextDelete = renamedRetrieve.objectCollection.objects.find(object => object.id === del.id);
+
+    expect(nextCommit?.kind === "actionActivity" && nextCommit.action.kind === "commit" ? nextCommit.action.objectOrListVariableName : undefined).toBe("request");
+    expect(nextDelete?.kind === "actionActivity" && nextDelete.action.kind === "delete" ? nextDelete.action.objectOrListVariableName : undefined).toBe("requestList");
   });
 
   it("infers Retrieve Object output type from range", () => {

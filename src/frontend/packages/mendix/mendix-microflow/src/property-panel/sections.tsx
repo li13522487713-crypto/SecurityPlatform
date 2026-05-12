@@ -121,10 +121,10 @@ export function MicroflowErrorHandlingSection({ props }: { props: MicroflowNodeF
             style={{ width: "100%" }}
             value={errorHandling.mode}
             optionList={[
-              { label: "rollback", value: "rollback" },
-              { label: "customWithRollback", value: "customWithRollback" },
-              { label: "customWithoutRollback", value: "customWithoutRollback" },
-              { label: "continue", value: "continue" }
+              { label: "Rollback", value: "rollback" },
+              { label: "Custom with Rollback", value: "customWithRollback" },
+              { label: "Custom without Rollback", value: "customWithoutRollback" },
+              { label: "Continue", value: "continue" }
             ]}
             onChange={mode => patchConfig(props, { errorHandling: { ...errorHandling, mode: String(mode) } })}
           />

@@ -7,8 +7,10 @@ import type { MicroflowValidatorContext } from "./validator-types";
 
 interface ExpressionTarget {
   expression?: MicroflowExpression | string;
-  objectId: string;
+  objectId?: string;
+  issueObjectId?: string;
   actionId?: string;
+  parameterId?: string;
   fieldPath: string;
   expectedType?: MicroflowDataType;
   required?: boolean;
@@ -29,17 +31,17 @@ function expressionIssues(schema: MicroflowSchema, metadata: MicroflowMetadataCa
     },
   });
   const issues = result.diagnostics.map(diagnostic => issue(
-    diagnostic.code,
-    diagnostic.message,
-    { objectId: target.objectId, actionId: target.actionId, fieldPath: target.fieldPath, source: "expression" },
-    diagnostic.severity
-  ));
+      diagnostic.code,
+      diagnostic.message,
+      { objectId: target.issueObjectId ?? target.objectId, actionId: target.actionId, parameterId: target.parameterId, fieldPath: target.fieldPath, source: "expression" },
+      diagnostic.severity
+    ));
   const compatibilityIssues = result.diagnostics
     .filter(diagnostic => diagnostic.severity === "error" && diagnostic.code.startsWith("MF_EXPR"))
     .map(diagnostic => issue(
       diagnostic.code === "MF_EXPR_UNKNOWN_VARIABLE" ? "MF_EXPRESSION_UNKNOWN_VARIABLE" : "MF_EXPRESSION_INVALID",
       diagnostic.message,
-      { objectId: target.objectId, actionId: target.actionId, fieldPath: target.fieldPath, source: "expression" },
+      { objectId: target.issueObjectId ?? target.objectId, actionId: target.actionId, parameterId: target.parameterId, fieldPath: target.fieldPath, source: "expression" },
       diagnostic.severity
     ));
   return [...issues, ...compatibilityIssues];
@@ -48,6 +50,23 @@ function expressionIssues(schema: MicroflowSchema, metadata: MicroflowMetadataCa
 export function validateExpressions(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const targets: ExpressionTarget[] = [];
   const { metadata, variableIndex } = context;
+  const parameterObjectIds = new Map(
+    flattenObjects(schema.objectCollection)
+      .filter(item => item.object.kind === "parameterObject")
+      .map(item => [item.object.parameterId, item.object.id] as const),
+  );
+  schema.parameters.forEach(parameter => {
+    if (!parameter.defaultValue) {
+      return;
+    }
+    targets.push({
+      expression: parameter.defaultValue,
+      issueObjectId: parameterObjectIds.get(parameter.id),
+      parameterId: parameter.id,
+      fieldPath: `parameters.${parameter.id}.defaultValue`,
+      expectedType: parameter.dataType,
+    });
+  });
   for (const { object } of flattenObjects(schema.objectCollection)) {
     if (object.kind === "endEvent") {
       targets.push({
@@ -69,6 +88,17 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
         required: true,
       });
     }
+    if (object.kind === "exclusiveSplit" && object.splitCondition.kind === "rule") {
+      object.splitCondition.parameterMappings.forEach((mapping, index) => {
+        targets.push({
+          expression: mapping.argumentExpression,
+          objectId: object.id,
+          fieldPath: `splitCondition.parameterMappings.${index}.argumentExpression`,
+          expectedType: mapping.targetType ?? mapping.parameterType,
+          required: true,
+        });
+      });
+    }
     if (object.kind === "loopedActivity" && object.loopSource.kind === "whileCondition") {
       targets.push({
         expression: object.loopSource.expression,
@@ -76,6 +106,14 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
         fieldPath: "loopSource.expression",
         expectedType: { kind: "boolean" },
         required: true,
+      });
+    }
+    if (object.kind === "errorEvent" && object.error.messageExpression) {
+      targets.push({
+        expression: object.error.messageExpression,
+        objectId: object.id,
+        fieldPath: "error.messageExpression",
+        expectedType: { kind: "string" },
       });
     }
     if (object.kind !== "actionActivity") {
@@ -193,6 +231,15 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
         expectedType: action.dataType,
       });
     }
+    if (action.kind === "createList" && action.initialItemsExpression) {
+      targets.push({
+        expression: action.initialItemsExpression,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.initialItemsExpression",
+        expectedType: { kind: "list", itemType: action.elementType },
+      });
+    }
     if (action.kind === "changeVariable") {
       targets.push({
         expression: action.newValueExpression,
@@ -284,6 +331,83 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
           fieldPath: "action.sortExpression",
         });
       }
+    }
+    if (action.kind === "filterList") {
+      if (action.conditionExpression) {
+        targets.push({
+          expression: action.conditionExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.conditionExpression",
+          expectedType: { kind: "boolean" },
+        });
+      }
+      if (action.filterExpression) {
+        targets.push({
+          expression: action.filterExpression,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.filterExpression",
+          expectedType: { kind: "boolean" },
+        });
+      }
+    }
+    if (action.kind === "sortList" && action.sortExpression) {
+      targets.push({
+        expression: action.sortExpression,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.sortExpression",
+      });
+    }
+    if (action.kind === "sortList" && action.sortKeys) {
+      action.sortKeys.forEach((sortKey, index) => {
+        if (sortKey.expression) {
+          targets.push({
+            expression: sortKey.expression,
+            objectId: object.id,
+            actionId: action.id,
+            fieldPath: `action.sortKeys.${index}.expression`,
+          });
+        }
+      });
+    }
+    if (action.kind === "showMessage") {
+      targets.push({
+        expression: action.messageExpression,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.messageExpression",
+        expectedType: { kind: "string" },
+        required: true,
+      });
+    }
+    if (action.kind === "counter" || action.kind === "gauge") {
+      targets.push({
+        expression: action.valueExpression,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.valueExpression",
+        expectedType: { kind: "integer" },
+        required: true,
+      });
+    }
+    if (action.kind === "throwException" && action.messageExpression) {
+      targets.push({
+        expression: action.messageExpression,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.messageExpression",
+        expectedType: { kind: "string" },
+      });
+    }
+    if (action.kind === "notifyWorkflow") {
+      targets.push({
+        expression: action.payloadExpression as MicroflowExpression | undefined,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.payloadExpression",
+      });
     }
   }
   return targets.flatMap(target => expressionIssues(schema, metadata, variableIndex, target));

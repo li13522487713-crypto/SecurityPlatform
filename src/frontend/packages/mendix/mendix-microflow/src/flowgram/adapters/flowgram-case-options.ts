@@ -9,6 +9,7 @@ import type {
   MicroflowSchema,
 } from "../../schema/types";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
+import { objectTypeCaseIdentity } from "../../schema/utils/case-utils";
 
 export type MicroflowCaseEditorKind = "boolean" | "enumeration" | "objectType";
 
@@ -80,7 +81,7 @@ export function caseValueKey(caseValue: MicroflowCaseValue): string {
 
 export function caseValueLabel(caseValue: MicroflowCaseValue): string {
   if (caseValue.kind === "boolean") {
-    return caseValue.value ? "是" : "否";
+    return caseValue.value ? "true" : "false";
   }
   if (caseValue.kind === "enumeration") {
     return simpleName(caseValue.value);
@@ -89,10 +90,10 @@ export function caseValueLabel(caseValue: MicroflowCaseValue): string {
     return simpleName(caseValue.entityQualifiedName);
   }
   if (caseValue.kind === "empty") {
-    return "empty";
+    return "(empty)";
   }
   if (caseValue.kind === "fallback") {
-    return "fallback";
+    return "(empty)";
   }
   if (caseValue.kind === "expression") {
     return caseValue.condition ?? caseValue.expression ?? "condition";
@@ -132,10 +133,12 @@ function objectById(schema: MicroflowSchema, objectId: string | undefined): Micr
 }
 
 function usedCaseKeys(schema: MicroflowSchema, sourceObjectId: string, currentFlowId?: string): Set<string> {
+  const source = objectById(schema, sourceObjectId);
+  const identityOf = source?.kind === "inheritanceSplit" ? objectTypeCaseIdentity : caseValueKey;
   return new Set(
     collectFlowsRecursive(schema)
       .filter(flow => flow.kind === "sequence" && flow.id !== currentFlowId && flow.originObjectId === sourceObjectId && !flow.isErrorHandler)
-      .flatMap(flow => (flow.caseValues ?? []).map(caseValueKey)),
+      .flatMap(flow => (flow.caseValues ?? []).map(identityOf)),
   );
 }
 
@@ -193,7 +196,7 @@ export function getEnumerationCaseOptions(
     ...valueOptions,
     {
       key: caseValueKey(empty),
-      label: "empty",
+      label: "(empty)",
       caseValue: empty,
       disabled: emptyDisabled,
       reason: emptyDisabled ? "该分支已存在" : undefined,
@@ -213,26 +216,27 @@ export function getObjectTypeCaseOptions(
   const used = usedCaseKeys(schema, sourceObjectId, currentFlowId);
   const entityOptions = specializations.map(entityQualifiedName => {
     const caseValue = inheritanceCaseValue(entityQualifiedName);
-    const disabled = used.has(caseValueKey(caseValue));
+    const disabled = used.has(objectTypeCaseIdentity(caseValue));
     return {
-      key: caseValueKey(caseValue),
+      key: objectTypeCaseIdentity(caseValue),
       label: simpleName(entityQualifiedName),
       caseValue,
       disabled,
       reason: disabled ? "该分支已存在" : undefined,
     };
   });
-  const specialOptions = [emptyCaseValue(), fallbackCaseValue()].map(caseValue => {
-    const disabled = used.has(caseValueKey(caseValue));
-    return {
-      key: caseValueKey(caseValue),
-      label: caseValueLabel(caseValue),
-      caseValue,
-      disabled,
-      reason: disabled ? "该分支已存在" : undefined,
-    };
-  });
-  return [...entityOptions, ...specialOptions];
+  const empty = emptyCaseValue();
+  const emptyDisabled = used.has(objectTypeCaseIdentity(empty));
+  return [
+    ...entityOptions,
+    {
+      key: objectTypeCaseIdentity(empty),
+      label: caseValueLabel(empty),
+      caseValue: empty,
+      disabled: emptyDisabled,
+      reason: emptyDisabled ? "该分支已存在" : undefined,
+    },
+  ];
 }
 
 export function getAllowedSpecializations(

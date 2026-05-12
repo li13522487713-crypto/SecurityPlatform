@@ -23,7 +23,7 @@ function withDisabledReason(disabledReason: string, enabledHint: string, control
   );
 }
 
-export function InheritanceSplitForm({ props, object, issues, metadata, patch }: {
+export function InheritanceSplitForm({ props, object, issues, metadata, patch, onAddFlow }: {
   props: MicroflowPropertyPanelProps;
   object: MicroflowObject;
   issues: ReturnType<typeof getIssuesForObject>;
@@ -44,7 +44,7 @@ export function InheritanceSplitForm({ props, object, issues, metadata, patch }:
       if (caseValue.kind === "inheritance") {
         branchedSpecializations.add(caseValue.entityQualifiedName);
       }
-      if (caseValue.kind === "empty" || caseValue.kind === "noCase") {
+      if (caseValue.kind === "empty" || caseValue.kind === "fallback" || caseValue.kind === "noCase") {
         hasEmptyBranch = true;
       }
     }
@@ -62,7 +62,7 @@ export function InheritanceSplitForm({ props, object, issues, metadata, patch }:
           return "(empty)";
         }
         if (caseValue.kind === "fallback") {
-          return "(fallback)";
+          return "(empty)";
         }
         return caseValue.kind;
       });
@@ -83,7 +83,7 @@ export function InheritanceSplitForm({ props, object, issues, metadata, patch }:
     nextConnectionIndex.current += 1;
     const label = caseValue.kind === "inheritance"
       ? caseValue.entityQualifiedName.split(".").at(-1) ?? caseValue.entityQualifiedName
-      : caseValue.kind;
+      : "(empty)";
     onAddFlow({
       id: createStableId("flow"),
       stableId: createStableId("flow"),

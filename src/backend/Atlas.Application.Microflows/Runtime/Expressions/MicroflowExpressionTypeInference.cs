@@ -136,7 +136,11 @@ public sealed class MicroflowExpressionTypeInference
             return MicroflowExpressionType.Unknown();
         }
 
-        if (!MicroflowExpressionTypeHelper.IsObject(rootType) && !MicroflowExpressionTypeHelper.IsUnknown(rootType) && !MicroflowExpressionTypeHelper.IsJson(rootType))
+        if (!MicroflowExpressionTypeHelper.IsObject(rootType)
+            && !MicroflowExpressionTypeHelper.IsUnknown(rootType)
+            && !MicroflowExpressionTypeHelper.IsJson(rootType)
+            && !string.Equals(rootType.Kind, MicroflowExpressionTypeKind.Error, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(rootType.Kind, MicroflowExpressionTypeKind.HttpResponse, StringComparison.OrdinalIgnoreCase))
         {
             Add(MicroflowExpressionDiagnosticCode.TypeMismatch, MicroflowExpressionDiagnosticSeverity.Error, $"变量 ${member.RootVariableName} 不是对象，不能访问成员。", member.Start, member.End, memberPath: member.RawPath);
             return MicroflowExpressionType.Unknown();

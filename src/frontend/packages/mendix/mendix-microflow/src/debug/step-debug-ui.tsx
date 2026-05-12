@@ -21,6 +21,7 @@ export interface DebugCallStackFrame {
   runId?: string;
   depth?: number;
   status?: string;
+  callerNodeId?: string;
   currentNodeCaption?: string;
 }
 

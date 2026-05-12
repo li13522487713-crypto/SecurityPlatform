@@ -4,6 +4,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent,
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
@@ -121,6 +122,18 @@ function nodeKindLabel(kind: string): string {
   return OBJECT_KIND_LABEL[kind] ?? kind;
 }
 
+function disabledAwareTitle(title: string, disabled: boolean | undefined): string {
+  return disabled ? `${title} [Disabled]` : title;
+}
+
+function summarizeWhileExpression(raw: string | undefined): string {
+  const text = String(raw ?? "").trim();
+  if (!text) {
+    return "while (condition)";
+  }
+  return text.length > 36 ? `while ${text.slice(0, 33)}...` : `while ${text}`;
+}
+
 function nodeUsageAliases(nodeId: string, objectId?: string): string[] {
   const aliases = new Set<string>();
   for (const value of [nodeId, objectId]) {
@@ -233,6 +246,21 @@ function iconStyleForActionBackgroundColor(
   return mapped
     ? { background: mapped.iconBg, color: mapped.iconColor }
     : { background: fallback.iconBg, color: fallback.iconColor };
+}
+
+function surfacePaletteForBackgroundColor(backgroundColor: MicroflowActionActivityColor | undefined): { background: string; borderColor: string; accentColor: string } | undefined {
+  if (!backgroundColor || backgroundColor === "default") {
+    return undefined;
+  }
+  const mapped = ACTIVITY_BACKGROUND_COLOR_STYLE[backgroundColor];
+  if (!mapped) {
+    return undefined;
+  }
+  return {
+    background: mapped.iconBg,
+    borderColor: mapped.iconColor,
+    accentColor: mapped.iconColor,
+  };
 }
 
 function nodeCategory(kind: string): NodeCategory {
@@ -420,6 +448,9 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
     if (readonly || event.button !== 0) {
       return false;
     }
+    if (data?.objectKind === "startEvent") {
+      return false;
+    }
     if (event.detail > 1) {
       return false;
     }
@@ -483,6 +514,7 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   }
 
   const tone = nodeTone(data.objectKind);
+  const displayTitle = disabledAwareTitle(data.title, data.disabled);
   const isExpanded = currentExpanded;
   const summaryLines = data.inlineConfig?.summaryLines ?? [];
   const compactSummary = summaryLines.slice(0, 3);
@@ -526,11 +558,30 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
 
   const categoryStyle = NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)];
   const actionIconStyle = iconStyleForActionBackgroundColor(data.backgroundColor, categoryStyle);
+  const surfacePalette = surfacePaletteForBackgroundColor(data.backgroundColor);
   const activitySubtitle = data.subtitle?.trim()
     ? data.subtitle
     : nodeKindLabel(data.actionKind || data.objectKind);
   const nodeErrorHandling = data.action?.errorHandlingType ?? data.errorHandlingType;
   const nodeErrorBadge = errorHandlingBadge(nodeErrorHandling);
+  const decisionSurfaceStyle: CSSProperties | undefined = surfacePalette
+    ? { background: surfacePalette.background, borderColor: surfacePalette.borderColor, color: surfacePalette.accentColor }
+    : undefined;
+  const decisionIconStyle: CSSProperties = { color: surfacePalette?.accentColor ?? categoryStyle.iconColor };
+  const loopHeaderStyle: CSSProperties | undefined = surfacePalette
+    ? { background: surfacePalette.background, color: surfacePalette.accentColor, borderBottomColor: `${surfacePalette.accentColor}33` }
+    : undefined;
+  const loopIconStyle: CSSProperties = { color: surfacePalette?.accentColor ?? NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor };
+  const annotationStyle: CSSProperties | undefined = surfacePalette
+    ? { background: surfacePalette.background, borderColor: surfacePalette.borderColor, color: surfacePalette.accentColor }
+    : undefined;
+  const parameterStyle: CSSProperties | undefined = surfacePalette
+    ? {
+        ["--microflow-parameter-bg" as "--microflow-parameter-bg"]: surfacePalette.background,
+        ["--microflow-parameter-border" as "--microflow-parameter-border"]: surfacePalette.borderColor,
+        ["--microflow-parameter-accent" as "--microflow-parameter-accent"]: surfacePalette.accentColor,
+      }
+    : undefined;
 
   return (
     <div
@@ -591,8 +642,9 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
         ) : tone === "parameter" ? (
           <div
             className="microflow-parameter-compact"
-            title={data.parameterTypeLabel ? `${data.title}\n${data.parameterTypeLabel}` : data.title}
+            title={data.parameterTypeLabel ? `${displayTitle}\n${data.parameterTypeLabel}` : displayTitle}
             data-parameter-kind={data.parameterKind ?? "primitive"}
+            style={parameterStyle}
           >
             <span
               className="microflow-parameter-compact__icon"
@@ -601,7 +653,7 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
               <NodeIcon kind={data.objectKind} />
             </span>
             <span className="microflow-parameter-compact__text-wrap">
-              <span className="microflow-parameter-compact__name">{data.title}</span>
+              <span className="microflow-parameter-compact__name">{displayTitle}</span>
               <span className="microflow-parameter-compact__type">{data.parameterTypeLabel ?? "unknown"}</span>
             </span>
           </div>
@@ -614,16 +666,17 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
               ].filter(Boolean).join(" ")}
               aria-hidden="true"
               data-decision-kind={data.objectKind === "inheritanceSplit" ? "objectType" : "expression"}
+              style={decisionSurfaceStyle}
             >
               <span
                 className="microflow-node-compact-icon-wrap"
-                style={{ color: categoryStyle.iconColor }}
+                style={decisionIconStyle}
               >
                 <NodeIcon kind={data.objectKind} />
               </span>
               {data.runtimeState === "failed" ? <span className="microflow-node-runtime-error-dot" aria-hidden /> : null}
             </div>
-            <div className="microflow-node-caption" title={data.title}>{data.title}</div>
+            <div className="microflow-node-caption" title={displayTitle}>{displayTitle}</div>
             {decisionRuntimeResult ? (
               <div
                 className="microflow-decision-result-pill"
@@ -636,39 +689,59 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
           </div>
         ) : tone === "merge" ? (
           <div className="microflow-merge-compact">
-            <div className="microflow-merge-compact__diamond" aria-hidden="true">
+            <div className="microflow-merge-compact__diamond" aria-hidden="true" style={decisionSurfaceStyle}>
               <span
                 className="microflow-node-compact-icon-wrap"
-                style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+                style={decisionIconStyle}
               >
                 <NodeIcon kind={data.objectKind} />
               </span>
               {data.runtimeState === "failed" ? <span className="microflow-node-runtime-error-dot" aria-hidden /> : null}
             </div>
-            <div className="microflow-node-caption" title={data.title}>{data.title}</div>
+            <div className="microflow-node-caption" title={displayTitle}>{displayTitle}</div>
           </div>
         ) : tone === "loop" ? (
-          <div className="microflow-loop-frame" title={data.title}>
-          <div className="microflow-loop-frame__header">
+          <div className="microflow-loop-frame" title={displayTitle}>
+          <div className="microflow-loop-frame__header" style={loopHeaderStyle}>
+            <span
+              className="microflow-loop-frame__kind-badge"
+              data-loop-kind={data.loopSource?.kind === "iterableList" ? "for" : "while"}
+            >
+              {data.loopSource?.kind === "iterableList" ? "for" : "while"}
+            </span>
             <span
               aria-hidden="true"
-              style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+              style={loopIconStyle}
             >
               <NodeIcon kind={data.objectKind} />
             </span>
-            <span>{data.title}</span>
+            <span>{displayTitle}</span>
+            {data.loopIteration?.iterationIndex != null || data.loopIteration?.totalIterations != null ? (
+              <span
+                className="microflow-loop-frame__progress"
+                data-testid={`microflow-loop-iteration-${data.objectId}`}
+                title={`第 ${data.loopIteration?.iterationIndex ?? "-"} / ${data.loopIteration?.totalIterations ?? "-"} 次`}
+              >
+                第 {data.loopIteration?.iterationIndex ?? "-"} / {data.loopIteration?.totalIterations ?? "-"} 次
+              </span>
+            ) : null}
           </div>
             <div className="microflow-loop-frame__body">
-              <span>{data.loopSummary ? `${data.loopSummary.childCount} nodes` : nodeKindLabel(data.objectKind)}</span>
+              <span>
+                {data.loopSource?.kind === "iterableList"
+                  ? `For each ${data.iteratorVariableName ?? "item"} in ${data.listVariableName ?? "list"}`
+                  : summarizeWhileExpression(data.loopSource?.expression?.raw)}
+              </span>
             </div>
           </div>
         ) : tone === "annotation" ? (
           <AnnotationNode
-            title={data.title}
+            title={displayTitle}
+            style={annotationStyle}
             icon={(
               <span
                 aria-hidden="true"
-                style={{ color: NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
+                style={{ color: surfacePalette?.accentColor ?? NODE_CATEGORY_STYLE[nodeCategory(data.objectKind)].iconColor }}
               >
                 <NodeIcon kind={data.objectKind} />
               </span>
@@ -676,14 +749,14 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
           />
         ) : (
           <ActivityNode
-            title={data.title}
+            title={displayTitle}
             subtitle={activitySubtitle}
             icon={<NodeIcon kind={data.objectKind} />}
             iconStyle={actionIconStyle}
             showRuntimeErrorDot={data.runtimeState === "failed"}
           />
         )}
-        {nodeErrorBadge && (tone === "action" || tone === "loop") ? (
+        {nodeErrorBadge && (tone === "action" || tone === "loop" || tone === "decision") ? (
           <span
             className={`microflow-node-error-badge ${nodeErrorBadge.className}`}
             title={nodeErrorBadge.text === "R"

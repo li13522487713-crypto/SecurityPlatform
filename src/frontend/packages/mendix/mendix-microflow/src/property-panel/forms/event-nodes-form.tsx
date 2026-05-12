@@ -12,6 +12,20 @@ import { expression, Field } from "../panel-shared";
 
 const { Text } = Typography;
 
+function renderLegalState(messages: string[], defaultMessage: string) {
+  return (
+    <Space vertical align="start" spacing={4}>
+      {messages.length
+        ? messages.map(message => <Text key={message} type="warning" size="small">{message}</Text>)
+        : <Text type="tertiary" size="small">{defaultMessage}</Text>}
+    </Space>
+  );
+}
+
+function uniqueMessages(messages: string[]) {
+  return Array.from(new Set(messages.filter(Boolean)));
+}
+
 function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
   return (
     <Tooltip content={disabledReason || enabledHint}>
@@ -36,6 +50,10 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
   const incomingSummary = flows.filter(flow => flow.destinationObjectId === object.id).map(flow => `${flow.id}: ${flow.originObjectId}`).join("\n");
   const outgoingSummary = flows.filter(flow => flow.originObjectId === object.id).map(flow => `${flow.id}: ${flow.destinationObjectId}`).join("\n");
   if (object.kind === "startEvent") {
+    const legalStateMessages = uniqueMessages([
+      ...issues.filter(issue => issue.code.startsWith("MF_START_")).map(issue => issue.message),
+      ...(startCount > 1 ? ["A microflow should contain only one StartEvent."] : []),
+    ]);
     return (
       <>
         <Field label="Trigger">
@@ -51,15 +69,24 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
             />
           )}
         </Field>
+        <Field label="Incoming Flows">
+          <TextArea value={incomingSummary || "No incoming flow"} autosize disabled />
+        </Field>
         <Field label="Outgoing Flows">
           <TextArea value={outgoingSummary || "No outgoing flow"} autosize disabled />
           {!outgoingSummary ? <Text type="warning" size="small">Start has no outgoing flow.</Text> : null}
         </Field>
-        {startCount > 1 ? <Text type="warning" size="small">A microflow should contain only one StartEvent.</Text> : null}
+        <Field label="Legal State">
+          {renderLegalState(
+            legalStateMessages,
+            "Start Event is the single root entry. It cannot have incoming flows or be placed inside a Loop.",
+          )}
+        </Field>
       </>
     );
   }
   if (object.kind === "endEvent") {
+    const legalStateMessages = uniqueMessages(issues.filter(issue => issue.code.startsWith("MF_END_")).map(issue => issue.message));
     return (
       <>
         <Field label="Return Type">
@@ -78,6 +105,9 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
         </Field>
         <Field label="Incoming Flows">
           <TextArea value={incomingSummary || "No incoming flow"} autosize disabled />
+        </Field>
+        <Field label="Outgoing Flows">
+          <TextArea value={outgoingSummary || "No outgoing flow"} autosize disabled />
         </Field>
         <Field label="Return Value">
           <ExpressionEditor
@@ -102,14 +132,28 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
           <Text type="tertiary" size="small">Stage 12 stores the expression text only; it does not evaluate expressions.</Text>
         </Field>
         {endCount > 1 ? <Text type="warning" size="small">Multiple EndEvents share the same schema-level returnType.</Text> : null}
+        <Field label="Legal State">
+          {renderLegalState(
+            legalStateMessages,
+            "End Event accepts incoming flows only. Multiple EndEvents are allowed, and non-void microflows should provide a return value.",
+          )}
+        </Field>
       </>
     );
   }
   if (object.kind === "errorEvent") {
+    const legalStateMessages = uniqueMessages(issues.filter(issue => issue.code.startsWith("MF_ERROR_EVENT")).map(issue => issue.message));
     return (
       <>
+        <Field label="Incoming Flows">
+          <TextArea value={incomingSummary || "No incoming flow"} autosize disabled />
+        </Field>
+        <Field label="Outgoing Flows">
+          <TextArea value={outgoingSummary || "No outgoing flow"} autosize disabled />
+        </Field>
         <Field label="Error Variable">
           <Input value={object.error.sourceVariableName} disabled />
+          <Text type="tertiary" size="small">Error Event only works at the end of an error handler flow and typically rethrows $latestError to the caller.</Text>
         </Field>
         <Field label="Message Expression">
           <ExpressionEditor
@@ -124,6 +168,13 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
             onChange={messageExpression => patch({ ...object, error: { ...object.error, messageExpression } })}
           />
           <FieldError issues={getIssuesForField(issues, "error.messageExpression")} />
+          <Text type="tertiary" size="small">If provided, this message becomes the rethrown error summary. Triggering Error Event rolls back the transaction.</Text>
+        </Field>
+        <Field label="Legal State">
+          {renderLegalState(
+            legalStateMessages,
+            "Valid when reached only by an error handler SequenceFlow and used as a terminal rethrow node.",
+          )}
         </Field>
       </>
     );
@@ -131,6 +182,12 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
   if (object.kind === "breakEvent" || object.kind === "continueEvent") {
     const loopObjects = collectLoopObjects(props.schema);
     const warnings = getBreakContinueWarnings(props.schema, object.id);
+    const legalStateMessages = uniqueMessages([
+      ...issues
+        .filter(issue => issue.code.startsWith(object.kind === "breakEvent" ? "MF_BREAK_" : "MF_CONTINUE_"))
+        .map(issue => issue.message),
+      ...warnings,
+    ]);
     const outgoingSummaryForControl = flows.filter(flow => flow.originObjectId === object.id).map(flow => `${flow.id}: ${flow.destinationObjectId}`).join("\n");
     return (
       <>
@@ -157,9 +214,10 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
           )}
         </Field>
         <Field label="Legal State">
-          <Space vertical align="start" spacing={4}>
-            {warnings.length ? warnings.map(warning => <Text key={warning} type="warning" size="small">{warning}</Text>) : <Text type="tertiary" size="small">Break / Continue target is valid for Stage 17 foundation checks.</Text>}
-          </Space>
+          {renderLegalState(
+            legalStateMessages,
+            `${object.kind === "breakEvent" ? "Break" : "Continue"} Event must resolve to a valid Loop body target and should not emit normal outgoing SequenceFlows.`,
+          )}
         </Field>
       </>
     );

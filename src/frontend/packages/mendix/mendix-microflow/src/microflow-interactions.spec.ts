@@ -34,7 +34,6 @@ import { findDeletedFlowId, findDeletedObjectId, findNewFlowGramEdge, flowGramPo
 import {
   booleanCaseValue,
   enumerationCaseValue,
-  fallbackCaseValue,
   getEnumerationCaseOptions,
   getObjectTypeCaseOptions,
   inheritanceCaseValue,
@@ -950,11 +949,11 @@ describe("microflow editor interactions", () => {
     }
     const flow = createMicroflowFlowFromPorts(schema, source, target, {
       caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: false, persistedValue: "false" }],
-      label: "否",
+      label: "false",
     });
     expect(flow.kind).toBe("sequence");
     expect(flow.editor.edgeKind).toBe("decisionCondition");
-    expect(flow.editor.label).toBe("否");
+    expect(flow.editor.label).toBe("false");
     expect((flow.caseValues ?? [])[0]).toMatchObject({ kind: "boolean", value: false, persistedValue: "false" });
   });
 
@@ -1228,16 +1227,16 @@ describe("microflow editor interactions", () => {
     });
     const schema = schemaWith([decision, first, second], [flow]);
     expect(isCaseValueDuplicate(schema, decision.id, booleanCaseValue(true))).toBe(true);
-    expect(getCaseDisplayLabel(booleanCaseValue(false))).toBe("否");
+    expect(getCaseDisplayLabel(booleanCaseValue(false))).toBe("false");
     expect(getCaseDisplayLabel(createNoCaseValue())).toBe("未配置条件");
     const updated = updateFlowCaseValue(schema, flow.id, booleanCaseValue(false));
     const updatedFlow = updated.flows.find(item => item.id === flow.id);
     expect(updatedFlow?.kind === "sequence" ? updatedFlow.caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: false });
-    expect(updatedFlow?.editor.label).toBe("否");
+    expect(updatedFlow?.editor.label).toBe("false");
     expect(schema.flows[0]?.kind === "sequence" ? schema.flows[0].caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: true });
   });
 
-  it("offers object type specialization, empty, and fallback cases", () => {
+  it("offers object type specialization and empty cases while treating legacy fallback as duplicate", () => {
     const split = {
       ...createObjectFromRegistry(registry("objectTypeDecision"), { x: 0, y: 0 }, "type-decision"),
       inputObjectVariableName: "payment",
@@ -1256,7 +1255,7 @@ describe("microflow editor interactions", () => {
     const options = getObjectTypeCaseOptions(schema, split.id, undefined, mockMeta);
     expect(options.find(option => option.caseValue.kind === "inheritance" && option.caseValue.entityQualifiedName === "Sales.CardPayment")?.disabled).toBe(true);
     expect(options.some(option => option.caseValue.kind === "empty")).toBe(true);
-    expect(options.some(option => option.caseValue.kind === "fallback")).toBe(true);
+    expect(options.some(option => option.caseValue.kind === "fallback")).toBe(false);
     const duplicateIssues = validateMicroflowSchema({
       schema: {
         ...schema,
@@ -1267,7 +1266,10 @@ describe("microflow editor interactions", () => {
             destinationObjectId: second.id,
             originConnectionIndex: 1,
             edgeKind: "objectTypeCondition",
-            caseValues: [fallbackCaseValue(), fallbackCaseValue()]
+            caseValues: [
+              { kind: "fallback", officialType: "Microflows$NoCase" },
+              { kind: "empty", officialType: "Microflows$NoCase" },
+            ],
           })
         ],
       },

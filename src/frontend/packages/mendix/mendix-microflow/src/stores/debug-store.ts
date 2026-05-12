@@ -64,11 +64,13 @@ export interface DebugLoopIteration {
 }
 
 export interface DebugCallStackFrame {
+  id?: string;
   runId: string;
   microflowId: string;
   depth: number;
   callerNodeId?: string;
   callerActionId?: string;
+  status?: string;
 }
 
 export interface DebugWsNodeHighlight {
@@ -192,11 +194,17 @@ function normalizeCallStack(value: unknown): DebugCallStackFrame[] {
     .map(item => {
       const data = item as Record<string, unknown>;
       return {
+        id: typeof data.id === "string" ? data.id : undefined,
         runId: typeof data.runId === "string" ? data.runId : "",
         microflowId: typeof data.microflowId === "string" ? data.microflowId : "",
         depth: typeof data.depth === "number" ? data.depth : 0,
-        callerNodeId: typeof data.callerNodeId === "string" ? data.callerNodeId : undefined,
+        callerNodeId: typeof data.callerNodeId === "string"
+          ? data.callerNodeId
+          : typeof data.callerObjectId === "string"
+            ? data.callerObjectId
+            : undefined,
         callerActionId: typeof data.callerActionId === "string" ? data.callerActionId : undefined,
+        status: typeof data.status === "string" ? data.status : undefined,
       };
     });
 }
@@ -403,7 +411,7 @@ export class DebugStore {
       this.state.conditionalBreakpoints = [...this.conditionalMap.values()];
     }
     if (snapshot.callStack) {
-      this.state.callStack = snapshot.callStack.map(item => ({ ...item }));
+      this.state.callStack = normalizeCallStack(snapshot.callStack);
     }
     this.emit();
   }
@@ -458,7 +466,7 @@ export class DebugStore {
         this.state.variables = event.variables.map(item => ({ ...item }));
       }
       if (event.callStack) {
-        this.state.callStack = event.callStack.map(item => ({ ...item }));
+        this.state.callStack = normalizeCallStack(event.callStack);
       }
       this.state.lastError = undefined;
       this.emit();
@@ -494,7 +502,7 @@ export class DebugStore {
       return;
     }
     if (event.type === DEBUG_WS_EVENTS.STACK_PUSH || event.type === DEBUG_WS_EVENTS.STACK_POP || event.type === DEBUG_WS_EVENTS.STACK_TOP) {
-      this.state.callStack = [...(event.callStack ?? [])];
+      this.state.callStack = normalizeCallStack(event.callStack);
       this.emit();
       return;
     }

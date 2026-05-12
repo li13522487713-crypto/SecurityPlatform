@@ -110,17 +110,63 @@ function parameterMeta(
 }
 
 function outputSummaryForAction(action: MicroflowAction): string | undefined {
+  const actionRecord = action as Record<string, unknown>;
+  const stringField = (key: string): string => typeof actionRecord[key] === "string" ? String(actionRecord[key] ?? "") : "";
   if (action.kind === "retrieve" || action.kind === "createObject") {
     return action.outputVariableName || undefined;
   }
   if (action.kind === "createVariable") {
     return action.variableName || undefined;
   }
+  if (action.kind === "createList") {
+    return action.outputListVariableName || action.listVariableName || undefined;
+  }
+  if (action.kind === "aggregateList") {
+    return action.outputVariableName || action.resultVariableName || undefined;
+  }
+  if (action.kind === "listOperation") {
+    return action.outputVariableName || action.outputListVariableName || undefined;
+  }
   if (action.kind === "callMicroflow" && action.returnValue.storeResult) {
-    return action.returnValue.outputVariableName || undefined;
+    return action.returnValue.outputVariableName || action.returnValue.resultVariableName || undefined;
   }
   if (action.kind === "restCall" && action.response.handling.kind !== "ignore") {
     return action.response.handling.outputVariableName || undefined;
+  }
+  if (action.kind === "callWorkflow") {
+    return stringField("outputWorkflowVariableName") || undefined;
+  }
+  if (action.kind === "generateDocument") {
+    return stringField("outputFileDocumentVariableName") || undefined;
+  }
+  if (action.kind === "retrieveWorkflows") {
+    return stringField("outputListVariableName") || stringField("listVariableName") || undefined;
+  }
+  if (action.kind === "callExternalAction") {
+    return stringField("returnVariableName") || undefined;
+  }
+  if (action.kind === "callJavaAction" || action.kind === "callJavaScriptAction" || action.kind === "callNanoflow") {
+    const returnValue = actionRecord.returnValue && typeof actionRecord.returnValue === "object"
+      ? actionRecord.returnValue as Record<string, unknown>
+      : {};
+    const nestedOutput = typeof returnValue.outputVariableName === "string" ? String(returnValue.outputVariableName ?? "") : "";
+    const nestedResult = typeof returnValue.resultVariableName === "string" ? String(returnValue.resultVariableName ?? "") : "";
+    return nestedOutput || nestedResult || stringField("outputVariableName") || undefined;
+  }
+  if (action.kind === "cast") {
+    return stringField("outputVariableName") || stringField("outputVariable") || undefined;
+  }
+  if (
+    action.kind === "webServiceCall"
+    || action.kind === "importXml"
+    || action.kind === "exportXml"
+    || action.kind === "restOperationCall"
+    || action.kind === "mlModelCall"
+    || action.kind === "retrieveWorkflowContext"
+    || action.kind === "retrieveWorkflowActivityRecords"
+    || action.kind === "generateJumpToOptions"
+  ) {
+    return stringField("outputVariableName") || stringField("resultVariableName") || undefined;
   }
   return undefined;
 }
@@ -273,18 +319,39 @@ export function authoringToFlowGram(
       collectionId: node.collectionId,
       parameterKind: parameterProjection.parameterKind,
       parameterTypeLabel: parameterProjection.parameterTypeLabel,
+      parameterId: object?.kind === "parameterObject" ? object.parameterId : undefined,
+      parameterName: object?.kind === "parameterObject" ? object.parameterName : undefined,
+      returnValue: object?.kind === "endEvent" ? object.returnValue : undefined,
       parentObjectId: node.parentObjectId,
       loopSource: object?.kind === "loopedActivity" ? object.loopSource : undefined,
+      splitCondition: object?.kind === "exclusiveSplit" ? object.splitCondition : undefined,
+      mergeBehavior: object?.kind === "exclusiveMerge" ? object.mergeBehavior : undefined,
+      inputObjectVariableName: object?.kind === "inheritanceSplit" ? object.inputObjectVariableName : undefined,
+      generalizedEntityQualifiedName: object?.kind === "inheritanceSplit" ? object.generalizedEntityQualifiedName : undefined,
+      allowedSpecializations: object?.kind === "inheritanceSplit" ? object.allowedSpecializations : undefined,
+      entity: object?.kind === "inheritanceSplit" ? object.entity : undefined,
+      policy: object?.kind === "errorHandler" ? object.policy : undefined,
+      customHandlerVariable: object?.kind === "errorHandler" ? object.customHandlerVariable : undefined,
+      continueOnError: object?.kind === "errorHandler" ? object.continueOnError : undefined,
+      tryBranchKey: object?.kind === "tryCatch" ? object.tryBranchKey : undefined,
+      catchBranchKey: object?.kind === "tryCatch" ? object.catchBranchKey : undefined,
+      finallyBranchKey: object?.kind === "tryCatch" ? object.finallyBranchKey : undefined,
+      errorVariableName: object?.kind === "tryCatch" ? object.errorVariableName : undefined,
       iteratorVariableName: object?.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? object.loopSource.iteratorVariableName : undefined,
       listVariableName: object?.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? object.loopSource.listVariableName : undefined,
-      currentIndexVariableName: object?.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? object.loopSource.currentIndexVariableName : undefined,
+      currentIndexVariableName: object?.kind === "loopedActivity"
+        ? object.loopSource.kind === "iterableList"
+          ? object.loopSource.currentIndexVariableName
+          : "$currentIndex"
+        : undefined,
       loopSummary: loopSummaryForObject(object, schema),
       actionKind: object?.kind === "actionActivity" ? object.action.kind : undefined,
       action: object?.kind === "actionActivity" ? object.action : undefined,
-      backgroundColor: object?.kind === "actionActivity" ? object.backgroundColor : undefined,
+      backgroundColor: object?.backgroundColor,
+      text: object?.kind === "annotation" ? object.text : undefined,
       errorHandlingType: object?.kind === "actionActivity"
         ? object.action.errorHandlingType
-        : object?.kind === "loopedActivity"
+        : object?.kind === "loopedActivity" || object?.kind === "exclusiveSplit" || object?.kind === "inheritanceSplit"
           ? object.errorHandlingType
           : undefined,
       availability: object?.kind === "actionActivity" ? object.action.editor.availability : undefined,

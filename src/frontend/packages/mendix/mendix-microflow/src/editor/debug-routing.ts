@@ -7,6 +7,10 @@ export interface DebugRouteIntent {
   targetMicroflowId: string;
 }
 
+export type DebugCallStackClickIntent =
+  | { kind: "focus-node"; nodeId: string }
+  | { kind: "open-microflow"; microflowId: string };
+
 export function buildWsDebugRouteIntent(input: {
   debugSessionId?: string;
   activeMicroflowId: string;
@@ -54,4 +58,34 @@ export function buildSessionDebugRouteIntent(input: {
       session.lastUpdatedAt ?? "",
     ].join("|"),
   };
+}
+
+export function resolveCallStackFrameClickIntent(input: {
+  activeMicroflowId: string;
+  activeNodeId?: string;
+  frame: {
+    microflowId?: string;
+    callerNodeId?: string;
+  };
+  visibleObjectIds: Iterable<string>;
+}): DebugCallStackClickIntent | undefined {
+  const callerNodeId = typeof input.frame.callerNodeId === "string" ? input.frame.callerNodeId.trim() : "";
+  if (callerNodeId) {
+    const visibleObjectIds = new Set(input.visibleObjectIds);
+    if (visibleObjectIds.has(callerNodeId)) {
+      return { kind: "focus-node", nodeId: callerNodeId };
+    }
+  }
+  const microflowId = typeof input.frame.microflowId === "string" ? input.frame.microflowId.trim() : "";
+  const activeNodeId = typeof input.activeNodeId === "string" ? input.activeNodeId.trim() : "";
+  if (microflowId && microflowId === input.activeMicroflowId && activeNodeId) {
+    const visibleObjectIds = new Set(input.visibleObjectIds);
+    if (visibleObjectIds.has(activeNodeId)) {
+      return { kind: "focus-node", nodeId: activeNodeId };
+    }
+  }
+  if (microflowId && microflowId !== input.activeMicroflowId) {
+    return { kind: "open-microflow", microflowId };
+  }
+  return undefined;
 }

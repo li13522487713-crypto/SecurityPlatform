@@ -2,9 +2,15 @@ import type {
   MicroflowNodeAvailability,
   MicroflowActionKind,
   MicroflowAction,
+  MicroflowExclusiveMerge,
+  MicroflowExclusiveSplit,
   MicroflowCaseValue,
+  MicroflowErrorHandler,
+  MicroflowExpression,
   MicroflowFlow,
+  MicroflowInheritanceSplit,
   MicroflowObjectKind,
+  MicroflowTryCatch,
   MicroflowLine,
   MicroflowPoint,
   MicroflowLoopedActivity,
@@ -31,10 +37,30 @@ export interface FlowGramMicroflowNodeData {
   objectId: string;
   objectKind: MicroflowObjectKind;
   collectionId: string;
+  loopIteration?: {
+    iterationIndex?: number;
+    totalIterations?: number;
+  };
   parameterKind?: "object" | "list" | "primitive";
   parameterTypeLabel?: string;
+  parameterId?: string;
+  parameterName?: string;
+  returnValue?: MicroflowExpression;
   parentObjectId?: string;
   loopSource?: MicroflowLoopedActivity["loopSource"];
+  splitCondition?: MicroflowExclusiveSplit["splitCondition"];
+  mergeBehavior?: MicroflowExclusiveMerge["mergeBehavior"];
+  inputObjectVariableName?: MicroflowInheritanceSplit["inputObjectVariableName"];
+  generalizedEntityQualifiedName?: MicroflowInheritanceSplit["generalizedEntityQualifiedName"];
+  allowedSpecializations?: MicroflowInheritanceSplit["allowedSpecializations"];
+  entity?: MicroflowInheritanceSplit["entity"];
+  policy?: MicroflowErrorHandler["policy"];
+  customHandlerVariable?: MicroflowErrorHandler["customHandlerVariable"];
+  continueOnError?: MicroflowErrorHandler["continueOnError"];
+  tryBranchKey?: MicroflowTryCatch["tryBranchKey"];
+  catchBranchKey?: MicroflowTryCatch["catchBranchKey"];
+  finallyBranchKey?: MicroflowTryCatch["finallyBranchKey"];
+  errorVariableName?: MicroflowTryCatch["errorVariableName"];
   iteratorVariableName?: string;
   listVariableName?: string;
   currentIndexVariableName?: "$currentIndex";
@@ -53,6 +79,7 @@ export interface FlowGramMicroflowNodeData {
   outputMappings?: MicroflowOutputMapping[];
   availability?: MicroflowNodeAvailability;
   availabilityReason?: string;
+  text?: string;
   title: string;
   subtitle?: string;
   inlineConfig?: MicroflowNodeInlineConfig;

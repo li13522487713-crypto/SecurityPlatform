@@ -207,7 +207,7 @@ export interface MicroflowVariable {
   id: string;
   name: string;
   type: MicroflowTypeRef;
-  scope: "microflow" | "node" | "latestError";
+  scope: "microflow" | "node" | "latestError" | "errorContext";
   defaultValue?: MicroflowExpression;
 }
 
@@ -599,6 +599,7 @@ export interface MicroflowObjectBase {
   officialType: string;
   caption?: string;
   documentation?: string;
+  backgroundColor?: MicroflowActionActivityColor;
   relativeMiddlePoint: MicroflowPoint;
   size: MicroflowSize;
   disabled?: boolean;

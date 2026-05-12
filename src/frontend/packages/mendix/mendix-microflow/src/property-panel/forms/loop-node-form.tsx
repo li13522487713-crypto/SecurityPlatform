@@ -2,8 +2,8 @@ import { Input, Select, Space, TextArea, Tooltip, Typography } from "@douyinfe/s
 import type { MicroflowIterableListLoopSource, MicroflowObject, MicroflowWhileLoopCondition } from "../../schema";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
-import { collectLoopObjects, getLoopBodyFlows, getLoopBodyReturnFlows, getLoopExitFlows, getLoopIncomingFlows, getLoopWarnings, updateLoopType } from "../../schema/utils";
-import { FieldError, FieldRow, VariableNameInput } from "../common";
+import { collectLoopObjects, getLoopBodyFlows, getLoopBodyReturnFlows, getLoopExitFlows, getLoopIncomingFlows, getLoopWarnings, renameLoopIteratorVariable, updateLoopType } from "../../schema/utils";
+import { ErrorHandlingEditor, FieldError, FieldRow, VariableNameInput, supportedErrorHandlingTypesForObject } from "../common";
 import { ExpressionEditor } from "../expression";
 import { DataTypeSelector, VariableSelector } from "../selectors";
 import type { MicroflowPropertyPanelProps } from "../types";
@@ -105,10 +105,19 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
               readonly={props.readonly}
               required
               issues={getIssuesForField(issues, "loopSource.iteratorVariableName")}
-              onChange={iteratorVariableName => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableName: iteratorVariableName ?? "" } as MicroflowIterableListLoopSource })}
+              onChange={iteratorVariableName => {
+                if (!props.onSchemaChange) {
+                  patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableName: iteratorVariableName ?? "" } as MicroflowIterableListLoopSource });
+                  return;
+                }
+                props.onSchemaChange(
+                  renameLoopIteratorVariable(props.schema, object.id, iteratorVariableName ?? ""),
+                  "renameLoopIteratorVariable",
+                );
+              }}
             />
             {loopVariableConflicts.length ? <Text type="warning" size="small">{loopVariableConflicts.join(" ")}</Text> : null}
-            <Text type="warning" size="small">Renaming a loop variable does not rewrite existing expressions.</Text>
+            <Text type="tertiary" size="small">Iterator rename rewrites loop-scoped expressions and direct variable reference fields; output variable declarations are left untouched.</Text>
           </Field>
           <Field label="Loop Variable Type">
             {withDisabledReason(
@@ -164,17 +173,15 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
         </Space>
       </Field>
       <FieldRow label="Error Handling" fieldPath="errorHandlingType" issues={getIssuesForField(issues, "errorHandlingType")}>
-        {withDisabledReason(
-          readonlyDisabledReason,
-          "Error handling",
-          <Select
-            value={object.errorHandlingType}
-            disabled={props.readonly}
-            style={{ width: "100%" }}
-            onChange={errorHandlingType => patch({ ...object, errorHandlingType: String(errorHandlingType) as typeof object.errorHandlingType })}
-            optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
-          />
-        )}
+        <ErrorHandlingEditor
+          value={object.errorHandlingType}
+          readonly={props.readonly}
+          objectKind={object.kind}
+          fieldPath="errorHandlingType"
+          issues={getIssuesForField(issues, "errorHandlingType")}
+          supportedTypes={supportedErrorHandlingTypesForObject(object.kind)}
+          onChange={errorHandlingType => patch({ ...object, errorHandlingType })}
+        />
       </FieldRow>
     </>
   );

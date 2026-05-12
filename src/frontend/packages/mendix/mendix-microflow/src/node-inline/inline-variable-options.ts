@@ -8,6 +8,7 @@ import type {
   MicroflowWorkflowNodeJSON,
 } from "../schema/types";
 import { normalizeDesignVariables } from "../schema/utils/design-schema-variables";
+import { resolveInlineActionOutputMeta } from "./action-output-meta";
 
 type InlineVariableOptionMode = "name" | "expression";
 
@@ -150,6 +151,8 @@ function extractActionOutputs(node: MicroflowWorkflowNodeJSON): string[] {
   const genericOutputs = [
     typeof actionRecord.outputVariableName === "string" ? actionRecord.outputVariableName : "",
     typeof actionRecord.outputListVariableName === "string" ? actionRecord.outputListVariableName : "",
+    typeof actionRecord.outputWorkflowVariableName === "string" ? actionRecord.outputWorkflowVariableName : "",
+    typeof actionRecord.outputFileDocumentVariableName === "string" ? actionRecord.outputFileDocumentVariableName : "",
     typeof actionRecord.resultVariableName === "string" ? actionRecord.resultVariableName : "",
     typeof actionRecord.returnVariableName === "string" ? actionRecord.returnVariableName : "",
     typeof actionRecord.errorVariableName === "string" ? actionRecord.errorVariableName : "",
@@ -182,7 +185,8 @@ function extractActionOutputs(node: MicroflowWorkflowNodeJSON): string[] {
         : "",
     ].filter(Boolean);
   }
-  return [...fallbackOutputs, ...genericOutputs].filter(Boolean);
+  const primaryOutput = resolveInlineActionOutputMeta(action)?.name ?? "";
+  return [...fallbackOutputs, ...genericOutputs, primaryOutput].filter(Boolean);
 }
 
 function collectReachableUpstreamNodeDepth(schema: MicroflowDesignSchema, nodeId: string): Map<string, number> {
@@ -239,7 +243,7 @@ export function buildNodeInlineVariableOptions(input: {
 
   for (const variable of normalizeDesignVariables(input.schema.variables)) {
     pushOption(list, seen, mergedLabels, {
-      source: variable.scope === "latestError" ? "error" : "context",
+      source: variable.scope === "latestError" || variable.scope === "errorContext" ? "error" : "context",
       name: variable.name,
       type: variable.type.kind,
       scope: variable.scope,

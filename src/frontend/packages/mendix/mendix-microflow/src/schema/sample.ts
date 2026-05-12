@@ -110,11 +110,11 @@ const variables: MicroflowVariableIndex = {
   },
   errorVariables: {
     $latestError: { name: "$latestError", dataType: { kind: "object", entityQualifiedName: "System.Error" }, source: { kind: "errorContext", flowId: "flow-rest-error" }, scope: { collectionId: "root-collection", errorHandlerFlowId: "flow-rest-error", startObjectId: "log-rest-error" }, readonly: true },
-    $latestHttpResponse: { name: "$latestHttpResponse", dataType: { kind: "object", entityQualifiedName: "System.HttpResponse" }, source: { kind: "errorContext", flowId: "flow-rest-error" }, scope: { collectionId: "root-collection", errorHandlerFlowId: "flow-rest-error", startObjectId: "log-rest-error" }, readonly: true },
-    $latestSoapFault: { name: "$latestSoapFault", dataType: { kind: "object", entityQualifiedName: "System.SoapFault" }, source: { kind: "errorContext", flowId: "flow-rest-error" }, scope: { collectionId: "root-collection", errorHandlerFlowId: "flow-rest-error", startObjectId: "log-rest-error" }, readonly: true }
+    $latestHttpResponse: { name: "$latestHttpResponse", dataType: { kind: "object", entityQualifiedName: "System.HttpResponse" }, source: { kind: "errorContext", flowId: "flow-rest-error" }, scope: { collectionId: "root-collection", errorHandlerFlowId: "flow-rest-error", startObjectId: "log-rest-error" }, readonly: true }
   },
   systemVariables: {
     $currentUser: { name: "$currentUser", dataType: { kind: "object", entityQualifiedName: "System.User" }, source: { kind: "system", name: "$currentUser" }, scope: { collectionId: "root-collection" }, readonly: true },
+    $currentSession: { name: "$currentSession", dataType: { kind: "object", entityQualifiedName: "System.Session" }, source: { kind: "system", name: "$currentSession" }, scope: { collectionId: "root-collection" }, readonly: true },
     $currentIndex: { name: "$currentIndex", dataType: { kind: "integer" }, source: { kind: "system", name: "$currentIndex" }, scope: { collectionId: "loop-order-lines-collection", loopObjectId: "loop-order-lines" }, readonly: true }
   }
 };

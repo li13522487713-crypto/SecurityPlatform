@@ -43,8 +43,8 @@ describe("DebugStore websocket event handling", () => {
     store.handleEvent({
       type: DEBUG_WS_EVENTS.STACK_TOP,
       callStack: [
-        { runId: "run-child", microflowId: "mf-child", depth: 1 },
-        { runId: "run-root", microflowId: "mf-root", depth: 0 },
+        { id: "frame-child", runId: "run-child", microflowId: "mf-child", depth: 1, status: "paused", callerObjectId: "call-node-1" },
+        { id: "frame-root", runId: "run-root", microflowId: "mf-root", depth: 0, status: "running" },
       ],
     });
     store.handleEvent({
@@ -59,6 +59,8 @@ describe("DebugStore websocket event handling", () => {
     expect(snapshot.loopIteration?.nodeId).toBe("loop-node");
     expect(snapshot.loopIteration?.iterationIndex).toBe(2);
     expect(snapshot.callStack).toHaveLength(2);
+    expect(snapshot.callStack[0]).toEqual(expect.objectContaining({ id: "frame-child", status: "paused", callerNodeId: "call-node-1" }));
+    expect(snapshot.callStack[1]).toEqual(expect.objectContaining({ id: "frame-root", status: "running" }));
     expect(snapshot.variables.map(item => item.name)).toEqual(["$orderId", "$approved"]);
   });
 

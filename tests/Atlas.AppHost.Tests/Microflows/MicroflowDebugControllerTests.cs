@@ -4,6 +4,7 @@ using System.Text.Json;
 using Atlas.AppHost.Microflows.Controllers;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
+using Atlas.Application.Microflows.Runtime.Calls;
 using Atlas.Application.Microflows.Runtime.Debug;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -90,6 +91,51 @@ public sealed class MicroflowDebugControllerTests
         Assert.Contains("session-status", payloadTypes);
         Assert.Contains("state-sync", payloadTypes);
         Assert.Contains("pong", payloadTypes);
+    }
+
+    [Fact]
+    public async Task Connect_websocket_state_sync_includes_callstack_caller_metadata()
+    {
+        var store = new InMemoryDebugSessionStore();
+        var accessor = CreateAccessor("workspace-1", "tenant-1", "user-1");
+        var session = store.Create("microflow-any");
+        store.Upsert(session with
+        {
+            CallStack =
+            [
+                new DebugCallStackFrame
+                {
+                    Id = "frame-1",
+                    MicroflowId = "microflow-child",
+                    RunId = "run-child",
+                    CallerObjectId = "call-order-submit",
+                    CallerActionId = "action-call-order-submit",
+                    Depth = 1,
+                    Status = "paused"
+                }
+            ]
+        });
+        var feature = new StubWebSocketFeature(isWebSocketRequest: true)
+        {
+            SocketFactory = () => new FakeWebSocket(
+            [
+                """{"type":"ping","data":{"sequence":321}}"""
+            ])
+        };
+        var controller = CreateController(store, accessor, feature);
+
+        await controller.Connect("microflow-any", session.Id, CancellationToken.None);
+
+        var socket = Assert.IsType<FakeWebSocket>(feature.AcceptedSocket);
+        var stateSyncPayload = socket.SentPayloads
+            .Select(payload => JsonDocument.Parse(payload).RootElement)
+            .First(element => element.TryGetProperty("type", out var typeElement) && typeElement.GetString() == "state-sync");
+        var callStackItem = stateSyncPayload
+            .GetProperty("data")
+            .GetProperty("callStack")[0];
+
+        Assert.Equal("call-order-submit", callStackItem.GetProperty("callerObjectId").GetString());
+        Assert.Equal("action-call-order-submit", callStackItem.GetProperty("callerActionId").GetString());
     }
 
     private static MicroflowDebugController CreateController(

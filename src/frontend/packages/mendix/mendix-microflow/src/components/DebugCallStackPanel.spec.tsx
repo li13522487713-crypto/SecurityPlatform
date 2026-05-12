@@ -15,6 +15,8 @@ vi.mock("@douyinfe/semi-ui", async () => {
   List.Item = ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>;
   return {
     List,
+    Space: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    Tag: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
     Typography: { Text: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span> },
   };
 });
@@ -73,6 +75,21 @@ describe("DebugCallStackPanel", () => {
       expect.objectContaining({ id: "frame-2", microflowId: "mf-child" }),
       1,
     );
+  });
+
+  it("renders frame status and current node caption when provided", () => {
+    render(
+      <DebugCallStackPanel
+        frames={[
+          { id: "frame-1", name: "MF_Parent", microflowId: "mf-parent", depth: 0, status: "paused", currentNodeCaption: "Change Order" },
+          { id: "frame-2", name: "MF_Child", microflowId: "mf-child", depth: 1, status: "success" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("microflow-debug-callstack-status-frame-1").textContent).toBe("paused");
+    expect(screen.getByTestId("microflow-debug-callstack-status-frame-2").textContent).toBe("success");
+    expect(screen.getByTestId("microflow-debug-callstack-node-frame-1").textContent).toContain("@ Change Order");
   });
 
   it("does not invoke onSelectFrame when frame has no microflow id", () => {

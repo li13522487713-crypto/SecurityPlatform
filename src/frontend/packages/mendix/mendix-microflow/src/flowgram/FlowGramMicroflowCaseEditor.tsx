@@ -21,7 +21,7 @@ function descriptionFor(kind: MicroflowCaseEditorKind): string {
     return "选择这条 Decision 分支对应的枚举值。";
   }
   if (kind === "objectType") {
-    return "选择这条对象类型分支对应的 specialization、empty 或 fallback。";
+    return "选择这条对象类型分支对应的 specialization 或 (empty)。";
   }
   return "选择这条 Decision 分支对应的布尔值。";
 }

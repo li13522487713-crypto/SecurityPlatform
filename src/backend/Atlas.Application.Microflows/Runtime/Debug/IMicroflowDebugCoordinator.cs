@@ -1,5 +1,7 @@
 namespace Atlas.Application.Microflows.Runtime.Debug;
 
+using Atlas.Application.Microflows.Runtime.Calls;
+
 /// <summary>
 /// 协作式调试闸：引擎在安全点调用 <see cref="WaitAtSafePointAsync"/>，客户端通过调试 API 下发命令后协调器放行。
 /// </summary>
@@ -41,7 +43,7 @@ public sealed record MicroflowDebugRuntimeSnapshot
 
     public int CallDepth { get; init; }
 
-    public IReadOnlyList<string> CallStack { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<MicroflowCallStackFrame> CallStackFrames { get; init; } = Array.Empty<MicroflowCallStackFrame>();
 
     public IReadOnlyList<DebugVariableSnapshot> Variables { get; init; } = Array.Empty<DebugVariableSnapshot>();
 

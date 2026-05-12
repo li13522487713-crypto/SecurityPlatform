@@ -188,19 +188,13 @@ public sealed class RestCallActionExecutor : IMicroflowActionExecutor
             ObjectId = variable.SourceObjectId ?? point.NodeObjectId,
             FlowId = point.IncomingFlowId
         }).ToArray();
-        var callStack = runtime.CallStackFrames.Count == 0
-            ? new[] { runtime.ResourceId ?? context.ExecutionPlan.ResourceId ?? string.Empty }
-            : runtime.CallStackFrames
-                .Select(frame => frame.TargetResourceId ?? frame.CallerResourceId ?? string.Empty)
-                .ToArray();
-
         return new MicroflowDebugRuntimeSnapshot
         {
             ResourceId = runtime.ResourceId ?? context.ExecutionPlan.ResourceId,
             ParentRunId = runtime.ParentRunId,
             RootRunId = runtime.RootRunId,
             CallDepth = point.CallDepth,
-            CallStack = callStack,
+            CallStackFrames = runtime.CallStackFrames.ToArray(),
             Variables = variables
         };
     }

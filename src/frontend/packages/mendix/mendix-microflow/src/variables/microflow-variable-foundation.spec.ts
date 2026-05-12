@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MicroflowActionActivity, MicroflowAuthoringSchema, MicroflowExpression } from "../schema";
+import { createSequenceFlow } from "../adapters";
 import {
   buildMicroflowExpressionContext,
   buildMicroflowVariableIndex,
@@ -71,7 +72,7 @@ function changeVariable(id = "action-change", targetVariableName = "approvalLeve
   });
 }
 
-function schema(objects: MicroflowActionActivity[] = [createVariable(), changeVariable()]): MicroflowAuthoringSchema {
+function schema(objects: MicroflowActionActivity[] = [createVariable(), changeVariable()], flows = [createSequenceFlow({ originObjectId: "obj-create", destinationObjectId: "obj-change" })]): MicroflowAuthoringSchema {
   return {
     schemaVersion: "1",
     mendixProfile: "mx10",
@@ -83,7 +84,7 @@ function schema(objects: MicroflowActionActivity[] = [createVariable(), changeVa
     parameters: [{ id: "param-amount", name: "amount", dataType: { kind: "decimal" }, required: true }],
     returnType: { kind: "void" },
     objectCollection: { id: "root", officialType: "Microflows$MicroflowObjectCollection", objects, flows: [] },
-    flows: [],
+    flows,
     security: { allowedModuleRoleIds: [], allowedRoleNames: [], applyEntityAccess: true },
     concurrency: { allowConcurrentExecution: true },
     exposure: { exportLevel: "module", markAsUsed: false },
@@ -110,6 +111,8 @@ describe("microflow variable foundation", () => {
   it("detects duplicate variable names and parameter conflicts", () => {
     expect(getVariableNameConflicts(schema([createVariable("a1", "amount")]), "amount", "a1")).toContain("Conflicts with parameter \"amount\".");
     expect(getVariableNameConflicts(schema([createVariable("a1", "approvalLevel"), createVariable("a2", "approvalLevel")]), "approvalLevel", "a1")).toContain("Conflicts with variable \"approvalLevel\".");
+    expect(getVariableNameConflicts(schema([createVariable("a1", "approvalLevel")]), "latestHttpResponse", "a1")).toContain("Conflicts with reserved system variable \"$latestHttpResponse\".");
+    expect(getVariableNameConflicts(schema([createVariable("a1", "approvalLevel")]), "latestSoapFault", "a1")).toContain("Conflicts with reserved system variable \"$latestSoapFault\".");
   });
 
   it("updates Create Variable and Change Variable configs immutably", () => {
@@ -127,6 +130,25 @@ describe("microflow variable foundation", () => {
     expect(original.objectCollection.objects[0]).not.toBe(changed.objectCollection.objects[0]);
     expect(buildMicroflowVariableIndex(changed).byName?.approvalLevel2?.[0]?.name).toBe("approvalLevel2");
     expect(getStaleVariableReferences(changed)).toHaveLength(0);
+  });
+
+  it("rewrites downstream references when updateCreateVariableConfig renames a variable", () => {
+    const original = schema([
+      createVariable("action-create", "approvalLevel"),
+      activity("obj-end", {
+        ...baseAction("changeVariable", "action-end"),
+        officialType: "Microflows$ChangeVariableAction",
+        kind: "changeVariable",
+        targetVariableName: "approvalLevel",
+        newValueExpression: expression("$approvalLevel + 1"),
+      }),
+    ], [createSequenceFlow({ originObjectId: "obj-create", destinationObjectId: "obj-end" })]);
+    const renamed = updateCreateVariableConfig(original, "obj-create", { variableName: "routeName" });
+    const changedAction = renamed.objectCollection.objects.find(object => object.id === "obj-end");
+
+    expect(buildMicroflowVariableIndex(renamed).byName?.routeName?.[0]?.name).toBe("routeName");
+    expect(changedAction?.kind === "actionActivity" && changedAction.action.kind === "changeVariable" ? changedAction.action.targetVariableName : undefined).toBe("routeName");
+    expect(changedAction?.kind === "actionActivity" && changedAction.action.kind === "changeVariable" ? changedAction.action.newValueExpression.raw : undefined).toBe("$routeName + 1");
   });
 
   it("keeps deleted-variable references visible as stale instead of auto-rewriting expressions", () => {
@@ -188,5 +210,57 @@ describe("microflow variable foundation", () => {
 
     expect(() => buildMicroflowVariableIndex(corrupted)).not.toThrow();
     expect((buildMicroflowVariableIndex(corrupted).all ?? []).length).toBeGreaterThan(0);
+  });
+
+  it("indexes latestSoapFault as System.SoapFault for webServiceCall error handlers", () => {
+    const soapCall = activity("obj-soap", {
+      ...baseAction("webServiceCall", "action-soap"),
+      officialType: "Microflows$WebServiceCallAction",
+      kind: "webServiceCall",
+      editor: { category: "integration", iconKey: "webServiceCall", availability: "supported" as const },
+      endpoint: "https://soap.test/service",
+      operation: "SubmitOrder",
+      outputVariableName: "soapResult",
+    } as never);
+    const errorHandler = changeVariable("action-handle-soap", "approvalLevel");
+    const errorFlow = {
+      ...createSequenceFlow({ originObjectId: soapCall.id, destinationObjectId: errorHandler.id }),
+      id: "f-soap-error",
+      isErrorHandler: true,
+      editor: { edgeKind: "errorHandler" as const },
+    };
+    const index = buildMicroflowVariableIndex(schema([soapCall, errorHandler], [errorFlow]));
+
+    expect(index.errorVariables.$latestSoapFault.dataType).toEqual({ kind: "object", entityQualifiedName: "System.SoapFault" });
+    expect(index.errorVariables.$latestSoapFault.kind).toBe("soapFault");
+  });
+
+  it("indexes latestHttpResponse as System.HttpResponse for restCall error handlers", () => {
+    const restCall = activity("obj-rest", {
+      ...baseAction("restCall", "action-rest"),
+      officialType: "Microflows$RestCallAction",
+      kind: "restCall",
+      editor: { category: "integration", iconKey: "rest", availability: "supported" as const },
+      request: {
+        method: "GET",
+        urlExpression: { raw: "'https://api.test/orders'" },
+        headers: [],
+        queryParameters: [],
+        body: { kind: "none" },
+      },
+      response: { handling: { kind: "ignore" } },
+      timeoutSeconds: 30,
+    } as never);
+    const errorHandler = changeVariable("action-handle-rest", "approvalLevel");
+    const errorFlow = {
+      ...createSequenceFlow({ originObjectId: restCall.id, destinationObjectId: errorHandler.id }),
+      id: "f-rest-error",
+      isErrorHandler: true,
+      editor: { edgeKind: "errorHandler" as const },
+    };
+    const index = buildMicroflowVariableIndex(schema([restCall, errorHandler], [errorFlow]));
+
+    expect(index.errorVariables.$latestHttpResponse.dataType).toEqual({ kind: "object", entityQualifiedName: "System.HttpResponse" });
+    expect(index.errorVariables.$latestHttpResponse.kind).toBe("restResponse");
   });
 });

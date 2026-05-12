@@ -2,6 +2,9 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const startDragMock = vi.fn();
+const selectNodeMock = vi.fn();
+
 vi.mock("@douyinfe/semi-ui", () => ({
   Badge: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   Button: ({ children, onClick, icon, type }: { children?: React.ReactNode; onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void; icon?: React.ReactNode; type?: "button" | "submit" | "reset" }) => (
@@ -74,9 +77,9 @@ vi.mock("@flowgram-adapter/free-layout-editor", () => ({
     selected: false,
     activated: false,
     ports: [],
-    selectNode: () => undefined,
+    selectNode: selectNodeMock,
     nodeRef: { current: document.createElement("div") },
-    startDrag: () => undefined,
+    startDrag: startDragMock,
     onFocus: () => undefined,
     onBlur: () => undefined,
   }),
@@ -88,6 +91,8 @@ import { MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
 
 afterEach(() => {
   cleanup();
+  startDragMock.mockReset();
+  selectNodeMock.mockReset();
 });
 
 function buildNodeValue(viewMode: "compact" | "expanded" = "compact", objectKind = "exclusiveSplit") {
@@ -303,6 +308,58 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     }
   });
 
+  it("renders loop badge and summary for for-each and while loop modes", () => {
+    const cases = [
+      {
+        value: {
+          ...buildNodeValue("compact", "loopedActivity"),
+          title: "Loop Orders",
+          loopSource: {
+            kind: "iterableList",
+            listVariableName: "$OrderList",
+            iteratorVariableName: "IteratorOrder",
+          },
+          listVariableName: "$OrderList",
+          iteratorVariableName: "IteratorOrder",
+        },
+        expectedBadge: "for",
+        expectedBody: "For each IteratorOrder in $OrderList",
+      },
+      {
+        value: {
+          ...buildNodeValue("compact", "loopedActivity"),
+          title: "Loop While",
+          loopSource: {
+            kind: "while",
+            expression: { raw: "$Counter <= 5" },
+          },
+        },
+        expectedBadge: "while",
+        expectedBody: "while $Counter <= 5",
+      },
+    ] as const;
+
+    for (const item of cases) {
+      cleanup();
+      const node = {
+        id: "node-1",
+        getData: () => ({
+          getFormModel: () => ({
+            getFormItemValueByPath: () => item.value,
+          }),
+        }),
+      };
+      render(
+        <MicroflowNodeViewModesContext.Provider value={{}}>
+          <FlowGramMicroflowNodeRenderer node={node as never} />
+        </MicroflowNodeViewModesContext.Provider>
+      );
+
+      expect(screen.getByText(item.expectedBadge)).toBeTruthy();
+      expect(screen.getByText(item.expectedBody)).toBeTruthy();
+    }
+  });
+
   it("renders start/end events as solid dots without inner icon", () => {
     const cases = [
       { kind: "startEvent", tone: "start" },
@@ -316,6 +373,16 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
       expect(dot?.getAttribute("data-node-tone")).toBe(item.tone);
       expect(node.querySelector(".microflow-event-dot__icon")).toBeNull();
     }
+  });
+
+  it("keeps Start Event selectable but blocks drag start", () => {
+    renderNode("compact", "startEvent");
+    const node = screen.getByTestId("microflow-node-node-1");
+
+    fireEvent.mouseDown(node, { button: 0, detail: 1, clientX: 12, clientY: 12 });
+
+    expect(selectNodeMock).toHaveBeenCalledTimes(1);
+    expect(startDragMock).not.toHaveBeenCalled();
   });
 
   it("renders inheritance split with object-type decision styling", () => {
@@ -356,7 +423,7 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     expect(node.textContent?.includes("List of Order")).toBe(true);
   });
 
-  it("renders error-handling corner badges for action and loop nodes", () => {
+  it("renders error-handling corner badges for action, loop, and decision nodes", () => {
     const value = {
       ...buildNodeValue("compact", "actionActivity"),
       errorHandlingType: "customWithRollback",
@@ -397,6 +464,26 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     );
     badge = screen.getByLabelText("error-handling-C");
     expect(badge.textContent).toBe("C");
+
+    const decisionValue = {
+      ...buildNodeValue("compact", "exclusiveSplit"),
+      errorHandlingType: "continue",
+    };
+    const decisionNode = {
+      ...node,
+      getData: () => ({
+        getFormModel: () => ({
+          getFormItemValueByPath: () => decisionValue,
+        }),
+      }),
+    };
+    rerender(
+      <MicroflowNodeViewModesContext.Provider value={{}}>
+        <FlowGramMicroflowNodeRenderer node={decisionNode as never} />
+      </MicroflowNodeViewModesContext.Provider>
+    );
+    badge = screen.getByLabelText("error-handling-!");
+    expect(badge.textContent).toBe("!");
   });
 
   it("applies action background color palette when backgroundColor is set", () => {
@@ -422,6 +509,86 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     const style = icon?.getAttribute("style") ?? "";
     expect(style.includes("74, 48, 0")).toBe(true);
     expect(style.includes("252, 211, 77")).toBe(true);
+  });
+
+  it("applies common background color palette to decision and loop surfaces", () => {
+    const decisionValue = {
+      ...buildNodeValue("compact", "exclusiveSplit"),
+      backgroundColor: "purple",
+    };
+    const decisionNode = {
+      id: "node-1",
+      getData: () => ({
+        getFormModel: () => ({
+          getFormItemValueByPath: () => decisionValue,
+        }),
+      }),
+    };
+    const { rerender } = render(
+      <MicroflowNodeViewModesContext.Provider value={{}}>
+        <FlowGramMicroflowNodeRenderer node={decisionNode as never} />
+      </MicroflowNodeViewModesContext.Provider>
+    );
+
+    let surface = screen.getByTestId("microflow-node-node-1").querySelector(".microflow-decision-compact__diamond") as HTMLElement | null;
+    let style = surface?.getAttribute("style") ?? "";
+    expect(style.includes("50, 30, 90")).toBe(true);
+    expect(style.includes("196, 181, 253")).toBe(true);
+
+    const loopValue = {
+      ...buildNodeValue("compact", "loopedActivity"),
+      backgroundColor: "green",
+      loopSource: {
+        kind: "iterableList",
+        listVariableName: "$OrderList",
+        iteratorVariableName: "IteratorOrder",
+      },
+      listVariableName: "$OrderList",
+      iteratorVariableName: "IteratorOrder",
+    };
+    const loopNode = {
+      ...decisionNode,
+      getData: () => ({
+        getFormModel: () => ({
+          getFormItemValueByPath: () => loopValue,
+        }),
+      }),
+    };
+    rerender(
+      <MicroflowNodeViewModesContext.Provider value={{}}>
+        <FlowGramMicroflowNodeRenderer node={loopNode as never} />
+      </MicroflowNodeViewModesContext.Provider>
+    );
+
+    surface = screen.getByTestId("microflow-node-node-1").querySelector(".microflow-loop-frame__header") as HTMLElement | null;
+    style = surface?.getAttribute("style") ?? "";
+    expect(style.includes("13, 56, 36")).toBe(true);
+    expect(style.includes("110, 231, 183")).toBe(true);
+  });
+
+  it("renders disabled title marker on compact nodes", () => {
+    const value = {
+      ...buildNodeValue("compact", "actionActivity"),
+      title: "Change Order",
+      disabled: true,
+    };
+    const node = {
+      id: "node-1",
+      getData: () => ({
+        getFormModel: () => ({
+          getFormItemValueByPath: () => value,
+        }),
+      }),
+    };
+    render(
+      <MicroflowNodeViewModesContext.Provider value={{}}>
+        <FlowGramMicroflowNodeRenderer node={node as never} />
+      </MicroflowNodeViewModesContext.Provider>
+    );
+
+    const element = screen.getByTestId("microflow-node-node-1");
+    expect(element.className).toContain("is-disabled");
+    expect(screen.getByText("Change Order [Disabled]")).toBeTruthy();
   });
 
   it("renders node breakpoint marker for normal and conditional breakpoints", () => {
@@ -515,6 +682,36 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     );
 
     expect(screen.getByTestId("microflow-decision-result-node-1").textContent).toContain("true");
+  });
+
+  it("renders loop iteration progress pill on loop header when runtime progress is available", () => {
+    const value = {
+      ...buildNodeValue("compact", "loopedActivity"),
+      loopSource: {
+        kind: "iterableList",
+        listVariableName: "$OrderList",
+        iteratorVariableName: "IteratorOrder",
+      },
+      loopIteration: {
+        iterationIndex: 3,
+        totalIterations: 8,
+      },
+    };
+    const node = {
+      id: "node-1",
+      getData: () => ({
+        getFormModel: () => ({
+          getFormItemValueByPath: () => value,
+        }),
+      }),
+    };
+    render(
+      <MicroflowNodeViewModesContext.Provider value={{}}>
+        <FlowGramMicroflowNodeRenderer node={node as never} />
+      </MicroflowNodeViewModesContext.Provider>
+    );
+
+    expect(screen.getByTestId("microflow-loop-iteration-node-1").textContent).toContain("第 3 / 8 次");
   });
 
   it("does not render decision runtime result pill when selected branch label is empty", () => {

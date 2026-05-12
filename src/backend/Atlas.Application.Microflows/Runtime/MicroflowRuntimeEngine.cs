@@ -597,13 +597,72 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
     private static NodeExecution ExecuteErrorEvent(RuntimeContext context, MicroflowObjectModel node, string? incomingFlowId)
     {
-        var message = ReadString(node.Raw, "message")
-            ?? ReadString(node.Raw, "errorMessage")
+        var sourceVariableName = ReadStringByPath(node.Raw, "error", "sourceVariableName")
+            ?? ReadString(node.Raw, "sourceVariableName")
+            ?? "$latestError";
+        var sourceError = TryReadErrorEventSource(context, sourceVariableName);
+
+        var messageExpression = ReadExpressionTextByPath(node.Raw, "error", "messageExpression")
+            ?? ReadExpressionText(node.Raw, "messageExpression");
+        var messageLiteral = ReadString(node.Raw, "message")
+            ?? ReadString(node.Raw, "errorMessage");
+        var resolvedMessage = messageLiteral
+            ?? sourceError?.Message
             ?? "Microflow error event reached.";
-        var errorCode = ReadString(node.Raw, "errorCode") ?? RuntimeErrorCode.RuntimeErrorEventReached;
-        var error = Error(errorCode, message, node.Id, flowId: incomingFlowId);
+
+        if (!string.IsNullOrWhiteSpace(messageExpression))
+        {
+            resolvedMessage = EvaluateOptionalMessageExpression(context, node, messageExpression!, resolvedMessage);
+        }
+
+        var errorCode = ReadString(node.Raw, "errorCode")
+            ?? sourceError?.Code
+            ?? RuntimeErrorCode.RuntimeErrorEventReached;
+        var error = Error(
+            errorCode,
+            resolvedMessage,
+            node.Id,
+            flowId: incomingFlowId,
+            details: sourceError?.Details,
+            microflowId: sourceError?.MicroflowId,
+            callStack: sourceError?.CallStack);
         context.AddNodeFailure(node, incomingFlowId, error);
         return NodeExecution.Failed(error);
+    }
+
+    private static string EvaluateOptionalMessageExpression(RuntimeContext context, MicroflowObjectModel node, string expression, string fallbackMessage)
+    {
+        try
+        {
+            var evaluated = context.EvaluateExpression(expression, currentObjectId: node.Id);
+            return evaluated.ValueKind == JsonValueKind.String
+                ? evaluated.GetString() ?? fallbackMessage
+                : evaluated.GetRawText();
+        }
+        catch (RuntimeExpressionException ex)
+        {
+            return $"{fallbackMessage} (expression error: {ex.Error.Message})";
+        }
+    }
+
+    private static MicroflowRuntimeErrorDto? TryReadErrorEventSource(RuntimeContext context, string? sourceVariableName)
+    {
+        if (string.IsNullOrWhiteSpace(sourceVariableName)
+            || !context.VariableStore.TryGet(sourceVariableName!, out var variable)
+            || variable is null
+            || string.IsNullOrWhiteSpace(variable.RawValueJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<MicroflowRuntimeErrorDto>(variable.RawValueJson!, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -1754,6 +1813,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             IncomingFlowId = incomingFlowId,
             NormalOutgoingFlowId = normalOutgoingFlow?.Id,
             LatestHttpResponse = actionResult?.LatestHttpResponse,
+            LatestSoapFault = actionResult?.LatestSoapFault,
             ErrorDepth = runtimeContext.ErrorStack.Count
         });
 
@@ -1779,6 +1839,14 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     "$latestHttpResponse",
                     Type("Object"),
                     actionResult.LatestHttpResponse.Value,
+                    $"errorHandling:{errorHandlingType}");
+            }
+            if (actionResult?.LatestSoapFault.HasValue == true)
+            {
+                context.SetVariable(
+                    "$latestSoapFault",
+                    JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = "System.SoapFault" }, JsonOptions),
+                    actionResult.LatestSoapFault.Value,
                     $"errorHandling:{errorHandlingType}");
             }
 
@@ -2637,6 +2705,44 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         }
 
         return stack.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static IReadOnlyList<MicroflowRunCallStackFrameDto> BuildCallStackFrameDtos(
+        string runId,
+        string? parentRunId,
+        string? rootRunId,
+        string schemaId,
+        string version,
+        IReadOnlyList<MicroflowCallStackFrame>? frames)
+    {
+        if (frames is null || frames.Count == 0)
+        {
+            return Array.Empty<MicroflowRunCallStackFrameDto>();
+        }
+
+        return frames.Select(frame => new MicroflowRunCallStackFrameDto
+        {
+            Id = frame.FrameId,
+            ParentFrameId = frame.ParentFrameId,
+            RunId = runId,
+            ParentRunId = parentRunId,
+            RootRunId = rootRunId,
+            MicroflowId = frame.TargetResourceId,
+            SchemaId = frame.TargetSchemaId ?? schemaId,
+            Version = frame.TargetVersion ?? version,
+            QualifiedName = frame.TargetQualifiedName,
+            CallerResourceId = frame.CallerResourceId,
+            CallerSchemaId = frame.CallerSchemaId,
+            CallerObjectId = frame.CallerObjectId,
+            CallerActionId = frame.CallerActionId,
+            CallerTraceFrameId = frame.CallerTraceFrameId,
+            Depth = frame.Depth,
+            CallMode = frame.CallMode,
+            Status = frame.Status,
+            StartedAt = frame.StartedAt,
+            EndedAt = frame.EndedAt,
+            DurationMs = frame.DurationMs
+        }).ToArray();
     }
 
     private sealed record ParentCallContext(
@@ -3507,6 +3613,13 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 CallDepth = CallDepth,
                 CorrelationId = CorrelationId,
                 CallStack = CallStackPath,
+                CallStackFrames = BuildCallStackFrameDtos(
+                    RunId,
+                    ParentRunId,
+                    RootRunId,
+                    _request.SchemaId,
+                    _request.Version,
+                    _executionContext?.CallStackFrames),
                 StartedAt = StartedAt,
                 EndedAt = endedAt,
                 Status = status,
@@ -3610,7 +3723,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 ParentRunId = ParentRunId,
                 RootRunId = RootRunId,
                 CallDepth = CallDepth,
-                CallStack = CallStackPath,
+                CallStackFrames = _executionContext?.CallStackFrames.ToArray() ?? Array.Empty<MicroflowCallStackFrame>(),
                 Variables = variables
             };
         }

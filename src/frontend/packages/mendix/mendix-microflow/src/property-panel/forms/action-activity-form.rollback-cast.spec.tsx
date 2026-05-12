@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MicroflowActionActivity, MicroflowAuthoringSchema } from "../../schema";
+import { createSequenceFlow } from "../../adapters";
 import { ActionActivityForm } from "./action-activity-form";
 
 vi.mock("@douyinfe/semi-ui", () => ({
@@ -91,17 +92,44 @@ describe("ActionActivityForm rollback/cast", () => {
       }),
     }));
   });
+
+  it("routes cast output rename through schema-level rewrite when onSchemaChange is available", () => {
+    const onPatch = vi.fn();
+    const onSchemaChange = vi.fn();
+    render(
+      <ActionActivityForm
+        schema={schema(
+          [castObject(), downstreamChangeVariableObject()],
+          [createSequenceFlow({ originObjectId: "cast-activity", destinationObjectId: "downstream-change-variable-activity" })],
+        )}
+        object={castObject()}
+        issues={[]}
+        onPatch={onPatch}
+        onSchemaChange={onSchemaChange}
+      />,
+    );
+
+    fireEvent.change(screen.getAllByDisplayValue("")[2], { target: { value: "member" } });
+
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(onSchemaChange).toHaveBeenCalledTimes(1);
+    const [nextSchema, reason] = onSchemaChange.mock.calls[0] ?? [];
+    const changed = nextSchema?.objectCollection?.objects?.find((item: any) => item.id === "downstream-change-variable-activity");
+    expect(reason).toBe("renameActionOutputVariable");
+    expect(changed?.kind === "actionActivity" && changed.action.kind === "changeVariable" ? changed.action.targetVariableName : undefined).toBe("member");
+    expect(changed?.kind === "actionActivity" && changed.action.kind === "changeVariable" ? changed.action.newValueExpression.raw : undefined).toBe("$member");
+  });
 });
 
-function schema(): MicroflowAuthoringSchema {
+function schema(objects: MicroflowActionActivity[] = [], flows: unknown[] = []): MicroflowAuthoringSchema {
   return {
     schemaVersion: "1.0.0",
     id: "mf",
     name: "MF",
     parameters: [],
     returnType: { kind: "void" },
-    objectCollection: { objects: [] },
-    flows: [],
+    objectCollection: { objects },
+    flows,
     editor: { selection: {}, viewport: { x: 0, y: 0, zoom: 1 } },
   } as unknown as MicroflowAuthoringSchema;
 }
@@ -151,8 +179,28 @@ function castObject(): MicroflowActionActivity {
     sourceVariable: "",
     targetEntity: "",
     outputVariable: "",
+    outputVariableName: "",
     castMode: "strict",
     failOnInvalidType: true,
   } as never;
   return object;
+}
+
+function downstreamChangeVariableObject(): MicroflowActionActivity {
+  return {
+    ...base("changeVariable"),
+    id: "downstream-change-variable-activity",
+    stableId: "downstream-change-variable-activity",
+    action: {
+      id: "downstream-change-variable-action",
+      officialType: "Microflows$ChangeVariableAction",
+      kind: "changeVariable",
+      caption: "changeVariable",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "variable", iconKey: "changeVariable", availability: "supported" },
+      targetVariableName: "member",
+      newValueExpression: { raw: "$member", inferredType: { kind: "string" }, references: { variables: ["$member"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+    } as never,
+  } as unknown as MicroflowActionActivity;
 }

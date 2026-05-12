@@ -479,6 +479,8 @@ export class MicroflowStepDebugApiClient {
           id: typeof row.id === "string" ? row.id : `${runtime.sessionId}-${index}`,
           microflowId: typeof row.microflowId === "string" ? row.microflowId : runtime.microflowId,
           runId: typeof row.runId === "string" ? row.runId : runtime.session.runId ?? runtime.sessionId,
+          callerObjectId: typeof row.callerObjectId === "string" ? row.callerObjectId : undefined,
+          callerActionId: typeof row.callerActionId === "string" ? row.callerActionId : undefined,
           depth: typeof row.depth === "number" ? row.depth : index,
           status: typeof row.status === "string" ? row.status : "active",
         } satisfies MicroflowDebugCallStackFrameDto;

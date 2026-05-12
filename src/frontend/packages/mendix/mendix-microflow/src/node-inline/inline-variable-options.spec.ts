@@ -195,6 +195,76 @@ describe("buildNodeInlineVariableOptions", () => {
     }
   });
 
+  it("exposes upstream outputs for generic alias fields only when linked", () => {
+    const makeSchema = (linked: boolean): MicroflowDesignSchema => ({
+      schemaVersion: "1",
+      mendixProfile: "mx10",
+      id: "mf-inline-options-generic-aliases",
+      stableId: "mf-inline-options-generic-aliases",
+      name: "InlineOptionsGenericAliases",
+      displayName: "InlineOptionsGenericAliases",
+      moduleId: "module",
+      parameters: [],
+      returnType: { kind: "void" },
+      variables: [],
+      workflow: {
+        nodes: [
+          {
+            id: "generate-doc",
+            type: "activity",
+            data: {
+              title: "GenerateDoc",
+              action: {
+                kind: "generateDocument",
+                outputFileDocumentVariableName: "invoiceDoc",
+              },
+            },
+          },
+          {
+            id: "call-workflow",
+            type: "activity",
+            data: {
+              title: "CallWorkflow",
+              action: {
+                kind: "callWorkflow",
+                outputWorkflowVariableName: "workflowInstance",
+              },
+            },
+          },
+          {
+            id: "target",
+            type: "activity",
+            data: { title: "TargetAction" },
+          },
+        ],
+        edges: linked
+          ? [
+            { id: "e1", sourceNodeID: "generate-doc", targetNodeID: "target" },
+            { id: "e2", sourceNodeID: "call-workflow", targetNodeID: "target" },
+          ]
+          : [],
+      },
+    }) as unknown as MicroflowDesignSchema;
+
+    const linkedSchema = makeSchema(true);
+    const unlinkedSchema = makeSchema(false);
+    const linked = buildNodeInlineVariableOptions({
+      schema: linkedSchema,
+      node: linkedSchema.workflow.nodes.find(node => node.id === "target")!,
+      mode: "expression",
+    });
+    const unlinked = buildNodeInlineVariableOptions({
+      schema: unlinkedSchema,
+      node: unlinkedSchema.workflow.nodes.find(node => node.id === "target")!,
+      mode: "expression",
+    });
+
+    for (const token of ["$invoiceDoc", "$workflowInstance"]) {
+      expect(linked.some(item => item.value === token)).toBe(true);
+      expect(unlinked.some(item => item.value === token)).toBe(false);
+    }
+  });
+
   it("exposes data-level output variables only when upstream node is linked", () => {
     const makeSchema = (linked: boolean): MicroflowDesignSchema => ({
       schemaVersion: "1",
@@ -309,5 +379,45 @@ describe("buildNodeInlineVariableOptions", () => {
     const indirectLabel = options.find(item => item.value === "$fromN1")?.label ?? "";
     expect(directLabel.includes("upstream-direct::")).toBe(true);
     expect(indirectLabel.includes("upstream-indirect::")).toBe(true);
+  });
+
+  it("exposes $currentIndex for while loop nodes", () => {
+    const s = {
+      schemaVersion: "1",
+      mendixProfile: "mx10",
+      id: "mf-inline-options-while",
+      stableId: "mf-inline-options-while",
+      name: "InlineOptionsWhile",
+      displayName: "InlineOptionsWhile",
+      moduleId: "module",
+      parameters: [],
+      returnType: { kind: "void" },
+      variables: [],
+      workflow: {
+        nodes: [
+          {
+            id: "while-1",
+            type: "loop",
+            data: {
+              title: "WhileLoop",
+              loopSource: {
+                kind: "whileCondition",
+                expression: { raw: "$retryCount < 5" },
+              },
+              currentIndexVariableName: "$currentIndex",
+            },
+          },
+        ],
+        edges: [],
+      },
+    } as unknown as MicroflowDesignSchema;
+
+    const options = buildNodeInlineVariableOptions({
+      schema: s,
+      node: s.workflow.nodes[0],
+      mode: "expression",
+    });
+
+    expect(options.some(item => item.value === "$currentIndex")).toBe(true);
   });
 });

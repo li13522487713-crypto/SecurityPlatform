@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Input, Select, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowExpression } from "../../schema";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
+import { renameActionOutputVariable } from "../../schema/utils";
 import { buildVariableIndex } from "../../variables";
 import { ExpressionEditor } from "../expression";
 import type { MicroflowNodePatch, MicroflowPropertyPanelProps } from "../types";
@@ -34,6 +35,13 @@ const genericActionFieldDefinitions: Partial<Record<MicroflowAction["kind"], Gen
   createList: [
     { key: "entityQualifiedName", label: "Entity", control: "text", required: true },
     { key: "outputListVariableName", label: "Output List Variable", control: "text", required: true }
+  ],
+  sortList: [
+    { key: "sourceListVariableName", label: "Source List Variable", control: "text", required: true },
+    { key: "sortExpression", label: "Sort Expression", control: "expression" },
+    { key: "sortField", label: "Sort Field", control: "text" },
+    { key: "direction", label: "Direction", control: "select", options: ["asc", "desc"], required: true },
+    { key: "outputVariableName", label: "Output Variable", control: "text", required: true }
   ],
   changeList: [
     { key: "targetListVariableName", label: "Target List Variable", control: "text", required: true },
@@ -234,13 +242,15 @@ export function GenericActionFields({
   object,
   issues,
   readonly,
-  onPatch
+  onPatch,
+  onSchemaChange,
 }: {
   schema: MicroflowPropertyPanelProps["schema"];
   object: MicroflowActionActivity;
   issues: ReturnType<typeof getIssuesForObject>;
   readonly?: boolean;
   onPatch: (patch: MicroflowNodePatch) => void;
+  onSchemaChange?: (nextSchema: MicroflowPropertyPanelProps["schema"], reason: string) => void;
 }) {
   const catalog = useMicroflowMetadataCatalog();
   const { version: metadataVersion } = useMetadataStatus();
@@ -261,7 +271,21 @@ export function GenericActionFields({
       </>
     );
   }
-  const patchAction = (key: string, value: unknown) => onPatch({ object: { ...object, action: { ...action, [key]: value } as MicroflowAction } });
+  const renameGenericOutputInSchema = (nextVariableName: string) => {
+    if (!onSchemaChange) {
+      return false;
+    }
+    onSchemaChange(renameActionOutputVariable(schema, object.id, nextVariableName), "renameActionOutputVariable");
+    return true;
+  };
+  const patchAction = (key: string, value: unknown) => {
+    if (typeof value === "string" && ["outputVariable", "outputVariableName", "outputListVariableName", "outputWorkflowVariableName", "returnVariableName", "outputFileDocumentVariableName"].includes(key)) {
+      if (renameGenericOutputInSchema(value)) {
+        return;
+      }
+    }
+    onPatch({ object: { ...object, action: { ...action, [key]: value } as MicroflowAction } });
+  };
   const record = actionRecord(action);
   return (
     <>

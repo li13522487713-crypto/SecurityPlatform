@@ -462,7 +462,7 @@ public sealed class MicroflowDebugCoordinator : IMicroflowDebugCoordinator
         string engineRunId,
         MicroflowDebugSafePoint point)
     {
-        if (snapshot.CallStack.Count == 0)
+        if (snapshot.CallStackFrames.Count == 0)
         {
             return
             [
@@ -477,16 +477,25 @@ public sealed class MicroflowDebugCoordinator : IMicroflowDebugCoordinator
             ];
         }
 
-        return snapshot.CallStack.Select((microflowId, index) => new DebugCallStackFrame
+        return snapshot.CallStackFrames.Select((frame, index) => new DebugCallStackFrame
         {
-            Id = index == snapshot.CallStack.Count - 1 && !string.IsNullOrWhiteSpace(point.CallStackFrameId)
+            Id = index == snapshot.CallStackFrames.Count - 1 && !string.IsNullOrWhiteSpace(point.CallStackFrameId)
                 ? point.CallStackFrameId!
                 : $"{engineRunId}:{index}",
-            MicroflowId = microflowId,
+            MicroflowId = frame.TargetResourceId
+                ?? frame.TargetQualifiedName
+                ?? snapshot.ResourceId
+                ?? string.Empty,
             ParentRunId = snapshot.ParentRunId,
             RunId = engineRunId,
+            CallerObjectId = frame.CallerObjectId,
+            CallerActionId = frame.CallerActionId,
             Depth = index,
-            Status = index == snapshot.CallStack.Count - 1 ? "active" : "parent"
+            Status = index == snapshot.CallStackFrames.Count - 1
+                ? "active"
+                : string.IsNullOrWhiteSpace(frame.Status)
+                    ? "parent"
+                    : frame.Status
         }).ToArray();
     }
 

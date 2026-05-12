@@ -95,6 +95,41 @@ public sealed class ConnectorBackedActionExecutorsTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.ConnectorCapability == MicroflowRuntimeConnectorCapability.DocumentGeneration);
     }
 
+    [Fact]
+    public async Task SoapExecutor_WithConnectorFault_PropagatesLatestSoapFault()
+    {
+        var registry = new MicroflowActionExecutorRegistry(BuildServiceProvider());
+        var executor = registry.GetOrFallback("webServiceCall");
+        var connectorRegistry = new StubConnectorRegistry(
+            hasCapability: true,
+            result: new MicroflowConnectorExecutionResult
+            {
+                Success = false,
+                Capability = MicroflowRuntimeConnectorCapability.SoapWebService,
+                Error = new MicroflowRuntimeErrorDto
+                {
+                    Code = "SOAP_REMOTE_FAULT",
+                    Message = "Remote SOAP fault.",
+                    Details = "fault detail"
+                },
+                LatestSoapFault = JsonSerializer.SerializeToElement(new
+                {
+                    faultCode = "Server.Validation",
+                    faultString = "Order invalid",
+                    detail = "fault detail"
+                }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+            });
+
+        var result = await executor.ExecuteAsync(
+            Context("webServiceCall", new { endpoint = "https://soap.test/service", operation = "SubmitOrder" }, connectorRegistry),
+            CancellationToken.None);
+
+        Assert.Equal(MicroflowActionExecutionStatus.Failed, result.Status);
+        Assert.True(result.LatestSoapFault.HasValue);
+        Assert.Equal("Server.Validation", result.LatestSoapFault.Value.GetProperty("faultCode").GetString());
+        Assert.Equal("Order invalid", result.LatestSoapFault.Value.GetProperty("faultString").GetString());
+    }
+
     private static IServiceProvider BuildServiceProvider()
     {
         var services = new ServiceCollection();

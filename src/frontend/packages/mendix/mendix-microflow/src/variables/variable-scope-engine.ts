@@ -114,7 +114,9 @@ export function isVariableVisibleAtObject(
     return true;
   }
   if (!includeCurrentObject && symbol.scope.startObjectId === objectId) {
-    return false;
+    return symbol.scope.kind === "errorHandler"
+      ? isInErrorScope(schema, symbol, objectId)
+      : false;
   }
   return symbol.scope.kind === "errorHandler"
     ? isInErrorScope(schema, symbol, objectId)

@@ -22,6 +22,7 @@ import {
 } from "../node-registry";
 import type {
   MicroflowActionActivity,
+  MicroflowActionActivityColor,
   MicroflowAuthoringSchema,
   MicroflowDesignSchema,
   MicroflowFlow,
@@ -34,6 +35,8 @@ import type {
 } from "../schema";
 import { createStableId } from "../schema/utils/ids";
 import { alignRootDesignParameterNodesToStart, removeStaleDesignParameters } from "../schema/utils/design-parameter-layout";
+import { collectObjectsRecursive } from "../schema/utils/object-utils";
+import { setParameterAsMicroflowReturnValue } from "../schema/utils/microflow-signature";
 import type { MicroflowEdgePatch, MicroflowNodePatch } from "./types";
 
 type NodeDataWithPropertyObject = Partial<FlowGramMicroflowNodeData> & {
@@ -41,18 +44,32 @@ type NodeDataWithPropertyObject = Partial<FlowGramMicroflowNodeData> & {
   editor?: Record<string, unknown>;
   parameterId?: string;
   parameterName?: string;
+  returnValue?: unknown;
   text?: string;
   splitCondition?: unknown;
   mergeBehavior?: unknown;
+  inputObjectVariableName?: string;
+  generalizedEntityQualifiedName?: string;
+  allowedSpecializations?: string[];
+  entity?: { generalizedEntityQualifiedName: string; allowedSpecializations: string[] };
   errorHandlingType?: unknown;
   autoGenerateCaption?: boolean;
-  backgroundColor?: MicroflowActionActivity["backgroundColor"];
+  backgroundColor?: MicroflowActionActivityColor;
+  tryBranchKey?: string;
+  catchBranchKey?: string;
+  finallyBranchKey?: string;
+  errorVariableName?: string;
+  policy?: string;
+  customHandlerVariable?: string;
+  continueOnError?: boolean;
   objectCollection?: never;
 };
 
 type EdgeDataWithPropertyFlow = Partial<FlowGramMicroflowEdgeData> & {
   line?: MicroflowLine;
   exposeLatestError?: boolean;
+  exposeLatestHttpResponse?: boolean;
+  exposeLatestSoapFault?: boolean;
   targetErrorVariableName?: string;
   logError?: boolean;
 };
@@ -118,6 +135,8 @@ function mapFlowToWorkflowEdge(flow: MicroflowFlow): MicroflowWorkflowEdgeJSON {
         originConnectionIndex: flow.originConnectionIndex,
         destinationConnectionIndex: flow.destinationConnectionIndex,
         exposeLatestError: flow.exposeLatestError,
+        exposeLatestHttpResponse: flow.exposeLatestHttpResponse,
+        exposeLatestSoapFault: flow.exposeLatestSoapFault,
         targetErrorVariableName: flow.targetErrorVariableName,
         logError: flow.logError,
       },
@@ -185,11 +204,24 @@ function defaultObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microf
           ...baseOverrides,
           ...(data?.parameterId ? { parameterId: data.parameterId } : {}),
           ...(data?.parameterName ? { parameterName: data.parameterName } : {}),
+          ...("returnValue" in (data ?? {}) ? { returnValue: data?.returnValue } : {}),
           ...(data?.loopSource ? { loopSource: data.loopSource } : {}),
           ...(data?.text ? { text: data.text } : {}),
           ...(data?.splitCondition ? { splitCondition: data.splitCondition } : {}),
           ...(data?.mergeBehavior ? { mergeBehavior: data.mergeBehavior } : {}),
+          ...(data?.inputObjectVariableName ? { inputObjectVariableName: data.inputObjectVariableName } : {}),
+          ...(data?.generalizedEntityQualifiedName ? { generalizedEntityQualifiedName: data.generalizedEntityQualifiedName } : {}),
+          ...(data?.allowedSpecializations ? { allowedSpecializations: data.allowedSpecializations } : {}),
+          ...(data?.entity ? { entity: data.entity } : {}),
           ...(data?.errorHandlingType ? { errorHandlingType: data.errorHandlingType } : {}),
+          ...(data?.backgroundColor ? { backgroundColor: data.backgroundColor } : {}),
+          ...(typeof data?.tryBranchKey === "string" ? { tryBranchKey: data.tryBranchKey } : {}),
+          ...(typeof data?.catchBranchKey === "string" ? { catchBranchKey: data.catchBranchKey } : {}),
+          ...(typeof data?.finallyBranchKey === "string" ? { finallyBranchKey: data.finallyBranchKey } : {}),
+          ...(typeof data?.errorVariableName === "string" ? { errorVariableName: data.errorVariableName } : {}),
+          ...(typeof data?.policy === "string" ? { policy: data.policy } : {}),
+          ...("customHandlerVariable" in (data ?? {}) ? { customHandlerVariable: data?.customHandlerVariable } : {}),
+          ...(typeof data?.continueOnError === "boolean" ? { continueOnError: data.continueOnError } : {}),
         } as Partial<MicroflowObject>,
       }).object;
     } catch {
@@ -218,6 +250,7 @@ function defaultObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microf
     officialType: data?.officialType ?? node.type,
     caption: data?.title ?? node.id,
     documentation: data?.documentation ?? "",
+    backgroundColor: data?.backgroundColor,
     relativeMiddlePoint: position,
     size: nodeSize(node),
     editor: { iconKey: data?.objectKind ?? node.type },
@@ -237,12 +270,31 @@ function designObjectForNode(node: MicroflowWorkflowNodeJSON, fallback?: Microfl
     caption: data?.title ?? base.caption,
     documentation: data?.documentation ?? base.documentation,
     disabled: data?.disabled ?? ("disabled" in base ? base.disabled : undefined),
+    backgroundColor: data?.backgroundColor ?? ("backgroundColor" in base ? base.backgroundColor : undefined),
     relativeMiddlePoint: nodePosition(node),
     size: nodeSize(node),
     ...(base.kind === "actionActivity" && data?.action ? { action: data.action, actionKind: data.actionKind ?? data.action.kind } : {}),
+    ...(base.kind === "endEvent" && "returnValue" in (data ?? {}) ? { returnValue: data?.returnValue } : {}),
     ...(base.kind === "loopedActivity" && data?.loopSource ? { loopSource: data.loopSource } : {}),
     ...(base.kind === "parameterObject" && data?.parameterId ? { parameterId: data.parameterId, parameterName: data.parameterName } : {}),
     ...(base.kind === "annotation" && data?.text ? { text: data.text } : {}),
+    ...(base.kind === "inheritanceSplit" ? {
+      inputObjectVariableName: data?.inputObjectVariableName ?? base.inputObjectVariableName,
+      generalizedEntityQualifiedName: data?.generalizedEntityQualifiedName ?? base.generalizedEntityQualifiedName,
+      allowedSpecializations: data?.allowedSpecializations ?? base.allowedSpecializations,
+      entity: data?.entity ?? base.entity,
+    } : {}),
+    ...(base.kind === "tryCatch" ? {
+      tryBranchKey: data?.tryBranchKey ?? base.tryBranchKey,
+      catchBranchKey: data?.catchBranchKey ?? base.catchBranchKey,
+      finallyBranchKey: data?.finallyBranchKey ?? base.finallyBranchKey,
+      errorVariableName: data?.errorVariableName ?? base.errorVariableName,
+    } : {}),
+    ...(base.kind === "errorHandler" ? {
+      policy: (data?.policy as typeof base.policy | undefined) ?? base.policy,
+      customHandlerVariable: data?.customHandlerVariable ?? base.customHandlerVariable,
+      continueOnError: data?.continueOnError ?? base.continueOnError,
+    } : {}),
   } as MicroflowObject;
 }
 
@@ -306,6 +358,8 @@ function designFlowForEdge(edge: MicroflowWorkflowEdgeJSON, fallback?: Microflow
     caseValues: data?.caseValues ?? base.caseValues ?? [],
     isErrorHandler: data?.isErrorHandler ?? base.isErrorHandler ?? false,
     exposeLatestError: data?.exposeLatestError ?? (base as MicroflowSequenceFlow).exposeLatestError,
+    exposeLatestHttpResponse: data?.exposeLatestHttpResponse ?? (base as MicroflowSequenceFlow).exposeLatestHttpResponse,
+    exposeLatestSoapFault: data?.exposeLatestSoapFault ?? (base as MicroflowSequenceFlow).exposeLatestSoapFault,
     targetErrorVariableName: data?.targetErrorVariableName ?? (base as MicroflowSequenceFlow).targetErrorVariableName,
     logError: data?.logError ?? (base as MicroflowSequenceFlow).logError,
     editor: {
@@ -397,6 +451,7 @@ export function buildDesignPropertyPanelModel(schema: MicroflowDesignSchema): De
 
 export function applyDesignDocumentSchema(schema: MicroflowDesignSchema, nextAuthoringSchema: MicroflowAuthoringSchema): MicroflowDesignSchema {
   const parameterById = new Map(nextAuthoringSchema.parameters.map(parameter => [parameter.id, parameter]));
+  const authoringObjectById = new Map(collectObjectsRecursive(nextAuthoringSchema.objectCollection).map(object => [object.id, object]));
   return {
     ...schema,
     description: nextAuthoringSchema.description,
@@ -411,6 +466,16 @@ export function applyDesignDocumentSchema(schema: MicroflowDesignSchema, nextAut
       ...schema.workflow,
       nodes: schema.workflow.nodes.map(node => {
         const data = node.data as NodeDataWithPropertyObject | undefined;
+        const authoringObject = authoringObjectById.get(node.id);
+        if (authoringObject?.kind === "endEvent") {
+          return {
+            ...node,
+            data: {
+              ...data,
+              returnValue: authoringObject.returnValue,
+            },
+          };
+        }
         const parameterId = data?.parameterId;
         if (node.type !== "parameterObject" || !parameterId) {
           return node;
@@ -465,12 +530,27 @@ export function applyDesignObjectPatch(schema: MicroflowDesignSchema, objectId: 
             parameterId: nextObject.kind === "parameterObject" ? nextObject.parameterId : existingData?.parameterId,
             parameterName: nextObject.kind === "parameterObject" ? nextObject.parameterName : existingData?.parameterName,
             loopSource: nextObject.kind === "loopedActivity" ? nextObject.loopSource : existingData?.loopSource,
+            splitCondition: nextObject.kind === "exclusiveSplit" ? nextObject.splitCondition : existingData?.splitCondition,
+            mergeBehavior: nextObject.kind === "exclusiveMerge" ? nextObject.mergeBehavior : existingData?.mergeBehavior,
+            inputObjectVariableName: nextObject.kind === "inheritanceSplit" ? nextObject.inputObjectVariableName : existingData?.inputObjectVariableName,
+            generalizedEntityQualifiedName: nextObject.kind === "inheritanceSplit" ? nextObject.generalizedEntityQualifiedName : existingData?.generalizedEntityQualifiedName,
+            allowedSpecializations: nextObject.kind === "inheritanceSplit" ? nextObject.allowedSpecializations : existingData?.allowedSpecializations,
+            entity: nextObject.kind === "inheritanceSplit" ? nextObject.entity : existingData?.entity,
+            tryBranchKey: nextObject.kind === "tryCatch" ? nextObject.tryBranchKey : existingData?.tryBranchKey,
+            catchBranchKey: nextObject.kind === "tryCatch" ? nextObject.catchBranchKey : existingData?.catchBranchKey,
+            finallyBranchKey: nextObject.kind === "tryCatch" ? nextObject.finallyBranchKey : existingData?.finallyBranchKey,
+            errorVariableName: nextObject.kind === "tryCatch" ? nextObject.errorVariableName : existingData?.errorVariableName,
+            policy: nextObject.kind === "errorHandler" ? nextObject.policy : existingData?.policy,
+            customHandlerVariable: nextObject.kind === "errorHandler" ? nextObject.customHandlerVariable : existingData?.customHandlerVariable,
+            continueOnError: nextObject.kind === "errorHandler" ? nextObject.continueOnError : existingData?.continueOnError,
             iteratorVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.iteratorVariableName : existingData?.iteratorVariableName,
             listVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.listVariableName : existingData?.listVariableName,
             currentIndexVariableName: nextObject.kind === "loopedActivity" && nextObject.loopSource.kind === "iterableList" ? nextObject.loopSource.currentIndexVariableName : existingData?.currentIndexVariableName,
             text: nextObject.kind === "annotation" ? nextObject.text : existingData?.text,
+            returnValue: nextObject.kind === "endEvent" ? nextObject.returnValue : existingData?.returnValue,
+            errorHandlingType: "errorHandlingType" in nextObject ? nextObject.errorHandlingType : existingData?.errorHandlingType,
             autoGenerateCaption: nextObject.kind === "actionActivity" ? nextObject.autoGenerateCaption : existingData?.autoGenerateCaption,
-            backgroundColor: nextObject.kind === "actionActivity" ? nextObject.backgroundColor : existingData?.backgroundColor,
+            backgroundColor: "backgroundColor" in nextObject ? nextObject.backgroundColor : existingData?.backgroundColor,
           };
           delete (nextData as Record<string, unknown>).objectCollection;
           return {
@@ -547,6 +627,8 @@ export function applyDesignFlowPatch(schema: MicroflowDesignSchema, flowId: stri
           branchOrder: (nextFlow.editor as { branchOrder?: number }).branchOrder,
           showInExport: nextFlow.kind === "annotation" ? nextFlow.editor.showInExport : existingData?.showInExport,
           exposeLatestError: nextFlow.kind === "sequence" ? nextFlow.exposeLatestError : existingData?.exposeLatestError,
+          exposeLatestHttpResponse: nextFlow.kind === "sequence" ? nextFlow.exposeLatestHttpResponse : existingData?.exposeLatestHttpResponse,
+          exposeLatestSoapFault: nextFlow.kind === "sequence" ? nextFlow.exposeLatestSoapFault : existingData?.exposeLatestSoapFault,
           targetErrorVariableName: nextFlow.kind === "sequence" ? nextFlow.targetErrorVariableName : existingData?.targetErrorVariableName,
           logError: nextFlow.kind === "sequence" ? nextFlow.logError : existingData?.logError,
           validationState: existingData?.validationState ?? "valid",
@@ -634,4 +716,9 @@ export function duplicateDesignObject(schema: MicroflowDesignSchema, objectId: s
       updatedAt: new Date().toISOString(),
     },
   }), id);
+}
+
+export function setDesignParameterAsReturnValue(schema: MicroflowDesignSchema, parameterId: string): MicroflowDesignSchema {
+  const nextAuthoringSchema = setParameterAsMicroflowReturnValue(createTransientAuthoringSchema(schema), parameterId);
+  return applyDesignDocumentSchema(schema, nextAuthoringSchema);
 }

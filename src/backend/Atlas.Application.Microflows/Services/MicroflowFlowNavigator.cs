@@ -202,7 +202,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
 
             if (IsKind(node, "errorEvent"))
             {
-                var error = Error(RuntimeErrorCode.RuntimeErrorEventReached, node.Caption ?? "Microflow ErrorEvent reached.", node.ObjectId, flowId: incoming);
+                var error = ResolveErrorEvent(context, node, incoming);
                 AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Failed, loopIteration, error, "Reached ErrorEvent.");
                 DisposeErrorScopeIfAny(context);
                 return NavigationSignal.Failed(error, node.ObjectId);
@@ -508,13 +508,13 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         if (context.Options.SimulateActionFailureObjectIds.Contains(node.ObjectId, StringComparer.Ordinal))
         {
             var failure = Error(RuntimeErrorCode.RuntimeUnknownError, "Action failure simulated by FlowNavigator options.", node.ObjectId, node.ActionId, incomingFlowId);
-            return HandleActionFailure(context, query, node, incomingFlowId, loopIteration, failure);
+            return HandleActionFailure(context, query, node, incomingFlowId, loopIteration, failure, actionResult: null);
         }
 
         if (string.Equals(node.ActionKind, "restCall", StringComparison.OrdinalIgnoreCase) && context.Options.SimulateRestError)
         {
             var restError = Error(RuntimeErrorCode.RuntimeRestCallFailed, "REST call failed by FlowNavigator simulation.", node.ObjectId, node.ActionId, incomingFlowId, details: "No external HTTP request was sent.");
-            return HandleActionFailure(context, query, node, incomingFlowId, loopIteration, restError);
+            return HandleActionFailure(context, query, node, incomingFlowId, loopIteration, restError, actionResult: null);
         }
 
         if (string.Equals(node.SupportLevel, MicroflowRuntimeSupportLevel.Supported, StringComparison.OrdinalIgnoreCase))
@@ -528,11 +528,11 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
                     var actionError = actionResult.Error is null
                         ? Error(RuntimeErrorCode.RuntimeUnknownError, actionResult.Message ?? "Action execution failed.", node.ObjectId, node.ActionId, incomingFlowId)
                         : ToNavigationError(actionResult.Error, incomingFlowId);
-                    return HandleActionFailure(context, query, node, incomingFlowId, loopIteration, actionError);
+                    return HandleActionFailure(context, query, node, incomingFlowId, loopIteration, actionError, actionResult);
                 }
             }
 
-            var outputDiagnostic = TryGetActionOutputDiagnostic(context.RuntimeContext, node, TryResolveOutputVariableName(node.ConfigJson), actionResult);
+            var outputDiagnostic = TryGetActionOutputDiagnostic(context.RuntimeContext, node, TryResolveOutputVariableName(node.ActionKind, node.ConfigJson), actionResult);
 
             AddStep(
                 context,
@@ -620,7 +620,8 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         MicroflowExecutionNode node,
         string? incomingFlowId,
         JsonElement? loopIteration,
-        MicroflowNavigationError error)
+        MicroflowNavigationError error,
+        MicroflowActionExecutionResult? actionResult)
     {
         if (context.Options.StopOnFirstError)
         {
@@ -635,15 +636,20 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             return NavigationSignal.Failed(error);
         }
 
+        var latestHttpResponse = actionResult?.LatestHttpResponse
+            ?? (string.Equals(error.Code, RuntimeErrorCode.RuntimeRestCallFailed, StringComparison.Ordinal)
+                ? JsonSerializer.SerializeToElement(new { statusCode = 500, body = "flow-navigator-rest-error" }, JsonOptions)
+                : null);
+        var latestSoapFault = actionResult?.LatestSoapFault;
+
         context.ErrorStack.Push(new MicroflowNavigationErrorFrame
         {
             SourceObjectId = node.ObjectId,
             SourceActionId = node.ActionId,
             Error = error,
             ErrorHandlerFlowId = handler.FlowId,
-            LatestHttpResponse = string.Equals(error.Code, RuntimeErrorCode.RuntimeRestCallFailed, StringComparison.Ordinal)
-                ? JsonSerializer.SerializeToElement(new { statusCode = 500, body = "flow-navigator-rest-error" }, JsonOptions)
-                : null
+            LatestHttpResponse = latestHttpResponse,
+            LatestSoapFault = latestSoapFault
         });
         context.ErrorScopeStack.Push(context.RuntimeContext.PushErrorHandlerScope(
             new MicroflowRuntimeErrorDto
@@ -657,9 +663,8 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
                 Cause = error.Cause
             },
             handler.FlowId,
-            string.Equals(error.Code, RuntimeErrorCode.RuntimeRestCallFailed, StringComparison.Ordinal)
-                ? JsonSerializer.SerializeToElement(new { statusCode = 500, body = "flow-navigator-rest-error" }, JsonOptions)
-                : null));
+            latestHttpResponse,
+            latestSoapFault));
         VisitFlow(context, handler);
         AddDiagnostic(context, "RUNTIME_ERROR_HANDLER_ENTERED", "warning", "FlowNavigator entered error handler path; transaction semantics are not executed.", node.ObjectId, handler.FlowId, node.ActionId, node.CollectionId);
         return NavigationSignal.ContinueWith(handler);
@@ -693,7 +698,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         }, context.CancellationToken);
     }
 
-    private static string? TryResolveOutputVariableName(JsonElement? config)
+    private static string? TryResolveOutputVariableName(string? actionKind, JsonElement? config)
     {
         if (config is null || config.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
@@ -701,13 +706,45 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         }
 
         return ReadString(config.Value, "outputVariableName")
+            ?? ReadString(config.Value, "outputVariable")
+            ?? ReadString(config.Value, "outputListVariableName")
             ?? ReadString(config.Value, "resultVariableName")
+            ?? ReadString(config.Value, "outputWorkflowVariableName")
+            ?? ReadString(config.Value, "outputFileDocumentVariableName")
+            ?? ReadString(config.Value, "returnVariableName")
+            ?? ReadString(config.Value, "statusCodeVariableName")
+            ?? ReadString(config.Value, "headersVariableName")
             ?? ReadStringByPath(config.Value, "returnValue", "outputVariableName")
+            ?? ReadStringByPath(config.Value, "returnValue", "resultVariableName")
             ?? ReadStringByPath(config.Value, "response", "handling", "outputVariableName")
+            ?? ReadStringByPath(config.Value, "response", "statusCodeVariableName")
+            ?? ReadStringByPath(config.Value, "response", "headersVariableName")
             ?? ReadStringByPath(config.Value, "action", "outputVariableName")
+            ?? ReadStringByPath(config.Value, "action", "outputVariable")
+            ?? ReadStringByPath(config.Value, "action", "outputListVariableName")
             ?? ReadStringByPath(config.Value, "action", "resultVariableName")
+            ?? ReadStringByPath(config.Value, "action", "outputWorkflowVariableName")
+            ?? ReadStringByPath(config.Value, "action", "outputFileDocumentVariableName")
+            ?? ReadStringByPath(config.Value, "action", "returnVariableName")
+            ?? ReadStringByPath(config.Value, "action", "statusCodeVariableName")
+            ?? ReadStringByPath(config.Value, "action", "headersVariableName")
             ?? ReadStringByPath(config.Value, "action", "returnValue", "outputVariableName")
-            ?? ReadStringByPath(config.Value, "action", "response", "handling", "outputVariableName");
+            ?? ReadStringByPath(config.Value, "action", "returnValue", "resultVariableName")
+            ?? ReadStringByPath(config.Value, "action", "response", "handling", "outputVariableName")
+            ?? ReadActionSpecificOutputAlias(actionKind, config.Value);
+    }
+
+    private static string? ReadActionSpecificOutputAlias(string? actionKind, JsonElement config)
+    {
+        if (string.Equals(actionKind, "createList", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "retrieveWorkflows", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "retrieveWorkflowActivityRecords", StringComparison.OrdinalIgnoreCase))
+        {
+            return ReadString(config, "listVariableName")
+                ?? ReadStringByPath(config, "action", "listVariableName");
+        }
+
+        return null;
     }
 
     private static string? TryGetActionOutputDiagnostic(RuntimeExecutionContext runtimeContext, MicroflowExecutionNode node, string? outputVariableName, MicroflowActionExecutionResult result)
@@ -1201,7 +1238,103 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
     private static MicroflowNavigationError CancelledError()
         => Error(RuntimeErrorCode.RuntimeCancelled, "FlowNavigator was cancelled.");
 
-    private static MicroflowNavigationError Error(string code, string message, string? objectId = null, string? actionId = null, string? flowId = null, string? details = null)
+    private MicroflowNavigationError ResolveErrorEvent(MicroflowNavigationContext context, MicroflowExecutionNode node, string? incomingFlowId)
+    {
+        var config = node.ConfigJson is { ValueKind: JsonValueKind.Object } nodeConfig
+            ? nodeConfig
+            : default;
+        var sourceVariableName = ReadStringByPath(config, "raw", "error", "sourceVariableName")
+            ?? ReadStringByPath(config, "raw", "sourceVariableName")
+            ?? ReadStringByPath(config, "error", "sourceVariableName")
+            ?? ReadString(config, "sourceVariableName")
+            ?? "$latestError";
+        var sourceError = TryReadErrorEventSource(context, sourceVariableName);
+
+        var messageExpression = ReadExpressionTextByPath(config, "raw", "error", "messageExpression")
+            ?? ReadExpressionTextByPath(config, "raw", "messageExpression")
+            ?? ReadExpressionTextByPath(config, "error", "messageExpression")
+            ?? ReadExpressionText(config, "messageExpression");
+        var messageLiteral = ReadStringByPath(config, "raw", "message")
+            ?? ReadStringByPath(config, "raw", "errorMessage")
+            ?? ReadString(config, "message")
+            ?? ReadString(config, "errorMessage");
+        var resolvedMessage = messageLiteral
+            ?? sourceError?.Message
+            ?? node.Caption
+            ?? "Microflow ErrorEvent reached.";
+
+        if (!string.IsNullOrWhiteSpace(messageExpression))
+        {
+            resolvedMessage = EvaluateErrorEventMessageExpression(context, node, messageExpression!, resolvedMessage);
+        }
+
+        var errorCode = ReadStringByPath(config, "raw", "errorCode")
+            ?? ReadString(config, "errorCode")
+            ?? sourceError?.Code
+            ?? RuntimeErrorCode.RuntimeErrorEventReached;
+
+        return Error(
+            errorCode,
+            resolvedMessage,
+            node.ObjectId,
+            node.ActionId,
+            incomingFlowId,
+            sourceError?.Details,
+            sourceError?.Cause);
+    }
+
+    private string EvaluateErrorEventMessageExpression(MicroflowNavigationContext context, MicroflowExecutionNode node, string expression, string fallbackMessage)
+    {
+        var result = _expressionEvaluator.Evaluate(
+            expression,
+            new MicroflowExpressionEvaluationContext
+            {
+                RuntimeExecutionContext = context.RuntimeContext,
+                VariableStore = context.RuntimeContext.VariableStore,
+                CurrentObjectId = node.ObjectId,
+                CurrentActionId = node.ActionId,
+                CurrentCollectionId = node.CollectionId,
+                CurrentFlowId = context.CurrentFlowId,
+                Mode = context.Options.Mode,
+                Options = new MicroflowExpressionEvaluationOptions
+                {
+                    AllowUnknownVariables = false,
+                    AllowUnsupportedFunctions = false,
+                    StrictTypeCheck = true
+                }
+            });
+        if (result.Success && !string.IsNullOrWhiteSpace(result.RawValueJson))
+        {
+            var value = MicroflowVariableStore.ToJsonElement(result.RawValueJson);
+            return value?.ValueKind == JsonValueKind.String
+                ? value.Value.GetString() ?? fallbackMessage
+                : result.RawValueJson!;
+        }
+
+        return $"{fallbackMessage} (expression error: {result.Error?.Message ?? "evaluation failed"})";
+    }
+
+    private static MicroflowRuntimeErrorDto? TryReadErrorEventSource(MicroflowNavigationContext context, string? sourceVariableName)
+    {
+        if (string.IsNullOrWhiteSpace(sourceVariableName)
+            || !context.RuntimeContext.VariableStore.TryGet(sourceVariableName!, out var variable)
+            || variable is null
+            || string.IsNullOrWhiteSpace(variable.RawValueJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<MicroflowRuntimeErrorDto>(variable.RawValueJson!, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static MicroflowNavigationError Error(string code, string message, string? objectId = null, string? actionId = null, string? flowId = null, string? details = null, string? cause = null)
         => new()
         {
             Code = code,
@@ -1209,7 +1342,8 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             ObjectId = objectId,
             ActionId = actionId,
             FlowId = flowId,
-            Details = details
+            Details = details,
+            Cause = cause
         };
 
     private static bool IsKind(MicroflowExecutionNode node, string kind)

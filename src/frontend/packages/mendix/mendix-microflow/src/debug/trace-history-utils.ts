@@ -71,10 +71,22 @@ export function buildCallStackPaths(session?: MicroflowRunSession): string[][] {
 
   const result: string[][] = [];
   const seen = new Set<string>();
+  const callStackPathFromFrames = (frames: MicroflowRunSession["callStackFrames"]): string[] => {
+    if (!frames || frames.length === 0) {
+      return [];
+    }
+    return [...frames]
+      .sort((left, right) => left.depth - right.depth)
+      .map(frame => frame.qualifiedName || frame.microflowId || frame.schemaId || "unknown")
+      .filter(Boolean);
+  };
   const walk = (current: MicroflowRunSession, inheritedPath: string[]) => {
-    const currentPath = (current.callStack?.length ?? 0) > 0
-      ? [...(current.callStack ?? [])]
-      : [...inheritedPath, current.resourceId || current.schemaId || "unknown"];
+    const framePath = callStackPathFromFrames(current.callStackFrames);
+    const currentPath = framePath.length > 0
+      ? framePath
+      : (current.callStack?.length ?? 0) > 0
+        ? [...(current.callStack ?? [])]
+        : [...inheritedPath, current.resourceId || current.schemaId || "unknown"];
     const key = currentPath.join(" -> ");
     if (key && !seen.has(key)) {
       seen.add(key);

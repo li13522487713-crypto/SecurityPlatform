@@ -32,7 +32,7 @@ function dataTypeToTypeRef(dataType: MicroflowDataType | undefined): MicroflowTy
 
 function symbolScope(symbol: MicroflowVariableSymbol): MicroflowVariable["scope"] {
   if (symbol.source.kind === "errorContext") {
-    return "latestError";
+    return "errorContext";
   }
   if ("objectId" in symbol.source || "loopObjectId" in symbol.source) {
     return "node";

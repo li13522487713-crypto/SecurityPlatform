@@ -407,6 +407,9 @@ public sealed record MicroflowNavigationErrorFrame
 
     [JsonPropertyName("latestHttpResponse")]
     public JsonElement? LatestHttpResponse { get; init; }
+
+    [JsonPropertyName("latestSoapFault")]
+    public JsonElement? LatestSoapFault { get; init; }
 }
 
 public static class MicroflowNavigationTraceMapper

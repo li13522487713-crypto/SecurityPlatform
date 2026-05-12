@@ -1,6 +1,8 @@
 import type { MicroflowCaseValue, MicroflowFlow, MicroflowObject, MicroflowObjectCollection, MicroflowSchema } from "../types";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import { collectFlowsRecursive } from "./object-utils";
+import { findObjectById } from "./object-utils";
+import { isBooleanExclusiveSplit } from "./exclusive-split-utils";
 
 function simpleName(value: string): string {
   return value.split(".").at(-1) ?? value;
@@ -36,7 +38,7 @@ export function getCaseValueKey(caseValue: MicroflowCaseValue): string {
 
 export function getCaseDisplayLabel(caseValue: MicroflowCaseValue, _metadata?: MicroflowMetadataCatalog): string {
   if (caseValue.kind === "boolean") {
-    return caseValue.value ? "是" : "否";
+    return caseValue.value ? "true" : "false";
   }
   if (caseValue.kind === "enumeration") {
     return simpleName(caseValue.value);
@@ -45,10 +47,13 @@ export function getCaseDisplayLabel(caseValue: MicroflowCaseValue, _metadata?: M
     return simpleName(caseValue.entityQualifiedName);
   }
   if (caseValue.kind === "empty") {
-    return "empty";
+    return "(empty)";
   }
   if (caseValue.kind === "fallback") {
-    return "fallback";
+    return "(empty)";
+  }
+  if (caseValue.kind === "expression") {
+    return caseValue.condition ?? caseValue.expression ?? "condition";
   }
   return "未配置条件";
 }
@@ -66,6 +71,14 @@ export function caseValueIdentity(caseValue: MicroflowCaseValue): string {
   return caseValue.kind;
 }
 
+export function isObjectTypeEmptyCaseValue(caseValue: MicroflowCaseValue): boolean {
+  return caseValue.kind === "empty" || caseValue.kind === "fallback";
+}
+
+export function objectTypeCaseIdentity(caseValue: MicroflowCaseValue): string {
+  return isObjectTypeEmptyCaseValue(caseValue) ? "empty" : caseValueIdentity(caseValue);
+}
+
 export function isSameCaseValue(left: MicroflowCaseValue, right: MicroflowCaseValue): boolean {
   return caseValueIdentity(left) === caseValueIdentity(right);
 }
@@ -75,7 +88,7 @@ export function isCaseValueCompatibleWithSource(caseValue: MicroflowCaseValue, s
     return false;
   }
   if (sourceObject.kind === "exclusiveSplit") {
-    return sourceObject.splitCondition.kind === "expression" && sourceObject.splitCondition.resultType === "boolean"
+    return isBooleanExclusiveSplit(sourceObject)
       ? caseValue.kind === "boolean" || caseValue.kind === "noCase"
       : caseValue.kind === "enumeration" || caseValue.kind === "empty" || caseValue.kind === "noCase";
   }
@@ -92,13 +105,15 @@ export function getUsedCaseValues(schema: MicroflowSchema, sourceObjectId: strin
 }
 
 export function validateDuplicateCaseValues(schema: MicroflowSchema, sourceObjectId: string, excludeFlowId?: string): Array<{ key: string; flowIds: string[] }> {
+  const sourceObject = findObjectById(schema.objectCollection, sourceObjectId);
+  const identityOf = sourceObject?.kind === "inheritanceSplit" ? objectTypeCaseIdentity : caseValueIdentity;
   const byKey = new Map<string, string[]>();
   for (const flow of collectFlowsRecursive(schema)) {
     if (flow.kind !== "sequence" || flow.originObjectId !== sourceObjectId || flow.id === excludeFlowId || flow.isErrorHandler) {
       continue;
     }
     for (const caseValue of flow.caseValues) {
-      const key = caseValueIdentity(caseValue);
+      const key = identityOf(caseValue);
       byKey.set(key, [...(byKey.get(key) ?? []), flow.id]);
     }
   }
@@ -111,8 +126,10 @@ export function isCaseValueDuplicate(
   candidateCase: MicroflowCaseValue,
   excludeFlowId?: string,
 ): boolean {
-  const key = caseValueIdentity(candidateCase);
-  return getUsedCaseValues(schema, sourceObjectId, excludeFlowId).some(caseValue => caseValueIdentity(caseValue) === key);
+  const sourceObject = findObjectById(schema.objectCollection, sourceObjectId);
+  const identityOf = sourceObject?.kind === "inheritanceSplit" ? objectTypeCaseIdentity : caseValueIdentity;
+  const key = identityOf(candidateCase);
+  return getUsedCaseValues(schema, sourceObjectId, excludeFlowId).some(caseValue => identityOf(caseValue) === key);
 }
 
 export function inferCaseEditorType(sourceObject: MicroflowObject | undefined): "boolean" | "enumeration" | "objectType" | "none" {

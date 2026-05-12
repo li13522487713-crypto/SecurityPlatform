@@ -248,14 +248,18 @@ function toParameter(parameter: MicroflowDesignSchema["parameters"][number]): Mi
 
 function toVariableSymbol(variable: MicroflowVariable): MicroflowVariableSymbol {
   const scope = { kind: variable.scope === "node" ? "collection" : "global", collectionId: ROOT_COLLECTION_ID } as const;
+  const isErrorContextScope = variable.scope === "latestError" || variable.scope === "errorContext";
+  const errorVariable = variable.name === "$latestHttpResponse" || variable.name === "$latestSoapFault" || variable.name === "$latestError"
+    ? variable.name
+    : "$latestError";
   return {
     id: variable.id,
     name: variable.name,
     displayName: variable.name,
-    kind: variable.scope === "latestError" ? "errorContext" : "localVariable",
+    kind: isErrorContextScope ? "errorContext" : "localVariable",
     dataType: toDataType(variable.type),
     type: variable.type,
-    source: variable.scope === "latestError" ? { kind: "errorContext", flowId: "", errorVariable: "$latestError" } : { kind: "modeledOnly", objectId: variable.id },
+    source: isErrorContextScope ? { kind: "errorContext", flowId: "", errorVariable } : { kind: "modeledOnly", objectId: variable.id },
     scope,
     readonly: false,
   };

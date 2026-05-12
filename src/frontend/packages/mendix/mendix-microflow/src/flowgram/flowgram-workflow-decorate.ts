@@ -14,6 +14,7 @@ import type {
   MicroflowNodeViewMode,
 } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeUsageHighlights } from "../variables";
+import type { DebugLoopIteration } from "../stores/debug-store";
 import { deriveEdgeRuntimeStateByFlowId } from "./runtime-edge-state";
 import { normalizeMicroflowDesignEdges } from "./flowgram-design-edge-semantics";
 import { getMendixMicroflowNodeSize } from "./flowgram-node-geometry";
@@ -157,6 +158,7 @@ export function decorateWorkflow(input: {
   schema: MicroflowDesignSchema;
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
+  loopIteration?: DebugLoopIteration;
   pausedNodeIds?: string[];
   nodeViewModes?: Record<string, MicroflowNodeViewMode>;
   usageHighlights?: MicroflowNodeUsageHighlights;
@@ -208,6 +210,14 @@ export function decorateWorkflow(input: {
       const hasConditionalBreakpoint = conditionalBreakpointNodeIds.has(node.id) || conditionalBreakpointNodeIds.has(data.objectId);
       const hasNormalBreakpoint = breakpointNodeIds.has(node.id) || breakpointNodeIds.has(data.objectId);
       const hasBreakpoint = hasConditionalBreakpoint || hasNormalBreakpoint;
+      const loopIteration = data.objectKind === "loopedActivity"
+        && input.loopIteration
+        && (input.loopIteration.nodeId === node.id || input.loopIteration.nodeId === data.objectId)
+        ? {
+            iterationIndex: input.loopIteration.iterationIndex,
+            totalIterations: input.loopIteration.totalIterations,
+          }
+        : undefined;
       return {
         ...node,
         meta: {
@@ -223,6 +233,7 @@ export function decorateWorkflow(input: {
           runtimeErrorMessage: frame?.error?.message,
           hasBreakpoint,
           breakpointKind: hasConditionalBreakpoint ? "conditional" : hasNormalBreakpoint ? "normal" : undefined,
+          loopIteration,
           inlineConfig,
           usageSourceHighlight: usageMatchesNode(node.id, data, input.usageHighlights?.sourceNodeIds),
           usageConsumerHighlight: usageMatchesNode(node.id, data, input.usageHighlights?.consumerNodeIds),

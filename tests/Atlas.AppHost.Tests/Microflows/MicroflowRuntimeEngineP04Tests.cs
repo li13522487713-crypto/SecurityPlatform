@@ -6,6 +6,8 @@ using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime;
+using Atlas.Application.Microflows.Runtime.Actions;
+using Atlas.Application.Microflows.Runtime.Connectors;
 using Atlas.Application.Microflows.Runtime.Metadata;
 using Atlas.Application.Microflows.Runtime.Security;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +39,125 @@ public sealed class MicroflowRuntimeEngineP04Tests
         Assert.Equal("failed", session.Status);
         Assert.Equal("DOMAIN_FAILED", session.Error?.Code);
         Assert.Contains(session.Trace, frame => frame.ObjectId == "thrower" && frame.Status == "failed");
+    }
+
+    [Fact]
+    public async Task Run_ErrorEvent_MessageExpression_Uses_ErrorHandler_Context_Variable()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("thrower", "throwException", new
+                {
+                    errorCode = "BIZ_FAIL",
+                    message = "primary path failed"
+                }),
+                new
+                {
+                    id = "rethrow",
+                    kind = "errorEvent",
+                    caption = "Rethrow",
+                    error = new
+                    {
+                        sourceVariableName = "$latestError",
+                        messageExpression = "$latestError/message + ' (wrapped)'"
+                    }
+                }),
+            Flows(
+                Flow("f1", "start", "thrower"),
+                ErrorFlow("f2-err", "thrower", "rethrow")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("failed", session.Status);
+        Assert.Equal("BIZ_FAIL", session.Error?.Code);
+        Assert.Equal("primary path failed (wrapped)", session.Error?.Message);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "rethrow" && frame.Status == "failed");
+    }
+
+    [Fact]
+    public async Task Run_ErrorEvent_SourceVariable_Rethrows_Original_ErrorCode_Without_Explicit_ErrorCode()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("thrower", "throwException", new
+                {
+                    errorCode = "DOWNSTREAM_FAIL",
+                    message = "downstream exploded"
+                }),
+                new
+                {
+                    id = "rethrow",
+                    kind = "errorEvent",
+                    caption = "Rethrow",
+                    error = new
+                    {
+                        sourceVariableName = "$latestError"
+                    }
+                }),
+            Flows(
+                Flow("f1", "start", "thrower"),
+                ErrorFlow("f2-err", "thrower", "rethrow")));
+
+        var session = await RunAsync(schema);
+
+        Assert.Equal("failed", session.Status);
+        Assert.Equal("DOWNSTREAM_FAIL", session.Error?.Code);
+        Assert.Equal("downstream exploded", session.Error?.Message);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "rethrow" && frame.Status == "failed");
+    }
+
+    [Fact]
+    public async Task Run_WebServiceCall_ErrorHandler_Exposes_LatestSoapFault_To_ErrorEvent()
+    {
+        var schema = Schema(
+            Objects(
+                Start(),
+                Action("soap", "webServiceCall", new
+                {
+                    endpoint = "https://soap.test/service",
+                    operation = "SubmitOrder",
+                    errorHandlingType = "customWithoutRollback"
+                }),
+                new
+                {
+                    id = "rethrow",
+                    kind = "errorEvent",
+                    caption = "Rethrow Soap Fault",
+                    error = new
+                    {
+                        sourceVariableName = "$latestError",
+                        messageExpression = "$latestSoapFault/faultCode + ': ' + $latestSoapFault/faultString"
+                    }
+                }),
+            Flows(
+                Flow("f1", "start", "soap"),
+                ErrorFlow("f2-err", "soap", "rethrow")));
+
+        var session = await RunAsync(
+            schema,
+            configureServices: services => services.AddSingleton<ISoapWebServiceConnector>(new StubSoapWebServiceConnector(
+                new MicroflowConnectorExecutionResult
+                {
+                    Success = false,
+                    Capability = MicroflowRuntimeConnectorCapability.SoapWebService,
+                    Error = new MicroflowRuntimeErrorDto
+                    {
+                        Code = "SOAP_REMOTE_FAULT",
+                        Message = "Remote SOAP fault."
+                    },
+                    LatestSoapFault = JsonSerializer.SerializeToElement(new
+                    {
+                        faultCode = "Server.Validation",
+                        faultString = "Order invalid"
+                    }, JsonOptions)
+                })));
+
+        Assert.Equal("failed", session.Status);
+        Assert.Equal("SOAP_REMOTE_FAULT", session.Error?.Code);
+        Assert.Equal("Server.Validation: Order invalid", session.Error?.Message);
+        Assert.Contains(session.Trace, frame => frame.ObjectId == "rethrow" && frame.Status == "failed");
     }
 
     [Fact]
@@ -769,7 +890,8 @@ public sealed class MicroflowRuntimeEngineP04Tests
     private static async Task<MicroflowRunSessionDto> RunAsync(
         JsonElement schema,
         IReadOnlyDictionary<string, object?>? input = null,
-        MicroflowMetadataCatalogDto? metadata = null)
+        MicroflowMetadataCatalogDto? metadata = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -787,6 +909,7 @@ public sealed class MicroflowRuntimeEngineP04Tests
         services.AddSingleton(Substitute.For<IMicroflowMetadataCacheRepository>());
         services.AddSingleton(Substitute.For<IMicroflowStorageTransaction>());
         services.AddSingleton(Substitute.For<IMicroflowStorageDiagnosticsService>());
+        configureServices?.Invoke(services);
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
@@ -989,6 +1112,24 @@ public sealed class MicroflowRuntimeEngineP04Tests
             WorkspaceId = "ws-p04",
             TenantId = "tenant-p04"
         };
+    }
+
+    private sealed class StubSoapWebServiceConnector : ISoapWebServiceConnector
+    {
+        private readonly MicroflowConnectorExecutionResult _result;
+
+        public StubSoapWebServiceConnector(MicroflowConnectorExecutionResult result)
+        {
+            _result = result;
+        }
+
+        public MicroflowConnectorCapabilityStatus GetCapabilityStatus()
+            => new(MicroflowRuntimeConnectorCapability.SoapWebService, Available: true, "available");
+
+        public Task<MicroflowConnectorExecutionResult> ExecuteAsync(
+            MicroflowConnectorExecutionRequest request,
+            CancellationToken cancellationToken)
+            => Task.FromResult(_result);
     }
 
     private static MicroflowMetadataCatalogDto Catalog()

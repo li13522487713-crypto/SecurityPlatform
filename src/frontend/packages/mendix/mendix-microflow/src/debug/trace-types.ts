@@ -32,6 +32,29 @@ export interface MicroflowRuntimeVariableValue {
   scopeKind?: string;
 }
 
+export interface MicroflowRunCallStackFrame {
+  id: string;
+  parentFrameId?: string;
+  runId: string;
+  parentRunId?: string;
+  rootRunId?: string;
+  microflowId?: string;
+  schemaId?: string;
+  version?: string;
+  qualifiedName?: string;
+  callerResourceId?: string;
+  callerSchemaId?: string;
+  callerObjectId?: string;
+  callerActionId?: string;
+  callerTraceFrameId?: string;
+  depth: number;
+  callMode?: string;
+  status?: string;
+  startedAt?: string;
+  endedAt?: string;
+  durationMs?: number;
+}
+
 export interface MicroflowRuntimeError {
   code: MicroflowRuntimeErrorCode;
   message: string;
@@ -184,6 +207,7 @@ export interface MicroflowRunSession {
   callDepth?: number;
   correlationId?: string;
   callStack?: string[];
+  callStackFrames?: MicroflowRunCallStackFrame[];
   startedAt: string;
   endedAt?: string;
   status: MicroflowRunStatus;

@@ -23,22 +23,31 @@ function normalizeVariableName(name: string | undefined): string {
   return trimmed.startsWith("$") ? trimmed : `$${trimmed}`;
 }
 
-function variableTypeLabelColor(type: string | undefined): { label: string; color: "blue" | "green" | "orange" | "grey" | "purple" | "red" } {
+function variableTypeLabelColor(type: string | undefined, variableName?: string): { label: string; color: "blue" | "green" | "orange" | "grey" | "purple" | "red" } {
   const normalized = String(type ?? "").toLowerCase();
-  if (normalized.includes("object")) {
+  const normalizedName = normalizeVariableName(variableName).toLowerCase();
+  if (normalizedName === "$latesterror" || normalized.includes("error")) {
+    return { label: "Error", color: "red" };
+  }
+  if (
+    normalizedName === "$latesthttpresponse"
+    || normalizedName === "$latestsoapfault"
+    || normalized.includes("httpresponse")
+    || normalized.includes("soapfault")
+  ) {
     return { label: "Object", color: "blue" };
   }
   if (normalized.includes("list") || normalized.includes("array")) {
     return { label: "List", color: "green" };
+  }
+  if (normalized.includes("object")) {
+    return { label: "Object", color: "blue" };
   }
   if (normalized.includes("decimal") || normalized.includes("int") || normalized.includes("number")) {
     return { label: "Decimal", color: "orange" };
   }
   if (normalized.includes("boolean") || normalized.includes("bool")) {
     return { label: "Boolean", color: "purple" };
-  }
-  if (normalized.includes("error")) {
-    return { label: "Error", color: "red" };
   }
   return { label: normalized ? normalized : "String", color: "grey" };
 }
@@ -127,7 +136,7 @@ export function DebugVariablesPanel({
           const changed = changedVariables.has(normalizedName);
           const parsed = tryParsePreview(item.valuePreview);
           const expanded = expandedVariables[normalizedName] === true;
-          const typeInfo = variableTypeLabelColor(item.type);
+          const typeInfo = variableTypeLabelColor(item.type, item.name);
           const canExpand = parsed != null && (Array.isArray(parsed) || typeof parsed === "object");
           const listSize = Array.isArray(parsed) ? parsed.length : undefined;
           const objectEntries = parsed && !Array.isArray(parsed) && typeof parsed === "object" ? Object.entries(parsed as Record<string, unknown>) : undefined;

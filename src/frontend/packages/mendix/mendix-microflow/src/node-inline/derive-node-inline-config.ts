@@ -12,6 +12,7 @@ import { deriveErrorNodeInline } from "./error-node-inline";
 import { deriveLoopNodeInline } from "./loop-node-inline";
 import { deriveRestNodeInline } from "./rest-node-inline";
 import { deriveStartNodeInline } from "./start-node-inline";
+import { deriveTryCatchNodeInline } from "./try-catch-node-inline";
 import { deriveVariableNodeInline } from "./variable-node-inline";
 import { buildNodeInlineVariableOptions } from "./inline-variable-options";
 import { appendOutputMappingsInlineSection } from "./output-mappings-inline";
@@ -209,7 +210,10 @@ export function deriveNodeInlineConfig(input: {
   if (actionKind === "createVariable" || actionKind === "changeVariable") {
     return finalizeInlineConfig(deriveVariableNodeInline(deriveInput), deriveInput);
   }
-  if (actionKind === "completeUserTask" || actionKind === "changeWorkflowState" || objectKind === "tryCatch") {
+  if (objectKind === "tryCatch") {
+    return finalizeInlineConfig(deriveTryCatchNodeInline(deriveInput), deriveInput);
+  }
+  if (actionKind === "completeUserTask" || actionKind === "changeWorkflowState") {
     return finalizeInlineConfig(deriveApprovalNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "actionActivity" || actionKind.length > 0) {

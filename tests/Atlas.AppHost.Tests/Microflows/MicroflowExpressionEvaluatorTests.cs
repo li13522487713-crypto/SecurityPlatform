@@ -73,6 +73,34 @@ public sealed class MicroflowExpressionEvaluatorTests
     }
 
     [Fact]
+    public void Evaluator_Resolves_LatestHttpResponse_And_SoapFault_Members_In_ErrorScope()
+    {
+        var evaluator = new MicroflowExpressionEvaluator();
+        var context = CreateContext();
+        using var scope = context.RuntimeExecutionContext.PushErrorHandlerScope(
+            new MicroflowRuntimeErrorDto { Code = "REST_FAIL", Message = "request failed", ObjectId = "rest", ActionId = "rest-action" },
+            errorHandlerFlowId: "f-rest-error",
+            latestHttpResponse: JsonSerializer.SerializeToElement(new
+            {
+                statusCode = 502,
+                reasonPhrase = "Bad Gateway",
+                bodyText = "upstream failed",
+                contentType = "application/json"
+            }, JsonOptions),
+            latestSoapFault: JsonSerializer.SerializeToElement(new
+            {
+                faultCode = "SOAP-42",
+                faultString = "Remote fault"
+            }, JsonOptions));
+
+        Assert.Equal("502", evaluator.Evaluate("$latestHttpResponse/statusCode", context).ValuePreview);
+        Assert.Equal("Bad Gateway", evaluator.Evaluate("$latestHttpResponse/reasonPhrase", context).ValuePreview);
+        Assert.Equal("SOAP-42", evaluator.Evaluate("$latestSoapFault/faultCode", context).ValuePreview);
+        Assert.Equal(MicroflowExpressionTypeKind.Integer, evaluator.Infer(evaluator.Parse("$latestHttpResponse/statusCode").Ast, context).InferredType.Kind);
+        Assert.Equal(MicroflowExpressionTypeKind.String, evaluator.Infer(evaluator.Parse("$latestSoapFault/faultString").Ast, context).InferredType.Kind);
+    }
+
+    [Fact]
     public void Evaluator_ComputesP0SubsetAndStructuredErrors()
     {
         var evaluator = new MicroflowExpressionEvaluator();
@@ -150,6 +178,7 @@ public sealed class MicroflowExpressionEvaluatorTests
         Assert.Contains("$Order", labels);
         Assert.Contains("$latestError", labels);
         Assert.Contains("$latestHttpResponse", labels);
+        Assert.Contains("$latestSoapFault", labels);
         Assert.Contains("contains", labels);
         Assert.Contains("length", labels);
     }

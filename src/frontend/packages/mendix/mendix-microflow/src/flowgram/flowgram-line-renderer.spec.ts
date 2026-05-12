@@ -41,6 +41,10 @@ describe("FlowGramMicroflowLineRenderer helpers", () => {
       edgeKind: "decisionCondition",
       caseValues: [{ kind: "noCase", officialType: "Microflows$NoCase" }],
     }))).toBe("(empty)");
+    expect(lineLabelFromEdgeData(edgeData({
+      edgeKind: "objectTypeCondition",
+      caseValues: [{ kind: "fallback", officialType: "Microflows$NoCase" }],
+    }))).toBe("(empty)");
   });
 
   it("adds semantic class names for validation and runtime state", () => {

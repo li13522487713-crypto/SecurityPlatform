@@ -84,4 +84,19 @@ describe("DebugVariablesPanel", () => {
 
     expect(screen.getByText("●")).toBeTruthy();
   });
+
+  it("treats latest transport error context variables as Object instead of String", () => {
+    render(
+      <DebugVariablesPanel
+        title="Variables"
+        variables={[
+          { name: "$latestHttpResponse", valuePreview: "{\"StatusCode\":500}", type: "System.HttpResponse" },
+          { name: "$latestSoapFault", valuePreview: "{\"FaultCode\":\"Server\"}", type: "System.SoapFault" },
+        ]}
+      />,
+    );
+
+    const objectTags = screen.getAllByText("Object");
+    expect(objectTags).toHaveLength(2);
+  });
 });

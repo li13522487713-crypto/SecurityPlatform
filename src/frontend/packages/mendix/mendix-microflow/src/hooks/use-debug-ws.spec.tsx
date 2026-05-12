@@ -569,7 +569,7 @@ describe("useDebugWebSocket", () => {
             executedEdgeIds: ["edge-sync"],
             variables: [{ name: "v1", valuePreview: "42", type: "integer" }],
             breakpoints: [{ nodeId: "node-sync", enabled: true }],
-            callStack: [{ runId: "run-sync", microflowId: "mf-state-sync", depth: 0 }],
+            callStack: [{ runId: "run-sync", microflowId: "mf-state-sync", depth: 0, callerObjectId: "call-order-submit", status: "paused" }],
           },
         }),
       });
@@ -580,6 +580,6 @@ describe("useDebugWebSocket", () => {
     expect(snapshot.executedEdgeIds).toContain("edge-sync");
     expect(snapshot.variables).toEqual(expect.arrayContaining([expect.objectContaining({ name: "v1", value: "42" })]));
     expect(snapshot.breakpoints).toEqual(expect.arrayContaining([expect.objectContaining({ nodeId: "node-sync", enabled: true })]));
-    expect(snapshot.callStack).toEqual(expect.arrayContaining([expect.objectContaining({ runId: "run-sync", microflowId: "mf-state-sync" })]));
+    expect(snapshot.callStack).toEqual(expect.arrayContaining([expect.objectContaining({ runId: "run-sync", microflowId: "mf-state-sync", callerNodeId: "call-order-submit", status: "paused" })]));
   });
 });

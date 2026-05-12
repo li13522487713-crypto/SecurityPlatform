@@ -960,10 +960,18 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
         var sortKeys = ReadSortKeys(context.ActionConfig);
         if (sortKeys.Count == 0)
         {
-            var fallbackField = ReadFirstString(context.ActionConfig, "sortField", "memberName");
-            if (!string.IsNullOrWhiteSpace(fallbackField))
+            var fallbackExpression = ReadExpressionRaw(ReadProperty(context.ActionConfig, "sortExpression"));
+            if (!string.IsNullOrWhiteSpace(fallbackExpression))
             {
-                sortKeys.Add((fallbackField!, "asc"));
+                sortKeys.Add(new SortKeySpec(null, "asc", fallbackExpression));
+            }
+            else
+            {
+                var fallbackField = ReadFirstString(context.ActionConfig, "sortField", "memberName");
+                if (!string.IsNullOrWhiteSpace(fallbackField))
+                {
+                    sortKeys.Add(new SortKeySpec(fallbackField!, "asc", null));
+                }
             }
         }
 
@@ -972,14 +980,17 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
             return JsonSerializer.SerializeToElement(items, JsonOptions);
         }
 
+        var itemVariableName = NormalizeVariableName(ReadFirstString(context.ActionConfig, "objectVariableName", "itemVariableName", "itemVariable"), "item");
         items.Sort((left, right) =>
         {
-            foreach (var (field, direction) in sortKeys)
+            foreach (var sortKey in sortKeys)
             {
-                var comparison = CompareJsonElements(ExtractSortValue(left, field), ExtractSortValue(right, field));
+                var leftValue = ResolveSortValue(context, left, sortKey, itemVariableName);
+                var rightValue = ResolveSortValue(context, right, sortKey, itemVariableName);
+                var comparison = CompareJsonElements(leftValue, rightValue);
                 if (comparison != 0)
                 {
-                    return string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase) ? -comparison : comparison;
+                    return string.Equals(sortKey.Direction, "desc", StringComparison.OrdinalIgnoreCase) ? -comparison : comparison;
                 }
             }
 
@@ -1077,9 +1088,34 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
             ? Math.Max(offset, 0)
             : 0;
 
-    private static List<(string Field, string Direction)> ReadSortKeys(JsonElement config)
+    private static JsonElement ResolveSortValue(
+        MicroflowActionExecutionContext context,
+        JsonElement item,
+        SortKeySpec sortKey,
+        string itemVariableName)
     {
-        var keys = new List<(string Field, string Direction)>();
+        if (string.IsNullOrWhiteSpace(sortKey.ExpressionRaw))
+        {
+            return ExtractSortValue(item, sortKey.Field);
+        }
+
+        using var scopeLease = context.RuntimeExecutionContext.PushLoopScope(
+            loopObjectId: context.ObjectId,
+            collectionId: context.CollectionId ?? context.ObjectId,
+            iteratorVariableName: itemVariableName,
+            index: 0,
+            iteratorRawValue: item,
+            iteratorPreview: MicroflowVariableStore.Preview(item.GetRawText()),
+            iteratorDataTypeJson: InferDataType(item).GetRawText(),
+            defineIterator: true);
+        return TryEvaluateExpression(context, sortKey.ExpressionRaw, out var evaluated, out _)
+            ? evaluated
+            : JsonNull();
+    }
+
+    private static List<SortKeySpec> ReadSortKeys(JsonElement config)
+    {
+        var keys = new List<SortKeySpec>();
         if (config.ValueKind == JsonValueKind.Object
             && config.TryGetProperty("sortKeys", out var sortKeys)
             && sortKeys.ValueKind == JsonValueKind.Array)
@@ -1087,18 +1123,21 @@ public sealed class ListOperationActionExecutor : ListActionExecutorBase
             foreach (var item in sortKeys.EnumerateArray())
             {
                 var field = ReadFirstString(item, "field", "memberName", "attributeQualifiedName", "sortField");
-                if (string.IsNullOrWhiteSpace(field))
+                var expressionRaw = ReadExpressionRaw(ReadProperty(item, "expression"));
+                if (string.IsNullOrWhiteSpace(field) && string.IsNullOrWhiteSpace(expressionRaw))
                 {
                     continue;
                 }
 
                 var direction = ReadFirstString(item, "direction") ?? "asc";
-                keys.Add((field!, direction));
+                keys.Add(new SortKeySpec(field, direction, expressionRaw));
             }
         }
 
         return keys;
     }
+
+    private sealed record SortKeySpec(string? Field, string Direction, string? ExpressionRaw);
 
     private static JsonElement FindByValue(IReadOnlyList<JsonElement> source, JsonElement value)
     {

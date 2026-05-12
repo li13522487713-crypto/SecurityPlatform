@@ -27,6 +27,24 @@ public static class MicroflowSeedMetadataCatalog
                 Entity("system-user", "User", "System.User", "System", true, null, ["Id", "Name", "Email"]),
                 Entity("system-file-document", "FileDocument", "System.FileDocument", "System", true, null,
                     [("Name", Type("string"), null), ("Contents", Type("binary"), null)]),
+                Entity("system-http-response", "HttpResponse", "System.HttpResponse", "System", true, null,
+                    [
+                        ("statusCode", Type("integer"), null),
+                        ("reasonPhrase", Type("string"), null),
+                        ("bodyText", Type("string"), null),
+                        ("bodyPreview", Type("string"), null),
+                        ("contentType", Type("string"), null),
+                        ("contentLength", Type("long"), null),
+                        ("truncated", Type("boolean"), null),
+                        ("errorKind", Type("string"), null),
+                        ("errorMessage", Type("string"), null)
+                    ]),
+                Entity("system-soap-fault", "SoapFault", "System.SoapFault", "System", true, null,
+                    [
+                        ("faultCode", Type("string"), null),
+                        ("faultString", Type("string"), null),
+                        ("detail", Type("string"), null)
+                    ]),
                 Entity("sales-order", "Order", "Sales.Order", "Sales", false, null,
                     [
                         ("Id", Type("string"), null),

@@ -235,7 +235,7 @@ describe("buildNodeUsageHighlights", () => {
     const result = buildNodeUsageHighlights(schema(), "create-level");
 
     expect(result.outputVariableNames).toContain("approvalLevel");
-    expect(result.consumerNodeIds.sort()).toEqual(["change-level", "inner-change", "loop-1"]);
+    expect(result.consumerNodeIds.sort()).toEqual(["change-level"]);
   });
 
   it("treats loop iterator variables as outputs of the loop node", () => {
@@ -260,5 +260,64 @@ describe("buildVariableUsageHighlights", () => {
 
     expect(result.sourceNodeIds).toEqual(["param-object"]);
     expect(result.consumerNodeIds).toEqual(["change-level"]);
+  });
+});
+
+describe("buildNodeUsageHighlights with while loops", () => {
+  it("treats $currentIndex as an output of while loops", () => {
+    const s = schema();
+    const whileLoop = {
+      id: "while-loop",
+      stableId: "while-loop",
+      kind: "loopedActivity",
+      officialType: "Microflows$LoopedActivity",
+      documentation: "",
+      errorHandlingType: "rollback",
+      relativeMiddlePoint: { x: 520, y: 180 },
+      size: { width: 320, height: 190 },
+      editor: {},
+      loopSource: {
+        kind: "whileCondition",
+        officialType: "Microflows$WhileLoopCondition",
+        expression: expression("$approvalLevel != ''"),
+      },
+      objectCollection: {
+        id: "while-body",
+        officialType: "Microflows$MicroflowObjectCollection",
+        objects: [
+          {
+            id: "while-inner",
+            stableId: "while-inner",
+            kind: "actionActivity",
+            officialType: "Microflows$ActionActivity",
+            caption: "While Change",
+            autoGenerateCaption: false,
+            backgroundColor: "default",
+            disabled: false,
+            relativeMiddlePoint: { x: 0, y: 0 },
+            size: { width: 178, height: 76 },
+            editor: {},
+            action: {
+              id: "action-while-inner",
+              kind: "changeVariable",
+              officialType: "Microflows$ChangeVariableAction",
+              caption: "Change Variable",
+              errorHandlingType: "rollback",
+              documentation: "",
+              editor: { category: "variable", iconKey: "variable", availability: "supported" },
+              targetVariableName: "approvalLevel",
+              newValueExpression: expression("$currentIndex + $amount"),
+            },
+          },
+        ],
+        flows: [],
+      },
+    } as any;
+    s.objectCollection.objects.push(whileLoop);
+
+    const result = buildNodeUsageHighlights(s, "while-loop");
+
+    expect(result.outputVariableNames).toEqual(["currentIndex"]);
+    expect(result.consumerNodeIds).toEqual(["while-inner"]);
   });
 });

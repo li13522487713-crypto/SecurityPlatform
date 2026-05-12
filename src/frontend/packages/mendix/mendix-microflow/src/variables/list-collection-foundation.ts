@@ -7,6 +7,7 @@ import type {
   MicroflowObjectCollection,
   MicroflowVariableSymbol,
 } from "../schema/types";
+import { renameActionOutputVariable } from "../schema/utils";
 import { buildMicroflowVariableIndex } from "./microflow-variable-foundation";
 
 function mapObjectCollection(
@@ -109,12 +110,7 @@ export function updateCreateListVariableName(
   objectId: string,
   name: string,
 ): MicroflowAuthoringSchema {
-  const nextName = name.trim();
-  return updateListAction(schema, objectId, "createList", action => ({
-    ...action,
-    outputListVariableName: nextName,
-    listVariableName: nextName,
-  }));
+  return refreshVariableIndex(renameActionOutputVariable(schema, objectId, name.trim()));
 }
 
 export function updateCreateListElementType(
@@ -185,10 +181,9 @@ export function updateAggregateResultVariable(
   objectId: string,
   variable: { id?: string; name: string; dataType?: MicroflowDataType },
 ): MicroflowAuthoringSchema {
-  return updateListAction(schema, objectId, "aggregateList", action => ({
+  const renamed = renameActionOutputVariable(schema, objectId, variable.name.trim());
+  return updateListAction(renamed, objectId, "aggregateList", action => ({
     ...action,
-    outputVariableName: variable.name.trim(),
-    resultVariableName: variable.name.trim(),
     resultVariableId: variable.id ?? action.id,
     resultType: variable.dataType ?? action.resultType,
   }));
@@ -211,10 +206,9 @@ export function updateListOperationOutputVariable(
   objectId: string,
   variable: { id?: string; name: string; elementType?: MicroflowDataType },
 ): MicroflowAuthoringSchema {
-  return updateListAction(schema, objectId, "listOperation", action => ({
+  const renamed = renameActionOutputVariable(schema, objectId, variable.name.trim());
+  return updateListAction(renamed, objectId, "listOperation", action => ({
     ...action,
-    outputVariableName: variable.name.trim(),
-    outputListVariableName: variable.name.trim(),
     targetListVariableId: variable.id ?? action.id,
     outputElementType: variable.elementType ?? action.outputElementType,
   }));

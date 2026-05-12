@@ -5,7 +5,7 @@ import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
 import { buildVariableIndex, getOutputVariablesForObject, variableSourceLabel } from "../../variables";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
-import { ValidationIssueList } from "../common";
+import { ErrorHandlingEditor, ValidationIssueList, supportedErrorHandlingTypesForAction, supportedErrorHandlingTypesForObject } from "../common";
 import { getMicroflowNodeFormForObject } from "../node-form-registry";
 import type { MicroflowPropertyPanelProps } from "../types";
 import {
@@ -34,6 +34,7 @@ import { ParallelGatewayForm } from "./parallel-gateway-form";
 import { InclusiveGatewayForm } from "./inclusive-gateway-form";
 import { TryCatchForm } from "./try-catch-form";
 import { ErrorHandlerForm } from "./error-handler-form";
+import { getIssuesForField } from "../utils";
 
 const { Text } = Typography;
 
@@ -244,7 +245,14 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
               <MergeNodeForm props={props} object={object} patch={patch} />
               <LoopNodeForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               {object.kind === "actionActivity" ? (
-                <ActionActivityForm schema={props.schema} object={object} issues={issues} readonly={props.readonly} onPatch={payload => props.onObjectChange(object.id, payload)} />
+                <ActionActivityForm
+                  schema={props.schema}
+                  object={object}
+                  issues={issues}
+                  readonly={props.readonly}
+                  onPatch={payload => props.onObjectChange(object.id, payload)}
+                  onSchemaChange={props.onSchemaChange}
+                />
               ) : null}
               <ParameterObjectForm props={props} object={object} issues={issues} parameter={parameter as MicroflowParameter | undefined} />
               <AnnotationObjectForm object={object} readonly={props.readonly} patch={patch} />
@@ -268,36 +276,32 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
           <>
             {object.kind === "actionActivity" ? (
               <Field label="Error Handling Type">
-                {withDisabledReason(
-                  readonlyDisabledReason,
-                  "Error handling type",
-                  <Select
-                    value={object.action.errorHandlingType}
-                    disabled={props.readonly}
-                    style={{ width: "100%" }}
-                    onChange={errorHandlingType => patch(updateAction(object, { errorHandlingType: String(errorHandlingType) as MicroflowAction["errorHandlingType"] }))}
-                    optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
-                  />
-                )}
+                <ErrorHandlingEditor
+                  value={object.action.errorHandlingType}
+                  readonly={props.readonly}
+                  actionKind={object.action.kind}
+                  fieldPath="action.errorHandlingType"
+                  issues={getIssuesForField(issues, "action.errorHandlingType")}
+                  supportedTypes={supportedErrorHandlingTypesForAction(object.action.kind)}
+                  onChange={errorHandlingType => patch(updateAction(object, { errorHandlingType }))}
+                />
               </Field>
             ) : object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" || object.kind === "loopedActivity" ? (
               <Field label="Error Handling Type">
-                {withDisabledReason(
-                  readonlyDisabledReason,
-                  "Error handling type",
-                  <Select
-                    value={object.errorHandlingType}
-                    disabled={props.readonly}
-                    style={{ width: "100%" }}
-                    onChange={errorHandlingType => patch({ ...object, errorHandlingType: String(errorHandlingType) as typeof object.errorHandlingType })}
-                    optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
-                  />
-                )}
+                <ErrorHandlingEditor
+                  value={object.errorHandlingType}
+                  readonly={props.readonly}
+                  objectKind={object.kind}
+                  fieldPath="errorHandlingType"
+                  issues={getIssuesForField(issues, "errorHandlingType")}
+                  supportedTypes={supportedErrorHandlingTypesForObject(object.kind)}
+                  onChange={errorHandlingType => patch({ ...object, errorHandlingType })}
+                />
               </Field>
             ) : (
               <Text type="tertiary">This object does not expose error handling.</Text>
             )}
-            <Text type="tertiary" size="small">Custom error handler branches are represented by errorHandler flows. latestError is available on custom handlers.</Text>
+            <Text type="tertiary" size="small">自定义错误处理需要 Error Handler Sequence Flow；在错误路径中可使用 $latestError。</Text>
           </>
         ) : null}
         {activeTab === "output" ? (

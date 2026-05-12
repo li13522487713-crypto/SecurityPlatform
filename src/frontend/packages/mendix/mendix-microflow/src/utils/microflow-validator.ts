@@ -44,8 +44,8 @@ export interface ValidationResult {
 export type FlowNodeLike = { type: string };
 
 const startEndKinds = new Set(["startEvent", "endEvent"]);
-const nodeCountExcludedKinds = new Set(["startEvent", "endEvent", "annotation"]);
-const nodeCountExcludedTypeNames = new Set(["start", "end", "startEvent", "endEvent", "annotation"]);
+const nodeCountExcludedKinds = new Set(["annotation"]);
+const nodeCountExcludedTypeNames = new Set(["annotation"]);
 const decisionKinds = new Set(["exclusiveSplit", "inheritanceSplit", "parallelGateway", "inclusiveGateway"]);
 const activityExcludedKinds = new Set([
   ...startEndKinds,

@@ -251,7 +251,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     expect(button.className).toContain("is-empty");
   });
 
-  it("derives labels for approval/loop/error edges from edge kind and source port", () => {
+  it("derives labels for approval/loop edges from source port and keeps error-handler labels canonical", () => {
     const { rerender } = render(
       <FlowGramMicroflowLineRenderer
         key="line-1"
@@ -304,7 +304,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
         } } as never}
       />,
     );
-    expect(screen.getByRole("button").textContent).toContain("fallback");
+    expect(screen.getByRole("button").textContent).toContain("Error");
   });
 
   it("projects edge kind classes onto the closest line wrapper", () => {

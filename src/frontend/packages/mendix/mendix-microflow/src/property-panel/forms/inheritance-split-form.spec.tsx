@@ -74,6 +74,27 @@ describe("InheritanceSplitForm", () => {
     expect(screen.queryByText("Missing (empty) branch for unmatched or empty object type.")).toBeNull();
   });
 
+  it("treats legacy fallback branches as the empty branch in coverage summary", () => {
+    render(
+      <InheritanceSplitForm
+        props={baseProps(withFlows([
+          flow("f-student", [{ kind: "inheritance", officialType: "Microflows$InheritanceCase", entityQualifiedName: "University.Student" }]),
+          flow("f-teacher", [{ kind: "inheritance", officialType: "Microflows$InheritanceCase", entityQualifiedName: "University.Teacher" }]),
+          flow("f-fallback", [{ kind: "fallback", officialType: "Microflows$NoCase" }]),
+        ]))}
+        object={inheritanceObject() as any}
+        issues={[] as any}
+        metadata={metadata() as any}
+        patch={vi.fn()}
+        onAddFlow={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Missing (empty) branch for unmatched or empty object type.")).toBeNull();
+    const coverage = screen.getAllByRole("textbox").find(element => element.tagName === "TEXTAREA") as HTMLTextAreaElement | undefined;
+    expect(coverage?.value).toContain("f-fallback: (empty)");
+  });
+
   it("adds missing specialization and empty branches", () => {
     const onAddFlow = vi.fn();
     render(
@@ -94,7 +115,9 @@ describe("InheritanceSplitForm", () => {
     fireEvent.click(button);
 
     expect(onAddFlow).toHaveBeenCalledTimes(1);
-    expect(onAddFlow).toHaveBeenCalledWith(expect.objectContaining({ caseValues: [{ kind: "inheritance", entityQualifiedName: "University.Teacher" }] }));
+    expect(onAddFlow).toHaveBeenCalledWith(expect.objectContaining({
+      caseValues: [expect.objectContaining({ kind: "inheritance", entityQualifiedName: "University.Teacher" })],
+    }));
   });
 });
 

@@ -116,11 +116,17 @@ export function updateMicroflowDocumentProperties(
   patch: Partial<Pick<MicroflowAuthoringSchema, "description" | "documentation" | "returnType">> & {
     applyEntityAccess?: boolean;
     allowConcurrentExecution?: boolean;
+    exposureExportLevel?: MicroflowAuthoringSchema["exposure"]["exportLevel"];
+    exposureMarkAsUsed?: boolean;
     exposureAsMicroflowActionEnabled?: boolean;
     exposureAsMicroflowActionCaption?: string;
     exposureAsMicroflowActionCategory?: string;
+    exposureAsWorkflowActionEnabled?: boolean;
+    exposureAsWorkflowActionCaption?: string;
+    exposureAsWorkflowActionCategory?: string;
     exposureUrlEnabled?: boolean;
     exposureUrlPath?: string;
+    exposureUrlSearchParameters?: string[];
   },
 ): MicroflowAuthoringSchema {
   const withText = {
@@ -141,6 +147,8 @@ export function updateMicroflowDocumentProperties(
       },
     exposure: {
       ...schema.exposure,
+      ...(patch.exposureExportLevel === undefined ? {} : { exportLevel: patch.exposureExportLevel }),
+      ...(patch.exposureMarkAsUsed === undefined ? {} : { markAsUsed: patch.exposureMarkAsUsed }),
       asMicroflowAction: patch.exposureAsMicroflowActionEnabled === undefined
         && patch.exposureAsMicroflowActionCaption === undefined
         && patch.exposureAsMicroflowActionCategory === undefined
@@ -151,12 +159,23 @@ export function updateMicroflowDocumentProperties(
           ...(patch.exposureAsMicroflowActionCaption === undefined ? {} : { caption: patch.exposureAsMicroflowActionCaption }),
           ...(patch.exposureAsMicroflowActionCategory === undefined ? {} : { category: patch.exposureAsMicroflowActionCategory }),
         },
-      url: patch.exposureUrlEnabled === undefined && patch.exposureUrlPath === undefined
+      asWorkflowAction: patch.exposureAsWorkflowActionEnabled === undefined
+        && patch.exposureAsWorkflowActionCaption === undefined
+        && patch.exposureAsWorkflowActionCategory === undefined
+        ? schema.exposure.asWorkflowAction
+        : {
+          ...(schema.exposure.asWorkflowAction ?? { enabled: false }),
+          ...(patch.exposureAsWorkflowActionEnabled === undefined ? {} : { enabled: patch.exposureAsWorkflowActionEnabled }),
+          ...(patch.exposureAsWorkflowActionCaption === undefined ? {} : { caption: patch.exposureAsWorkflowActionCaption }),
+          ...(patch.exposureAsWorkflowActionCategory === undefined ? {} : { category: patch.exposureAsWorkflowActionCategory }),
+        },
+      url: patch.exposureUrlEnabled === undefined && patch.exposureUrlPath === undefined && patch.exposureUrlSearchParameters === undefined
         ? schema.exposure.url
         : {
           ...(schema.exposure.url ?? { enabled: false }),
           ...(patch.exposureUrlEnabled === undefined ? {} : { enabled: patch.exposureUrlEnabled }),
           ...(patch.exposureUrlPath === undefined ? {} : { path: patch.exposureUrlPath }),
+          ...(patch.exposureUrlSearchParameters === undefined ? {} : { searchParameters: patch.exposureUrlSearchParameters }),
         },
     },
   };

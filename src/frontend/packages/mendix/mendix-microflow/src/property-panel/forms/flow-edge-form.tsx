@@ -5,6 +5,7 @@ import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../../flowgram/adapters/flowgram-case-options";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
 import { collectLoopObjects, getDecisionBranchConflicts, getLoopFlowKind } from "../../schema/utils";
+import { objectTypeCaseIdentity } from "../../schema/utils/case-utils";
 import { ValidationIssueList } from "../common";
 import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "../types";
 import { Header, PropertyTabs, Field, flowPatch, getFlowTabs, issuesFor, objectName } from "../panel-shared";
@@ -18,6 +19,16 @@ function withDisabledReason(disabledReason: string, enabledHint: string, control
       <span style={{ display: "inline-flex", width: "100%" }}>{control}</span>
     </Tooltip>
   );
+}
+
+export function nextEdgeKindForErrorHandlerToggle(
+  edgeKind: MicroflowSequenceFlow["editor"]["edgeKind"],
+  isErrorHandler: boolean,
+): MicroflowSequenceFlow["editor"]["edgeKind"] {
+  if (isErrorHandler) {
+    return "errorHandler";
+  }
+  return edgeKind === "errorHandler" ? "sequence" : edgeKind;
 }
 
 function CaseValueField({ props, flow, patch }: {
@@ -46,7 +57,9 @@ function CaseValueField({ props, flow, patch }: {
   }
   const options = getCaseOptionsForSource(props.schema, flow.originObjectId, flow.id, catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG);
   const current = flow.caseValues[0];
-  const currentKey = current ? caseValueKey(current) : undefined;
+  const currentKey = current
+    ? (caseKind === "objectType" ? objectTypeCaseIdentity(current) : caseValueKey(current))
+    : undefined;
   const conflicts = getDecisionBranchConflicts(props.schema, flow.originObjectId).filter(item => item.flowIds.includes(flow.id));
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit decision branch case." : "";
   return (
@@ -176,7 +189,7 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
             </Field>
             <Field label="Error Handler">
               <Tooltip content={readonlyDisabledReason || "Toggle error handler"}>
-                <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : flow.editor.edgeKind } }))} />
+                <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: nextEdgeKindForErrorHandlerToggle(flow.editor.edgeKind, isErrorHandler) } }))} />
               </Tooltip>
             </Field>
             {flow.isErrorHandler ? (
@@ -200,7 +213,7 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
                   {withDisabledReason(
                     readonlyDisabledReason,
                     "Error variable name",
-                    <Input value={flow.targetErrorVariableName ?? ""} disabled={props.readonly} onChange={targetErrorVariableName => patch(flowPatch(flow, { targetErrorVariableName }))} />
+                    <Input value={flow.targetErrorVariableName ?? "$latestError"} disabled={props.readonly} onChange={targetErrorVariableName => patch(flowPatch(flow, { targetErrorVariableName }))} />
                   )}
                 </Field>
               </>
@@ -288,7 +301,7 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
           <>
             <Field label="Error Handler">
               <Tooltip content={readonlyDisabledReason || "Toggle error handler"}>
-                <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : "sequence" } }))} />
+                <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: nextEdgeKindForErrorHandlerToggle(flow.editor.edgeKind, isErrorHandler) } }))} />
               </Tooltip>
             </Field>
             <Field label="Expose latestError">

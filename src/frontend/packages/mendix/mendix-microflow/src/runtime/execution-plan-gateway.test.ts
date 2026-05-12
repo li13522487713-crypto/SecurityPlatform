@@ -128,6 +128,26 @@ describe("microflow execution plan gateway semantics", () => {
     expect(plan.normalFlows.map(item => item.flowId)).toEqual(["f1"]);
     expect(validateExecutionPlan(plan).issues).not.toContainEqual(expect.objectContaining({ code: "RUNTIME_IGNORED_FLOW_IN_CONTROL_PLAN" }));
   });
+
+  it("preserves errorContext variables for latest transport errors in design variables", () => {
+    const plan = toExecutionPlan({
+      ...schema([
+        node("start", "startEvent"),
+        node("end", "endEvent"),
+      ], [
+        flow("f1", "start", "end"),
+      ]),
+      variables: [
+        { id: "var-http", name: "$latestHttpResponse", type: { kind: "entity", name: "System.HttpResponse", entity: "System.HttpResponse" }, scope: "errorContext" },
+        { id: "var-soap", name: "$latestSoapFault", type: { kind: "entity", name: "System.SoapFault", entity: "System.SoapFault" }, scope: "errorContext" },
+      ],
+    });
+
+    expect(plan.errorContextVariables).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "$latestHttpResponse", source: expect.objectContaining({ kind: "errorContext", errorVariable: "$latestHttpResponse" }) }),
+      expect.objectContaining({ name: "$latestSoapFault", source: expect.objectContaining({ kind: "errorContext", errorVariable: "$latestSoapFault" }) }),
+    ]));
+  });
 });
 
 function schema(nodes: MicroflowDesignSchema["workflow"]["nodes"], edges: MicroflowDesignSchema["workflow"]["edges"]): MicroflowDesignSchema {

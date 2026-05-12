@@ -157,4 +157,618 @@ describe("variable scope by graph links", () => {
     expect(names).toContain("orderItem");
     expect(names).toContain("$currentIndex");
   });
+
+  it("adds $currentIndex inside while loop body scope", () => {
+    const inner = actionActivity("while-inner", "innerOut");
+    const loop = objectFrom("loop", "while-loop") as Extract<MicroflowObject, { kind: "loopedActivity" }>;
+    loop.objectCollection = {
+      ...loop.objectCollection,
+      id: "while-body",
+      objects: [inner],
+      flows: [
+        {
+          id: "flow-while-body",
+          kind: "sequence",
+          officialType: "Microflows$SequenceFlow",
+          originObjectId: "while-loop",
+          destinationObjectId: "while-inner",
+          originConnectionIndex: 2,
+          destinationConnectionIndex: 0,
+          caseValues: [],
+          isErrorHandler: false,
+          relativeMiddlePoint: { x: 0, y: 0 },
+          size: { width: 0, height: 0 },
+          backgroundColor: "default",
+          disabled: false,
+          editor: { edgeKind: "loopBody" },
+        } as any,
+      ],
+    };
+    loop.loopSource = {
+      kind: "whileCondition",
+      officialType: "Microflows$WhileLoopCondition",
+      expression: {
+        raw: "$retryCount < 5",
+        referencedVariables: [],
+        references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
+        diagnostics: [],
+      },
+    };
+    const createRetry = actionActivity("node-retry", "retryOut");
+    createRetry.action = {
+      id: "action-retry",
+      kind: "createVariable",
+      officialType: "Microflows$CreateVariableAction",
+      caption: "Create Variable",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "variable", iconKey: "variable", availability: "supported" },
+      variableName: "retryCount",
+      dataType: { kind: "integer" },
+      initialValue: { raw: "0", referencedVariables: [], references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+      readonly: false,
+    } as any;
+    const whileSchema = {
+      ...schema(false),
+      objectCollection: {
+        ...schema(false).objectCollection,
+        objects: [createRetry, loop],
+        flows: [
+          {
+            id: "flow-retry-while",
+            kind: "sequence",
+            officialType: "Microflows$SequenceFlow",
+            originObjectId: "node-retry",
+            destinationObjectId: "while-loop",
+            caseValues: [],
+            isErrorHandler: false,
+            relativeMiddlePoint: { x: 0, y: 0 },
+            size: { width: 0, height: 0 },
+            backgroundColor: "default",
+            disabled: false,
+            editor: { edgeKind: "sequence" },
+          } as any,
+        ],
+      },
+      flows: [
+        {
+          id: "flow-retry-while",
+          kind: "sequence",
+          officialType: "Microflows$SequenceFlow",
+          originObjectId: "node-retry",
+          destinationObjectId: "while-loop",
+          caseValues: [],
+          isErrorHandler: false,
+          relativeMiddlePoint: { x: 0, y: 0 },
+          size: { width: 0, height: 0 },
+          backgroundColor: "default",
+          disabled: false,
+          editor: { edgeKind: "sequence" },
+        } as any,
+      ],
+    };
+    const index = buildVariableIndex({ schema: whileSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const names = getVariablesForExpressionFromIndex(whileSchema, index, { objectId: "while-inner" }).map(item => item.name);
+
+    expect(names).toContain("retryCount");
+    expect(names).toContain("$currentIndex");
+  });
+
+  it("exposes $latestError on the first error-handler node", () => {
+    const restCall = actionActivity("rest-call", "restResult");
+    restCall.action = {
+      id: "action-rest-call",
+      kind: "restCall",
+      officialType: "Microflows$RestCallAction",
+      caption: "Call REST",
+      errorHandlingType: "customWithRollback",
+      documentation: "",
+      editor: { category: "integration", iconKey: "rest", availability: "supported" },
+      request: {
+        method: "GET",
+        urlExpression: { raw: "'https://example.com'", referencedVariables: [], references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+        headers: [],
+        queryParameters: [],
+        body: { kind: "none" },
+      },
+      response: { handling: { kind: "ignore" } },
+      timeoutSeconds: 30,
+    } as any;
+    const logError = actionActivity("log-error", "errorLog");
+    logError.action = {
+      ...logError.action,
+      kind: "logMessage",
+      officialType: "Microflows$LogMessageAction",
+      template: {
+        text: "REST failed",
+        arguments: [],
+      },
+      logNodeName: "ErrorHandler",
+      includeContextVariables: true,
+      includeTraceId: false,
+    } as any;
+    const errorSchema = {
+      ...schema(false),
+      objectCollection: {
+        ...schema(false).objectCollection,
+        objects: [restCall, logError],
+        flows: [],
+      },
+      flows: [
+        {
+          id: "flow-rest-error",
+          kind: "sequence",
+          officialType: "Microflows$SequenceFlow",
+          originObjectId: "rest-call",
+          destinationObjectId: "log-error",
+          caseValues: [],
+          isErrorHandler: true,
+          relativeMiddlePoint: { x: 0, y: 0 },
+          size: { width: 0, height: 0 },
+          backgroundColor: "default",
+          disabled: false,
+          editor: { edgeKind: "errorHandler", label: "error" },
+        } as any,
+      ],
+    };
+    const index = buildVariableIndex({ schema: errorSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const names = getVariablesForExpressionFromIndex(errorSchema, index, { objectId: "log-error", fieldPath: "action.template.text" }).map(item => item.name);
+
+    expect(names).toContain("$latestError");
+    expect(names).toContain("$latestHttpResponse");
+  });
+
+  it("exposes $latestSoapFault on the first webServiceCall error-handler node", () => {
+    const soapCall = actionActivity("soap-call", "soapResult");
+    soapCall.action = {
+      id: "action-soap-call",
+      kind: "webServiceCall",
+      officialType: "Microflows$WebServiceCallAction",
+      caption: "Call SOAP",
+      errorHandlingType: "customWithRollback",
+      documentation: "",
+      editor: { category: "integration", iconKey: "webServiceCall", availability: "supported" },
+      endpoint: "https://soap.example.com/service",
+      operation: "SubmitOrder",
+      outputVariableName: "soapResult",
+    } as any;
+    const logError = actionActivity("log-soap-error", "soapErrorLog");
+    logError.action = {
+      ...logError.action,
+      kind: "logMessage",
+      officialType: "Microflows$LogMessageAction",
+      template: {
+        text: "SOAP failed",
+        arguments: [],
+      },
+      logNodeName: "SoapErrorHandler",
+      includeContextVariables: true,
+      includeTraceId: false,
+    } as any;
+    const errorSchema = {
+      ...schema(false),
+      objectCollection: {
+        ...schema(false).objectCollection,
+        objects: [soapCall, logError],
+        flows: [],
+      },
+      flows: [
+        {
+          id: "flow-soap-error",
+          kind: "sequence",
+          officialType: "Microflows$SequenceFlow",
+          originObjectId: "soap-call",
+          destinationObjectId: "log-soap-error",
+          caseValues: [],
+          isErrorHandler: true,
+          relativeMiddlePoint: { x: 0, y: 0 },
+          size: { width: 0, height: 0 },
+          backgroundColor: "default",
+          disabled: false,
+          editor: { edgeKind: "errorHandler", label: "error" },
+        } as any,
+      ],
+    };
+    const index = buildVariableIndex({ schema: errorSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const names = getVariablesForExpressionFromIndex(errorSchema, index, { objectId: "log-soap-error", fieldPath: "action.template.text" }).map(item => item.name);
+
+    expect(names).toContain("$latestError");
+    expect(names).toContain("$latestSoapFault");
+  });
+
+  it("exposes filterList item variable inside condition expressions", () => {
+    const createList = actionActivity("create-list", "orders");
+    createList.action = {
+      id: "action-create-list",
+      kind: "createList",
+      officialType: "Microflows$CreateListAction",
+      caption: "Create List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "list", availability: "supported" },
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "integer" },
+      itemType: { kind: "integer" },
+      listType: "mutable",
+    } as any;
+    const filterList = actionActivity("filter-list", "positiveOrders");
+    filterList.action = {
+      id: "action-filter-list",
+      kind: "filterList",
+      officialType: "Microflows$FilterListAction",
+      caption: "Filter List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "filter", availability: "supported" },
+      sourceListVariableName: "orders",
+      listVariableName: "orders",
+      outputVariableName: "positiveOrders",
+      itemVariableName: "item",
+      itemType: { kind: "integer" },
+      conditionExpression: { raw: "$item > 2" },
+      filterExpression: { raw: "$item > 2" },
+    } as any;
+    const downstream = actionActivity("after-filter", "afterOut");
+    const flowCreate = {
+      id: "flow-create-filter",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: "create-list",
+      destinationObjectId: "filter-list",
+      caseValues: [],
+      isErrorHandler: false,
+      relativeMiddlePoint: { x: 0, y: 0 },
+      size: { width: 0, height: 0 },
+      backgroundColor: "default",
+      disabled: false,
+      editor: { edgeKind: "sequence" },
+    } as any;
+    const flowFilter = {
+      id: "flow-filter-downstream",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: "filter-list",
+      destinationObjectId: "after-filter",
+      caseValues: [],
+      isErrorHandler: false,
+      relativeMiddlePoint: { x: 0, y: 0 },
+      size: { width: 0, height: 0 },
+      backgroundColor: "default",
+      disabled: false,
+      editor: { edgeKind: "sequence" },
+    } as any;
+    const filterSchema = {
+      ...schema(false),
+      objectCollection: {
+        ...schema(false).objectCollection,
+        objects: [createList, filterList, downstream],
+        flows: [flowCreate, flowFilter],
+      },
+      flows: [flowCreate, flowFilter],
+    };
+    const index = buildVariableIndex({ schema: filterSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const conditionNames = getVariablesForExpressionFromIndex(filterSchema, index, { objectId: "filter-list", fieldPath: "action.conditionExpression" }).map(item => item.name);
+    const downstreamNames = getVariablesForExpressionFromIndex(filterSchema, index, { objectId: "after-filter" }).map(item => item.name);
+
+    expect(conditionNames).toContain("item");
+    expect(downstreamNames).toContain("positiveOrders");
+    expect(downstreamNames).not.toContain("item");
+  });
+
+  it("exposes changeList removeWhere item variable inside condition expressions", () => {
+    const createList = actionActivity("create-list", "orders");
+    createList.action = {
+      id: "action-create-list-change-list",
+      kind: "createList",
+      officialType: "Microflows$CreateListAction",
+      caption: "Create List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "list", availability: "supported" },
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "integer" },
+      itemType: { kind: "integer" },
+      listType: "mutable",
+    } as any;
+    const changeList = actionActivity("change-list", "resultOrders");
+    changeList.action = {
+      id: "action-change-list",
+      kind: "changeList",
+      officialType: "Microflows$ChangeListAction",
+      caption: "Change List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "changeList", availability: "supported" },
+      targetListVariableName: "orders",
+      operation: "removeWhere",
+      conditionExpression: { raw: "$item > 2" },
+    } as any;
+    const flowCreate = {
+      id: "flow-create-change",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: "create-list",
+      destinationObjectId: "change-list",
+      caseValues: [],
+      isErrorHandler: false,
+      relativeMiddlePoint: { x: 0, y: 0 },
+      size: { width: 0, height: 0 },
+      backgroundColor: "default",
+      disabled: false,
+      editor: { edgeKind: "sequence" },
+    } as any;
+    const changeSchema = {
+      ...schema(false),
+      objectCollection: {
+        ...schema(false).objectCollection,
+        objects: [createList, changeList],
+        flows: [flowCreate],
+      },
+      flows: [flowCreate],
+    };
+    const index = buildVariableIndex({ schema: changeSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const conditionNames = getVariablesForExpressionFromIndex(changeSchema, index, { objectId: "change-list", fieldPath: "action.conditionExpression" }).map(item => item.name);
+
+    expect(conditionNames).toContain("item");
+    expect(conditionNames).toContain("orders");
+  });
+
+  it("exposes listOperation filter item variable inside filter expressions", () => {
+    const createList = actionActivity("create-list", "orders");
+    createList.action = {
+      id: "action-create-list-list-operation-filter",
+      kind: "createList",
+      officialType: "Microflows$CreateListAction",
+      caption: "Create List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "list", availability: "supported" },
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "integer" },
+      itemType: { kind: "integer" },
+      listType: "mutable",
+    } as any;
+    const listOperation = actionActivity("list-operation-filter", "positiveOrders");
+    listOperation.action = {
+      id: "action-list-operation-filter",
+      kind: "listOperation",
+      officialType: "Microflows$ListOperationAction",
+      caption: "List Operation",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "listOperation", availability: "supported" },
+      leftListVariableName: "orders",
+      sourceListVariableName: "orders",
+      operation: "filter",
+      filterExpression: { raw: "$item > 2" },
+      expression: { raw: "$item > 2" },
+      outputVariableName: "positiveOrders",
+      outputListVariableName: "positiveOrders",
+      outputElementType: { kind: "integer" },
+    } as any;
+    const flowCreate = {
+      id: "flow-create-list-operation-filter",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: "create-list",
+      destinationObjectId: "list-operation-filter",
+      caseValues: [],
+      isErrorHandler: false,
+      relativeMiddlePoint: { x: 0, y: 0 },
+      size: { width: 0, height: 0 },
+      backgroundColor: "default",
+      disabled: false,
+      editor: { edgeKind: "sequence" },
+    } as any;
+    const filterSchema = {
+      ...schema(false),
+      objectCollection: {
+        ...schema(false).objectCollection,
+        objects: [createList, listOperation],
+        flows: [flowCreate],
+      },
+      flows: [flowCreate],
+    };
+    const index = buildVariableIndex({ schema: filterSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const filterNames = getVariablesForExpressionFromIndex(filterSchema, index, { objectId: "list-operation-filter", fieldPath: "action.filterExpression" }).map(item => item.name);
+    const legacyNames = getVariablesForExpressionFromIndex(filterSchema, index, { objectId: "list-operation-filter", fieldPath: "action.expression" }).map(item => item.name);
+
+    expect(filterNames).toContain("item");
+    expect(legacyNames).toContain("item");
+    expect(filterNames).toContain("orders");
+  });
+
+  it("exposes listOperation map item variable inside map expressions", () => {
+    const createList = actionActivity("create-list", "orders");
+    createList.action = {
+      id: "action-create-list-list-operation-map",
+      kind: "createList",
+      officialType: "Microflows$CreateListAction",
+      caption: "Create List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "list", availability: "supported" },
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "integer" },
+      itemType: { kind: "integer" },
+      listType: "mutable",
+    } as any;
+    const listOperation = actionActivity("list-operation-map", "mappedOrders");
+    listOperation.action = {
+      id: "action-list-operation-map",
+      kind: "listOperation",
+      officialType: "Microflows$ListOperationAction",
+      caption: "List Operation",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "listOperation", availability: "supported" },
+      leftListVariableName: "orders",
+      sourceListVariableName: "orders",
+      operation: "map",
+      expression: { raw: "$item + 1" },
+      outputVariableName: "mappedOrders",
+      outputListVariableName: "mappedOrders",
+      outputElementType: { kind: "integer" },
+    } as any;
+    const flowCreate = {
+      id: "flow-create-list-operation-map",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: "create-list",
+      destinationObjectId: "list-operation-map",
+      caseValues: [],
+      isErrorHandler: false,
+      relativeMiddlePoint: { x: 0, y: 0 },
+      size: { width: 0, height: 0 },
+      backgroundColor: "default",
+      disabled: false,
+      editor: { edgeKind: "sequence" },
+    } as any;
+    const mapSchema = {
+      ...schema(false),
+      objectCollection: {
+        ...schema(false).objectCollection,
+        objects: [createList, listOperation],
+        flows: [flowCreate],
+      },
+      flows: [flowCreate],
+    };
+    const index = buildVariableIndex({ schema: mapSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const mapNames = getVariablesForExpressionFromIndex(mapSchema, index, { objectId: "list-operation-map", fieldPath: "action.expression" }).map(item => item.name);
+
+    expect(mapNames).toContain("item");
+    expect(mapNames).toContain("orders");
+  });
+
+  it("exposes listOperation sort item variable inside sort expressions", () => {
+    const createList = actionActivity("create-list", "orders");
+    createList.action = {
+      id: "action-create-list-list-operation-sort",
+      kind: "createList",
+      officialType: "Microflows$CreateListAction",
+      caption: "Create List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "list", availability: "supported" },
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      itemType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      listType: "mutable",
+    } as any;
+    const listOperation = actionActivity("list-operation-sort", "sortedOrders");
+    listOperation.action = {
+      id: "action-list-operation-sort",
+      kind: "listOperation",
+      officialType: "Microflows$ListOperationAction",
+      caption: "List Operation",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "listOperation", availability: "supported" },
+      leftListVariableName: "orders",
+      sourceListVariableName: "orders",
+      operation: "sort",
+      sortExpression: { raw: "$item/score" },
+      sortKeys: [{ expression: { raw: "$item/score" }, direction: "asc" }],
+      outputVariableName: "sortedOrders",
+      outputListVariableName: "sortedOrders",
+      outputElementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+    } as any;
+    const flowCreate = {
+      id: "flow-create-list-operation-sort",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: "create-list",
+      destinationObjectId: "list-operation-sort",
+      caseValues: [],
+      isErrorHandler: false,
+      relativeMiddlePoint: { x: 0, y: 0 },
+      size: { width: 0, height: 0 },
+      backgroundColor: "default",
+      disabled: false,
+      editor: { edgeKind: "sequence" },
+    } as any;
+    const sortSchema = {
+      ...schema(false),
+      objectCollection: {
+        ...schema(false).objectCollection,
+        objects: [createList, listOperation],
+        flows: [flowCreate],
+      },
+      flows: [flowCreate],
+    };
+    const index = buildVariableIndex({ schema: sortSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const sortNames = getVariablesForExpressionFromIndex(sortSchema, index, { objectId: "list-operation-sort", fieldPath: "action.sortExpression" }).map(item => item.name);
+    const sortKeyNames = getVariablesForExpressionFromIndex(sortSchema, index, { objectId: "list-operation-sort", fieldPath: "action.sortKeys.0.expression" }).map(item => item.name);
+
+    expect(sortNames).toContain("item");
+    expect(sortKeyNames).toContain("item");
+    expect(sortNames).toContain("orders");
+  });
+
+  it("exposes sortList item variable inside sort expressions", () => {
+    const createList = actionActivity("create-list", "orders");
+    createList.action = {
+      id: "action-create-list-sort-list",
+      kind: "createList",
+      officialType: "Microflows$CreateListAction",
+      caption: "Create List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "list", availability: "supported" },
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      itemType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      listType: "mutable",
+    } as any;
+    const sortList = actionActivity("sort-list", "sortedOrders");
+    sortList.action = {
+      id: "action-sort-list",
+      kind: "sortList",
+      officialType: "Microflows$SortListAction",
+      caption: "Sort List",
+      errorHandlingType: "rollback",
+      documentation: "",
+      editor: { category: "list", iconKey: "sortList", availability: "supported" },
+      sourceListVariableName: "orders",
+      listVariableName: "orders",
+      sortExpression: { raw: "$item/score" },
+      direction: "asc",
+      outputVariableName: "sortedOrders",
+      outputElementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+    } as any;
+    const flowCreate = {
+      id: "flow-create-sort-list",
+      kind: "sequence",
+      officialType: "Microflows$SequenceFlow",
+      originObjectId: "create-list",
+      destinationObjectId: "sort-list",
+      caseValues: [],
+      isErrorHandler: false,
+      relativeMiddlePoint: { x: 0, y: 0 },
+      size: { width: 0, height: 0 },
+      backgroundColor: "default",
+      disabled: false,
+      editor: { edgeKind: "sequence" },
+    } as any;
+    const sortSchema = {
+      ...schema(false),
+      objectCollection: {
+        ...schema(false).objectCollection,
+        objects: [createList, sortList],
+        flows: [flowCreate],
+      },
+      flows: [flowCreate],
+    };
+    const index = buildVariableIndex({ schema: sortSchema, metadata: EMPTY_MICROFLOW_METADATA_CATALOG });
+    const sortNames = getVariablesForExpressionFromIndex(sortSchema, index, { objectId: "sort-list", fieldPath: "action.sortExpression" }).map(item => item.name);
+
+    expect(sortNames).toContain("item");
+    expect(sortNames).toContain("orders");
+  });
 });

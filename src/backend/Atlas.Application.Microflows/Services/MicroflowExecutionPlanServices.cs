@@ -162,14 +162,16 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
         var nodes = model.Objects.Select(obj =>
         {
             var nodeDiagnostics = new List<MicroflowExecutionDiagnosticDto>();
-            var actionRefs = new List<MicroflowExecutionMetadataRef>();
+            var nodeRefs = new List<MicroflowExecutionMetadataRef>();
             var support = obj.Action is null
                 ? new MicroflowActionSupportDescriptor { SupportLevel = MicroflowRuntimeSupportLevel.Supported, Reason = "supported", Message = "Supported control object." }
                 : _supportMatrix.Resolve(obj.Action.Kind, obj.Action.OfficialType, options);
 
+            ExtractObjectMetadataRefs(obj, nodeRefs);
+
             if (obj.Action is not null)
             {
-                ExtractActionMetadataRefs(obj, actionRefs);
+                ExtractActionMetadataRefs(obj, nodeRefs);
                 ExtractActionVariables(obj, variables, nodeDiagnostics);
                 if (!string.Equals(support.SupportLevel, MicroflowRuntimeSupportLevel.Supported, StringComparison.OrdinalIgnoreCase))
                 {
@@ -192,7 +194,7 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
                 }
             }
 
-            metadataRefs.AddRange(actionRefs);
+            metadataRefs.AddRange(nodeRefs);
             return new MicroflowExecutionNode
             {
                 ObjectId = obj.Id,
@@ -208,9 +210,9 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
                 RuntimeBehavior = RuntimeBehavior(obj.Kind, support.SupportLevel),
                 ConfigJson = BuildNodeConfig(obj),
                 ErrorHandling = ReadErrorHandling(obj),
-                InputVariableNames = ExtractInputVariableNames(obj.Action?.Raw),
+                InputVariableNames = ExtractInputVariableNames(obj),
                 OutputVariableNames = ExtractOutputVariableNames(obj.Action?.Raw),
-                MetadataRefs = actionRefs,
+                MetadataRefs = nodeRefs,
                 Diagnostics = nodeDiagnostics
             };
         }).ToArray();
@@ -310,6 +312,30 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
         AddRef(refs, "attribute", ReadString(action.Raw, "attributeQualifiedName") ?? ReadString(action.Raw, "member"), obj, $"{action.FieldPath}.attributeQualifiedName", required: false);
     }
 
+    private static void ExtractObjectMetadataRefs(MicroflowObjectModel obj, List<MicroflowExecutionMetadataRef> refs)
+    {
+        if (IsKind(obj, "exclusiveSplit"))
+        {
+            AddRef(
+                refs,
+                "enumeration",
+                ReadStringByPath(obj.Raw, "splitCondition", "enumerationQualifiedName"),
+                obj,
+                $"{obj.FieldPath}.splitCondition.enumerationQualifiedName",
+                required: false);
+        }
+
+        if (IsKind(obj, "inheritanceSplit"))
+        {
+            AddRef(
+                refs,
+                "entity",
+                ReadString(obj.Raw, "generalizedEntityQualifiedName") ?? ReadStringByPath(obj.Raw, "entity", "generalizedEntityQualifiedName"),
+                obj,
+                $"{obj.FieldPath}.generalizedEntityQualifiedName");
+        }
+    }
+
     private static void ExtractDataTypeMetadataRefs(IEnumerable<JsonElement> dataTypes, List<MicroflowExecutionMetadataRef> refs)
     {
         foreach (var type in dataTypes)
@@ -331,24 +357,38 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
             return;
         }
 
-        var outputName = ReadString(action.Raw, "outputVariableName")
-            ?? ReadString(action.Raw, "outputListVariableName")
-            ?? ReadString(action.Raw, "resultVariableName")
-            ?? ReadString(action.Raw, "targetVariableName")
-            ?? ReadStringByPath(action.Raw, "response", "handling", "outputVariableName");
-        if (!string.IsNullOrWhiteSpace(outputName))
+        AddActionOutputVariable(
+            variables,
+            obj,
+            action,
+            ReadString(action.Raw, "outputVariableName")
+                ?? ReadString(action.Raw, "outputVariable")
+                ?? ReadString(action.Raw, "outputListVariableName")
+                ?? ReadActionSpecificOutputAlias(action.Kind, action.Raw)
+                ?? ReadString(action.Raw, "resultVariableName")
+                ?? ReadStringByPath(action.Raw, "returnValue", "outputVariableName")
+                ?? ReadStringByPath(action.Raw, "returnValue", "resultVariableName")
+                ?? ReadStringByPath(action.Raw, "response", "handling", "outputVariableName")
+                ?? ReadString(action.Raw, "outputWorkflowVariableName")
+                ?? ReadString(action.Raw, "outputFileDocumentVariableName")
+                ?? ReadString(action.Raw, "returnVariableName")
+                ?? ReadString(action.Raw, "targetVariableName"),
+            GuessActionOutputType(action.Raw, action.Kind));
+
+        if (string.Equals(action.Kind, "restCall", StringComparison.OrdinalIgnoreCase))
         {
-            variables.Add(new MicroflowExecutionVariableDeclaration
-            {
-                Name = outputName!,
-                DataTypeJson = GuessActionOutputType(action.Raw, action.Kind),
-                SourceKind = ActionSourceKind(action.Kind),
-                SourceObjectId = obj.Id,
-                SourceActionId = action.Id,
-                CollectionId = obj.CollectionId,
-                Readonly = false,
-                ScopeKind = obj.ParentLoopObjectId is null ? "downstream" : "loop"
-            });
+            AddActionOutputVariable(
+                variables,
+                obj,
+                action,
+                ReadStringByPath(action.Raw, "response", "statusCodeVariableName") ?? ReadString(action.Raw, "statusCodeVariableName"),
+                Type("integer"));
+            AddActionOutputVariable(
+                variables,
+                obj,
+                action,
+                ReadStringByPath(action.Raw, "response", "headersVariableName") ?? ReadString(action.Raw, "headersVariableName"),
+                Type("json"));
         }
 
         if (string.Equals(action.Kind, "restCall", StringComparison.OrdinalIgnoreCase))
@@ -356,7 +396,7 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
             variables.Add(new MicroflowExecutionVariableDeclaration
             {
                 Name = "$latestHttpResponse",
-                DataTypeJson = Type("object"),
+                DataTypeJson = JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = "System.HttpResponse" }, JsonOptions),
                 SourceKind = "errorHandler",
                 SourceObjectId = obj.Id,
                 SourceActionId = action.Id,
@@ -365,6 +405,46 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
                 ScopeKind = "errorHandler"
             });
         }
+
+        if (string.Equals(action.Kind, "webServiceCall", StringComparison.OrdinalIgnoreCase))
+        {
+            variables.Add(new MicroflowExecutionVariableDeclaration
+            {
+                Name = "$latestSoapFault",
+                DataTypeJson = JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = "System.SoapFault" }, JsonOptions),
+                SourceKind = "errorHandler",
+                SourceObjectId = obj.Id,
+                SourceActionId = action.Id,
+                CollectionId = obj.CollectionId,
+                Readonly = true,
+                ScopeKind = "errorHandler"
+            });
+        }
+    }
+
+    private static void AddActionOutputVariable(
+        List<MicroflowExecutionVariableDeclaration> variables,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        string? outputName,
+        JsonElement dataTypeJson)
+    {
+        if (string.IsNullOrWhiteSpace(outputName))
+        {
+            return;
+        }
+
+        variables.Add(new MicroflowExecutionVariableDeclaration
+        {
+            Name = outputName!,
+            DataTypeJson = dataTypeJson,
+            SourceKind = ActionSourceKind(action.Kind),
+            SourceObjectId = obj.Id,
+            SourceActionId = action.Id,
+            CollectionId = obj.CollectionId,
+            Readonly = false,
+            ScopeKind = obj.ParentLoopObjectId is null ? "downstream" : "loop"
+        });
     }
 
     private static JsonElement GuessActionOutputType(JsonElement action, string actionKind)
@@ -382,6 +462,14 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
             var entity = ReadString(action, "entityQualifiedName");
             return JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = entity }, JsonOptions);
         }
+        if (string.Equals(actionKind, "cast", StringComparison.OrdinalIgnoreCase))
+        {
+            var entity = ReadString(action, "targetEntityQualifiedName")
+                ?? ReadString(action, "targetEntity")
+                ?? ReadString(action, "entityQualifiedName")
+                ?? ReadString(action, "entityType");
+            return JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = entity }, JsonOptions);
+        }
         if (string.Equals(actionKind, "retrieve", StringComparison.OrdinalIgnoreCase))
         {
             var entity = ReadStringByPath(action, "retrieveSource", "entityQualifiedName");
@@ -392,6 +480,12 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
             || string.Equals(actionKind, "filterList", StringComparison.OrdinalIgnoreCase)
             || string.Equals(actionKind, "sortList", StringComparison.OrdinalIgnoreCase))
         {
+            if (string.Equals(actionKind, "listOperation", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(ReadString(action, "operation"), "contains", StringComparison.OrdinalIgnoreCase))
+            {
+                return JsonSerializer.SerializeToElement(new { kind = "boolean" }, JsonOptions);
+            }
+
             if (action.TryGetProperty("outputElementType", out var outputElementType))
             {
                 return JsonSerializer.SerializeToElement(new { kind = "list", itemType = outputElementType.Clone() }, JsonOptions);
@@ -409,11 +503,41 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
 
             return JsonSerializer.SerializeToElement(new { kind = "list" }, JsonOptions);
         }
+        if (string.Equals(actionKind, "callWorkflow", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = "Workflow.Workflow" }, JsonOptions);
+        }
+        if (string.Equals(actionKind, "generateDocument", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = "System.FileDocument" }, JsonOptions);
+        }
+        if (string.Equals(actionKind, "exportXml", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(ReadString(action, "outputType"), "fileDocument", StringComparison.OrdinalIgnoreCase)
+                ? JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = "System.FileDocument" }, JsonOptions)
+                : JsonSerializer.SerializeToElement(new { kind = "string" }, JsonOptions);
+        }
+        if (string.Equals(actionKind, "generateJumpToOptions", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "retrieveWorkflowActivityRecords", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "retrieveWorkflows", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.SerializeToElement(new { kind = "list", itemType = new { kind = "unknown" } }, JsonOptions);
+        }
+        if (string.Equals(actionKind, "retrieveWorkflowContext", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "mlModelCall", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "webServiceCall", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "importXml", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "restOperationCall", StringComparison.OrdinalIgnoreCase))
+        {
+            return Type("unknown");
+        }
         if (string.Equals(actionKind, "aggregateList", StringComparison.OrdinalIgnoreCase))
         {
             if (action.TryGetProperty("resultType", out var resultType))
             {
-                return resultType.Clone();
+                return resultType.ValueKind == JsonValueKind.Object
+                    ? resultType.Clone()
+                    : Type(resultType.GetString() ?? "unknown");
             }
 
             var aggregateFunction = (ReadString(action, "aggregateFunction") ?? ReadString(action, "aggregate") ?? ReadString(action, "operation") ?? "count").Trim();
@@ -518,11 +642,32 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
             _ => "normal"
         };
 
+    private static IReadOnlyList<string> ExtractInputVariableNames(MicroflowObjectModel obj)
+    {
+        var result = ExtractInputVariableNames(obj.Action?.Raw).ToList();
+
+        if (IsKind(obj, "loopedActivity")
+            && string.Equals(ReadStringByPath(obj.Raw, "loopSource", "kind"), "iterableList", StringComparison.OrdinalIgnoreCase))
+        {
+            AddIfPresent(result, ReadStringByPath(obj.Raw, "loopSource", "listVariableName"));
+        }
+
+        if (IsKind(obj, "inheritanceSplit"))
+        {
+            AddIfPresent(result, ReadString(obj.Raw, "inputObjectVariableName"));
+        }
+
+        return result.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
     private static IReadOnlyList<string> ExtractInputVariableNames(JsonElement? action)
-        => ExtractVariableNames(
+    {
+        var result = ExtractVariableNames(
             action,
             "inputVariableNames",
             "inputVariableName",
+            "sourceVariable",
+            "sourceVariableName",
             "targetVariableName",
             "listVariableName",
             "sourceListVariableName",
@@ -531,10 +676,71 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
             "rightListVariableName",
             "otherListVariableName",
             "objectOrListVariableName",
-            "objectVariableName");
+            "objectVariableName",
+            "workflowInstanceVariableName",
+            "fileDocumentVariableName",
+            "externalObjectVariableName",
+            "userTaskVariableName")
+            .ToList();
+
+        if (!action.HasValue)
+        {
+            return result;
+        }
+
+        AddIfPresent(result, ReadString(action.Value, "changeVariableName"));
+        AddIfPresent(result, ReadStringByPath(action.Value, "retrieveSource", "startVariableName"));
+
+        if (action.Value.TryGetProperty("parameterMappings", out var mappings) && mappings.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var mapping in mappings.EnumerateArray())
+            {
+                AddIfPresent(result, ReadString(mapping, "sourceVariableName"));
+            }
+        }
+
+        return result.Distinct(StringComparer.Ordinal).ToArray();
+    }
 
     private static IReadOnlyList<string> ExtractOutputVariableNames(JsonElement? action)
-        => ExtractVariableNames(action, "outputVariableNames", "outputVariableName", "outputListVariableName", "resultVariableName");
+    {
+        var result = ExtractVariableNames(
+            action,
+            "outputVariableNames",
+            "outputVariableName",
+            "outputVariable",
+            "outputListVariableName",
+            "resultVariableName",
+            "outputWorkflowVariableName",
+            "outputFileDocumentVariableName",
+            "returnVariableName")
+            .ToList();
+
+        if (!action.HasValue)
+        {
+            return result;
+        }
+
+        AddIfPresent(result, ReadStringByPath(action.Value, "returnValue", "outputVariableName"));
+        AddIfPresent(result, ReadStringByPath(action.Value, "returnValue", "resultVariableName"));
+        AddIfPresent(result, ReadStringByPath(action.Value, "response", "handling", "outputVariableName"));
+        AddIfPresent(result, ReadStringByPath(action.Value, "response", "statusCodeVariableName"));
+        AddIfPresent(result, ReadStringByPath(action.Value, "response", "headersVariableName"));
+        AddIfPresent(result, ReadActionSpecificOutputAlias(ReadString(action.Value, "kind") ?? ReadString(action.Value, "actionKind") ?? string.Empty, action.Value));
+        return result.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static string? ReadActionSpecificOutputAlias(string? actionKind, JsonElement action)
+    {
+        if (string.Equals(actionKind, "createList", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "retrieveWorkflows", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(actionKind, "retrieveWorkflowActivityRecords", StringComparison.OrdinalIgnoreCase))
+        {
+            return ReadString(action, "listVariableName");
+        }
+
+        return null;
+    }
 
     private static IReadOnlyList<string> ExtractVariableNames(JsonElement? action, string arrayName, params string[] names)
     {
@@ -559,6 +765,14 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
             }
         }
         return result.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static void AddIfPresent(List<string> output, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            output.Add(value!);
+        }
     }
 
     private static IReadOnlyList<MicroflowExecutionMetadataRef> DistinctRefs(IEnumerable<MicroflowExecutionMetadataRef> refs)

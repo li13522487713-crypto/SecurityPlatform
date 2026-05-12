@@ -10,6 +10,8 @@ import type {
   MicroflowVariableIndex,
   MicroflowVariableSymbol,
 } from "../schema/types";
+import { renameCreateVariableOutput } from "../schema/utils";
+import { resolveReservedSystemVariable } from "../schema/utils/reserved-variable-names";
 import { duplicateObject } from "../adapters/authoring-operations";
 import { buildVariableIndex } from "./variable-index";
 
@@ -128,7 +130,7 @@ export function renameMicroflowVariable(
   variableId: string,
   nextName: string,
 ): MicroflowAuthoringSchema {
-  return updateCreateVariableAction(schema, variableId, action => ({ ...action, variableName: nextName }));
+  return refreshVariableIndex(renameCreateVariableOutput(schema, variableId, nextName));
 }
 
 export function updateMicroflowVariableType(
@@ -188,10 +190,19 @@ export function updateCreateVariableConfig(
   objectId: string,
   patch: Partial<Pick<Extract<MicroflowAction, { kind: "createVariable" }>, "variableName" | "dataType" | "initialValue" | "documentation" | "readonly">>,
 ): MicroflowAuthoringSchema {
+  let nextSchema = schema;
+  if (patch.variableName !== undefined) {
+    nextSchema = renameCreateVariableOutput(nextSchema, objectId, patch.variableName);
+  }
+  const remainingPatch = { ...patch };
+  delete remainingPatch.variableName;
+  if (Object.keys(remainingPatch).length === 0) {
+    return refreshVariableIndex(nextSchema);
+  }
   return refreshVariableIndex({
-    ...schema,
-    objectCollection: mapObjectCollection(schema.objectCollection, object => object.id === objectId && object.kind === "actionActivity" && object.action.kind === "createVariable"
-      ? { ...object, action: { ...object.action, ...patch } }
+    ...nextSchema,
+    objectCollection: mapObjectCollection(nextSchema.objectCollection, object => object.id === objectId && object.kind === "actionActivity" && object.action.kind === "createVariable"
+      ? { ...object, action: { ...object.action, ...remainingPatch } }
       : object),
   });
 }
@@ -230,6 +241,10 @@ export function getVariableNameConflicts(schema: MicroflowAuthoringSchema, varia
     return ["Variable name is required."];
   }
   const conflicts: string[] = [];
+  const reservedSystemVariable = resolveReservedSystemVariable(variableName);
+  if (reservedSystemVariable) {
+    conflicts.push(`Conflicts with reserved system variable "${reservedSystemVariable}".`);
+  }
   for (const parameter of schema.parameters) {
     if (normalizeName(parameter.name) === normalized) {
       conflicts.push(`Conflicts with parameter "${parameter.name}".`);

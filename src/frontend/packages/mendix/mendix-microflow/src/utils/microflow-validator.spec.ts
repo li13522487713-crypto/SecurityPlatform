@@ -42,7 +42,7 @@ describe("summarizeMicroflowComplexity", () => {
     const activities = Array.from({ length: 11 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`));
     const summary = summarizeMicroflowComplexity(schemaWith([start, ...activities, end]));
 
-    expect(summary.totalElements).toBe(11);
+    expect(summary.totalElements).toBe(13);
     expect(summary.activityCount).toBe(11);
     expect(summary.decisionCount).toBe(0);
     expect(summary.annotationRecommended).toBe(true);
@@ -80,8 +80,8 @@ describe("summarizeMicroflowComplexity", () => {
       end,
     ]));
 
-    expect(summary.totalElements).toBe(24);
-    expect(summary.level).toBe("warning");
+    expect(summary.totalElements).toBe(26);
+    expect(summary.level).toBe("error");
   });
 
   it("detects loop commit and missing error handler best-practice warnings", () => {
@@ -169,7 +169,7 @@ describe("summarizeMicroflowComplexity", () => {
     const end = objectFrom("endEvent", "end");
     const nodes = [
       start,
-      ...Array.from({ length: 20 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
+      ...Array.from({ length: 18 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
       end,
     ];
     const result = validateMicroflowSize(nodes.map(item => ({ type: item.kind })));
@@ -185,7 +185,7 @@ describe("summarizeMicroflowComplexity", () => {
     const end = objectFrom("endEvent", "end");
     const nodes = [
       start,
-      ...Array.from({ length: 25 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
+      ...Array.from({ length: 23 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
       end,
     ];
     const result = validateMicroflowSize(nodes.map(item => ({ type: item.kind })));
@@ -219,7 +219,7 @@ describe("summarizeMicroflowComplexity", () => {
     const end = objectFrom("endEvent", "end");
     const nodes = [
       start,
-      ...Array.from({ length: 24 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
+      ...Array.from({ length: 22 }, (_, index) => objectFrom("activity:logMessage", `log-${index + 1}`)),
       objectFrom("annotation", "annotation-note"),
       end,
     ];

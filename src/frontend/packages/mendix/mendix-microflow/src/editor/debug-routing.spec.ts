@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MicroflowDebugSessionDto } from "../debug/step-debug-api";
-import { buildSessionDebugRouteIntent, buildWsDebugRouteIntent } from "./debug-routing";
+import { buildSessionDebugRouteIntent, buildWsDebugRouteIntent, resolveCallStackFrameClickIntent } from "./debug-routing";
 
 function createSession(overrides: Partial<MicroflowDebugSessionDto> = {}): MicroflowDebugSessionDto {
   return {
@@ -97,5 +97,64 @@ describe("buildSessionDebugRouteIntent", () => {
       sourceMicroflowId: "mf-parent",
       session: undefined,
     })).toBeUndefined();
+  });
+});
+
+describe("resolveCallStackFrameClickIntent", () => {
+  it("prefers focusing the visible caller node over opening another microflow", () => {
+    const intent = resolveCallStackFrameClickIntent({
+      activeMicroflowId: "mf-parent",
+      frame: {
+        microflowId: "mf-child",
+        callerNodeId: "call-order-submit",
+      },
+      visibleObjectIds: ["start", "call-order-submit", "end"],
+    });
+    expect(intent).toEqual({
+      kind: "focus-node",
+      nodeId: "call-order-submit",
+    });
+  });
+
+  it("falls back to opening the frame microflow when the caller node is not visible", () => {
+    const intent = resolveCallStackFrameClickIntent({
+      activeMicroflowId: "mf-parent",
+      frame: {
+        microflowId: "mf-child",
+        callerNodeId: "call-order-submit",
+      },
+      visibleObjectIds: ["start", "end"],
+    });
+    expect(intent).toEqual({
+      kind: "open-microflow",
+      microflowId: "mf-child",
+    });
+  });
+
+  it("returns undefined when the frame already belongs to the active microflow and no caller node is visible", () => {
+    const intent = resolveCallStackFrameClickIntent({
+      activeMicroflowId: "mf-parent",
+      frame: {
+        microflowId: "mf-parent",
+        callerNodeId: "call-order-submit",
+      },
+      visibleObjectIds: ["start", "end"],
+    });
+    expect(intent).toBeUndefined();
+  });
+
+  it("focuses the active paused node for the current microflow frame when no caller node is available", () => {
+    const intent = resolveCallStackFrameClickIntent({
+      activeMicroflowId: "mf-parent",
+      activeNodeId: "node-paused",
+      frame: {
+        microflowId: "mf-parent",
+      },
+      visibleObjectIds: ["start", "node-paused", "end"],
+    });
+    expect(intent).toEqual({
+      kind: "focus-node",
+      nodeId: "node-paused",
+    });
   });
 });

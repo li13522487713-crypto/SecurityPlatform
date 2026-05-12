@@ -19,6 +19,7 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import type { MicroflowTraceFrame } from "../debug/trace-types";
+import type { DebugLoopIteration } from "../stores/debug-store";
 import {
   canCreateRegistryItem,
   canDragRegistryItem,
@@ -94,6 +95,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
   schema: MicroflowDesignSchema;
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
+  loopIteration?: DebugLoopIteration;
   pausedNodeIds?: string[];
   breakpointNodeIds?: string[];
   conditionalBreakpointNodeIds?: string[];
@@ -758,6 +760,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       schema: props.schema,
       validationIssues: props.validationIssues,
       runtimeTrace: props.runtimeTrace,
+      loopIteration: props.loopIteration,
       pausedNodeIds: props.pausedNodeIds,
       breakpointNodeIds: props.breakpointNodeIds,
       conditionalBreakpointNodeIds: props.conditionalBreakpointNodeIds,
@@ -769,6 +772,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       props.breakpointNodeIds,
       props.conditionalBreakpointNodeIds,
       props.nodeViewModes,
+      props.loopIteration,
       props.runtimeTrace,
       props.schema,
       props.usageHighlights,

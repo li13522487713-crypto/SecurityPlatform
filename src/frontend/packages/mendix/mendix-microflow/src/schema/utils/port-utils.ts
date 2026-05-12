@@ -8,6 +8,7 @@ import type {
   MicroflowPortKind,
   MicroflowSchema,
 } from "../types";
+import { isBooleanExclusiveSplit } from "./exclusive-split-utils";
 import { findObjectWithCollection } from "./object-utils";
 
 export type MicroflowPortSide = "top" | "right" | "bottom" | "left";
@@ -136,7 +137,7 @@ export function portsForObject(object: MicroflowObject): MicroflowPort[] {
     return [input];
   }
   if (object.kind === "exclusiveSplit") {
-    const decisionOutputs = object.splitCondition.kind === "expression" && object.splitCondition.resultType === "boolean"
+    const decisionOutputs = isBooleanExclusiveSplit(object)
       ? [
           { id: "true", label: "true", direction: "output", kind: "decisionOut", cardinality: "one", edgeTypes: ["decisionCondition"] } satisfies MicroflowPort,
           { id: "false", label: "false", direction: "output", kind: "decisionOut", cardinality: "one", edgeTypes: ["decisionCondition"] } satisfies MicroflowPort,

@@ -35,7 +35,11 @@ function createSession(): MicroflowRunSession {
         status: "success",
         startedAt: "2026-04-28T01:00:00.020Z",
         endedAt: "2026-04-28T01:00:00.030Z",
-        callStack: ["MF_Parent", "MF_Child"],
+        callStack: ["legacy-parent", "legacy-child"],
+        callStackFrames: [
+          { id: "cs-parent", runId: "run-child", depth: 0, microflowId: "MF_Parent", qualifiedName: "Sales.MF_Parent" },
+          { id: "cs-child", runId: "run-child", depth: 1, microflowId: "MF_Child", qualifiedName: "Sales.MF_Child" },
+        ],
         input: {},
         output: undefined,
         trace: [
@@ -73,7 +77,7 @@ describe("trace history utils", () => {
     const paths = buildCallStackPaths(createSession());
     expect(paths).toEqual([
       ["MF_Parent"],
-      ["MF_Parent", "MF_Child"],
+      ["Sales.MF_Parent", "Sales.MF_Child"],
     ]);
   });
 

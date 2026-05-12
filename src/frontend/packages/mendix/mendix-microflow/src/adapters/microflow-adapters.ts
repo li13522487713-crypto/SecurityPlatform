@@ -42,6 +42,7 @@ import type {
 } from "../schema/types";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { createPortId } from "../schema/utils/port-utils";
+import { deriveMicroflowReturnVariableName } from "../schema/utils/microflow-signature";
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { buildVariableIndex as buildVariableIndexV2 } from "../variables/variable-index";
 import { microflowActionRegistryByKind } from "../node-registry/action-registry";
@@ -91,6 +92,13 @@ export function emptyVariableIndex(): MicroflowVariableIndex {
         source: { kind: "system", name: "$currentUser" },
         scope: { collectionId: "root" },
         readonly: true
+      },
+      $currentSession: {
+        name: "$currentSession",
+        dataType: { kind: "object", entityQualifiedName: "System.Session" },
+        source: { kind: "system", name: "$currentSession" },
+        scope: { collectionId: "root" },
+        readonly: true
       }
     }
   };
@@ -99,6 +107,7 @@ export function emptyVariableIndex(): MicroflowVariableIndex {
 function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], collection: MicroflowObjectCollection | undefined, flows: MicroflowFlow[]): MicroflowVariableIndex {
   const safeCollection = normalizeCollection(collection);
   const index = emptyVariableIndex();
+  const objectsById = new Map(flattenObjectCollection(safeCollection).map(object => [object.id, object] as const));
   for (const parameter of parameters) {
     index.parameters[parameter.name] = {
       name: parameter.name,
@@ -109,14 +118,16 @@ function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], 
     };
   }
   for (const object of flattenObjectCollection(safeCollection)) {
-    if (object.kind === "loopedActivity" && object.loopSource.kind === "iterableList") {
-      index.loopVariables[object.loopSource.iteratorVariableName] = {
-        name: object.loopSource.iteratorVariableName,
-        dataType: { kind: "unknown", reason: object.loopSource.listVariableName },
-        source: { kind: "loopIterator", loopObjectId: object.id },
-        scope: { collectionId: object.objectCollection?.id ?? safeCollection.id, loopObjectId: object.id },
-        readonly: true
-      };
+    if (object.kind === "loopedActivity") {
+      if (object.loopSource.kind === "iterableList" && object.loopSource.iteratorVariableName) {
+        index.loopVariables[object.loopSource.iteratorVariableName] = {
+          name: object.loopSource.iteratorVariableName,
+          dataType: { kind: "unknown", reason: object.loopSource.listVariableName },
+          source: { kind: "loopIterator", loopObjectId: object.id },
+          scope: { collectionId: object.objectCollection?.id ?? safeCollection.id, loopObjectId: object.id },
+          readonly: true
+        };
+      }
       index.systemVariables.$currentIndex = {
         name: "$currentIndex",
         dataType: { kind: "integer" },
@@ -164,6 +175,7 @@ function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], 
   }
   const safeFlows = Array.isArray(flows) ? flows : [];
   for (const flow of safeFlows.filter((item): item is MicroflowSequenceFlow => item.kind === "sequence" && item.isErrorHandler)) {
+    const sourceObject = objectsById.get(flow.originObjectId);
     index.errorVariables.$latestError = {
       name: "$latestError",
       dataType: { kind: "object", entityQualifiedName: "System.Error" },
@@ -171,20 +183,24 @@ function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], 
       scope: { collectionId: safeCollection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
       readonly: true
     };
-    index.errorVariables.$latestHttpResponse = {
-      name: "$latestHttpResponse",
-      dataType: { kind: "object", entityQualifiedName: "System.HttpResponse" },
-      source: { kind: "errorContext", flowId: flow.id },
-      scope: { collectionId: safeCollection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
-      readonly: true
-    };
-    index.errorVariables.$latestSoapFault = {
-      name: "$latestSoapFault",
-      dataType: { kind: "object", entityQualifiedName: "System.SoapFault" },
-      source: { kind: "errorContext", flowId: flow.id },
-      scope: { collectionId: safeCollection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
-      readonly: true
-    };
+    if (sourceObject?.kind === "actionActivity" && sourceObject.action.kind === "restCall") {
+      index.errorVariables.$latestHttpResponse = {
+        name: "$latestHttpResponse",
+        dataType: { kind: "object", entityQualifiedName: "System.HttpResponse" },
+        source: { kind: "errorContext", flowId: flow.id },
+        scope: { collectionId: safeCollection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
+        readonly: true
+      };
+    }
+    if (sourceObject?.kind === "actionActivity" && sourceObject.action.kind === "webServiceCall") {
+      index.errorVariables.$latestSoapFault = {
+        name: "$latestSoapFault",
+        dataType: { kind: "object", entityQualifiedName: "System.SoapFault" },
+        source: { kind: "errorContext", flowId: flow.id },
+        scope: { collectionId: safeCollection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
+        readonly: true
+      };
+    }
   }
   return index;
 }
@@ -577,6 +593,7 @@ export function applyEditorGraphPatch(schema: MicroflowAuthoringSchema, patch: M
 export function toMendixCompat(schema: MicroflowAuthoringSchema): MendixCompatMicroflow {
   const safeObjectCollection = normalizeCollection(schema.objectCollection);
   const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
+  const returnVariableName = deriveMicroflowReturnVariableName(schema) ?? "";
   return {
     $ID: schema.id,
     $Type: "Microflows$Microflow",
@@ -585,7 +602,7 @@ export function toMendixCompat(schema: MicroflowAuthoringSchema): MendixCompatMi
     documentation: schema.documentation ?? "",
     parameters: schema.parameters,
     microflowReturnType: toMendixCompatDataType(schema.returnType),
-    returnVariableName: schema.returnVariableName ?? "",
+    returnVariableName,
     objectCollection: safeObjectCollection,
     flows: safeFlows,
     applyEntityAccess: schema.security.applyEntityAccess,
@@ -618,7 +635,7 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
     }),
   }));
   const variables = buildVariableIndex(safeParameters, safeObjectCollection, normalizedFlows);
-  return {
+  const schema: MicroflowAuthoringSchema = {
     schemaVersion: "1.0.0",
     mendixProfile: "mx11",
     id: input.$ID,
@@ -653,6 +670,13 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
     editor: { viewport: { x: 0, y: 0, zoom: 1 }, zoom: 1, selection: {} },
     audit: { version: "v1", status: input.excluded ? "archived" : "draft" }
   };
+  const derivedReturnVariableName = deriveMicroflowReturnVariableName(schema);
+  return derivedReturnVariableName === undefined
+    ? schema
+    : {
+      ...schema,
+      returnVariableName: derivedReturnVariableName,
+    };
 }
 
 export function toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntimeDto {

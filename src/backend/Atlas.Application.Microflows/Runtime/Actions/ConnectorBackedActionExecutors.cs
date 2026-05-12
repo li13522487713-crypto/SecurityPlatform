@@ -127,6 +127,7 @@ internal static class ConnectorBackedExecutionHelper
                 },
                 ConnectorRequests = [request],
                 Logs = connectorResult.Logs,
+                LatestSoapFault = ResolveLatestSoapFault(context.ActionKind, connectorResult),
                 Diagnostics =
                 [
                     new MicroflowActionExecutionDiagnostic
@@ -313,5 +314,61 @@ internal static class ConnectorBackedExecutionHelper
         {
             return JsonSerializer.SerializeToElement(new { rawOutput = json }, JsonOptions);
         }
+    }
+
+    private static JsonElement? ResolveLatestSoapFault(string actionKind, MicroflowConnectorExecutionResult connectorResult)
+    {
+        if (!string.Equals(actionKind, "webServiceCall", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (connectorResult.LatestSoapFault.HasValue)
+        {
+            return connectorResult.LatestSoapFault.Value;
+        }
+
+        if (TryParseSoapFault(connectorResult.OutputJson, out var fault))
+        {
+            return fault;
+        }
+
+        if (connectorResult.Error is null)
+        {
+            return null;
+        }
+
+        return JsonSerializer.SerializeToElement(new
+        {
+            faultCode = connectorResult.Error.Code,
+            faultString = connectorResult.Error.Message,
+            detail = connectorResult.Error.Details
+        }, JsonOptions);
+    }
+
+    private static bool TryParseSoapFault(string? outputJson, out JsonElement fault)
+    {
+        fault = default;
+        if (string.IsNullOrWhiteSpace(outputJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(outputJson);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object
+                && (root.TryGetProperty("faultCode", out _) || root.TryGetProperty("faultString", out _) || root.TryGetProperty("detail", out _)))
+            {
+                fault = root.Clone();
+                return true;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return false;
     }
 }

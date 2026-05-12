@@ -18,7 +18,7 @@ import {
 } from "@douyinfe/semi-icons";
 import { MicroflowNodePanel, type MicroflowNodePanelLabels, type MicroflowNodePanelTemplate } from "../node-panel";
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
-import { buildDesignPropertyPanelModel } from "../property-panel/design-protocol-model";
+import { buildDesignPropertyPanelModel, setDesignParameterAsReturnValue } from "../property-panel/design-protocol-model";
 import {
   addMicroflowObjectFromDragPayload,
   createDragPayloadFromRegistryItem,
@@ -91,6 +91,8 @@ import {
 import { validateMicroflowSchema } from "../validators/validate-microflow-schema";
 import { normalizeMicroflowAuthoringSchemaForRuntime } from "../schema/normalizer";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
+import { isBooleanExclusiveSplit } from "../schema/utils/exclusive-split-utils";
+import { setParameterAsMicroflowReturnValue } from "../schema/utils/microflow-signature";
 import { canApplyBooleanBranchQuickFix, createMissingBooleanBranch } from "./problem-quick-fixes";
 import {
   collectDebugSessionMicroflowIds,
@@ -127,7 +129,7 @@ import { exportCanvasAsPng } from "./export-image";
 import { buildAcceptance120Schema } from "./acceptance-120-fixture";
 import { getDebugLatencyColor, getDebugWsStatusTag } from "./debug-status";
 import { composeTraceFramesForRuntimePreview } from "./ws-runtime-trace";
-import { buildSessionDebugRouteIntent, buildWsDebugRouteIntent } from "./debug-routing";
+import { buildSessionDebugRouteIntent, buildWsDebugRouteIntent, resolveCallStackFrameClickIntent } from "./debug-routing";
 import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import { buildNodeUsageHighlights, buildVariableUsageHighlights } from "../variables";
 import {
@@ -210,6 +212,24 @@ function isDesignStartNode(node: MicroflowWorkflowNodeJSON | undefined): boolean
   return node.type === "startEvent" || data?.objectKind === "startEvent";
 }
 
+function filterDesignCopyableObjectIds(schema: MicroflowDesignSchema, objectIds: string[]): string[] {
+  return objectIds.filter(id => !isDesignStartNode(schema.workflow.nodes.find(node => node.id === id)));
+}
+
+function filterAuthoringCopyableObjectIds(schema: MicroflowSchema, objectIds: string[]): string[] {
+  return objectIds.filter(id => findObject(schema, id)?.kind !== "startEvent");
+}
+
+function notifyBlockedStartEventCopy(totalObjectIds: number, copyableObjectIds: string[]): void {
+  if (copyableObjectIds.length < totalObjectIds) {
+    Toast.warning("Start Event 不能复制。");
+  }
+}
+
+function duplicateSuccessMessage(count: number): string {
+  return count > 1 ? `已复制 ${count} 个节点。` : "已复制节点。";
+}
+
 function clearDesignSelection(schema: MicroflowDesignSchema): MicroflowDesignSchema {
   return {
     ...schema,
@@ -267,7 +287,7 @@ function duplicateDesignSelection(
   objectIds: string[],
   flowIds: string[],
 ): MicroflowDesignSchema {
-  const selectedObjects = new Set(objectIds);
+  const selectedObjects = new Set(filterDesignCopyableObjectIds(schema, objectIds));
   const selectedFlows = new Set(flowIds);
   const existingIds = new Set(schema.workflow.nodes.map(node => node.id));
   const idMap = new Map<string, string>();
@@ -734,6 +754,7 @@ export interface MicroflowEditorLabels {
   contextDelete: string;
   contextCenterView: string;
   contextCopyId: string;
+  contextSetAsReturnValue: string;
   contextAddBreakpoint: string;
   contextRemoveBreakpoint: string;
   contextDisable: string;
@@ -764,6 +785,7 @@ const defaultLabels: MicroflowEditorLabels = {
   contextDelete: "Delete",
   contextCenterView: "Center View",
   contextCopyId: "Copy ID",
+  contextSetAsReturnValue: "Set as Return Value",
   contextAddBreakpoint: "Add Breakpoint",
   contextRemoveBreakpoint: "Remove Breakpoint",
   contextDisable: "Disable Node",
@@ -1339,7 +1361,7 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
       (flow): flow is Extract<MicroflowFlow, { kind: "sequence" }> =>
         flow.kind === "sequence" && flow.originObjectId === source.id && !flow.isErrorHandler
     );
-    if (source.splitCondition.kind === "expression" && source.splitCondition.resultType === "boolean") {
+    if (isBooleanExclusiveSplit(source)) {
       const used = new Set(
         existing.flatMap(flow => flow.caseValues)
           .filter(caseValue => caseValue.kind === "boolean")
@@ -1389,8 +1411,8 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
       edgeKind: "objectTypeCondition",
       caseValues: nextEntity
         ? [{ kind: "inheritance", officialType: "Microflows$InheritanceCase", entityQualifiedName: nextEntity }]
-        : [{ kind: "fallback", officialType: "Microflows$NoCase" }],
-      label: nextEntity ?? "fallback"
+        : [{ kind: "empty", officialType: "Microflows$NoCase" }],
+      label: nextEntity ?? "(empty)"
     });
   }
   return createSequenceFlow({ id: createMicroflowFlowId(schema, "flow"), originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
@@ -1410,7 +1432,7 @@ function caseValueFromPort(sourcePort: MicroflowEditorPort, source?: MicroflowOb
     const entityQualifiedName = source.entity.allowedSpecializations[sourcePort.connectionIndex] ?? "";
     return entityQualifiedName
       ? [{ kind: "inheritance", officialType: "Microflows$InheritanceCase", entityQualifiedName }]
-      : [{ kind: "fallback", officialType: "Microflows$NoCase" }];
+      : [{ kind: "empty", officialType: "Microflows$NoCase" }];
   }
   return [];
 }
@@ -1935,6 +1957,13 @@ function DebugPanel({
   const effectiveFlowId = debugSession?.currentSafePoint?.incomingFlowId ?? debugSession?.currentSafePoint?.outgoingFlowId ?? runtimeNodeState?.currentFlowId;
   const effectiveBranchId = debugSession?.currentSafePoint?.branchId ?? runtimeNodeState?.currentBranchId;
   const effectivePhase = debugSession?.pausePhase ?? debugSession?.currentSafePoint?.phase ?? runtimeNodeState?.currentSafePoint;
+  const resolveCallStackNodeCaption = (objectId?: string) => {
+    const normalizedObjectId = typeof objectId === "string" ? objectId.trim() : "";
+    if (!normalizedObjectId) {
+      return undefined;
+    }
+    return findObject(schema, normalizedObjectId)?.caption ?? normalizedObjectId;
+  };
   const effectiveCallStack = (debugSession?.callStack?.length ?? 0) > 0
     ? (debugSession?.callStack ?? []).map(frame => ({
       id: frame.id,
@@ -1943,13 +1972,18 @@ function DebugPanel({
       runId: frame.runId,
       depth: frame.depth,
       status: frame.status,
+      callerNodeId: frame.callerObjectId,
+      currentNodeCaption: resolveCallStackNodeCaption(frame.callerObjectId),
     }))
     : (runtimeCallStack ?? []).map(frame => ({
-      id: `${frame.runId}:${frame.depth}`,
+      id: frame.id ?? `${frame.runId}:${frame.depth}`,
       name: `${frame.depth}:${frame.microflowId}`,
       microflowId: frame.microflowId,
       runId: frame.runId,
       depth: frame.depth,
+      status: frame.status,
+      callerNodeId: frame.callerNodeId,
+      currentNodeCaption: resolveCallStackNodeCaption(frame.callerNodeId),
     }));
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -2034,10 +2068,39 @@ function DebugPanel({
             onBreakpointDelete={onDebugBreakpointDelete}
             onBreakpointConditionChange={onDebugBreakpointConditionChange}
             onCallStackFrameClick={frame => {
-              if (!frame.microflowId || !onOpenMicroflow) {
+              const intent = resolveCallStackFrameClickIntent({
+                activeMicroflowId: schema.id,
+                activeNodeId: effectiveNodeId,
+                frame,
+                visibleObjectIds: graph.nodes.map(item => item.objectId),
+              });
+              if (!intent) {
                 return;
               }
-              onOpenMicroflow(frame.microflowId);
+              if (intent.kind === "focus-node") {
+                const targetPosition = graph.nodes.find(item => item.objectId === intent.nodeId)?.position;
+                if (!targetPosition) {
+                  return;
+                }
+                openPropertiesPanel();
+                setFocusObjectId(intent.nodeId);
+                setFocusRequestSeq(value => value + 1);
+                applyPatch({
+                  selectedObjectId: intent.nodeId,
+                  selectedFlowId: undefined,
+                  selectedCollectionId: findObjectWithCollection(schema, intent.nodeId)?.collectionId,
+                  viewport: viewportCenteredOn(targetPosition),
+                }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" });
+                emitPanelSyncEvent({
+                  type: "trace-focus",
+                  nodeId: intent.nodeId,
+                  frameId: frame.id,
+                });
+                return;
+              }
+              if (intent.kind === "open-microflow" && onOpenMicroflow) {
+                onOpenMicroflow(intent.microflowId);
+              }
             }}
           />
           <Card title="Debug Controls" style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
@@ -4132,6 +4195,24 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     return viewportCenteredOn(graph.nodes.find(item => item.objectId === selection.objectId)?.position);
   };
 
+  const contextMenuParameterBinding = (selection?: CanvasNodeContextMenuState): { objectId: string; parameterId: string } | undefined => {
+    const objectId = selection?.objectId;
+    if (!objectId) {
+      return undefined;
+    }
+    if (isDesignSchema(schema)) {
+      const node = schema.workflow.nodes.find(item => item.id === objectId);
+      const data = node?.data as { objectKind?: string; parameterId?: string } | undefined;
+      return data?.objectKind === "parameterObject" && typeof data.parameterId === "string" && data.parameterId.trim()
+        ? { objectId, parameterId: data.parameterId }
+        : undefined;
+    }
+    const object = findObject(schema, objectId);
+    return object?.kind === "parameterObject"
+      ? { objectId, parameterId: object.parameterId }
+      : undefined;
+  };
+
   const handleCanvasContextDuplicate = () => {
     if (props.readonly || !canvasNodeContextMenu) {
       return;
@@ -4140,14 +4221,26 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const flowId = canvasNodeContextMenu.flowId;
     if (objectId) {
       if (isDesignSchema(schema)) {
+        const copyableObjectIds = filterDesignCopyableObjectIds(schema, [objectId]);
+        notifyBlockedStartEventCopy(1, copyableObjectIds);
+        if (copyableObjectIds.length === 0) {
+          setCanvasNodeContextMenu(undefined);
+          return;
+        }
         commitSchema(
-          duplicateDesignSelection(schema, [objectId], []) as unknown as MicroflowSchema,
+          duplicateDesignSelection(schema, copyableObjectIds, []) as unknown as MicroflowSchema,
           "addNode",
           { historyLabel: labels.contextDuplicate, source: "flowgram" },
         );
       } else {
+        const copyableObjectIds = filterAuthoringCopyableObjectIds(schema, [objectId]);
+        notifyBlockedStartEventCopy(1, copyableObjectIds);
+        if (copyableObjectIds.length === 0) {
+          setCanvasNodeContextMenu(undefined);
+          return;
+        }
         const located = findObjectWithCollection(schema, objectId);
-        commitSchema(duplicateObject(schema, objectId), located?.parentLoopObjectId ? "addLoopNode" : "addNode", { source: "flowgram" });
+        commitSchema(duplicateObject(schema, copyableObjectIds[0]), located?.parentLoopObjectId ? "addLoopNode" : "addNode", { source: "flowgram" });
       }
       setCanvasNodeContextMenu(undefined);
       Toast.success(labels.contextDuplicate);
@@ -4289,6 +4382,32 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     confirmDeleteTargets(objectIds, flowIds, "flowgram");
     setCanvasNodeContextMenu(undefined);
+  };
+
+  const handleCanvasContextSetAsReturnValue = () => {
+    if (props.readonly || !canvasNodeContextMenu) {
+      return;
+    }
+    const binding = contextMenuParameterBinding(canvasNodeContextMenu);
+    if (!binding) {
+      setCanvasNodeContextMenu(undefined);
+      return;
+    }
+    if (isDesignSchema(schema)) {
+      commitSchema(
+        setDesignParameterAsReturnValue(schema, binding.parameterId) as unknown as MicroflowSchema,
+        "bulkUpdate",
+        { historyLabel: labels.contextSetAsReturnValue, source: "flowgram" },
+      );
+    } else {
+      commitSchema(
+        setParameterAsMicroflowReturnValue(schema, binding.parameterId),
+        "bulkUpdate",
+        { historyLabel: labels.contextSetAsReturnValue, source: "flowgram" },
+      );
+    }
+    setCanvasNodeContextMenu(undefined);
+    Toast.success(labels.contextSetAsReturnValue);
   };
 
   const handleCanvasContextCenter = () => {
@@ -4651,30 +4770,40 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (isDesignSchema(schema)) {
       const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id && schema.workflow.nodes.some(node => node.id === id))))];
       const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id && schema.workflow.edges.some(edge => designEdgeId(edge) === id))))];
+      const copyableObjectIds = filterDesignCopyableObjectIds(schema, objectIds);
       if (objectIds.length === 0) {
         Toast.info("请先选择节点再复制。");
         return;
       }
+      notifyBlockedStartEventCopy(objectIds.length, copyableObjectIds);
+      if (copyableObjectIds.length === 0) {
+        return;
+      }
       commitSchema(
-        duplicateDesignSelection(schema, objectIds, flowIds) as unknown as MicroflowSchema,
+        duplicateDesignSelection(schema, copyableObjectIds, flowIds) as unknown as MicroflowSchema,
         "addNode",
         { historyLabel: "Duplicate selection", source: "flowgram" },
       );
-      Toast.success(objectIds.length > 1 ? `已复制 ${objectIds.length} 个节点。` : "已复制节点。");
+      Toast.success(duplicateSuccessMessage(copyableObjectIds.length));
       return;
     }
     const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id && findObject(schema, id))))];
     const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id && findFlowWithCollection(schema, id))))];
+    const copyableObjectIds = filterAuthoringCopyableObjectIds(schema, objectIds);
     if (objectIds.length === 0) {
       Toast.info("请先选择节点再复制。");
       return;
     }
-    const source = findObjectWithCollection(schema, objectIds[0]);
-    const nextSchema = objectIds.length > 1 || flowIds.length > 0
-      ? duplicateObjectSelection(schema, { objectIds, flowIds })
-      : duplicateObject(schema, objectIds[0]);
+    notifyBlockedStartEventCopy(objectIds.length, copyableObjectIds);
+    if (copyableObjectIds.length === 0) {
+      return;
+    }
+    const source = findObjectWithCollection(schema, copyableObjectIds[0]);
+    const nextSchema = copyableObjectIds.length > 1 || flowIds.length > 0
+      ? duplicateObjectSelection(schema, { objectIds: copyableObjectIds, flowIds })
+      : duplicateObject(schema, copyableObjectIds[0]);
     commitSchema(nextSchema, source?.parentLoopObjectId ? "addLoopNode" : "addNode", { historyLabel: "Duplicate selection", source: "flowgram" });
-    Toast.success(objectIds.length > 1 ? `已复制 ${objectIds.length} 个节点。` : "已复制节点。");
+    Toast.success(duplicateSuccessMessage(copyableObjectIds.length));
   };
 
   const handleMoveSelection = (dx: number, dy: number) => {
@@ -4726,22 +4855,32 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (isDesignSchema(schema)) {
       const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id && schema.workflow.nodes.some(node => node.id === id))))];
       const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id && schema.workflow.edges.some(edge => designEdgeId(edge) === id))))];
+      const copyableObjectIds = filterDesignCopyableObjectIds(schema, objectIds);
       if (objectIds.length === 0) {
         Toast.info("请选择一个节点后复制。");
         return;
       }
-      setClipboardObject({ microflowId: schema.id, objectIds, flowIds });
-      Toast.success(objectIds.length > 1 ? `已复制 ${objectIds.length} 个节点。` : "已复制节点。");
+      notifyBlockedStartEventCopy(objectIds.length, copyableObjectIds);
+      if (copyableObjectIds.length === 0) {
+        return;
+      }
+      setClipboardObject({ microflowId: schema.id, objectIds: copyableObjectIds, flowIds });
+      Toast.success(duplicateSuccessMessage(copyableObjectIds.length));
       return;
     }
     const objectIds = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter((id): id is string => Boolean(id && findObject(schema, id))))];
     const flowIds = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter((id): id is string => Boolean(id && findFlowWithCollection(schema, id))))];
+    const copyableObjectIds = filterAuthoringCopyableObjectIds(schema, objectIds);
     if (objectIds.length === 0) {
       Toast.info("请选择一个节点后复制。");
       return;
     }
-    setClipboardObject({ microflowId: schema.id, objectIds, flowIds });
-    Toast.success(objectIds.length > 1 ? `已复制 ${objectIds.length} 个节点。` : "已复制节点。");
+    notifyBlockedStartEventCopy(objectIds.length, copyableObjectIds);
+    if (copyableObjectIds.length === 0) {
+      return;
+    }
+    setClipboardObject({ microflowId: schema.id, objectIds: copyableObjectIds, flowIds });
+    Toast.success(duplicateSuccessMessage(copyableObjectIds.length));
   };
 
   const handlePasteSelection = () => {
@@ -4757,9 +4896,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return;
     }
     if (isDesignSchema(schema)) {
-      const objectIds = clipboardObject.objectIds.filter(id => schema.workflow.nodes.some(node => node.id === id));
+      const existingObjectIds = clipboardObject.objectIds.filter(id => schema.workflow.nodes.some(node => node.id === id));
+      const objectIds = filterDesignCopyableObjectIds(
+        schema,
+        existingObjectIds,
+      );
+      notifyBlockedStartEventCopy(existingObjectIds.length, objectIds);
       const flowIds = clipboardObject.flowIds.filter(id => schema.workflow.edges.some(edge => designEdgeId(edge) === id));
       if (objectIds.length === 0) {
+        if (existingObjectIds.length > 0) {
+          return;
+        }
         Toast.warning("复制的源节点已不存在。");
         return;
       }
@@ -4770,14 +4917,23 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       );
       return;
     }
-    const source = findObjectWithCollection(schema, clipboardObject.objectIds[0]);
+    const existingObjectIds = clipboardObject.objectIds.filter(id => Boolean(findObject(schema, id)));
+    const objectIds = filterAuthoringCopyableObjectIds(
+      schema,
+      existingObjectIds,
+    );
+    notifyBlockedStartEventCopy(existingObjectIds.length, objectIds);
+    if (objectIds.length === 0 && existingObjectIds.length > 0) {
+      return;
+    }
+    const source = findObjectWithCollection(schema, objectIds[0]);
     if (!source) {
       Toast.warning("复制的源节点已不存在。");
       return;
     }
-    const nextSchema = clipboardObject.objectIds.length > 1 || clipboardObject.flowIds.length > 0
-      ? duplicateObjectSelection(schema, clipboardObject)
-      : duplicateObject(schema, clipboardObject.objectIds[0]);
+    const nextSchema = objectIds.length > 1 || clipboardObject.flowIds.length > 0
+      ? duplicateObjectSelection(schema, { ...clipboardObject, objectIds })
+      : duplicateObject(schema, objectIds[0]);
     commitSchema(nextSchema, source.parentLoopObjectId ? "addLoopNode" : "addNode", { historyLabel: "Paste selection", source: "flowgram" });
   };
 
@@ -5517,9 +5673,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     ...nodePaletteActions,
   ], [apiClient.retryMicroflowRun, apiClient.runRetention, dirty, focusMode, handleEnterInlineEdit, handleExportAsImage, handleRetentionDryRun, handleRetentionExecute, handleRetentionPreview, handleRetryQueuedRun, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, nodePaletteActions, problemPaletteActions, props.readonly, rightOpen, runSession?.id, running, saving, schema.editor.selection.objectId, schema.editor.selection.objectIds, schema.editor.viewport, selectedRunId, startDebugSession, toggleNodePanel, togglePropertiesPanel, tracePaletteActions]);
 
-  const canCopySelection = Boolean(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length);
   const canPasteSelection = Boolean(clipboardObject);
   const selectionObjectIds = [...new Set([...(schema.editor.selection.objectIds ?? []), schema.editor.selection.objectId].filter((id): id is string => Boolean(id)))];
+  const copyableSelectionObjectIds = isDesignSchema(schema)
+    ? filterDesignCopyableObjectIds(schema, selectionObjectIds)
+    : filterAuthoringCopyableObjectIds(schema, selectionObjectIds);
+  const canCopySelection = Boolean(copyableSelectionObjectIds.length);
   const deletableSelectionObjectIds = isDesignSchema(schema)
     ? selectionObjectIds.filter(id => !isDesignStartNode(schema.workflow.nodes.find(node => node.id === id)))
     : selectionObjectIds.filter(id => findObject(schema, id)?.kind !== "startEvent");
@@ -5760,6 +5919,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           schema={schema}
           validationIssues={issues}
           runtimeTrace={traceFrames}
+          loopIteration={debugStoreSnapshot.loopIteration}
           pausedNodeIds={pausedNodeIds}
           breakpointNodeIds={breakpointNodeIds}
           conditionalBreakpointNodeIds={conditionalBreakpointNodeIds}
@@ -5883,6 +6043,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         </div>
         {shouldShowCanvasContextMenu && canvasNodeContextMenu ? (() => {
           const hasNode = Boolean(canvasNodeContextMenu.objectId);
+          const parameterBinding = contextMenuParameterBinding(canvasNodeContextMenu);
           const nodeBreakpoint = hasNode
             ? activeDebugSession?.breakpoints?.find(item =>
               item.enabled !== false
@@ -5932,6 +6093,19 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   }}
                 >
                   {labels.contextProperties}
+                </Button>
+              ) : null}
+              {parameterBinding ? (
+                <Button
+                  block
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  style={{ justifyContent: "flex-start" }}
+                  disabled={props.readonly}
+                  onClick={handleCanvasContextSetAsReturnValue}
+                >
+                  {labels.contextSetAsReturnValue}
                 </Button>
               ) : null}
               {hasNode ? (

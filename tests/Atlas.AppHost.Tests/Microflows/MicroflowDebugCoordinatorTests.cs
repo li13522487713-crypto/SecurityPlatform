@@ -1,4 +1,5 @@
 using Atlas.Application.Microflows.Runtime.Debug;
+using Atlas.Application.Microflows.Runtime.Calls;
 
 namespace Atlas.AppHost.Tests.Microflows;
 
@@ -332,5 +333,51 @@ public sealed class MicroflowDebugCoordinatorTests
             CancellationToken.None);
 
         Assert.Equal(MicroflowDebugSessionLifecycle.Running, store.Get(session.Id)?.Status);
+    }
+
+    [Fact]
+    public async Task WaitAtSafePoint_preserves_caller_metadata_from_runtime_snapshot()
+    {
+        var store = new InMemoryDebugSessionStore();
+        var coordinator = new MicroflowDebugCoordinator(store);
+        var session = store.Create("mf-parent");
+
+        var waitTask = coordinator.WaitAtSafePointAsync(
+            session.Id,
+            "child-run",
+            new MicroflowDebugSafePoint(MicroflowDebugPausePhase.BeforeNode, "child-start", "startEvent", null)
+            {
+                CallDepth = 1,
+                SemanticKind = "startEvent"
+            },
+            new MicroflowDebugRuntimeSnapshot
+            {
+                ResourceId = "mf-child",
+                ParentRunId = "parent-run",
+                RootRunId = "parent-run",
+                CallDepth = 1,
+                CallStackFrames =
+                [
+                    new MicroflowCallStackFrame
+                    {
+                        FrameId = "frame-call-1",
+                        Depth = 1,
+                        CallerObjectId = "call-order-submit",
+                        CallerActionId = "action-call-order-submit",
+                        TargetResourceId = "mf-child",
+                        Status = MicroflowCallStackFrameStatus.Running
+                    }
+                ]
+            },
+            CancellationToken.None);
+        Assert.False(waitTask.IsCompleted);
+
+        var paused = store.Get(session.Id);
+        var frame = Assert.Single(paused?.CallStack ?? []);
+        Assert.Equal("call-order-submit", frame.CallerObjectId);
+        Assert.Equal("action-call-order-submit", frame.CallerActionId);
+
+        coordinator.ApplyCommand(session.Id, new DebugCommand { Command = DebugCommandKind.Continue });
+        await waitTask;
     }
 }

@@ -10,7 +10,7 @@ call-microflow-node-inline.ts,target,"\"data.action.targetMicroflowName\" }",map
 decision-node-inline.ts,branches,"`edge:${String(data.flowId ?? edge.id)}.data.label`",branch,false
 decision-node-inline.ts,condition,"\"data.splitCondition.expression.raw\"",condition,true
 default-node-inline.ts,title,"\"\"",text,false
-end-node-inline.ts,end,"\"returnVariableName\" }",expression,true
+end-node-inline.ts,end,"\"data.returnValue.raw\"",expression,true
 end-node-inline.ts,return-type,"\"returnType.kind\"",select,true
 error-node-inline.ts,errorVariable,"\"data.customHandlerVariable\"",variable,true
 error-node-inline.ts,title,"\"data.policy\" }",select,true

@@ -1,5 +1,6 @@
 import type { MicroflowCaseValue, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
+import { isBooleanExclusiveSplit, isEnumerationExclusiveSplit } from "../schema/utils/exclusive-split-utils";
 import { findEnumeration, getEnumerationValueKeys } from "../metadata";
 import { getAllowedSpecializations } from "../flowgram/adapters/flowgram-case-options";
 import { flattenObjects, issue } from "./shared";
@@ -47,7 +48,10 @@ export function validateDecisions(schema: MicroflowSchema, context: MicroflowVal
           }
         }
       }
-      if (object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression" && object.splitCondition.resultType === "boolean") {
+      if (isBooleanExclusiveSplit(object)) {
+        if (object.splitCondition.kind === "rule" && !object.splitCondition.ruleQualifiedName.trim()) {
+          issues.push(issue("MF_DECISION_RULE_MISSING", "Rule ExclusiveSplit must reference a rule.", { objectId: object.id, fieldPath: "splitCondition.ruleQualifiedName" }));
+        }
         for (const flow of outgoing) {
           for (const caseValue of flow.caseValues ?? []) {
             if (caseValue.kind !== "boolean") {
@@ -86,7 +90,7 @@ export function validateDecisions(schema: MicroflowSchema, context: MicroflowVal
           }, "warning"));
         }
       }
-      if (object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression" && object.splitCondition.resultType === "enumeration") {
+      if (isEnumerationExclusiveSplit(object)) {
         const enumeration = findEnumeration(metadata, object.splitCondition.enumerationQualifiedName);
         if (!object.splitCondition.enumerationQualifiedName || !enumeration) {
           issues.push(issue("MF_ENUMERATION_DECISION_UNKNOWN_ENUMERATION", "Enumeration ExclusiveSplit must reference an existing enumeration.", { objectId: object.id, fieldPath: "splitCondition.enumerationQualifiedName" }));

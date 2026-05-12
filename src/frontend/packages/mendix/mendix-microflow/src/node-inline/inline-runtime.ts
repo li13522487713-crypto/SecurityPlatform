@@ -21,6 +21,38 @@ function mapIssueQuickFix(issue: MicroflowValidationIssue) {
     });
 }
 
+function shortQualifiedName(value: string | undefined): string {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return "";
+  }
+  const parts = normalized.split(".");
+  return parts[parts.length - 1] ?? normalized;
+}
+
+function selectedBranchLabel(frame: MicroflowTraceFrame | undefined): string | undefined {
+  const selected = frame?.selectedCaseValue;
+  if (!selected) {
+    return undefined;
+  }
+  if (selected.kind === "boolean") {
+    return String(selected.value);
+  }
+  if (selected.kind === "enumeration") {
+    return selected.value;
+  }
+  if (selected.kind === "inheritance") {
+    return shortQualifiedName(selected.entityQualifiedName);
+  }
+  if (selected.kind === "empty" || selected.kind === "fallback" || selected.kind === "noCase") {
+    return "(empty)";
+  }
+  if (selected.kind === "expression") {
+    return selected.condition?.trim() || selected.expression?.trim() || "expression";
+  }
+  return undefined;
+}
+
 export function deriveRuntimeInlineState(
   frame?: MicroflowTraceFrame,
   issues?: MicroflowValidationIssue[],
@@ -59,11 +91,7 @@ export function deriveRuntimeInlineState(
     executionIndex: Number.isFinite(Number(frame.frameId)) ? Number(frame.frameId) : undefined,
     inputCount: valueGroups.inputs.values.length,
     outputCount: valueGroups.outputs.values.length,
-    selectedBranchLabel: frame.selectedCaseValue?.kind === "boolean"
-      ? String(frame.selectedCaseValue.value)
-      : frame.selectedCaseValue?.kind === "enumeration"
-        ? frame.selectedCaseValue.value
-        : undefined,
+    selectedBranchLabel: selectedBranchLabel(frame),
     inputPreview: runtimeInputPreview(frame),
     outputPreview: runtimeOutputPreview(frame),
     outputSummaries: valueGroups.outputSummaries,

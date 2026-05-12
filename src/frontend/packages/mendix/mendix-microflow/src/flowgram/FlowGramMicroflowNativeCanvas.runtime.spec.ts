@@ -146,6 +146,37 @@ describe("decorateWorkflow runtime projection", () => {
     expect(node.data?.runtimeState).toBe("paused");
   });
 
+  it("projects loop iteration progress onto loop nodes", () => {
+    const schema = createSchema();
+    schema.workflow.nodes = [{
+      id: "loop-1",
+      type: "loopedActivity",
+      data: {
+        objectId: "loop-1",
+        objectKind: "loopedActivity",
+        collectionId: "nodes",
+        title: "Loop",
+        validationState: "valid",
+        issueCount: 0,
+      },
+      meta: { position: { x: 120, y: 120 } },
+    }] as any;
+    schema.workflow.edges = [];
+
+    const decorated = decorateWorkflow({
+      schema,
+      validationIssues: [],
+      runtimeTrace: [],
+      loopIteration: {
+        nodeId: "loop-1",
+        iterationIndex: 3,
+        totalIterations: 8,
+      },
+    });
+    const node = decorated.nodes?.[0] as { data?: { loopIteration?: { iterationIndex?: number; totalIterations?: number } } };
+    expect(node.data?.loopIteration).toEqual({ iterationIndex: 3, totalIterations: 8 });
+  });
+
   it("projects usage highlight flags onto decorated nodes", () => {
     const decorated = decorateWorkflow({
       schema: createSchema(),

@@ -47,6 +47,23 @@ public sealed class MicroflowListOperationTransformExecutorTests
     }
 
     [Fact]
+    public async Task Sort_Uses_SortExpression_With_Item_Scope()
+    {
+        var context = Context(new
+        {
+            leftListVariableName = "items",
+            outputListVariableName = "ordered",
+            operation = "sort",
+            sortExpression = new { raw = "$item/score" }
+        });
+        DefineList(context, "items", [new { score = 2 }, new { score = 1 }, new { score = 3 }]);
+
+        var result = await new ListOperationActionExecutor().ExecuteAsync(context, CancellationToken.None);
+
+        Assert.Equal([1, 2, 3], result.OutputJson!.Value.EnumerateArray().Select(item => item.GetProperty("score").GetInt32()).ToArray());
+    }
+
+    [Fact]
     public async Task Map_Uses_Expression()
     {
         var context = Context(new

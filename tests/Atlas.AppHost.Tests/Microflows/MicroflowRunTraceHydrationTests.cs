@@ -84,6 +84,72 @@ public sealed class MicroflowRunTraceHydrationTests
         Assert.Equal("none", frame.TransactionEffect.Value.GetProperty("status").GetString());
     }
 
+    [Fact]
+    public async Task GetRunSession_RehydratesCallStackFramesFromSessionExtraJson()
+    {
+        var runRepository = Substitute.For<IMicroflowRunRepository>();
+        var ownershipGuard = Substitute.For<IMicroflowRunOwnershipGuard>();
+        ownershipGuard.EnsureRunOwnedAsync("run-1", Arg.Any<CancellationToken>())
+            .Returns(new MicroflowRunSessionEntity { Id = "run-1", ResourceId = "mf-parent", WorkspaceId = "ws-1", TenantId = "tenant-1" });
+        runRepository.GetSessionAsync("run-1", Arg.Any<CancellationToken>())
+            .Returns(new MicroflowRunSessionEntity
+            {
+                Id = "run-1",
+                ResourceId = "mf-parent",
+                SchemaSnapshotId = "schema-parent",
+                Status = "success",
+                InputJson = "{}",
+                StartedAt = DateTimeOffset.Parse("2026-05-02T00:00:00Z"),
+                EndedAt = DateTimeOffset.Parse("2026-05-02T00:00:01Z"),
+                ExtraJson = """
+                {
+                  "version": "1.0.0",
+                  "parentRunId": "run-root",
+                  "rootRunId": "run-root",
+                  "callDepth": 1,
+                  "correlationId": "corr-1",
+                  "callStack": ["MF_Parent", "MF_Child"],
+                  "callStackFrames": [
+                    {
+                      "id": "frame-call-1",
+                      "runId": "run-1",
+                      "parentRunId": "run-root",
+                      "rootRunId": "run-root",
+                      "microflowId": "mf-child",
+                      "schemaId": "schema-child",
+                      "version": "1.0.0",
+                      "qualifiedName": "Sales.MF_Child",
+                      "callerObjectId": "call-order-submit",
+                      "callerActionId": "action-call-order-submit",
+                      "depth": 1,
+                      "callMode": "sync",
+                      "status": "success",
+                      "startedAt": "2026-05-02T00:00:00Z",
+                      "endedAt": "2026-05-02T00:00:01Z",
+                      "durationMs": 1000
+                    }
+                  ],
+                  "childRunIds": []
+                }
+                """
+            });
+        runRepository.ListTraceFramesAsync("run-1", Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<MicroflowRunTraceFrameEntity>());
+        runRepository.ListLogsAsync("run-1", Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<MicroflowRunLogEntity>());
+        var service = CreateService(runRepository, ownershipGuard);
+
+        var session = await service.GetRunSessionAsync("run-1", CancellationToken.None);
+
+        var frame = Assert.Single(session.CallStackFrames);
+        Assert.Equal("frame-call-1", frame.Id);
+        Assert.Equal("mf-child", frame.MicroflowId);
+        Assert.Equal("Sales.MF_Child", frame.QualifiedName);
+        Assert.Equal("call-order-submit", frame.CallerObjectId);
+        Assert.Equal("action-call-order-submit", frame.CallerActionId);
+        Assert.Equal("success", frame.Status);
+    }
+
     private static MicroflowTestRunService CreateService(
         IMicroflowRunRepository runRepository,
         IMicroflowRunOwnershipGuard ownershipGuard)

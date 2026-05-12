@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Checkbox, Input, List, Space, Tag, Typography } from "@douyinfe/semi-ui";
 
 const { Text } = Typography;
@@ -43,6 +43,28 @@ export function DebugBreakpointsPanel({
     [breakpoints],
   );
   const [conditionDraftById, setConditionDraftById] = useState<Record<string, string>>(initialDrafts);
+  const previousConditionByIdRef = useRef<Record<string, string>>(initialDrafts);
+
+  useEffect(() => {
+    setConditionDraftById(current => {
+      const next: Record<string, string> = {};
+      for (const item of breakpoints) {
+        const nextCondition = item.condition ?? "";
+        const previousCondition = previousConditionByIdRef.current[item.id];
+        if (!(item.id in current)) {
+          next[item.id] = nextCondition;
+          continue;
+        }
+        if (previousCondition !== nextCondition) {
+          next[item.id] = nextCondition;
+          continue;
+        }
+        next[item.id] = current[item.id] ?? nextCondition;
+      }
+      return next;
+    });
+    previousConditionByIdRef.current = Object.fromEntries(breakpoints.map(item => [item.id, item.condition ?? ""]));
+  }, [breakpoints]);
 
   const readDraft = (id: string, fallback: string): string => conditionDraftById[id] ?? fallback;
   const writeDraft = (id: string, value: string) => {
@@ -109,4 +131,3 @@ export function DebugBreakpointsPanel({
     </Card>
   );
 }
-

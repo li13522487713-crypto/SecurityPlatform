@@ -4,7 +4,7 @@ import { createObjectFromRegistry, createSequenceFlow } from "../../adapters";
 import { sampleMicroflowSchema } from "../../schema/sample";
 import { createMetadataCatalog, EMPTY_MICROFLOW_METADATA_CATALOG } from "../../metadata";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
-import { createBooleanCaseValue, validateMicroflowSchema, type MicroflowDesignSchema, type MicroflowObject, type MicroflowSchema } from "../../schema";
+import { createBooleanCaseValue, updateEndEventReturnValue, updateMicroflowReturnType, validateMicroflowSchema, type MicroflowDesignSchema, type MicroflowObject, type MicroflowSchema } from "../../schema";
 
 function registry(key: string) {
   const item = defaultMicroflowNodeRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key || entry.type === key);
@@ -66,6 +66,15 @@ function validDesignSchema(): MicroflowDesignSchema {
     variables: [],
     validation: { issues: [] },
     audit: { version: "1", status: "draft" },
+  };
+}
+
+function rawExpression(raw: string) {
+  return {
+    raw,
+    referencedVariables: [],
+    references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
+    diagnostics: [],
   };
 }
 
@@ -134,6 +143,20 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     const issues = validate(schema);
 
     expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_PARAMETER_DUPLICATED", severity: "error" })]));
+  });
+
+  it("reports reserved system variable names on parameters", () => {
+    const schema = {
+      ...validSchema(),
+      parameters: [
+        { id: "param-reserved", name: "latestSoapFault", dataType: { kind: "string" as const }, required: true },
+      ],
+    };
+    const issues = validate(schema);
+
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "MF_PARAMETER_NAME_SYSTEM_RESERVED", severity: "error", parameterId: "param-reserved" }),
+    ]));
   });
 
   it("reports Change Variable missing target as an error", () => {
@@ -254,6 +277,45 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     })]));
   });
 
+  it("reports unknown variables when a deleted parameter is still referenced by an End return expression", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const parameterObject = objectFrom("parameter", "param-node");
+    if (parameterObject.kind !== "parameterObject") {
+      throw new Error("Expected parameter object.");
+    }
+    const schema = {
+      ...schemaWith([start, parameterObject, end], [createSequenceFlow({ originObjectId: start.id, destinationObjectId: end.id })]),
+      parameters: [{ id: parameterObject.parameterId, name: "amount", dataType: { kind: "decimal" as const }, required: true }],
+    };
+    const typed = updateMicroflowReturnType(schema, { kind: "string" });
+    const withExpression = updateEndEventReturnValue(typed, end.id, {
+      raw: "if $amount > 100 then 'vip' else 'normal'",
+      inferredType: { kind: "string" },
+      references: { variables: ["$amount"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
+      diagnostics: [],
+    });
+    const deleted = {
+      ...withExpression,
+      parameters: [],
+      objectCollection: {
+        ...withExpression.objectCollection,
+        objects: withExpression.objectCollection.objects.filter(object => object.id !== parameterObject.id),
+      },
+    };
+
+    const issues = validate(deleted);
+
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "MF_EXPRESSION_UNKNOWN_VARIABLE",
+        objectId: "end",
+        fieldPath: "returnValue",
+        severity: "error",
+      }),
+    ]));
+  });
+
   it("warns when Commit happens inside a Loop body", () => {
     const start = objectFrom("startEvent", "start");
     const end = objectFrom("endEvent", "end");
@@ -331,6 +393,92 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     })]));
   });
 
+  it("treats rule decisions as boolean decisions for branch validation", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const decision = objectFrom("decision", "decision");
+    if (decision.kind !== "exclusiveSplit") {
+      throw new Error("Expected exclusiveSplit.");
+    }
+    decision.splitCondition = {
+      kind: "rule",
+      ruleQualifiedName: "Sales.Rule1",
+      parameterMappings: [],
+      resultType: "boolean",
+    };
+    const trueFlow = createSequenceFlow({
+      id: "flow-true",
+      originObjectId: decision.id,
+      destinationObjectId: end.id,
+      edgeKind: "decisionCondition",
+      caseValues: [createBooleanCaseValue(true)],
+      label: "true",
+    });
+
+    const issues = validate(schemaWith([start, decision, end], [trueFlow]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_DECISION_BOOLEAN_FALSE_MISSING",
+      severity: "warning",
+      objectId: "decision",
+    })]));
+  });
+
+  it("requires rule decisions to reference a rule", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const decision = objectFrom("decision", "decision");
+    if (decision.kind !== "exclusiveSplit") {
+      throw new Error("Expected exclusiveSplit.");
+    }
+    decision.splitCondition = {
+      kind: "rule",
+      ruleQualifiedName: "",
+      parameterMappings: [],
+      resultType: "boolean",
+    };
+
+    const issues = validate(schemaWith([start, decision, end]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_DECISION_RULE_MISSING",
+      objectId: "decision",
+      fieldPath: "splitCondition.ruleQualifiedName",
+    })]));
+  });
+
+  it("validates rule decision parameter mapping expressions", () => {
+    const start = objectFrom("startEvent", "start");
+    const end = objectFrom("endEvent", "end");
+    const decision = objectFrom("decision", "decision");
+    if (decision.kind !== "exclusiveSplit") {
+      throw new Error("Expected exclusiveSplit.");
+    }
+    decision.splitCondition = {
+      kind: "rule",
+      ruleQualifiedName: "Sales.Rule1",
+      resultType: "boolean",
+      parameterMappings: [
+        {
+          parameterName: "amount",
+          targetParameterName: "amount",
+          parameterType: { kind: "decimal" },
+          targetType: { kind: "decimal" },
+          argumentExpression: { raw: "", referencedVariables: [], diagnostics: [] },
+          expression: { raw: "", referencedVariables: [], diagnostics: [] },
+        },
+      ],
+    };
+
+    const issues = validate(schemaWith([start, decision, end]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_EXPR_REQUIRED",
+      objectId: "decision",
+      fieldPath: "splitCondition.parameterMappings.0.argumentExpression",
+    })]));
+  });
+
   it("reports List Operation missing source as an error", () => {
     const issues = validate(schemaWith([objectFrom("startEvent", "start"), actionObject("activity:listOperation", "list-operation"), objectFrom("endEvent", "end")]));
 
@@ -353,6 +501,483 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     const issues = validate(schemaWith([objectFrom("startEvent", "start"), actionObject("activity:gauge", "gauge"), objectFrom("endEvent", "end")]));
 
     expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MF_ACTION_REQUIRED_FIELD_MISSING", severity: "error" })]));
+  });
+
+  it("validates Show Message expressions", () => {
+    const message = actionObject("activity:showMessage", "show-message");
+    message.action = {
+      ...message.action,
+      messageExpression: rawExpression("$missingMessage"),
+    } as typeof message.action;
+
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), message, objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_EXPR_UNKNOWN_VARIABLE",
+      objectId: "show-message",
+      fieldPath: "action.messageExpression",
+      severity: "error",
+    })]));
+  });
+
+  it("validates Counter and Gauge value expressions", () => {
+    const counter = actionObject("activity:counter", "counter");
+    counter.action = {
+      ...counter.action,
+      metricName: "orders_total",
+      valueExpression: rawExpression("1 / 2"),
+    } as typeof counter.action;
+    const gauge = actionObject("activity:gauge", "gauge");
+    gauge.action = {
+      ...gauge.action,
+      metricName: "queue_depth",
+      valueExpression: rawExpression("$missingGaugeValue"),
+    } as typeof gauge.action;
+
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), counter, gauge, objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "MF_EXPR_USE_DIV_OPERATOR",
+        objectId: "counter",
+        fieldPath: "action.valueExpression",
+        severity: "error",
+      }),
+      expect.objectContaining({
+        code: "MF_EXPR_UNKNOWN_VARIABLE",
+        objectId: "gauge",
+        fieldPath: "action.valueExpression",
+        severity: "error",
+      }),
+    ]));
+  });
+
+  it("validates Notify Workflow payload expressions", () => {
+    const notify = actionObject("activity:notifyWorkflow", "notify-workflow");
+    notify.action = {
+      ...notify.action,
+      workflowInstanceVariableName: "workflowInstance",
+      notificationName: "OrderSubmitted",
+      payloadExpression: rawExpression("$missingPayload"),
+    } as typeof notify.action;
+
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), notify, objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_EXPR_UNKNOWN_VARIABLE",
+      objectId: "notify-workflow",
+      fieldPath: "action.payloadExpression",
+      severity: "error",
+    })]));
+  });
+
+  it("validates Create List initial items expressions", () => {
+    const createList = actionObject("activity:listCreate", "create-list");
+    createList.action = {
+      ...createList.action,
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "string" },
+      itemType: { kind: "string" },
+      initialItemsExpression: rawExpression("$missingInitialItems"),
+    } as typeof createList.action;
+
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), createList, objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_EXPR_UNKNOWN_VARIABLE",
+      objectId: "create-list",
+      fieldPath: "action.initialItemsExpression",
+      severity: "error",
+    })]));
+  });
+
+  it("validates Parameter default value expressions", () => {
+    const parameterObject = objectFrom("parameter", "param-node");
+    if (parameterObject.kind !== "parameterObject") {
+      throw new Error("Expected parameterObject.");
+    }
+    const schema = {
+      ...validSchema(),
+      parameters: [
+        {
+          id: parameterObject.parameterId,
+          stableId: parameterObject.parameterId,
+          name: "amount",
+          dataType: { kind: "decimal" as const },
+          required: false,
+          defaultValue: rawExpression("$missingDefaultValue"),
+        },
+      ],
+      objectCollection: {
+        ...validSchema().objectCollection,
+        objects: [parameterObject, ...validSchema().objectCollection.objects],
+      },
+    };
+
+    const issues = validate(schema);
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_EXPR_UNKNOWN_VARIABLE",
+      objectId: "param-node",
+      parameterId: parameterObject.parameterId,
+      fieldPath: `parameters.${parameterObject.parameterId}.defaultValue`,
+      severity: "error",
+    })]));
+  });
+
+  it("validates Throw Exception message expressions", () => {
+    const throwException = actionObject("activity:throwException", "throw-exception");
+    throwException.action = {
+      ...throwException.action,
+      messageExpression: rawExpression("$missingThrownMessage"),
+    } as typeof throwException.action;
+
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), throwException, objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_EXPR_UNKNOWN_VARIABLE",
+      objectId: "throw-exception",
+      fieldPath: "action.messageExpression",
+      severity: "error",
+    })]));
+  });
+
+  it("validates Filter List expressions", () => {
+    const filterList = actionObject("activity:listFilter", "filter-list");
+    filterList.action = {
+      ...filterList.action,
+      sourceListVariableName: "orders",
+      listVariableName: "orders",
+      outputVariableName: "filteredOrders",
+      conditionExpression: rawExpression("1 / 2"),
+      filterExpression: rawExpression("$missingFilterFlag"),
+    } as typeof filterList.action;
+
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), filterList, objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "MF_EXPR_USE_DIV_OPERATOR",
+        objectId: "filter-list",
+        fieldPath: "action.conditionExpression",
+        severity: "error",
+      }),
+      expect.objectContaining({
+        code: "MF_EXPR_UNKNOWN_VARIABLE",
+        objectId: "filter-list",
+        fieldPath: "action.filterExpression",
+        severity: "error",
+      }),
+    ]));
+  });
+
+  it("accepts Filter List item variable in condition expressions", () => {
+    const start = objectFrom("startEvent", "start");
+    const createList = actionObject("activity:listCreate", "create-list");
+    createList.action = {
+      ...createList.action,
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "integer" },
+      itemType: { kind: "integer" },
+      listType: "mutable",
+    } as typeof createList.action;
+    const filterList = actionObject("activity:listFilter", "filter-list-item");
+    filterList.action = {
+      ...filterList.action,
+      sourceListVariableName: "orders",
+      listVariableName: "orders",
+      outputVariableName: "positiveOrders",
+      itemVariableName: "item",
+      itemType: { kind: "integer" },
+      conditionExpression: rawExpression("$item > 2"),
+      filterExpression: rawExpression("$item > 2"),
+    } as typeof filterList.action;
+    const end = objectFrom("endEvent", "end");
+
+    const issues = validate(schemaWith(
+      [start, createList, filterList, end],
+      [
+        createSequenceFlow({ originObjectId: start.id, destinationObjectId: createList.id }),
+        createSequenceFlow({ originObjectId: createList.id, destinationObjectId: filterList.id }),
+        createSequenceFlow({ originObjectId: filterList.id, destinationObjectId: end.id }),
+      ],
+    ));
+
+    expect(issues.some(issue =>
+      issue.objectId === "filter-list-item"
+      && issue.fieldPath === "action.conditionExpression"
+      && issue.code === "MF_EXPR_UNKNOWN_VARIABLE"
+    )).toBe(false);
+    expect(issues.some(issue =>
+      issue.objectId === "filter-list-item"
+      && issue.fieldPath === "action.filterExpression"
+      && issue.code === "MF_EXPR_UNKNOWN_VARIABLE"
+    )).toBe(false);
+  });
+
+  it("accepts Change List removeWhere item variable in condition expressions", () => {
+    const start = objectFrom("startEvent", "start");
+    const createList = actionObject("activity:listCreate", "create-list-remove-where");
+    createList.action = {
+      ...createList.action,
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "integer" },
+      itemType: { kind: "integer" },
+      listType: "mutable",
+    } as typeof createList.action;
+    const changeList = actionObject("activity:listChange", "change-list-remove-where");
+    changeList.action = {
+      ...changeList.action,
+      targetListVariableName: "orders",
+      operation: "removeWhere",
+      conditionExpression: rawExpression("$item > 2"),
+    } as typeof changeList.action;
+    const end = objectFrom("endEvent", "end");
+
+    const issues = validate(schemaWith(
+      [start, createList, changeList, end],
+      [
+        createSequenceFlow({ originObjectId: start.id, destinationObjectId: createList.id }),
+        createSequenceFlow({ originObjectId: createList.id, destinationObjectId: changeList.id }),
+        createSequenceFlow({ originObjectId: changeList.id, destinationObjectId: end.id }),
+      ],
+    ));
+
+    expect(issues.some(issue =>
+      issue.objectId === "change-list-remove-where"
+      && issue.fieldPath === "action.conditionExpression"
+      && issue.code === "MF_EXPR_UNKNOWN_VARIABLE"
+    )).toBe(false);
+  });
+
+  it("accepts List Operation filter item variable in filter expressions", () => {
+    const start = objectFrom("startEvent", "start");
+    const createList = actionObject("activity:listCreate", "create-list-list-operation-filter");
+    createList.action = {
+      ...createList.action,
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "integer" },
+      itemType: { kind: "integer" },
+      listType: "mutable",
+    } as typeof createList.action;
+    const listOperation = actionObject("activity:listOperation", "list-operation-filter");
+    listOperation.action = {
+      ...listOperation.action,
+      leftListVariableName: "orders",
+      sourceListVariableName: "orders",
+      operation: "filter",
+      filterExpression: rawExpression("$item > 2"),
+      expression: rawExpression("$item > 2"),
+      outputVariableName: "positiveOrders",
+      outputListVariableName: "positiveOrders",
+      outputElementType: { kind: "integer" },
+    } as typeof listOperation.action;
+    const end = objectFrom("endEvent", "end");
+
+    const issues = validate(schemaWith(
+      [start, createList, listOperation, end],
+      [
+        createSequenceFlow({ originObjectId: start.id, destinationObjectId: createList.id }),
+        createSequenceFlow({ originObjectId: createList.id, destinationObjectId: listOperation.id }),
+        createSequenceFlow({ originObjectId: listOperation.id, destinationObjectId: end.id }),
+      ],
+    ));
+
+    expect(issues.some(issue =>
+      issue.objectId === "list-operation-filter"
+      && issue.fieldPath === "action.filterExpression"
+      && issue.code === "MF_EXPR_UNKNOWN_VARIABLE"
+    )).toBe(false);
+    expect(issues.some(issue =>
+      issue.objectId === "list-operation-filter"
+      && issue.fieldPath === "action.expression"
+      && issue.code === "MF_EXPR_UNKNOWN_VARIABLE"
+    )).toBe(false);
+  });
+
+  it("accepts List Operation map item variable in map expressions", () => {
+    const start = objectFrom("startEvent", "start");
+    const createList = actionObject("activity:listCreate", "create-list-list-operation-map");
+    createList.action = {
+      ...createList.action,
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "integer" },
+      itemType: { kind: "integer" },
+      listType: "mutable",
+    } as typeof createList.action;
+    const listOperation = actionObject("activity:listOperation", "list-operation-map");
+    listOperation.action = {
+      ...listOperation.action,
+      leftListVariableName: "orders",
+      sourceListVariableName: "orders",
+      operation: "map",
+      expression: rawExpression("$item + 1"),
+      outputVariableName: "mappedOrders",
+      outputListVariableName: "mappedOrders",
+      outputElementType: { kind: "integer" },
+    } as typeof listOperation.action;
+    const end = objectFrom("endEvent", "end");
+
+    const issues = validate(schemaWith(
+      [start, createList, listOperation, end],
+      [
+        createSequenceFlow({ originObjectId: start.id, destinationObjectId: createList.id }),
+        createSequenceFlow({ originObjectId: createList.id, destinationObjectId: listOperation.id }),
+        createSequenceFlow({ originObjectId: listOperation.id, destinationObjectId: end.id }),
+      ],
+    ));
+
+    expect(issues.some(issue =>
+      issue.objectId === "list-operation-map"
+      && issue.fieldPath === "action.expression"
+      && issue.code === "MF_EXPR_UNKNOWN_VARIABLE"
+    )).toBe(false);
+  });
+
+  it("accepts List Operation sort item variable in sort expressions", () => {
+    const start = objectFrom("startEvent", "start");
+    const createList = actionObject("activity:listCreate", "create-list-list-operation-sort");
+    createList.action = {
+      ...createList.action,
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      itemType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      listType: "mutable",
+    } as typeof createList.action;
+    const listOperation = actionObject("activity:listOperation", "list-operation-sort");
+    listOperation.action = {
+      ...listOperation.action,
+      leftListVariableName: "orders",
+      sourceListVariableName: "orders",
+      operation: "sort",
+      sortExpression: rawExpression("$item/score"),
+      sortKeys: [{ expression: rawExpression("$item/score"), direction: "asc" }],
+      outputVariableName: "sortedOrders",
+      outputListVariableName: "sortedOrders",
+      outputElementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+    } as typeof listOperation.action;
+    const end = objectFrom("endEvent", "end");
+
+    const issues = validate(schemaWith(
+      [start, createList, listOperation, end],
+      [
+        createSequenceFlow({ originObjectId: start.id, destinationObjectId: createList.id }),
+        createSequenceFlow({ originObjectId: createList.id, destinationObjectId: listOperation.id }),
+        createSequenceFlow({ originObjectId: listOperation.id, destinationObjectId: end.id }),
+      ],
+    ));
+
+    expect(issues.some(issue =>
+      issue.objectId === "list-operation-sort"
+      && issue.fieldPath === "action.sortExpression"
+      && issue.code === "MF_EXPR_UNKNOWN_VARIABLE"
+    )).toBe(false);
+  });
+
+  it("accepts Sort List item variable in sort expressions", () => {
+    const start = objectFrom("startEvent", "start");
+    const createList = actionObject("activity:listCreate", "create-list-sort-list");
+    createList.action = {
+      ...createList.action,
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      itemType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      listType: "mutable",
+    } as typeof createList.action;
+    const sortList = actionObject("activity:listSort", "sort-list");
+    sortList.action = {
+      ...sortList.action,
+      kind: "sortList",
+      sourceListVariableName: "orders",
+      listVariableName: "orders",
+      sortExpression: rawExpression("$item/score"),
+      direction: "asc",
+      outputVariableName: "sortedOrders",
+      outputElementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+    } as typeof sortList.action;
+    const end = objectFrom("endEvent", "end");
+
+    const issues = validate(schemaWith(
+      [start, createList, sortList, end],
+      [
+        createSequenceFlow({ originObjectId: start.id, destinationObjectId: createList.id }),
+        createSequenceFlow({ originObjectId: createList.id, destinationObjectId: sortList.id }),
+        createSequenceFlow({ originObjectId: sortList.id, destinationObjectId: end.id }),
+      ],
+    ));
+
+    expect(issues.some(issue =>
+      issue.objectId === "sort-list"
+      && issue.fieldPath === "action.sortExpression"
+      && issue.code === "MF_EXPR_UNKNOWN_VARIABLE"
+    )).toBe(false);
+  });
+
+  it("accepts Sort List item variable in sort key expressions", () => {
+    const start = objectFrom("startEvent", "start");
+    const createList = actionObject("activity:listCreate", "create-list-sort-list-sort-key");
+    createList.action = {
+      ...createList.action,
+      outputListVariableName: "orders",
+      listVariableName: "orders",
+      elementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      itemType: { kind: "object", entityQualifiedName: "Sales.Order" },
+      listType: "mutable",
+    } as typeof createList.action;
+    const sortList = actionObject("activity:listSort", "sort-list-sort-key");
+    sortList.action = {
+      ...sortList.action,
+      kind: "sortList",
+      sourceListVariableName: "orders",
+      listVariableName: "orders",
+      sortKeys: [{ expression: rawExpression("$item/score"), direction: "asc" }],
+      direction: "asc",
+      outputVariableName: "sortedOrders",
+      outputElementType: { kind: "object", entityQualifiedName: "Sales.Order" },
+    } as typeof sortList.action;
+    const end = objectFrom("endEvent", "end");
+
+    const issues = validate(schemaWith(
+      [start, createList, sortList, end],
+      [
+        createSequenceFlow({ originObjectId: start.id, destinationObjectId: createList.id }),
+        createSequenceFlow({ originObjectId: createList.id, destinationObjectId: sortList.id }),
+        createSequenceFlow({ originObjectId: sortList.id, destinationObjectId: end.id }),
+      ],
+    ));
+
+    expect(issues.some(issue =>
+      issue.objectId === "sort-list-sort-key"
+      && issue.fieldPath === "action.sortKeys.0.expression"
+      && issue.code === "MF_EXPR_UNKNOWN_VARIABLE"
+    )).toBe(false);
+  });
+
+  it("validates Error Event message expressions", () => {
+    const errorEvent = objectFrom("errorEvent", "error-1");
+    if (errorEvent.kind !== "errorEvent") {
+      throw new Error("Expected errorEvent.");
+    }
+    errorEvent.error = {
+      ...errorEvent.error,
+      messageExpression: rawExpression("$missingErrorMessage"),
+    };
+
+    const issues = validate(schemaWith([objectFrom("startEvent", "start"), errorEvent, objectFrom("endEvent", "end")]));
+
+    expect(issues).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: "MF_EXPR_UNKNOWN_VARIABLE",
+      objectId: "error-1",
+      fieldPath: "error.messageExpression",
+      severity: "error",
+    })]));
   });
 
   it("reports stale Object Activity entity as a metadata issue", () => {
@@ -509,6 +1134,27 @@ describe("validateMicroflowSchema Stage 20 save gate rules", () => {
     expect(issues).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "MF_VARIABLE_DUPLICATED", severity: "error", objectId: "create-variable-a" }),
       expect.objectContaining({ code: "MF_VARIABLE_DUPLICATED", severity: "error", objectId: "create-variable-b" }),
+    ]));
+  });
+
+  it("reports reserved system variable names from variable index diagnostics", () => {
+    const createVariable = actionObject("activity:variableCreate", "create-variable-reserved");
+    if (createVariable.action.kind !== "createVariable") {
+      throw new Error("Expected create variable action.");
+    }
+    const issues = validate({
+      ...schemaWith([{
+        ...createVariable,
+        action: {
+          ...createVariable.action,
+          variableName: "latestHttpResponse",
+        },
+      }]),
+      parameters: [],
+    });
+
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "MF_VARIABLE_NAME_RESERVED", severity: "error", objectId: "create-variable-reserved" }),
     ]));
   });
 

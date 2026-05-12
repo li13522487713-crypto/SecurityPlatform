@@ -94,6 +94,59 @@ describe("property panel schema-bound update helpers", () => {
     expect(schema.parameters[0]?.name).toBe("");
   });
 
+  it("rewrites end return expressions when a bound parameter is renamed through property helpers", () => {
+    const parameterObject = createObjectFromRegistry(registry("parameter"), { x: 0, y: 0 }, "property-param-return");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 120, y: 0 }, "property-end-return");
+    if (parameterObject.kind !== "parameterObject" || end.kind !== "endEvent") {
+      throw new Error("Expected parameter object and end event.");
+    }
+    const schema = {
+      ...schemaWith([{ ...end, returnValue: { raw: "$amount", references: { variables: ["$amount"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] } }, { ...parameterObject, caption: "amount", parameterName: "amount" }]),
+      returnType: { kind: "decimal" as const },
+      returnVariableName: "amount",
+      parameters: [{
+        id: parameterObject.parameterId,
+        name: "amount",
+        dataType: { kind: "decimal" as const },
+        required: true,
+      }],
+    };
+
+    const updated = updateParameter(schema, parameterObject.parameterId, { name: "totalAmount" });
+    const updatedEnd = updated.objectCollection.objects.find(item => item.id === end.id);
+
+    expect(updated.parameters[0]?.name).toBe("totalAmount");
+    expect(updated.returnVariableName).toBe("totalAmount");
+    expect(updatedEnd?.kind === "endEvent" ? updatedEnd.returnValue?.raw : undefined).toBe("$totalAmount");
+  });
+
+  it("updates return type metadata when a bound return parameter changes type through property helpers", () => {
+    const parameterObject = createObjectFromRegistry(registry("parameter"), { x: 0, y: 0 }, "property-param-return-type");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 120, y: 0 }, "property-end-return-type");
+    if (parameterObject.kind !== "parameterObject" || end.kind !== "endEvent") {
+      throw new Error("Expected parameter object and end event.");
+    }
+    const schema = {
+      ...schemaWith([{ ...end, returnValue: { raw: "$amount", inferredType: { kind: "string" }, references: { variables: ["$amount"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] } }, { ...parameterObject, caption: "amount", parameterName: "amount" }]),
+      returnType: { kind: "string" as const },
+      returnVariableName: "amount",
+      parameters: [{
+        id: parameterObject.parameterId,
+        name: "amount",
+        dataType: { kind: "string" as const },
+        required: true,
+      }],
+    };
+
+    const updated = updateParameter(schema, parameterObject.parameterId, { dataType: { kind: "decimal" } });
+    const updatedEnd = updated.objectCollection.objects.find(item => item.id === end.id);
+
+    expect(updated.parameters[0]?.dataType).toEqual({ kind: "decimal" });
+    expect(updated.returnType).toEqual({ kind: "decimal" });
+    expect(updated.returnVariableName).toBe("amount");
+    expect(updatedEnd?.kind === "endEvent" ? updatedEnd.returnValue?.inferredType : undefined).toEqual({ kind: "decimal" });
+  });
+
   it("updates flow label and nested loop flow cases", () => {
     const loop = createObjectFromRegistry(registry("loop"), { x: 0, y: 0 }, "property-loop");
     const first = createObjectFromRegistry(registry("activity:variableCreate"), { x: 40, y: 40 }, "loop-first");
@@ -129,25 +182,39 @@ describe("property panel schema-bound update helpers", () => {
       returnType: { kind: "boolean" },
       applyEntityAccess: false,
       allowConcurrentExecution: false,
+      exposureExportLevel: "public",
+      exposureMarkAsUsed: false,
       exposureAsMicroflowActionEnabled: true,
       exposureAsMicroflowActionCaption: "Process Order",
       exposureAsMicroflowActionCategory: "Sales",
+      exposureAsWorkflowActionEnabled: true,
+      exposureAsWorkflowActionCaption: "Workflow Process Order",
+      exposureAsWorkflowActionCategory: "Workflow",
       exposureUrlEnabled: true,
       exposureUrlPath: "/p/process-order",
+      exposureUrlSearchParameters: ["orderId", "customerId"],
     });
 
     expect(updated.documentation).toBe("Release notes");
     expect(updated.returnType).toEqual({ kind: "boolean" });
     expect(updated.security.applyEntityAccess).toBe(false);
     expect(updated.concurrency.allowConcurrentExecution).toBe(false);
+    expect(updated.exposure.exportLevel).toBe("public");
+    expect(updated.exposure.markAsUsed).toBe(false);
     expect(updated.exposure.asMicroflowAction).toMatchObject({
       enabled: true,
       caption: "Process Order",
       category: "Sales",
     });
+    expect(updated.exposure.asWorkflowAction).toMatchObject({
+      enabled: true,
+      caption: "Workflow Process Order",
+      category: "Workflow",
+    });
     expect(updated.exposure.url).toMatchObject({
       enabled: true,
       path: "/p/process-order",
+      searchParameters: ["orderId", "customerId"],
     });
     expect(updated.objectCollection.objects).toEqual(schema.objectCollection.objects);
   });

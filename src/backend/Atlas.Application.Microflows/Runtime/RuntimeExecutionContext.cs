@@ -274,7 +274,7 @@ public sealed class RuntimeExecutionContext
             VariableStore.Define(new MicroflowVariableDefinition
             {
                 Name = "$latestHttpResponse",
-                DataTypeJson = JsonSerializer.Serialize(new { kind = "httpResponse" }, JsonOptions),
+                DataTypeJson = JsonSerializer.Serialize(new { kind = "object", entityQualifiedName = "System.HttpResponse" }, JsonOptions),
                 RawValueJson = latestHttpResponse.Value.GetRawText(),
                 ValuePreview = latestHttpResponse.Value.TryGetProperty("statusCode", out var statusCode)
                     ? $"HTTP {statusCode.GetRawText()} {ReadOptionalString(latestHttpResponse.Value, "reasonPhrase")}".Trim()
@@ -293,7 +293,7 @@ public sealed class RuntimeExecutionContext
             VariableStore.Define(new MicroflowVariableDefinition
             {
                 Name = "$latestSoapFault",
-                DataTypeJson = JsonSerializer.Serialize(new { kind = "soapFault" }, JsonOptions),
+                DataTypeJson = JsonSerializer.Serialize(new { kind = "object", entityQualifiedName = "System.SoapFault" }, JsonOptions),
                 RawValueJson = latestSoapFault.Value.GetRawText(),
                 ValuePreview = latestSoapFault.Value.TryGetProperty("faultCode", out var faultCode)
                     ? $"SOAP Fault {faultCode.GetRawText()}".Trim()

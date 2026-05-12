@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createObjectFromRegistry, deleteObject, duplicateObject, updateObject } from "../../adapters";
+import { createObjectFromRegistry, createSequenceFlow, deleteObject, duplicateObject, updateObject } from "../../adapters";
 import { sampleMicroflowSchema } from "../../schema/sample";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
 import {
@@ -29,14 +29,14 @@ function registry(key: string) {
   return item;
 }
 
-function schemaWith(objects: MicroflowObject[] = []): MicroflowSchema {
+function schemaWith(objects: MicroflowObject[] = [], flows: MicroflowSchema["flows"] = []): MicroflowSchema {
   return {
     ...sampleMicroflowSchema,
     id: "MF_LIST_COLLECTION_TEST",
     stableId: "MF_LIST_COLLECTION_TEST",
     parameters: [],
     objectCollection: { ...sampleMicroflowSchema.objectCollection, objects },
-    flows: [],
+    flows,
     editor: { ...sampleMicroflowSchema.editor, selection: {} },
   };
 }
@@ -99,6 +99,73 @@ describe("microflow list collection foundation", () => {
 
     expect(options.map(option => option.name)).toEqual(["approvalUsers"]);
     expect(changed?.kind === "actionActivity" && changed.action.kind === "changeList" ? changed.action.targetListVariableName : undefined).toBe("approvalUsers");
+  });
+
+  it("rewrites downstream list references when renaming Create List, Aggregate result and List Operation outputs", () => {
+    const createList = actionObject("activity:listCreate", "create-list");
+    const changeList = actionObject("activity:listChange", "change-list");
+    const aggregateList = actionObject("activity:listAggregate", "aggregate-list");
+    const changeVariable = actionObject("activity:variableChange", "change-variable");
+    const listOperation = actionObject("activity:listOperation", "list-operation");
+    const downstreamChangeList = actionObject("activity:listChange", "downstream-change-list");
+    const flows = [
+      createSequenceFlow({ originObjectId: createList.id, destinationObjectId: changeList.id }),
+      createSequenceFlow({ originObjectId: aggregateList.id, destinationObjectId: changeVariable.id }),
+      createSequenceFlow({ originObjectId: listOperation.id, destinationObjectId: downstreamChangeList.id }),
+    ];
+    let schema = updateChangeListOperation(
+      updateChangeListTarget(
+        updateCreateListVariableName(schemaWith([createList, changeList, aggregateList, changeVariable, listOperation, downstreamChangeList], flows), createList.id, "approvalUsers"),
+        changeList.id,
+        "approvalUsers",
+      ),
+      changeList.id,
+      "addAll",
+    );
+    schema = updateObject(schema, changeList.id, object => object.kind === "actionActivity" && object.action.kind === "changeList"
+      ? { ...object, action: { ...object.action, sourceListVariableName: "approvalUsers", sourceListVariable: "approvalUsers" } }
+      : object);
+    schema = updateAggregateResultVariable(
+      updateAggregateFunction(
+        updateAggregateListSource(schema, aggregateList.id, "approvalUsers"),
+        aggregateList.id,
+        "count",
+      ),
+      aggregateList.id,
+      { name: "approvalUserCount", dataType: { kind: "integer" } },
+    );
+    schema = updateObject(schema, changeVariable.id, object => object.kind === "actionActivity" && object.action.kind === "changeVariable"
+      ? {
+          ...object,
+          action: {
+            ...object.action,
+            targetVariableName: "approvalUserCount",
+            newValueExpression: { raw: "$approvalUserCount + 1", references: { variables: ["$approvalUserCount"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+          },
+        }
+      : object);
+    schema = updateListOperationOutputVariable(
+      updateListOperationSource(schema, listOperation.id, "approvalUsers"),
+      listOperation.id,
+      { name: "filteredApprovalUsers" },
+    );
+    schema = updateObject(schema, downstreamChangeList.id, object => object.kind === "actionActivity" && object.action.kind === "changeList"
+      ? { ...object, action: { ...object.action, targetListVariableName: "filteredApprovalUsers", sourceListVariableName: "filteredApprovalUsers", sourceListVariable: "filteredApprovalUsers", operation: "addAll" } }
+      : object);
+
+    const renamedCreate = updateCreateListVariableName(schema, createList.id, "reviewers");
+    const renamedAggregate = updateAggregateResultVariable(renamedCreate, aggregateList.id, { name: "reviewerCount", dataType: { kind: "integer" } });
+    const renamedListOperation = updateListOperationOutputVariable(renamedAggregate, listOperation.id, { name: "filteredReviewers" });
+    const nextChangeList = renamedListOperation.objectCollection.objects.find(object => object.id === changeList.id);
+    const nextChangeVariable = renamedListOperation.objectCollection.objects.find(object => object.id === changeVariable.id);
+    const nextDownstreamChangeList = renamedListOperation.objectCollection.objects.find(object => object.id === downstreamChangeList.id);
+
+    expect(nextChangeList?.kind === "actionActivity" && nextChangeList.action.kind === "changeList" ? nextChangeList.action.targetListVariableName : undefined).toBe("reviewers");
+    expect(nextChangeList?.kind === "actionActivity" && nextChangeList.action.kind === "changeList" ? nextChangeList.action.sourceListVariableName : undefined).toBe("reviewers");
+    expect(nextChangeVariable?.kind === "actionActivity" && nextChangeVariable.action.kind === "changeVariable" ? nextChangeVariable.action.targetVariableName : undefined).toBe("reviewerCount");
+    expect(nextChangeVariable?.kind === "actionActivity" && nextChangeVariable.action.kind === "changeVariable" ? nextChangeVariable.action.newValueExpression.raw : undefined).toBe("$reviewerCount + 1");
+    expect(nextDownstreamChangeList?.kind === "actionActivity" && nextDownstreamChangeList.action.kind === "changeList" ? nextDownstreamChangeList.action.targetListVariableName : undefined).toBe("filteredReviewers");
+    expect(nextDownstreamChangeList?.kind === "actionActivity" && nextDownstreamChangeList.action.kind === "changeList" ? nextDownstreamChangeList.action.sourceListVariableName : undefined).toBe("filteredReviewers");
   });
 
   it("Aggregate List result variable enters the variable index", () => {

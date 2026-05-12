@@ -418,6 +418,8 @@ public sealed class MicroflowDebugController : ControllerBase
                                     id = item.Id,
                                     microflowId = item.MicroflowId,
                                     runId = item.RunId,
+                                    callerObjectId = item.CallerObjectId,
+                                    callerActionId = item.CallerActionId,
                                     depth = item.Depth,
                                     status = item.Status
                                 }).ToArray()
@@ -459,6 +461,8 @@ public sealed class MicroflowDebugController : ControllerBase
                                 id = item.Id,
                                 microflowId = item.MicroflowId,
                                 runId = item.RunId,
+                                callerObjectId = item.CallerObjectId,
+                                callerActionId = item.CallerActionId,
                                 depth = item.Depth,
                                 status = item.Status
                             }).ToArray()
@@ -636,6 +640,8 @@ public sealed class MicroflowDebugController : ControllerBase
                     id = item.Id,
                     microflowId = item.MicroflowId,
                     runId = item.RunId,
+                    callerObjectId = item.CallerObjectId,
+                    callerActionId = item.CallerActionId,
                     depth = item.Depth,
                     status = item.Status
                 }).ToArray()

@@ -179,6 +179,39 @@ public sealed class MicroflowActionExecutorRegistryTests
     }
 
     [Fact]
+    public async Task ConnectorBackedExecutor_Failure_MapsLatestSoapFault_For_WebServiceCall()
+    {
+        var registry = new MicroflowActionExecutorRegistry();
+        var executor = registry.GetOrFallback("webServiceCall");
+        var connectorRegistry = new StubConnectorRegistry(
+            hasCapability: true,
+            result: new MicroflowConnectorExecutionResult
+            {
+                Success = false,
+                Capability = MicroflowRuntimeConnectorCapability.SoapWebService,
+                Error = new MicroflowRuntimeErrorDto
+                {
+                    Code = "SOAP_REMOTE_FAULT",
+                    Message = "Remote SOAP fault."
+                },
+                LatestSoapFault = JsonSerializer.SerializeToElement(new
+                {
+                    faultCode = "Client.Invalid",
+                    faultString = "Payload invalid"
+                }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+            });
+
+        var result = await executor.ExecuteAsync(
+            Context("webServiceCall", new { endpoint = "https://soap.test/service", operation = "SubmitOrder" }, connectorRegistry),
+            CancellationToken.None);
+
+        Assert.Equal(MicroflowActionExecutionStatus.Failed, result.Status);
+        Assert.True(result.LatestSoapFault.HasValue);
+        Assert.Equal("Client.Invalid", result.LatestSoapFault.Value.GetProperty("faultCode").GetString());
+        Assert.Equal("Payload invalid", result.LatestSoapFault.Value.GetProperty("faultString").GetString());
+    }
+
+    [Fact]
     public async Task RuntimeConnectorRegistry_CanRegisterAndExecuteConnector()
     {
         var registry = new MicroflowRuntimeConnectorRegistry();

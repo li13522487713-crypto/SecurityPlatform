@@ -15,6 +15,7 @@ import {
   deleteDesignFlow,
   deleteDesignObject,
   duplicateDesignObject,
+  setDesignParameterAsReturnValue,
 } from "./design-protocol-model";
 
 function designSchema(): MicroflowDesignSchema {
@@ -133,6 +134,60 @@ describe("design protocol property panel adapter", () => {
       branchOrder: 2,
     });
     expect(Object.keys(next.workflow.edges[0].data ?? {})).not.toContain("property" + "Flow");
+  });
+
+  it("roundtrips error-handler flow variable exposure flags in design mode", () => {
+    const schema = designSchema();
+    const flowSchema = {
+      ...schema,
+      workflow: {
+        ...schema.workflow,
+        edges: [
+          {
+            ...schema.workflow.edges[0],
+            data: {
+              ...(schema.workflow.edges[0].data as Record<string, unknown>),
+              edgeKind: "errorHandler",
+              isErrorHandler: true,
+              exposeLatestError: true,
+              exposeLatestHttpResponse: false,
+              exposeLatestSoapFault: false,
+              targetErrorVariableName: "$latestError",
+            },
+          },
+        ],
+      },
+      editor: {
+        ...schema.editor,
+        selection: { flowId: "flow-start-end", objectIds: [], flowIds: ["flow-start-end"], mode: "single" },
+        selectedObjectId: undefined,
+        selectedFlowId: "flow-start-end",
+      },
+    } as MicroflowDesignSchema;
+
+    const model = buildDesignPropertyPanelModel(flowSchema);
+    const flow = {
+      ...(model.selectedFlow as MicroflowSequenceFlow),
+      exposeLatestHttpResponse: true,
+      exposeLatestSoapFault: true,
+      targetErrorVariableName: "$lastTransportError",
+    } as MicroflowSequenceFlow;
+
+    const next = applyDesignFlowPatch(flowSchema, "flow-start-end", flow);
+    const nextModel = buildDesignPropertyPanelModel(next);
+
+    expect(next.workflow.edges[0]?.data).toMatchObject({
+      exposeLatestError: true,
+      exposeLatestHttpResponse: true,
+      exposeLatestSoapFault: true,
+      targetErrorVariableName: "$lastTransportError",
+    });
+    expect(nextModel.selectedFlow).toMatchObject({
+      exposeLatestError: true,
+      exposeLatestHttpResponse: true,
+      exposeLatestSoapFault: true,
+      targetErrorVariableName: "$lastTransportError",
+    });
   });
 
   it("forces orthogonal routing when flow patch contains non-orthogonal line kinds", () => {
@@ -285,6 +340,353 @@ describe("design protocol property panel adapter", () => {
     expect((nextModel.selectedObject as MicroflowActionActivity).action).toMatchObject({ messageTemplate: "hello" });
   });
 
+  it("roundtrips common background color and node-level error handling for non-action design nodes", () => {
+    const schema = createMicroflowDesignSchema({ id: "mf-design-common-props", name: "MF_DesignCommonProps", moduleId: "module-a" });
+    const startNode = schema.workflow.nodes.find(node => node.id === "start")!;
+    const decisionSchema = {
+      ...schema,
+      workflow: {
+        ...schema.workflow,
+        nodes: [
+          {
+            ...startNode,
+            id: "decision-1",
+            type: "exclusiveSplit",
+            data: {
+              objectId: "decision-1",
+              objectKind: "exclusiveSplit",
+              title: "Decision",
+              officialType: "Microflows$ExclusiveSplit",
+              collectionId: "root-collection",
+              documentation: "",
+              disabled: false,
+              backgroundColor: "default",
+              errorHandlingType: "rollback",
+              splitCondition: {
+                kind: "expression",
+                resultType: "boolean",
+                expression: {
+                  raw: "$flag = true",
+                  references: { variables: ["flag"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
+                  diagnostics: [],
+                },
+              },
+            },
+            meta: { nodeDTOType: "exclusiveSplit", collectionId: "root-collection", position: { x: 240, y: 160 }, size: { width: 44, height: 44 } },
+          },
+        ],
+        edges: [],
+      },
+      editor: {
+        ...schema.editor,
+        selection: { objectId: "decision-1", objectIds: ["decision-1"], flowIds: [], mode: "single" },
+        selectedObjectId: "decision-1",
+      },
+    } as MicroflowDesignSchema;
+
+    const model = buildDesignPropertyPanelModel(decisionSchema);
+    const nextDecision = {
+      ...model.selectedObject!,
+      backgroundColor: "purple",
+      errorHandlingType: "customWithoutRollback",
+      splitCondition: {
+        kind: "expression",
+        resultType: "boolean",
+        expression: {
+          raw: "$flag = false",
+          references: { variables: ["flag"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
+          diagnostics: [],
+        },
+      },
+    } as typeof model.selectedObject;
+
+    const next = applyDesignObjectPatch(decisionSchema, "decision-1", { object: nextDecision! });
+    const nextNode = next.workflow.nodes.find(node => node.id === "decision-1");
+    const nextModel = buildDesignPropertyPanelModel(next);
+
+    expect(nextNode?.data).toMatchObject({
+      backgroundColor: "purple",
+      errorHandlingType: "customWithoutRollback",
+      splitCondition: {
+        expression: { raw: "$flag = false" },
+      },
+    });
+    expect(nextModel.selectedObject).toMatchObject({
+      backgroundColor: "purple",
+      errorHandlingType: "customWithoutRollback",
+      splitCondition: {
+        expression: { raw: "$flag = false" },
+      },
+    });
+  });
+
+  it("roundtrips merge behavior changes for design merge nodes", () => {
+    const schema = createMicroflowDesignSchema({ id: "mf-design-merge", name: "MF_DesignMerge", moduleId: "module-a" });
+    const startNode = schema.workflow.nodes.find(node => node.id === "start")!;
+    const mergeSchema = {
+      ...schema,
+      workflow: {
+        ...schema.workflow,
+        nodes: [
+          {
+            ...startNode,
+            id: "merge-1",
+            type: "exclusiveMerge",
+            data: {
+              objectId: "merge-1",
+              objectKind: "exclusiveMerge",
+              title: "Merge",
+              officialType: "Microflows$ExclusiveMerge",
+              collectionId: "root-collection",
+              documentation: "",
+              disabled: false,
+              mergeBehavior: { strategy: "firstArrived" },
+            },
+            meta: { nodeDTOType: "exclusiveMerge", collectionId: "root-collection", position: { x: 320, y: 220 }, size: { width: 24, height: 24 } },
+          },
+        ],
+        edges: [],
+      },
+      editor: {
+        ...schema.editor,
+        selection: { objectId: "merge-1", objectIds: ["merge-1"], flowIds: [], mode: "single" },
+        selectedObjectId: "merge-1",
+      },
+    } as MicroflowDesignSchema;
+
+    const model = buildDesignPropertyPanelModel(mergeSchema);
+    const nextMerge = {
+      ...model.selectedObject!,
+      mergeBehavior: { strategy: "firstArrived" },
+      documentation: "merge doc",
+    } as typeof model.selectedObject;
+
+    const next = applyDesignObjectPatch(mergeSchema, "merge-1", { object: nextMerge! });
+    const nextModel = buildDesignPropertyPanelModel(next);
+
+    expect(next.workflow.nodes.find(node => node.id === "merge-1")?.data).toMatchObject({
+      mergeBehavior: { strategy: "firstArrived" },
+      documentation: "merge doc",
+    });
+    expect(nextModel.selectedObject).toMatchObject({
+      mergeBehavior: { strategy: "firstArrived" },
+      documentation: "merge doc",
+    });
+  });
+
+  it("hydrates and persists tryCatch branch keys in design mode", () => {
+    const schema = createMicroflowDesignSchema({ id: "mf-design-trycatch", name: "MF_DesignTryCatch", moduleId: "module-a" });
+    const startNode = schema.workflow.nodes.find(node => node.id === "start")!;
+    const tryCatchSchema = {
+      ...schema,
+      workflow: {
+        ...schema.workflow,
+        nodes: [
+          {
+            ...startNode,
+            id: "try-catch-1",
+            type: "tryCatch",
+            data: {
+              objectId: "try-catch-1",
+              objectKind: "tryCatch",
+              title: "Try Catch",
+              officialType: "Microflows$TryCatch",
+              collectionId: "root-collection",
+              documentation: "try doc",
+              disabled: false,
+              tryBranchKey: "try-main",
+              catchBranchKey: "catch-main",
+              finallyBranchKey: "finally-main",
+              errorVariableName: "$caughtError",
+            },
+            meta: { nodeDTOType: "tryCatch", collectionId: "root-collection", position: { x: 320, y: 180 }, size: { width: 200, height: 86 } },
+          },
+        ],
+        edges: [],
+      },
+      editor: {
+        ...schema.editor,
+        selection: { objectId: "try-catch-1", objectIds: ["try-catch-1"], flowIds: [], mode: "single" },
+        selectedObjectId: "try-catch-1",
+      },
+    } as MicroflowDesignSchema;
+
+    const model = buildDesignPropertyPanelModel(tryCatchSchema);
+    expect(model.selectedObject).toMatchObject({
+      tryBranchKey: "try-main",
+      catchBranchKey: "catch-main",
+      finallyBranchKey: "finally-main",
+      errorVariableName: "$caughtError",
+    });
+
+    const nextObject = {
+      ...model.selectedObject!,
+      tryBranchKey: "try-updated",
+      catchBranchKey: "catch-updated",
+      finallyBranchKey: undefined,
+      errorVariableName: "$updatedError",
+    } as typeof model.selectedObject;
+
+    const next = applyDesignObjectPatch(tryCatchSchema, "try-catch-1", { object: nextObject! });
+    const nextModel = buildDesignPropertyPanelModel(next);
+
+    expect(next.workflow.nodes.find(node => node.id === "try-catch-1")?.data).toMatchObject({
+      tryBranchKey: "try-updated",
+      catchBranchKey: "catch-updated",
+      errorVariableName: "$updatedError",
+    });
+    expect(next.workflow.nodes.find(node => node.id === "try-catch-1")?.data).not.toHaveProperty("finallyBranchKey", "finally-main");
+    expect(nextModel.selectedObject).toMatchObject({
+      tryBranchKey: "try-updated",
+      catchBranchKey: "catch-updated",
+      errorVariableName: "$updatedError",
+    });
+    expect(nextModel.selectedObject).not.toHaveProperty("finallyBranchKey", "finally-main");
+  });
+
+  it("hydrates and persists errorHandler policy fields in design mode", () => {
+    const schema = createMicroflowDesignSchema({ id: "mf-design-errorhandler", name: "MF_DesignErrorHandler", moduleId: "module-a" });
+    const startNode = schema.workflow.nodes.find(node => node.id === "start")!;
+    const errorHandlerSchema = {
+      ...schema,
+      workflow: {
+        ...schema.workflow,
+        nodes: [
+          {
+            ...startNode,
+            id: "error-handler-1",
+            type: "errorHandler",
+            data: {
+              objectId: "error-handler-1",
+              objectKind: "errorHandler",
+              title: "Error Handler",
+              officialType: "Microflows$ErrorHandler",
+              collectionId: "root-collection",
+              documentation: "error doc",
+              disabled: false,
+              policy: "custom",
+              customHandlerVariable: "capturedError",
+              continueOnError: true,
+            },
+            meta: { nodeDTOType: "errorHandler", collectionId: "root-collection", position: { x: 420, y: 180 }, size: { width: 196, height: 80 } },
+          },
+        ],
+        edges: [],
+      },
+      editor: {
+        ...schema.editor,
+        selection: { objectId: "error-handler-1", objectIds: ["error-handler-1"], flowIds: [], mode: "single" },
+        selectedObjectId: "error-handler-1",
+      },
+    } as MicroflowDesignSchema;
+
+    const model = buildDesignPropertyPanelModel(errorHandlerSchema);
+    expect(model.selectedObject).toMatchObject({
+      policy: "custom",
+      customHandlerVariable: "capturedError",
+      continueOnError: true,
+    });
+
+    const nextObject = {
+      ...model.selectedObject!,
+      policy: "continue",
+      customHandlerVariable: undefined,
+      continueOnError: false,
+    } as typeof model.selectedObject;
+
+    const next = applyDesignObjectPatch(errorHandlerSchema, "error-handler-1", { object: nextObject! });
+    const nextModel = buildDesignPropertyPanelModel(next);
+
+    expect(next.workflow.nodes.find(node => node.id === "error-handler-1")?.data).toMatchObject({
+      policy: "continue",
+      continueOnError: false,
+    });
+    expect(next.workflow.nodes.find(node => node.id === "error-handler-1")?.data).not.toHaveProperty("customHandlerVariable", "capturedError");
+    expect(nextModel.selectedObject).toMatchObject({
+      policy: "continue",
+      continueOnError: false,
+    });
+    expect(nextModel.selectedObject).not.toHaveProperty("customHandlerVariable", "capturedError");
+  });
+
+  it("hydrates and persists inheritance split entity configuration in design mode", () => {
+    const schema = createMicroflowDesignSchema({ id: "mf-design-inheritance", name: "MF_DesignInheritance", moduleId: "module-a" });
+    const startNode = schema.workflow.nodes.find(node => node.id === "start")!;
+    const inheritanceSchema = {
+      ...schema,
+      workflow: {
+        ...schema.workflow,
+        nodes: [
+          {
+            ...startNode,
+            id: "inheritance-1",
+            type: "inheritanceSplit",
+            data: {
+              objectId: "inheritance-1",
+              objectKind: "inheritanceSplit",
+              title: "Object Type Decision",
+              officialType: "Microflows$InheritanceSplit",
+              collectionId: "root-collection",
+              documentation: "",
+              disabled: false,
+              errorHandlingType: "rollback",
+              inputObjectVariableName: "$member",
+              generalizedEntityQualifiedName: "University.Member",
+              allowedSpecializations: ["University.Student", "University.Teacher"],
+              entity: {
+                generalizedEntityQualifiedName: "University.Member",
+                allowedSpecializations: ["University.Student", "University.Teacher"],
+              },
+            },
+            meta: { nodeDTOType: "inheritanceSplit", collectionId: "root-collection", position: { x: 360, y: 180 }, size: { width: 44, height: 44 } },
+          },
+        ],
+        edges: [],
+      },
+      editor: {
+        ...schema.editor,
+        selection: { objectId: "inheritance-1", objectIds: ["inheritance-1"], flowIds: [], mode: "single" },
+        selectedObjectId: "inheritance-1",
+      },
+    } as MicroflowDesignSchema;
+
+    const model = buildDesignPropertyPanelModel(inheritanceSchema);
+    expect(model.selectedObject).toMatchObject({
+      inputObjectVariableName: "$member",
+      generalizedEntityQualifiedName: "University.Member",
+      allowedSpecializations: ["University.Student", "University.Teacher"],
+    });
+
+    const nextObject = {
+      ...model.selectedObject!,
+      inputObjectVariableName: "$employee",
+      allowedSpecializations: ["University.Employee"],
+      entity: {
+        generalizedEntityQualifiedName: "University.Member",
+        allowedSpecializations: ["University.Employee"],
+      },
+      errorHandlingType: "customWithRollback",
+    } as typeof model.selectedObject;
+
+    const next = applyDesignObjectPatch(inheritanceSchema, "inheritance-1", { object: nextObject! });
+    const nextModel = buildDesignPropertyPanelModel(next);
+
+    expect(next.workflow.nodes.find(node => node.id === "inheritance-1")?.data).toMatchObject({
+      inputObjectVariableName: "$employee",
+      allowedSpecializations: ["University.Employee"],
+      entity: {
+        generalizedEntityQualifiedName: "University.Member",
+        allowedSpecializations: ["University.Employee"],
+      },
+      errorHandlingType: "customWithRollback",
+    });
+    expect(nextModel.selectedObject).toMatchObject({
+      inputObjectVariableName: "$employee",
+      allowedSpecializations: ["University.Employee"],
+      errorHandlingType: "customWithRollback",
+    });
+  });
+
   it("creates native action nodes with complete action defaults", () => {
     const createVariable = defaultMicroflowNodePanelRegistry.find(item => item.actionKind === "createVariable")!;
 
@@ -375,6 +777,41 @@ describe("design protocol property panel adapter", () => {
     });
   });
 
+  it("hydrates end event returnValue from design node data into authoring model", () => {
+    const schema = createMicroflowDesignSchema({
+      id: "mf-end-return-hydrate",
+      name: "MF_EndReturnHydrate",
+      moduleId: "module-a",
+      returnType: { kind: "string" },
+      workflow: {
+        nodes: [
+          {
+            id: "end-node",
+            type: "endEvent",
+            data: {
+              objectId: "end-node",
+              objectKind: "endEvent",
+              title: "End",
+              returnValue: {
+                raw: "$amount",
+                inferredType: { kind: "string" },
+                references: { variables: ["$amount"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
+                diagnostics: [],
+              },
+            },
+            meta: { position: { x: 240, y: 120 } },
+          },
+        ],
+        edges: [],
+      } as never,
+    });
+
+    const model = buildDesignPropertyPanelModel(schema);
+    const endNode = model.authoringSchema.objectCollection.objects.find(object => object.id === "end-node");
+
+    expect(endNode?.kind === "endEvent" ? endNode.returnValue?.raw : undefined).toBe("$amount");
+  });
+
   it("deletes parameter node with stale schema parameter cleanup and reflow", () => {
     const schema = createMicroflowDesignSchema({
       id: "mf-parameter-delete-reflow",
@@ -457,6 +894,50 @@ describe("design protocol property panel adapter", () => {
       .map(node => Number(node.meta?.position?.x ?? 0))
       .sort((a, b) => a - b);
     expect(parameterNodes).toEqual([280, 400, 520]);
+  });
+
+  it("sets parameter as return value and syncs end node data back to design schema", () => {
+    const schema = createMicroflowDesignSchema({
+      id: "mf-parameter-return",
+      name: "MF_ParameterReturn",
+      moduleId: "module-a",
+      parameters: [{ id: "param-amount", stableId: "param-amount", name: "amount", dataType: { kind: "decimal" }, type: { kind: "primitive", name: "decimal" }, required: true }],
+      workflow: {
+        nodes: [
+          {
+            id: "parameter-node",
+            type: "parameterObject",
+            data: {
+              objectId: "parameter-node",
+              objectKind: "parameterObject",
+              title: "amount",
+              parameterId: "param-amount",
+              parameterName: "amount",
+            },
+            meta: { position: { x: 120, y: 80 } },
+          },
+          {
+            id: "end-node",
+            type: "endEvent",
+            data: {
+              objectId: "end-node",
+              objectKind: "endEvent",
+              title: "End",
+            },
+            meta: { position: { x: 320, y: 80 } },
+          },
+        ],
+        edges: [],
+      } as never,
+    });
+
+    const next = setDesignParameterAsReturnValue(schema, "param-amount");
+    const endNode = next.workflow.nodes.find(node => node.id === "end-node");
+    const endData = endNode?.data as { returnValue?: { raw?: string } } | undefined;
+
+    expect(next.returnType).toEqual({ kind: "decimal" });
+    expect(next.returnVariableName).toBe("amount");
+    expect(endData?.returnValue?.raw).toBe("$amount");
   });
 });
 

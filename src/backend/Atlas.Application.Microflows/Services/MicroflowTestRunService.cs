@@ -579,7 +579,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             TraceId = traceId,
             Logs = normalizedSession.Logs,
             NodeResults = normalizedSession.Trace,
-            CallStack = normalizedSession.CallStack
+            CallStack = normalizedSession.CallStack,
+            CallStackFrames = normalizedSession.CallStackFrames
         };
     }
 
@@ -614,6 +615,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 session.CallDepth,
                 session.CorrelationId,
                 session.CallStack,
+                session.CallStackFrames,
                 variables = session.Variables,
                 transactionSummary = session.TransactionSummary,
                 childRunIds = session.ChildRunIds.Count > 0 ? session.ChildRunIds : session.ChildRuns.Select(child => child.Id).ToArray()
@@ -710,6 +712,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             CallDepth = extra.CallDepth,
             CorrelationId = extra.CorrelationId,
             CallStack = extra.CallStack,
+            CallStackFrames = extra.CallStackFrames,
             StartedAt = session.StartedAt,
             EndedAt = session.EndedAt,
             Status = session.Status,
@@ -1027,6 +1030,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         public string? CorrelationId { get; init; }
 
         public IReadOnlyList<string> CallStack { get; init; } = Array.Empty<string>();
+
+        public IReadOnlyList<MicroflowRunCallStackFrameDto> CallStackFrames { get; init; } = Array.Empty<MicroflowRunCallStackFrameDto>();
 
         public IReadOnlyList<string> ChildRunIds { get; init; } = Array.Empty<string>();
     }

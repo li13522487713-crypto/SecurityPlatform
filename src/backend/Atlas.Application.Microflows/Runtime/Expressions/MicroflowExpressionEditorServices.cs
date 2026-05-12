@@ -54,7 +54,8 @@ public sealed class MicroflowExpressionCompletionProvider
             new("if then else", "keyword", "if  then  else ", "Conditional expression"),
             new("empty", "literal", "empty"),
             new("$latestError", "system", "$latestError"),
-            new("$latestHttpResponse", "system", "$latestHttpResponse")
+            new("$latestHttpResponse", "system", "$latestHttpResponse"),
+            new("$latestSoapFault", "system", "$latestSoapFault")
         };
         items.AddRange(context.VariableStore
             .CurrentVariables

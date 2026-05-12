@@ -179,13 +179,11 @@ function outputVariableNamesForObject(schema: MicroflowAuthoringSchema, index: M
     }
   }
 
-  if (object.kind === "loopedActivity" && object.loopSource.kind === "iterableList") {
-    if (object.loopSource.iteratorVariableName.trim()) {
+  if (object.kind === "loopedActivity") {
+    if (object.loopSource.kind === "iterableList" && object.loopSource.iteratorVariableName.trim()) {
       names.add(normalizeVariableName(object.loopSource.iteratorVariableName));
     }
-    if (object.loopSource.currentIndexVariableName?.trim()) {
-      names.add(normalizeVariableName(object.loopSource.currentIndexVariableName));
-    }
+    names.add("currentIndex");
   }
 
   return [...names];
@@ -286,7 +284,17 @@ export function buildNodeUsageHighlights(
         continue;
       }
       const references = collectObjectVariableReferences(object);
-      if (references.some(entry => outputNameSet.has(entry.variableName))) {
+      const availableSymbols = getVariablesBeforeObject(schema, variableIndex, object.id, { includeMaybe: true });
+      const consumesSelectedOutput = references.some(entry => {
+        if (!outputNameSet.has(entry.variableName)) {
+          return false;
+        }
+        return availableSymbols.some(symbol =>
+          normalizeVariableName(symbol.name) === entry.variableName &&
+          producerObjectIdForSymbol(schema, symbol) === selectedObjectId
+        );
+      });
+      if (consumesSelectedOutput) {
         consumerNodeIds.add(object.id);
       }
     }

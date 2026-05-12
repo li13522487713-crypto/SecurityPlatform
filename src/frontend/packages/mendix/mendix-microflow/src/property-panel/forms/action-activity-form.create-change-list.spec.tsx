@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MicroflowActionActivity, MicroflowAuthoringSchema } from "../../schema";
+import { createSequenceFlow } from "../../adapters";
 import { ActionActivityForm } from "./action-activity-form";
 
 vi.mock("@douyinfe/semi-ui", () => ({
@@ -94,6 +95,33 @@ describe("ActionActivityForm createList/changeList", () => {
     }));
   });
 
+  it("routes createList output rename through schema-level rewrite when onSchemaChange is available", () => {
+    const onPatch = vi.fn();
+    const onSchemaChange = vi.fn();
+    render(
+      <ActionActivityForm
+        schema={schema(
+          [createListObject(), downstreamChangeListObject()],
+          [createSequenceFlow({ originObjectId: "createList-activity", destinationObjectId: "changeList-downstream-activity" })],
+        )}
+        object={createListObject()}
+        issues={[]}
+        onPatch={onPatch}
+        onSchemaChange={onSchemaChange}
+      />,
+    );
+
+    fireEvent.change(screen.getByDisplayValue("orders"), { target: { value: "newOrders" } });
+
+    expect(onPatch).not.toHaveBeenCalled();
+    expect(onSchemaChange).toHaveBeenCalledTimes(1);
+    const [nextSchema, reason] = onSchemaChange.mock.calls[0] ?? [];
+    const changed = nextSchema?.objectCollection?.objects?.find((item: any) => item.id === "changeList-downstream-activity");
+    expect(reason).toBe("renameActionOutputVariable");
+    expect(changed?.kind === "actionActivity" && changed.action.kind === "changeList" ? changed.action.targetListVariableName : undefined).toBe("newOrders");
+    expect(changed?.kind === "actionActivity" && changed.action.kind === "changeList" ? changed.action.sourceListVariableName : undefined).toBe("newOrders");
+  });
+
   it("patches changeList operation", () => {
     const onPatch = vi.fn();
     render(<ActionActivityForm schema={schema()} object={changeListObject()} issues={[]} onPatch={onPatch} />);
@@ -134,15 +162,15 @@ describe("ActionActivityForm createList/changeList", () => {
   });
 });
 
-function schema(): MicroflowAuthoringSchema {
+function schema(objects: MicroflowActionActivity[] = [], flows: unknown[] = []): MicroflowAuthoringSchema {
   return {
     schemaVersion: "1.0.0",
     id: "mf",
     name: "MF",
     parameters: [],
     returnType: { kind: "void" },
-    objectCollection: { objects: [] },
-    flows: [],
+    objectCollection: { objects },
+    flows,
     variables: {
       listOutputs: {
         orders: { name: "orders", dataType: { kind: "list", itemType: { kind: "object", entityQualifiedName: "Sales.Order" } }, source: { kind: "createList", objectId: "list", actionId: "list-action" }, scope: {} },
@@ -197,4 +225,19 @@ function changeListObject(patch: Record<string, unknown> = {}): MicroflowActionA
     mutateInPlace: true,
     ...patch,
   });
+}
+
+function downstreamChangeListObject(): MicroflowActionActivity {
+  return {
+    ...activity("changeList", {
+      targetListVariableName: "orders",
+      sourceListVariableName: "orders",
+      sourceListVariable: "orders",
+      operation: "addAll",
+      allowDuplicates: false,
+      mutateInPlace: true,
+    }),
+    id: "changeList-downstream-activity",
+    stableId: "changeList-downstream-activity",
+  } as unknown as MicroflowActionActivity;
 }

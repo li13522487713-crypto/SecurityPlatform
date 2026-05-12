@@ -22,6 +22,7 @@ import type {
   MicroflowVariableVisibility,
 } from "../schema/types";
 import { collectFlowsRecursive, findObjectWithCollection } from "../schema/utils/object-utils";
+import { resolveReservedSystemVariable } from "../schema/utils/reserved-variable-names";
 import { buildVariableGraphAnalysis } from "./microflow-graph-analysis";
 
 const variableNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -323,6 +324,16 @@ function listOperationOutputType(action: Extract<MicroflowAction, { kind: "listO
     : { kind: "list", itemType: { kind: "unknown", reason: "list operation source type" } };
 }
 
+function modeledListPipelineOutputType(action: MicroflowAction, index: MicroflowVariableIndex): MicroflowDataType {
+  const source = listVariableByName(index, stringField(action, "sourceListVariableName") || stringField(action, "listVariableName"));
+  const itemType = source?.dataType.kind === "list"
+    ? source.dataType.itemType
+    : (((action as Record<string, unknown>).itemType as MicroflowDataType | undefined)
+      ?? ((action as Record<string, unknown>).outputElementType as MicroflowDataType | undefined)
+      ?? { kind: "unknown", reason: `${action.kind} source type` });
+  return { kind: "list", itemType };
+}
+
 function genericOutputType(action: MicroflowAction, index: MicroflowVariableIndex): MicroflowDataType | undefined {
   if (action.kind === "cast") {
     const entityQualifiedName = stringField(action, "targetEntityQualifiedName");
@@ -341,11 +352,20 @@ function genericOutputType(action: MicroflowAction, index: MicroflowVariableInde
     }
     return listOperationOutputType(action, index);
   }
+  if (action.kind === "filterList" || action.kind === "sortList") {
+    return modeledListPipelineOutputType(action, index);
+  }
   if (action.kind === "exportXml") {
     return stringField(action, "outputType") === "fileDocument" ? { kind: "object", entityQualifiedName: "System.FileDocument" } : { kind: "string" };
   }
   if (action.kind === "callWorkflow") {
     return { kind: "object", entityQualifiedName: "Workflow.Workflow" };
+  }
+  if (action.kind === "generateDocument") {
+    return { kind: "object", entityQualifiedName: "System.FileDocument" };
+  }
+  if (action.kind === "callExternalAction" || action.kind === "callJavaAction" || action.kind === "callJavaScriptAction" || action.kind === "callNanoflow") {
+    return { kind: "unknown", reason: action.kind };
   }
   if (action.kind === "generateJumpToOptions" || action.kind === "retrieveWorkflowActivityRecords" || action.kind === "retrieveWorkflows") {
     return { kind: "list", itemType: { kind: "unknown", reason: action.kind } };
@@ -357,13 +377,25 @@ function genericOutputType(action: MicroflowAction, index: MicroflowVariableInde
 }
 
 function genericOutputName(action: MicroflowAction): { name: string; fieldPath: string } | undefined {
-  if (action.kind === "cast" || action.kind === "aggregateList" || action.kind === "listOperation" || action.kind === "webServiceCall" || action.kind === "importXml" || action.kind === "exportXml" || action.kind === "restOperationCall" || action.kind === "mlModelCall" || action.kind === "retrieveWorkflowContext") {
+  if (action.kind === "cast") {
+    const name = stringField(action, "outputVariableName") || stringField(action, "outputVariable");
+    return name ? { name, fieldPath: "action.outputVariableName" } : undefined;
+  }
+  if (action.kind === "aggregateList" || action.kind === "listOperation" || action.kind === "webServiceCall" || action.kind === "importXml" || action.kind === "exportXml" || action.kind === "restOperationCall" || action.kind === "mlModelCall" || action.kind === "retrieveWorkflowContext") {
     const name = stringField(action, "outputVariableName");
     return name ? { name, fieldPath: "action.outputVariableName" } : undefined;
   }
-  if (action.kind === "createList" || action.kind === "retrieveWorkflows") {
-    const name = stringField(action, "outputListVariableName");
+  if (action.kind === "createList") {
+    const name = stringField(action, "outputListVariableName") || stringField(action, "listVariableName");
     return name ? { name, fieldPath: "action.outputListVariableName" } : undefined;
+  }
+  if (action.kind === "retrieveWorkflows") {
+    const name = stringField(action, "outputListVariableName") || stringField(action, "listVariableName");
+    return name ? { name, fieldPath: "action.outputListVariableName" } : undefined;
+  }
+  if (action.kind === "filterList" || action.kind === "sortList") {
+    const name = stringField(action, "outputVariableName") || stringField(action, "resultVariableName");
+    return name ? { name, fieldPath: "action.outputVariableName" } : undefined;
   }
   if (action.kind === "callJavaAction" || action.kind === "callJavaScriptAction" || action.kind === "callNanoflow") {
     const name = nestedStringField(action, "returnValue", "outputVariableName");
@@ -377,8 +409,16 @@ function genericOutputName(action: MicroflowAction): { name: string; fieldPath: 
     const name = stringField(action, "outputWorkflowVariableName");
     return name ? { name, fieldPath: "action.outputWorkflowVariableName" } : undefined;
   }
-  if (action.kind === "generateJumpToOptions" || action.kind === "retrieveWorkflowActivityRecords") {
-    const name = stringField(action, "outputVariableName");
+  if (action.kind === "generateDocument") {
+    const name = stringField(action, "outputFileDocumentVariableName");
+    return name ? { name, fieldPath: "action.outputFileDocumentVariableName" } : undefined;
+  }
+  if (action.kind === "generateJumpToOptions") {
+    const name = stringField(action, "outputVariableName") || stringField(action, "resultVariableName");
+    return name ? { name, fieldPath: "action.outputVariableName" } : undefined;
+  }
+  if (action.kind === "retrieveWorkflowActivityRecords") {
+    const name = stringField(action, "outputVariableName") || stringField(action, "listVariableName");
     return name ? { name, fieldPath: "action.outputVariableName" } : undefined;
   }
   return undefined;
@@ -657,6 +697,17 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
 }
 
 function addLoopVariables(index: MicroflowVariableIndex, object: Extract<MicroflowObject, { kind: "loopedActivity" }>, metadata: MicroflowMetadataCatalog): void {
+  const currentIndexVariableName = object.loopSource.kind === "iterableList"
+    ? object.loopSource.currentIndexVariableName ?? "$currentIndex"
+    : "$currentIndex";
+  addSymbol(index, createSymbol({
+    name: currentIndexVariableName,
+    kind: "system",
+    dataType: { kind: "integer" },
+    source: { kind: "system", name: "$currentIndex" },
+    scope: { kind: "loop", collectionId: object.objectCollection.id, loopObjectId: object.id },
+    readonly: true,
+  }));
   if (object.loopSource.kind !== "iterableList") {
     return;
   }
@@ -683,15 +734,6 @@ function addLoopVariables(index: MicroflowVariableIndex, object: Extract<Microfl
     source: { kind: "loopIterator", loopObjectId: object.id },
     scope: { kind: "loop", collectionId: object.objectCollection.id, loopObjectId: object.id },
     readonly: false,
-  }));
-  const currentIndexVariableName = object.loopSource.currentIndexVariableName ?? "$currentIndex";
-  addSymbol(index, createSymbol({
-    name: currentIndexVariableName,
-    kind: "system",
-    dataType: { kind: "integer" },
-    source: { kind: "system", name: "$currentIndex" },
-    scope: { kind: "loop", collectionId: object.objectCollection.id, loopObjectId: object.id },
-    readonly: true,
   }));
   if (iteratorType.kind === "object" && !getEntityByQualifiedName(metadata, iteratorType.entityQualifiedName)) {
     addDiagnostic(index, {
@@ -721,10 +763,10 @@ function addErrorContextVariables(index: MicroflowVariableIndex, schema: Microfl
   };
   addErrorVariable("$latestError", { kind: "object", entityQualifiedName: "System.Error" }, "errorContext");
   if (sourceObject?.kind === "actionActivity" && sourceObject.action.kind === "restCall") {
-    addErrorVariable("$latestHttpResponse", { kind: "json" }, "restResponse");
+    addErrorVariable("$latestHttpResponse", { kind: "object", entityQualifiedName: "System.HttpResponse" }, "restResponse");
   }
   if (sourceObject?.kind === "actionActivity" && sourceObject.action.kind === "webServiceCall") {
-    addErrorVariable("$latestSoapFault", { kind: "unknown", reason: "SOAP fault" }, "soapFault");
+    addErrorVariable("$latestSoapFault", { kind: "object", entityQualifiedName: "System.SoapFault" }, "soapFault");
   }
 }
 
@@ -753,6 +795,9 @@ function finalizeDiagnostics(index: MicroflowVariableIndex): void {
         return "action.response.headersVariableName";
       }
       return "action.response.handling.outputVariableName";
+    }
+    if (symbol.source.kind === "modeledOnly" && symbol.source.actionKind === "generateDocument") {
+      return "action.outputFileDocumentVariableName";
     }
     return "action.outputVariableName";
   };
@@ -784,6 +829,24 @@ function finalizeDiagnostics(index: MicroflowVariableIndex): void {
       }
     }
   }
+  for (const symbol of index.all ?? []) {
+    if (symbol.name.startsWith("$") || symbol.source.kind === "parameter") {
+      continue;
+    }
+    const reservedSystemVariable = resolveReservedSystemVariable(symbol.name);
+    if (!reservedSystemVariable) {
+      continue;
+    }
+    addDiagnostic(index, {
+      severity: "error",
+      code: "MF_VARIABLE_NAME_RESERVED",
+      message: `Variable "${symbol.name}" conflicts with reserved system variable "${reservedSystemVariable}".`,
+      objectId: "objectId" in symbol.source ? symbol.source.objectId : undefined,
+      actionId: "actionId" in symbol.source ? symbol.source.actionId : undefined,
+      fieldPath: fieldPathForSymbol(symbol),
+      variableName: symbol.name,
+    });
+  }
 }
 
 export function buildVariableIndex(input: MicroflowVariableIndexBuildInput): MicroflowVariableIndex;
@@ -803,7 +866,7 @@ export function buildVariableIndex(
   addSymbol(index, createSymbol({
     name: "$currentUser",
     kind: "system",
-    dataType: getEntityByQualifiedName(metadata, "System.User") ? { kind: "object", entityQualifiedName: "System.User" } : { kind: "unknown", reason: "System.User metadata missing" },
+    dataType: { kind: "object", entityQualifiedName: "System.User" },
     source: { kind: "system", name: "$currentUser" },
     scope: { kind: "global", collectionId: schema.objectCollection.id },
     readonly: true,
@@ -811,7 +874,7 @@ export function buildVariableIndex(
   addSymbol(index, createSymbol({
     name: "$currentSession",
     kind: "system",
-    dataType: getEntityByQualifiedName(metadata, "System.Session") ? { kind: "object", entityQualifiedName: "System.Session" } : { kind: "unknown", reason: "System.Session metadata missing" },
+    dataType: { kind: "object", entityQualifiedName: "System.Session" },
     source: { kind: "system", name: "$currentSession" },
     scope: { kind: "global", collectionId: schema.objectCollection.id },
     readonly: true,

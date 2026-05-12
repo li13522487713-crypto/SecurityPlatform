@@ -72,8 +72,8 @@ describe("decision and merge branch helpers", () => {
 
     expect(updatedFalse.flows[0]?.kind === "sequence" ? updatedFalse.flows[0].caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: true });
     expect(updatedFalse.flows[1]?.kind === "sequence" ? updatedFalse.flows[1].caseValues[0] : undefined).toMatchObject({ kind: "boolean", value: false });
-    expect(updatedFalse.flows[0]?.editor.label).toBe("是");
-    expect(updatedFalse.flows[1]?.editor.label).toBe("否");
+    expect(updatedFalse.flows[0]?.editor.label).toBe("true");
+    expect(updatedFalse.flows[1]?.editor.label).toBe("false");
   });
 
   it("detects duplicate boolean branch cases", () => {

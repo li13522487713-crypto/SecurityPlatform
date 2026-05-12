@@ -1,4 +1,4 @@
-import { List, Typography } from "@douyinfe/semi-ui";
+import { List, Space, Tag, Typography } from "@douyinfe/semi-ui";
 import type { DebugCallStackFrame } from "../debug/step-debug-ui";
 
 export interface DebugCallStackPanelProps {
@@ -26,6 +26,26 @@ function resolveActiveFrameIndex(frames: DebugCallStackFrame[]): number {
   return activeIndex;
 }
 
+function frameStatusColor(status: string | undefined): "blue" | "green" | "red" | "orange" | "grey" {
+  const normalized = String(status ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return "grey";
+  }
+  if (normalized.includes("paused") || normalized.includes("running") || normalized.includes("active")) {
+    return "blue";
+  }
+  if (normalized.includes("success") || normalized.includes("completed")) {
+    return "green";
+  }
+  if (normalized.includes("failed") || normalized.includes("error")) {
+    return "red";
+  }
+  if (normalized.includes("queued") || normalized.includes("waiting")) {
+    return "orange";
+  }
+  return "grey";
+}
+
 export function DebugCallStackPanel({ frames, onSelectFrame }: DebugCallStackPanelProps) {
   const { Text } = Typography;
   const activeIndex = resolveActiveFrameIndex(frames);
@@ -45,14 +65,36 @@ export function DebugCallStackPanel({ frames, onSelectFrame }: DebugCallStackPan
           }
           onSelectFrame(frame, frameIndex);
         }}
-      >
-        <span
-          style={{ display: "inline-block", width: 18 }}
-          data-testid={`microflow-debug-callstack-active-${frame.id}`}
         >
-          {active ? "▶" : " "}
-        </span>
-        <Text style={{ color: active ? "#c8d0e8" : "#6a7490" }}>{frame.name}</Text>
+          <span
+            style={{ display: "inline-block", width: 18 }}
+            data-testid={`microflow-debug-callstack-active-${frame.id}`}
+          >
+            {active ? "▶" : " "}
+          </span>
+          <Space vertical align="start" spacing={2} style={{ width: "100%" }}>
+            <Space wrap align="center" style={{ width: "100%", justifyContent: "space-between" }}>
+              <Text style={{ color: active ? "#c8d0e8" : "#6a7490" }}>{frame.name}</Text>
+              {frame.status ? (
+                <Tag
+                  color={frameStatusColor(frame.status)}
+                  size="small"
+                  data-testid={`microflow-debug-callstack-status-${frame.id}`}
+                >
+                  {frame.status}
+                </Tag>
+              ) : null}
+            </Space>
+            {frame.currentNodeCaption ? (
+              <Text
+                type="tertiary"
+                size="small"
+                data-testid={`microflow-debug-callstack-node-${frame.id}`}
+              >
+                @ {frame.currentNodeCaption}
+              </Text>
+            ) : null}
+          </Space>
       </List.Item>
     );
   };

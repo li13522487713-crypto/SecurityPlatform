@@ -240,6 +240,9 @@ public sealed record MicroflowActionExecutionResult
     [JsonPropertyName("latestHttpResponse")]
     public JsonElement? LatestHttpResponse { get; init; }
 
+    [JsonPropertyName("latestSoapFault")]
+    public JsonElement? LatestSoapFault { get; init; }
+
     [JsonPropertyName("targetLoopObjectId")]
     public string? TargetLoopObjectId { get; init; }
 
@@ -323,6 +326,9 @@ public sealed record MicroflowConnectorExecutionResult
 
     [JsonPropertyName("error")]
     public MicroflowRuntimeErrorDto? Error { get; init; }
+
+    [JsonPropertyName("latestSoapFault")]
+    public JsonElement? LatestSoapFault { get; init; }
 }
 
 public sealed record MicroflowActionExecutionDiagnostic

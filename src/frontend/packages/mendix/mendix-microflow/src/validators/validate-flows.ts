@@ -3,6 +3,7 @@ import { collectFlowsRecursive, findFlowWithCollection } from "../schema/utils/o
 import { objectLocationMap, objectMap, issue } from "./shared";
 import { findEnumeration, getEnumerationValueKeys } from "../metadata";
 import { caseValueKey, getAllowedSpecializations } from "../flowgram/adapters/flowgram-case-options";
+import { objectTypeCaseIdentity } from "../schema/utils/case-utils";
 import type { MicroflowValidatorContext } from "./validator-types";
 import { getDefaultSourcePortForEdgeKind, getDefaultTargetPortForEdgeKind, portsForObject } from "../schema/utils/port-utils";
 
@@ -212,7 +213,7 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
             fieldPath: "caseValues",
           }, "warning"));
         }
-        const key = caseValueKey(caseValue);
+        const key = objectTypeCaseIdentity(caseValue);
         const perSource = outgoingCaseKeys.get(source.id) ?? new Map<string, string>();
         if (perSource.has(key)) {
           issues.push(issue("MF_OBJECT_TYPE_CASE_DUPLICATED", "Object type case values must be unique per source.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));

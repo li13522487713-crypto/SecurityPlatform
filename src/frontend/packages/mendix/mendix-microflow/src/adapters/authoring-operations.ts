@@ -35,7 +35,8 @@ import {
 import { normalizeDesignSchemaVariables } from "../schema/utils/design-schema-variables";
 import { caseValueIdentity } from "../schema/utils/case-utils";
 import { createStableId } from "../schema/utils/ids";
-import { emptyVariableIndex, flattenObjectCollection, toEditorGraph } from "./microflow-adapters";
+import { clearDeletedReturnParameterBindings } from "../schema/utils/microflow-signature";
+import { flattenObjectCollection } from "./microflow-adapters";
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -331,6 +332,9 @@ export function deleteObject(schema: MicroflowSchema, objectId: string): Microfl
   const removedParameterIds = new Set(removedObjects
     .filter((object): object is Extract<MicroflowObject, { kind: "parameterObject" }> => object.kind === "parameterObject")
     .map(object => object.parameterId));
+  const removedParameterNames = schema.parameters
+    .filter(parameter => removedParameterIds.has(parameter.id))
+    .map(parameter => parameter.name);
   const safeFlows = Array.isArray(schema.flows) ? schema.flows : [];
   const flows = safeFlows.filter(flow => !removedObjectIds.has(flow.originObjectId) && !removedObjectIds.has(flow.destinationObjectId));
   const objectCollection = removeFlowsFromCollection(
@@ -372,7 +376,10 @@ export function deleteObject(schema: MicroflowSchema, objectId: string): Microfl
         : schema.editor.selectedCollectionId
     }
   };
-  return refreshDerivedState(removedParameterIds.size > 0 ? alignRootParameterObjectsToStartEvent(nextSchema) : nextSchema);
+  const normalized = removedParameterIds.size > 0
+    ? clearDeletedReturnParameterBindings(alignRootParameterObjectsToStartEvent(nextSchema), removedParameterNames)
+    : nextSchema;
+  return refreshDerivedState(normalized);
 }
 
 export function duplicateObject(schema: MicroflowSchema, objectId: string): MicroflowSchema {
@@ -518,7 +525,10 @@ function remapObjectIdsForDuplicate(
 }
 
 export function duplicateObjectSelection(schema: MicroflowSchema, options: DuplicateObjectSelectionOptions): MicroflowSchema {
-  const selectedObjectIds = [...new Set(options.objectIds)].filter(id => Boolean(findObjectWithCollection(schema, id)));
+  const selectedObjectIds = [...new Set(options.objectIds)].filter(id => {
+    const located = findObjectWithCollection(schema, id);
+    return Boolean(located && located.object.kind !== "startEvent");
+  });
   if (selectedObjectIds.length === 0) {
     return schema;
   }
@@ -821,6 +831,32 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
       kind: "annotation",
       officialType: "Microflows$Annotation",
       text: String(config.text ?? "")
+    };
+  }
+  if (entry.type === "tryCatch") {
+    return {
+      ...base,
+      kind: "tryCatch",
+      officialType: "Microflows$TryCatch",
+      tryBranchKey: String(config.tryBranchKey ?? "try"),
+      catchBranchKey: String(config.catchBranchKey ?? "catch"),
+      finallyBranchKey: typeof config.finallyBranchKey === "string" && config.finallyBranchKey.length > 0
+        ? config.finallyBranchKey
+        : undefined,
+      errorVariableName: String(config.errorVariableName ?? "latestError"),
+    };
+  }
+  if (entry.type === "errorHandler") {
+    const customHandlerVariable = typeof config.customHandlerVariable === "string" && config.customHandlerVariable.length > 0
+      ? config.customHandlerVariable
+      : undefined;
+    return {
+      ...base,
+      kind: "errorHandler",
+      officialType: "Microflows$ErrorHandler",
+      policy: String(config.policy ?? "rollback") as "rollback" | "continue" | "custom",
+      customHandlerVariable,
+      continueOnError: Boolean(config.continueOnError),
     };
   }
   const action = defaultActionFromRegistry(entry, id, config);
@@ -1176,11 +1212,13 @@ export function renameParameter(schema: MicroflowSchema, parameterId: string, ne
 }
 
 export function deleteParameter(schema: MicroflowSchema, parameterId: string): MicroflowSchema {
-  return refreshDerivedState({
+  const parameter = schema.parameters.find(item => item.id === parameterId);
+  const nextSchema = {
     ...schema,
     parameters: schema.parameters.filter(parameter => parameter.id !== parameterId),
     objectCollection: removeObjectFromCollection(schema.objectCollection, `parameter-object-${parameterId}`)
-  });
+  };
+  return refreshDerivedState(clearDeletedReturnParameterBindings(nextSchema, parameter?.name ? [parameter.name] : []));
 }
 
 export function refreshDerivedState(
@@ -1207,63 +1245,4 @@ export function refreshDerivedState(
       selection: schema.editor.selection
     }
   };
-}
-
-function rebuildVariableIndex(schema: MicroflowSchema) {
-  const graph = toEditorGraph(schema);
-  const index = emptyVariableIndex();
-  for (const parameter of schema.parameters) {
-    index.parameters[parameter.name] = {
-      name: parameter.name,
-      dataType: parameter.dataType ?? { kind: "unknown", reason: "parameter type missing" },
-      source: { kind: "parameter", parameterId: parameter.id },
-      scope: { collectionId: schema.objectCollection.id },
-      readonly: true
-    };
-  }
-  for (const node of graph.nodes) {
-    const object = findObject(schema, node.objectId);
-    if (object?.kind === "loopedActivity" && object.loopSource.kind === "iterableList") {
-      index.loopVariables[object.loopSource.iteratorVariableName] = {
-        name: object.loopSource.iteratorVariableName,
-        dataType: { kind: "unknown", reason: object.loopSource.listVariableName },
-        source: { kind: "loopIterator", loopObjectId: object.id },
-        scope: { collectionId: object.objectCollection.id, loopObjectId: object.id },
-        readonly: true
-      };
-      index.systemVariables.$currentIndex = {
-        name: "$currentIndex",
-        dataType: { kind: "integer" },
-        source: { kind: "system", name: "$currentIndex" },
-        scope: { collectionId: object.objectCollection.id, loopObjectId: object.id },
-        readonly: true
-      };
-    }
-    if (object?.kind === "actionActivity") {
-      const action = object.action;
-      if (action.kind === "retrieve") {
-        index.objectOutputs[action.outputVariableName] = {
-          name: action.outputVariableName,
-          dataType: action.retrieveSource.kind === "database" && action.retrieveSource.entityQualifiedName
-            ? { kind: "object", entityQualifiedName: action.retrieveSource.entityQualifiedName }
-            : { kind: "unknown", reason: "retrieve output" },
-          source: { kind: "actionOutput", objectId: object.id, actionId: action.id },
-          scope: { collectionId: node.collectionId, startObjectId: object.id },
-          readonly: false
-        };
-      }
-    }
-  }
-  for (const flow of collectFlowsRecursive(schema).filter((item): item is MicroflowSequenceFlow => item.kind === "sequence" && item.isErrorHandler)) {
-    for (const name of ["$latestError", "$latestHttpResponse", "$latestSoapFault"] as const) {
-      index.errorVariables[name] = {
-        name,
-        dataType: { kind: "object", entityQualifiedName: name === "$latestError" ? "System.Error" : name === "$latestHttpResponse" ? "System.HttpResponse" : "System.SoapFault" },
-        source: { kind: "errorContext", flowId: flow.id },
-        scope: { collectionId: schema.objectCollection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
-        readonly: true
-      };
-    }
-  }
-  return index;
 }

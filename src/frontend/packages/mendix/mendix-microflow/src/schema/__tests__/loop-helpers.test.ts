@@ -11,6 +11,7 @@ import {
   getLoopBodyFlows,
   getLoopExitFlows,
   removeLoopVariable,
+  renameLoopIteratorVariable,
   updateBreakContinueTargetLoop,
   updateLoopConditionExpression,
   updateLoopIterableExpression,
@@ -142,6 +143,89 @@ describe("loop / break / continue helpers", () => {
     expect(buildMicroflowVariableIndex(b).loopVariables.currentApprover).toBeUndefined();
     expect(Object.keys(buildMicroflowVariableIndex(duplicated).loopVariables).sort()).toEqual(["currentApprover", "currentApprover_Copy"]);
     expect(JSON.stringify(duplicated)).not.toContain("Sales.");
+  });
+
+  it("rewrites only the targeted loop iterator references and preserves shadowed inner loops", () => {
+    const outerLoop = loopObject("loop-outer");
+    const innerLoop = loopObject("loop-inner");
+    const outerEnd = createObjectFromRegistry(registry("endEvent"), { x: 120, y: 0 }, "outer-end");
+    const innerEnd = createObjectFromRegistry(registry("endEvent"), { x: 160, y: 0 }, "inner-end");
+    const outerChange = createObjectFromRegistry(registry("activity:variableChange"), { x: 80, y: 40 }, "outer-change");
+    const innerChange = createObjectFromRegistry(registry("activity:variableChange"), { x: 120, y: 40 }, "inner-change");
+    if (outerEnd.kind !== "endEvent" || innerEnd.kind !== "endEvent") {
+      throw new Error("Expected end events.");
+    }
+    if (outerChange.kind !== "actionActivity" || outerChange.action.kind !== "changeVariable" || innerChange.kind !== "actionActivity" || innerChange.action.kind !== "changeVariable") {
+      throw new Error("Expected change variable actions.");
+    }
+    const outerLoopObject = {
+      ...outerLoop,
+      loopSource: {
+        ...outerLoop.loopSource,
+        kind: "iterableList" as const,
+        officialType: "Microflows$IterableList" as const,
+        listVariableName: "$OrderList",
+        iteratorVariableName: "item",
+        currentIndexVariableName: "$currentIndex" as const,
+      },
+      objectCollection: {
+        ...outerLoop.objectCollection,
+        objects: [
+          {
+            ...outerChange,
+            action: {
+              ...outerChange.action,
+              targetVariableName: "item",
+              newValueExpression: { raw: "$item/Name", references: { variables: ["$item"], entities: [], attributes: ["Name"], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+            },
+          },
+          { ...outerEnd, returnValue: { raw: "$item/Name", references: { variables: ["$item"], entities: [], attributes: ["Name"], associations: [], enumerations: [], functions: [] }, diagnostics: [] } },
+          {
+            ...innerLoop,
+            loopSource: {
+              ...innerLoop.loopSource,
+              kind: "iterableList" as const,
+              officialType: "Microflows$IterableList" as const,
+              listVariableName: "$item/Children",
+              iteratorVariableName: "item",
+              currentIndexVariableName: "$currentIndex" as const,
+            },
+            objectCollection: {
+              ...innerLoop.objectCollection,
+              objects: [
+                {
+                  ...innerChange,
+                  action: {
+                    ...innerChange.action,
+                    targetVariableName: "item",
+                    newValueExpression: { raw: "$item/Code", references: { variables: ["$item"], entities: [], attributes: ["Code"], associations: [], enumerations: [], functions: [] }, diagnostics: [] },
+                  },
+                },
+                { ...innerEnd, returnValue: { raw: "$item/Code", references: { variables: ["$item"], entities: [], attributes: ["Code"], associations: [], enumerations: [], functions: [] }, diagnostics: [] } },
+              ],
+              flows: [],
+            },
+          },
+        ],
+        flows: [],
+      },
+    };
+    const updated = renameLoopIteratorVariable(schemaWith([outerLoopObject]), outerLoop.id, "orderItem");
+    const updatedOuter = updated.objectCollection.objects.find((item): item is Extract<MicroflowObject, { kind: "loopedActivity" }> => item.id === outerLoop.id);
+    const updatedOuterEnd = updatedOuter?.objectCollection.objects.find((item): item is Extract<MicroflowObject, { kind: "endEvent" }> => item.id === outerEnd.id);
+    const updatedOuterChange = updatedOuter?.objectCollection.objects.find((item): item is Extract<MicroflowObject, { kind: "actionActivity" }> => item.id === outerChange.id);
+    const updatedInnerLoop = updatedOuter?.objectCollection.objects.find((item): item is Extract<MicroflowObject, { kind: "loopedActivity" }> => item.id === innerLoop.id);
+    const updatedInnerEnd = updatedInnerLoop?.objectCollection.objects.find((item): item is Extract<MicroflowObject, { kind: "endEvent" }> => item.id === innerEnd.id);
+    const updatedInnerChange = updatedInnerLoop?.objectCollection.objects.find((item): item is Extract<MicroflowObject, { kind: "actionActivity" }> => item.id === innerChange.id);
+
+    expect(updatedOuter?.loopSource.kind === "iterableList" ? updatedOuter.loopSource.iteratorVariableName : undefined).toBe("orderItem");
+    expect(updatedOuterChange?.kind === "actionActivity" && updatedOuterChange.action.kind === "changeVariable" ? updatedOuterChange.action.targetVariableName : undefined).toBe("orderItem");
+    expect(updatedOuterChange?.kind === "actionActivity" && updatedOuterChange.action.kind === "changeVariable" ? updatedOuterChange.action.newValueExpression.raw : undefined).toBe("$orderItem/Name");
+    expect(updatedOuterEnd?.returnValue?.raw).toBe("$orderItem/Name");
+    expect(updatedInnerLoop?.loopSource.kind === "iterableList" ? updatedInnerLoop.loopSource.listVariableName : undefined).toBe("$orderItem/Children");
+    expect(updatedInnerChange?.kind === "actionActivity" && updatedInnerChange.action.kind === "changeVariable" ? updatedInnerChange.action.targetVariableName : undefined).toBe("item");
+    expect(updatedInnerChange?.kind === "actionActivity" && updatedInnerChange.action.kind === "changeVariable" ? updatedInnerChange.action.newValueExpression.raw : undefined).toBe("$item/Code");
+    expect(updatedInnerEnd?.returnValue?.raw).toBe("$item/Code");
   });
 });
 

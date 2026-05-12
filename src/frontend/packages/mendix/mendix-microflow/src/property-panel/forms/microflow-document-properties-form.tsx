@@ -36,6 +36,23 @@ const listItemTypeOptionList = [
   { label: "enumeration", value: "enumeration" },
 ];
 
+const exportLevelOptionList = [
+  { label: "hidden", value: "hidden" },
+  { label: "module", value: "module" },
+  { label: "public", value: "public" },
+];
+
+function searchParameterText(parameters: string[] | undefined): string {
+  return (parameters ?? []).join("\n");
+}
+
+function parseSearchParameterText(raw: string): string[] {
+  return raw
+    .split(/[\r\n,]+/u)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
 function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
   return (
     <Tooltip content={disabledReason || enabledHint}>
@@ -114,11 +131,17 @@ export function MicroflowDocumentPropertiesForm(props: MicroflowPropertyPanelPro
   const patchDocument = (patch: Partial<Pick<MicroflowAuthoringSchema, "description" | "documentation" | "returnType">> & {
     applyEntityAccess?: boolean;
     allowConcurrentExecution?: boolean;
+    exposureExportLevel?: MicroflowAuthoringSchema["exposure"]["exportLevel"];
+    exposureMarkAsUsed?: boolean;
     exposureAsMicroflowActionEnabled?: boolean;
     exposureAsMicroflowActionCaption?: string;
     exposureAsMicroflowActionCategory?: string;
+    exposureAsWorkflowActionEnabled?: boolean;
+    exposureAsWorkflowActionCaption?: string;
+    exposureAsWorkflowActionCategory?: string;
     exposureUrlEnabled?: boolean;
     exposureUrlPath?: string;
+    exposureUrlSearchParameters?: string[];
   }) => {
     props.onSchemaChange?.(updateMicroflowDocumentProperties(schema, patch), "updateMicroflowDocumentProperties");
   };
@@ -282,6 +305,30 @@ export function MicroflowDocumentPropertiesForm(props: MicroflowPropertyPanelPro
             />
           )}
         </Field>
+        <Field label="Export Level">
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Export level",
+            <Select
+              value={schema.exposure.exportLevel}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              optionList={exportLevelOptionList}
+              onChange={value => patchDocument({ exposureExportLevel: String(value) as MicroflowAuthoringSchema["exposure"]["exportLevel"] })}
+            />
+          )}
+        </Field>
+        <Field label="Mark As Used">
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Mark as used",
+            <Switch
+              checked={schema.exposure.markAsUsed}
+              disabled={readonly}
+              onChange={checked => patchDocument({ exposureMarkAsUsed: checked })}
+            />
+          )}
+        </Field>
         <Field label="Exposed as microflow action">
           {withDisabledReason(
             readonlyDisabledReason,
@@ -305,6 +352,29 @@ export function MicroflowDocumentPropertiesForm(props: MicroflowPropertyPanelPro
             onChange={category => patchDocument({ exposureAsMicroflowActionCategory: category })}
           />
         </Field>
+        <Field label="Exposed as workflow action">
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Expose as workflow action",
+            <Switch
+              checked={schema.exposure.asWorkflowAction?.enabled ?? false}
+              disabled={readonly}
+              onChange={checked => patchDocument({ exposureAsWorkflowActionEnabled: checked })}
+            />
+          )}
+          <Input
+            value={schema.exposure.asWorkflowAction?.caption ?? ""}
+            disabled={readonly || !(schema.exposure.asWorkflowAction?.enabled ?? false)}
+            placeholder="Workflow action caption"
+            onChange={caption => patchDocument({ exposureAsWorkflowActionCaption: caption })}
+          />
+          <Input
+            value={schema.exposure.asWorkflowAction?.category ?? ""}
+            disabled={readonly || !(schema.exposure.asWorkflowAction?.enabled ?? false)}
+            placeholder="Workflow action category"
+            onChange={category => patchDocument({ exposureAsWorkflowActionCategory: category })}
+          />
+        </Field>
         <Field label="URL exposure">
           {withDisabledReason(
             readonlyDisabledReason,
@@ -321,6 +391,14 @@ export function MicroflowDocumentPropertiesForm(props: MicroflowPropertyPanelPro
             placeholder="/p/my-microflow"
             onChange={path => patchDocument({ exposureUrlPath: path })}
           />
+          <TextArea
+            value={searchParameterText(schema.exposure.url?.searchParameters)}
+            autosize
+            disabled={readonly || !(schema.exposure.url?.enabled ?? false)}
+            placeholder={"orderId\ncustomerId"}
+            onChange={raw => patchDocument({ exposureUrlSearchParameters: parseSearchParameterText(raw) })}
+          />
+          <Text type="tertiary" size="small">One search parameter per line or separated by commas.</Text>
         </Field>
         <Field label="Description">
           <TextArea value={schema.description ?? ""} autosize disabled />

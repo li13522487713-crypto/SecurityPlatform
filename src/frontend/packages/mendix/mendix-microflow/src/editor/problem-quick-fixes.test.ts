@@ -94,5 +94,37 @@ describe("problem quick fixes", () => {
     expect(loopFlows?.some(flow => flow.kind === "sequence" && flow.caseValues.some(caseValue => caseValue.kind === "boolean" && caseValue.value === false))).toBe(true);
     expect(allFlows.every(flow => flow.originObjectId !== decision.id || loopFlows?.some(loopFlow => loopFlow.id === flow.id))).toBe(true);
   });
+
+  it("creates missing Boolean branch for rule decisions", () => {
+    const decision = objectFrom("decision", "rule-decision", 240, 120);
+    if (decision.kind !== "exclusiveSplit") {
+      throw new Error("Expected exclusiveSplit.");
+    }
+    decision.splitCondition = {
+      kind: "rule",
+      ruleQualifiedName: "Sales.Rule1",
+      parameterMappings: [],
+      resultType: "boolean",
+    };
+    const end = objectFrom("endEvent", "end", 480, 120);
+    const trueFlow = createSequenceFlow({
+      id: "flow-true",
+      originObjectId: decision.id,
+      destinationObjectId: end.id,
+      edgeKind: "decisionCondition",
+      caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }],
+    });
+
+    const next = createMissingBooleanBranch(schemaWith([decision, end], [trueFlow]), {
+      id: "missing-rule-false",
+      code: "MF_DECISION_BOOLEAN_FALSE_MISSING",
+      message: "missing false",
+      severity: "warning",
+      objectId: decision.id,
+    });
+
+    const falseFlow = next?.flows.find(flow => flow.kind === "sequence" && flow.caseValues.some(caseValue => caseValue.kind === "boolean" && caseValue.value === false));
+    expect(falseFlow).toBeDefined();
+  });
 });
 

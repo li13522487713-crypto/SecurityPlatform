@@ -4,6 +4,7 @@ import {
   getEntityByQualifiedName,
   type MicroflowMetadataCatalog,
 } from "../metadata";
+import { renameActionOutputVariable } from "../schema/utils";
 import type {
   MicroflowAction,
   MicroflowActionActivity,
@@ -102,21 +103,7 @@ export function updateObjectOutputVariable(
   objectId: string,
   variable: { name: string; dataType?: MicroflowDataType },
 ): MicroflowAuthoringSchema {
-  return refreshVariableIndex({
-    ...schema,
-    objectCollection: mapObjectCollection(schema.objectCollection, object => {
-      if (object.kind !== "actionActivity" || (object.id !== objectId && object.action.id !== objectId)) {
-        return object;
-      }
-      if (object.action.kind === "createObject") {
-        return { ...object, action: { ...object.action, outputVariableName: variable.name.trim() } };
-      }
-      if (object.action.kind === "retrieve") {
-        return { ...object, action: { ...object.action, outputVariableName: variable.name.trim() } };
-      }
-      return object;
-    }),
-  });
+  return refreshVariableIndex(renameActionOutputVariable(schema, objectId, variable.name.trim()));
 }
 
 export function upsertObjectMemberChange(

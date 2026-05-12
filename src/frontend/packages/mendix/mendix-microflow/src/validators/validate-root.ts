@@ -1,5 +1,6 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
+import { resolveReservedSystemVariable } from "../schema/utils/reserved-variable-names";
 import { flattenObjects, issue } from "./shared";
 import type { MicroflowValidatorContext } from "./validator-types";
 
@@ -27,6 +28,14 @@ export function validateRoot(schema: MicroflowSchema, _context: MicroflowValidat
     if (!trimmed) {
       issues.push(issue("MF_PARAMETER_NAME_MISSING", "Parameter name is required.", { fieldPath: `parameters.${parameter.id}.name`, parameterId: parameter.id }));
       continue;
+    }
+    const reservedSystemVariable = resolveReservedSystemVariable(trimmed);
+    if (reservedSystemVariable) {
+      issues.push(issue(
+        "MF_PARAMETER_NAME_SYSTEM_RESERVED",
+        `Parameter "${parameter.name}" conflicts with reserved system variable "${reservedSystemVariable}".`,
+        { fieldPath: `parameters.${parameter.id}.name`, parameterId: parameter.id },
+      ));
     }
     if (names.has(normalized)) {
       issues.push(issue("MF_PARAMETER_DUPLICATED", `Parameter "${parameter.name}" duplicates "${names.get(normalized)}".`, { fieldPath: `parameters.${parameter.id}.name`, parameterId: parameter.id }));

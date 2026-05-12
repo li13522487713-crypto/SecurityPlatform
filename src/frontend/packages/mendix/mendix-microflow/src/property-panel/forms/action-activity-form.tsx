@@ -2,14 +2,16 @@ import { useMemo, useState } from "react";
 import { Button, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowDatabaseRetrieveSource, MicroflowExpression, MicroflowMemberChange, MicroflowSortItem, MicroflowVariableSymbol } from "../../schema";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, getAssociationByQualifiedName, getAttributeByQualifiedName, getEnumerationByQualifiedName, getMicroflowById, getTargetEntityByAssociation, useMetadataStatus, useMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
-import { buildObjectActionWarnings, buildVariableIndex, getObjectEntityQualifiedName, getVariableNameConflicts, getVariableReferences, resolveVariableReferenceFromIndex } from "../../variables";
-import { ErrorHandlingEditor, FieldError, FieldRow, OutputVariableEditor, VariableNameInput } from "../common";
+import { buildObjectActionWarnings, buildVariableIndex, getObjectEntityQualifiedName, getVariableNameConflicts, getVariableReferences, renameMicroflowVariable, resolveVariableReferenceFromIndex } from "../../variables";
+import { ErrorHandlingEditor, FieldError, FieldRow, OutputVariableEditor, VariableNameInput, supportedErrorHandlingTypesForAction } from "../common";
 import { ExpressionEditor } from "../expression";
 import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelector, EnumerationValueSelector, MicroflowSelector, VariableSelector } from "../selectors";
 import type { MicroflowNodePatch, MicroflowPropertyPanelProps } from "../types";
-import { getIssuesForField, getIssuesForObject } from "../utils";
+import { getIssuesForField, getIssuesForObject, updateObject } from "../utils";
 import { dataTypeLabel, expression, Field, updateAction } from "../panel-shared";
 import { GenericActionFields } from "./generic-action-fields-form";
+import { syncActionActivityCaption } from "../utils/auto-generated-caption";
+import { renameActionOutputVariable } from "../../schema/utils";
 import {
   isVoidMicroflowReturn,
   updateCallMicroflowParameterMapping,
@@ -116,13 +118,15 @@ export function ActionActivityForm({
   object,
   issues,
   readonly,
-  onPatch
+  onPatch,
+  onSchemaChange,
 }: {
   schema: MicroflowPropertyPanelProps["schema"];
   object: MicroflowActionActivity;
   issues: ReturnType<typeof getIssuesForObject>;
   readonly?: boolean;
   onPatch: (patch: MicroflowNodePatch) => void;
+  onSchemaChange?: (nextSchema: MicroflowPropertyPanelProps["schema"], reason: string) => void;
 }) {
   const action = object.action;
   const catalog = useMicroflowMetadataCatalog();
@@ -154,7 +158,29 @@ export function ActionActivityForm({
   const listVariableNames = useMemo(() => new Set(listVariables.map(variable => variable.name)), [listVariables]);
   const selectedSourceList = (name?: string) => name ? listVariables.find(variable => variable.name === name) : undefined;
   const listVariableEmptyMessage = "No list variables available. Add a Create List node first.";
-  const patchObject = (next: MicroflowActionActivity) => onPatch({ object: next });
+  const patchObject = (next: MicroflowActionActivity) => onPatch({ object: syncActionActivityCaption(next, effectiveCatalog) });
+  const renameCreateVariableInSchema = (nextVariableName: string) => {
+    if (!onSchemaChange || action.kind !== "createVariable") {
+      patchObject(updateAction(object, { variableName: nextVariableName }));
+      return;
+    }
+    const renamedSchema = renameMicroflowVariable(schema, object.id, nextVariableName);
+    const syncedSchema = updateObject(renamedSchema, object.id, currentObject => currentObject.kind === "actionActivity"
+      ? syncActionActivityCaption(currentObject, effectiveCatalog)
+      : currentObject);
+    onSchemaChange(syncedSchema, "renameCreateVariable");
+  };
+  const renameProducedVariableInSchema = (nextVariableName: string, slot: "primary" | "statusCode" | "headers" = "primary") => {
+    if (!onSchemaChange) {
+      return false;
+    }
+    const renamedSchema = renameActionOutputVariable(schema, object.id, nextVariableName, { slot });
+    const syncedSchema = updateObject(renamedSchema, object.id, currentObject => currentObject.kind === "actionActivity"
+      ? syncActionActivityCaption(currentObject, effectiveCatalog)
+      : currentObject);
+    onSchemaChange(syncedSchema, "renameActionOutputVariable");
+    return true;
+  };
   const readonlyDisabledReason = readonly ? "Readonly mode cannot edit this action." : "";
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -192,7 +218,7 @@ export function ActionActivityForm({
           actionKind={action.kind}
           fieldPath="action.errorHandlingType"
           issues={getIssuesForField(issues, "action.errorHandlingType")}
-          supportedTypes={action.kind === "logMessage" ? ["rollback"] : action.kind === "callMicroflow" ? ["rollback", "customWithRollback", "customWithoutRollback", "continue"] : ["rollback", "customWithRollback", "customWithoutRollback"]}
+          supportedTypes={supportedErrorHandlingTypesForAction(action.kind)}
           onChange={errorHandlingType => patchObject(updateAction(object, { errorHandlingType }))}
         />
       </FieldRow>
@@ -219,7 +245,12 @@ export function ActionActivityForm({
               readonly={readonly}
               required
               issues={getIssuesForField(issues, "action.outputVariableName")}
-              onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "" }))}
+              onChange={outputVariableName => {
+                if (renameProducedVariableInSchema(outputVariableName ?? "")) {
+                  return;
+                }
+                patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "" }));
+              }}
             />
           </FieldRow>
           <Field label="Source Type">
@@ -514,7 +545,12 @@ export function ActionActivityForm({
                   readonly={readonly}
                   required
                   issues={getIssuesForField(issues, "action.outputVariableName")}
-                  onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "" }))}
+                  onChange={outputVariableName => {
+                    if (renameProducedVariableInSchema(outputVariableName ?? "")) {
+                      return;
+                    }
+                    patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "" }));
+                  }}
                 />
               </FieldRow>
             </>
@@ -895,7 +931,12 @@ export function ActionActivityForm({
                 readonly={readonly}
                 required
                 issues={getIssuesForField(issues, "action.response.handling.outputVariableName")}
-                onChange={outputVariableName => patchObject(updateAction(object, { response: { ...action.response, handling: { ...action.response.handling, outputVariableName: outputVariableName ?? "" } } }))}
+                onChange={outputVariableName => {
+                  if (renameProducedVariableInSchema(outputVariableName ?? "")) {
+                    return;
+                  }
+                  patchObject(updateAction(object, { response: { ...action.response, handling: { ...action.response.handling, outputVariableName: outputVariableName ?? "" } } }));
+                }}
               />
             </FieldRow>
           ) : null}
@@ -910,7 +951,12 @@ export function ActionActivityForm({
               dataType={{ kind: "integer" }}
               readonly={readonly}
               issues={getIssuesForField(issues, "action.response.statusCodeVariableName")}
-              onChange={statusCodeVariableName => patchObject(updateAction(object, { response: { ...action.response, statusCodeVariableName } }))}
+              onChange={statusCodeVariableName => {
+                if (renameProducedVariableInSchema(statusCodeVariableName ?? "", "statusCode")) {
+                  return;
+                }
+                patchObject(updateAction(object, { response: { ...action.response, statusCodeVariableName } }));
+              }}
             />
           </FieldRow>
           <FieldRow label="Headers Variable" fieldPath="action.response.headersVariableName" issues={getIssuesForField(issues, "action.response.headersVariableName")}>
@@ -924,7 +970,12 @@ export function ActionActivityForm({
               dataType={{ kind: "json" }}
               readonly={readonly}
               issues={getIssuesForField(issues, "action.response.headersVariableName")}
-              onChange={headersVariableName => patchObject(updateAction(object, { response: { ...action.response, headersVariableName } }))}
+              onChange={headersVariableName => {
+                if (renameProducedVariableInSchema(headersVariableName ?? "", "headers")) {
+                  return;
+                }
+                patchObject(updateAction(object, { response: { ...action.response, headersVariableName } }));
+              }}
             />
           </FieldRow>
         </>
@@ -1145,7 +1196,12 @@ export function ActionActivityForm({
               readonly={readonly || !action.returnValue.storeResult || isVoidMicroflowReturn(selectedMicroflow?.returnType)}
               required={action.returnValue.storeResult}
               issues={getIssuesForField(issues, "action.returnValue.outputVariableName")}
-              onChange={outputVariableName => patchObject(updateAction(object, { returnValue: { ...action.returnValue, outputVariableId: outputVariableName ? action.id : undefined, outputVariableName, resultVariableName: outputVariableName } }))}
+              onChange={outputVariableName => {
+                if (renameProducedVariableInSchema(outputVariableName ?? "")) {
+                  return;
+                }
+                patchObject(updateAction(object, { returnValue: { ...action.returnValue, outputVariableId: outputVariableName ? action.id : undefined, outputVariableName, resultVariableName: outputVariableName } }));
+              }}
             />
           </FieldRow>
           <Field label="Call Mode">
@@ -1179,11 +1235,11 @@ export function ActionActivityForm({
               readonly={readonly}
               required
               issues={getIssuesForField(issues, "action.variableName")}
-              onChange={variableName => patchObject(updateAction(object, { variableName: variableName ?? "" }))}
+              onChange={variableName => renameCreateVariableInSchema(variableName ?? "")}
             />
             {createVariableConflicts.length ? <Text type="warning" size="small">{createVariableConflicts.join(" ")}</Text> : null}
-            <Text type="tertiary" size="small">Renaming a variable does not rewrite existing expressions.</Text>
-            {createVariableReferences.length ? <Text type="warning" size="small">Existing expressions or Change Variable targets may reference this variable.</Text> : null}
+            <Text type="tertiary" size="small">Variable rename rewrites variable-scoped expressions and direct variable reference fields; unrelated shadowed loop/local variables stay unchanged.</Text>
+            {createVariableReferences.length ? <Text type="warning" size="small">Existing references will be rewritten where they still resolve to this variable.</Text> : null}
           </FieldRow>
           <Field label="Variable ID">
             <Input value={action.id} disabled />
@@ -1278,10 +1334,15 @@ export function ActionActivityForm({
               readonly={readonly}
               required
               issues={getIssuesForField(issues, "action.outputListVariableName")}
-              onChange={outputListVariableName => patchObject(updateAction(object, {
-                outputListVariableName: outputListVariableName ?? "",
-                listVariableName: outputListVariableName ?? "",
-              }))}
+              onChange={outputListVariableName => {
+                if (renameProducedVariableInSchema(outputListVariableName ?? "")) {
+                  return;
+                }
+                patchObject(updateAction(object, {
+                  outputListVariableName: outputListVariableName ?? "",
+                  listVariableName: outputListVariableName ?? "",
+                }));
+              }}
             />
             <RequiredConfigWarning visible={!action.outputListVariableName.trim()}>List variable name 未配置；保存为待配置状态。</RequiredConfigWarning>
           </FieldRow>
@@ -1501,7 +1562,12 @@ export function ActionActivityForm({
               readonly={readonly}
               required
               issues={getIssuesForField(issues, "action.outputVariableName")}
-              onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "", resultVariableName: outputVariableName ?? "", resultVariableId: action.id }))}
+              onChange={outputVariableName => {
+                if (renameProducedVariableInSchema(outputVariableName ?? "")) {
+                  return;
+                }
+                patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "", resultVariableName: outputVariableName ?? "", resultVariableId: action.id }));
+              }}
             />
             <RequiredConfigWarning visible={!String(action.outputVariableName || action.resultVariableName || "").trim()}>Result variable 未配置；聚合结果不会进入 variable index。</RequiredConfigWarning>
           </FieldRow>
@@ -1653,13 +1719,18 @@ export function ActionActivityForm({
               readonly={readonly}
               required
               issues={getIssuesForField(issues, "action.outputVariableName")}
-              onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "", outputListVariableName: outputVariableName ?? "", targetListVariableId: action.id }))}
+              onChange={outputVariableName => {
+                if (renameProducedVariableInSchema(outputVariableName ?? "")) {
+                  return;
+                }
+                patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "", outputListVariableName: outputVariableName ?? "", targetListVariableId: action.id }));
+              }}
             />
             <RequiredConfigWarning visible={!String(action.outputVariableName || action.outputListVariableName || "").trim()}>Output list variable 未配置；结果不会进入 variable index。</RequiredConfigWarning>
           </FieldRow>
         </>
       ) : null}
-      <GenericActionFields schema={schema} object={object} issues={issues} readonly={readonly} onPatch={onPatch} />
+      <GenericActionFields schema={schema} object={object} issues={issues} readonly={readonly} onPatch={onPatch} onSchemaChange={onSchemaChange} />
     </Space>
   );
 }

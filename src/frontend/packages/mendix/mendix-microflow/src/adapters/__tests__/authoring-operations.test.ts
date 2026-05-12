@@ -7,6 +7,7 @@ import {
   createSequenceFlow,
   deleteObject,
   duplicateObject,
+  duplicateObjectSelection,
   moveObject,
 } from "../authoring-operations";
 import { defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "../../node-registry";
@@ -63,6 +64,28 @@ describe("authoring schema canvas operations", () => {
 
     expect(createMicroflowObjectId(schema, "start-fixed")).not.toBe("start-fixed");
     expect(createMicroflowFlowId(schema, "flow-fixed")).not.toBe("flow-fixed");
+  });
+
+  it("creates tryCatch and errorHandler nodes as structural objects instead of action fallbacks", () => {
+    const tryCatch = createObjectFromRegistry(registry("tryCatch"), { x: 160, y: 120 }, "try-catch");
+    const errorHandler = createObjectFromRegistry(registry("errorHandler"), { x: 280, y: 120 }, "error-handler");
+
+    expect(tryCatch).toMatchObject({
+      id: "try-catch",
+      kind: "tryCatch",
+      officialType: "Microflows$TryCatch",
+      tryBranchKey: "try",
+      catchBranchKey: "catch",
+      finallyBranchKey: "finally",
+      errorVariableName: "latestError",
+    });
+    expect(errorHandler).toMatchObject({
+      id: "error-handler",
+      kind: "errorHandler",
+      officialType: "Microflows$ErrorHandler",
+      policy: "rollback",
+      continueOnError: false,
+    });
   });
 
   it("moves non-start nodes by writing relativeMiddlePoint back to schema", () => {
@@ -141,6 +164,30 @@ describe("authoring schema canvas operations", () => {
     expect(copy?.caption).toBe("End Event Copy");
     expect(duplicated.flows).toEqual([]);
     expect(duplicated.editor.selection.objectId).toBe(copy?.id);
+  });
+
+  it("does not duplicate StartEvent from multi-selection", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 80, y: 120 }, "start");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 320, y: 120 }, "end");
+    const flow = createSequenceFlow({ id: "flow-start-end", originObjectId: "start", destinationObjectId: "end" });
+    const schema = {
+      ...schemaWith([start, end]),
+      flows: [flow],
+    };
+
+    const duplicated = duplicateObjectSelection(schema, {
+      objectIds: ["start", "end"],
+      flowIds: ["flow-start-end"],
+    });
+
+    const startEvents = duplicated.objectCollection.objects.filter(object => object.kind === "startEvent");
+    const endEvents = duplicated.objectCollection.objects.filter(object => object.kind === "endEvent");
+
+    expect(startEvents).toHaveLength(1);
+    expect(endEvents).toHaveLength(2);
+    expect(duplicated.flows).toHaveLength(1);
+    expect(duplicated.editor.selection.objectIds).toHaveLength(1);
+    expect(duplicated.editor.selection.objectId).toBe(endEvents.find(object => object.id !== "end")?.id);
   });
 
   it("keeps A/B schema operations isolated", () => {

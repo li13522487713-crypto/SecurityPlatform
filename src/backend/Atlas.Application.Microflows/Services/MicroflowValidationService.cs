@@ -660,6 +660,49 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
                     ValidateExpression(context, obj, action, ReadExpressionText(action.Raw, "initialValue"), $"{action.FieldPath}.initialValue", variables, required: false);
                     break;
+                case "createList":
+                    ValidateExpression(
+                        context,
+                        obj,
+                        action,
+                        ReadExpressionText(action.Raw, "initialItemsExpression"),
+                        $"{action.FieldPath}.initialItemsExpression",
+                        variables,
+                        required: false);
+                    break;
+                case "filterList":
+                    var filterConditionFieldPath = !string.IsNullOrWhiteSpace(ReadExpressionText(action.Raw, "conditionExpression"))
+                        ? $"{action.FieldPath}.conditionExpression"
+                        : $"{action.FieldPath}.filterExpression";
+                    ValidateExpression(
+                        context,
+                        obj,
+                        action,
+                        ReadExpressionText(action.Raw, "conditionExpression") ?? ReadExpressionText(action.Raw, "filterExpression"),
+                        filterConditionFieldPath,
+                        BuildContextualExpressionVariables(context, obj, action, filterConditionFieldPath, variables),
+                        required: false);
+                    break;
+                case "changeList":
+                    if (string.Equals(MicroflowSchemaReader.ReadString(action.Raw, "operation"), "removeWhere", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var removeWhereFieldPath = $"{action.FieldPath}.conditionExpression";
+                        ValidateExpression(
+                            context,
+                            obj,
+                            action,
+                            ReadExpressionText(action.Raw, "conditionExpression"),
+                            removeWhereFieldPath,
+                            BuildContextualExpressionVariables(context, obj, action, removeWhereFieldPath, variables),
+                            required: false);
+                    }
+                    break;
+                case "listOperation":
+                    ValidateListOperationExpressions(context, obj, action, variables);
+                    break;
+                case "sortList":
+                    ValidateSortListExpressions(context, obj, action, variables);
+                    break;
                 case "changeVariable":
                     RequireExpressionVariable(context, obj, action, MicroflowSchemaReader.ReadString(action.Raw, "targetVariableName"), $"{action.FieldPath}.targetVariableName", variables);
                     ValidateExpression(context, obj, action, ReadExpressionText(action.Raw, "newValueExpression"), $"{action.FieldPath}.newValueExpression", variables, required: true);
@@ -808,6 +851,99 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         }
     }
 
+    private static void ValidateListOperationExpressions(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        Dictionary<string, VariableInfo> variables)
+    {
+        var operation = MicroflowSchemaReader.ReadString(action.Raw, "operation");
+        if (string.Equals(operation, "filter", StringComparison.OrdinalIgnoreCase))
+        {
+            var fieldPath = !string.IsNullOrWhiteSpace(ReadExpressionText(action.Raw, "filterExpression"))
+                ? $"{action.FieldPath}.filterExpression"
+                : $"{action.FieldPath}.expression";
+            ValidateExpression(
+                context,
+                obj,
+                action,
+                ReadExpressionText(action.Raw, "filterExpression") ?? ReadExpressionText(action.Raw, "expression"),
+                fieldPath,
+                BuildContextualExpressionVariables(context, obj, action, fieldPath, variables),
+                required: false);
+            return;
+        }
+
+        if (string.Equals(operation, "map", StringComparison.OrdinalIgnoreCase))
+        {
+            var fieldPath = !string.IsNullOrWhiteSpace(ReadExpressionText(action.Raw, "expression"))
+                ? $"{action.FieldPath}.expression"
+                : $"{action.FieldPath}.mapExpression";
+            ValidateExpression(
+                context,
+                obj,
+                action,
+                ReadExpressionText(action.Raw, "expression") ?? ReadExpressionText(action.Raw, "mapExpression"),
+                fieldPath,
+                BuildContextualExpressionVariables(context, obj, action, fieldPath, variables),
+                required: false);
+            return;
+        }
+
+        if (string.Equals(operation, "sort", StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateSortKeyExpressions(context, obj, action, variables, hasTopLevelSortExpression: true);
+        }
+    }
+
+    private static void ValidateSortListExpressions(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        Dictionary<string, VariableInfo> variables)
+        => ValidateSortKeyExpressions(context, obj, action, variables, hasTopLevelSortExpression: true);
+
+    private static void ValidateSortKeyExpressions(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        Dictionary<string, VariableInfo> variables,
+        bool hasTopLevelSortExpression)
+    {
+        if (hasTopLevelSortExpression)
+        {
+            var sortExpressionFieldPath = $"{action.FieldPath}.sortExpression";
+            ValidateExpression(
+                context,
+                obj,
+                action,
+                ReadExpressionText(action.Raw, "sortExpression"),
+                sortExpressionFieldPath,
+                BuildContextualExpressionVariables(context, obj, action, sortExpressionFieldPath, variables),
+                required: false);
+        }
+
+        if (!action.Raw.TryGetProperty("sortKeys", out var sortKeys) || sortKeys.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        var index = 0;
+        foreach (var sortKey in sortKeys.EnumerateArray())
+        {
+            var expressionFieldPath = $"{action.FieldPath}.sortKeys.{index}.expression";
+            ValidateExpression(
+                context,
+                obj,
+                action,
+                ReadExpressionText(sortKey, "expression"),
+                expressionFieldPath,
+                BuildContextualExpressionVariables(context, obj, action, expressionFieldPath, variables),
+                required: false);
+            index++;
+        }
+    }
+
     private static void ValidateMetadataReferences(MicroflowValidationContext context)
     {
         foreach (var parameter in context.SchemaModel.Parameters)
@@ -932,8 +1068,20 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         variables["currentUser"] = new VariableInfo("currentUser", MicroflowSeedMetadataCatalog.Type("object"), "system.$currentUser", null, null, true);
         variables["currentIndex"] = new VariableInfo("currentIndex", MicroflowSeedMetadataCatalog.Type("integer"), "system.$currentIndex", null, null, true);
         variables["latestError"] = new VariableInfo("latestError", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestError", null, null, true);
-        variables["$latestHttpResponse"] = new VariableInfo("$latestHttpResponse", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestHttpResponse", null, null, true);
-        variables["$latestSoapFault"] = new VariableInfo("$latestSoapFault", MicroflowSeedMetadataCatalog.Type("object"), "system.$latestSoapFault", null, null, true);
+        variables["latestHttpResponse"] = new VariableInfo(
+            "latestHttpResponse",
+            JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = "System.HttpResponse" }, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            "system.$latestHttpResponse",
+            null,
+            null,
+            true);
+        variables["latestSoapFault"] = new VariableInfo(
+            "latestSoapFault",
+            JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = "System.SoapFault" }, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            "system.$latestSoapFault",
+            null,
+            null,
+            true);
 
         foreach (var obj in context.SchemaModel.Objects.Where(o => o.Action is not null))
         {
@@ -985,9 +1133,22 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
     private static IEnumerable<string?> OutputVariableNames(MicroflowActionModel action)
     {
         yield return MicroflowSchemaReader.ReadString(action.Raw, "outputVariableName");
+        yield return MicroflowSchemaReader.ReadString(action.Raw, "outputVariable");
+        yield return MicroflowSchemaReader.ReadString(action.Raw, "outputListVariableName");
+        if (string.Equals(action.Kind, "createList", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(action.Kind, "retrieveWorkflows", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(action.Kind, "retrieveWorkflowActivityRecords", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return MicroflowSchemaReader.ReadString(action.Raw, "listVariableName");
+        }
+        yield return MicroflowSchemaReader.ReadString(action.Raw, "resultVariableName");
         yield return MicroflowSchemaReader.ReadString(action.Raw, "variableName");
         yield return MicroflowSchemaReader.ReadStringByPath(action.Raw, "returnValue", "outputVariableName");
+        yield return MicroflowSchemaReader.ReadStringByPath(action.Raw, "returnValue", "resultVariableName");
         yield return MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "handling", "outputVariableName");
+        yield return MicroflowSchemaReader.ReadString(action.Raw, "outputWorkflowVariableName");
+        yield return MicroflowSchemaReader.ReadString(action.Raw, "outputFileDocumentVariableName");
+        yield return MicroflowSchemaReader.ReadString(action.Raw, "returnVariableName");
         yield return MicroflowSchemaReader.ReadString(action.Raw, "statusCodeVariableName");
         yield return MicroflowSchemaReader.ReadString(action.Raw, "headersVariableName");
         yield return MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "statusCodeVariableName");
@@ -1007,12 +1168,49 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             return JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "object", ["entityQualifiedName"] = entity ?? string.Empty }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         }
 
+        if (action.Kind == "cast")
+        {
+            var entity = MicroflowSchemaReader.ReadString(action.Raw, "targetEntityQualifiedName")
+                ?? MicroflowSchemaReader.ReadString(action.Raw, "targetEntity")
+                ?? MicroflowSchemaReader.ReadString(action.Raw, "entityQualifiedName")
+                ?? MicroflowSchemaReader.ReadString(action.Raw, "entityType");
+            return JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "object", ["entityQualifiedName"] = entity ?? string.Empty }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+
         if (action.Kind == "callMicroflow")
         {
             var target = MicroflowSchemaReader.ReadString(action.Raw, "targetMicroflowId")
                 ?? MicroflowSchemaReader.ReadString(action.Raw, "targetMicroflowQualifiedName");
             var microflow = context.Metadata.Microflows.FirstOrDefault(m => m.Id == target || m.QualifiedName == target);
             return microflow?.ReturnType ?? MicroflowSeedMetadataCatalog.UnknownType("call microflow return type unknown");
+        }
+
+        if (action.Kind == "aggregateList")
+        {
+            if (action.Raw.TryGetProperty("resultType", out var resultType))
+            {
+                return NormalizeDataType(resultType);
+            }
+
+            var aggregateFunction = (MicroflowSchemaReader.ReadString(action.Raw, "aggregateFunction")
+                ?? MicroflowSchemaReader.ReadString(action.Raw, "aggregate")
+                ?? MicroflowSchemaReader.ReadString(action.Raw, "operation")
+                ?? "count").Trim();
+            return aggregateFunction switch
+            {
+                "sum" or "average" => MicroflowSeedMetadataCatalog.Type("decimal"),
+                "count" => MicroflowSeedMetadataCatalog.Type("integer"),
+                _ => MicroflowSeedMetadataCatalog.UnknownType("aggregate list result type unknown")
+            };
+        }
+
+        if (action.Kind == "listOperation")
+        {
+            var operation = MicroflowSchemaReader.ReadString(action.Raw, "operation");
+            if (string.Equals(operation, "contains", StringComparison.OrdinalIgnoreCase))
+            {
+                return MicroflowSeedMetadataCatalog.Type("boolean");
+            }
         }
 
         if (action.Kind is "createList" or "filterList" or "listOperation" or "sortList")
@@ -1040,9 +1238,229 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             return JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "list" }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         }
 
+        if (action.Kind == "callWorkflow")
+        {
+            return JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "object", ["entityQualifiedName"] = "Workflow.Workflow" }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+
+        if (action.Kind == "generateDocument")
+        {
+            return JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "object", ["entityQualifiedName"] = "System.FileDocument" }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+
+        if (action.Kind == "exportXml")
+        {
+            return string.Equals(MicroflowSchemaReader.ReadString(action.Raw, "outputType"), "fileDocument", StringComparison.OrdinalIgnoreCase)
+                ? JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "object", ["entityQualifiedName"] = "System.FileDocument" }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                : MicroflowSeedMetadataCatalog.Type("string");
+        }
+
+        if (action.Kind is "generateJumpToOptions" or "retrieveWorkflowActivityRecords" or "retrieveWorkflows")
+        {
+            return JsonSerializer.SerializeToElement(
+                new Dictionary<string, object?>
+                {
+                    ["kind"] = "list",
+                    ["itemType"] = new Dictionary<string, object?> { ["kind"] = "unknown" }
+                },
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+
+        if (action.Kind is "retrieveWorkflowContext" or "mlModelCall" or "webServiceCall" or "importXml" or "restOperationCall")
+        {
+            return MicroflowSeedMetadataCatalog.UnknownType(action.Kind);
+        }
+
         return action.Kind == "retrieve"
             ? JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["kind"] = "list", ["itemType"] = new { kind = "object" } }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
             : MicroflowSeedMetadataCatalog.UnknownType("action output type unknown");
+    }
+
+    private static Dictionary<string, VariableInfo> BuildContextualExpressionVariables(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        string fieldPath,
+        Dictionary<string, VariableInfo> variables)
+    {
+        var local = BuildContextualExpressionLocalVariables(context, obj, action, fieldPath, variables);
+        if (local.Count == 0)
+        {
+            return variables;
+        }
+
+        var merged = new Dictionary<string, VariableInfo>(variables, StringComparer.Ordinal);
+        foreach (var variable in local)
+        {
+            merged[variable.Name] = variable;
+        }
+
+        return merged;
+    }
+
+    private static List<VariableInfo> BuildContextualExpressionLocalVariables(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        string fieldPath,
+        Dictionary<string, VariableInfo> variables)
+    {
+        if (action.Kind == "filterList"
+            && (string.Equals(fieldPath, $"{action.FieldPath}.conditionExpression", StringComparison.Ordinal)
+                || string.Equals(fieldPath, $"{action.FieldPath}.filterExpression", StringComparison.Ordinal)))
+        {
+            return BuildListItemScopeVariables(
+                context,
+                obj,
+                action,
+                variables,
+                NormalizeScopedVariableName(
+                    MicroflowSchemaReader.ReadString(action.Raw, "itemVariableName")
+                    ?? MicroflowSchemaReader.ReadString(action.Raw, "itemVariable")
+                    ?? MicroflowSchemaReader.ReadString(action.Raw, "objectVariableName")),
+                TryResolveListItemType(variables,
+                    MicroflowSchemaReader.ReadString(action.Raw, "sourceListVariableName"),
+                    MicroflowSchemaReader.ReadString(action.Raw, "listVariableName"))
+                    ?? ReadDataType(action.Raw, "itemType")
+                    ?? MicroflowSeedMetadataCatalog.UnknownType("filterList item type"));
+        }
+
+        if (action.Kind == "changeList"
+            && string.Equals(MicroflowSchemaReader.ReadString(action.Raw, "operation"), "removeWhere", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(fieldPath, $"{action.FieldPath}.conditionExpression", StringComparison.Ordinal))
+        {
+            return BuildListItemScopeVariables(
+                context,
+                obj,
+                action,
+                variables,
+                NormalizeScopedVariableName(
+                    MicroflowSchemaReader.ReadString(action.Raw, "objectVariableName")
+                    ?? MicroflowSchemaReader.ReadString(action.Raw, "itemVariableName")
+                    ?? "item"),
+                TryResolveListItemType(variables,
+                    MicroflowSchemaReader.ReadString(action.Raw, "targetListVariableName"),
+                    MicroflowSchemaReader.ReadString(action.Raw, "sourceListVariableName"))
+                    ?? ReadDataType(action.Raw, "itemType")
+                    ?? MicroflowSeedMetadataCatalog.UnknownType("changeList removeWhere item type"));
+        }
+
+        if (action.Kind == "listOperation")
+        {
+            var operation = MicroflowSchemaReader.ReadString(action.Raw, "operation");
+            var isFilterExpression = string.Equals(operation, "filter", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(fieldPath, $"{action.FieldPath}.filterExpression", StringComparison.Ordinal)
+                    || string.Equals(fieldPath, $"{action.FieldPath}.expression", StringComparison.Ordinal));
+            var isMapExpression = string.Equals(operation, "map", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(fieldPath, $"{action.FieldPath}.expression", StringComparison.Ordinal)
+                    || string.Equals(fieldPath, $"{action.FieldPath}.mapExpression", StringComparison.Ordinal));
+            var isSortExpression = string.Equals(operation, "sort", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(fieldPath, $"{action.FieldPath}.sortExpression", StringComparison.Ordinal)
+                    || fieldPath.StartsWith($"{action.FieldPath}.sortKeys.", StringComparison.Ordinal));
+            if (isFilterExpression || isMapExpression || isSortExpression)
+            {
+                return BuildListItemScopeVariables(
+                    context,
+                    obj,
+                    action,
+                    variables,
+                    NormalizeScopedVariableName(
+                        MicroflowSchemaReader.ReadString(action.Raw, "objectVariableName")
+                        ?? MicroflowSchemaReader.ReadString(action.Raw, "itemVariableName")
+                        ?? MicroflowSchemaReader.ReadString(action.Raw, "itemVariable")
+                        ?? "item"),
+                    TryResolveListItemType(variables,
+                        MicroflowSchemaReader.ReadString(action.Raw, "leftListVariableName"),
+                        MicroflowSchemaReader.ReadString(action.Raw, "sourceListVariableName"))
+                        ?? ReadDataType(action.Raw, "itemType")
+                        ?? MicroflowSeedMetadataCatalog.UnknownType("listOperation item type"));
+            }
+        }
+
+        if (action.Kind == "sortList"
+            && (string.Equals(fieldPath, $"{action.FieldPath}.sortExpression", StringComparison.Ordinal)
+                || fieldPath.StartsWith($"{action.FieldPath}.sortKeys.", StringComparison.Ordinal)))
+        {
+            return BuildListItemScopeVariables(
+                context,
+                obj,
+                action,
+                variables,
+                NormalizeScopedVariableName(
+                    MicroflowSchemaReader.ReadString(action.Raw, "objectVariableName")
+                    ?? MicroflowSchemaReader.ReadString(action.Raw, "itemVariableName")
+                    ?? MicroflowSchemaReader.ReadString(action.Raw, "itemVariable")
+                    ?? "item"),
+                TryResolveListItemType(variables,
+                    MicroflowSchemaReader.ReadString(action.Raw, "sourceListVariableName"),
+                    MicroflowSchemaReader.ReadString(action.Raw, "listVariableName"))
+                    ?? ReadDataType(action.Raw, "itemType")
+                    ?? MicroflowSeedMetadataCatalog.UnknownType("sortList item type"));
+        }
+
+        return [];
+    }
+
+    private static List<VariableInfo> BuildListItemScopeVariables(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        Dictionary<string, VariableInfo> variables,
+        string? itemVariableName,
+        JsonElement itemType)
+    {
+        if (string.IsNullOrWhiteSpace(itemVariableName))
+        {
+            return [];
+        }
+
+        return
+        [
+            new VariableInfo(
+                itemVariableName!,
+                itemType,
+                $"{action.FieldPath}.itemVariableName",
+                obj.Id,
+                action.Id,
+                false)
+        ];
+    }
+
+    private static JsonElement? TryResolveListItemType(Dictionary<string, VariableInfo> variables, params string?[] candidateNames)
+    {
+        foreach (var candidateName in candidateNames)
+        {
+            if (string.IsNullOrWhiteSpace(candidateName)
+                || !variables.TryGetValue(candidateName, out var variable)
+                || variable.Type.ValueKind != JsonValueKind.Object
+                || !variable.Type.TryGetProperty("itemType", out var itemType))
+            {
+                continue;
+            }
+
+            return itemType.Clone();
+        }
+
+        return null;
+    }
+
+    private static JsonElement? ReadDataType(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Object
+            ? value.Clone()
+            : null;
+
+    private static string? NormalizeScopedVariableName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        return name.StartsWith("$.", StringComparison.Ordinal)
+            ? name[2..]
+            : name.StartsWith('$')
+                ? name[1..]
+                : name;
     }
 
     private static JsonElement NormalizeDataType(JsonElement dataType)

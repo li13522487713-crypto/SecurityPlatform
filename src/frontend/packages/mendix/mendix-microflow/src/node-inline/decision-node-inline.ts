@@ -4,7 +4,7 @@ import { expressionText } from "./inline-formatters";
 import { buildNodeInlineVariableOptions } from "./inline-variable-options";
 import { createDefaultInlineConfig, type DeriveNodeInlineInput } from "./default-node-inline";
 
-function branchLabel(caseValues: MicroflowCaseValue[] | undefined): string {
+function branchLabel(caseValues: MicroflowCaseValue[] | undefined, objectKind?: string): string {
   const first = caseValues?.[0];
   if (!first) {
     return "else";
@@ -13,7 +13,7 @@ function branchLabel(caseValues: MicroflowCaseValue[] | undefined): string {
     return String(first.value);
   }
   if (first.kind === "fallback") {
-    return "else";
+    return objectKind === "inheritanceSplit" ? "(empty)" : "else";
   }
   if (first.kind === "empty" || first.kind === "noCase") {
     return "(empty)";
@@ -42,6 +42,7 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
     mode: "expression",
   });
   const nodeData = (input.node.data ?? {}) as Record<string, unknown>;
+  const objectKind = String(nodeData.objectKind ?? input.node.type ?? "");
   const splitCondition = nodeData.splitCondition as { kind?: string; expression?: unknown } | undefined;
   const rawCondition = splitCondition?.kind === "expression" ? expressionText(splitCondition.expression) : "";
   const logic = String(nodeData.logic ?? "AND");
@@ -62,7 +63,7 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
       id: "branch",
       value: outgoing
         .slice(0, 2)
-        .map(item => `${branchLabel((item.edge.data as { caseValues?: MicroflowCaseValue[] } | undefined)?.caseValues)} → ${item.edge.targetNodeID}`)
+        .map(item => `${branchLabel((item.edge.data as { caseValues?: MicroflowCaseValue[] } | undefined)?.caseValues, objectKind)} → ${item.edge.targetNodeID}`)
         .join(" · ") || "分支未配置",
       kind: "branch",
     },
@@ -113,7 +114,7 @@ export function deriveDecisionNodeInline(input: DeriveNodeInlineInput): Microflo
           const edge = item.edge as MicroflowWorkflowEdgeJSON;
           const data = (edge.data ?? {}) as Record<string, unknown>;
           const customLabel = typeof data.label === "string" ? data.label : "";
-          const fallback = branchLabel((data.caseValues as MicroflowCaseValue[] | undefined));
+          const fallback = branchLabel((data.caseValues as MicroflowCaseValue[] | undefined), objectKind);
           return {
             id: String(data.flowId ?? edge.id ?? item.index),
             label: fallback,

@@ -7,7 +7,8 @@ import type {
   MicroflowSchema,
   MicroflowSequenceFlow,
 } from "../types";
-import { caseValueIdentity, createBooleanCaseValue, createNoCaseValue, getCaseDisplayLabel } from "./case-utils";
+import { caseValueIdentity, createBooleanCaseValue, createNoCaseValue, getCaseDisplayLabel, objectTypeCaseIdentity } from "./case-utils";
+import { findObjectById } from "./object-utils";
 import { collectFlowsRecursive } from "./object-utils";
 
 function mapObjectCollection(
@@ -114,10 +115,12 @@ export function updateFlowLabel(schema: MicroflowSchema, flowId: string, label: 
 }
 
 export function getDecisionBranchConflicts(schema: MicroflowSchema, decisionObjectId: string): Array<{ key: string; flowIds: string[] }> {
+  const sourceObject = findObjectById(schema.objectCollection, decisionObjectId);
+  const identityOf = sourceObject?.kind === "inheritanceSplit" ? objectTypeCaseIdentity : caseValueIdentity;
   const byKey = new Map<string, string[]>();
   for (const flow of getDecisionOutgoingFlows(schema, decisionObjectId)) {
     for (const caseValue of flow.caseValues) {
-      const key = caseValueIdentity(caseValue);
+      const key = identityOf(caseValue);
       byKey.set(key, [...(byKey.get(key) ?? []), flow.id]);
     }
   }
