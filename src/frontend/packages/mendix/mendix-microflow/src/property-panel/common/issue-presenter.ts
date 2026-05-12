@@ -2,6 +2,7 @@ import type { MicroflowValidationIssue } from "../../schema";
 
 const ISSUE_MESSAGE_MAP: Record<string, string> = {
   MF_VARIABLE_NAME_REQUIRED: "Variable name is required.",
+  MF_VARIABLE_NAME_RESERVED: "Variable names cannot start with '$'.",
   MF_VARIABLE_NAME_SYSTEM_RESERVED: "Variable names cannot start with '$'.",
   MF_VARIABLE_NAME_INVALID: "Use letters, numbers, and underscores, and do not start with a number.",
   MF_VARIABLE_DUPLICATED: "Variable name already exists in current scope.",

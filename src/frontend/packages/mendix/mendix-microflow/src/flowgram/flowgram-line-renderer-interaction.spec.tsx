@@ -403,7 +403,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     );
 
     const label = screen.getByTestId("microflow-flowgram-line-label");
-    expect(label.textContent).toContain("true");
+    expect(label.textContent).toContain("True");
     expect(label.getAttribute("data-flow-id")).toBe("flow-decision-true");
   });
 });

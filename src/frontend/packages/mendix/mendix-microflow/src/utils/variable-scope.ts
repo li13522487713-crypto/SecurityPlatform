@@ -18,6 +18,10 @@ export interface VariableScopeContext {
   includeUnavailable?: boolean;
   includeSystem?: boolean;
   includeErrorContext?: boolean;
+  allowedTypeKinds?: MicroflowDataType["kind"][];
+  allowedTypes?: MicroflowDataType[];
+  readonlyOnly?: boolean;
+  writableOnly?: boolean;
 }
 
 interface RuntimeVariableScopeOptions {
@@ -25,6 +29,11 @@ interface RuntimeVariableScopeOptions {
   includeUnavailable?: boolean;
   includeSystem?: boolean;
   includeErrorContext?: boolean;
+  allowedTypeKinds?: MicroflowDataType["kind"][];
+  allowedTypes?: MicroflowDataType[];
+  readonlyOnly?: boolean;
+  writableOnly?: boolean;
+  collectionId?: string;
 }
 
 function normalizeName(name: string): string {
@@ -128,6 +137,11 @@ function queryFromContext(context?: VariableScopeContext): RuntimeVariableScopeO
     includeUnavailable: context?.includeUnavailable,
     includeSystem: context?.includeSystem,
     includeErrorContext: context?.includeErrorContext,
+    allowedTypeKinds: context?.allowedTypeKinds,
+    allowedTypes: context?.allowedTypes,
+    readonlyOnly: context?.readonlyOnly,
+    writableOnly: context?.writableOnly,
+    collectionId: context?.collectionId,
   };
 }
 

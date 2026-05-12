@@ -126,7 +126,7 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
         onDelete={() => props.onDeleteFlow?.(flow.id)}
       />
       <IssueSummaryBar issues={issues} onLocateField={handleLocateField} />
-      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
+      {tabs.length > 1 ? <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} /> : null}
       <div ref={panelBodyRef} style={{ padding: 14, display: "grid", gap: 12 }}>
         {activeTab === "properties" ? (
           <>

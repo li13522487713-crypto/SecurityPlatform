@@ -193,7 +193,23 @@ export function Field({
 
 export function getObjectTabs(object: MicroflowObject): MicroflowPropertyTabKey[] {
   if (object.kind === "actionActivity") {
-    return defaultMicroflowActionRegistry.find(item => item.kind === object.action.kind)?.propertyTabs ?? ["properties", "documentation", "errorHandling", "output", "advanced"];
+    switch (object.action.kind) {
+      case "createObject":
+      case "callMicroflow":
+        return ["properties", "output", "documentation"];
+      case "restCall":
+        return ["properties", "advanced", "output", "errorHandling", "documentation"];
+      case "retrieve":
+      case "changeMembers":
+      case "delete":
+      case "createList":
+      case "createVariable":
+      case "changeVariable":
+      case "aggregateList":
+        return ["properties", "documentation"];
+      default:
+        return defaultMicroflowActionRegistry.find(item => item.kind === object.action.kind)?.propertyTabs ?? ["properties", "documentation", "errorHandling", "output", "advanced"];
+    }
   }
   return defaultMicroflowObjectNodeRegistry.find(item => item.objectKind === object.kind)?.propertyTabs ?? ["properties", "documentation"];
 }

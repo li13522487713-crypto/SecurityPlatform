@@ -1,7 +1,7 @@
 import { Select, Typography } from "@douyinfe/semi-ui";
 import { useMemo } from "react";
-import { EMPTY_MICROFLOW_METADATA_CATALOG, useMicroflowMetadata } from "../../metadata";
-import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowVariableSymbol } from "../../schema";
+import { EMPTY_MICROFLOW_METADATA_CATALOG, type MicroflowMetadataCatalog, useMicroflowMetadata } from "../../metadata";
+import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowVariableIndex, MicroflowVariableSymbol } from "../../schema";
 import type { ContextVariableCandidate } from "../../inline-edit/shared/ContextVariablePicker";
 import {
   buildVariableIndex,
@@ -48,14 +48,19 @@ export function VariableSelector({
   collectionId,
   value,
   onChange,
+  metadata,
+  variableIndex,
   allowedTypes,
   allowedTypeKinds,
   includeMaybe = true,
+  includeUnavailable = false,
   includeSystem = true,
   includeErrorContext = true,
   includeReadonly = true,
+  readonlyOnly = false,
   writableOnly = false,
   variableFilter,
+  readonly = false,
   disabled,
   placeholder = "Select variable",
   scopeMode = "available",
@@ -69,14 +74,19 @@ export function VariableSelector({
   collectionId?: string;
   value?: string;
   onChange: (variableName?: string) => void;
+  metadata?: MicroflowMetadataCatalog;
+  variableIndex?: MicroflowVariableIndex;
   allowedTypes?: MicroflowDataType[];
   allowedTypeKinds?: MicroflowDataType["kind"][];
   includeMaybe?: boolean;
+  includeUnavailable?: boolean;
   includeSystem?: boolean;
   includeErrorContext?: boolean;
   includeReadonly?: boolean;
+  readonlyOnly?: boolean;
   writableOnly?: boolean;
   variableFilter?: (symbol: MicroflowVariableSymbol) => boolean;
+  readonly?: boolean;
   disabled?: boolean;
   placeholder?: string;
   scopeMode?: "available" | "index";
@@ -84,8 +94,12 @@ export function VariableSelector({
   inlineCandidates?: ContextVariableCandidate[];
 }) {
   const { catalog, loading, error, version } = useMicroflowMetadata();
-  const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
-  const variableIndex = useMemo(() => buildVariableIndex(schema, effectiveCatalog), [schema, effectiveCatalog, version]);
+  const effectiveCatalog = metadata ?? catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
+  const resolvedVariableIndex = useMemo(
+    () => variableIndex ?? buildVariableIndex(schema, effectiveCatalog),
+    [effectiveCatalog, schema, variableIndex, version],
+  );
+  const disabledState = Boolean(readonly || disabled);
   const variables = useMemo(() => {
     if (inlineCandidates?.length) {
       return inlineCandidates.map(candidate => ({
@@ -96,27 +110,31 @@ export function VariableSelector({
       } as MicroflowVariableSymbol));
     }
     const sourceVariables = scopeMode === "index"
-      ? getVariableSymbols(variableIndex)
+      ? getVariableSymbols(resolvedVariableIndex)
       : objectId
-        ? getAvailableVariablesAtField(schema, variableIndex, objectId, fieldPath, {
+        ? getAvailableVariablesAtField(schema, resolvedVariableIndex, objectId, fieldPath, {
       allowedTypeKinds,
       allowedTypes,
       collectionId,
       includeErrorContext,
       includeMaybe,
+      includeUnavailable,
       includeSystem,
+      readonlyOnly,
       writableOnly: writableOnly || !includeReadonly,
         })
         : [];
     return sourceVariables
+      .filter(symbol => includeUnavailable ? true : symbol.visibility !== "unavailable")
       .filter(symbol => includeSystem ? true : symbol.kind !== "system")
       .filter(symbol => includeErrorContext ? true : symbol.kind !== "errorContext" && symbol.kind !== "restResponse" && symbol.kind !== "soapFault")
       .filter(symbol => includeReadonly ? true : !symbol.readonly)
+      .filter(symbol => readonlyOnly ? symbol.readonly : true)
       .filter(symbol => writableOnly ? !symbol.readonly : true)
       .filter(symbol => !allowedTypeKinds?.length || allowedTypeKinds.includes(symbol.dataType.kind))
       .filter(symbol => !allowedTypes?.length || allowedTypes.some(type => type.kind === symbol.dataType.kind))
       .filter(symbol => variableFilter ? variableFilter(symbol) : true);
-  }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, inlineCandidates, objectId, schema, scopeMode, variableFilter, variableIndex, writableOnly]);
+  }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, includeUnavailable, inlineCandidates, objectId, readonlyOnly, resolvedVariableIndex, schema, scopeMode, variableFilter, writableOnly]);
   const recentVariables = useMemo(() => readRecentVariables(), [value, variables.length]);
   const orderedVariables = useMemo(() => {
     if (!variables.length) {
@@ -139,10 +157,10 @@ export function VariableSelector({
     });
   }, [recentVariables, variables]);
   const current = value
-    ? scopeMode === "index"
-      ? variables.find(symbol => symbol.name === value)
+      ? scopeMode === "index"
+        ? variables.find(symbol => symbol.name === value)
       : objectId
-        ? resolveVariableReferenceFromIndex(schema, variableIndex, { objectId, actionId, fieldPath, collectionId }, value)
+        ? resolveVariableReferenceFromIndex(schema, resolvedVariableIndex, { objectId, actionId, fieldPath, collectionId }, value)
         : null
     : null;
   const currentVisible = !value || Boolean(current);
@@ -156,7 +174,7 @@ export function VariableSelector({
     <div style={{ display: "grid", gap: 4, width: "100%" }}>
       <Select
         value={value}
-        disabled={disabled || !objectId}
+        disabled={disabledState || !objectId}
         placeholder={placeholder}
         filter
         showClear

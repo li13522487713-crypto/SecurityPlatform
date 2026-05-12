@@ -6441,7 +6441,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           onCanvasBlankClick={() => {
             setCanvasNodeContextMenu(undefined);
             setCanvasBlankContextMenu(undefined);
-            openNodePanel();
+            openPropertiesPanel();
             if (isDesignSchema(schema)) {
               commitSchema({
                 ...schema,

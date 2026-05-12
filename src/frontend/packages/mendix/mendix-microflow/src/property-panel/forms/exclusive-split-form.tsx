@@ -80,7 +80,7 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
   }
   const outgoing = collectFlowsRecursive(props.schema).filter(flow => flow.originObjectId === object.id);
   const branchSummary = outgoing
-    .map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(caseValue => caseValue.kind === "boolean" ? String(caseValue.value) : caseValue.kind === "enumeration" ? caseValue.value : caseValue.kind).join(", ") || "pending" : flow.kind}${flow.editor.label ? ` | ${flow.editor.label}` : ""}`)
+    .map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(caseValueLabel).join(", ") || "pending" : flow.kind}${flow.editor.label ? ` | ${flow.editor.label}` : ""}`)
     .join("\n");
   const booleanCases = outgoing
     .filter(flow => flow.kind === "sequence")

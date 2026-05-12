@@ -1,82 +1,90 @@
 import { describe, expect, it, vi } from "vitest";
-import { getObjectTabLabels, getObjectTabs } from "./panel-shared";
 
 vi.mock("@douyinfe/semi-ui", () => ({
-  Button: () => null,
-  Space: ({ children }: any) => children ?? null,
-  Tabs: {
-    TabPane: () => null,
-  },
-  Tooltip: ({ children }: any) => children ?? null,
+  Button: "button",
+  Space: "div",
+  Tabs: { TabPane: "div" },
+  Tooltip: "div",
   Typography: {
-    Text: ({ children }: any) => children ?? null,
-    Title: ({ children }: any) => children ?? null,
+    Text: "span",
+    Title: "h6",
   },
 }));
 
 vi.mock("@douyinfe/semi-icons", () => ({
-  IconClose: () => null,
-  IconCopy: () => null,
-  IconDelete: () => null,
+  IconClose: "span",
+  IconCopy: "span",
+  IconDelete: "span",
 }));
 
-function objectNode(kind: string): any {
-  return {
-    id: `${kind}-1`,
-    kind,
-    officialType: "Microflows$Object",
-    caption: kind,
-    documentation: "",
-    editor: {},
-    relativeMiddlePoint: { x: 0, y: 0 },
-    size: { width: 120, height: 80 },
-    ports: [],
-  };
-}
+import type { MicroflowObject } from "../schema";
+import { getObjectTabs } from "./panel-shared";
 
-function actionNode(actionKind: string): any {
-  return {
-    ...objectNode("actionActivity"),
-    officialType: "Microflows$ActionActivity",
-    action: {
-      id: `${actionKind}-action-1`,
-      kind: actionKind,
-      officialType: `Microflows$${actionKind}`,
-      caption: actionKind,
-      errorHandlingType: "rollback",
+function eventObject(kind: "startEvent" | "endEvent"): MicroflowObject {
+  if (kind === "startEvent") {
+    return {
+      id: "start-1",
+      stableId: "start-1",
+      kind: "startEvent",
+      officialType: "Microflows$StartEvent",
+      caption: "Start",
       documentation: "",
-      editor: { category: "object", iconKey: actionKind, availability: "supported" },
+      editor: {
+        position: { x: 0, y: 0 },
+        size: { width: 124, height: 70 },
+      },
+    } as unknown as MicroflowObject;
+  }
+  return {
+    id: "end-1",
+    stableId: "end-1",
+    kind: "endEvent",
+    officialType: "Microflows$EndEvent",
+    caption: "End",
+    documentation: "",
+    editor: {
+      position: { x: 0, y: 0 },
+      size: { width: 124, height: 70 },
     },
-  };
+  } as unknown as MicroflowObject;
 }
 
-describe("panel shared tab mapping", () => {
-  it("maps simple object nodes to compact tabs", () => {
-    expect(getObjectTabs(objectNode("startEvent"))).toEqual(["properties"]);
-    expect(getObjectTabs(objectNode("annotation"))).toEqual(["properties"]);
-    expect(getObjectTabs(objectNode("exclusiveMerge"))).toEqual(["documentation"]);
+function actionObject(actionKind: string): MicroflowObject {
+  return {
+    id: `action-${actionKind}`,
+    stableId: `action-${actionKind}`,
+    kind: "actionActivity",
+    officialType: "Microflows$ActionActivity",
+    caption: actionKind,
+    documentation: "",
+    editor: {
+      position: { x: 0, y: 0 },
+      size: { width: 178, height: 76 },
+    },
+    action: {
+      id: `action-data-${actionKind}`,
+      stableId: `action-data-${actionKind}`,
+      kind: actionKind,
+      officialType: "Microflows$Action",
+    },
+  } as unknown as MicroflowObject;
+}
+
+describe("getObjectTabs", () => {
+  it("keeps Start Event as single-tab Parameters surface", () => {
+    expect(getObjectTabs(eventObject("startEvent"))).toEqual(["properties"]);
   });
 
-  it("maps action complexity to tab counts", () => {
-    expect(getObjectTabs(actionNode("createObject"))).toEqual(["properties", "output", "documentation"]);
-    expect(getObjectTabs(actionNode("callMicroflow"))).toEqual(["properties", "output", "documentation"]);
-    expect(getObjectTabs(actionNode("restCall"))).toEqual(["properties", "advanced", "output", "errorHandling", "documentation"]);
+  it("maps Create Object to 3 tabs", () => {
+    expect(getObjectTabs(actionObject("createObject"))).toEqual(["properties", "output", "documentation"]);
   });
 
-  it("uses mendix-style labels for key tabs", () => {
-    expect(getObjectTabLabels(objectNode("startEvent"))).toEqual({ properties: "Parameters" });
-    expect(getObjectTabLabels(objectNode("exclusiveSplit"))).toEqual({ properties: "Cases", documentation: "Documentation" });
-    expect(getObjectTabLabels(actionNode("createObject"))).toEqual({
-      properties: "Configuration",
-      output: "Input / Output",
-      documentation: "Documentation",
-    });
-    expect(getObjectTabLabels(actionNode("restCall"))).toEqual({
-      properties: "General",
-      advanced: "Request",
-      output: "Response",
-      errorHandling: "Authentication",
-      documentation: "Documentation",
-    });
+  it("maps Call REST to 5 tabs", () => {
+    expect(getObjectTabs(actionObject("restCall"))).toEqual(["properties", "advanced", "output", "errorHandling", "documentation"]);
+  });
+
+  it("maps Retrieve and Change Variable to 2 tabs", () => {
+    expect(getObjectTabs(actionObject("retrieve"))).toEqual(["properties", "documentation"]);
+    expect(getObjectTabs(actionObject("changeVariable"))).toEqual(["properties", "documentation"]);
   });
 });

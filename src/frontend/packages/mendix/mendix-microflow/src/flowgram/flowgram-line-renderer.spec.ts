@@ -28,7 +28,7 @@ describe("FlowGramMicroflowLineRenderer helpers", () => {
     expect(lineLabelFromEdgeData(edgeData({
       edgeKind: "decisionCondition",
       caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }],
-    }))).toBe("true");
+    }))).toBe("True");
     expect(lineLabelFromEdgeData(edgeData({
       edgeKind: "decisionCondition",
       caseValues: [{ kind: "fallback", officialType: "Microflows$NoCase" }],

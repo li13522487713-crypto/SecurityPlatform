@@ -79,7 +79,7 @@ export function lineLabelFromEdgeData(data: FlowGramMicroflowEdgeData): string {
     return data.label || "";
   }
   if (firstCase.kind === "boolean") {
-    return String(firstCase.value);
+    return firstCase.value ? "True" : "False";
   }
   if (firstCase.kind === "fallback") {
     if (data.edgeKind === "objectTypeCondition") {

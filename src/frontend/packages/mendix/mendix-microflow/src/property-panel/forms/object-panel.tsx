@@ -181,7 +181,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         onDuplicate={() => props.onDuplicateObject?.(object.id)}
       />
       <IssueSummaryBar issues={issues} onLocateField={handleLocateField} />
-      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} labels={tabLabels} />
+      {tabs.length > 1 ? <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} labels={tabLabels} /> : null}
       <div ref={panelBodyRef} style={{ padding: 14, display: "grid", gap: 12 }}>
         {activeTab === "properties" ? (
           registered ? (
