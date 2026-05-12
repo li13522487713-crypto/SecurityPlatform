@@ -759,7 +759,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const viewportPanButtonRef = useRef<number | null>(null);
   const viewportPanMovedRef = useRef(false);
   const suppressNextContextMenuRef = useRef(false);
-  const suppressNextNodeClickRef = useRef(false);
+  const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const userViewportPanningRef = useRef(false);
   const lastSyncedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   propsRef.current = props;
@@ -941,12 +941,14 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       }
       if (event.type === "onDragStart") {
         draggingRef.current = true;
-        suppressNextNodeClickRef.current = true;
+        const nativeEvent = (event as unknown as { originalEvent?: MouseEvent }).originalEvent;
+        if (nativeEvent) {
+          dragStartPosRef.current = { x: nativeEvent.clientX, y: nativeEvent.clientY };
+        }
         return;
       }
       if (event.type === "onDragEnd") {
         draggingRef.current = false;
-        suppressNextNodeClickRef.current = true;
         const selectedIds = (selectService.selection ?? [])
           .map(selection => selection?.id)
           .filter((id): id is string => typeof id === "string" && id.length > 0);
@@ -1029,10 +1031,34 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     window.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("keyup", onKeyUp, true);
     window.addEventListener("blur", onWindowBlur);
+
+    const onFitView = () => {
+      fitViewportToWorkflow();
+    };
+    const onCenterView = () => {
+      centerViewportToWorkflow();
+    };
+    const onZoom = (e: Event) => {
+      const detail = (e as CustomEvent<{ delta?: number; zoom?: number }>).detail ?? {};
+      if (detail.zoom !== undefined) {
+        applyViewportZoomFromCanvasCenter(detail.zoom);
+      } else if (detail.delta !== undefined) {
+        const v = propsRef.current.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+        applyViewportZoomFromCanvasCenter(Math.max(0.2, Math.min(2, v.zoom * (1 + detail.delta))));
+      }
+    };
+
+    window.addEventListener("atlas:microflow-flowgram-fit-view", onFitView);
+    window.addEventListener("atlas:microflow-flowgram-center-view", onCenterView);
+    window.addEventListener("atlas:microflow-flowgram-zoom", onZoom);
+
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
       window.removeEventListener("blur", onWindowBlur);
+      window.removeEventListener("atlas:microflow-flowgram-fit-view", onFitView);
+      window.removeEventListener("atlas:microflow-flowgram-center-view", onCenterView);
+      window.removeEventListener("atlas:microflow-flowgram-zoom", onZoom);
     };
   }, []);
 
@@ -1215,10 +1241,16 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
     if (selection) {
       props.onSelectionChange(selection);
-      if (suppressNextNodeClickRef.current) {
-        suppressNextNodeClickRef.current = false;
-        return;
+      if (dragStartPosRef.current) {
+        const dx = event.clientX - dragStartPosRef.current.x;
+        const dy = event.clientY - dragStartPosRef.current.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        dragStartPosRef.current = null;
+        if (distance > 3) {
+          return;
+        }
       }
+      dragStartPosRef.current = null;
       props.onNodeClickChange?.(selection);
     }
   };
@@ -1559,7 +1591,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         }
       }}
       onClickCapture={handleClickCapture}
-      onDoubleClick={handleDoubleClick}
+      onDoubleClickCapture={handleDoubleClick}
       onMouseDownCapture={handleMouseDown}
       onMouseUpCapture={handlePointerFallbackDrop}
       onContextMenuCapture={handleContextMenu}
@@ -1591,7 +1623,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         />
       ) : null}
       {showBuiltInToolbar ? (
-        <div className="microflow-flowgram-canvas-controls">
+        <div className="microflow-flowgram-canvas-controls" onClickCapture={e => e.stopPropagation()}>
           <FlowGramMicroflowToolbar
             microflowComplexity={microflowComplexity}
             canUndo={props.canUndo}

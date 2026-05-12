@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
-import { Badge, Button, Card, Checkbox, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Badge, Button, Card, Checkbox, Divider, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
   IconClose,
@@ -7,6 +7,10 @@ import {
   IconDelete,
   IconDownloadStroked,
   IconExpand,
+  IconGridRectangle,
+  IconHandle,
+  IconMapPin,
+  IconMinus,
   IconPlus,
   IconPlay,
   IconRefresh,
@@ -719,6 +723,8 @@ export interface MicroflowEditorHandle {
   toggleFullscreen: () => void;
   toggleFocusMode: () => void;
   toggleMinimap: () => void;
+  /** Toggle canvas grid visibility. */
+  toggleGrid: () => void;
   exportAsImage: () => Promise<void>;
   resetLayout: () => void;
   getStatus: () => MicroflowEditorStatusSnapshot;
@@ -748,6 +754,10 @@ export interface MicroflowEditorStatusSnapshot {
   zoomPercent: number;
   /** Native canvas pan tool; false when not supported or off. */
   canvasPanToolActive: boolean;
+  /** Whether the canvas grid is currently visible. */
+  gridEnabled: boolean;
+  /** Whether the minimap is currently visible. */
+  miniMapVisible: boolean;
   hasRunSession: boolean;
   fullscreen: boolean;
   activeBottomTab: MicroflowWorkbenchBottomTab;
@@ -2505,6 +2515,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     keyword: "",
   });
   const [nodeViewModes, setNodeViewModes] = useState<Record<string, MicroflowNodeViewMode>>({});
+  const [propertiesDialogOpen, setPropertiesDialogOpen] = useState(false);
+  const [propertiesDialogObjectId, setPropertiesDialogObjectId] = useState<string | undefined>(undefined);
   const onValidationStateChangeRef = useRef(props.onValidationStateChange);
   const onSchemaChangeRef = useRef(props.onSchemaChange);
 
@@ -2706,6 +2718,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       usageConsumerHighlight: nodeData.usageConsumerHighlight,
     } as FlowGramMicroflowNodeData;
   }, [issues, nodeViewModes, runtimeTraceByObjectId, schema, selectedDesignNode, selectedObject]);
+  useEffect(() => {
+    if (!selectedObject || !rightOpen) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      const panel = document.querySelector('[data-testid="microflow-property-panel"]');
+      const input = panel?.querySelector('input, textarea') as HTMLElement | undefined;
+      input?.focus();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [schema.editor.selection.objectId, rightOpen]);
   const activeMicroflowId = schema.id;
   const saveBlockers = issues.filter(issue => issue.blockSave && issue.severity === "error");
   const publishBlockers = issues.filter(issue => issue.blockPublish && issue.severity === "error");
@@ -2829,21 +2852,43 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, [activeMicroflowId, issues, lastValidatedAt, validationStatus]);
 
   useEffect(() => {
-    if (!canvasNodeContextMenu && !canvasBlankContextMenu && !quickInsertState) {
+    if (!canvasNodeContextMenu) {
       return undefined;
     }
-    const close = () => {
-      setCanvasNodeContextMenu(undefined);
-      setCanvasBlankContextMenu(undefined);
-      setQuickInsertState(undefined);
-    };
-    document.addEventListener("click", close);
+    const close = () => setCanvasNodeContextMenu(undefined);
+    document.addEventListener("pointerdown", close);
     window.addEventListener("blur", close);
     return () => {
-      document.removeEventListener("click", close);
+      document.removeEventListener("pointerdown", close);
       window.removeEventListener("blur", close);
     };
-  }, [canvasBlankContextMenu, canvasNodeContextMenu, quickInsertState]);
+  }, [canvasNodeContextMenu]);
+
+  useEffect(() => {
+    if (!canvasBlankContextMenu) {
+      return undefined;
+    }
+    const close = () => setCanvasBlankContextMenu(undefined);
+    document.addEventListener("pointerdown", close);
+    window.addEventListener("blur", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      window.removeEventListener("blur", close);
+    };
+  }, [canvasBlankContextMenu]);
+
+  useEffect(() => {
+    if (!quickInsertState) {
+      return undefined;
+    }
+    const close = () => setQuickInsertState(undefined);
+    document.addEventListener("pointerdown", close);
+    window.addEventListener("blur", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      window.removeEventListener("blur", close);
+    };
+  }, [quickInsertState]);
 
   const refreshHistoryState = () => setHistoryState(historyManager.getState());
 
@@ -5566,6 +5611,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       debugSessionHydrated: Boolean(activeDebugSession?.lastUpdatedAt),
       degradedRunSession: Boolean(currentRunSession && currentRunSession.hasHydratedTrace === false),
       canvasPanToolActive,
+      gridEnabled: schema.editor.gridEnabled !== false,
+      miniMapVisible: schema.editor.showMiniMap === true,
       toolboxOpen: leftOpen,
       toolboxReady: toolboxRuntimeState.ready,
       toolboxItemCount: toolboxRuntimeState.totalItemCount,
@@ -5573,7 +5620,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       toolboxLastError,
       layout: layoutState,
     };
-  }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, canvasPanToolActive, complexitySummary, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, leftOpen, runSession, running, saving, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, toolboxLastError, toolboxRuntimeState.filteredItemCount, toolboxRuntimeState.ready, toolboxRuntimeState.totalItemCount, validationStatus]);
+  }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, canvasPanToolActive, complexitySummary, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, leftOpen, runSession, running, saving, schema.editor.gridEnabled, schema.editor.showMiniMap, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, toolboxLastError, toolboxRuntimeState.filteredItemCount, toolboxRuntimeState.ready, toolboxRuntimeState.totalItemCount, validationStatus]);
 
   useEffect(() => {
     props.onLayoutStateChange?.(layoutState);
@@ -5824,6 +5871,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         { ...schema, editor: { ...schema.editor, showMiniMap: next } },
         "bulkUpdate",
         { historyLabel: "Toggle minimap", skipValidate: true, preserveSelection: true, source: "flowgram" }
+      );
+    },
+    toggleGrid: () => {
+      const next = !(schema.editor.gridEnabled !== false);
+      commitSchema(
+        { ...schema, editor: { ...schema.editor, gridEnabled: next } },
+        "bulkUpdate",
+        { historyLabel: "Toggle grid", skipValidate: true, preserveSelection: true, source: "flowgram" }
       );
     },
     exportAsImage: handleExportAsImage,
@@ -6176,6 +6231,143 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           >
             <Button data-testid="microflow-editor-more" aria-label={labels.more} icon={<IconMore />} theme="borderless">{labels.more}</Button>
           </Dropdown>
+
+          {/* 画布控制 */}
+          <Divider layout="vertical" style={{ height: 20, margin: "0 4px" }} />
+
+          <Tooltip content="缩小">
+            <Button
+              data-testid="microflow-editor-zoom-out"
+              aria-label="Zoom out"
+              icon={<IconMinus />}
+              size="small"
+              onClick={() => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-zoom", { detail: { delta: -0.1 } }))}
+            />
+          </Tooltip>
+          <Dropdown
+            trigger="click"
+            position="bottom"
+            render={
+              <Dropdown.Menu>
+                {[25, 50, 75, 100, 125, 150, 200].map(level => (
+                  <Dropdown.Item
+                    key={level}
+                    active={Math.abs((schema.editor.viewport?.zoom ?? schema.editor.zoom ?? 1) * 100 - level) < 1}
+                    onClick={() => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-zoom", { detail: { zoom: level / 100 } }))}
+                  >
+                    {level}%
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            }
+          >
+            <Tooltip content="重置缩放">
+              <Button
+                data-testid="microflow-editor-zoom-level"
+                size="small"
+                style={{ minWidth: 52 }}
+              >
+                {Math.round((schema.editor.viewport?.zoom ?? schema.editor.zoom ?? 1) * 100)}%
+              </Button>
+            </Tooltip>
+          </Dropdown>
+          <Tooltip content="放大">
+            <Button
+              data-testid="microflow-editor-zoom-in"
+              aria-label="Zoom in"
+              icon={<IconPlus />}
+              size="small"
+              onClick={() => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-zoom", { detail: { delta: 0.1 } }))}
+            />
+          </Tooltip>
+          <Tooltip content="适应画布">
+            <Button
+              data-testid="microflow-editor-fit-view"
+              aria-label="Fit View"
+              icon={<IconRefresh />}
+              size="small"
+              onClick={() => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-fit-view"))}
+            />
+          </Tooltip>
+          <Tooltip content="画布居中">
+            <Button
+              data-testid="microflow-editor-center-view"
+              aria-label="Center view"
+              icon={<IconMapPin />}
+              size="small"
+              onClick={() => window.dispatchEvent(new CustomEvent("atlas:microflow-flowgram-center-view"))}
+            />
+          </Tooltip>
+
+          <Divider layout="vertical" style={{ height: 20, margin: "0 4px" }} />
+
+          <Tooltip content="平移工具">
+            <Button
+              data-testid="microflow-editor-pan-tool"
+              aria-label="Pan tool"
+              icon={<IconHandle />}
+              size="small"
+              theme={canvasPanToolActive ? "solid" : "light"}
+              onClick={() => setCanvasPanToolActive(value => !value)}
+            />
+          </Tooltip>
+          <Tooltip content={schema.editor.gridEnabled !== false ? "隐藏网格" : "显示网格"}>
+            <Button
+              data-testid="microflow-editor-toggle-grid"
+              aria-label="Toggle grid"
+              icon={<IconGridRectangle />}
+              size="small"
+              theme={schema.editor.gridEnabled !== false ? "solid" : "light"}
+              onClick={() => {
+                const next = !(schema.editor.gridEnabled !== false);
+                commitSchema(
+                  { ...schema, editor: { ...schema.editor, gridEnabled: next } },
+                  "bulkUpdate",
+                  { historyLabel: "Toggle grid", skipValidate: true, preserveSelection: true, source: "flowgram" }
+                );
+              }}
+            />
+          </Tooltip>
+          <Tooltip content={schema.editor.showMiniMap === true ? "隐藏小地图" : "显示小地图"}>
+            <Button
+              data-testid="microflow-editor-toggle-minimap"
+              aria-label="Toggle minimap"
+              icon={<IconMapPin />}
+              size="small"
+              theme={schema.editor.showMiniMap === true ? "solid" : "light"}
+              onClick={() => {
+                const next = !schema.editor.showMiniMap;
+                commitSchema(
+                  { ...schema, editor: { ...schema.editor, showMiniMap: next } },
+                  "bulkUpdate",
+                  { historyLabel: "Toggle minimap", skipValidate: true, preserveSelection: true, source: "flowgram" }
+                );
+              }}
+            />
+          </Tooltip>
+
+          <Divider layout="vertical" style={{ height: 20, margin: "0 4px" }} />
+
+          {complexitySummary.totalElements > 0 ? (
+            <Tag
+              size="small"
+              color={complexitySummary.level === "error" ? "red" : complexitySummary.level === "warning" ? "orange" : "green"}
+              style={{ cursor: bottomTab === "problems" ? undefined : "pointer" }}
+              onClick={() => {
+                if (AUXILIARY_PANELS_ENABLED) {
+                  setBottomDockMode("peek");
+                  setBottomTab("problems");
+                }
+              }}
+            >
+              {complexitySummary.level === "error"
+                ? `✕ ${complexitySummary.totalElements} / ${complexitySummary.recommendedMaxNodes}`
+                : complexitySummary.level === "warning"
+                  ? `⚠ ${complexitySummary.totalElements} / ${complexitySummary.recommendedMaxNodes}`
+                  : `✓ ${complexitySummary.totalElements}`}
+            </Tag>
+          ) : null}
+
             </>
           )}
           {props.toolbarSuffix}
@@ -6251,6 +6443,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             if (!targetNode) {
               return;
             }
+            setPropertiesDialogObjectId(selection.objectId);
+            setPropertiesDialogOpen(true);
             openPropertiesPanel();
             applyPatch({
               selectedObjectId: selection.objectId,
@@ -6348,7 +6542,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           } : undefined}
           canvasPanToolActive={canvasPanToolActive}
           onCanvasPanToolChange={setCanvasPanToolActive}
-          showBuiltInToolbar={toolbarMode === "internal"}
+          showBuiltInToolbar={false}
         />
         </div>
         {quickInsertState ? (
@@ -6356,8 +6550,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             data-testid="microflow-quick-insert-panel"
             style={{
               position: "fixed",
-              left: Math.min(quickInsertState.x, window.innerWidth - 320),
-              top: Math.min(quickInsertState.y, window.innerHeight - 400),
+              left: Math.max(8, Math.min(quickInsertState.x, typeof window !== "undefined" ? window.innerWidth - 300 - 8 : quickInsertState.x)),
+              top: Math.max(8, Math.min(quickInsertState.y, typeof window !== "undefined" ? window.innerHeight - 380 - 8 : quickInsertState.y)),
               zIndex: 1300,
               width: 300,
               maxHeight: 380,
@@ -7177,6 +7371,20 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         onRunAllSamples={handleRunAllTestSamples}
         onRun={handleExecuteTestRun}
       />
+      <Modal
+        visible={propertiesDialogOpen}
+        title={selectedObject ? selectedObject.displayName || selectedObject.name : "Properties"}
+        width={600}
+        footer={null}
+        onCancel={() => setPropertiesDialogOpen(false)}
+        onConfirm={() => setPropertiesDialogOpen(false)}
+      >
+        <div style={{ textAlign: "center", padding: "24px 0" }}>
+          <Text type="tertiary" style={{ fontSize: 14 }}>
+            属性面板已打开，请在右侧面板中编辑节点属性。
+          </Text>
+        </div>
+      </Modal>
     </div>
   );
 }
