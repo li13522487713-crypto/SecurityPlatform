@@ -1,6 +1,6 @@
 import { Button, Input, Select, Space, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
-import type { MicroflowCaseValue } from "../../schema/types";
+import type { MicroflowCaseValue, MicroflowSequenceFlow } from "../../schema/types";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
@@ -34,6 +34,30 @@ function caseValueLabel(caseValue: MicroflowCaseValue): string {
   return caseValue.kind;
 }
 
+type BooleanCaseSelection = "true" | "false" | "else";
+
+function readBooleanCaseSelection(flow: MicroflowSequenceFlow): BooleanCaseSelection {
+  const hasTrue = flow.caseValues.some(caseValue => caseValue.kind === "boolean" && caseValue.value === true);
+  if (hasTrue) {
+    return "true";
+  }
+  const hasFalse = flow.caseValues.some(caseValue => caseValue.kind === "boolean" && caseValue.value === false);
+  if (hasFalse) {
+    return "false";
+  }
+  return "else";
+}
+
+function toBooleanCaseValues(selection: BooleanCaseSelection): MicroflowCaseValue[] {
+  if (selection === "true") {
+    return [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }];
+  }
+  if (selection === "false") {
+    return [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: false, persistedValue: "false" }];
+  }
+  return [{ kind: "fallback", officialType: "Microflows$NoCase" }];
+}
+
 function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
   return (
     <Tooltip content={disabledReason || enabledHint}>
@@ -65,6 +89,7 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
   const hasTrue = booleanCases.some(caseValue => caseValue.value);
   const hasFalse = booleanCases.some(caseValue => !caseValue.value);
   const conflicts = getDecisionBranchConflicts(props.schema, object.id);
+  const sequenceOutgoing = outgoing.filter((flow): flow is MicroflowSequenceFlow => flow.kind === "sequence");
   return (
     <>
       <Field label="Decision Type">
@@ -173,17 +198,40 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
           </Field>
           <Field label="Case Branches">
             <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
-              {outgoing
-                .filter(flow => flow.kind === "sequence")
-                .map(flow => (
-                  <Tag key={flow.id} color="blue">
-                    {flow.caseValues.length
-                      ? flow.caseValues.map(caseValueLabel).join(" | ")
-                      : "Else"} → {flow.destinationObjectId}
+              {sequenceOutgoing.map((flow, index) => (
+                <div key={flow.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 160px", gap: 8, width: "100%", alignItems: "center" }}>
+                  <Tag color="blue">
+                    Branch {index + 1}: {flow.destinationObjectId}
                   </Tag>
-                ))}
-              {outgoing.filter(flow => flow.kind === "sequence").length === 0 ? (
+                  {object.splitCondition.resultType === "boolean" ? (
+                    <Select
+                      value={readBooleanCaseSelection(flow)}
+                      disabled={props.readonly || !props.onFlowChange}
+                      style={{ width: "100%" }}
+                      optionList={[
+                        { label: "True", value: "true" },
+                        { label: "False", value: "false" },
+                        { label: "Else", value: "else" },
+                      ]}
+                      onChange={nextValue => {
+                        const normalized = String(nextValue) as BooleanCaseSelection;
+                        props.onFlowChange?.(flow.id, { caseValues: toBooleanCaseValues(normalized) });
+                      }}
+                    />
+                  ) : (
+                    <Tag color="grey">
+                      {flow.caseValues.length
+                        ? flow.caseValues.map(caseValueLabel).join(" | ")
+                        : "Else"}
+                    </Tag>
+                  )}
+                </div>
+              ))}
+              {sequenceOutgoing.length === 0 ? (
                 <Tag color="grey">No case branches</Tag>
+              ) : null}
+              {object.splitCondition.resultType === "boolean" && !props.onFlowChange ? (
+                <Text type="warning" size="small">Case branch editing is unavailable in this context.</Text>
               ) : null}
             </Space>
           </Field>

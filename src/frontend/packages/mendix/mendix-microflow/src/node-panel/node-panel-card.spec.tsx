@@ -56,7 +56,7 @@ import {
   MICROFLOW_NODE_DND_TYPE,
   readMicroflowNodeDragPayload,
 } from "../node-registry";
-import { MicroflowNodeCard, MicroflowNodePanel, defaultMicroflowNodePanelLabels } from "./index";
+import { buildMendixToolboxSections, MicroflowNodeCard, MicroflowNodePanel, defaultMicroflowNodePanelLabels } from "./index";
 
 function registry(key: string) {
   const item = defaultMicroflowNodePanelRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key);
@@ -206,6 +206,28 @@ describe("MicroflowNodePanel", () => {
     );
 
     expect(getByText("Custom Log Message")).toBeTruthy();
+  });
+
+  it("keeps the fixed 8-section Mendix toolbox ordering", () => {
+    const sections = buildMendixToolboxSections(defaultMicroflowNodePanelRegistry, "");
+    expect(sections.slice(0, 8).map(section => section.key)).toEqual([
+      "object",
+      "list",
+      "action",
+      "variable",
+      "flow",
+      "input",
+      "event",
+      "documentation",
+    ]);
+  });
+
+  it("supports runtime-only filtering for supported nodes", () => {
+    const sections = buildMendixToolboxSections(defaultMicroflowNodePanelRegistry, "", "supported");
+    const entries = sections.flatMap(section => section.items);
+
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries.every(item => item.engineSupport?.level === "supported")).toBe(true);
   });
 });
 

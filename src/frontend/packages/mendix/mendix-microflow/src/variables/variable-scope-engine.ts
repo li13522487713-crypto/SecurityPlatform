@@ -177,19 +177,23 @@ function filterByOptions(symbols: MicroflowVariableSymbol[], options?: Microflow
 
 function normalizeSymbols(schema: MicroflowSchema, index: MicroflowVariableIndex, objectId: string, includeCurrentObject: boolean, options?: MicroflowVariableQueryOptions): MicroflowVariableSymbol[] {
   const ancestors = loopAncestorsForObject(schema, objectId);
-  const visible = getVariableSymbols(index)
-    .filter(symbol => isVariableVisibleAtObject(schema, symbol, objectId, includeCurrentObject))
+  const normalized = getVariableSymbols(index)
+    .map(symbol => {
+      const visibility = getVariableVisibilityAtObject(schema, index, symbol.name, objectId);
+      return {
+        ...symbol,
+        visibility,
+        maybeReason: visibility === "maybe" ? "Variable is not definitely assigned on every normal path to this object." : symbol.maybeReason,
+      };
+    })
+    .filter(symbol => options?.includeUnavailable || symbol.visibility !== "unavailable")
+    .filter(symbol => symbol.visibility === "unavailable" ? true : isVariableVisibleAtObject(schema, symbol, objectId, includeCurrentObject))
     .sort((left, right) => {
       const leftDepth = left.scope.loopObjectId ? ancestors.indexOf(left.scope.loopObjectId) : -1;
       const rightDepth = right.scope.loopObjectId ? ancestors.indexOf(right.scope.loopObjectId) : -1;
       return rightDepth - leftDepth;
-    })
-    .map(symbol => ({
-      ...symbol,
-      visibility: getVariableVisibilityAtObject(schema, index, symbol.name, objectId),
-      maybeReason: getVariableVisibilityAtObject(schema, index, symbol.name, objectId) === "maybe" ? "Variable is not definitely assigned on every normal path to this object." : symbol.maybeReason,
-    }));
-  return filterByOptions(visible, options);
+    });
+  return filterByOptions(normalized, options);
 }
 
 export function getVariablesBeforeObject(schema: MicroflowSchema, index: MicroflowVariableIndex, objectId: string, options?: MicroflowVariableQueryOptions): MicroflowVariableSymbol[];

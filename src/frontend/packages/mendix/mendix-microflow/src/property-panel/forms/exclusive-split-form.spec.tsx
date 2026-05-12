@@ -76,6 +76,38 @@ describe("ExclusiveSplitForm rule decision", () => {
     }));
   });
 
+  it("edits boolean case branches via onFlowChange", () => {
+    const onFlowChange = vi.fn();
+    render(
+      <ExclusiveSplitForm
+        props={basePropsWith({
+          onFlowChange,
+          flows: [
+            sequenceFlow("flow-true", [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }]),
+            sequenceFlow("flow-false", [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: false, persistedValue: "false" }]),
+          ],
+        })}
+        object={expressionDecision() as any}
+        issues={[] as any}
+        metadata={metadata() as any}
+        variableIndex={{ all: [] } as any}
+        patch={vi.fn()}
+      />,
+    );
+
+    const selectors = screen.getAllByRole("combobox");
+    const caseSelectors = selectors.slice(-2);
+    fireEvent.change(caseSelectors[0], { target: { value: "else" } });
+    fireEvent.change(caseSelectors[1], { target: { value: "true" } });
+
+    expect(onFlowChange).toHaveBeenCalledWith("flow-true", {
+      caseValues: [{ kind: "fallback", officialType: "Microflows$NoCase" }],
+    });
+    expect(onFlowChange).toHaveBeenCalledWith("flow-false", {
+      caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }],
+    });
+  });
+
   it("adds parameter mapping for rule decision", () => {
     const patch = vi.fn();
     render(
@@ -223,13 +255,34 @@ function metadata() {
 }
 
 function baseProps() {
+  return basePropsWith();
+}
+
+function basePropsWith(options?: { onFlowChange?: (...args: any[]) => void; flows?: unknown[] }) {
   return {
     readonly: false,
+    onFlowChange: options?.onFlowChange,
     schema: {
       objectCollection: { objects: [] },
-      flows: [],
+      flows: options?.flows ?? [],
       parameters: [],
     },
   };
 }
 
+function sequenceFlow(id: string, caseValues: unknown[]) {
+  return {
+    id,
+    stableId: id,
+    kind: "sequence",
+    officialType: "Microflows$SequenceFlow",
+    originObjectId: "decision-1",
+    destinationObjectId: `${id}-target`,
+    originConnectionIndex: 0,
+    destinationConnectionIndex: 0,
+    caseValues,
+    isErrorHandler: false,
+    line: { points: [] },
+    editor: { edgeKind: "decisionCondition" },
+  };
+}

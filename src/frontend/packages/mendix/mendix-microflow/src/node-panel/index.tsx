@@ -214,6 +214,26 @@ function isCategoryFilter(filterKey: MicroflowNodeFilterKey): filterKey is Micro
   return ["events", "inputs", "flowControl", "loops", "variables", "objects", "lists", "integration", "documentation", "other"].includes(filterKey);
 }
 
+function matchFilter(
+  item: MicroflowNodeRegistryItem,
+  filterKey: MicroflowNodeFilterKey,
+  favoriteSet: Set<string>,
+): boolean {
+  if (filterKey === "favorites") {
+    return favoriteSet.has(getMicroflowNodeRegistryKey(item));
+  }
+  if (filterKey === "enabled") {
+    return canDragRegistryItem(item);
+  }
+  if (filterKey === "supported") {
+    return item.engineSupport?.level === "supported";
+  }
+  if (isCategoryFilter(filterKey)) {
+    return categoryKeyFromEntry(item) === filterKey;
+  }
+  return true;
+}
+
 function categoryKeyFromEntry(entry: MicroflowNodeRegistryEntry): MicroflowNodePanelCategoryKey {
   if (entry.group === "Events" && entry.type !== "breakEvent" && entry.type !== "continueEvent") {
     return "events";
@@ -362,11 +382,14 @@ const mendixToolboxSections: MendixToolboxSection[] = [
   },
 ];
 
-function buildMendixToolboxSections(
+export function buildMendixToolboxSections(
   registry: MicroflowNodeRegistryItem[],
   keyword: string,
+  filterKey: MicroflowNodeFilterKey = "all",
+  favoriteNodeKeys: string[] = [],
 ): Array<MendixToolboxSection & { items: MicroflowNodeRegistryItem[] }> {
-  const searched = searchMicroflowNodes(keyword, registry);
+  const favoriteSet = new Set(favoriteNodeKeys);
+  const searched = searchMicroflowNodes(keyword, registry).filter(item => matchFilter(item, filterKey, favoriteSet));
   const curatedSections = mendixToolboxSections
     .map(section => ({
       ...section,
@@ -1048,6 +1071,7 @@ export function MicroflowNodePanel({
   );
   const [keyword, setKeyword] = useState("");
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
+  const [filterKey, setFilterKey] = useState<MicroflowNodeFilterKey>("all");
   const [expandedCategories, setExpandedCategories] = useState<string[]>(() => {
     const stored = readStoredStringList(nodePanelCategoryStorageKey, allSectionKeys);
     const allowed = new Set(allSectionKeys);
@@ -1056,7 +1080,10 @@ export function MicroflowNodePanel({
   });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>();
 
-  const grouped = useMemo(() => buildMendixToolboxSections(registry, debouncedKeyword), [debouncedKeyword, registry]);
+  const grouped = useMemo(
+    () => buildMendixToolboxSections(registry, debouncedKeyword, filterKey, favoriteNodeKeys),
+    [debouncedKeyword, favoriteNodeKeys, filterKey, registry],
+  );
   const totalItemCount = registry.length;
   const filteredItemCount = useMemo(
     () => grouped.reduce((sum, section) => sum + section.items.length, 0),
@@ -1141,16 +1168,13 @@ export function MicroflowNodePanel({
 
   return (
     <div data-testid="microflow-node-panel" style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr) auto", gap: 10 }}>
-      <div data-testid="microflow-node-panel-search">
-        <Input
-          className="microflow-node-search-input"
-          prefix={<IconSearch />}
-          value={keyword}
-          onChange={setKeyword}
-          placeholder={labels.searchPlaceholder}
-          showClear
-        />
-      </div>
+      <MicroflowNodeSearch
+        value={keyword}
+        onChange={setKeyword}
+        filterKey={filterKey}
+        onFilterChange={setFilterKey}
+        labels={labels}
+      />
       <div style={{ minHeight: 0, overflow: "auto", paddingRight: 2 }}>
         {grouped.length === 0 ? (
           <MicroflowNodePanelEmpty
