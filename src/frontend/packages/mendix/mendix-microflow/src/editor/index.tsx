@@ -35,10 +35,12 @@ import {
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
 import { buildDesignPropertyPanelModel, setDesignParameterAsReturnValue } from "../property-panel/design-protocol-model";
 import {
+  beginMicroflowNodePointerDrag,
   addMicroflowObjectFromDragPayload,
   createDragPayloadFromRegistryItem,
   createUniqueMicroflowObjectId,
   getMicroflowNodeRegistryKey,
+  MICROFLOW_NODE_DND_TYPE,
   microflowNodeRegistryByKey,
   objectKindFromRegistryItem,
   searchMicroflowNodes,
@@ -2450,6 +2452,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [canvasBlankContextMenu, setCanvasBlankContextMenu] = useState<{ x: number; y: number } | undefined>();
   const [quickInsertState, setQuickInsertState] = useState<QuickInsertState>();
   const [quickInsertQuery, setQuickInsertQuery] = useState("");
+  const quickInsertDraggingKeyRef = useRef<string>();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
   const runHistoryRequestSeqRef = useRef<Record<string, number>>({});
@@ -5390,10 +5393,65 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setFocusMode(false);
   }, []);
 
+  const openQuickInsertAtScreenPoint = useCallback((
+    point: { x: number; y: number },
+    source: QuickInsertState["source"] = "blank-canvas",
+  ) => {
+    const canvasPosition = projectScreenPointToCanvas(point);
+    openQuickInsert({
+      x: point.x,
+      y: point.y,
+      canvasPosition,
+      source,
+    });
+  }, [openQuickInsert, projectScreenPointToCanvas]);
+
   const closeQuickInsert = useCallback(() => {
     setQuickInsertState(undefined);
     setQuickInsertQuery("");
   }, []);
+
+  useEffect(() => {
+    if (!rightOpen) {
+      return;
+    }
+    if (schema.editor.selection.objectId || schema.editor.selection.flowId) {
+      return;
+    }
+    const fallbackObjectId = isDesignSchema(schema)
+      ? schema.workflow.nodes[0]?.id
+      : graph.nodes[0]?.objectId;
+    if (!fallbackObjectId) {
+      openNodePanel();
+      return;
+    }
+    if (isDesignSchema(schema)) {
+      commitSchema({
+        ...schema,
+        editor: {
+          ...schema.editor,
+          selection: {
+            ...schema.editor.selection,
+            objectId: fallbackObjectId,
+            flowId: undefined,
+            collectionId: undefined,
+            objectIds: [fallbackObjectId],
+            flowIds: [],
+            mode: "single",
+          },
+        },
+      }, "bulkUpdate", { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+      return;
+    }
+    applyPatch({
+      selectedObjectId: fallbackObjectId,
+      selectedFlowId: undefined,
+      selectedCollectionId: undefined,
+      selectedObjectIds: [fallbackObjectId],
+      selectedFlowIds: [],
+      selectionMode: "single",
+    }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+  }, [applyPatch, commitSchema, graph.nodes, openNodePanel, rightOpen, schema]);
 
   const toggleNodePanel = useCallback(() => {
     if (leftOpen) {
@@ -6042,6 +6100,53 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const errorCount = issues.filter(issue => issue.severity === "error").length;
   const warningCount = issues.filter(issue => issue.severity === "warning").length;
 
+  const renderNodePanel = (
+    panelTestId = "microflow-editor-right-node-panel",
+    onClosePanel: () => void = closeNodePanel,
+  ) => (
+    <div data-testid={panelTestId} style={propertyPaneStyle}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          padding: "0 0 8px",
+          marginBottom: 8,
+          borderBottom: "1px solid var(--semi-color-border, #e5e6eb)"
+        }}
+      >
+        <Space spacing={6}>
+          <IconMore />
+          <Text strong>{labels.nodePanel}</Text>
+          <Text type="tertiary" size="small" data-testid="microflow-toolbox-runtime-summary">
+            {toolboxRuntimeState.filteredItemCount}/{toolboxRuntimeState.totalItemCount}
+          </Text>
+        </Space>
+        <Button
+          aria-label="关闭节点面板"
+          size="small"
+          theme="borderless"
+          icon={<IconClose />}
+          onClick={onClosePanel}
+        />
+      </div>
+      <MicroflowNodePanel
+        favoriteNodeKeys={favoriteNodeKeys}
+        onFavoriteChange={keys => {
+          setFavoriteNodeKeys(keys);
+          saveFavoriteNodeKeys(keys);
+        }}
+        onStateChange={handleToolboxRuntimeStateChange}
+        onAddNode={(item, options) => handleAddNode(item, options)}
+        onInsertTemplate={handleInsertTemplate}
+        onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
+        labels={props.nodePanelLabels}
+        createContext={{ microflowId: schema.id, moduleId: schema.moduleId, metadataAvailable: Boolean(loadedMetadata), schemaLoaded: true, readonly: props.readonly }}
+      />
+    </div>
+  );
+
   return (
     <div
       ref={shellRef}
@@ -6090,7 +6195,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         }
       `}</style>
       <div style={bodyStyle}>
-        <div data-testid="microflow-canvas" style={{ minWidth: 0, minHeight: 0, display: "contents" }}>
+        <div data-testid="microflow-canvas" style={{ ...canvasStyle, minWidth: 0, minHeight: 0 }}>
         <FlowGramMicroflowNativeCanvas
           schema={schema}
           validationIssues={issues}
@@ -6167,13 +6272,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               selectedCollectionId: selection.collectionId,
             }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
           }}
-          onCanvasBlankDoubleClick={() => {
-            openQuickInsert({ kind: "blank-canvas" });
+          onCanvasBlankDoubleClick={point => {
+            openQuickInsertAtScreenPoint(point, "blank-canvas");
           }}
           onCanvasBlankClick={() => {
             setCanvasNodeContextMenu(undefined);
             setCanvasBlankContextMenu(undefined);
-            closePropertiesPanel();
+            openNodePanel();
             if (isDesignSchema(schema)) {
               commitSchema({
                 ...schema,
@@ -6320,8 +6425,39 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                           size="small"
                           theme="borderless"
                           type="tertiary"
-                          style={{ justifyContent: "flex-start", gap: 8 }}
+                          draggable
+                          style={{
+                            justifyContent: "flex-start",
+                            gap: 8,
+                            transition: "transform 150ms ease, box-shadow 150ms ease",
+                          }}
+                          onMouseDown={() => {
+                            beginMicroflowNodePointerDrag(createDragPayloadFromRegistryItem(item));
+                          }}
+                          onDragStart={event => {
+                            const payload = createDragPayloadFromRegistryItem(item);
+                            quickInsertDraggingKeyRef.current = key;
+                            event.dataTransfer.effectAllowed = "copy";
+                            event.dataTransfer.setData(MICROFLOW_NODE_DND_TYPE, JSON.stringify(payload));
+                            event.dataTransfer.setData("application/json", JSON.stringify(payload));
+                            event.dataTransfer.setData("text/plain", payload.registryKey);
+                            const target = event.currentTarget;
+                            target.style.transform = "translateY(-2px) scale(1.02)";
+                            target.style.boxShadow = "0 10px 20px rgba(31,35,41,0.14)";
+                          }}
+                          onDragEnd={event => {
+                            event.currentTarget.style.transform = "";
+                            event.currentTarget.style.boxShadow = "";
+                            window.setTimeout(() => {
+                              if (quickInsertDraggingKeyRef.current === key) {
+                                quickInsertDraggingKeyRef.current = undefined;
+                              }
+                            }, 40);
+                          }}
                           onClick={() => {
+                            if (quickInsertDraggingKeyRef.current === key) {
+                              return;
+                            }
                             const canvasPoint = quickInsertState.canvasPosition
                               ? { x: quickInsertState.canvasPosition.x, y: quickInsertState.canvasPosition.y }
                               : { x: quickInsertState.x, y: quickInsertState.y };
@@ -6579,49 +6715,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             transition: "width 250ms cubic-bezier(0.4, 0, 0.2, 1)"
           }}
         >
-          {leftOpen ? (
-            <div data-testid="microflow-editor-right-node-panel" style={propertyPaneStyle}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  padding: "0 0 8px",
-                  marginBottom: 8,
-                  borderBottom: "1px solid var(--semi-color-border, #e5e6eb)"
-                }}
-              >
-                <Space spacing={6}>
-                  <IconMore />
-                  <Text strong>{labels.nodePanel}</Text>
-                  <Text type="tertiary" size="small" data-testid="microflow-toolbox-runtime-summary">
-                    {toolboxRuntimeState.filteredItemCount}/{toolboxRuntimeState.totalItemCount}
-                  </Text>
-                </Space>
-                <Button
-                  aria-label="关闭节点面板"
-                  size="small"
-                  theme="borderless"
-                  icon={<IconClose />}
-                  onClick={closeNodePanel}
-                />
-              </div>
-              <MicroflowNodePanel
-                favoriteNodeKeys={favoriteNodeKeys}
-                onFavoriteChange={keys => {
-                  setFavoriteNodeKeys(keys);
-                  saveFavoriteNodeKeys(keys);
-                }}
-                onStateChange={handleToolboxRuntimeStateChange}
-                onAddNode={(item, options) => handleAddNode(item, options)}
-                onInsertTemplate={handleInsertTemplate}
-                onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
-                labels={props.nodePanelLabels}
-                createContext={{ microflowId: schema.id, moduleId: schema.moduleId, metadataAvailable: Boolean(loadedMetadata), schemaLoaded: true, readonly: props.readonly }}
-              />
-            </div>
-          ) : null}
+          {leftOpen ? renderNodePanel("microflow-editor-right-node-panel") : null}
           {rightOpen ? (
             (selectedObject || selectedFlow) ? (
             <div data-testid="microflow-property-panel" style={{ ...propertyPaneStyle, padding: 0 }}>
@@ -6785,41 +6879,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 />
               )}
             </div>
-            ) : (
-            <div data-testid="microflow-property-panel-empty" style={{ ...propertyPaneStyle, padding: 16 }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
-                <Text strong style={{ fontSize: 14 }}>属性面板</Text>
-                <Text type="tertiary" size="small" style={{ textAlign: "center" }}>
-                  选择画布上的节点或连线以查看和编辑属性
-                </Text>
-                <div style={{ width: "100%", marginTop: 16, padding: 12, borderRadius: 8, background: "var(--semi-color-fill-0, #f9f9f9)" }}>
-                  <Text size="small" type="secondary" style={{ display: "block", marginBottom: 8 }}>快捷操作：</Text>
-                  <Space vertical align="start" style={{ width: "100%" }}>
-                    <Button
-                      block
-                      size="small"
-                      theme="borderless"
-                      icon={<IconSearch />}
-                      onClick={focusNodeSearch}
-                    >
-                      搜索节点 (Ctrl/Cmd+G)
-                    </Button>
-                    <Button
-                      block
-                      size="small"
-                      theme="borderless"
-                      onClick={() => openQuickInsert({ kind: "blank-canvas" })}
-                    >
-                      快速添加节点
-                    </Button>
-                  </Space>
-                </div>
-                <Text type="tertiary" size="small" style={{ marginTop: 8, textAlign: "center" }}>
-                  {schema.displayName || schema.name} · {graph.nodes.length} 个节点
-                </Text>
-              </div>
-            </div>
-            )
+            ) : renderNodePanel("microflow-property-panel-fallback", closePropertiesPanel)
           ) : null}
         </div> : null}
       </div>

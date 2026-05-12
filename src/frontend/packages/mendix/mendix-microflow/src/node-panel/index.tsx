@@ -1097,6 +1097,17 @@ export function MicroflowNodePanel({
   }, [allSectionKeys, debouncedKeyword, expandedCategories]);
 
   useEffect(() => {
+    if (!debouncedKeyword.trim()) {
+      return;
+    }
+    if (grouped.length > 0) {
+      return;
+    }
+    // Keep the right-side toolbox non-empty in workbench mode.
+    setKeyword("");
+  }, [debouncedKeyword, grouped.length]);
+
+  useEffect(() => {
     if (!contextMenu) {
       return undefined;
     }

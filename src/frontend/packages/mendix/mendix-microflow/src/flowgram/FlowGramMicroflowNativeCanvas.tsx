@@ -111,7 +111,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
   onNodeClickChange?: (selection: FlowGramMicroflowSelection) => void;
   onNodeDoubleClick?: (selection: FlowGramMicroflowSelection) => void;
   onCanvasBlankClick?: (point?: { x: number; y: number }) => void;
-  onCanvasBlankDoubleClick?: () => void;
+  onCanvasBlankDoubleClick?: (point: { x: number; y: number }) => void;
   onNodeContextMenu?: (selection: FlowGramMicroflowSelection, point: { x: number; y: number }) => void;
   onNodeToolbarQuickAdd?: (objectId: string, point: { x: number; y: number }) => void;
   onDropRegistryItem?: (
@@ -1264,7 +1264,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     if (selection && selection.objectId) {
       props.onNodeDoubleClick?.(selection);
     } else {
-      props.onCanvasBlankDoubleClick?.();
+      props.onCanvasBlankDoubleClick?.({ x: event.clientX, y: event.clientY });
     }
   };
 
