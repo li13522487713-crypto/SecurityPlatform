@@ -5,14 +5,14 @@ using Atlas.WorkflowCore.Abstractions;
 namespace Atlas.Infrastructure.Events.Approval;
 
 /// <summary>
-/// 将审批领域事件桥接为 WorkflowCore 事件，驱动 WaitFor/ApprovalStep 继续执行。
+/// 将审批领域事件转换为 WorkflowCore 事件，驱动 WaitFor/ApprovalStep 继续执行。
 /// </summary>
-public sealed class ApprovalWorkflowBridgeEventHandler : IDomainEventHandler<ApprovalInstanceDomainEvent>
+public sealed class ApprovalWorkflowEventHandler : IDomainEventHandler<ApprovalInstanceDomainEvent>
 {
     private const string WorkflowApprovalEventName = "ApprovalDecision";
     private readonly IWorkflowHost _workflowHost;
 
-    public ApprovalWorkflowBridgeEventHandler(IWorkflowHost workflowHost)
+    public ApprovalWorkflowEventHandler(IWorkflowHost workflowHost)
     {
         _workflowHost = workflowHost;
     }

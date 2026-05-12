@@ -39,7 +39,7 @@ public static class AiCoreServiceRegistration
         services.AddScoped<IKnowledgeGraphProvider, LightweightKnowledgeGraphProvider>();
         services.AddScoped<IPromptGuard, PromptGuardService>();
         services.AddScoped<IPiiDetector, PiiDetectorService>();
-        services.AddScoped<IReranker, CrossEncoderRerankerAdapter>();
+        services.AddScoped<IReranker, CrossEncoderRerankerService>();
         services.AddScoped<IEvidenceScorer, RagEvidenceScorerService>();
         services.AddScoped<IAnswerSynthesizer, RagAnswerSynthesizerService>();
         services.AddScoped<IVerificationEngine, RagVerificationEngineService>();

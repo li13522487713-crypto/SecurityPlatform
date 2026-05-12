@@ -412,7 +412,7 @@ public sealed class DagExecutor
     /// </summary>
     public static CanvasSchema? ParseCanvas(string canvasJson)
     {
-        return WorkflowCanvasJsonBridge.TryParseCanvas(canvasJson, out var canvas)
+        return WorkflowCanvasJsonParser.TryParseCanvas(canvasJson, out var canvas)
             ? canvas
             : null;
     }

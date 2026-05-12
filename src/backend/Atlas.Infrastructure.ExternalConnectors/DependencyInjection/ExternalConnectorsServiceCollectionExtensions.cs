@@ -19,10 +19,8 @@ public static class ExternalConnectorsServiceCollectionExtensions
     /// <summary>
     /// 注册 ExternalConnectors 基础能力（Application/Infrastructure 端）。
     /// 调用方仍需：
-    /// 1. 注册 ISecretProtector 桥接实现（AppHost 中桥接到 DataProtectionService）；
-    /// 2. 注册 ILocalUserDirectory 桥接实现（AppHost 中桥接到 IUserAccountRepository）；
-    /// 3. 注册 IConnectorJwtIssuer 桥接实现（AppHost 中桥接到 JwtAuthTokenService）；
-    /// 4. 通过 AddWeComConnector / AddFeishuConnector 加挂 provider 实现 + HttpClientFactory 命名客户端。
+    /// 1. 注册 IConnectorJwtIssuer 实现（AppHost 中桥接到 JwtAuthTokenService）；
+    /// 2. 通过 AddWeComConnector / AddFeishuConnector 加挂 provider 实现 + HttpClientFactory 命名客户端。
     ///
     /// <paramref name="includeHostedServices"/> 控制是否在本进程内启用目录全量同步与回调重试两类后台 Job。
     /// AppHost 按部署职责决定是否开启，单宿主模式默认可开启；多实例部署需避免重复执行造成数据竞态。
@@ -34,6 +32,10 @@ public static class ExternalConnectorsServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddConnectorsCore();
+
+        services.TryAddScoped<ISecretProtector, SecretProtectorService>();
+        services.TryAddScoped<ILocalUserDirectory, LocalUserDirectoryService>();
+        services.TryAddSingleton<ITenantContextWriter, TenantContextWriterService>();
 
         services.TryAddScoped<IConnectorRuntimeOptionsAccessor, ConnectorRuntimeOptionsAccessor>();
 

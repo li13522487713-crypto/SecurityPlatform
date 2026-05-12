@@ -4,6 +4,7 @@ using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Runtime.Actions.Http;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.AppHost.Microflows.Infrastructure;
+using Atlas.Infrastructure.Services.Microflows;
 
 namespace Atlas.AppHost.Microflows.DependencyInjection;
 
@@ -19,8 +20,7 @@ public static class MicroflowBackendServiceCollectionExtensions
         configuration.GetSection("Microflow:Runtime:Rest").Bind(restOptions);
         services.AddSingleton(restOptions);
         services.AddScoped<IMicroflowRequestContextAccessor, HttpMicroflowRequestContextAccessor>();
-        // P0-9: AppHost 用真实 audit adapter 替换 Application 层默认的 NoOp。
-        services.AddScoped<IMicroflowAuditWriter, MicroflowAuditWriterAdapter>();
+        services.AddScoped<IMicroflowAuditWriter, MicroflowAuditWriterService>();
         services.AddScoped<MicroflowApiExceptionFilter>();
         services.AddScoped<MicroflowProductionGuardFilter>();
         services.AddScoped<MicroflowWorkspaceOwnershipFilter>();

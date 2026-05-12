@@ -173,14 +173,14 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
 
     public void InvalidateCache(string tenantId)
     {
-        HybridCacheSyncBridge.Run(_cache.RemoveByTagAsync(AtlasCacheTags.TenantConnectionTenant(tenantId)));
+        HybridCacheSyncHelper.Run(_cache.RemoveByTagAsync(AtlasCacheTags.TenantConnectionTenant(tenantId)));
     }
 
     public void InvalidateCache(string tenantId, long? tenantAppInstanceId)
     {
         if (tenantAppInstanceId.HasValue)
         {
-            HybridCacheSyncBridge.Run(
+            HybridCacheSyncHelper.Run(
                 _cache.RemoveByTagAsync(AtlasCacheTags.TenantConnectionApp(tenantId, tenantAppInstanceId.Value)));
             return;
         }

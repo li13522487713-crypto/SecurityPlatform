@@ -5,7 +5,7 @@ using Atlas.Domain.AiPlatform.ValueObjects;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine;
 
-public static class WorkflowCanvasJsonBridge
+public static class WorkflowCanvasJsonParser
 {
     private static readonly CozeWorkflowPlanCompiler CozePlanCompiler = new();
 
@@ -167,7 +167,7 @@ public static class WorkflowCanvasJsonBridge
         {
             // 使用 Debug 级别记录，避免在正常降级场景下产生 Error 告警
             System.Diagnostics.Debug.WriteLine(
-                $"[WorkflowCanvasJsonBridge] Skipped {skippedNodeKeys.Count} unrecognized node(s): {string.Join("; ", skippedNodeKeys)}");
+                $"[WorkflowCanvasJsonParser] Skipped {skippedNodeKeys.Count} unrecognized node(s): {string.Join("; ", skippedNodeKeys)}");
         }
 
         var connections = new List<ConnectionSchema>();
@@ -184,7 +184,7 @@ public static class WorkflowCanvasJsonBridge
             if (!nodeKeySet.Contains(connection.SourceNodeKey) || !nodeKeySet.Contains(connection.TargetNodeKey))
             {
                 System.Diagnostics.Debug.WriteLine(
-                    $"[WorkflowCanvasJsonBridge] Skipped orphan connection: {connection.SourceNodeKey} -> {connection.TargetNodeKey}");
+                    $"[WorkflowCanvasJsonParser] Skipped orphan connection: {connection.SourceNodeKey} -> {connection.TargetNodeKey}");
                 continue;
             }
 

@@ -1,6 +1,6 @@
 namespace Atlas.Infrastructure.Caching;
 
-internal static class HybridCacheSyncBridge
+internal static class HybridCacheSyncHelper
 {
     public static void Run(ValueTask task)
     {
@@ -12,4 +12,3 @@ internal static class HybridCacheSyncBridge
         return task.AsTask().GetAwaiter().GetResult();
     }
 }
-

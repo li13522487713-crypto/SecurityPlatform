@@ -18,7 +18,7 @@ public sealed class ProcessModelCache
     public FlowDefinition GetOrAdd(ApprovalFlowDefinition flowDef)
     {
         var key = $"approval:flow-definition:{flowDef.Id}:{flowDef.Version}";
-        return HybridCacheSyncBridge.Run(_cache.GetOrCreateAsync(
+        return HybridCacheSyncHelper.Run(_cache.GetOrCreateAsync(
                    key,
                    _ => new ValueTask<FlowDefinition?>(FlowDefinitionParser.Parse(flowDef.DefinitionJson)),
                    TimeSpan.FromHours(1)))!;
@@ -27,6 +27,6 @@ public sealed class ProcessModelCache
     public void Remove(long flowId, int version)
     {
         var key = $"approval:flow-definition:{flowId}:{version}";
-        HybridCacheSyncBridge.Run(_cache.RemoveAsync(key));
+        HybridCacheSyncHelper.Run(_cache.RemoveAsync(key));
     }
 }

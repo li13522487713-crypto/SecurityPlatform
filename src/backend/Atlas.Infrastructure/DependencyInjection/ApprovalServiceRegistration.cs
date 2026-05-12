@@ -117,7 +117,7 @@ public static class ApprovalServiceRegistration
 
         // Domain Event Publisher & Handlers (decouples approval from external business modules)
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalEventPublisher>();
-        services.AddScoped<IDomainEventHandler<ApprovalInstanceDomainEvent>, ApprovalWorkflowBridgeEventHandler>();
+        services.AddScoped<IDomainEventHandler<ApprovalInstanceDomainEvent>, ApprovalWorkflowEventHandler>();
 
         // ApprovalRuntimeCommandService (standard constructor DI)
         services.AddScoped<

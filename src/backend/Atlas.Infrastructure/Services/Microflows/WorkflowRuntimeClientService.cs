@@ -5,11 +5,11 @@ using Atlas.Application.Workflow.Models;
 
 namespace Atlas.Infrastructure.Services.Microflows;
 
-public sealed class WorkflowRuntimeClientAdapter : IWorkflowRuntimeClient
+public sealed class WorkflowRuntimeClientService : IWorkflowRuntimeClient
 {
     private readonly IWorkflowCommandService _workflowCommandService;
 
-    public WorkflowRuntimeClientAdapter(IWorkflowCommandService workflowCommandService)
+    public WorkflowRuntimeClientService(IWorkflowCommandService workflowCommandService)
     {
         _workflowCommandService = workflowCommandService;
     }

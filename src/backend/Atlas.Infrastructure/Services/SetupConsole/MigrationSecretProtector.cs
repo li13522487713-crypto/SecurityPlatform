@@ -1,4 +1,4 @@
-using Atlas.Infrastructure.Security;
+using Atlas.Core.Security;
 using Microsoft.Extensions.Configuration;
 
 namespace Atlas.Infrastructure.Services.SetupConsole;

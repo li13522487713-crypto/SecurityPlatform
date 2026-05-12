@@ -222,7 +222,7 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
         _schemaInitializedKeys.TryRemove(schemaKey, out _);
 
         var policyCacheKey = AtlasCacheKeys.RoutePolicy.AppDataRoute(tenantId, appInstanceId);
-        HybridCacheSyncBridge.Run(_cache.RemoveAsync(policyCacheKey));
+        HybridCacheSyncHelper.Run(_cache.RemoveAsync(policyCacheKey));
     }
 
     public void Dispose()

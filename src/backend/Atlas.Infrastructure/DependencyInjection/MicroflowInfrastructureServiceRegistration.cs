@@ -29,7 +29,7 @@ public static class MicroflowInfrastructureServiceRegistration
         services.AddScoped<IMicroflowRuntimeDbSessionFactory, SqlSugarMicroflowRuntimeDbSessionFactory>();
         services.AddScoped<IDatabaseBackedMicroflowRuntimeObjectStore, SqlSugarMicroflowRuntimeObjectStore>();
         services.AddScoped<IMicroflowRuntimeObjectStore, DomainModelRuntimeObjectStore>();
-        services.AddScoped<IWorkflowRuntimeClient, WorkflowRuntimeClientAdapter>();
+        services.AddScoped<IWorkflowRuntimeClient, WorkflowRuntimeClientService>();
         services.AddSingleton<ISoapWebServiceConnector, DefaultSoapWebServiceConnector>();
         services.AddSingleton<IXmlMappingConnector, DefaultXmlMappingConnector>();
         services.AddSingleton<IDocumentGenerationRuntime, DefaultDocumentGenerationRuntime>();

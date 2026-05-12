@@ -1,11 +1,23 @@
 using System.Text.RegularExpressions;
+using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
-public sealed class CrossEncoderRerankerService
+public sealed class CrossEncoderRerankerService : IReranker
 {
     private static readonly Regex TokenRegex = new(@"[\p{L}\p{N}_]+", RegexOptions.Compiled);
+
+    public Task<IReadOnlyList<RagSearchResult>> RerankAsync(
+        string query,
+        IReadOnlyList<RagSearchResult> candidates,
+        int topK = 8,
+        CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        IReadOnlyList<RagSearchResult> reranked = Rerank(query, candidates, topK);
+        return Task.FromResult(reranked);
+    }
 
     public IReadOnlyList<RagSearchResult> Rerank(
         string query,

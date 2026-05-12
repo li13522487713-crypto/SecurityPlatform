@@ -8,7 +8,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.Infrastructure.Options;
-using Atlas.Infrastructure.Security;
+using Atlas.Core.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

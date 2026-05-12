@@ -34,10 +34,7 @@ public static class AppHostExternalConnectorsExtensions
         services.AddDingTalkConnector();
         services.AddConnectorPluginNodes();
 
-        services.TryAddScoped<ISecretProtector, ConnectorSecretProtectorBridge>();
-        services.TryAddScoped<ILocalUserDirectory, ConnectorLocalUserDirectoryBridge>();
         services.TryAddScoped<IConnectorJwtIssuer, AppHostConnectorJwtIssuerNoop>();
-        services.TryAddSingleton<Atlas.Infrastructure.ExternalConnectors.HostedServices.ITenantContextWriter, ConnectorTenantContextWriterBridge>();
 
         services.AddAutoMapper(typeof(ExternalConnectorsMappingProfile).Assembly);
 
