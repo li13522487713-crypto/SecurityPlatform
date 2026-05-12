@@ -1,6 +1,6 @@
 import { Space, Tag, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowVariableSymbol } from "../../schema";
-import { dataTypeLabel, variableSourceLabel } from "../../variables";
+import { dataTypeLabel } from "../../variables";
 
 const { Text } = Typography;
 const MAYBE_REASON_DEFAULT = "Variable is not definitely assigned on every normal path to this object.";
@@ -36,7 +36,6 @@ export function VariableOptionLabel({ symbol }: { symbol: MicroflowVariableSymbo
         {symbol.name}
       </Text>
       <Text type="tertiary" size="small">{dataTypeLabel(symbol.dataType)}</Text>
-      <Tag size="small">{variableSourceLabel(symbol)}</Tag>
       <Tag size="small" color={scope.color}>{scope.label}</Tag>
       {symbol.visibility === "maybe" ? (
         <Tooltip content={maybeReason}>

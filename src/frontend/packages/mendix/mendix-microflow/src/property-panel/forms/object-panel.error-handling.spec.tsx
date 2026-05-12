@@ -54,7 +54,9 @@ vi.mock("../panel-shared", () => ({
   getObjectTabs: () => ["errorHandling"],
   Header: () => null,
   issuesFor: () => [],
+  objectIconGlyph: () => "•",
   objectTitle: () => "Object",
+  objectSubtitle: () => "Object",
   PropertyTabs: () => null,
   updateAction: (object: unknown, patch: Record<string, unknown>) => ({
     ...(object as Record<string, unknown>),

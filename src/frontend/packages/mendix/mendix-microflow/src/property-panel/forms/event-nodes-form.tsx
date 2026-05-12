@@ -93,7 +93,6 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
   };
 
   if (object.kind === "startEvent") {
-    const legalStateMessages = uniqueMessages(issues.filter(issue => issue.code.startsWith("MF_START_")).map(issue => issue.message));
     const parameterNameWarning = selectedParameter ? getParameterNameWarning(props.schema, selectedParameter.id, selectedParameter.name) : undefined;
     const canEditParameter = Boolean(selectedParameter && props.onSchemaChange && !props.readonly);
     return (
@@ -171,19 +170,10 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
             }}
           />
         </Field>
-        {legalStateMessages.length > 0 ? (
-          <Field label="Legal State">
-            {renderLegalState(
-              legalStateMessages,
-              "Start Event parameters are global and visible across the microflow.",
-            )}
-          </Field>
-        ) : null}
       </>
     );
   }
   if (object.kind === "endEvent") {
-    const legalStateMessages = uniqueMessages(issues.filter(issue => issue.code.startsWith("MF_END_")).map(issue => issue.message));
     return (
       <>
         <Field label="Return Type">
@@ -198,13 +188,7 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
               }}
             />
           )}
-          <Text type="tertiary" size="small">Return type is stored on the microflow schema and shared by all EndEvents.</Text>
-        </Field>
-        <Field label="Incoming Flows">
-          <TextArea value={incomingSummary || "No incoming flow"} autosize disabled />
-        </Field>
-        <Field label="Outgoing Flows">
-          <TextArea value={outgoingSummary || "No outgoing flow"} autosize disabled />
+          <Text type="tertiary" size="small">Return type is defined at microflow level and shared by all End Events.</Text>
         </Field>
         <Field label="Return Value">
           <ExpressionEditor
@@ -226,15 +210,8 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
             }}
           />
           <FieldError issues={getIssuesForField(issues, "returnValue")} />
-          <Text type="tertiary" size="small">Stage 12 stores the expression text only; it does not evaluate expressions.</Text>
         </Field>
-        {endCount > 1 ? <Text type="warning" size="small">Multiple EndEvents share the same schema-level returnType.</Text> : null}
-        <Field label="Legal State">
-          {renderLegalState(
-            legalStateMessages,
-            "End Event accepts incoming flows only. Multiple EndEvents are allowed, and non-void microflows should provide a return value.",
-          )}
-        </Field>
+        {endCount > 1 ? <Text type="warning" size="small">Multiple End Events share the same return type.</Text> : null}
       </>
     );
   }

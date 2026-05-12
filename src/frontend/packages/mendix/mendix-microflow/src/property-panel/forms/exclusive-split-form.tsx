@@ -18,6 +18,22 @@ function dataTypeText(kind: unknown): string {
   return typeof kind === "string" ? kind : "unknown";
 }
 
+function caseValueLabel(caseValue: MicroflowCaseValue): string {
+  if (caseValue.kind === "boolean") {
+    return caseValue.value ? "True" : "False";
+  }
+  if (caseValue.kind === "enumeration") {
+    return caseValue.value || "(Enumeration)";
+  }
+  if (caseValue.kind === "fallback" || caseValue.kind === "noCase" || caseValue.kind === "empty") {
+    return "Else";
+  }
+  if (caseValue.kind === "expression") {
+    return caseValue.expression || caseValue.condition || "(Expression)";
+  }
+  return caseValue.kind;
+}
+
 function withDisabledReason(disabledReason: string, enabledHint: string, control: JSX.Element) {
   return (
     <Tooltip content={disabledReason || enabledHint}>
@@ -154,6 +170,22 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
             {outgoing.length === 0 ? <Text type="warning" size="small">Decision has no outgoing branches.</Text> : null}
             {object.splitCondition.resultType === "boolean" && (!hasTrue || !hasFalse) ? <Text type="warning" size="small">Boolean Decision should have both true and false branches.</Text> : null}
             {conflicts.length ? <Text type="warning" size="small">Duplicate branch case: {conflicts.map(item => item.key).join(", ")}</Text> : null}
+          </Field>
+          <Field label="Case Branches">
+            <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+              {outgoing
+                .filter(flow => flow.kind === "sequence")
+                .map(flow => (
+                  <Tag key={flow.id} color="blue">
+                    {flow.caseValues.length
+                      ? flow.caseValues.map(caseValueLabel).join(" | ")
+                      : "Else"} → {flow.destinationObjectId}
+                  </Tag>
+                ))}
+              {outgoing.filter(flow => flow.kind === "sequence").length === 0 ? (
+                <Tag color="grey">No case branches</Tag>
+              ) : null}
+            </Space>
           </Field>
         </>
       ) : (

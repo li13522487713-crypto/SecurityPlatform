@@ -198,6 +198,5 @@ describe("LoopNodeForm error handling", () => {
     expect(reason).toBe("renameLoopIteratorVariable");
     expect(nextSchema.objectCollection.objects[0].loopSource.iteratorVariableName).toBe("orderItem");
     expect(nextSchema.objectCollection.objects[0].objectCollection.objects[0].returnValue.raw).toBe("$orderItem/Name");
-    expect(screen.getByText("Iterator rename rewrites loop-scoped expressions and direct variable reference fields; output variable declarations are left untouched.")).toBeTruthy();
   });
 });

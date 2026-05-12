@@ -22,9 +22,64 @@ export function expression(raw = "", inferredType?: MicroflowDataType): Microflo
 
 export function objectTitle(object: MicroflowObject): string {
   if (object.kind === "actionActivity") {
-    return `${object.caption} (${object.action.kind})`;
+    const actionItem = defaultMicroflowActionRegistry.find(item => item.kind === object.action.kind);
+    return actionItem?.titleZh ?? object.caption ?? object.action.kind;
   }
-  return object.caption ?? object.kind;
+  const objectItem = defaultMicroflowObjectNodeRegistry.find(item => item.objectKind === object.kind);
+  return objectItem?.titleZh ?? object.caption ?? object.kind;
+}
+
+export function objectSubtitle(object: MicroflowObject): string {
+  if (object.kind === "actionActivity") {
+    const actionItem = defaultMicroflowActionRegistry.find(item => item.kind === object.action.kind);
+    return actionItem?.title ?? object.action.kind;
+  }
+  const objectItem = defaultMicroflowObjectNodeRegistry.find(item => item.objectKind === object.kind);
+  return objectItem?.title ?? object.kind;
+}
+
+export function objectIconGlyph(object: MicroflowObject): string {
+  if (object.kind === "actionActivity") {
+    switch (object.action.kind) {
+      case "createObject":
+      case "retrieve":
+      case "changeMembers":
+      case "delete":
+        return "●";
+      case "createList":
+      case "aggregateList":
+      case "listOperation":
+      case "changeList":
+        return "▦";
+      case "createVariable":
+      case "changeVariable":
+        return "𝑥";
+      case "callMicroflow":
+        return "⚡";
+      case "restCall":
+        return "⇄";
+      default:
+        return "•";
+    }
+  }
+  switch (object.kind) {
+    case "startEvent":
+      return "▶";
+    case "endEvent":
+      return "■";
+    case "exclusiveSplit":
+      return "◇";
+    case "loopedActivity":
+      return "↻";
+    case "exclusiveMerge":
+      return "⊕";
+    case "annotation":
+      return "✎";
+    case "tryCatch":
+      return "⚠";
+    default:
+      return "•";
+  }
 }
 
 export function actionPatch(action: MicroflowAction, patch: Partial<MicroflowAction>): MicroflowAction {
@@ -36,11 +91,11 @@ export function updateAction(activity: MicroflowActionActivity, patch: Partial<M
 }
 
 const defaultTabLabels: Record<MicroflowPropertyTabKey, string> = {
-  properties: "配置",
-  documentation: "文档",
-  errorHandling: "错误处理",
-  output: "输入 / 输出",
-  advanced: "高级",
+  properties: "Configuration",
+  documentation: "Documentation",
+  errorHandling: "Error Handling",
+  output: "Input / Output",
+  advanced: "Advanced",
 };
 
 type TabLabelMap = Partial<Record<MicroflowPropertyTabKey, string>>;
@@ -55,10 +110,11 @@ export function issuesFor(props: MicroflowPropertyPanelProps, objectId?: string,
   return [];
 }
 
-export function Header({ props, title, subtitle, onDelete, onDuplicate }: {
+export function Header({ props, title, subtitle, icon, onDelete, onDuplicate }: {
   props: MicroflowPropertyPanelProps;
   title: string;
   subtitle: string;
+  icon?: ReactNode;
   onDelete?: () => void;
   onDuplicate?: () => void;
 }) {
@@ -67,7 +123,29 @@ export function Header({ props, title, subtitle, onDelete, onDuplicate }: {
     <div style={{ padding: 14, borderBottom: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-2, #fff)" }}>
       <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
         <div style={{ minWidth: 0 }}>
-          <Title heading={6} style={{ margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</Title>
+          <Space align="center" spacing={8}>
+            {icon ? (
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(22, 93, 255, 0.12)",
+                  color: "#165dff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  flex: "0 0 auto",
+                }}
+              >
+                {icon}
+              </span>
+            ) : null}
+            <Title heading={6} style={{ margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</Title>
+          </Space>
           <Text size="small" type="tertiary">{subtitle}</Text>
         </div>
         <Space>
@@ -122,32 +200,32 @@ export function getObjectTabs(object: MicroflowObject): MicroflowPropertyTabKey[
 
 export function getObjectTabLabels(object: MicroflowObject): TabLabelMap {
   if (object.kind === "startEvent") {
-    return { properties: "参数" };
+    return { properties: "Parameters" };
   }
   if (object.kind === "endEvent") {
-    return { properties: "返回值", documentation: "文档" };
+    return { properties: "Return Value", documentation: "Documentation" };
   }
   if (object.kind === "exclusiveSplit") {
-    return { properties: "分支", documentation: "文档" };
+    return { properties: "Cases", documentation: "Documentation" };
   }
   if (object.kind === "loopedActivity") {
-    return { properties: "循环配置", documentation: "文档" };
+    return { properties: "Configuration", documentation: "Documentation" };
   }
   if (object.kind === "exclusiveMerge") {
-    return { properties: "合并配置" };
+    return { documentation: "Documentation" };
   }
   if (object.kind === "annotation") {
-    return { properties: "文档" };
+    return { properties: "Documentation" };
   }
   if (object.kind === "tryCatch") {
-    return { properties: "分支配置", documentation: "文档" };
+    return { properties: "Configuration", documentation: "Documentation" };
   }
   if (object.kind === "actionActivity") {
     if (object.action.kind === "createObject") {
-      return { properties: "配置", output: "输入 / 输出", documentation: "文档" };
+      return { properties: "Configuration", output: "Input / Output", documentation: "Documentation" };
     }
     if (object.action.kind === "callMicroflow") {
-      return { properties: "配置", output: "输入 / 输出", documentation: "文档" };
+      return { properties: "Configuration", output: "Input / Output", documentation: "Documentation" };
     }
     if (object.action.kind === "restCall") {
       return { properties: "General", advanced: "Request", output: "Response", errorHandling: "Authentication", documentation: "Documentation" };

@@ -1,11 +1,11 @@
-import { Input, Select, Space, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Input, Select, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowIterableListLoopSource, MicroflowObject, MicroflowWhileLoopCondition } from "../../schema";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
-import { collectLoopObjects, getLoopBodyFlows, getLoopBodyReturnFlows, getLoopExitFlows, getLoopIncomingFlows, getLoopWarnings, renameLoopIteratorVariable, updateLoopType } from "../../schema/utils";
+import { collectLoopObjects, renameLoopIteratorVariable, updateLoopType } from "../../schema/utils";
 import { ErrorHandlingEditor, FieldError, FieldRow, VariableNameInput, supportedErrorHandlingTypesForObject } from "../common";
 import { ExpressionEditor } from "../expression";
-import { DataTypeSelector, VariableSelector } from "../selectors";
+import { VariableSelector } from "../selectors";
 import type { MicroflowPropertyPanelProps } from "../types";
 import { getIssuesForField, getIssuesForObject } from "../utils";
 import { expression, Field } from "../panel-shared";
@@ -33,11 +33,6 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
   if (object.kind !== "loopedActivity") {
     return null;
   }
-  const warnings = getLoopWarnings(props.schema, object.id);
-  const incomingFlows = getLoopIncomingFlows(props.schema, object.id);
-  const bodyFlows = getLoopBodyFlows(props.schema, object.id);
-  const exitFlows = getLoopExitFlows(props.schema, object.id);
-  const bodyReturnFlows = getLoopBodyReturnFlows(props.schema, object.id);
   const loopVariableConflicts = object.loopSource.kind === "iterableList"
     ? getVariableNameConflicts(props.schema, object.loopSource.iteratorVariableName, `loopIterator:${object.id}`)
     : [];
@@ -68,20 +63,10 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
       </Field>
       {object.loopSource.kind === "iterableList" ? (
         <>
-          <Field label="Source List / Iterable Expression">
+          <Field label="Collection *">
             {withDisabledReason(
               readonlyDisabledReason,
-              "Source list",
-              <Input
-                value={object.loopSource.listVariableName}
-                disabled={props.readonly}
-                placeholder="List variable name or expression"
-                onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName } as MicroflowIterableListLoopSource })}
-              />
-            )}
-            {withDisabledReason(
-              readonlyDisabledReason,
-              "Select source list variable",
+              "Collection variable",
               <VariableSelector
                 schema={props.schema}
                 objectId={object.id}
@@ -89,13 +74,13 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
                 allowedTypeKinds={["list"]}
                 value={object.loopSource.listVariableName}
                 disabled={props.readonly}
-                placeholder="Or select a List variable"
+                placeholder="Select list variable"
                 onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName: listVariableName ?? "" } as MicroflowIterableListLoopSource })}
               />
             )}
             <FieldError issues={getIssuesForField(issues, "loopSource.listVariableName")} />
           </Field>
-          <Field label="Iterator Variable">
+          <Field label="Iterator Variable *">
             <VariableNameInput
               value={object.loopSource.iteratorVariableName}
               schema={props.schema}
@@ -117,22 +102,24 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
               }}
             />
             {loopVariableConflicts.length ? <Text type="warning" size="small">{loopVariableConflicts.join(" ")}</Text> : null}
-            <Text type="tertiary" size="small">Iterator rename rewrites loop-scoped expressions and direct variable reference fields; output variable declarations are left untouched.</Text>
           </Field>
-          <Field label="Loop Variable Type">
+          <Field label="Index Variable">
             {withDisabledReason(
               readonlyDisabledReason,
-              "Loop variable type",
-              <DataTypeSelector
-                value={object.loopSource.iteratorVariableDataType ?? { kind: "unknown", reason: "loop variable" }}
+              "Optional index variable",
+              <Input
+                value={object.loopSource.currentIndexVariableName ?? ""}
                 disabled={props.readonly}
-                allowVoid={false}
-                onChange={iteratorVariableDataType => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableDataType } as MicroflowIterableListLoopSource })}
+                placeholder="optional, e.g. i"
+                onChange={currentIndexVariableName => patch({
+                  ...object,
+                  loopSource: {
+                    ...object.loopSource,
+                    currentIndexVariableName: currentIndexVariableName.trim() ? currentIndexVariableName : undefined,
+                  } as MicroflowIterableListLoopSource,
+                })}
               />
             )}
-          </Field>
-          <Field label="Current Index Variable">
-            <Input value={object.loopSource.currentIndexVariableName ?? "$currentIndex"} disabled />
           </Field>
         </>
       ) : (
@@ -151,27 +138,6 @@ export function LoopNodeForm({ props, object, issues, metadata, variableIndex, p
           />
         </Field>
       )}
-      <Field label="Flow Summary">
-        <TextArea
-          value={[
-            `incoming: ${incomingFlows.length}`,
-            `body: ${bodyFlows.map(flow => flow.id).join(", ") || "missing"}`,
-            `body return: ${bodyReturnFlows.map(flow => flow.id).join(", ") || "none"}`,
-            `exit: ${exitFlows.map(flow => flow.id).join(", ") || "missing"}`,
-            `body nodes: ${object.objectCollection.objects.length}`,
-            `break: ${object.objectCollection.objects.filter(child => child.kind === "breakEvent").length}`,
-            `continue: ${object.objectCollection.objects.filter(child => child.kind === "continueEvent").length}`,
-          ].join("\n")}
-          autosize
-          disabled
-        />
-        <Text type="tertiary" size="small">Loop variable scope validation will be completed in Stage 20.</Text>
-      </Field>
-      <Field label="Warnings">
-        <Space vertical align="start" spacing={4}>
-          {warnings.length ? warnings.map(warning => <Text key={warning} type="warning" size="small">{warning}</Text>) : <Text type="tertiary" size="small">No Loop warnings.</Text>}
-        </Space>
-      </Field>
       <FieldRow label="Error Handling" fieldPath="errorHandlingType" issues={getIssuesForField(issues, "errorHandlingType")}>
         <ErrorHandlingEditor
           value={object.errorHandlingType}

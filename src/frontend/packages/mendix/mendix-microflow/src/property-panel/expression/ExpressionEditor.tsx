@@ -4,7 +4,7 @@ import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../../schema";
 import type { ContextVariableCandidate } from "../../inline-edit/shared/ContextVariablePicker";
 import { createMicroflowExpression, expressionRaw, expressionTypeLabel, validateExpression } from "../../expressions";
-import { getVariablesForExpressionFromIndex, variableSourceLabel, type MicroflowExpressionScopeContext } from "../../variables";
+import { getVariablesForExpressionFromIndex, type MicroflowExpressionScopeContext } from "../../variables";
 import {
   buildMicroflowExpressionCompletionOptions,
   validateMicroflowExpressionForEditor,
@@ -161,8 +161,8 @@ export function ExpressionEditor({
       ) : null}
       <Text size="small" type="tertiary">
         {variables.length
-          ? `变量: ${variables.slice(0, 4).map(variable => `$${variable.name}(${variableSourceLabel(variable)})`).join(", ")}${variables.length > 4 ? ` +${variables.length - 4}` : ""}`
-          : "变量: none"}
+          ? `可用变量: ${variables.slice(0, 4).map(variable => `$${variable.name}`).join(", ")}${variables.length > 4 ? ` +${variables.length - 4}` : ""}`
+          : "可用变量: none"}
       </Text>
       <Text size="small" type="tertiary">类型: {expressionTypeLabel(expectedType)} {"->"} {expressionTypeLabel(validation.inferredType)}</Text>
       <ExpressionDiagnostics

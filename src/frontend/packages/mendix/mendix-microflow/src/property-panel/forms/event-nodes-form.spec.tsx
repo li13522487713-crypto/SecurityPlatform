@@ -82,7 +82,7 @@ describe("EventNodesForm start/end/control events", () => {
     expect(screen.getByTestId("field-Required")).toBeTruthy();
   });
 
-  it("surfaces end-event return and legality guidance", () => {
+  it("surfaces end-event return editor", () => {
     render(
       <EventNodesForm
         props={{
@@ -105,10 +105,9 @@ describe("EventNodesForm start/end/control events", () => {
       />,
     );
 
-    expect(screen.getByTestId("field-Outgoing Flows")).toBeTruthy();
-    expect(screen.getByDisplayValue("flow-start-end: start-1")).toBeTruthy();
-    expect(screen.getByDisplayValue("No outgoing flow")).toBeTruthy();
-    expect(screen.getByText("End Event accepts incoming flows only. Multiple EndEvents are allowed, and non-void microflows should provide a return value.")).toBeTruthy();
+    expect(screen.getByTestId("field-Return Type")).toBeTruthy();
+    expect(screen.getByTestId("field-Return Value")).toBeTruthy();
+    expect(screen.getByLabelText("expression-editor")).toBeTruthy();
   });
 
   it("surfaces break-event validator issues together with loop warnings", () => {

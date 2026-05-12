@@ -3,7 +3,7 @@ import { Button, Input, Select, Space, Switch, Tag, TextArea, Tooltip, Typograph
 import type { MicroflowAction, MicroflowFlow, MicroflowObject, MicroflowParameter, MicroflowVariableIndex, MicroflowVariableSymbol } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
-import { buildVariableIndex, getOutputVariablesForObject, variableSourceLabel } from "../../variables";
+import { buildVariableIndex, getOutputVariablesForObject } from "../../variables";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { ErrorHandlingEditor, IssueSummaryBar, locateFieldByPath, supportedErrorHandlingTypesForAction, supportedErrorHandlingTypesForObject } from "../common";
 import { getMicroflowNodeFormForObject } from "../node-form-registry";
@@ -14,6 +14,8 @@ import {
   getObjectTabLabels,
   getObjectTabs,
   Header,
+  objectIconGlyph,
+  objectSubtitle,
   issuesFor,
   objectTitle,
   PropertyTabs,
@@ -25,11 +27,9 @@ import { ActionActivityForm } from "./action-activity-form";
 import { AnnotationObjectForm } from "./annotation-object-form";
 import { EventNodesForm } from "./event-nodes-form";
 import { ExclusiveSplitForm } from "./exclusive-split-form";
-import { genericOutputSummary } from "./generic-action-fields-form";
 import { InheritanceSplitForm } from "./inheritance-split-form";
 import { LoopNodeForm } from "./loop-node-form";
 import { MergeNodeForm } from "./merge-node-form";
-import { ObjectBaseForm } from "./object-base-form";
 import { ParameterObjectForm } from "./parameter-object-form";
 import { ParallelGatewayForm } from "./parallel-gateway-form";
 import { InclusiveGatewayForm } from "./inclusive-gateway-form";
@@ -65,40 +65,8 @@ const supportedObjectKinds = new Set<string>([
   "errorHandler"
 ]);
 
-function p0OutputSummary(action: MicroflowAction): string {
-  if (action.kind === "retrieve") {
-    return `${action.outputVariableName || "(missing)"}: inferred retrieve result`;
-  }
-  if (action.kind === "createObject") {
-    return `${action.outputVariableName || "(missing)"}: object:${action.entityQualifiedName || "unknown"}`;
-  }
-  if (action.kind === "createVariable") {
-    return `${action.variableName || "(missing)"}: ${dataTypeLabel(action.dataType)}`;
-  }
-  if (action.kind === "callMicroflow") {
-    return action.returnValue.storeResult ? `${action.returnValue.outputVariableName || "(missing)"}: ${dataTypeLabel(action.returnValue.dataType)}` : "该节点不产生变量";
-  }
-  if (action.kind === "restCall") {
-    const rows: string[] = [];
-    if (action.response.handling.kind !== "ignore") {
-      rows.push(`${action.response.handling.outputVariableName || "(missing)"}: ${action.response.handling.kind}`);
-    }
-    if (action.response.statusCodeVariableName) {
-      rows.push(`${action.response.statusCodeVariableName}: integer`);
-    }
-    if (action.response.headersVariableName) {
-      rows.push(`${action.response.headersVariableName}: json`);
-    }
-    return rows.length ? rows.join("\n") : "该节点不产生变量";
-  }
-  if (action.kind === "logMessage" || action.kind === "commit" || action.kind === "delete" || action.kind === "rollback" || action.kind === "changeMembers" || action.kind === "changeVariable") {
-    return "该节点不产生变量";
-  }
-  return genericOutputSummary(action) ?? "该节点不产生变量";
-}
-
 function outputLine(symbol: MicroflowVariableSymbol): string {
-  return `${symbol.name}: ${dataTypeLabel(symbol.dataType)} | ${variableSourceLabel(symbol)} | ${symbol.scope.kind ?? "collection"} | ${symbol.visibility ?? "definite"}`;
+  return `${symbol.name}: ${dataTypeLabel(symbol.dataType)}`;
 }
 
 function maybeReason(symbol: MicroflowVariableSymbol): string {
@@ -205,20 +173,20 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   }
   return (
     <>
-      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} labels={tabLabels} />
       <Header
         props={props}
         title={objectTitle(object)}
-        subtitle={object.officialType}
+        subtitle={objectSubtitle(object)}
+        icon={objectIconGlyph(object)}
         onDelete={() => props.onDeleteObject?.(object.id)}
         onDuplicate={() => props.onDuplicateObject?.(object.id)}
       />
       <IssueSummaryBar issues={issues} onLocateField={handleLocateField} />
+      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} labels={tabLabels} />
       <div ref={panelBodyRef} style={{ padding: 14, display: "grid", gap: 12 }}>
         {activeTab === "properties" ? (
           registered ? (
             <>
-              <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
               {registered.renderProperties({
                 object,
                 node: object,
@@ -232,7 +200,6 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
             </>
           ) : (
             <>
-              <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
               <EventNodesForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               <ExclusiveSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               <InheritanceSplitForm
@@ -267,6 +234,12 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         ) : null}
         {activeTab === "documentation" ? (
           <>
+            <Field label="Node ID">
+              <Input value={object.id} disabled />
+            </Field>
+            <Field label="Mendix Type">
+              <Input value={object.officialType ?? "N/A"} disabled />
+            </Field>
             <Field label="Caption">
               {withDisabledReason(
                 readonlyDisabledReason,
@@ -281,6 +254,11 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
                 <TextArea value={object.documentation ?? ""} autosize disabled={props.readonly} onChange={documentation => patch(updateObjectDocumentation(object, documentation))} />
               )}
             </Field>
+            {object.kind === "exclusiveMerge" ? (
+              <Text type="warning" size="small">
+                Merge may downgrade branch-only variables to "maybe". Validate null-safe usage after merge.
+              </Text>
+            ) : null}
           </>
         ) : null}
         {activeTab === "errorHandling" ? (
@@ -355,11 +333,14 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
                 </Space>
               ) : <Text type="tertiary">该节点不产生变量</Text>}
             </Field>
-            {object.kind === "actionActivity" ? <Field label="Output Spec"><TextArea value={p0OutputSummary(object.action)} disabled autosize /></Field> : null}
             {object.kind === "parameterObject" ? <Field label="Parameter"><Input value={`${parameter?.name ?? object.parameterName ?? ""}: ${dataTypeLabel(parameter?.dataType)}`} disabled /></Field> : null}
             {object.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? <Field label="Loop Variables"><Input value={`${object.loopSource.iteratorVariableName}, ${object.loopSource.currentIndexVariableName ?? "$currentIndex"}`} disabled /></Field> : null}
+            {object.kind === "loopedActivity" ? (
+              <Text type="warning" size="small">
+                Loop iterator and loop-body variables are only visible inside the loop body and unavailable after the loop exits.
+              </Text>
+            ) : null}
             {object.kind === "endEvent" ? <Field label="Return Value"><Input value={object.returnValue?.raw ?? ""} disabled /></Field> : null}
-            {object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" ? <Field label="Branch Outputs"><TextArea value={collectFlowsRecursive(props.schema).filter(flow => flow.originObjectId === object.id).map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(value => value.kind).join(",") || "pending" : "annotation"}`).join("\n")} disabled autosize /></Field> : null}
           </>
         ) : null}
         {activeTab === "advanced" ? (
