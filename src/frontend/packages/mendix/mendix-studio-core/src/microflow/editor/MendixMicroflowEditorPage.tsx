@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Empty, Spin, Toast } from "@douyinfe/semi-ui";
+import type { MicroflowEditorHandle, MicroflowWorkbenchStatus } from "@atlas/microflow";
 
 import { createMicroflowAdapterBundle, type MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
 import { isForbiddenError, isNotFoundError, isUnauthorizedError, isVersionConflictError } from "../adapter/http/microflow-api-error";
 import { MicroflowErrorState } from "../components/error";
+import { StudioHeader } from "../../components/studio-header";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import type { MicroflowAdapterFactoryConfig } from "../config/microflow-adapter-config";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MendixMicroflowEditorEntry } from "./MendixMicroflowEditorEntry";
+import { MicroflowWorkbenchCommandBus } from "../workbench/microflow-workbench-command-bus";
 import { getMendixStudioCopy } from "../../i18n/copy";
 
 function getEditorLoadErrorTitle(error: Error): string {
@@ -38,6 +41,9 @@ export interface MendixMicroflowEditorPageProps {
 
 export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, currentUser, adapterBundle, adapterConfig, adapter: adapterProp, onBack, readonly }: MendixMicroflowEditorPageProps) {
   const copy = getMendixStudioCopy();
+  const editorRef = useRef<MicroflowEditorHandle | null>(null);
+  const [microflowWorkbenchStatus, setMicroflowWorkbenchStatus] = useState<MicroflowWorkbenchStatus | null>(null);
+  const [commandBus] = useState(() => new MicroflowWorkbenchCommandBus());
   const bundleResult = useMemo(() => {
     try {
       return { bundle: adapterBundle ?? createMicroflowAdapterBundle({ ...adapterConfig, workspaceId: adapterConfig?.workspaceId ?? workspaceId, tenantId: adapterConfig?.tenantId ?? tenantId, currentUser: adapterConfig?.currentUser ?? currentUser }) };
@@ -50,6 +56,14 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
   const [resource, setResource] = useState<MicroflowResource>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
+
+  useEffect(() => {
+    commandBus.bindContext({
+      microflowId: resourceId,
+      tabId: `microflow:${resourceId}`,
+      getEditorHandle: () => editorRef.current,
+    });
+  }, [commandBus, resourceId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,22 +120,30 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
   }
 
   return (
-    <MendixMicroflowEditorEntry
-      resource={resource}
-      adapter={adapter}
-      metadataAdapter={bundle?.metadataAdapter}
-      runtimeAdapter={bundle?.runtimeAdapter}
-      validationAdapter={bundle?.validationAdapter}
-      adapterMode={bundle?.mode}
-      apiBaseUrl={bundle?.apiBaseUrl}
-      readonly={readonly}
-      onBack={onBack}
-      onSave={saved => {
-        setResource(saved);
-        Toast.success(copy.editorPage.saveSuccess);
-      }}
-      onPublish={published => setResource(published)}
-    />
+    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <StudioHeader mode="microflow" commandBus={commandBus} microflowStatus={microflowWorkbenchStatus} />
+      <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+        <MendixMicroflowEditorEntry
+          resource={resource}
+          adapter={adapter}
+          metadataAdapter={bundle?.metadataAdapter}
+          runtimeAdapter={bundle?.runtimeAdapter}
+          validationAdapter={bundle?.validationAdapter}
+          adapterMode={bundle?.mode}
+          apiBaseUrl={bundle?.apiBaseUrl}
+          readonly={readonly}
+          onBack={onBack}
+          editorRef={editorRef}
+          toolbarMode="external"
+          onWorkbenchStatusChange={setMicroflowWorkbenchStatus}
+          onSave={saved => {
+            setResource(saved);
+            Toast.success(copy.editorPage.saveSuccess);
+          }}
+          onPublish={published => setResource(published)}
+        />
+      </div>
+    </div>
   );
 }
 

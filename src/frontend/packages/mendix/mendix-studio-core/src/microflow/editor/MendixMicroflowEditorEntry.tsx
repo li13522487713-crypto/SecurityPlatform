@@ -60,6 +60,8 @@ export interface MendixMicroflowEditorEntryProps {
   toolbarMode?: "internal" | "external";
   onLayoutStateChange?: (state: MicroflowWorkbenchLayoutState) => void;
   onWorkbenchStatusChange?: (status: MicroflowWorkbenchStatus) => void;
+  /** 当外部宿主（如 workbench）需要处理引用查看时提供此回调。 */
+  onViewReferences?: (microflowId: string) => void;
 }
 
 function parseSaveConflictDetails(details?: string): SaveConflictDetails {
@@ -129,7 +131,7 @@ function reconcileSavedResourceSchema(
   };
 }
 
-export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode, onLayoutStateChange, onWorkbenchStatusChange }: MendixMicroflowEditorEntryProps) {
+export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode, onLayoutStateChange, onWorkbenchStatusChange, onViewReferences }: MendixMicroflowEditorEntryProps) {
   const [schema, setSchema] = useState<MicroflowDesignSchema>(resource.schema);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -486,6 +488,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
         onLayoutStateChange={onLayoutStateChange}
         onWorkbenchStatusChange={onWorkbenchStatusChange}
         onOpenMicroflow={onOpenMicroflow}
+        onViewReferences={onViewReferences}
         onSchemaChange={nextSchema => {
           setSchema(nextSchema);
           latestSchemaRef.current = nextSchema;

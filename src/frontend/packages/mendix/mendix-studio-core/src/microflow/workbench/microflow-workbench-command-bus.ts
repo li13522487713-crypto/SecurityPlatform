@@ -8,6 +8,10 @@ export type MicroflowWorkbenchCommandName =
   | "microflow.publish"
   | "microflow.undo"
   | "microflow.redo"
+  | "microflow.autoLayout"
+  | "microflow.fitView"
+  | "microflow.exportImage"
+  | "microflow.acceptance120"
   | "microflow.openPanel"
   | "microflow.toggleToolbox"
   | "microflow.resetLayout"
@@ -45,6 +49,10 @@ export interface MicroflowWorkbenchCommandPayloadMap {
   "microflow.publish": undefined;
   "microflow.undo": undefined;
   "microflow.redo": undefined;
+  "microflow.autoLayout": undefined;
+  "microflow.fitView": undefined;
+  "microflow.exportImage": undefined;
+  "microflow.acceptance120": undefined;
 }
 
 interface MicroflowWorkbenchCommandContext {
@@ -149,9 +157,28 @@ export class MicroflowWorkbenchCommandBus {
         case "microflow.redo":
           handle!.redo();
           break;
+        case "microflow.autoLayout":
+          handle!.autoLayout();
+          break;
+        case "microflow.fitView":
+          handle!.fitView();
+          break;
+        case "microflow.exportImage":
+          await handle!.exportAsImage();
+          break;
+        case "microflow.acceptance120":
+          if (!handle?.configureAllNodeAcceptance120) {
+            throw new Error("Editor handle does not support acceptance120.");
+          }
+          await handle.configureAllNodeAcceptance120();
+          break;
         case "microflow.openPanel":
           if (payload?.panel === "references") {
-            this.context.openReferencesPanel?.(microflowId);
+            if (this.context.openReferencesPanel) {
+              this.context.openReferencesPanel(microflowId);
+            } else {
+              handle?.openBottomTab("references");
+            }
           } else if (payload?.panel) {
             handle?.openBottomTab(payload.panel);
           }

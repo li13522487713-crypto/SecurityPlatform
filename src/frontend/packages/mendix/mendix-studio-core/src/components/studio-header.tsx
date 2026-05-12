@@ -1,46 +1,199 @@
-import { Toast } from "@douyinfe/semi-ui";
+import { useMemo } from "react";
+import { Button, Dropdown, Space, Toast } from "@douyinfe/semi-ui";
 import {
-  IconSave,
-  IconVerify,
-  IconPlay,
-  IconUpload,
-  IconExport,
-  IconUndo,
-  IconRedo,
   IconBell,
+  IconBranch,
+  IconChevronDown,
   IconHelpCircle,
-  IconChevronDown
+  IconMore,
+  IconPlay,
+  IconRedo,
+  IconSave,
+  IconUndo,
+  IconUpload,
+  IconVerify
 } from "@douyinfe/semi-icons";
-import { useMendixStudioStore } from "../store";
-import { validateLowCodeAppSchema } from "@atlas/mendix-validator";
+import type { MicroflowWorkbenchStatus } from "@atlas/microflow";
 
-export function StudioHeader() {
+import type {
+  MicroflowWorkbenchCommandBus,
+  MicroflowWorkbenchCommandName,
+  MicroflowWorkbenchCommandPayloadMap
+} from "../microflow/workbench/microflow-workbench-command-bus";
+import { useMendixStudioStore } from "../store";
+
+type StudioHeaderMode = "microflow" | "non-microflow" | "idle";
+
+export interface StudioHeaderProps {
+  mode?: StudioHeaderMode;
+  commandBus?: MicroflowWorkbenchCommandBus;
+  microflowStatus?: MicroflowWorkbenchStatus | null;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onViewMicroflowReferences?: () => void;
+}
+
+export function StudioHeader({
+  mode = "idle",
+  commandBus,
+  microflowStatus,
+  canUndo = false,
+  canRedo = false,
+  onViewMicroflowReferences
+}: StudioHeaderProps) {
   const app = useMendixStudioStore(state => state.appSchema);
-  const setValidationErrors = useMendixStudioStore(state => state.setValidationErrors);
   const setPreviewMode = useMendixStudioStore(state => state.setPreviewMode);
 
-  const handleSave = () => {
-    try {
-      localStorage.setItem("mendix_studio_schema", JSON.stringify(app));
-    } catch {
-      // localStorage 可能不可用
+  const isMicroflow = mode === "microflow";
+  const isIdle = mode === "idle";
+
+  const saveDisabled = !microflowStatus || microflowStatus.saving || !microflowStatus.dirty;
+  const runDisabled = !microflowStatus || microflowStatus.running || microflowStatus.errorCount > 0;
+  const publishDisabled = !microflowStatus || microflowStatus.dirty || microflowStatus.errorCount > 0;
+  const validateDisabled = !microflowStatus;
+  const undoDisabled = isMicroflow ? !microflowStatus?.canUndo : !canUndo;
+  const redoDisabled = isMicroflow ? !microflowStatus?.canRedo : !canRedo;
+
+  const microflowTitle = useMemo(() => {
+    if (!microflowStatus?.microflowId) {
+      return "Microflow";
     }
-    Toast.success({ content: "已保存", duration: 2 });
+    return microflowStatus.microflowId;
+  }, [microflowStatus?.microflowId]);
+
+  const runCommand = async <T extends MicroflowWorkbenchCommandName>(
+    command: T,
+    payload?: MicroflowWorkbenchCommandPayloadMap[T],
+    successMessage?: string
+  ) => {
+    if (!commandBus) {
+      return;
+    }
+    try {
+      await commandBus.execute(command, payload);
+      if (successMessage) {
+        Toast.success({ content: successMessage, duration: 2 });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Toast.error({ content: message, duration: 3 });
+    }
   };
 
-  const handleValidate = () => {
-    const errors = validateLowCodeAppSchema(app);
-    setValidationErrors(errors);
-    Toast.info({ content: `校验完成，共 ${errors.length} 条结果`, duration: 2 });
-  };
+  const renderMicroflowActions = () => (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+      <Button
+        size="small"
+        icon={<IconSave />}
+        disabled={saveDisabled}
+        onClick={() => void runCommand("microflow.save", undefined, "微流已保存")}
+      >
+        保存
+      </Button>
+      <Button
+        size="small"
+        icon={<IconPlay />}
+        disabled={runDisabled}
+        onClick={() => void runCommand("microflow.run")}
+      >
+        运行
+      </Button>
+      <Button
+        size="small"
+        icon={<IconBranch />}
+        disabled={runDisabled}
+        onClick={() => void runCommand("microflow.debugRun")}
+      >
+        调试运行
+      </Button>
+      <Button
+        size="small"
+        icon={<IconVerify />}
+        disabled={validateDisabled}
+        onClick={() => void runCommand("microflow.validate")}
+      >
+        校验
+      </Button>
+      <Button
+        size="small"
+        icon={<IconUpload />}
+        disabled={publishDisabled}
+        onClick={() => void runCommand("microflow.publish")}
+      >
+        发布
+      </Button>
+      <Button
+        size="small"
+        theme="borderless"
+        icon={<IconUndo />}
+        disabled={undoDisabled}
+        onClick={() => void runCommand("microflow.undo")}
+      />
+      <Button
+        size="small"
+        theme="borderless"
+        icon={<IconRedo />}
+        disabled={redoDisabled}
+        onClick={() => void runCommand("microflow.redo")}
+      />
+      <Dropdown
+        trigger="click"
+        position="bottomRight"
+        render={
+          <Dropdown.Menu>
+            <Dropdown.Item
+              disabled={!microflowStatus}
+              onClick={() => {
+                if (onViewMicroflowReferences) {
+                  onViewMicroflowReferences();
+                  return;
+                }
+                void runCommand("microflow.openPanel", { panel: "references" });
+              }}
+            >
+              查看引用
+            </Dropdown.Item>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.toggleToolbox")}>
+              切换节点工具箱
+            </Dropdown.Item>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.autoLayout")}>
+              自动排版
+            </Dropdown.Item>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.fitView")}>
+              适应视图
+            </Dropdown.Item>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.exportImage")}>
+              导出 PNG
+            </Dropdown.Item>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.acceptance120")}>
+              验收 120
+            </Dropdown.Item>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.toggleFocusMode")}>
+              切换专注模式
+            </Dropdown.Item>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.resetLayout")}>
+              恢复默认布局
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        }
+      >
+        <Button size="small" icon={<IconMore />} />
+      </Dropdown>
+    </div>
+  );
 
-  const handlePreview = () => {
-    setPreviewMode(true);
-  };
+  const renderNonMicroflowActions = () => (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+      <Button size="small" theme="borderless" icon={<IconUndo />} disabled={undoDisabled} />
+      <Button size="small" theme="borderless" icon={<IconRedo />} disabled={redoDisabled} />
+      <Button size="small" icon={<IconPlay />} onClick={() => setPreviewMode(true)}>
+        运行预览
+      </Button>
+    </div>
+  );
 
   return (
     <div className="studio-header">
-      {/* 左侧 Logo + 应用信息 */}
       <div style={{ display: "flex", alignItems: "center", gap: 0, flex: 1, minWidth: 0 }}>
         <div className="studio-header__logo">
           <div className="studio-header__mx-badge">mx</div>
@@ -49,78 +202,21 @@ export function StudioHeader() {
         <div className="studio-header__divider" />
         <div className="studio-header__app-tag">
           <span style={{ fontSize: 11, opacity: 0.65 }}>应用：</span>
-          <span>{app.name}</span>
+          <span>{app.name || "-"}</span>
           <IconChevronDown size="small" style={{ opacity: 0.65 }} />
         </div>
+        {isMicroflow ? (
+          <div style={{ marginLeft: 8, color: "rgba(255,255,255,0.72)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {microflowTitle}
+          </div>
+        ) : null}
       </div>
 
-      {/* 右侧操作栏 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-        <button className="studio-header__action" onClick={handleSave} title="保存 ⌘S">
-          <IconSave size="small" />
-          <span>保存</span>
-        </button>
-
-        <span style={{ fontSize: 11, opacity: 0.4, color: "#fff", marginLeft: 2 }}>⌘S</span>
-        <div className="studio-header__divider" style={{ margin: "0 6px" }} />
-
-        <button className="studio-header__action" onClick={handleValidate} title="校验">
-          <IconVerify size="small" />
-          <span>校验</span>
-        </button>
-
-        <button className="studio-header__action" onClick={handlePreview} title="预览">
-          <IconPlay size="small" />
-          <span>预览</span>
-        </button>
-
-        <button className="studio-header__action" title="发布">
-          <IconUpload size="small" />
-          <span>发布</span>
-        </button>
-
-        <button className="studio-header__action" title="导出">
-          <IconExport size="small" />
-          <span>导出</span>
-        </button>
-
-        <button className="studio-header__action" title="撤销">
-          <IconUndo size="small" />
-        </button>
-        <button className="studio-header__action" title="重做">
-          <IconRedo size="small" />
-        </button>
-
-        <div className="studio-header__divider" style={{ margin: "0 4px" }} />
-
-        <button className="studio-header__action" title="通知">
-          <IconBell size="small" />
-        </button>
-        <button className="studio-header__action" title="帮助">
-          <IconHelpCircle size="small" />
-        </button>
-
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            background: "#4f46e5",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: "pointer",
-            marginLeft: 4,
-            flexShrink: 0
-          }}
-          title="admin"
-        >
-          A
-        </div>
-      </div>
+      <Space spacing={4} align="center" style={{ flexShrink: 0 }}>
+        {isMicroflow ? renderMicroflowActions() : !isIdle ? renderNonMicroflowActions() : null}
+        <Button size="small" theme="borderless" icon={<IconBell />} />
+        <Button size="small" theme="borderless" icon={<IconHelpCircle />} />
+      </Space>
     </div>
   );
 }

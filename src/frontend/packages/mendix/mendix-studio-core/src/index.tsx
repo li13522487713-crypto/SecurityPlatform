@@ -12,11 +12,9 @@ import { AppExplorer } from "./components/app-explorer";
 import { ExplorerSplitLayout } from "./components/explorer-split-layout";
 import { WidgetToolbox } from "./components/widget-toolbox";
 import { WorkbenchTabs } from "./components/workbench-tabs";
-import { MicroflowWorkbenchToolbar } from "./components/microflow-workbench-toolbar";
 import { WorkbenchCommandPalette } from "./components/workbench-command-palette";
 import { ResourceReadonlyWorkbench } from "./components/resource-readonly-workbench";
 import { MendixDomainModelWorkbench } from "./components/mendix-domain-model-workbench";
-import { WorkbenchToolbar } from "./components/workbench-toolbar";
 import { RuntimePreview } from "./components/runtime-preview";
 import { useMendixStudioStore } from "./store";
 import type { OpenWorkbenchResourceInput } from "./store";
@@ -64,6 +62,12 @@ export function MendixStudioApp({
   const dirtyByWorkbenchTabId = useMendixStudioStore(state => state.dirtyByWorkbenchTabId);
   const saveStateByMicroflowId = useMendixStudioStore(state => state.saveStateByMicroflowId);
   const setStudioContext = useMendixStudioStore(state => state.setStudioContext);
+  const canUndo = useMendixStudioStore(state =>
+    state.activeWorkbenchTabId ? Boolean(state.canUndoByWorkbenchTabId[state.activeWorkbenchTabId]) : false
+  );
+  const canRedo = useMendixStudioStore(state =>
+    state.activeWorkbenchTabId ? Boolean(state.canRedoByWorkbenchTabId[state.activeWorkbenchTabId]) : false
+  );
   const microflowResourcesById = useMendixStudioStore(state => state.microflowResourcesById);
   const appAssetModules = useMendixStudioStore(state => state.appAssetModules);
   const markMicroflowDirty = useMendixStudioStore(state => state.markMicroflowDirty);
@@ -344,7 +348,7 @@ export function MendixStudioApp({
         }}
         data-app-id={appId}
       >
-        <StudioHeader />
+        <StudioHeader mode="idle" canUndo={canUndo} canRedo={canRedo} />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <Card style={{ width: 520, borderRadius: 12 }}>
             <Space vertical align="start" spacing={12}>
@@ -375,7 +379,18 @@ export function MendixStudioApp({
       data-app-id={appId}
     >
       {/* 顶部 Header */}
-      <StudioHeader />
+      <StudioHeader
+        mode={hasActiveWorkbenchTab ? (isMicroflow ? "microflow" : "non-microflow") : "idle"}
+        commandBus={commandBus}
+        microflowStatus={microflowWorkbenchStatus}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onViewMicroflowReferences={() => {
+          if (activeMicroflowId) {
+            openReferencesPanel(activeMicroflowId);
+          }
+        }}
+      />
 
       {/* 主体区域 */}
       <div
@@ -437,25 +452,11 @@ export function MendixStudioApp({
                   <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
                     <WorkbenchTabs embedded />
                   </div>
-                  <div style={{ width: 0.5, alignSelf: "stretch", background: "var(--semi-color-border, #e5e6eb)", opacity: 0.5 }} />
-                  <MicroflowWorkbenchToolbar
-                    microflowId={activeMicroflowId}
-                    editorRef={microflowEditorHandleRef}
-                    status={microflowWorkbenchStatus}
-                    commandBus={commandBus}
-                    variant="embedded"
-                    onViewReferences={openReferencesPanel}
-                  />
                 </div>
               ) : (
                 <>
                   {/* Tab 栏 */}
                   <WorkbenchTabs />
-
-                  {/* 工具栏：仅在已打开资源时显示，避免空工作台自动呈现 Page/Workflow 操作。 */}
-                  {hasActiveWorkbenchTab && !isMicroflow ? (
-                    <WorkbenchToolbar onViewMicroflowReferences={openReferencesPanel} />
-                  ) : null}
                 </>
               )}
 
@@ -509,6 +510,7 @@ export function MendixStudioApp({
                       onCloseTab={() => closeWorkbenchTab(activeMicroflowTabId, { force: true })}
                       onOpenMicroflow={microflowId => requestOpenMicroflow(microflowId, "editor")}
                       onDirtyChange={dirty => markMicroflowDirty(activeMicroflowId, dirty)}
+                      onViewReferences={openReferencesPanel}
                       onResourceUpdated={resource => {
                         const view = mapMicroflowResourceToStudioDefinitionView(resource);
                         upsertStudioMicroflow(view);

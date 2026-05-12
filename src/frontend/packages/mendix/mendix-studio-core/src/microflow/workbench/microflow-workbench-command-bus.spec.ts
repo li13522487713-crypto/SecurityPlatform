@@ -20,11 +20,13 @@ function createHandle() {
     toggleFullscreen: vi.fn(),
     toggleFocusMode: vi.fn(),
     toggleMinimap: vi.fn(),
+    exportAsImage: vi.fn(async () => undefined),
     resetLayout: vi.fn(),
     openBottomTab: vi.fn(),
     setBottomDockMode: vi.fn(),
     getLayoutState: vi.fn(),
     getStatus: vi.fn(),
+    configureAllNodeAcceptance120: vi.fn(async () => undefined),
   };
 }
 
@@ -82,6 +84,26 @@ describe("MicroflowWorkbenchCommandBus", () => {
     expect(bus.getSnapshot().latestExecutionByCommand["microflow.toggleToolbox"]).toMatchObject({
       state: "success",
     });
+  });
+
+  it("executes extended toolbar commands", async () => {
+    const handle = createHandle();
+    const bus = new MicroflowWorkbenchCommandBus();
+    bus.bindContext({
+      microflowId: "mf-1",
+      tabId: "microflow:mf-1",
+      getEditorHandle: () => handle as any,
+    });
+
+    await bus.execute("microflow.autoLayout");
+    await bus.execute("microflow.fitView");
+    await bus.execute("microflow.exportImage");
+    await bus.execute("microflow.acceptance120");
+
+    expect(handle.autoLayout).toHaveBeenCalledTimes(1);
+    expect(handle.fitView).toHaveBeenCalledTimes(1);
+    expect(handle.exportAsImage).toHaveBeenCalledTimes(1);
+    expect(handle.configureAllNodeAcceptance120).toHaveBeenCalledTimes(1);
   });
 
   it("records failed state when the underlying command throws", async () => {

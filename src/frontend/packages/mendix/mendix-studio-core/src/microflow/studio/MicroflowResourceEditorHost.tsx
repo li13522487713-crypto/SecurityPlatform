@@ -30,6 +30,7 @@ export interface MicroflowResourceEditorHostProps {
   onLayoutStateChange?: (state: MicroflowWorkbenchLayoutState) => void;
   onWorkbenchStatusChange?: (status: MicroflowWorkbenchStatus) => void;
   readonly?: boolean;
+  onViewReferences?: (microflowId: string) => void;
 }
 
 const { Text } = Typography;
@@ -77,6 +78,7 @@ export function MicroflowResourceEditorHost({
   onLayoutStateChange,
   onWorkbenchStatusChange,
   readonly,
+  onViewReferences,
 }: MicroflowResourceEditorHostProps) {
   const requestSeqRef = useRef(0);
   const mountedRef = useRef(false);
@@ -245,6 +247,7 @@ export function MicroflowResourceEditorHost({
           onLayoutStateChange={onLayoutStateChange}
           onWorkbenchStatusChange={onWorkbenchStatusChange}
           readonly={readonly}
+          onViewReferences={onViewReferences}
           onSave={saved => {
             if (!mountedRef.current || saved.id !== microflowId) {
               return;
