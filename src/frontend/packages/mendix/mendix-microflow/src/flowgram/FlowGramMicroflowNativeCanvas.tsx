@@ -109,7 +109,9 @@ export interface FlowGramMicroflowNativeCanvasProps {
   onSchemaChange: (nextSchema: MicroflowDesignSchema, reason: string) => void;
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
   onNodeClickChange?: (selection: FlowGramMicroflowSelection) => void;
+  onNodeDoubleClick?: (selection: FlowGramMicroflowSelection) => void;
   onCanvasBlankClick?: (point?: { x: number; y: number }) => void;
+  onCanvasBlankDoubleClick?: () => void;
   onNodeContextMenu?: (selection: FlowGramMicroflowSelection, point: { x: number; y: number }) => void;
   onNodeToolbarQuickAdd?: (objectId: string, point: { x: number; y: number }) => void;
   onDropRegistryItem?: (
@@ -1221,6 +1223,19 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     }
   };
 
+  const handleDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
+    if (selection && selection.objectId) {
+      props.onNodeDoubleClick?.(selection);
+    } else {
+      props.onCanvasBlankDoubleClick?.();
+    }
+  };
+
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (event.button === 1) {
       const target = event.target instanceof HTMLElement ? event.target : undefined;
@@ -1544,6 +1559,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         }
       }}
       onClickCapture={handleClickCapture}
+      onDoubleClick={handleDoubleClick}
       onMouseDownCapture={handleMouseDown}
       onMouseUpCapture={handlePointerFallbackDrop}
       onContextMenuCapture={handleContextMenu}

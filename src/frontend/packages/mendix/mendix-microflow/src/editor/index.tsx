@@ -527,7 +527,7 @@ interface QuickInsertState {
   canvasPosition?: { x: number; y: number };
   insertFlowId?: string;
   sourceObjectId?: string;
-  source: "blank" | "flow" | "node" | "empty";
+  source: "blank" | "blank-canvas" | "flow" | "node" | "empty";
 }
 
 interface MicroflowClipboardSelection {
@@ -2606,7 +2606,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       ? 0
       : leftOpen
         ? NODE_TOOLBOX_PANEL_WIDTH_PX
-        : rightOpen && hasPropertySelection
+        : rightOpen
           ? RIGHT_PANEL_EXPANDED_PX
           : 0;
     return {
@@ -2618,7 +2618,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       position: "relative",
       transition: "grid-template-columns 250ms cubic-bezier(0.4, 0, 0.2, 1)"
     };
-  }, [focusMode, leftOpen, rightOpen, schema.editor.selection.flowId, schema.editor.selection.flowIds?.length, schema.editor.selection.objectId, schema.editor.selection.objectIds?.length]);
+  }, [focusMode, leftOpen, rightOpen]);
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const graphIndex = useMemo(() => createMicroflowGraphIndex(schema), [schema.objectCollection, schema.flows]);
@@ -6218,6 +6218,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   },
                 },
               }, "bulkUpdate", { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+              if (selection.objectId || selection.flowId) {
+                openPropertiesPanel();
+              }
               return;
             }
             applyPatch({
@@ -6228,12 +6231,35 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               selectedFlowIds: selection.flowIds,
               selectionMode: selection.mode,
             }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+            if (selection.objectId || selection.flowId) {
+              openPropertiesPanel();
+            }
           }}
           onNodeClickChange={selection => {
             if (selection.objectId || selection.flowId) {
               setCanvasBlankContextMenu(undefined);
               openPropertiesPanel();
             }
+          }}
+          onNodeDoubleClick={selection => {
+            if (!selection.objectId) {
+              return;
+            }
+            const targetNode = isDesignSchema(schema)
+              ? schema.workflow.nodes.find(node => node.id === selection.objectId)
+              : findObject(schema, selection.objectId);
+            if (!targetNode) {
+              return;
+            }
+            openPropertiesPanel();
+            applyPatch({
+              selectedObjectId: selection.objectId,
+              selectedFlowId: undefined,
+              selectedCollectionId: selection.collectionId,
+            }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+          }}
+          onCanvasBlankDoubleClick={() => {
+            openQuickInsert({ kind: "blank-canvas" });
           }}
           onCanvasBlankClick={() => {
             setCanvasNodeContextMenu(undefined);
@@ -6325,6 +6351,98 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           showBuiltInToolbar={toolbarMode === "internal"}
         />
         </div>
+        {quickInsertState ? (
+          <div
+            data-testid="microflow-quick-insert-panel"
+            style={{
+              position: "fixed",
+              left: Math.min(quickInsertState.x, window.innerWidth - 320),
+              top: Math.min(quickInsertState.y, window.innerHeight - 400),
+              zIndex: 1300,
+              width: 300,
+              maxHeight: 380,
+              borderRadius: 12,
+              border: "1px solid var(--semi-color-border, #e5e6eb)",
+              background: "var(--semi-color-bg-2, #fff)",
+              boxShadow: "0 12px 32px rgba(31, 35, 41, 0.18)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+            onClick={event => event.stopPropagation()}
+            onContextMenu={event => event.preventDefault()}
+          >
+            <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--semi-color-border, #e5e6eb)" }}>
+              <Input
+                prefix={<IconSearch />}
+                value={quickInsertQuery}
+                onChange={setQuickInsertQuery}
+                placeholder="搜索节点类型..."
+                size="small"
+                autofocus
+              />
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: 8 }}>
+              {(() => {
+                const filtered = quickInsertQuery
+                  ? searchMicroflowNodes([...microflowNodeRegistryByKey.values()], quickInsertQuery)
+                  : [...microflowNodeRegistryByKey.values()].sort((a, b) => {
+                    const aKey = getMicroflowNodeRegistryKey(a);
+                    const bKey = getMicroflowNodeRegistryKey(b);
+                    const aRecent = recentQuickInsertNodeKeys.indexOf(aKey);
+                    const bRecent = recentQuickInsertNodeKeys.indexOf(bKey);
+                    if (aRecent >= 0 && bRecent < 0) return -1;
+                    if (aRecent < 0 && bRecent >= 0) return 1;
+                    if (aRecent >= 0 && bRecent >= 0) return aRecent - bRecent;
+                    return a.title.localeCompare(b.title);
+                  }).slice(0, 20);
+                if (filtered.length === 0) {
+                  return <Empty title="未找到匹配节点" description="Try another keyword." style={{ padding: 16 }} />;
+                }
+                return (
+                  <Space vertical align="start" style={{ width: "100%" }}>
+                    {filtered.slice(0, 12).map(item => {
+                      const key = getMicroflowNodeRegistryKey(item);
+                      const isRecent = recentQuickInsertNodeKeys.includes(key);
+                      return (
+                        <Button
+                          key={key}
+                          block
+                          size="small"
+                          theme="borderless"
+                          type="tertiary"
+                          style={{ justifyContent: "flex-start", gap: 8 }}
+                          onClick={() => {
+                            const canvasPoint = quickInsertState.canvasPosition
+                              ? { x: quickInsertState.canvasPosition.x, y: quickInsertState.canvasPosition.y }
+                              : { x: quickInsertState.x, y: quickInsertState.y };
+                            handleAddNode(item, {
+                              source: "contextMenu",
+                              position: canvasPoint,
+                            });
+                            recordRecentQuickInsert(item);
+                            closeQuickInsert();
+                          }}
+                        >
+                          <span style={{ fontSize: 14 }}>{item.icon ?? "●"}</span>
+                          <span style={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {item.title}
+                          </span>
+                          {isRecent ? <Tag size="small" color="blue">最近</Tag> : null}
+                        </Button>
+                      );
+                    })}
+                  </Space>
+                );
+              })()}
+            </div>
+            <div style={{ padding: "6px 12px", borderTop: "1px solid var(--semi-color-border, #e5e6eb)" }}>
+              <Text size="small" type="tertiary">
+                {quickInsertState.source === "blank-canvas" ? "空白画布快速添加" : "快速插入节点"}
+              </Text>
+            </div>
+          </div>
+        ) : null}
         {shouldShowCanvasContextMenu && canvasNodeContextMenu ? (() => {
           const hasNode = Boolean(canvasNodeContextMenu.objectId);
           const parameterBinding = contextMenuParameterBinding(canvasNodeContextMenu);
@@ -6539,7 +6657,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </Button>
           </div>
         ) : null}
-        {AUXILIARY_PANELS_ENABLED && !focusMode && (leftOpen || (rightOpen && (selectedObject || selectedFlow))) ? <div
+        {AUXILIARY_PANELS_ENABLED && !focusMode && (leftOpen || rightOpen) ? <div
           data-testid="microflow-editor-right-shell"
           style={{
             display: "flex",
@@ -6595,7 +6713,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               />
             </div>
           ) : null}
-          {rightOpen && (selectedObject || selectedFlow) ? (
+          {rightOpen ? (
+            (selectedObject || selectedFlow) ? (
             <div data-testid="microflow-property-panel" style={{ ...propertyPaneStyle, padding: 0 }}>
               {isDesignSchema(schema) && selectedPropertyInlineNode && !selectedFlow ? (
                 <FlowGramMicroflowRuntimeContext.Provider
@@ -6757,6 +6876,41 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 />
               )}
             </div>
+            ) : (
+            <div data-testid="microflow-property-panel-empty" style={{ ...propertyPaneStyle, padding: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
+                <Text strong style={{ fontSize: 14 }}>属性面板</Text>
+                <Text type="tertiary" size="small" style={{ textAlign: "center" }}>
+                  选择画布上的节点或连线以查看和编辑属性
+                </Text>
+                <div style={{ width: "100%", marginTop: 16, padding: 12, borderRadius: 8, background: "var(--semi-color-fill-0, #f9f9f9)" }}>
+                  <Text size="small" type="secondary" style={{ display: "block", marginBottom: 8 }}>快捷操作：</Text>
+                  <Space vertical align="start" style={{ width: "100%" }}>
+                    <Button
+                      block
+                      size="small"
+                      theme="borderless"
+                      icon={<IconSearch />}
+                      onClick={focusNodeSearch}
+                    >
+                      搜索节点 (Ctrl/Cmd+G)
+                    </Button>
+                    <Button
+                      block
+                      size="small"
+                      theme="borderless"
+                      onClick={() => openQuickInsert({ kind: "blank-canvas" })}
+                    >
+                      快速添加节点
+                    </Button>
+                  </Space>
+                </div>
+                <Text type="tertiary" size="small" style={{ marginTop: 8, textAlign: "center" }}>
+                  {schema.displayName || schema.name} · {graph.nodes.length} 个节点
+                </Text>
+              </div>
+            </div>
+            )
           ) : null}
         </div> : null}
       </div>

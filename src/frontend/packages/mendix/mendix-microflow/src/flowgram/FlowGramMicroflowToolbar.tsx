@@ -260,28 +260,6 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
 
         <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
 
-        {/* 撤销 / 重做 */}
-        <Tooltip content={copy.canvasToolbar.undoTooltip} position="bottom">
-          <Button
-            icon={<IconUndo />}
-            size="small"
-            disabled={!props.canUndo}
-            aria-label={copy.canvasToolbar.undo}
-            onClick={props.onUndo}
-          />
-        </Tooltip>
-        <Tooltip content={copy.canvasToolbar.redoTooltip} position="bottom">
-          <Button
-            icon={<IconRedo />}
-            size="small"
-            disabled={!props.canRedo}
-            aria-label={copy.canvasToolbar.redo}
-            onClick={props.onRedo}
-          />
-        </Tooltip>
-
-        <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
-
         {/* 视图开关 */}
         <Tooltip content={copy.canvasToolbar.gridTooltip} position="bottom">
           <Button
@@ -337,38 +315,6 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
                 {microflowNodeCountText}
               </Tag>
             </Tooltip>
-          </>
-        ) : null}
-
-        {/* 保存/校验状态 */}
-        {props.dirty !== undefined ? (
-          <>
-            <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
-            <Tag
-              size="small"
-              prefixIcon={<IconClock />}
-              style={props.saving ? savingTagStyle : props.dirty ? draftTagStyle : savedTagStyle}
-            >
-              {props.saving ? "保存中" : props.dirty ? "草稿待保存" : "已保存"}
-            </Tag>
-            {errorCount > 0 ? (
-              <Tag
-                size="small"
-                style={errorTagStyle}
-                onClick={props.onOpenProblemsPanel}
-              >
-                {errorCount} 错误
-              </Tag>
-            ) : null}
-            {warningCount > 0 ? (
-              <Tag
-                size="small"
-                style={warningTagStyle}
-                onClick={props.onOpenProblemsPanel}
-              >
-                {warningCount} 警告
-              </Tag>
-            ) : null}
           </>
         ) : null}
       </Space>
