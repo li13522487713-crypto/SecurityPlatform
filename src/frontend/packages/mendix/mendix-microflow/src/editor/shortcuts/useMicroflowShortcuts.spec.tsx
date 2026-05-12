@@ -19,6 +19,7 @@ function ShortcutHarness(props: {
   onSearch?: () => void;
   onGoTo?: () => void;
   onOpenProperties?: () => void;
+  onDeleteSelection?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useMicroflowShortcuts({
@@ -28,7 +29,7 @@ function ShortcutHarness(props: {
     onSave: vi.fn(),
     onSearch: props.onSearch ?? vi.fn(),
     onSearchAll: props.onSearchAll,
-    onDeleteSelection: vi.fn(),
+    onDeleteSelection: props.onDeleteSelection ?? vi.fn(),
     onEscape: vi.fn(),
     onFitView: props.onFitView,
     onFocusMode: props.onFocusMode,
@@ -164,5 +165,16 @@ describe("useMicroflowShortcuts", () => {
     fireEvent.keyDown(target, { key: "F11" });
 
     expect(onFocusMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps Delete and Backspace to delete selection command", () => {
+    const onDeleteSelection = vi.fn();
+    const { getByTestId } = render(<ShortcutHarness onDeleteSelection={onDeleteSelection} />);
+    const target = getByTestId("shortcut-target");
+
+    fireEvent.keyDown(target, { key: "Delete" });
+    fireEvent.keyDown(target, { key: "Backspace" });
+
+    expect(onDeleteSelection).toHaveBeenCalledTimes(2);
   });
 });

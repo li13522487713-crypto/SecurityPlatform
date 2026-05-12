@@ -68,6 +68,20 @@ describe("FlowGramMicroflowNativeCanvas hand-tool interactions", () => {
     expect(shouldPan).toBe(true);
   });
 
+  it("pans viewport on blank canvas even when pan tool is off", () => {
+    const blank = makeTarget(() => false);
+
+    const shouldPan = shouldViewportPanFromPointerDown({
+      target: blank,
+      button: 0,
+      panToolActive: false,
+      spacePressed: false,
+      draggingNode: false,
+    });
+
+    expect(shouldPan).toBe(true);
+  });
+
   it("keeps node context-menu path when right button is pressed on a node", () => {
     const nodeTarget = makeTarget(selector => selector.includes("[data-microflow-object-id]"));
 

@@ -1,9 +1,9 @@
 const FLOWGRAM_PAN_EXEMPT_SELECTOR =
-  ".microflow-flowgram-node, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
+  ".microflow-flowgram-node, .gedit-flow-activity-edge, .microflow-edge-label, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
 
 /** 空格键按住时排除节点本身，让空格拖动全局生效 */
 const FLOWGRAM_PAN_EXEMPT_SELECTOR_SPACE =
-  ".microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
+  ".gedit-flow-activity-edge, .microflow-edge-label, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
 
 const FLOWGRAM_NODE_HIT_SELECTOR =
   "[data-microflow-object-id], .microflow-flowgram-node, .workflow-node-render, .workflow-port-render";
@@ -29,6 +29,7 @@ export function shouldViewportPanFromPointerDown(args: {
     return false;
   }
   const nodeHit = isFlowgramNodeTarget(target);
+  const blankLeftPan = button === 0 && !nodeHit;
   // 小手模式下优先拖拽节点；空格临时平移保持全局优先。
   if (nodeHit && panToolActive && !spacePressed) {
     return false;
@@ -37,6 +38,7 @@ export function shouldViewportPanFromPointerDown(args: {
   // 右键仅在空白画布启用拖拽平移，避免吞掉节点/连线的上下文菜单。
   return !exempt && (
     button === 1
+    || blankLeftPan
     || (button === 0 && (panToolActive || spacePressed))
     || (button === 2 && !nodeHit)
   );

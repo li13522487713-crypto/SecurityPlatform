@@ -187,8 +187,9 @@ const rightPanelStorageKey = "atlas_microflow_panel_right_open";
 const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
 const bottomTabStorageKey = "atlas_microflow_panel_bottom_tab";
 const mendixLayoutStorageKey = "lowcode-studio:mendix-layout:v1";
-const NODE_TOOLBOX_PANEL_WIDTH_PX = 420;
-const RIGHT_PANEL_EXPANDED_PX = 260;
+const RIGHT_DOCK_PANEL_WIDTH_PX = 380;
+const NODE_TOOLBOX_PANEL_WIDTH_PX = RIGHT_DOCK_PANEL_WIDTH_PX;
+const RIGHT_PANEL_EXPANDED_PX = RIGHT_DOCK_PANEL_WIDTH_PX;
 const BOTTOM_STRIP_HEIGHT_PX = 32;
 const BOTTOM_DOCK_PEEK_HEIGHT_PX = 260;
 const BOTTOM_DOCK_FULL_DEFAULT_PX = 420;
@@ -4965,11 +4966,42 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
   }, [schema]);
 
+  const applyDeleteTargetsInDesign = useCallback((objectIds: string[], flowIds: string[]) => {
+    const designSchema = schema as unknown as MicroflowDesignSchema;
+    const uniqueObjectIds = [...new Set(objectIds)];
+    const uniqueFlowIds = [...new Set(flowIds)];
+    const totalCount = uniqueObjectIds.length + uniqueFlowIds.length;
+    if (totalCount === 0) {
+      return;
+    }
+    commitSchema(
+      deleteDesignSelection(designSchema, uniqueObjectIds, uniqueFlowIds) as unknown as MicroflowSchema,
+      "flowgramNodeDelete",
+      { historyLabel: "Delete selection", source: "flowgram" },
+    );
+    if (totalCount > 1) {
+      Toast.info({ content: `已删除 ${totalCount} 个元素，可按 Ctrl+Z 撤销`, duration: 4 });
+      return;
+    }
+    if (uniqueFlowIds.length === 1) {
+      Toast.info({ content: "已删除连线，可按 Ctrl+Z 撤销", duration: 4 });
+      return;
+    }
+    if (uniqueObjectIds.length === 1) {
+      const nodeName = designSchema.workflow.nodes.find(node => node.id === uniqueObjectIds[0])?.data?.title ?? "节点";
+      Toast.info({ content: `已删除"${nodeName}"，可按 Ctrl+Z 撤销`, duration: 4 });
+    }
+  }, [schema]);
+
   const confirmDeleteTargets = useCallback((objectIds: string[], flowIds: string[], source: MicroflowSchemaChangeSource) => {
     const uniqueObjectIds = [...new Set(objectIds)];
     const uniqueFlowIds = [...new Set(flowIds)];
     const totalCount = uniqueObjectIds.length + uniqueFlowIds.length;
     if (totalCount === 0) {
+      return;
+    }
+    if (totalCount <= 1) {
+      applyDeleteTargets(uniqueObjectIds, uniqueFlowIds, source);
       return;
     }
     const impact = collectDeleteImpact(uniqueObjectIds, uniqueFlowIds);
@@ -4999,6 +5031,35 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     });
   }, [applyDeleteTargets, collectDeleteImpact]);
 
+  const confirmDeleteTargetsInDesign = useCallback((objectIds: string[], flowIds: string[]) => {
+    const uniqueObjectIds = [...new Set(objectIds)];
+    const uniqueFlowIds = [...new Set(flowIds)];
+    const totalCount = uniqueObjectIds.length + uniqueFlowIds.length;
+    if (totalCount === 0) {
+      return;
+    }
+    if (totalCount <= 1) {
+      applyDeleteTargetsInDesign(uniqueObjectIds, uniqueFlowIds);
+      return;
+    }
+    Modal.confirm({
+      title: "删除前影响确认",
+      okText: "确认删除",
+      okButtonProps: { type: "danger" },
+      cancelText: "取消",
+      content: (
+        <Space vertical align="start" spacing={6}>
+          <Text>将删除节点 {uniqueObjectIds.length} 个、连线 {uniqueFlowIds.length} 条。</Text>
+          <Text type="warning">批量删除后请检查分支与下游连线是否符合预期。</Text>
+          <Text type="tertiary" size="small">本次影响元素总计约 {totalCount} 项，删除后可使用 Ctrl+Z 撤销。</Text>
+        </Space>
+      ),
+      onOk: () => {
+        applyDeleteTargetsInDesign(uniqueObjectIds, uniqueFlowIds);
+      },
+    });
+  }, [applyDeleteTargetsInDesign]);
+
   const handleDeleteSelection = () => {
     if (props.readonly) {
       return;
@@ -5016,11 +5077,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       if (deletableObjectIds.length === 0 && flowIds.length === 0) {
         return;
       }
-      commitSchema(
-        deleteDesignSelection(schema, deletableObjectIds, flowIds) as unknown as MicroflowSchema,
-        "flowgramNodeDelete",
-        { historyLabel: "Delete selection", source: "flowgram" },
-      );
+      confirmDeleteTargetsInDesign(deletableObjectIds, flowIds);
       return;
     }
     confirmDeleteTargets(deletableObjectIds, flowIds, "flowgram");

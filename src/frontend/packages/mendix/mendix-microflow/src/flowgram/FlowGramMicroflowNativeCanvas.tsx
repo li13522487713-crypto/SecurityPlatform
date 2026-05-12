@@ -1238,7 +1238,28 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       return;
     }
     const target = event.target instanceof HTMLElement ? event.target : undefined;
-    const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
+    const selectionFromEventTarget = selectionFromTarget(target, latestSchemaRef.current.workflow);
+    const fallbackFlowId = selectionFromEventTarget
+      ? undefined
+      : findNearestDropInsertFlowId(
+        latestSchemaRef.current,
+        clientPointToFlowGramPoint(
+          { x: event.clientX, y: event.clientY },
+          containerRef.current?.getBoundingClientRect(),
+          latestSchemaRef.current.editor.viewport ?? { x: 0, y: 0, zoom: 1 },
+        ),
+        10,
+      );
+    const selection = selectionFromEventTarget ?? (fallbackFlowId
+      ? {
+          objectId: undefined,
+          flowId: fallbackFlowId,
+          collectionId: undefined,
+          objectIds: [],
+          flowIds: [fallbackFlowId],
+          mode: "single" as const,
+        }
+      : undefined);
     if (selection) {
       props.onSelectionChange(selection);
       if (dragStartPosRef.current) {
