@@ -640,7 +640,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     documentation: doc("Merge is not a parallel synchronizer; it continues when any incoming branch arrives."),
     render: { iconKey: "merge", shape: "diamond", tone: "info", width: 112, height: 84 },
     propertyForm: { formKey: "merge", sections: ["General", "Output"] },
-    propertyTabs: ["properties"],
+    propertyTabs: ["documentation"],
     supportsErrorHandling: false
   }),
   createEntry({

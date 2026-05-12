@@ -158,7 +158,7 @@ describe("microflow toolbox cleanliness", () => {
     expect(objectTabs("endEvent")).toEqual(["properties", "documentation"]);
     expect(objectTabs("decision")).toEqual(["properties", "documentation"]);
     expect(objectTabs("loop")).toEqual(["properties", "documentation"]);
-    expect(objectTabs("merge")).toEqual(["properties"]);
+    expect(objectTabs("merge")).toEqual(["documentation"]);
     expect(objectTabs("annotation")).toEqual(["properties"]);
     expect(objectTabs("tryCatch")).toEqual(["properties", "documentation"]);
   });

@@ -156,6 +156,7 @@ describe("ActionActivityForm callMicroflow/restCall", () => {
         )}
         object={restCallObject({ handling: { kind: "json", outputVariableName: "response" } })}
         issues={[]}
+        activeTab="output"
         onPatch={onPatch}
         onSchemaChange={onSchemaChange}
       />,

@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MicroflowPropertyPanelProps } from "../types";
 import { ObjectPanel } from "./object-panel";
 
+const actionActivityFormMock = vi.fn(() => null);
+
 vi.mock("@douyinfe/semi-ui", () => ({
   Button: ({ children, onClick, ...rest }: any) => <button type="button" onClick={onClick} {...rest}>{children}</button>,
   Input: ({ value, onChange, disabled }: any) => <input value={value ?? ""} disabled={disabled} onChange={event => onChange?.(event.currentTarget.value)} />,
@@ -75,9 +77,17 @@ vi.mock("./parallel-gateway-form", () => ({ ParallelGatewayForm: () => null }));
 vi.mock("./inclusive-gateway-form", () => ({ InclusiveGatewayForm: () => null }));
 vi.mock("./try-catch-form", () => ({ TryCatchForm: () => null }));
 vi.mock("./error-handler-form", () => ({ ErrorHandlerForm: () => null }));
-vi.mock("./action-activity-form", () => ({ ActionActivityForm: () => null }));
+vi.mock("./action-activity-form", () => ({
+  ActionActivityForm: (props: any) => {
+    actionActivityFormMock(props);
+    return <div data-testid="action-activity-form" />;
+  },
+}));
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  actionActivityFormMock.mockClear();
+});
 
 function baseProps(selectedObject: any): MicroflowPropertyPanelProps {
   return {
@@ -109,7 +119,7 @@ function baseProps(selectedObject: any): MicroflowPropertyPanelProps {
 }
 
 describe("ObjectPanel error handling tab", () => {
-  it("shows official error handling labels and continue guidance for rest calls", () => {
+  it("delegates rest-call errorHandling tab to action form authentication view", () => {
     const selectedObject = {
       id: "rest-node",
       stableId: "rest-node",
@@ -138,16 +148,10 @@ describe("ObjectPanel error handling tab", () => {
 
     render(<ObjectPanel {...baseProps(selectedObject)} />);
 
-    const select = screen.getByDisplayValue("Continue") as HTMLSelectElement;
-    const optionLabels = [...select.options].map(option => option.textContent);
-    expect(optionLabels).toEqual([
-      "Rollback",
-      "Custom with Rollback",
-      "Custom without Rollback",
-      "Continue",
-    ]);
-    expect(screen.getByText("发生错误后忽略当前错误并继续执行后续节点；可通过 $latestError 检查错误详情。")).toBeTruthy();
-    expect(screen.getByText("REST 错误路径中还可读取 $latestHttpResponse。")).toBeTruthy();
+    expect(screen.getByTestId("action-activity-form")).toBeTruthy();
+    const call = actionActivityFormMock.mock.calls.at(-1)?.[0];
+    expect(call?.activeTab).toBe("errorHandling");
+    expect(call?.object?.action?.kind).toBe("restCall");
   });
 
   it("keeps Continue unavailable for createVariable actions", () => {

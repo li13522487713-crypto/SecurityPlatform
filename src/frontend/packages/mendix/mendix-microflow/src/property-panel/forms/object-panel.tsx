@@ -251,6 +251,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
                   object={object}
                   issues={issues}
                   readonly={props.readonly}
+                  activeTab={activeTab}
                   onPatch={payload => props.onObjectChange(object.id, payload)}
                   onSchemaChange={props.onSchemaChange}
                 />
@@ -284,7 +285,17 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         ) : null}
         {activeTab === "errorHandling" ? (
           <>
-            {object.kind === "actionActivity" ? (
+            {object.kind === "actionActivity" && object.action.kind === "restCall" ? (
+              <ActionActivityForm
+                schema={props.schema}
+                object={object}
+                issues={issues}
+                readonly={props.readonly}
+                activeTab={activeTab}
+                onPatch={payload => props.onObjectChange(object.id, payload)}
+                onSchemaChange={props.onSchemaChange}
+              />
+            ) : object.kind === "actionActivity" ? (
               <Field label="Error Handling Type">
                 <ErrorHandlingEditor
                   value={object.action.errorHandlingType}
@@ -311,11 +322,22 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
             ) : (
               <Text type="tertiary">This object does not expose error handling.</Text>
             )}
-            <Text type="tertiary" size="small">自定义错误处理需要 Error Handler Sequence Flow；在错误路径中可使用 $latestError。</Text>
+            {object.kind === "actionActivity" && object.action.kind === "restCall" ? null : <Text type="tertiary" size="small">自定义错误处理需要 Error Handler Sequence Flow；在错误路径中可使用 $latestError。</Text>}
           </>
         ) : null}
         {activeTab === "output" ? (
           <>
+            {object.kind === "actionActivity" && object.action.kind === "restCall" ? (
+              <ActionActivityForm
+                schema={props.schema}
+                object={object}
+                issues={issues}
+                readonly={props.readonly}
+                activeTab={activeTab}
+                onPatch={payload => props.onObjectChange(object.id, payload)}
+                onSchemaChange={props.onSchemaChange}
+              />
+            ) : null}
             <Field label="Variable Declarations">
               {outputVariables.length ? (
                 <Space vertical align="start" spacing={6}>
@@ -342,34 +364,53 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         ) : null}
         {activeTab === "advanced" ? (
           <>
-            <Field label="Disabled">
+            {object.kind === "actionActivity" && object.action.kind === "restCall" ? (
+              <ActionActivityForm
+                schema={props.schema}
+                object={object}
+                issues={issues}
+                readonly={props.readonly}
+                activeTab={activeTab}
+                onPatch={payload => props.onObjectChange(object.id, payload)}
+                onSchemaChange={props.onSchemaChange}
+              />
+            ) : null}
+            {object.kind === "actionActivity" && object.action.kind === "restCall" ? null : (
+              <Field label="Disabled">
               {withDisabledReason(
                 readonlyDisabledReason,
                 "Disabled",
                 <Switch checked={Boolean(object.disabled)} disabled={props.readonly} onChange={disabled => patch({ ...object, disabled } as MicroflowObject)} />
               )}
             </Field>
-            <Field label="Performance Tag">
+            )}
+            {object.kind === "actionActivity" && object.action.kind === "restCall" ? null : (
+              <Field label="Performance Tag">
               {withDisabledReason(
                 readonlyDisabledReason,
                 "Performance tag",
                 <Input value={(object.editor as unknown as { advanced?: { performanceTag?: string } }).advanced?.performanceTag ?? ""} disabled={props.readonly} onChange={performanceTag => patch(updateObjectAdvanced(object, { performanceTag }))} />
               )}
             </Field>
-            <Field label="Execution Timeout">
+            )}
+            {object.kind === "actionActivity" && object.action.kind === "restCall" ? null : (
+              <Field label="Execution Timeout">
               {withDisabledReason(
                 readonlyDisabledReason,
                 "Execution timeout",
                 <Input value={String((object.editor as unknown as { advanced?: { timeoutMs?: number } }).advanced?.timeoutMs ?? "")} disabled={props.readonly} onChange={timeoutMs => patch(updateObjectAdvanced(object, { timeoutMs: Number(timeoutMs) || undefined }))} />
               )}
             </Field>
-            <Field label="Retry Enabled">
+            )}
+            {object.kind === "actionActivity" && object.action.kind === "restCall" ? null : (
+              <Field label="Retry Enabled">
               {withDisabledReason(
                 readonlyDisabledReason,
                 "Retry enabled",
                 <Switch checked={Boolean((object.editor as unknown as { advanced?: { retryEnabled?: boolean } }).advanced?.retryEnabled)} disabled={props.readonly} onChange={retryEnabled => patch(updateObjectAdvanced(object, { retryEnabled }))} />
               )}
             </Field>
+            )}
           </>
         ) : null}
       </div>

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventNodesForm } from "./event-nodes-form";
 
 vi.mock("@douyinfe/semi-ui", () => ({
+  Button: ({ children, onClick, disabled }: any) => <button type="button" disabled={disabled} onClick={onClick}>{children}</button>,
   Input: ({ value, disabled }: any) => <input value={value ?? ""} disabled={disabled} readOnly />,
   Select: ({ value, onChange, optionList, disabled }: any) => (
     <select value={value ?? ""} disabled={disabled} onChange={event => onChange?.(event.currentTarget.value)}>
@@ -13,6 +14,7 @@ vi.mock("@douyinfe/semi-ui", () => ({
     </select>
   ),
   Space: ({ children }: any) => <div>{children}</div>,
+  Switch: ({ checked, onChange, disabled }: any) => <input type="checkbox" checked={Boolean(checked)} disabled={disabled} onChange={event => onChange?.(event.currentTarget.checked)} />,
   TextArea: ({ value, disabled }: any) => <textarea value={value ?? ""} disabled={disabled} readOnly />,
   Tooltip: ({ children }: any) => <>{children}</>,
   Typography: {
@@ -40,7 +42,7 @@ vi.mock("../common", () => ({
 afterEach(() => cleanup());
 
 describe("EventNodesForm start/end/control events", () => {
-  it("shows start-event flow constraints and legal-state guidance", () => {
+  it("shows start-event parameter editor", () => {
     render(
       <EventNodesForm
         props={{
@@ -48,8 +50,17 @@ describe("EventNodesForm start/end/control events", () => {
           schema: {
             returnType: { kind: "void" },
             flows: [{ id: "flow-start-end", originObjectId: "start-1", destinationObjectId: "end-1", kind: "sequence" }],
+            parameters: [{
+              id: "param-customer",
+              stableId: "param-customer",
+              name: "Customer",
+              dataType: { kind: "string" },
+              type: { kind: "primitive", name: "string" },
+              required: true,
+            }],
             objectCollection: { objects: [{ id: "start-1", kind: "startEvent", trigger: { type: "manual" } }, { id: "end-1", kind: "endEvent" }] },
           } as any,
+          onSchemaChange: vi.fn(),
         } as any}
         object={{
           id: "start-1",
@@ -63,10 +74,12 @@ describe("EventNodesForm start/end/control events", () => {
       />,
     );
 
-    expect(screen.getByTestId("field-Incoming Flows")).toBeTruthy();
-    expect(screen.getByDisplayValue("No incoming flow")).toBeTruthy();
-    expect(screen.getByDisplayValue("flow-start-end: end-1")).toBeTruthy();
-    expect(screen.getByText("Start Event is the single root entry. It cannot have incoming flows or be placed inside a Loop.")).toBeTruthy();
+    expect(screen.getByTestId("field-Input Parameters")).toBeTruthy();
+    expect(screen.getByText("Customer [string]")).toBeTruthy();
+    expect(screen.getByTestId("field-Parameter Name")).toBeTruthy();
+    expect(screen.getByDisplayValue("Customer")).toBeTruthy();
+    expect(screen.getByTestId("field-Data Type")).toBeTruthy();
+    expect(screen.getByTestId("field-Required")).toBeTruthy();
   });
 
   it("surfaces end-event return and legality guidance", () => {

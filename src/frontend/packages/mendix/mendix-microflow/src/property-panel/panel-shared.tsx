@@ -150,7 +150,7 @@ export function getObjectTabLabels(object: MicroflowObject): TabLabelMap {
       return { properties: "配置", output: "输入 / 输出", documentation: "文档" };
     }
     if (object.action.kind === "restCall") {
-      return { properties: "基本配置", advanced: "请求", output: "响应", errorHandling: "错误处理", documentation: "文档" };
+      return { properties: "General", advanced: "Request", output: "Response", errorHandling: "Authentication", documentation: "Documentation" };
     }
   }
   return {};

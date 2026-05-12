@@ -449,6 +449,53 @@ describe("expression validator", () => {
     expect(options.some(option => option.value === "$orders")).toBe(true);
   });
 
+  it("attaches standard maybe reason in completion details after merge branches", () => {
+    const decision = objectFrom("decision", "decision-maybe");
+    const merge = objectFrom("merge", "merge-maybe");
+    const createVariable = actionObject("activity:variableCreate", "create-var-maybe");
+    createVariable.action = {
+      ...createVariable.action,
+      variableName: "branchOnlyValue",
+      dataType: { kind: "string" },
+      initialValue: rawExpression("'x'"),
+      readonly: false,
+    } as typeof createVariable.action;
+    const logAfterMerge = actionObject("activity:logMessage", "log-after-merge");
+    const maybeSchema = schemaWith(
+      [start, decision, createVariable, merge, logAfterMerge, end],
+      [
+        createSequenceFlow({ originObjectId: start.id, destinationObjectId: decision.id }),
+        createSequenceFlow({
+          originObjectId: decision.id,
+          destinationObjectId: createVariable.id,
+          edgeKind: "decisionCondition",
+          caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }],
+        }),
+        createSequenceFlow({
+          originObjectId: decision.id,
+          destinationObjectId: merge.id,
+          edgeKind: "decisionCondition",
+          caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: false, persistedValue: "false" }],
+        }),
+        createSequenceFlow({ originObjectId: createVariable.id, destinationObjectId: merge.id }),
+        createSequenceFlow({ originObjectId: merge.id, destinationObjectId: logAfterMerge.id }),
+        createSequenceFlow({ originObjectId: logAfterMerge.id, destinationObjectId: end.id }),
+      ],
+    );
+    const maybeIndex = buildVariableIndex(maybeSchema, metadata);
+
+    const options = buildMicroflowExpressionCompletionOptions({
+      schema: maybeSchema,
+      metadata,
+      variableIndex: maybeIndex,
+      objectId: logAfterMerge.id,
+      fieldPath: "action.template",
+    });
+
+    const maybeOption = options.find(option => option.value === "$branchOnlyValue");
+    expect(maybeOption?.detail).toContain("maybe - Variable is not definitely assigned on every normal path to this object.");
+  });
+
   it("offers listOperation map item variable inside map expression completion options", () => {
     const createList = actionObject("activity:listCreate", "create-list-for-list-operation-map");
     createList.action = {

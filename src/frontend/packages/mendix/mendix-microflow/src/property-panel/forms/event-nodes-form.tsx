@@ -1,13 +1,14 @@
-import { Input, Select, Space, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
-import type { MicroflowObject } from "../../schema";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Input, Select, Space, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
+import type { MicroflowObject, MicroflowParameter } from "../../schema";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
-import { collectFlowsRecursive, collectLoopObjects, getBreakContinueWarnings, updateEndEventReturnValue, updateMicroflowReturnType } from "../../schema/utils";
+import { collectFlowsRecursive, collectLoopObjects, createStableId, getBreakContinueWarnings, getParameterNameWarning, removeMicroflowParameter, updateEndEventReturnValue, updateMicroflowReturnType, upsertMicroflowParameter } from "../../schema/utils";
 import { FieldError } from "../common";
 import { ExpressionEditor } from "../expression";
 import { DataTypeSelector } from "../selectors";
 import type { MicroflowPropertyPanelProps } from "../types";
-import { getIssuesForField, getIssuesForObject } from "../utils";
+import { getIssuesForField, getIssuesForObject, updateParameter } from "../utils";
 import { expression, Field } from "../panel-shared";
 
 const { Text } = Typography;
@@ -45,43 +46,139 @@ export function EventNodesForm({ props, object, issues, metadata, variableIndex,
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit event settings." : "";
   const flows = collectFlowsRecursive(props.schema);
   const objects = props.schema.objectCollection.objects;
-  const startCount = objects.filter(item => item.kind === "startEvent").length;
   const endCount = objects.filter(item => item.kind === "endEvent").length;
   const incomingSummary = flows.filter(flow => flow.destinationObjectId === object.id).map(flow => `${flow.id}: ${flow.originObjectId}`).join("\n");
   const outgoingSummary = flows.filter(flow => flow.originObjectId === object.id).map(flow => `${flow.id}: ${flow.destinationObjectId}`).join("\n");
+  const startParameters = props.schema.parameters ?? [];
+  const [selectedParameterId, setSelectedParameterId] = useState<string>(() => startParameters[0]?.id ?? "");
+  useEffect(() => {
+    if (!startParameters.some(parameter => parameter.id === selectedParameterId)) {
+      setSelectedParameterId(startParameters[0]?.id ?? "");
+    }
+  }, [selectedParameterId, startParameters]);
+  const selectedParameter = useMemo(
+    () => startParameters.find(parameter => parameter.id === selectedParameterId),
+    [selectedParameterId, startParameters],
+  );
+
+  const patchParameter = (parameterId: string, parameterPatch: Partial<MicroflowParameter>) => {
+    if (!props.onSchemaChange) {
+      return;
+    }
+    props.onSchemaChange(updateParameter(props.schema, parameterId, parameterPatch), "updateParameter");
+  };
+
+  const addParameter = () => {
+    if (!props.onSchemaChange) {
+      return;
+    }
+    const parameterId = createStableId("param");
+    const nextParameter = {
+      id: parameterId,
+      stableId: parameterId,
+      name: `Parameter${startParameters.length + 1}`,
+      dataType: { kind: "string" as const },
+      type: { kind: "primitive" as const, name: "string" },
+      required: true,
+    };
+    props.onSchemaChange(upsertMicroflowParameter(props.schema, nextParameter), "addParameter");
+    setSelectedParameterId(parameterId);
+  };
+
+  const removeParameter = (parameterId: string) => {
+    if (!props.onSchemaChange) {
+      return;
+    }
+    props.onSchemaChange(removeMicroflowParameter(props.schema, parameterId), "removeParameter");
+  };
+
   if (object.kind === "startEvent") {
-    const legalStateMessages = uniqueMessages([
-      ...issues.filter(issue => issue.code.startsWith("MF_START_")).map(issue => issue.message),
-      ...(startCount > 1 ? ["A microflow should contain only one StartEvent."] : []),
-    ]);
+    const legalStateMessages = uniqueMessages(issues.filter(issue => issue.code.startsWith("MF_START_")).map(issue => issue.message));
+    const parameterNameWarning = selectedParameter ? getParameterNameWarning(props.schema, selectedParameter.id, selectedParameter.name) : undefined;
+    const canEditParameter = Boolean(selectedParameter && props.onSchemaChange && !props.readonly);
     return (
       <>
-        <Field label="Trigger">
-          {withDisabledReason(
-            readonlyDisabledReason,
-            "Trigger",
-            <Select
-              value={object.trigger.type}
-              disabled={props.readonly}
-              style={{ width: "100%" }}
-              onChange={type => patch({ ...object, trigger: { type: String(type) as typeof object.trigger.type } })}
-              optionList={["manual", "pageEvent", "formSubmit", "workflowCall", "apiCall", "scheduled", "system"].map(value => ({ label: value, value }))}
-            />
-          )}
+        <Field label="Input Parameters">
+          <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+            {startParameters.map(parameter => (
+              <div key={parameter.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, width: "100%" }}>
+                <Button
+                  theme={parameter.id === selectedParameterId ? "solid" : "light"}
+                  type={parameter.id === selectedParameterId ? "primary" : "tertiary"}
+                  onClick={() => setSelectedParameterId(parameter.id)}
+                  disabled={props.readonly}
+                  style={{ justifyContent: "flex-start" }}
+                >
+                  {parameter.name || "(missing)"} [{parameter.dataType.kind}]
+                </Button>
+                {withDisabledReason(
+                  readonlyDisabledReason,
+                  "Delete parameter",
+                  <Button
+                    type="danger"
+                    theme="borderless"
+                    disabled={props.readonly}
+                    onClick={() => removeParameter(parameter.id)}
+                  >
+                    Delete
+                  </Button>,
+                )}
+              </div>
+            ))}
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Add parameter",
+              <Button disabled={props.readonly} onClick={addParameter}>Add parameter</Button>,
+            )}
+          </Space>
+          {startParameters.length === 0 ? <Text type="warning" size="small">No input parameters defined.</Text> : null}
         </Field>
-        <Field label="Incoming Flows">
-          <TextArea value={incomingSummary || "No incoming flow"} autosize disabled />
+        <Field label="Parameter Name">
+          <Input
+            value={selectedParameter?.name ?? ""}
+            disabled={!canEditParameter}
+            onChange={name => {
+              if (!selectedParameter) {
+                return;
+              }
+              patchParameter(selectedParameter.id, { name });
+            }}
+          />
+          {parameterNameWarning ? <Text type="warning" size="small">{parameterNameWarning}</Text> : null}
         </Field>
-        <Field label="Outgoing Flows">
-          <TextArea value={outgoingSummary || "No outgoing flow"} autosize disabled />
-          {!outgoingSummary ? <Text type="warning" size="small">Start has no outgoing flow.</Text> : null}
+        <Field label="Data Type">
+          <DataTypeSelector
+            value={selectedParameter?.dataType ?? { kind: "unknown", reason: "missing parameter type" }}
+            disabled={!canEditParameter}
+            allowVoid={false}
+            onChange={dataType => {
+              if (!selectedParameter) {
+                return;
+              }
+              patchParameter(selectedParameter.id, { dataType });
+            }}
+          />
         </Field>
-        <Field label="Legal State">
-          {renderLegalState(
-            legalStateMessages,
-            "Start Event is the single root entry. It cannot have incoming flows or be placed inside a Loop.",
-          )}
+        <Field label="Required">
+          <Switch
+            checked={Boolean(selectedParameter?.required)}
+            disabled={!canEditParameter}
+            onChange={required => {
+              if (!selectedParameter) {
+                return;
+              }
+              patchParameter(selectedParameter.id, { required });
+            }}
+          />
         </Field>
+        {legalStateMessages.length > 0 ? (
+          <Field label="Legal State">
+            {renderLegalState(
+              legalStateMessages,
+              "Start Event parameters are global and visible across the microflow.",
+            )}
+          </Field>
+        ) : null}
       </>
     );
   }

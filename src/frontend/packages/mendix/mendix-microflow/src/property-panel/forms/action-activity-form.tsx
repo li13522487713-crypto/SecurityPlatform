@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowDatabaseRetrieveSource, MicroflowExpression, MicroflowMemberChange, MicroflowSortItem, MicroflowVariableSymbol } from "../../schema";
+import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, getAssociationByQualifiedName, getAttributeByQualifiedName, getEnumerationByQualifiedName, getMicroflowById, getTargetEntityByAssociation, useMetadataStatus, useMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
 import { buildObjectActionWarnings, buildVariableIndex, getObjectEntityQualifiedName, getVariableNameConflicts, getVariableReferences, renameMicroflowVariable, resolveVariableReferenceFromIndex } from "../../variables";
 import { ErrorHandlingEditor, FieldError, FieldRow, OutputVariableEditor, VariableNameInput, supportedErrorHandlingTypesForAction } from "../common";
@@ -118,6 +119,7 @@ export function ActionActivityForm({
   object,
   issues,
   readonly,
+  activeTab,
   onPatch,
   onSchemaChange,
 }: {
@@ -125,6 +127,7 @@ export function ActionActivityForm({
   object: MicroflowActionActivity;
   issues: ReturnType<typeof getIssuesForObject>;
   readonly?: boolean;
+  activeTab?: MicroflowPropertyTabKey;
   onPatch: (patch: MicroflowNodePatch) => void;
   onSchemaChange?: (nextSchema: MicroflowPropertyPanelProps["schema"], reason: string) => void;
 }) {
@@ -182,47 +185,111 @@ export function ActionActivityForm({
     return true;
   };
   const readonlyDisabledReason = readonly ? "Readonly mode cannot edit this action." : "";
+  const tabKey = activeTab ?? "properties";
+  const isPropertiesTab = tabKey === "properties";
+  const isAdvancedTab = tabKey === "advanced";
+  const isOutputTab = tabKey === "output";
+  const isErrorHandlingTab = tabKey === "errorHandling";
+  const isRestRequestTab = action.kind === "restCall" && isAdvancedTab;
+  const isRestResponseTab = action.kind === "restCall" && isOutputTab;
+  const isRestAuthenticationTab = action.kind === "restCall" && isErrorHandlingTab;
+  const isRestGeneralTab = action.kind === "restCall" && isPropertiesTab;
+  const authorizationHeaderIndex = action.kind === "restCall"
+    ? action.request.headers.findIndex(header => header.key.trim().toLowerCase() === "authorization")
+    : -1;
+  const authorizationHeader = action.kind === "restCall" && authorizationHeaderIndex >= 0
+    ? action.request.headers[authorizationHeaderIndex]
+    : undefined;
+  const authorizationRaw = authorizationHeader?.valueExpression.raw ?? "";
+  const authorizationMode = authorizationHeader
+    ? authorizationRaw.trim().toLowerCase().startsWith("basic ")
+      ? "basic"
+      : authorizationRaw.trim().toLowerCase().startsWith("bearer ")
+        ? "bearer"
+        : "custom"
+    : "none";
+  const patchAuthorizationHeader = (mode: "none" | "basic" | "bearer" | "custom", raw?: string) => {
+    if (action.kind !== "restCall") {
+      return;
+    }
+    const nextHeaders = [...action.request.headers];
+    if (mode === "none") {
+      if (authorizationHeaderIndex >= 0) {
+        nextHeaders.splice(authorizationHeaderIndex, 1);
+      }
+      patchObject(updateAction(object, { request: { ...action.request, headers: nextHeaders } }));
+      return;
+    }
+    const valueExpression = expression(
+      raw
+      ?? (mode === "basic"
+        ? "'Basic <base64(username:password)>'"
+        : mode === "bearer"
+          ? "'Bearer <token>'"
+          : authorizationHeader?.valueExpression.raw ?? ""),
+      { kind: "string" },
+    );
+    const nextHeader = {
+      id: authorizationHeader?.id ?? `auth-${Date.now()}`,
+      key: "Authorization",
+      valueExpression,
+    };
+    if (authorizationHeaderIndex >= 0) {
+      nextHeaders[authorizationHeaderIndex] = nextHeader;
+    } else {
+      nextHeaders.push(nextHeader);
+    }
+    patchObject(updateAction(object, { request: { ...action.request, headers: nextHeaders } }));
+  };
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
-      <Field label="Caption">
-        <Input
-          value={object.caption}
-          disabled={readonly}
-          onChange={caption => patchObject({ ...object, caption: caption.trim() ? caption : object.caption || action.kind })}
-        />
-      </Field>
-      <Field label="Auto Generate Caption">
-        {withDisabledReason(
-          readonlyDisabledReason,
-          "Auto generate caption",
-          <Switch checked={object.autoGenerateCaption} disabled={readonly} onChange={autoGenerateCaption => patchObject({ ...object, autoGenerateCaption })} />
-        )}
-      </Field>
-      <Field label="Background Color">
-        {withDisabledReason(
-          readonlyDisabledReason,
-          "Background color",
-          <Select
-            value={object.backgroundColor}
+      {isPropertiesTab ? (
+        <Field label="Caption">
+          <Input
+            value={object.caption}
             disabled={readonly}
-            style={{ width: "100%" }}
-            onChange={value => patchObject({ ...object, backgroundColor: String(value) as MicroflowActionActivity["backgroundColor"] })}
-            optionList={["default", "blue", "green", "yellow", "orange", "red", "purple", "gray"].map(value => ({ label: value, value }))}
+            onChange={caption => patchObject({ ...object, caption: caption.trim() ? caption : object.caption || action.kind })}
           />
-        )}
-      </Field>
-      <FieldRow label="Error Handling" fieldPath="action.errorHandlingType" issues={getIssuesForField(issues, "action.errorHandlingType")}>
-        <ErrorHandlingEditor
-          value={action.errorHandlingType}
-          readonly={readonly || action.kind === "rollback"}
-          actionKind={action.kind}
-          fieldPath="action.errorHandlingType"
-          issues={getIssuesForField(issues, "action.errorHandlingType")}
-          supportedTypes={supportedErrorHandlingTypesForAction(action.kind)}
-          onChange={errorHandlingType => patchObject(updateAction(object, { errorHandlingType }))}
-        />
-      </FieldRow>
-      {objectActionWarnings.length > 0 ? (
+        </Field>
+      ) : null}
+      {isPropertiesTab ? (
+        <Field label="Auto Generate Caption">
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Auto generate caption",
+            <Switch checked={object.autoGenerateCaption} disabled={readonly} onChange={autoGenerateCaption => patchObject({ ...object, autoGenerateCaption })} />
+          )}
+        </Field>
+      ) : null}
+      {isPropertiesTab ? (
+        <Field label="Background Color">
+          {withDisabledReason(
+            readonlyDisabledReason,
+            "Background color",
+            <Select
+              value={object.backgroundColor}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              onChange={value => patchObject({ ...object, backgroundColor: String(value) as MicroflowActionActivity["backgroundColor"] })}
+              optionList={["default", "blue", "green", "yellow", "orange", "red", "purple", "gray"].map(value => ({ label: value, value }))}
+            />
+          )}
+        </Field>
+      ) : null}
+      {isPropertiesTab ? (
+        <FieldRow label="Error Handling" fieldPath="action.errorHandlingType" issues={getIssuesForField(issues, "action.errorHandlingType")}>
+          <ErrorHandlingEditor
+            value={action.errorHandlingType}
+            readonly={readonly || action.kind === "rollback"}
+            actionKind={action.kind}
+            fieldPath="action.errorHandlingType"
+            issues={getIssuesForField(issues, "action.errorHandlingType")}
+            supportedTypes={supportedErrorHandlingTypesForAction(action.kind)}
+            onChange={errorHandlingType => patchObject(updateAction(object, { errorHandlingType }))}
+          />
+        </FieldRow>
+      ) : null}
+      {isPropertiesTab && objectActionWarnings.length > 0 ? (
         <Space vertical align="start" spacing={4} style={{ width: "100%" }}>
           {objectActionWarnings.map(warning => (
             <Text key={warning} type="warning" size="small">{warning}</Text>
@@ -716,10 +783,13 @@ export function ActionActivityForm({
         </>
       ) : null}
 
-      {action.kind === "restCall" ? (
+      {action.kind === "restCall" && (isRestGeneralTab || isRestRequestTab || isRestResponseTab) ? (
         <>
-          <Title heading={6} style={{ margin: "10px 0 0" }}>REST Request</Title>
-          <Field label="Method">
+          <Title heading={6} style={{ margin: "10px 0 0" }}>
+            {isRestGeneralTab ? "General" : isRestRequestTab ? "Request" : "Response"}
+          </Title>
+          {isRestGeneralTab ? (
+            <Field label="Method">
             {withDisabledReason(
               readonlyDisabledReason,
               "Method",
@@ -732,7 +802,9 @@ export function ActionActivityForm({
               />
             )}
           </Field>
-          <Field label="URL Expression">
+          ) : null}
+          {isRestGeneralTab ? (
+            <Field label="URL Expression">
             <ExpressionEditor
               value={action.request.urlExpression}
               schema={schema}
@@ -748,9 +820,13 @@ export function ActionActivityForm({
             />
             <RequiredConfigWarning visible={!action.request.urlExpression.raw.trim()}>REST URL 为空；保存为待配置状态，不会写入 demo URL。</RequiredConfigWarning>
           </Field>
-          <Field label="Timeout Seconds" issues={getIssuesForField(issues, "action.timeoutSeconds")}>
+          ) : null}
+          {isRestGeneralTab ? (
+            <Field label="Timeout Seconds" issues={getIssuesForField(issues, "action.timeoutSeconds")}>
             <InputNumber value={action.timeoutSeconds} disabled={readonly} onChange={timeoutSeconds => patchObject(updateAction(object, { timeoutSeconds: Number(timeoutSeconds) }))} />
           </Field>
+          ) : null}
+          {isRestRequestTab ? (
           <Field label="Headers">
             <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
               {action.request.headers.map((header, index) => (
@@ -787,6 +863,8 @@ export function ActionActivityForm({
               )}
             </Space>
           </Field>
+          ) : null}
+          {isRestRequestTab ? (
           <Field label="Query Parameters">
             <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
               {action.request.queryParameters.map((parameter, index) => (
@@ -823,6 +901,8 @@ export function ActionActivityForm({
               )}
             </Space>
           </Field>
+          ) : null}
+          {isRestRequestTab ? (
           <Field label="Body Type">
             <Select
               value={action.request.body.kind}
@@ -842,7 +922,8 @@ export function ActionActivityForm({
               optionList={["none", "json", "text", "form", "mapping"].map(value => ({ label: value, value }))}
             />
           </Field>
-          {action.request.body.kind === "json" || action.request.body.kind === "text" ? (
+          ) : null}
+          {isRestRequestTab && (action.request.body.kind === "json" || action.request.body.kind === "text") ? (
             <Field label="Body Content">
               <ExpressionEditor
                 value={action.request.body.expression}
@@ -859,7 +940,7 @@ export function ActionActivityForm({
               />
             </Field>
           ) : null}
-          {restFormBody ? (
+          {isRestRequestTab && restFormBody ? (
             <Field label="Form Fields">
               <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
                 {restFormBody.fields.map((field, index) => (
@@ -892,7 +973,7 @@ export function ActionActivityForm({
               </Space>
             </Field>
           ) : null}
-          {action.request.body.kind === "mapping" ? (
+          {isRestRequestTab && action.request.body.kind === "mapping" ? (
             <FieldRow label="Export Mapping" fieldPath="action.request.body.exportMappingQualifiedName">
               <Input
                 value={action.request.body.exportMappingQualifiedName}
@@ -902,7 +983,8 @@ export function ActionActivityForm({
               />
             </FieldRow>
           ) : null}
-          <Field label="Response Handling">
+          {isRestResponseTab ? (
+            <Field label="Response Handling">
             <Select
               value={action.response.handling.kind}
               disabled={readonly}
@@ -918,7 +1000,8 @@ export function ActionActivityForm({
               optionList={[{ label: "Ignore", value: "ignore" }, { label: "String", value: "string" }, { label: "JSON", value: "json" }]}
             />
           </Field>
-          {action.response.handling.kind !== "ignore" ? (
+          ) : null}
+          {isRestResponseTab && action.response.handling.kind !== "ignore" ? (
             <FieldRow label="Response Output Variable" fieldPath="action.response.handling.outputVariableName" required issues={getIssuesForField(issues, "action.response.handling.outputVariableName")}>
               <OutputVariableEditor
                 value={action.response.handling.outputVariableName}
@@ -940,7 +1023,8 @@ export function ActionActivityForm({
               />
             </FieldRow>
           ) : null}
-          <FieldRow label="Status Code Variable" fieldPath="action.response.statusCodeVariableName" issues={getIssuesForField(issues, "action.response.statusCodeVariableName")}>
+          {isRestResponseTab ? (
+            <FieldRow label="Status Code Variable" fieldPath="action.response.statusCodeVariableName" issues={getIssuesForField(issues, "action.response.statusCodeVariableName")}>
             <VariableNameInput
               value={action.response.statusCodeVariableName}
               schema={schema}
@@ -959,7 +1043,9 @@ export function ActionActivityForm({
               }}
             />
           </FieldRow>
-          <FieldRow label="Headers Variable" fieldPath="action.response.headersVariableName" issues={getIssuesForField(issues, "action.response.headersVariableName")}>
+          ) : null}
+          {isRestResponseTab ? (
+            <FieldRow label="Headers Variable" fieldPath="action.response.headersVariableName" issues={getIssuesForField(issues, "action.response.headersVariableName")}>
             <VariableNameInput
               value={action.response.headersVariableName}
               schema={schema}
@@ -978,6 +1064,43 @@ export function ActionActivityForm({
               }}
             />
           </FieldRow>
+          ) : null}
+        </>
+      ) : null}
+      {isRestAuthenticationTab ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>Authentication</Title>
+          <Field label="Authentication Type">
+            <Select
+              value={authorizationMode}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              optionList={[
+                { label: "None", value: "none" },
+                { label: "Basic", value: "basic" },
+                { label: "Bearer", value: "bearer" },
+                { label: "Custom", value: "custom" },
+              ]}
+              onChange={mode => patchAuthorizationHeader(String(mode) as "none" | "basic" | "bearer" | "custom")}
+            />
+          </Field>
+          {authorizationMode !== "none" ? (
+            <Field label="Authorization Expression">
+              <ExpressionEditor
+                value={authorizationHeader?.valueExpression ?? expression("", { kind: "string" })}
+                schema={schema}
+                metadata={effectiveCatalog}
+                variableIndex={variableIndex}
+                objectId={object.id}
+                actionId={action.id}
+                fieldPath="action.request.headers.authorization.valueExpression"
+                expectedType={{ kind: "string" }}
+                readonly={readonly}
+                onChange={valueExpression => patchAuthorizationHeader("custom", valueExpression.raw)}
+              />
+              <Text type="tertiary" size="small">Authentication 使用 `Authorization` 请求头表达式保存。</Text>
+            </Field>
+          ) : null}
         </>
       ) : null}
 
