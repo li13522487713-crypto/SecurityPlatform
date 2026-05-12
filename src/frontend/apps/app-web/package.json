@@ -50,6 +50,7 @@
     "@coze-arch/bot-env": "workspace:*",
     "@coze-arch/import-watch-loader": "workspace:*",
     "@coze-arch/rsbuild-config": "workspace:*",
+    "@coze-arch/tailwind-config": "workspace:*",
     "@rsbuild/core": "~1.1.0",
     "@rsbuild/plugin-less": "~1.1.0",
     "@rsbuild/plugin-react": "~1.1.0",

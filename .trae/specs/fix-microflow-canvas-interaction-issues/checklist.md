@@ -1,0 +1,10 @@
+- [x] 拖拽节点 A 后点击节点 B，B 的选择和属性面板打开正常
+- [x] Quick Insert 和 Context Menu 可独立打开/关闭，互不影响
+- [x] 在画布四角（左上、右上、左下、右下）双击，Quick Insert 面板始终完全可见
+- [x] 点击工具栏按钮不触发画布空白点击/选择变更逻辑
+- [x] 双击节点正确触发 onNodeDoubleClick 回调
+- [x] 双击节点弹出 Modal 形式的属性配置对话框
+- [x] 点击空白画布后属性面板自动关闭
+- [x] 进入微流设计器时 App Explorer 默认展开显示
+- [x] App Explorer 折叠按钮仍可正常工作
+- [x] E2E 测试用例已更新（mendix-studio-microflow-layout.spec.ts）

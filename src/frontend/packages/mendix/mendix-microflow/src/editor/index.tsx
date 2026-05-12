@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
 import { Badge, Button, Card, Checkbox, Divider, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import {
+  IconBranch,
+  IconCheckCircleStroked,
   IconChevronDown,
+  IconClock,
   IconClose,
   IconCopy,
   IconDelete,
@@ -11,11 +14,12 @@ import {
   IconHandle,
   IconMapPin,
   IconMinus,
-  IconPlus,
   IconPlay,
+  IconPlus,
   IconRefresh,
-  IconSearch,
   IconSave,
+  IconSearch,
+  IconSend,
   IconSetting,
   IconTickCircle,
   IconUndo,
@@ -4861,6 +4865,22 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     commitSchema(result.nextSchema, "autoLayout", { source: "autolayout" });
     Toast.info({ content: "已自动排版，可按 Ctrl+Z 撤销", duration: 4 });
+  };
+
+  const handleToggleToolbox = () => {
+    if (focusMode) {
+      Toast.warning("请先退出专注模式，再打开节点工具箱。");
+      return;
+    }
+    if (!AUXILIARY_PANELS_ENABLED) {
+      Toast.error("当前模式禁用了侧边面板，无法打开节点工具箱。");
+      return;
+    }
+    if (toolboxRuntimeState.totalItemCount === 0) {
+      Toast.error("节点工具箱数据为空，请检查节点注册表。");
+      return;
+    }
+    setLeftOpen(value => !value);
   };
 
   const collectDeleteImpact = useCallback((objectIds: string[], flowIds: string[]) => {

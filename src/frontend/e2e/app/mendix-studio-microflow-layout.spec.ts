@@ -313,21 +313,86 @@ test.describe.serial("@microflow Mendix Studio layout", () => {
     expect(Math.round(after!.x) % 24).toBeLessThan(24);
   });
 
-  test("画布节点选中后通过右键菜单打开属性面板", async ({ page }) => {
+  test("画布节点选中后自动打开属性面板", async ({ page }) => {
     await openLayoutPage(page, appKey);
 
     const startNode = page.locator(".microflow-flowgram-node--start").first();
     await expect(startNode).toBeVisible();
     await startNode.click();
-    await expect(page.getByTestId("microflow-property-panel")).toHaveCount(0);
+    await expect(page.getByTestId("microflow-property-panel")).toBeVisible();
+  });
 
-    await startNode.click({ button: "right" });
-    await expect(page.getByTestId("microflow-canvas-node-context-menu")).toBeVisible();
-    await page.getByTestId("microflow-canvas-node-context-menu").getByRole("button", { name: /属性|Properties/ }).click();
+  test("双击节点打开属性对话框", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    const startNode = page.locator(".microflow-flowgram-node--start").first();
+    await expect(startNode).toBeVisible();
+    await startNode.dblclick();
+    await expect(page.getByRole("dialog", { name: /Properties|Start/i })).toBeVisible();
+  });
+
+  test("点击空白画布关闭属性面板", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    const startNode = page.locator(".microflow-flowgram-node--start").first();
+    await startNode.click();
     await expect(page.getByTestId("microflow-property-panel")).toBeVisible();
 
-    await page.locator(".microflow-flowgram-canvas").click({ position: { x: 24, y: 520 } });
+    await page.locator(".microflow-flowgram-canvas").click({ position: { x: 50, y: 50 } });
     await expect(page.getByTestId("microflow-property-panel")).toHaveCount(0);
+  });
+
+  test("拖拽节点后点击另一节点正常选择", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    const startNode = page.locator(".microflow-flowgram-node--start").first();
+    const endNode = page.locator(".microflow-flowgram-node--end").first();
+    await dragLocatorBy(page, startNode, { x: 96, y: 48 });
+
+    await endNode.click();
+    await expect(page.getByTestId("microflow-property-panel")).toBeVisible();
+  });
+
+  test("双击空白画布打开 Quick Insert 面板", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    const canvas = page.locator(".microflow-flowgram-canvas");
+    await expect(canvas).toBeVisible();
+    await canvas.dblclick({ position: { x: 400, y: 300 } });
+    await expect(page.getByTestId("microflow-quick-insert-panel")).toBeVisible();
+    await expect(page.getByTestId("microflow-quick-insert-panel").locator("input")).toBeVisible();
+  });
+
+  test("Quick Insert 面板在四角不溢出", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    const canvas = page.locator(".microflow-flowgram-canvas");
+    await canvas.dblclick({ position: { x: 30, y: 30 } });
+    await expect(page.getByTestId("microflow-quick-insert-panel")).toBeVisible();
+    const panelBox = await page.getByTestId("microflow-quick-insert-panel").boundingBox();
+    expect(panelBox).toBeTruthy();
+    expect(panelBox!.x).toBeGreaterThanOrEqual(0);
+    expect(panelBox!.y).toBeGreaterThanOrEqual(0);
+    expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(1920);
+    expect(panelBox!.y + panelBox!.height).toBeLessThanOrEqual(1080);
+  });
+
+  test("左侧资源树默认展开（Mendix 标准）", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    await expect(page.getByTestId("mendix-studio-app-explorer")).toHaveAttribute("data-collapsed", "false");
+    await expect(page.getByTestId("microflow-editor-left-panel")).toBeVisible();
+  });
+
+  test("命令面板按分组显示操作", async ({ page }) => {
+    await openLayoutPage(page, appKey);
+
+    await page.keyboard.press("Control+k");
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    await expect(page.getByText("文档操作")).toBeVisible();
+    await expect(page.getByText("画布操作")).toBeVisible();
+    await expect(page.getByText("面板操作")).toBeVisible();
   });
 
   test("Problems 和 Debug 使用紧凑状态条与底部 Dock", async ({ page }) => {

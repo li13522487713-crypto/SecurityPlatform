@@ -24,6 +24,7 @@ interface WorkbenchPaletteCommand {
   label: string;
   hint?: string;
   disabled?: boolean;
+  group?: "document" | "canvas" | "panel" | "navigation";
   run: () => void | Promise<void>;
 }
 
@@ -37,66 +38,91 @@ export function WorkbenchCommandPalette({ visible, status, commandBus, modules =
       label: copy.save,
       hint: "Ctrl/Cmd+S",
       disabled: !status?.dirty,
+      group: "document",
       run: () => commandBus.execute("microflow.save"),
     },
     {
       id: "validate",
       label: copy.validate,
       disabled: !status,
+      group: "document",
       run: () => commandBus.execute("microflow.validate"),
     },
     {
       id: "run",
       label: copy.run,
       disabled: !status || Boolean(status.running || (status.errorCount ?? 0) > 0),
+      group: "document",
       run: () => commandBus.execute("microflow.run"),
     },
     {
       id: "debug-run",
       label: copy.debugRun,
       disabled: !status || Boolean(status.running || (status.errorCount ?? 0) > 0),
+      group: "document",
       run: () => commandBus.execute("microflow.debugRun"),
     },
     {
       id: "publish",
       label: copy.publish,
       disabled: !status || Boolean(status.dirty || (status.errorCount ?? 0) > 0),
+      group: "document",
       run: () => commandBus.execute("microflow.publish"),
+    },
+    {
+      id: "undo",
+      label: copy.undo,
+      disabled: !status?.canUndo,
+      group: "canvas",
+      run: () => commandBus.execute("microflow.undo"),
+    },
+    {
+      id: "redo",
+      label: copy.redo,
+      disabled: !status?.canRedo,
+      group: "canvas",
+      run: () => commandBus.execute("microflow.redo"),
     },
     {
       id: "open-problems",
       label: copy.openProblems,
       disabled: !status,
+      group: "panel",
       run: () => commandBus.execute("microflow.openPanel", { panel: "problems" }),
     },
     {
       id: "open-debug",
       label: copy.openDebug,
       disabled: !status,
+      group: "panel",
       run: () => commandBus.execute("microflow.openPanel", { panel: "debug" }),
     },
     {
       id: "open-console",
       label: copy.openConsole,
       disabled: !status,
+      group: "panel",
       run: () => commandBus.execute("microflow.openPanel", { panel: "console" }),
     },
     {
       id: "open-info",
       label: copy.openInfo,
       disabled: !status,
+      group: "panel",
       run: () => commandBus.execute("microflow.openPanel", { panel: "info" }),
     },
     {
       id: "open-references",
       label: copy.openReferences,
       disabled: !status,
+      group: "panel",
       run: () => commandBus.execute("microflow.openPanel", { panel: "references" }),
     },
     {
       id: "toggle-toolbox",
       label: "切换节点工具箱",
       disabled: !status,
+      group: "panel",
       run: () => commandBus.execute("microflow.toggleToolbox"),
     },
     {
@@ -104,25 +130,15 @@ export function WorkbenchCommandPalette({ visible, status, commandBus, modules =
       label: copy.toggleFocusMode,
       hint: "F11",
       disabled: !status,
+      group: "canvas",
       run: () => commandBus.execute("microflow.toggleFocusMode"),
     },
     {
       id: "reset-layout",
       label: copy.resetLayout,
       disabled: !status,
+      group: "canvas",
       run: () => commandBus.execute("microflow.resetLayout"),
-    },
-    {
-      id: "undo",
-      label: copy.undo,
-      disabled: !status?.canUndo,
-      run: () => commandBus.execute("microflow.undo"),
-    },
-    {
-      id: "redo",
-      label: copy.redo,
-      disabled: !status?.canRedo,
-      run: () => commandBus.execute("microflow.redo"),
     },
   ], [commandBus, copy, status?.canRedo, status?.canUndo, status?.dirty, status?.errorCount, status?.running]);
 
@@ -214,6 +230,24 @@ export function WorkbenchCommandPalette({ visible, status, commandBus, modules =
     ? allCommands.filter(command => command.label.toLocaleLowerCase().includes(normalized) || command.id.includes(normalized) || command.hint?.toLocaleLowerCase().includes(normalized))
     : allCommands;
 
+  const groupedCommands = useMemo(() => {
+    const groupOrder: Array<WorkbenchPaletteCommand["group"] | undefined> = ["document", "canvas", "panel", "navigation", undefined];
+    const groups: Array<{ group: WorkbenchPaletteCommand["group"]; label: string; commands: WorkbenchPaletteCommand[] }> = [];
+    for (const groupKey of groupOrder) {
+      const groupCommands = filtered.filter(c => c.group === groupKey);
+      if (groupCommands.length === 0) continue;
+      const label = groupKey === "document" ? "文档操作"
+        : groupKey === "canvas" ? "画布操作"
+          : groupKey === "panel" ? "面板操作"
+            : groupKey === "navigation" ? "跳转"
+              : "其它";
+      groups.push({ group: groupKey, label, commands: groupCommands });
+    }
+    return groups;
+  }, [filtered]);
+
+  const showGroups = !normalized && groupedCommands.length > 1;
+
   return (
     <Modal
       visible={visible}
@@ -244,24 +278,47 @@ export function WorkbenchCommandPalette({ visible, status, commandBus, modules =
             <Tag color={(status.errorCount ?? 0) > 0 ? "red" : "green"}>{copy.errors(status.errorCount ?? 0)}</Tag>
           </Space>
         ) : null}
-        <Space vertical align="start" spacing={6} style={{ width: "100%", maxHeight: 360, overflow: "auto" }}>
-          {filtered.map(command => (
-            <Button
-              key={command.id}
-              theme="borderless"
-              type="tertiary"
-              disabled={command.disabled}
-              style={{ justifyContent: "space-between", width: "100%" }}
-              onClick={() => {
-                void Promise.resolve(command.run()).finally(onClose);
-              }}
-            >
-              <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                <Text>{command.label}</Text>
-                {command.hint ? <Text type="tertiary" size="small">{command.hint}</Text> : null}
-              </Space>
-            </Button>
-          ))}
+        <Space vertical align="start" spacing={showGroups ? 8 : 6} style={{ width: "100%", maxHeight: 360, overflow: "auto" }}>
+          {showGroups
+            ? groupedCommands.map(group => (
+              <div key={group.group ?? "other"} style={{ width: "100%" }}>
+                <Text type="tertiary" size="small" style={{ display: "block", padding: "4px 8px", marginBottom: 4 }}>{group.label}</Text>
+                {group.commands.map(command => (
+                  <Button
+                    key={command.id}
+                    theme="borderless"
+                    type="tertiary"
+                    disabled={command.disabled}
+                    style={{ justifyContent: "space-between", width: "100%" }}
+                    onClick={() => {
+                      void Promise.resolve(command.run()).finally(onClose);
+                    }}
+                  >
+                    <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                      <Text>{command.label}</Text>
+                      {command.hint ? <Text type="tertiary" size="small">{command.hint}</Text> : null}
+                    </Space>
+                  </Button>
+                ))}
+              </div>
+            ))
+            : filtered.map(command => (
+              <Button
+                key={command.id}
+                theme="borderless"
+                type="tertiary"
+                disabled={command.disabled}
+                style={{ justifyContent: "space-between", width: "100%" }}
+                onClick={() => {
+                  void Promise.resolve(command.run()).finally(onClose);
+                }}
+              >
+                <Space style={{ width: "100%", justifyContent: "space-between" }}>
+                  <Text>{command.label}</Text>
+                  {command.hint ? <Text type="tertiary" size="small">{command.hint}</Text> : null}
+                </Space>
+              </Button>
+            ))}
           {filtered.length === 0 ? <Empty title={copy.noCommandsTitle} description={copy.noCommandsDescription} /> : null}
         </Space>
       </Space>

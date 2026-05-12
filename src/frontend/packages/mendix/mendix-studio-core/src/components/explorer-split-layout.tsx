@@ -66,18 +66,26 @@ export interface ExplorerSplitLayoutProps {
  * 左侧 App Explorer 与主工作区之间的可拖动分隔条，宽度持久化到 localStorage。
  */
 export function ExplorerSplitLayout({ explorer, children, mode = "normal", defaultCollapsed, activeTool = "explorer" }: ExplorerSplitLayoutProps) {
-  const initialCollapsed = defaultCollapsed ?? mode === "microflowDesigner";
+  const initialCollapsed = defaultCollapsed ?? false;
   const [layout, setLayout] = useState(() => readStoredLayout(initialCollapsed));
-  const widthPx = layout.leftCollapsed ? COLLAPSED_WIDTH_PX : layout.leftWidth;
+  const [isTempExpanded, setIsTempExpanded] = useState(false);
+  const isEffectivelyCollapsed = layout.leftCollapsed && !isTempExpanded;
+  const widthPx = isEffectivelyCollapsed ? COLLAPSED_WIDTH_PX : layout.leftWidth;
+
+  useEffect(() => {
+    const resetTempExpanded = () => setIsTempExpanded(false);
+    window.addEventListener("blur", resetTempExpanded);
+    return () => window.removeEventListener("blur", resetTempExpanded);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => writeStoredLayout({
       ...layout,
-      explorerMode: layout.leftCollapsed ? "iconOnly" : "expanded",
+      explorerMode: isEffectivelyCollapsed ? "iconOnly" : "expanded",
       activeLeftTool: activeTool,
     }), 160);
     return () => window.clearTimeout(timer);
-  }, [activeTool, layout]);
+  }, [activeTool, isEffectivelyCollapsed, layout]);
 
   const onGutterMouseDown = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -87,6 +95,7 @@ export function ExplorerSplitLayout({ explorer, children, mode = "normal", defau
       const onMove = (ev: globalThis.MouseEvent) => {
         const delta = ev.clientX - startX;
         setLayout(current => ({ ...current, leftCollapsed: false, leftWidth: clampWidth(startW + delta) }));
+        setIsTempExpanded(false);
       };
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
@@ -102,28 +111,38 @@ export function ExplorerSplitLayout({ explorer, children, mode = "normal", defau
     [widthPx]
   );
 
+  const handleToggleCollapse = () => {
+    if (layout.leftCollapsed) {
+      setIsTempExpanded(true);
+      setLayout(current => ({ ...current, leftCollapsed: false }));
+    } else {
+      setIsTempExpanded(false);
+      setLayout(current => ({ ...current, leftCollapsed: true }));
+    }
+  };
+
   return (
     <>
       <div
-        className={`studio-explorer-split__pane${layout.leftCollapsed ? " studio-explorer-split__pane--collapsed" : ""}`}
+        className={`studio-explorer-split__pane${isEffectivelyCollapsed ? " studio-explorer-split__pane--collapsed" : ""}`}
         style={{ width: widthPx }}
         data-testid="mendix-studio-app-explorer"
-        data-collapsed={layout.leftCollapsed ? "true" : "false"}
+        data-collapsed={isEffectivelyCollapsed ? "true" : "false"}
         data-mode={mode}
         data-active-tool={activeTool}
       >
         <button
           type="button"
           className="studio-explorer-split__collapse"
-          aria-label={layout.leftCollapsed ? "展开 App Explorer" : "折叠 App Explorer"}
-          title={layout.leftCollapsed ? "App Explorer" : "折叠 App Explorer"}
-          onClick={() => setLayout(current => ({ ...current, leftCollapsed: !current.leftCollapsed, explorerMode: current.leftCollapsed ? "expanded" : "iconOnly" }))}
+          aria-label={isEffectivelyCollapsed ? "展开 App Explorer" : "折叠 App Explorer"}
+          title={isEffectivelyCollapsed ? "App Explorer" : "折叠 App Explorer"}
+          onClick={handleToggleCollapse}
         >
           <span aria-hidden="true">☰</span>
         </button>
         <div className="studio-explorer-split__content">{explorer}</div>
       </div>
-      {!layout.leftCollapsed ? (
+      {!isEffectivelyCollapsed ? (
         <div
           className="studio-explorer-split__gutter"
           role="separator"
