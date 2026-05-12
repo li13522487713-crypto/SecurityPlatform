@@ -42,6 +42,27 @@ export function shouldViewportPanFromPointerDown(args: {
   );
 }
 
+export type ViewportPanEndIntent = "blank-click" | "blank-context-menu" | "none";
+
+export function resolveViewportPanEndIntent(args: {
+  button: number | null;
+  moved: boolean;
+  target: HTMLElement | undefined;
+  spacePressed: boolean;
+}): ViewportPanEndIntent {
+  const { button, moved, target, spacePressed } = args;
+  if (moved || isFlowgramPanExemptTarget(target, spacePressed)) {
+    return "none";
+  }
+  if (button === 2) {
+    return "blank-context-menu";
+  }
+  if (button === 0) {
+    return "blank-click";
+  }
+  return "none";
+}
+
 export function zoomViewportAtLocalPoint(
   viewport: { x: number; y: number; zoom: number },
   localX: number,

@@ -367,7 +367,7 @@ function buildMendixToolboxSections(
   keyword: string,
 ): Array<MendixToolboxSection & { items: MicroflowNodeRegistryItem[] }> {
   const searched = searchMicroflowNodes(keyword, registry);
-  return mendixToolboxSections
+  const curatedSections = mendixToolboxSections
     .map(section => ({
       ...section,
       items: section.itemKeys
@@ -375,6 +375,17 @@ function buildMendixToolboxSections(
         .filter((item): item is MicroflowNodeRegistryItem => Boolean(item)),
     }))
     .filter(section => section.items.length > 0);
+  const matchedKeys = new Set(
+    curatedSections.flatMap(section => section.items.map(item => getMicroflowNodeRegistryKey(item))),
+  );
+  const unmatched = searched.filter(item => !matchedKeys.has(getMicroflowNodeRegistryKey(item)));
+  const fallbackSections = groupMicroflowNodesByCategory(unmatched).map(group => ({
+    key: `fallback-${group.category.key}`,
+    label: group.category.label,
+    itemKeys: group.entries.map(item => getMicroflowNodeRegistryKey(item)),
+    items: group.entries,
+  }));
+  return [...curatedSections, ...fallbackSections];
 }
 
 function MicroflowNodeIcon({ item, size = 22 }: { item: MicroflowNodeRegistryItem; size?: number }) {
@@ -1031,14 +1042,17 @@ export function MicroflowNodePanel({
 }: MicroflowNodePanelProps) {
   const labels = { ...defaultMicroflowNodePanelLabels, ...labelOverrides };
   void onInsertTemplate;
-  const defaultExpandedCategories = useMemo(() => mendixToolboxSections.map(section => section.key), []);
+  const allSectionKeys = useMemo(
+    () => buildMendixToolboxSections(registry, "").map(section => section.key),
+    [registry],
+  );
   const [keyword, setKeyword] = useState("");
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<string[]>(() => {
-    const stored = readStoredStringList(nodePanelCategoryStorageKey, defaultExpandedCategories);
-    const allowed = new Set(defaultExpandedCategories);
+    const stored = readStoredStringList(nodePanelCategoryStorageKey, allSectionKeys);
+    const allowed = new Set(allSectionKeys);
     const normalized = stored.filter(item => allowed.has(item));
-    return normalized.length > 0 ? normalized : defaultExpandedCategories;
+    return normalized.length > 0 ? normalized : allSectionKeys;
   });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>();
 
@@ -1080,7 +1094,7 @@ export function MicroflowNodePanel({
       return;
     }
     writeStoredStringList(nodePanelCategoryStorageKey, expandedCategories);
-  }, [debouncedKeyword, expandedCategories]);
+  }, [allSectionKeys, debouncedKeyword, expandedCategories]);
 
   useEffect(() => {
     if (!contextMenu) {

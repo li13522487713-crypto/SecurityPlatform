@@ -7,8 +7,10 @@ import {
   IconDelete,
   IconDownloadStroked,
   IconExpand,
+  IconPlus,
   IconPlay,
   IconRefresh,
+  IconSearch,
   IconSave,
   IconSetting,
   IconTickCircle,
@@ -31,6 +33,7 @@ import {
   getMicroflowNodeRegistryKey,
   microflowNodeRegistryByKey,
   objectKindFromRegistryItem,
+  searchMicroflowNodes,
   type MicroflowNodeDragPayload,
   type MicroflowNodeRegistryItem
 } from "../node-registry";
@@ -65,9 +68,11 @@ import { MicroflowHistoryManager, labelForHistoryReason, microflowSchemasEqual, 
 import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowNativeCanvas } from "../flowgram";
+import { FlowGramMicroflowRuntimeContext } from "../flowgram/FlowGramMicroflowContext";
 import { getMendixMicroflowNodeSize } from "../flowgram/flowgram-node-geometry";
 import { createMicroflowWorkflowEdge, createMicroflowWorkflowNode } from "../flowgram/flowgram-native-schema";
 import { stripTransientDesignSchema } from "../flowgram/transient-workflow-state";
+import { MicroflowInlineNodeEditor } from "../flowgram/inline/MicroflowInlineNodeEditor";
 import {
   MICROFLOW_INLINE_FIELD_COMMIT_EVENT,
   MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT,
@@ -80,10 +85,12 @@ import {
   type MicroflowInlineNodeInspectDetail,
   type MicroflowInlineQuickFixDetail,
 } from "../flowgram/inline-events";
-import type { FlowGramMicroflowEdgeData, MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
+import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
+import { deriveNodeInlineConfig } from "../node-inline/derive-node-inline-config";
 import { MICROFLOW_GRID_SIZE } from "../flowgram/adapters/flowgram-coordinate";
 import { createStableId } from "../schema/utils/ids";
 import { alignRootDesignParameterNodesToStart, removeStaleDesignParameters } from "../schema/utils/design-parameter-layout";
+import { buildVariableIndex, getVariablesBeforeObject } from "../variables";
 import {
   EMPTY_MICROFLOW_METADATA_CATALOG,
   MicroflowMetadataProvider,
@@ -164,6 +171,7 @@ import type {
 const { Text, Title } = Typography;
 
 const favoriteStorageKey = "atlas_microflow_node_panel_favorites";
+const recentQuickInsertStorageKey = "atlas_microflow_quick_insert_recent";
 const leftPanelStorageKey = "atlas_microflow_panel_left_open";
 const rightPanelStorageKey = "atlas_microflow_panel_right_open";
 const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
@@ -214,6 +222,23 @@ function isDesignStartNode(node: MicroflowWorkflowNodeJSON | undefined): boolean
   }
   const data = node.data as { objectKind?: unknown } | undefined;
   return node.type === "startEvent" || data?.objectKind === "startEvent";
+}
+
+function resolveEditorNodeViewMode(
+  nodeId: string | undefined,
+  nodeViewModes: Record<string, MicroflowNodeViewMode>,
+): MicroflowNodeViewMode {
+  if (!nodeId) {
+    return "compact";
+  }
+  const aliases = nodeId.startsWith("node-") ? [nodeId, nodeId.slice("node-".length)] : [nodeId, `node-${nodeId}`];
+  for (const alias of aliases) {
+    const mode = nodeViewModes[alias];
+    if (mode) {
+      return mode;
+    }
+  }
+  return "compact";
 }
 
 function filterDesignCopyableObjectIds(schema: MicroflowDesignSchema, objectIds: string[]): string[] {
@@ -494,6 +519,15 @@ interface CanvasNodeContextMenuState {
   collectionId?: string;
   x: number;
   y: number;
+}
+
+interface QuickInsertState {
+  x: number;
+  y: number;
+  canvasPosition?: { x: number; y: number };
+  insertFlowId?: string;
+  sourceObjectId?: string;
+  source: "blank" | "flow" | "node" | "empty";
 }
 
 interface MicroflowClipboardSelection {
@@ -929,6 +963,25 @@ function readFavoriteNodeKeys(): string[] {
 function saveFavoriteNodeKeys(keys: string[]): void {
   if (typeof window !== "undefined") {
     window.localStorage.setItem(favoriteStorageKey, JSON.stringify(keys));
+  }
+}
+
+function readRecentQuickInsertNodeKeys(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  try {
+    const value = window.localStorage.getItem(recentQuickInsertStorageKey);
+    const parsed = value ? JSON.parse(value) as unknown : [];
+    return Array.isArray(parsed) && parsed.every(item => typeof item === "string") ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentQuickInsertNodeKeys(keys: string[]): void {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(recentQuickInsertStorageKey, JSON.stringify(keys.slice(0, 8)));
   }
 }
 
@@ -2341,6 +2394,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const [clipboardObject, setClipboardObject] = useState<MicroflowClipboardSelection>();
   const [favoriteNodeKeys, setFavoriteNodeKeys] = useState(readFavoriteNodeKeys);
+  const [recentQuickInsertNodeKeys, setRecentQuickInsertNodeKeys] = useState(readRecentQuickInsertNodeKeys);
   const [validationTrigger, setValidationTrigger] = useState(0);
   const {
     issues,
@@ -2375,6 +2429,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [focusRequestSeq, setFocusRequestSeq] = useState(0);
   const [canvasNodeContextMenu, setCanvasNodeContextMenu] = useState<CanvasNodeContextMenuState>();
   const [canvasBlankContextMenu, setCanvasBlankContextMenu] = useState<{ x: number; y: number } | undefined>();
+  const [quickInsertState, setQuickInsertState] = useState<QuickInsertState>();
+  const [quickInsertQuery, setQuickInsertQuery] = useState("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandPaletteQuery, setCommandPaletteQuery] = useState("");
   const runHistoryRequestSeqRef = useRef<Record<string, number>>({});
@@ -2569,6 +2625,87 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const designPropertyPanelModel = useMemo(() => isDesignSchema(schema) ? buildDesignPropertyPanelModel(schema) : undefined, [schema]);
   const selectedObject = designPropertyPanelModel?.selectedObject ?? (schema.editor.selection.objectId ? graphIndex.objectsById.get(schema.editor.selection.objectId) ?? null : null);
   const selectedFlow = designPropertyPanelModel?.selectedFlow ?? (schema.editor.selection.flowId ? graphIndex.flowsById.get(schema.editor.selection.flowId) ?? null : null);
+  const propertyInlineVariableIndex = useMemo(
+    () => isDesignSchema(schema) ? buildVariableIndex(schema, loadedMetadata ?? EMPTY_MICROFLOW_METADATA_CATALOG) : emptyVariableIndex,
+    [loadedMetadata, schema],
+  );
+  const traceFrames = useMemo(() => {
+    const base = filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId);
+    return composeTraceFramesForRuntimePreview({
+      baseFrames: base,
+      wsCurrentNodeId: debugStoreSnapshot.nodeState.currentNodeId,
+      wsCurrentBranchId: debugStoreSnapshot.nodeState.currentBranchId,
+      sessionId: debugSessionId,
+    });
+  }, [
+    selectedRunSession,
+    activeMicroflowId,
+    debugStoreSnapshot.nodeState.currentNodeId,
+    debugStoreSnapshot.nodeState.currentBranchId,
+    debugSessionId,
+  ]);
+  const runtimeTraceByObjectId = useMemo(() => {
+    const next = new Map<string, MicroflowTraceFrame>();
+    for (const frame of traceFrames) {
+      if (frame.objectId) {
+        next.set(frame.objectId, frame);
+      }
+    }
+    return next;
+  }, [traceFrames]);
+  const selectedDesignNode = useMemo(
+    () => isDesignSchema(schema) && selectedObject ? schema.workflow.nodes.find(node => node.id === selectedObject.id) : undefined,
+    [schema, selectedObject],
+  );
+  const selectedPropertyInlineNode = useMemo(() => {
+    if (!isDesignSchema(schema) || !selectedObject || !selectedDesignNode) {
+      return undefined;
+    }
+    const nodeData = (selectedDesignNode.data ?? {}) as FlowGramMicroflowNodeData;
+    const runtimeFrame = runtimeTraceByObjectId.get(selectedDesignNode.id) ?? runtimeTraceByObjectId.get(selectedObject.id);
+    const inlineConfig = deriveNodeInlineConfig({
+      node: selectedDesignNode,
+      schema,
+      runtimeFrame,
+      issues: issues.filter(issue => issue.objectId === selectedObject.id || issue.nodeId === selectedObject.id),
+      viewMode: resolveEditorNodeViewMode(selectedObject.id, nodeViewModes),
+    });
+    return {
+      objectId: selectedObject.id,
+      objectKind: nodeData.objectKind ?? selectedDesignNode.type,
+      collectionId: String(nodeData.collectionId ?? ""),
+      title: String(nodeData.title ?? (selectedObject as { name?: string }).name ?? selectedObject.id),
+      officialType: String(nodeData.officialType ?? nodeData.objectKind ?? selectedDesignNode.type),
+      disabled: Boolean(nodeData.disabled ?? false),
+      validationState: nodeData.validationState ?? "valid",
+      issueCount: nodeData.issueCount ?? 0,
+      runtimeState: nodeData.runtimeState,
+      inlineConfig,
+      actionKind: nodeData.actionKind,
+      action: nodeData.action,
+      backgroundColor: nodeData.backgroundColor,
+      subtitle: nodeData.subtitle,
+      text: nodeData.text,
+      parameterId: nodeData.parameterId,
+      parameterKind: nodeData.parameterKind,
+      parameterName: nodeData.parameterName,
+      parameterTypeLabel: nodeData.parameterTypeLabel,
+      loopSource: nodeData.loopSource,
+      splitCondition: nodeData.splitCondition,
+      mergeBehavior: nodeData.mergeBehavior,
+      iteratorVariableName: nodeData.iteratorVariableName,
+      listVariableName: nodeData.listVariableName,
+      inputObjectVariableName: nodeData.inputObjectVariableName,
+      generalizedEntityQualifiedName: nodeData.generalizedEntityQualifiedName,
+      allowedSpecializations: nodeData.allowedSpecializations,
+      entity: nodeData.entity,
+      errorHandlingType: nodeData.errorHandlingType,
+      outputMappings: nodeData.outputMappings,
+      documentation: nodeData.documentation,
+      usageSourceHighlight: nodeData.usageSourceHighlight,
+      usageConsumerHighlight: nodeData.usageConsumerHighlight,
+    } as FlowGramMicroflowNodeData;
+  }, [issues, nodeViewModes, runtimeTraceByObjectId, schema, selectedDesignNode, selectedObject]);
   const activeMicroflowId = schema.id;
   const saveBlockers = issues.filter(issue => issue.blockSave && issue.severity === "error");
   const publishBlockers = issues.filter(issue => issue.blockPublish && issue.severity === "error");
@@ -2681,21 +2818,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     [activeDebugSession],
   );
   const debugWsStatusTag = getDebugWsStatusTag(debugConnectionStatus);
-  const traceFrames = useMemo(() => {
-    const base = filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId);
-    return composeTraceFramesForRuntimePreview({
-      baseFrames: base,
-      wsCurrentNodeId: debugStoreSnapshot.nodeState.currentNodeId,
-      wsCurrentBranchId: debugStoreSnapshot.nodeState.currentBranchId,
-      sessionId: debugSessionId,
-    });
-  }, [
-    selectedRunSession,
-    activeMicroflowId,
-    debugStoreSnapshot.nodeState.currentNodeId,
-    debugStoreSnapshot.nodeState.currentBranchId,
-    debugSessionId,
-  ]);
 
   useEffect(() => {
     onValidationStateChangeRef.current?.({
@@ -2707,17 +2829,21 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, [activeMicroflowId, issues, lastValidatedAt, validationStatus]);
 
   useEffect(() => {
-    if (!canvasNodeContextMenu) {
+    if (!canvasNodeContextMenu && !canvasBlankContextMenu && !quickInsertState) {
       return undefined;
     }
-    const close = () => setCanvasNodeContextMenu(undefined);
+    const close = () => {
+      setCanvasNodeContextMenu(undefined);
+      setCanvasBlankContextMenu(undefined);
+      setQuickInsertState(undefined);
+    };
     document.addEventListener("click", close);
     window.addEventListener("blur", close);
     return () => {
       document.removeEventListener("click", close);
       window.removeEventListener("blur", close);
     };
-  }, [canvasNodeContextMenu]);
+  }, [canvasBlankContextMenu, canvasNodeContextMenu, quickInsertState]);
 
   const refreshHistoryState = () => setHistoryState(historyManager.getState());
 
@@ -5160,6 +5286,45 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRightOpen(false);
   }, []);
 
+  const projectScreenPointToCanvas = useCallback((point?: { x: number; y: number }): { x: number; y: number } | undefined => {
+    if (!point || typeof document === "undefined") {
+      return undefined;
+    }
+    const canvasElement = shellRef.current?.querySelector<HTMLElement>(".microflow-flowgram-canvas");
+    if (!canvasElement) {
+      return undefined;
+    }
+    const rect = canvasElement.getBoundingClientRect();
+    const viewport = schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+    const zoom = Math.max(0.2, viewport.zoom ?? 1);
+    return {
+      x: Math.round(((point.x - rect.left + viewport.x) / zoom) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+      y: Math.round(((point.y - rect.top + viewport.y) / zoom) / MICROFLOW_GRID_SIZE) * MICROFLOW_GRID_SIZE,
+    };
+  }, [schema.editor.viewport]);
+
+  const recordRecentQuickInsert = useCallback((item: MicroflowNodeRegistryItem) => {
+    const key = getMicroflowNodeRegistryKey(item);
+    setRecentQuickInsertNodeKeys(current => {
+      const next = [key, ...current.filter(existing => existing !== key)].slice(0, 8);
+      saveRecentQuickInsertNodeKeys(next);
+      return next;
+    });
+  }, []);
+
+  const openQuickInsert = useCallback((nextState: QuickInsertState) => {
+    setCanvasNodeContextMenu(undefined);
+    setCanvasBlankContextMenu(undefined);
+    setQuickInsertQuery("");
+    setQuickInsertState(nextState);
+    setFocusMode(false);
+  }, []);
+
+  const closeQuickInsert = useCallback(() => {
+    setQuickInsertState(undefined);
+    setQuickInsertQuery("");
+  }, []);
+
   const toggleNodePanel = useCallback(() => {
     if (leftOpen) {
       closeNodePanel();
@@ -5247,6 +5412,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, []);
 
   const clearSelection = useCallback(() => {
+    if (canvasBlankContextMenu) {
+      setCanvasBlankContextMenu(undefined);
+      return;
+    }
     if (canvasNodeContextMenu) {
       setCanvasNodeContextMenu(undefined);
       return;
@@ -5278,7 +5447,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       },
       { pushHistory: false, skipDirty: true, skipValidate: true },
     );
-  }, [bottomDockMode, canvasNodeContextMenu, closeNodePanel, closePropertiesPanel, leftOpen, rightOpen, schema]);
+  }, [bottomDockMode, canvasBlankContextMenu, canvasNodeContextMenu, closeNodePanel, closePropertiesPanel, leftOpen, rightOpen, schema]);
 
   const resetWorkbenchLayout = useCallback(() => {
     setFocusMode(false);
@@ -6062,6 +6231,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }}
           onNodeClickChange={selection => {
             if (selection.objectId || selection.flowId) {
+              setCanvasBlankContextMenu(undefined);
               openPropertiesPanel();
             }
           }}
@@ -6096,7 +6266,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               selectionMode: "none",
             }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
           }}
-        onNodeContextMenu={(selection, point) => {
+          onNodeContextMenu={(selection, point) => {
+            setCanvasBlankContextMenu(undefined);
             setCanvasNodeContextMenu(selection.objectId || selection.flowId ? {
               objectId: selection.objectId,
               flowId: selection.flowId,
@@ -6338,17 +6509,34 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         {canvasBlankContextMenu ? (
           <div
             data-testid="microflow-canvas-blank-context-menu"
-            style={{ position: "fixed", left: canvasBlankContextMenu.x, top: canvasBlankContextMenu.y, zIndex: 1000 }}
-            onMouseLeave={() => setCanvasBlankContextMenu(undefined)}
+            style={{
+              position: "fixed",
+              left: canvasBlankContextMenu.x,
+              top: canvasBlankContextMenu.y,
+              zIndex: 1200,
+              minWidth: 168,
+              padding: 6,
+              borderRadius: 8,
+              border: "1px solid var(--semi-color-border, #e5e6eb)",
+              background: "var(--semi-color-bg-2, #fff)",
+              boxShadow: "0 8px 24px rgba(31, 35, 41, 0.14)"
+            }}
+            onClick={event => event.stopPropagation()}
+            onContextMenu={event => event.preventDefault()}
           >
-            <div className="microflow-canvas-context-menu">
-              <button
-                className="microflow-canvas-context-menu__item"
-                onClick={() => { setCanvasBlankContextMenu(undefined); openBottomDock("debug"); }}
-              >
-                Open Debug Panel
-              </button>
-            </div>
+            <Button
+              block
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              style={{ justifyContent: "flex-start" }}
+              onClick={() => {
+                setCanvasBlankContextMenu(undefined);
+                openBottomDock("debug");
+              }}
+            >
+              Open Debug Panel
+            </Button>
           </div>
         ) : null}
         {AUXILIARY_PANELS_ENABLED && !focusMode && (leftOpen || (rightOpen && (selectedObject || selectedFlow))) ? <div
@@ -6409,6 +6597,80 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           ) : null}
           {rightOpen && (selectedObject || selectedFlow) ? (
             <div data-testid="microflow-property-panel" style={{ ...propertyPaneStyle, padding: 0 }}>
+              {isDesignSchema(schema) && selectedPropertyInlineNode && !selectedFlow ? (
+                <FlowGramMicroflowRuntimeContext.Provider
+                  value={{
+                    schema,
+                    variableIndex: propertyInlineVariableIndex,
+                    getVariablesForNode: (objectId, options) => getVariablesBeforeObject(schema, propertyInlineVariableIndex, objectId, options),
+                    runtimeTraceByObjectId,
+                    expandedObjectId: selectedPropertyInlineNode.inlineConfig?.viewMode === "compact" ? null : selectedPropertyInlineNode.objectId,
+                    onExpandChange: () => undefined,
+                    onSchemaChange: (nextSchema, reason) => {
+                      commitSchema(nextSchema, reason, { source: "propertyInlinePanel" });
+                      emitPanelSyncEvent({ type: "property-edit", nodeId: selectedPropertyInlineNode.objectId });
+                    },
+                    readonly: Boolean(props.readonly || runtimeInlineReadonly),
+                    registerDraftValidator: () => undefined,
+                  }}
+                >
+                  <div
+                    data-testid="microflow-property-inline-card"
+                    style={{
+                      margin: 12,
+                      marginBottom: 0,
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(22, 93, 255, 0.14)",
+                      background: "linear-gradient(180deg, rgba(245, 249, 255, 0.96) 0%, rgba(255, 255, 255, 1) 100%)",
+                      boxShadow: "0 8px 20px rgba(31, 35, 41, 0.06)",
+                      display: "grid",
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "grid", gap: 2 }}>
+                        <Text strong>{selectedPropertyInlineNode.title}</Text>
+                        <Text type="tertiary" size="small">{selectedPropertyInlineNode.officialType}</Text>
+                      </div>
+                      <Tag color={selectedPropertyInlineNode.inlineConfig?.viewMode === "editing" ? "blue" : "grey"}>
+                        {selectedPropertyInlineNode.inlineConfig?.viewMode === "editing" ? "内联编辑" : "节点摘要"}
+                      </Tag>
+                    </div>
+                    {(selectedPropertyInlineNode.inlineConfig?.summaryLines ?? []).length > 0 ? (
+                      <div style={{ display: "grid", gap: 4 }}>
+                        {selectedPropertyInlineNode.inlineConfig?.summaryLines.slice(0, 4).map(line => (
+                          <div key={line.id} style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
+                            {line.label ? <Text type="tertiary" size="small">{line.label}:</Text> : null}
+                            <Text size="small">{line.value}</Text>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {selectedPropertyInlineNode.inlineConfig?.viewMode === "editing" ? (
+                      <MicroflowInlineNodeEditor
+                        data={selectedPropertyInlineNode}
+                        objectId={selectedPropertyInlineNode.objectId}
+                        schema={schema}
+                        onSchemaChange={(nextSchema, reason) => {
+                          commitSchema(nextSchema, reason, { source: "propertyInlinePanel" });
+                          emitPanelSyncEvent({ type: "property-edit", nodeId: selectedPropertyInlineNode.objectId });
+                        }}
+                        onCollapse={() => {
+                          setNodeViewModes(current => ({
+                            ...current,
+                            [selectedPropertyInlineNode.objectId]: "compact",
+                            [selectedPropertyInlineNode.objectId.startsWith("node-")
+                              ? selectedPropertyInlineNode.objectId.slice("node-".length)
+                              : `node-${selectedPropertyInlineNode.objectId}`]: "compact",
+                          }));
+                        }}
+                        registerDraftValidator={undefined}
+                      />
+                    ) : null}
+                  </div>
+                </FlowGramMicroflowRuntimeContext.Provider>
+              ) : null}
               {isDesignSchema(schema) ? (
                 <MicroflowPropertyPanel
                   schemaProtocol="design"

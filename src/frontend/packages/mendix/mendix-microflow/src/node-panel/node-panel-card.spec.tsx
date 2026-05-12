@@ -56,7 +56,7 @@ import {
   MICROFLOW_NODE_DND_TYPE,
   readMicroflowNodeDragPayload,
 } from "../node-registry";
-import { MicroflowNodeCard, defaultMicroflowNodePanelLabels } from "./index";
+import { MicroflowNodeCard, MicroflowNodePanel, defaultMicroflowNodePanelLabels } from "./index";
 
 function registry(key: string) {
   const item = defaultMicroflowNodePanelRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key);
@@ -182,6 +182,30 @@ describe("MicroflowNodeCard", () => {
     );
     fireEvent.dragStart(getByTestId("microflow-node-panel-item-activity-callNanoflow"), { dataTransfer });
     expect(data.size).toBe(0);
+  });
+});
+
+describe("MicroflowNodePanel", () => {
+  const createContext = { microflowId: "mf-test", schemaLoaded: true };
+
+  it("renders registry entries even when they are not listed in curated Mendix sections", () => {
+    const custom = {
+      ...registry("activity:logMessage"),
+      key: "activity:customLogMessage",
+      title: "Custom Log Message",
+    };
+
+    const { getByText } = render(
+      <MicroflowNodePanel
+        registry={[custom]}
+        favoriteNodeKeys={[]}
+        onFavoriteChange={vi.fn()}
+        onAddNode={vi.fn()}
+        createContext={createContext}
+      />,
+    );
+
+    expect(getByText("Custom Log Message")).toBeTruthy();
   });
 });
 

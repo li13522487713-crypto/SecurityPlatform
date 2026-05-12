@@ -56,6 +56,7 @@ import {
 } from "./FlowGramMicroflowToolbar";
 import {
   isPointerTargetPanExempt,
+  resolveViewportPanEndIntent,
   shouldViewportPanFromPointerDown,
   zoomViewportForPanToolWheel,
 } from "./flowgram-canvas-interactions";
@@ -108,8 +109,9 @@ export interface FlowGramMicroflowNativeCanvasProps {
   onSchemaChange: (nextSchema: MicroflowDesignSchema, reason: string) => void;
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
   onNodeClickChange?: (selection: FlowGramMicroflowSelection) => void;
-  onCanvasBlankClick?: () => void;
+  onCanvasBlankClick?: (point?: { x: number; y: number }) => void;
   onNodeContextMenu?: (selection: FlowGramMicroflowSelection, point: { x: number; y: number }) => void;
+  onNodeToolbarQuickAdd?: (objectId: string, point: { x: number; y: number }) => void;
   onDropRegistryItem?: (
     item: MicroflowNodeRegistryItem,
     position: MicroflowPoint,
@@ -752,8 +754,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     viewportY: number;
     zoom: number;
   } | null>(null);
+  const viewportPanButtonRef = useRef<number | null>(null);
   const viewportPanMovedRef = useRef(false);
   const suppressNextContextMenuRef = useRef(false);
+  const suppressNextNodeClickRef = useRef(false);
   const userViewportPanningRef = useRef(false);
   const lastSyncedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   propsRef.current = props;
@@ -935,10 +939,12 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       }
       if (event.type === "onDragStart") {
         draggingRef.current = true;
+        suppressNextNodeClickRef.current = true;
         return;
       }
       if (event.type === "onDragEnd") {
         draggingRef.current = false;
+        suppressNextNodeClickRef.current = true;
         const selectedIds = (selectService.selection ?? [])
           .map(selection => selection?.id)
           .filter((id): id is string => typeof id === "string" && id.length > 0);
@@ -1207,6 +1213,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
     if (selection) {
       props.onSelectionChange(selection);
+      if (suppressNextNodeClickRef.current) {
+        suppressNextNodeClickRef.current = false;
+        return;
+      }
       props.onNodeClickChange?.(selection);
     }
   };
@@ -1227,8 +1237,6 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     if (openContextMenuFromTarget(target, point)) {
       event.preventDefault();
       event.stopPropagation();
-    } else {
-      props.onCanvasBlankContextMenu?.(point);
     }
   };
 
@@ -1283,8 +1291,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       return;
     }
     const moved = viewportPanMovedRef.current;
+    const button = viewportPanButtonRef.current;
     viewportPanPointerIdRef.current = null;
     viewportPanOriginRef.current = null;
+    viewportPanButtonRef.current = null;
     userViewportPanningRef.current = false;
     setIsViewportPanGrabbing(false);
     selectorBoxConfig.disabled = panToolActiveRef.current || spacePressedRef.current;
@@ -1293,11 +1303,17 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     } catch {
       // Ignore — capture may already be released.
     }
-    if (!moved) {
-      const target = event.target instanceof HTMLElement ? event.target : undefined;
-      if (!isPointerTargetPanExempt(target, false)) {
-        propsRef.current.onCanvasBlankClick?.();
-      }
+    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const intent = resolveViewportPanEndIntent({
+      button,
+      moved,
+      target,
+      spacePressed: spacePressedRef.current,
+    });
+    if (intent === "blank-context-menu") {
+      propsRef.current.onCanvasBlankContextMenu?.({ x: event.clientX, y: event.clientY });
+    } else if (intent === "blank-click") {
+      propsRef.current.onCanvasBlankClick?.({ x: event.clientX, y: event.clientY });
     }
   };
 
@@ -1320,6 +1336,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       }
       viewportPanMovedRef.current = false;
       suppressNextContextMenuRef.current = event.button === 2;
+      viewportPanButtonRef.current = event.button;
       viewportPanPointerIdRef.current = event.pointerId;
       userViewportPanningRef.current = true;
       setIsViewportPanGrabbing(true);
@@ -1341,13 +1358,14 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     if (isPointerTargetPanExempt(target, spacePressedRef.current)) {
       return;
     }
-    propsRef.current.onCanvasBlankClick?.();
+    propsRef.current.onCanvasBlankClick?.({ x: event.clientX, y: event.clientY });
   };
 
   const handleLostPointerCapture = (event: PointerEvent<HTMLDivElement>) => {
     if (viewportPanPointerIdRef.current === event.pointerId) {
       viewportPanPointerIdRef.current = null;
       viewportPanOriginRef.current = null;
+      viewportPanButtonRef.current = null;
       userViewportPanningRef.current = false;
       setIsViewportPanGrabbing(false);
       selectorBoxConfig.disabled = panToolActiveRef.current || spacePressedRef.current;
@@ -1590,6 +1608,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         <FlowGramNodeToolbar
           x={canvasNodeToolbar.x}
           y={canvasNodeToolbar.y}
+          onQuickAdd={() => props.onNodeToolbarQuickAdd?.(canvasNodeToolbar.objectId, {
+            x: canvasNodeToolbar.x,
+            y: canvasNodeToolbar.y,
+          })}
           onDelete={() => props.onDeleteSelection?.()}
           onDuplicate={() => props.onDuplicateSelection?.()}
         />

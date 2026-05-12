@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  resolveViewportPanEndIntent,
   shouldViewportPanFromPointerDown,
   zoomViewportForPanToolWheel,
   zoomViewportAtCanvasCenter,
@@ -79,6 +80,43 @@ describe("FlowGramMicroflowNativeCanvas hand-tool interactions", () => {
     });
 
     expect(shouldPan).toBe(false);
+  });
+
+  it("opens blank context menu on right click without movement and clears plain blank click on left button", () => {
+    const blank = makeTarget(() => false);
+
+    expect(resolveViewportPanEndIntent({
+      button: 2,
+      moved: false,
+      target: blank,
+      spacePressed: false,
+    })).toBe("blank-context-menu");
+
+    expect(resolveViewportPanEndIntent({
+      button: 0,
+      moved: false,
+      target: blank,
+      spacePressed: false,
+    })).toBe("blank-click");
+  });
+
+  it("suppresses blank click intent after viewport movement or exempt targets", () => {
+    const blank = makeTarget(() => false);
+    const nodeTarget = makeTarget(selector => selector.includes(".microflow-flowgram-node"));
+
+    expect(resolveViewportPanEndIntent({
+      button: 2,
+      moved: true,
+      target: blank,
+      spacePressed: false,
+    })).toBe("none");
+
+    expect(resolveViewportPanEndIntent({
+      button: 0,
+      moved: false,
+      target: nodeTarget,
+      spacePressed: false,
+    })).toBe("none");
   });
 
   it("zooms around cursor position instead of canvas center in pan tool mode", () => {
