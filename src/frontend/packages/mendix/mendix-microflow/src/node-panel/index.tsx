@@ -156,6 +156,16 @@ const categoryFilterLabels: Record<MicroflowNodePanelCategoryKey, string> = {
   other: "Other"
 };
 
+type MendixToolboxSectionKey =
+  | "object"
+  | "list"
+  | "action"
+  | "variable"
+  | "flow"
+  | "input"
+  | "event"
+  | "documentation";
+
 const categoryStyle: CSSProperties = {
   borderBottom: "1px solid var(--semi-color-border)",
   background: "transparent",
@@ -294,9 +304,9 @@ function iconTone(item: MicroflowNodeRegistryItem): { background: string; color:
 }
 
 interface MendixToolboxSection {
-  key: string;
+  key: MendixToolboxSectionKey;
   label: string;
-  itemKeys: string[];
+  itemKeys?: string[];
 }
 
 const mendixToolboxSections: MendixToolboxSection[] = [
@@ -382,6 +392,42 @@ const mendixToolboxSections: MendixToolboxSection[] = [
   },
 ];
 
+const mendixToolboxSectionLabels: Record<MendixToolboxSectionKey, string> = {
+  object: "Object activities",
+  list: "List activities",
+  action: "Action call activities",
+  variable: "Variable activities",
+  flow: "Flow control",
+  input: "Input parameters",
+  event: "Loop events",
+  documentation: "Documentation",
+};
+
+function resolveFixedToolboxSection(item: MicroflowNodeRegistryItem): MendixToolboxSectionKey {
+  if (item.group === "Annotations") {
+    return "documentation";
+  }
+  if (item.group === "Parameters") {
+    return "input";
+  }
+  if (item.group === "Events" || item.type === "breakEvent" || item.type === "continueEvent") {
+    return "event";
+  }
+  if (item.group === "Decisions" || item.group === "Loop") {
+    return "flow";
+  }
+  if (item.subgroup === "object") {
+    return "object";
+  }
+  if (item.subgroup === "list") {
+    return "list";
+  }
+  if (item.subgroup === "variable") {
+    return "variable";
+  }
+  return "action";
+}
+
 export function buildMendixToolboxSections(
   registry: MicroflowNodeRegistryItem[],
   keyword: string,
@@ -390,25 +436,46 @@ export function buildMendixToolboxSections(
 ): Array<MendixToolboxSection & { items: MicroflowNodeRegistryItem[] }> {
   const favoriteSet = new Set(favoriteNodeKeys);
   const searched = searchMicroflowNodes(keyword, registry).filter(item => matchFilter(item, filterKey, favoriteSet));
-  const curatedSections = mendixToolboxSections
+  const searchedByKey = new Map(searched.map(item => [getMicroflowNodeRegistryKey(item), item] as const));
+  const sectionBuckets: Record<MendixToolboxSectionKey, MicroflowNodeRegistryItem[]> = {
+    object: [],
+    list: [],
+    action: [],
+    variable: [],
+    flow: [],
+    input: [],
+    event: [],
+    documentation: [],
+  };
+  const assignedKeys = new Set<string>();
+
+  for (const section of mendixToolboxSections) {
+    for (const itemKey of section.itemKeys ?? []) {
+      const item = searchedByKey.get(itemKey);
+      if (!item) {
+        continue;
+      }
+      sectionBuckets[section.key].push(item);
+      assignedKeys.add(itemKey);
+    }
+  }
+
+  for (const item of searched) {
+    const itemKey = getMicroflowNodeRegistryKey(item);
+    if (assignedKeys.has(itemKey)) {
+      continue;
+    }
+    sectionBuckets[resolveFixedToolboxSection(item)].push(item);
+    assignedKeys.add(itemKey);
+  }
+
+  return mendixToolboxSections
     .map(section => ({
-      ...section,
-      items: section.itemKeys
-        .map(key => searched.find(item => getMicroflowNodeRegistryKey(item) === key))
-        .filter((item): item is MicroflowNodeRegistryItem => Boolean(item)),
+      key: section.key,
+      label: mendixToolboxSectionLabels[section.key],
+      items: sectionBuckets[section.key],
     }))
     .filter(section => section.items.length > 0);
-  const matchedKeys = new Set(
-    curatedSections.flatMap(section => section.items.map(item => getMicroflowNodeRegistryKey(item))),
-  );
-  const unmatched = searched.filter(item => !matchedKeys.has(getMicroflowNodeRegistryKey(item)));
-  const fallbackSections = groupMicroflowNodesByCategory(unmatched).map(group => ({
-    key: `fallback-${group.category.key}`,
-    label: group.category.label,
-    itemKeys: group.entries.map(item => getMicroflowNodeRegistryKey(item)),
-    items: group.entries,
-  }));
-  return [...curatedSections, ...fallbackSections];
 }
 
 function MicroflowNodeIcon({ item, size = 22 }: { item: MicroflowNodeRegistryItem; size?: number }) {
@@ -492,7 +559,6 @@ export function MicroflowNodeSearch({
     { key: "favorites", label: labels.filterFavorites },
     { key: "enabled", label: labels.filterEnabled },
     { key: "supported", label: labels.filterSupported },
-    ...Object.entries(categoryFilterLabels).map(([key, label]) => ({ key: key as MicroflowNodePanelCategoryKey, label }))
   ];
 
   return (

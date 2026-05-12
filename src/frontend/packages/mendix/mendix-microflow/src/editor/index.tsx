@@ -116,6 +116,7 @@ import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection
 import { isBooleanExclusiveSplit } from "../schema/utils/exclusive-split-utils";
 import { setParameterAsMicroflowReturnValue } from "../schema/utils/microflow-signature";
 import { canApplyBooleanBranchQuickFix, createMissingBooleanBranch } from "./problem-quick-fixes";
+import { normalizePanelOpenState, resolveRightColumnWidth } from "./panel-layout-state";
 import {
   collectDebugSessionMicroflowIds,
   MicroflowRunHistoryPanel,
@@ -1545,9 +1546,44 @@ function absolutePortPosition(node: MicroflowEditorNode, port: MicroflowEditorPo
   };
 }
 
+function dedupeOrthogonalPoints(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  const deduped: Array<{ x: number; y: number }> = [];
+  for (const point of points) {
+    const prev = deduped[deduped.length - 1];
+    if (prev && prev.x === point.x && prev.y === point.y) {
+      continue;
+    }
+    deduped.push(point);
+  }
+  return deduped;
+}
+
+function orthogonalPoints(source: { x: number; y: number }, target: { x: number; y: number }): Array<{ x: number; y: number }> {
+  if (source.x === target.x || source.y === target.y) {
+    return dedupeOrthogonalPoints([source, target]);
+  }
+  const horizontalGap = 36;
+  if (target.x >= source.x) {
+    const midX = source.x + Math.max((target.x - source.x) / 2, horizontalGap);
+    return dedupeOrthogonalPoints([
+      source,
+      { x: midX, y: source.y },
+      { x: midX, y: target.y },
+      target,
+    ]);
+  }
+  const detourX = Math.max(source.x, target.x) + Math.max((source.x - target.x) / 2, horizontalGap);
+  return dedupeOrthogonalPoints([
+    source,
+    { x: detourX, y: source.y },
+    { x: detourX, y: target.y },
+    target,
+  ]);
+}
+
 function connectionPath(source: { x: number; y: number }, target: { x: number; y: number }) {
-  const mid = (source.x + target.x) / 2;
-  return `M ${source.x} ${source.y} C ${mid} ${source.y}, ${mid} ${target.y}, ${target.x} ${target.y}`;
+  const points = orthogonalPoints(source, target);
+  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 }
 
 function distanceToSegment(point: { x: number; y: number }, source: { x: number; y: number }, target: { x: number; y: number }) {
@@ -1561,6 +1597,51 @@ function distanceToSegment(point: { x: number; y: number }, source: { x: number;
   return Math.hypot(point.x - (source.x + t * dx), point.y - (source.y + t * dy));
 }
 
+function distanceToPolyline(point: { x: number; y: number }, points: Array<{ x: number; y: number }>): number {
+  if (points.length < 2) {
+    return Number.POSITIVE_INFINITY;
+  }
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const current = points[i];
+    const next = points[i + 1];
+    const distance = distanceToSegment(point, current, next);
+    if (distance < nearest) {
+      nearest = distance;
+    }
+  }
+  return nearest;
+}
+
+function polylineMidPoint(points: Array<{ x: number; y: number }>): { x: number; y: number } {
+  if (points.length < 2) {
+    return points[0] ?? { x: 0, y: 0 };
+  }
+  let totalLength = 0;
+  const segments = points.slice(0, -1).map((point, index) => {
+    const next = points[index + 1];
+    const length = Math.hypot(next.x - point.x, next.y - point.y);
+    totalLength += length;
+    return { start: point, end: next, length };
+  });
+  if (totalLength <= 0) {
+    return points[0];
+  }
+  let traversed = 0;
+  const targetLength = totalLength / 2;
+  for (const segment of segments) {
+    if (traversed + segment.length >= targetLength) {
+      const ratio = (targetLength - traversed) / segment.length;
+      return {
+        x: segment.start.x + (segment.end.x - segment.start.x) * ratio,
+        y: segment.start.y + (segment.end.y - segment.start.y) * ratio,
+      };
+    }
+    traversed += segment.length;
+  }
+  return points[points.length - 1];
+}
+
 function findNearestFlowAtPoint(graph: MicroflowEditorGraph, point: { x: number; y: number }, threshold = 18): string | undefined {
   const nodeById = new Map(graph.nodes.map(node => [node.objectId, node]));
   let nearest: { flowId: string; distance: number } | undefined;
@@ -1572,11 +1653,9 @@ function findNearestFlowAtPoint(graph: MicroflowEditorGraph, point: { x: number;
     }
     const sourcePort = source.ports.find(port => port.id === edge.sourcePortId) ?? source.ports.find(port => port.direction === "output");
     const targetPort = target.ports.find(port => port.id === edge.targetPortId) ?? target.ports.find(port => port.direction === "input");
-    const distance = distanceToSegment(
-      point,
-      sourcePort ? absolutePortPosition(source, sourcePort) : { x: source.position.x + source.size.width, y: source.position.y + source.size.height / 2 },
-      targetPort ? absolutePortPosition(target, targetPort) : { x: target.position.x, y: target.position.y + target.size.height / 2 }
-    );
+    const sourcePosition = sourcePort ? absolutePortPosition(source, sourcePort) : { x: source.position.x + source.size.width, y: source.position.y + source.size.height / 2 };
+    const targetPosition = targetPort ? absolutePortPosition(target, targetPort) : { x: target.position.x, y: target.position.y + target.size.height / 2 };
+    const distance = distanceToPolyline(point, orthogonalPoints(sourcePosition, targetPosition));
     if (distance <= threshold && (!nearest || distance < nearest.distance)) {
       nearest = { flowId: edge.flowId, distance };
     }
@@ -1726,7 +1805,8 @@ function EdgeLayer({
         const targetPort = target.ports.find(port => port.id === edge.targetPortId) ?? target.ports.find(port => port.direction === "input");
         const sourcePosition = sourcePort ? absolutePortPosition(source, sourcePort) : { x: source.position.x + source.size.width, y: source.position.y + source.size.height / 2 };
         const targetPosition = targetPort ? absolutePortPosition(target, targetPort) : { x: target.position.x, y: target.position.y + target.size.height / 2 };
-        const mid = (sourcePosition.x + targetPosition.x) / 2;
+        const pathPoints = orthogonalPoints(sourcePosition, targetPosition);
+        const labelPoint = polylineMidPoint(pathPoints);
         const selected = selectedFlowId === edge.flowId;
         return (
           <g key={edge.id} style={{ pointerEvents: "auto" }} onClick={event => { event.stopPropagation(); onSelect(edge.flowId); }}>
@@ -1738,7 +1818,7 @@ function EdgeLayer({
               strokeDasharray={edge.style.strokeType === "dashed" ? "6 4" : edge.style.strokeType === "dotted" ? "2 4" : undefined}
             />
             <circle cx={targetPosition.x} cy={targetPosition.y} r={4} fill={selected ? "#165dff" : edge.style.colorToken} />
-            {edge.label ? <text x={mid} y={(sourcePosition.y + targetPosition.y) / 2 - 8} fontSize={12} fill="#4e5969">{edge.label}</text> : null}
+            {edge.label ? <text x={labelPoint.x} y={labelPoint.y - 8} fontSize={12} fill="#4e5969">{edge.label}</text> : null}
           </g>
         );
       })}
@@ -2504,8 +2584,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     return stored !== undefined ? stored : rightPanelFallback;
   });
   useEffect(() => {
-    if (leftOpen && rightOpen) {
-      setRightOpen(false);
+    const normalized = normalizePanelOpenState({ leftOpen, rightOpen });
+    if (normalized.rightOpen !== rightOpen) {
+      setRightOpen(normalized.rightOpen);
     }
   }, [leftOpen, rightOpen]);
   const bottomPanelFallbackMode: BottomDockMode = bottomPanelFallback ? "peek" : "collapsed";
@@ -2629,13 +2710,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       || schema.editor.selection.objectIds?.length
       || schema.editor.selection.flowIds?.length
     );
-    const rightCol = focusMode || !AUXILIARY_PANELS_ENABLED
-      ? 0
-      : leftOpen
-        ? NODE_TOOLBOX_PANEL_WIDTH_PX
-        : rightOpen
-          ? RIGHT_PANEL_EXPANDED_PX
-          : 0;
+    const rightCol = resolveRightColumnWidth({
+      focusMode,
+      auxiliaryPanelsEnabled: AUXILIARY_PANELS_ENABLED,
+      leftOpen,
+      rightOpen,
+      panelWidthPx: NODE_TOOLBOX_PANEL_WIDTH_PX,
+    });
     return {
       display: "grid",
       gridTemplateColumns: `minmax(0, 1fr) ${rightCol}px`,
@@ -6835,7 +6916,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                       <div style={{ display: "grid", gap: 2 }}>
                         <Text strong>{selectedPropertyInlineNode.title}</Text>
-                        <Text type="tertiary" size="small">{selectedPropertyInlineNode.officialType}</Text>
                       </div>
                       <Tag color={selectedPropertyInlineNode.inlineConfig?.viewMode === "editing" ? "blue" : "grey"}>
                         {selectedPropertyInlineNode.inlineConfig?.viewMode === "editing" ? "内联编辑" : "节点摘要"}

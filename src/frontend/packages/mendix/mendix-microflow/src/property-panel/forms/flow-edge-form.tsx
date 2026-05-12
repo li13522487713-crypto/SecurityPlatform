@@ -122,7 +122,7 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
       <Header
         props={props}
         title={flow.kind === "sequence" ? flow.editor.label ?? "Sequence Flow" : flow.editor.label ?? "Annotation Flow"}
-        subtitle={flow.officialType}
+        subtitle={flow.kind === "sequence" ? "Sequence Flow" : "Annotation Flow"}
         onDelete={() => props.onDeleteFlow?.(flow.id)}
       />
       <IssueSummaryBar issues={issues} onLocateField={handleLocateField} />
@@ -135,9 +135,6 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
         </Field>
         <Field label="Flow Kind">
           <Input value={flow.kind} disabled />
-        </Field>
-        <Field label="Official Type">
-          <Input value={flow.officialType} disabled />
         </Field>
         <Field label="Origin Object">
           <Input value={objectName(props.schema, flow.originObjectId)} disabled />
@@ -285,6 +282,12 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
         ) : null}
         {activeTab === "documentation" ? (
           <>
+            <Field label="Flow ID">
+              <Input value={flow.id} disabled />
+            </Field>
+            <Field label="Mendix Type">
+              <Input value={flow.officialType} disabled />
+            </Field>
             <Field label="Label">
               {withDisabledReason(
                 readonlyDisabledReason,

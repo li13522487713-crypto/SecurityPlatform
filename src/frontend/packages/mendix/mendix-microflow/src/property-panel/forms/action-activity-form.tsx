@@ -244,15 +244,6 @@ export function ActionActivityForm({
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       {isPropertiesTab ? (
-        <Field label="Caption">
-          <Input
-            value={object.caption}
-            disabled={readonly}
-            onChange={caption => patchObject({ ...object, caption: caption.trim() ? caption : object.caption || action.kind })}
-          />
-        </Field>
-      ) : null}
-      {isPropertiesTab ? (
         <Field label="Auto Generate Caption">
           {withDisabledReason(
             readonlyDisabledReason,

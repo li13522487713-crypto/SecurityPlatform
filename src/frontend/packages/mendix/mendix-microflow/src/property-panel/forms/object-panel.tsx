@@ -29,7 +29,6 @@ import { EventNodesForm } from "./event-nodes-form";
 import { ExclusiveSplitForm } from "./exclusive-split-form";
 import { InheritanceSplitForm } from "./inheritance-split-form";
 import { LoopNodeForm } from "./loop-node-form";
-import { MergeNodeForm } from "./merge-node-form";
 import { ParameterObjectForm } from "./parameter-object-form";
 import { ParallelGatewayForm } from "./parallel-gateway-form";
 import { InclusiveGatewayForm } from "./inclusive-gateway-form";
@@ -210,7 +209,6 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
                 patch={patch}
                 onAddFlow={nextFlow => props.onObjectChange(object.id, { addFlow: nextFlow })}
               />
-              <MergeNodeForm props={props} object={object} patch={patch} />
               <LoopNodeForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               {object.kind === "actionActivity" ? (
                 <ActionActivityForm
