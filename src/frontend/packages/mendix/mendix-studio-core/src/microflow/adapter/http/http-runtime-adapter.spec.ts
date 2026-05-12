@@ -231,4 +231,76 @@ describe("createHttpMicroflowRuntimeAdapter", () => {
     });
   });
 
+  it("preserves real history metadata from list runs", async () => {
+    const apiClient = {
+      get: vi.fn(async (path: string) => {
+        if (path === "/microflows/mf-1/runs") {
+          return {
+            items: [
+              {
+                runId: "run-history-1",
+                microflowId: "mf-1",
+                schemaId: "schema-parent",
+                status: "failed",
+                errorCode: "RuntimeCallMicroflowFailed",
+                durationMs: 123,
+                startedAt: "2026-04-30T08:00:00.000Z",
+                completedAt: "2026-04-30T08:00:01.000Z",
+                finalized: true,
+                parentRunId: "run-root",
+                rootRunId: "run-root",
+                callFrameId: "frame-call-1",
+                callDepth: 1,
+                correlationId: "corr-run-history",
+                traceFrameCount: 5,
+                logCount: 2,
+                childRunIds: ["run-child-1"],
+                callStack: ["Sales.Parent", "Sales.Child"],
+                callStackFrames: [
+                  {
+                    id: "frame-call-1",
+                    runId: "run-history-1",
+                    microflowId: "mf-child",
+                    callerObjectId: "call-child",
+                    qualifiedName: "Sales.Child",
+                    depth: 1,
+                    status: "failed"
+                  }
+                ],
+                errorMessage: "child failed",
+                summary: "Run failed"
+              }
+            ],
+            total: 1,
+          };
+        }
+        throw new Error(`unexpected get path ${path}`);
+      }),
+      post: vi.fn(),
+      delete: vi.fn(),
+      put: vi.fn(),
+    } as any;
+
+    const adapter = createHttpMicroflowRuntimeAdapter({
+      apiBaseUrl: "/api/v1",
+      apiClient,
+    });
+
+    const response = await adapter.listMicroflowRuns("mf-1");
+
+    expect(response.total).toBe(1);
+    expect(response.items[0]).toEqual(expect.objectContaining({
+      schemaId: "schema-parent",
+      errorCode: "RuntimeCallMicroflowFailed",
+      callFrameId: "frame-call-1",
+      traceFrameCount: 5,
+      childRunIds: ["run-child-1"],
+      callStack: ["Sales.Parent", "Sales.Child"],
+    }));
+    expect(response.items[0]?.callStackFrames?.[0]).toEqual(expect.objectContaining({
+      callerObjectId: "call-child",
+      qualifiedName: "Sales.Child",
+    }));
+  });
+
 });

@@ -808,6 +808,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
     private static MicroflowRunHistoryItemDto ToRunHistoryItem(string resourceId, MicroflowRunSessionEntity session)
     {
+        var extra = ReadSessionExtra(session.ExtraJson);
         var endedAt = session.EndedAt;
         var durationMs = endedAt.HasValue
             ? Math.Max(0, (int)(endedAt.Value - session.StartedAt).TotalMilliseconds)
@@ -816,6 +817,10 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             ? null
             : Deserialize<MicroflowRuntimeErrorDto>(session.ErrorJson);
         var status = NormalizeRunHistoryStatus(session.Status, error?.Code);
+        var finalized = session.EndedAt.HasValue
+            || string.Equals(session.Status, "success", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(session.Status, "failed", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(session.Status, "cancelled", StringComparison.OrdinalIgnoreCase);
         var summary = status switch
         {
             "success" => "Run succeeded",
@@ -828,10 +833,23 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         {
             RunId = session.Id,
             MicroflowId = resourceId,
+            SchemaId = session.SchemaSnapshotId,
             Status = status,
+            ErrorCode = error?.Code,
             DurationMs = durationMs,
             StartedAt = session.StartedAt,
             CompletedAt = endedAt,
+            Finalized = finalized,
+            ParentRunId = extra.ParentRunId,
+            RootRunId = extra.RootRunId,
+            CallFrameId = extra.CallFrameId,
+            CallDepth = extra.CallDepth,
+            CorrelationId = extra.CorrelationId,
+            TraceFrameCount = session.TraceFrameCount,
+            LogCount = session.LogCount,
+            ChildRunIds = extra.ChildRunIds,
+            CallStack = extra.CallStack,
+            CallStackFrames = extra.CallStackFrames,
             ErrorMessage = error?.Message,
             Summary = summary
         };

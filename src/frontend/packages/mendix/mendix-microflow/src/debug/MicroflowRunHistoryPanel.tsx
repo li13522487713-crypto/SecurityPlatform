@@ -38,6 +38,26 @@ export function MicroflowRunHistoryPanel({
   onRefresh,
   onSelectRun,
 }: MicroflowRunHistoryPanelProps) {
+  const summarizeCallStack = (item: MicroflowRunHistoryItem): string | null => {
+    if ((item.callStackFrames?.length ?? 0) > 0) {
+      return item.callStackFrames!
+        .slice()
+        .sort((left, right) => left.depth - right.depth)
+        .map(frame => frame.qualifiedName || frame.microflowId || frame.schemaId || "unknown")
+        .join(" -> ");
+    }
+    if ((item.callStack?.length ?? 0) > 0) {
+      return item.callStack!.join(" -> ");
+    }
+    return null;
+  };
+  const relatedRunsForItem = (item: MicroflowRunHistoryItem): Array<{ label: string; runId: string }> => {
+    return [
+      item.rootRunId && item.rootRunId !== item.runId ? { label: "root", runId: item.rootRunId } : null,
+      item.parentRunId && item.parentRunId !== item.runId && item.parentRunId !== item.rootRunId ? { label: "parent", runId: item.parentRunId } : null,
+    ].filter(Boolean) as Array<{ label: string; runId: string }>;
+  };
+
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       <Space style={{ width: "100%", justifyContent: "space-between" }}>
@@ -75,11 +95,12 @@ export function MicroflowRunHistoryPanel({
           style={{ width: "100%", borderColor: selectedRunId === item.runId ? "var(--semi-color-primary)" : undefined }}
           bodyStyle={{ padding: 10 }}
         >
-          <button
-            type="button"
-            style={{ border: "none", background: "transparent", textAlign: "left", width: "100%", cursor: "pointer", padding: 0 }}
-            onClick={() => onSelectRun(item.runId)}
-          >
+          <div style={{ width: "100%" }}>
+            <button
+              type="button"
+              style={{ border: "none", background: "transparent", textAlign: "left", width: "100%", cursor: "pointer", padding: 0 }}
+              onClick={() => onSelectRun(item.runId)}
+            >
             <Space style={{ width: "100%", justifyContent: "space-between" }}>
               <Space>
                 <Tag color={colorForStatus(item.status)}>{item.status}</Tag>
@@ -89,7 +110,49 @@ export function MicroflowRunHistoryPanel({
             </Space>
             <Text type="tertiary" size="small">{item.startedAt}</Text>
             {item.errorMessage ? <><br /><Text type="danger" size="small">{item.errorMessage}</Text></> : null}
-          </button>
+            {(item.parentRunId || item.rootRunId || item.callFrameId) ? (
+              <>
+                <br />
+                <Text type="tertiary" size="small">
+                  {[
+                    item.parentRunId ? `parent ${item.parentRunId}` : null,
+                    item.rootRunId ? `root ${item.rootRunId}` : null,
+                    item.callFrameId ? `frame ${item.callFrameId}` : null,
+                  ].filter(Boolean).join(" · ")}
+                </Text>
+              </>
+            ) : null}
+            {(item.traceFrameCount != null || item.logCount != null || (item.childRunIds?.length ?? 0) > 0) ? (
+              <>
+                <br />
+                <Space wrap spacing={4}>
+                  {item.traceFrameCount != null ? <Tag size="small">trace {item.traceFrameCount}</Tag> : null}
+                  {item.logCount != null ? <Tag size="small">logs {item.logCount}</Tag> : null}
+                  {(item.childRunIds?.length ?? 0) > 0 ? <Tag size="small">child {(item.childRunIds ?? []).length}</Tag> : null}
+                  {item.finalized != null ? <Tag size="small">{item.finalized ? "finalized" : "pending"}</Tag> : null}
+                </Space>
+              </>
+            ) : null}
+            {summarizeCallStack(item) ? (
+              <>
+                <br />
+                <Text type="tertiary" size="small">{summarizeCallStack(item)}</Text>
+              </>
+            ) : null}
+            </button>
+            {relatedRunsForItem(item).length > 0 ? (
+              <>
+                <br />
+                <Space wrap spacing={4}>
+                  {relatedRunsForItem(item).map(related => (
+                    <Tag key={`${item.runId}:${related.label}:${related.runId}`} onClick={() => onSelectRun(related.runId)}>
+                      {related.label} {related.runId}
+                    </Tag>
+                  ))}
+                </Space>
+              </>
+            ) : null}
+          </div>
         </Card>
       ))}
     </Space>

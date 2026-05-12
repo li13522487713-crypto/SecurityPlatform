@@ -1,6 +1,6 @@
 import { Button, Card, Empty, Space, Tabs, Tag, Typography } from "@douyinfe/semi-ui";
 
-import { extractGatewayBranchTrace, type MicroflowRunSession, type MicroflowRuntimeError, type MicroflowTraceFrame } from "./trace-types";
+import { extractGatewayBranchTrace, type MicroflowRunCallStackFrame, type MicroflowRunSession, type MicroflowRuntimeError, type MicroflowTraceFrame } from "./trace-types";
 import { buildCallStackPaths, buildExecutionPath } from "./trace-history-utils";
 import { buildMicroflowNodeIoViewModel } from "./node-io-view-model";
 
@@ -14,6 +14,8 @@ export interface MicroflowTracePanelProps {
   onSelectFrame: (frame: MicroflowTraceFrame) => void;
   onSelectFlow: (flowId: string) => void;
   onSelectError?: (error: MicroflowRuntimeError) => void;
+  onSelectRun?: (runId: string) => void;
+  onSelectCallStackFrame?: (frame: MicroflowRunCallStackFrame) => void;
 }
 
 function statusColor(status: string): "green" | "red" | "blue" | "grey" | "orange" {
@@ -96,16 +98,24 @@ export function MicroflowTracePanel({
   onSelectFrame,
   onSelectFlow,
   onSelectError,
+  onSelectRun,
+  onSelectCallStackFrame,
 }: MicroflowTracePanelProps) {
   if (!session) {
     return <Empty title="No trace" description="Run this microflow or select a run history item." />;
   }
   const executionPath = buildExecutionPath(session);
   const callStackPaths = buildCallStackPaths(session);
+  const orderedCallStackFrames = [...(session.callStackFrames ?? [])].sort((left, right) => left.depth - right.depth);
   const activeFrame = activeFrameId ? executionPath.find(item => item.frame.id === activeFrameId)?.frame : executionPath[0]?.frame;
   const errors = collectErrors(session);
   const activeNodeIo = activeFrame ? buildMicroflowNodeIoViewModel(activeFrame) : undefined;
   const activeBranchTrace = activeNodeIo?.flow.branchTrace ?? [];
+  const runHierarchy = [
+    session.rootRunId && session.rootRunId !== session.id ? { label: "root", runId: session.rootRunId } : null,
+    session.parentRunId && session.parentRunId !== session.id && session.parentRunId !== session.rootRunId ? { label: "parent", runId: session.parentRunId } : null,
+    { label: "current", runId: session.id },
+  ].filter(Boolean) as Array<{ label: string; runId: string }>;
 
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -118,6 +128,22 @@ export function MicroflowTracePanel({
           {session.endedAt ? <Tag>{Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime())}ms</Tag> : null}
           {session.error?.message ? <Tag color="red">{session.error.message}</Tag> : null}
         </Space>
+        {runHierarchy.length > 1 ? (
+          <>
+            <br />
+            <Space wrap spacing={4}>
+              {runHierarchy.map(item => (
+                <Tag
+                  key={`${item.label}:${item.runId}`}
+                  color={item.runId === session.id ? "blue" : undefined}
+                  onClick={onSelectRun ? () => onSelectRun(item.runId) : undefined}
+                >
+                  {item.label} {item.runId}
+                </Tag>
+              ))}
+            </Space>
+          </>
+        ) : null}
       </Card>
       <Tabs type="line" style={{ width: "100%" }}>
         <Tabs.TabPane tab="Execution Path" itemKey="execution-path">
@@ -257,10 +283,65 @@ export function MicroflowTracePanel({
         </Tabs.TabPane>
         <Tabs.TabPane tab="Call Stack" itemKey="call-stack">
           <Space vertical align="start" style={{ width: "100%" }}>
+            {orderedCallStackFrames.length > 0 ? orderedCallStackFrames.map(frame => (
+              <Card key={frame.id} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+                <button
+                  type="button"
+                  style={{ border: "none", background: "transparent", textAlign: "left", width: "100%", cursor: onSelectCallStackFrame ? "pointer" : "default", padding: 0 }}
+                  onClick={() => onSelectCallStackFrame?.(frame)}
+                >
+                  <Space wrap>
+                    <Tag>depth {frame.depth}</Tag>
+                    <Tag color={statusColor(frame.status || "idle")}>{frame.status || "unknown"}</Tag>
+                    <Tag>{frame.callMode || "sync"}</Tag>
+                    {frame.durationMs != null ? <Tag>{frame.durationMs}ms</Tag> : null}
+                  </Space>
+                  <Text strong>{frame.qualifiedName || frame.microflowId || frame.schemaId || "unknown"}</Text>
+                  <br />
+                  <Text type="tertiary" size="small">
+                    {[
+                      frame.runId ? `run ${frame.runId}` : null,
+                      frame.parentRunId ? `parent ${frame.parentRunId}` : null,
+                      frame.rootRunId ? `root ${frame.rootRunId}` : null,
+                      frame.callerObjectId ? `caller ${frame.callerObjectId}` : null,
+                      frame.callerActionId ? `action ${frame.callerActionId}` : null,
+                    ].filter(Boolean).join(" · ")}
+                  </Text>
+                </button>
+              </Card>
+            )) : null}
             {callStackPaths.length === 0 ? <Empty title="No call stack" /> : callStackPaths.map((path, index) => (
               <Text key={`${path.join("->")}:${index}`}>{path.join(" -> ")}</Text>
             ))}
-            {session.childRuns?.length ? <Text type="tertiary">child runs: {session.childRuns.length}</Text> : null}
+            {session.childRuns?.length ? (
+              <Space vertical align="start" style={{ width: "100%" }}>
+                <Text type="tertiary">child runs: {session.childRuns.length}</Text>
+                {session.childRuns.map(child => (
+                  <Card key={child.id} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+                    <button
+                      type="button"
+                      style={{ border: "none", background: "transparent", textAlign: "left", width: "100%", cursor: onSelectRun ? "pointer" : "default", padding: 0 }}
+                      onClick={() => onSelectRun?.(child.id)}
+                    >
+                      <Space wrap>
+                        <Tag color={statusColor(child.status)}>{child.status}</Tag>
+                        <Tag>{child.id}</Tag>
+                        {child.traceFrameCount != null ? <Tag>trace {child.traceFrameCount}</Tag> : null}
+                        {(child.logs?.length ?? 0) > 0 ? <Tag>logs {child.logs.length}</Tag> : null}
+                      </Space>
+                      <Text type="tertiary" size="small">
+                        {[
+                          child.resourceId || child.schemaId,
+                          child.parentRunId ? `parent ${child.parentRunId}` : null,
+                          child.rootRunId ? `root ${child.rootRunId}` : null,
+                          child.callFrameId ? `frame ${child.callFrameId}` : null,
+                        ].filter(Boolean).join(" · ")}
+                      </Text>
+                    </button>
+                  </Card>
+                ))}
+              </Space>
+            ) : null}
           </Space>
         </Tabs.TabPane>
         <Tabs.TabPane tab="Inputs" itemKey="inputs">

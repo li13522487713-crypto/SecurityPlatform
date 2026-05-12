@@ -38,6 +38,11 @@ function createSession(): MicroflowRunSession {
   return {
     id: "run-1",
     schemaId: "schema-1",
+    resourceId: "mf-1",
+    parentRunId: "run-parent",
+    rootRunId: "run-parent",
+    callFrameId: "frame-call-1",
+    traceFrameCount: 2,
     startedAt: "2026-05-05T10:00:00.000Z",
     endedAt: "2026-05-05T10:00:05.000Z",
     status: "failed",
@@ -45,6 +50,21 @@ function createSession(): MicroflowRunSession {
     output: { result: "failed" },
     logs: [],
     variables: [],
+    callStackFrames: [
+      {
+        id: "frame-call-1",
+        runId: "run-1",
+        parentRunId: "run-parent",
+        rootRunId: "run-parent",
+        microflowId: "mf-1",
+        qualifiedName: "Sales.OrderSubmit",
+        callerObjectId: "call-order-submit",
+        callerActionId: "action-call-order-submit",
+        depth: 0,
+        status: "failed",
+        durationMs: 5,
+      },
+    ],
     error: {
       code: "RUNTIME_REST_TIMEOUT",
       message: "上游超时",
@@ -91,6 +111,32 @@ function createSession(): MicroflowRunSession {
           objectId: "rest-1",
           flowId: "flow-out",
         },
+      },
+    ],
+    childRuns: [
+      {
+        id: "run-child-1",
+        schemaId: "schema-child",
+        resourceId: "mf-child",
+        parentRunId: "run-1",
+        rootRunId: "run-parent",
+        callFrameId: "frame-child-call-1",
+        traceFrameCount: 3,
+        startedAt: "2026-05-05T10:00:02.000Z",
+        endedAt: "2026-05-05T10:00:03.000Z",
+        status: "success",
+        input: {},
+        output: { ok: true },
+        trace: [],
+        logs: [
+          {
+            id: "log-1",
+            timestamp: "2026-05-05T10:00:02.200Z",
+            level: "info",
+            message: "child-log",
+          },
+        ],
+        variables: [],
       },
     ],
   };
@@ -155,5 +201,37 @@ describe("MicroflowTracePanel", () => {
     expect(onSelectFrame).toHaveBeenCalledWith(expect.objectContaining({ id: "frame-rest", objectId: "rest-1" }));
     expect(onSelectFlow).toHaveBeenCalledWith("flow-in");
     expect(onSelectError).toHaveBeenCalledWith(expect.objectContaining({ code: "RUNTIME_REST_TIMEOUT", objectId: "rest-1" }));
+  });
+
+  it("在 Call Stack 中展示真实 frame 元数据和 child run 摘要", () => {
+    const onSelectRun = vi.fn();
+    const onSelectCallStackFrame = vi.fn();
+    render(
+      <MicroflowTracePanel
+        microflowId="mf-1"
+        microflowName="订单审批"
+        session={createSession()}
+        onSelectFrame={() => {}}
+        onSelectFlow={() => {}}
+        onSelectRun={onSelectRun}
+        onSelectCallStackFrame={onSelectCallStackFrame}
+      />,
+    );
+
+    expect(screen.getAllByText("Sales.OrderSubmit").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "root run-parent" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "current run-1" })).toBeTruthy();
+    expect(screen.getByText("run run-1 · parent run-parent · root run-parent · caller call-order-submit · action action-call-order-submit")).toBeTruthy();
+    expect(screen.getByText("child runs: 1")).toBeTruthy();
+    expect(screen.getByText("run-child-1")).toBeTruthy();
+    expect(screen.getByText("mf-child · parent run-1 · root run-parent · frame frame-child-call-1")).toBeTruthy();
+    expect(screen.getByText("trace 3")).toBeTruthy();
+    expect(screen.getByText("logs 1")).toBeTruthy();
+    fireEvent.click(screen.getAllByText("Sales.OrderSubmit")[0]);
+    expect(onSelectCallStackFrame).toHaveBeenCalledWith(expect.objectContaining({ id: "frame-call-1" }));
+    fireEvent.click(screen.getByRole("button", { name: "root run-parent" }));
+    expect(onSelectRun).toHaveBeenCalledWith("run-parent");
+    fireEvent.click(screen.getByText("run-child-1"));
+    expect(onSelectRun).toHaveBeenCalledWith("run-child-1");
   });
 });

@@ -173,8 +173,8 @@ function NodeIcon({ kind }: { kind: string }) {
       // 参数椭圆里的 P
       return <svg {...base}><path d="M5 12V4h4.1a2.9 2.9 0 0 1 0 5.8H5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
     case "exclusiveSplit":
-      // 菱形
-      return <svg {...base}><polygon points="8,1 15,8 8,15 1,8" /></svg>;
+      // 分支语义：主干 + 两条分支
+      return <svg {...base}><path d="M4 3v4M12 3v4M8 5v6M4 7h8M8 11l-3 2M8 11l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
     case "inheritanceSplit":
       // 继承分支（主干 + 子分支）
       return <svg {...base}><path d="M8 2v3M4 7h8M4 7v5M12 7v5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
@@ -791,8 +791,8 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
           }}
         >
           {isExpanded
-            ? <><IconTickCircle style={{ marginRight: 3, verticalAlign: "middle" }} />完成</>
-            : <><IconEdit style={{ marginRight: 3, verticalAlign: "middle" }} />编辑</>}
+            ? <IconTickCircle style={{ verticalAlign: "middle" }} />
+            : <IconEdit style={{ verticalAlign: "middle" }} />}
         </button>
       </div>
       {usageConsumerHighlight ? (

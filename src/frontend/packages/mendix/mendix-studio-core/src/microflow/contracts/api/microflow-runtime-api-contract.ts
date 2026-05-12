@@ -1,5 +1,5 @@
 import type { MicroflowDesignSchema } from "@atlas/microflow";
-import type { MicroflowRunSession, MicroflowRuntimeLog, MicroflowTestRunOptions, MicroflowTraceFrame } from "@atlas/microflow";
+import type { MicroflowRunCallStackFrame, MicroflowRunSession, MicroflowRuntimeLog, MicroflowTestRunOptions, MicroflowTraceFrame } from "@atlas/microflow";
 
 import type { MicroflowApiResponse } from "./api-envelope";
 
@@ -31,10 +31,23 @@ export type GetMicroflowRunApiResponse = MicroflowApiResponse<MicroflowRunSessio
 export interface MicroflowRunHistoryItemDto {
   runId: string;
   microflowId: string;
+  schemaId?: string;
   status: "success" | "failed" | "unsupported" | "cancelled";
+  errorCode?: string;
   durationMs: number;
   startedAt: string;
   completedAt?: string;
+  finalized?: boolean;
+  parentRunId?: string;
+  rootRunId?: string;
+  callFrameId?: string;
+  callDepth?: number;
+  correlationId?: string;
+  traceFrameCount?: number;
+  logCount?: number;
+  childRunIds?: string[];
+  callStack?: string[];
+  callStackFrames?: MicroflowRunCallStackFrame[];
   errorMessage?: string;
   summary?: string;
 }

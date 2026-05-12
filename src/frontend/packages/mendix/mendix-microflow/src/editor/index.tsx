@@ -114,7 +114,8 @@ import {
   type MicroflowDebugTimelineEventDto,
   type MicroflowDebugSessionDto,
   type MicroflowDebugVariableSnapshotDto,
-    type MicroflowDebugWatchExpressionDto,
+  type MicroflowDebugWatchExpressionDto,
+  type MicroflowRunCallStackFrame,
   type MicroflowRunSession,
   type MicroflowTestRunInput,
   type MicroflowTestRunSamplesByMicroflowId,
@@ -128,6 +129,7 @@ import { useMicroflowShortcuts } from "./shortcuts";
 import { exportCanvasAsPng } from "./export-image";
 import { buildAcceptance120Schema } from "./acceptance-120-fixture";
 import { getDebugLatencyColor, getDebugWsStatusTag } from "./debug-status";
+import { resolveDebugRunSelectionOutcome } from "./debug-run-selection";
 import { composeTraceFramesForRuntimePreview } from "./ws-runtime-trace";
 import { buildSessionDebugRouteIntent, buildWsDebugRouteIntent, resolveCallStackFrameClickIntent } from "./debug-routing";
 import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
@@ -166,7 +168,7 @@ const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
 const bottomTabStorageKey = "atlas_microflow_panel_bottom_tab";
 const mendixLayoutStorageKey = "lowcode-studio:mendix-layout:v1";
 const RAIL_WIDTH_PX = 44;
-const RIGHT_PANEL_EXPANDED_PX = 380;
+const RIGHT_PANEL_EXPANDED_PX = 260;
 const BOTTOM_STRIP_HEIGHT_PX = 32;
 const BOTTOM_DOCK_PEEK_HEIGHT_PX = 260;
 const BOTTOM_DOCK_FULL_DEFAULT_PX = 420;
@@ -1152,7 +1154,7 @@ const propertyPaneStyle: CSSProperties = {
   overflow: "auto",
   borderLeft: "1px solid var(--semi-color-border, #e5e6eb)",
   background: "var(--semi-color-bg-1, #fff)",
-  padding: 12
+  padding: "14px 16px"
 };
 
 const canvasStyle: CSSProperties = {
@@ -1886,6 +1888,8 @@ function DebugPanel({
   onDebugBreakpointDelete,
   onDebugBreakpointConditionChange,
   onOpenMicroflow,
+  onSelectRun,
+  onSelectCallStackFrame,
 }: {
   microflowId: string;
   microflowName?: string;
@@ -1921,6 +1925,8 @@ function DebugPanel({
   onDebugBreakpointDelete?: (breakpointId: string) => void;
   onDebugBreakpointConditionChange?: (breakpointId: string, condition: string) => void;
   onOpenMicroflow?: (microflowId: string) => void;
+  onSelectRun?: (runId: string) => void;
+  onSelectCallStackFrame?: (frame: MicroflowRunCallStackFrame) => void;
 }) {
   const [suspendPolicyDraft, setSuspendPolicyDraft] = useState<"all" | "branchOnly">(debugSuspendPolicy ?? "all");
   const [mutateVariableName, setMutateVariableName] = useState("");
@@ -2227,6 +2233,8 @@ function DebugPanel({
         onSelectFrame={onSelectFrame}
         onSelectFlow={onSelectFlow}
         onSelectError={onSelectError}
+        onSelectRun={onSelectRun}
+        onSelectCallStackFrame={onSelectCallStackFrame}
       />
       </>
       ) : null}
@@ -2368,6 +2376,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [runHistoryLoadingByMicroflowId, setRunHistoryLoadingByMicroflowId] = useState<Record<string, boolean>>({});
   const [runHistoryErrorByMicroflowId, setRunHistoryErrorByMicroflowId] = useState<Record<string, string | undefined>>({});
   const [runHistoryStatusByMicroflowId, setRunHistoryStatusByMicroflowId] = useState<Record<string, "all" | "success" | "failed" | "unsupported" | "cancelled">>({});
+  const [pendingTraceFocusByMicroflowId, setPendingTraceFocusByMicroflowId] = useState<Record<string, {
+    runId: string;
+    frameId?: string;
+    objectId?: string;
+  } | undefined>>({});
   const [focusObjectId, setFocusObjectId] = useState<string>();
   const [focusRequestSeq, setFocusRequestSeq] = useState(0);
   const [canvasNodeContextMenu, setCanvasNodeContextMenu] = useState<CanvasNodeContextMenuState>();
@@ -3227,7 +3240,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const detail = await apiClient.getMicroflowRunDetail(microflowId, runId);
+        let detail: MicroflowRunSession;
+        try {
+          detail = await apiClient.getMicroflowRunDetail(microflowId, runId);
+        } catch (detailError) {
+          lastError = detailError;
+          detail = await apiClient.getMicroflowRunSession(runId);
+        }
         const trace = await apiClient.getMicroflowRunTrace(runId);
         return { ...detail, trace };
       } catch (error) {
@@ -3256,6 +3275,22 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     return currentStatus;
   }, [apiClient]);
 
+  const applySelectedRunSession = useCallback((sourceMicroflowId: string, detail: MicroflowRunSession, runId: string) => {
+    const outcome = resolveDebugRunSelectionOutcome(sourceMicroflowId, detail);
+    const targetMicroflowId = outcome.targetMicroflowId;
+    setRunDetailsByRunId(current => ({ ...current, [runId]: detail }));
+    setRunSessionByMicroflowId(current => ({ ...current, [targetMicroflowId]: detail }));
+    setSelectedRunIdByMicroflowId(current => ({ ...current, [targetMicroflowId]: runId }));
+    setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [targetMicroflowId]: undefined }));
+    setPendingTraceFocusByMicroflowId(current => ({ ...current, [targetMicroflowId]: outcome.focusIntent }));
+    setActiveTraceFrameId(outcome.focusIntent?.frameId);
+    setBottomDockMode("peek");
+    setBottomTab("debug");
+    if (targetMicroflowId !== sourceMicroflowId && props.onOpenMicroflow) {
+      props.onOpenMicroflow(targetMicroflowId);
+    }
+  }, [props]);
+
   const selectRunHistoryItem = useCallback(async (microflowId: string, runId: string) => {
     setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: runId }));
     const cached = runDetailsByRunId[runId];
@@ -3265,24 +3300,18 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         || cached.hasHydratedTrace === false
       : false;
     if (cached && !cachedNeedsHydration) {
-      setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: cached }));
-      setActiveTraceFrameId(cached.trace[0]?.id);
+      applySelectedRunSession(microflowId, cached, runId);
       return;
     }
     try {
       const detail = await hydrateRunSession(microflowId, runId);
-      setRunDetailsByRunId(current => ({ ...current, [runId]: detail }));
-      setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: detail }));
-      setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
-      setActiveTraceFrameId(detail.trace[0]?.id);
-      setBottomDockMode("peek");
-      setBottomTab("debug");
+      applySelectedRunSession(microflowId, detail, runId);
     } catch (error) {
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
       setBottomDockMode("peek");
       setBottomTab("debug");
     }
-  }, [hydrateRunSession, runDetailsByRunId]);
+  }, [applySelectedRunSession, hydrateRunSession, runDetailsByRunId]);
 
   const refreshDebugSession = useCallback(async (sessionId: string, microflowId = schema.id) => {
     const [session, variables, timeline] = await Promise.all([
@@ -4092,6 +4121,71 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       frameId: frame.id,
     });
   };
+
+  const focusTraceObjectId = useCallback((targetObjectId: string, collectionId?: string) => {
+    openPropertiesPanel();
+    const targetPosition = graph.nodes.find(item => item.objectId === targetObjectId)?.position;
+    if (!targetPosition) {
+      Toast.info("当前画布未找到该节点，可能属于子微流。");
+      return;
+    }
+    setFocusObjectId(targetObjectId);
+    setFocusRequestSeq(value => value + 1);
+    applyPatch({
+      selectedObjectId: targetObjectId,
+      selectedFlowId: undefined,
+      selectedCollectionId: collectionId ?? findObjectWithCollection(schema, targetObjectId)?.collectionId,
+      viewport: viewportCenteredOn(targetPosition),
+    }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" });
+    emitPanelSyncEvent({
+      type: "trace-focus",
+      nodeId: targetObjectId,
+    });
+  }, [applyPatch, graph.nodes, openPropertiesPanel, schema]);
+
+  useEffect(() => {
+    const pendingFocus = pendingTraceFocusByMicroflowId[activeMicroflowId];
+    if (!pendingFocus || !selectedRunSession || selectedRunSession.id !== pendingFocus.runId) {
+      return;
+    }
+    const targetObjectId = pendingFocus.objectId;
+    if (!targetObjectId) {
+      setPendingTraceFocusByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+      return;
+    }
+    const targetPosition = graph.nodes.find(item => item.objectId === targetObjectId)?.position;
+    if (!targetPosition) {
+      return;
+    }
+    setActiveTraceFrameId(current => current === pendingFocus.frameId ? current : pendingFocus.frameId ?? current);
+    focusTraceObjectId(targetObjectId);
+    setPendingTraceFocusByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+  }, [activeMicroflowId, focusTraceObjectId, graph.nodes, pendingTraceFocusByMicroflowId, selectedRunSession]);
+
+  const selectCallStackFrame = useCallback((frame: MicroflowRunCallStackFrame) => {
+    const intent = resolveCallStackFrameClickIntent({
+      activeMicroflowId: schema.id,
+      activeNodeId: selectedRunSession?.trace.find(item => item.id === activeTraceFrameId)?.objectId ?? selectedRunSession?.trace[0]?.objectId,
+      frame: {
+        microflowId: frame.microflowId,
+        callerNodeId: frame.callerObjectId,
+      },
+      visibleObjectIds: graph.nodes.map(item => item.objectId),
+    });
+    if (!intent) {
+      Toast.info("当前调用栈帧无法在本画布直接定位。");
+      return;
+    }
+    if (intent.kind === "focus-node") {
+      focusTraceObjectId(intent.nodeId);
+      return;
+    }
+    if (intent.kind === "open-microflow" && props.onOpenMicroflow) {
+      props.onOpenMicroflow(intent.microflowId);
+      return;
+    }
+    Toast.info("当前调用栈帧属于其它微流，请切换到目标微流查看。");
+  }, [activeTraceFrameId, focusTraceObjectId, graph.nodes, props, schema.id, selectedRunSession]);
 
   const selectTraceFlow = (flowId: string) => {
     openPropertiesPanel();
@@ -5733,7 +5827,34 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         onQueryChange={setCommandPaletteQuery}
         onClose={() => setCommandPaletteOpen(false)}
       />
-      <style>{`@keyframes microflow-ws-blink { 50% { opacity: 0.45; } }`}</style>
+      <style>{`
+        @keyframes microflow-ws-blink { 50% { opacity: 0.45; } }
+        [data-testid="microflow-property-panel"] .semi-input-wrapper,
+        [data-testid="microflow-property-panel"] .semi-input,
+        [data-testid="microflow-property-panel"] .semi-textarea-wrapper,
+        [data-testid="microflow-property-panel"] textarea,
+        [data-testid="microflow-property-panel"] .semi-select,
+        [data-testid="microflow-property-panel"] .semi-select-selection {
+          box-sizing: border-box;
+          width: 100%;
+          max-width: 100%;
+        }
+        [data-testid="microflow-property-panel"] textarea {
+          min-height: 64px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          font-size: 12px;
+          line-height: 1.45;
+          resize: none;
+          overflow: auto;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        [data-testid="microflow-property-panel"] .semi-input,
+        [data-testid="microflow-property-panel"] .semi-input-wrapper input {
+          min-width: 0;
+          text-overflow: clip;
+        }
+      `}</style>
       {toolbarMode === "internal" ? (
       <div data-testid="microflow-editor-toolbar" style={toolbarStyle}>
         <Space style={{ minWidth: 0, overflow: "hidden" }}>
@@ -6576,6 +6697,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       onDebugBreakpointDelete={breakpointId => void handleDebugBreakpointDelete(breakpointId)}
                       onDebugBreakpointConditionChange={(breakpointId, condition) => handleDebugBreakpointConditionChange(breakpointId, condition)}
                       onOpenMicroflow={props.onOpenMicroflow}
+                      onSelectRun={runId => {
+                        void selectRunHistoryItem(schema.id, runId);
+                      }}
+                      onSelectCallStackFrame={selectCallStackFrame}
                     />
                     </div>
                   </Tabs.TabPane>

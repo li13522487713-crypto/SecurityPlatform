@@ -96,6 +96,61 @@ public sealed class MicroflowWorkspaceOwnershipFilterTests
     }
 
     [Fact]
+    public async Task ResolvesWorkspaceFromRouteRunId()
+    {
+        var fixture = CreateFixture(contextWorkspaceId: null);
+        fixture.RunRepo.GetSessionAsync("run-1", Arg.Any<CancellationToken>()).Returns(new MicroflowRunSessionEntity
+        {
+            Id = "run-1",
+            ResourceId = "mf-1",
+            WorkspaceId = "555",
+            TenantId = Tenant.ToString()
+        });
+        fixture.WorkspacePortal
+            .GetWorkspaceAsync(Tenant, 555, 42, false, Arg.Any<CancellationToken>())
+            .Returns(Workspace("555"));
+        var context = CreateAuthorizationContext(routeValues: new RouteValueDictionary { ["runId"] = "run-1" });
+
+        await fixture.Filter.OnAuthorizationAsync(context);
+
+        Assert.Null(context.Result);
+        await fixture.RunRepo.Received(1).GetSessionAsync("run-1", Arg.Any<CancellationToken>());
+        await fixture.WorkspacePortal.Received(1)
+            .GetWorkspaceAsync(Tenant, 555, 42, false, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ResolvesWorkspaceFromRouteRunId_WhenSessionMissingWorkspace_FallsBackToResource()
+    {
+        var fixture = CreateFixture(contextWorkspaceId: null);
+        fixture.RunRepo.GetSessionAsync("run-2", Arg.Any<CancellationToken>()).Returns(new MicroflowRunSessionEntity
+        {
+            Id = "run-2",
+            ResourceId = "mf-2",
+            WorkspaceId = null,
+            TenantId = Tenant.ToString()
+        });
+        fixture.Resources.GetByIdAsync("mf-2", Arg.Any<CancellationToken>()).Returns(new MicroflowResourceEntity
+        {
+            Id = "mf-2",
+            WorkspaceId = "556",
+            TenantId = Tenant.ToString()
+        });
+        fixture.WorkspacePortal
+            .GetWorkspaceAsync(Tenant, 556, 42, false, Arg.Any<CancellationToken>())
+            .Returns(Workspace("556"));
+        var context = CreateAuthorizationContext(routeValues: new RouteValueDictionary { ["runId"] = "run-2" });
+
+        await fixture.Filter.OnAuthorizationAsync(context);
+
+        Assert.Null(context.Result);
+        await fixture.RunRepo.Received(1).GetSessionAsync("run-2", Arg.Any<CancellationToken>());
+        await fixture.Resources.Received(1).GetByIdAsync("mf-2", Arg.Any<CancellationToken>());
+        await fixture.WorkspacePortal.Received(1)
+            .GetWorkspaceAsync(Tenant, 556, 42, false, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RejectsWhenWorkspaceCannotBeResolved()
     {
         var fixture = CreateFixture(contextWorkspaceId: null);
@@ -119,6 +174,7 @@ public sealed class MicroflowWorkspaceOwnershipFilterTests
             TraceId = "trace-workspace-ownership"
         });
         var resources = Substitute.For<IMicroflowResourceRepository>();
+        var runRepo = Substitute.For<IMicroflowRunRepository>();
         var workspacePortal = Substitute.For<IWorkspacePortalService>();
         var tenantProvider = Substitute.For<ITenantProvider>();
         tenantProvider.GetTenantId().Returns(Tenant);
@@ -128,10 +184,11 @@ public sealed class MicroflowWorkspaceOwnershipFilterTests
         var filter = new MicroflowWorkspaceOwnershipFilter(
             requestContextAccessor,
             resources,
+            runRepo,
             workspacePortal,
             tenantProvider,
             currentUserAccessor);
-        return new Fixture(filter, resources, workspacePortal);
+        return new Fixture(filter, resources, runRepo, workspacePortal);
     }
 
     private static AuthorizationFilterContext CreateAuthorizationContext(
@@ -187,5 +244,6 @@ public sealed class MicroflowWorkspaceOwnershipFilterTests
     private sealed record Fixture(
         MicroflowWorkspaceOwnershipFilter Filter,
         IMicroflowResourceRepository Resources,
+        IMicroflowRunRepository RunRepo,
         IWorkspacePortalService WorkspacePortal);
 }

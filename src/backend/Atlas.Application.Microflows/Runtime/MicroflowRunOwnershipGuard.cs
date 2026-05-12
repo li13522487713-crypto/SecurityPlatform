@@ -13,7 +13,8 @@ namespace Atlas.Application.Microflows.Runtime;
 /// 校验顺序：
 ///   1. session.WorkspaceId/TenantId 优先；
 ///   2. 旧数据 session.WorkspaceId 为 NULL 时回退到 resource.WorkspaceId/TenantId；
-///   3. 当请求上下文 workspaceId 缺失时拒绝。
+///   3. 若请求头未显式给 workspace，则按 session/resource 解析真实 workspace；
+///   4. 若请求头显式给了 workspace/tenant，则还要与 run 自身归属一致。
 /// </summary>
 public interface IMicroflowRunOwnershipGuard
 {
@@ -50,19 +51,9 @@ public sealed class MicroflowRunOwnershipGuard : IMicroflowRunOwnershipGuard
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
 
         var ctx = _requestContextAccessor.Current;
-        var ctxWorkspace = ctx.WorkspaceId;
-        var ctxTenant = ctx.TenantId;
-
-        // 当上下文缺少 workspace 时直接拒绝，避免无 workspace header 的越权读取。
-        if (string.IsNullOrWhiteSpace(ctxWorkspace))
-        {
-            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
-        }
-
         var sessionWorkspace = session.WorkspaceId;
         var sessionTenant = session.TenantId;
 
-        // 旧数据 session 没填 workspace；用 resource 反查（resource 已保留 workspace 列）。
         if (string.IsNullOrWhiteSpace(sessionWorkspace) || string.IsNullOrWhiteSpace(sessionTenant))
         {
             var resource = await _resourceRepository.GetByIdAsync(session.ResourceId, cancellationToken);
@@ -70,15 +61,22 @@ public sealed class MicroflowRunOwnershipGuard : IMicroflowRunOwnershipGuard
             sessionTenant ??= resource?.TenantId;
         }
 
-        if (!string.Equals(sessionWorkspace, ctxWorkspace, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(sessionWorkspace))
         {
-            // 不暴露存在性
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
         }
 
-        if (!string.IsNullOrWhiteSpace(ctxTenant)
+        var effectiveWorkspace = string.IsNullOrWhiteSpace(ctx.WorkspaceId)
+            ? sessionWorkspace
+            : ctx.WorkspaceId;
+        if (!string.Equals(sessionWorkspace, effectiveWorkspace, StringComparison.Ordinal))
+        {
+            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
+        }
+
+        if (!string.IsNullOrWhiteSpace(ctx.TenantId)
             && !string.IsNullOrWhiteSpace(sessionTenant)
-            && !string.Equals(sessionTenant, ctxTenant, StringComparison.Ordinal))
+            && !string.Equals(sessionTenant, ctx.TenantId, StringComparison.Ordinal))
         {
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流运行会话不存在。", 404);
         }

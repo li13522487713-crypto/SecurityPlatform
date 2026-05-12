@@ -1,8 +1,11 @@
 .microflow-flowgram-node .workflow-point-bg {
   width: 8px;
   height: 8px;
+  border-width: 1.5px;
   border-color: rgba(94, 159, 255, 0.82);
   background: #171b22;
+  border-radius: 2px;
+  transform: rotate(45deg);
 }
 
 .microflow-flowgram-node--end .workflow-point-bg {

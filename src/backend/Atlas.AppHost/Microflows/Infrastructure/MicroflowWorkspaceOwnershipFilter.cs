@@ -14,6 +14,7 @@ public sealed class MicroflowWorkspaceOwnershipFilter : IAsyncAuthorizationFilte
 {
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowResourceRepository _resourceRepository;
+    private readonly IMicroflowRunRepository _runRepository;
     private readonly IWorkspacePortalService _workspacePortalService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
@@ -21,12 +22,14 @@ public sealed class MicroflowWorkspaceOwnershipFilter : IAsyncAuthorizationFilte
     public MicroflowWorkspaceOwnershipFilter(
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowResourceRepository resourceRepository,
+        IMicroflowRunRepository runRepository,
         IWorkspacePortalService workspacePortalService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor)
     {
         _requestContextAccessor = requestContextAccessor;
         _resourceRepository = resourceRepository;
+        _runRepository = runRepository;
         _workspacePortalService = workspacePortalService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
@@ -106,7 +109,37 @@ public sealed class MicroflowWorkspaceOwnershipFilter : IAsyncAuthorizationFilte
             }
         }
 
+        if (context.RouteData.Values.TryGetValue("runId", out var rawRunId) && rawRunId is not null)
+        {
+            var runId = Convert.ToString(rawRunId);
+            if (!string.IsNullOrWhiteSpace(runId))
+            {
+                var workspaceId = await ResolveWorkspaceIdFromRunIdAsync(runId, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(workspaceId))
+                {
+                    return workspaceId;
+                }
+            }
+        }
+
         return null;
+    }
+
+    private async Task<string?> ResolveWorkspaceIdFromRunIdAsync(string runId, CancellationToken cancellationToken)
+    {
+        var session = await _runRepository.GetSessionAsync(runId, cancellationToken);
+        if (session is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.WorkspaceId))
+        {
+            return session.WorkspaceId;
+        }
+
+        var resource = await _resourceRepository.GetByIdAsync(session.ResourceId, cancellationToken);
+        return resource?.WorkspaceId;
     }
 
     private async Task<string?> ResolveWorkspaceIdFromAppIdAsync(string appId, CancellationToken cancellationToken)

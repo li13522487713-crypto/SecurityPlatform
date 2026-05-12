@@ -35,19 +35,20 @@ public sealed class MicroflowRunOwnershipGuardTests
     }
 
     [Fact]
-    public async Task EnsureRunOwned_WhenRequestContextMissingWorkspace_RejectsWith404()
+    public async Task EnsureRunOwned_WhenRequestContextMissingWorkspace_UsesSessionWorkspaceAccess()
     {
         var (guard, runRepo, _, _) = CreateGuard(workspace: null);
-        runRepo.GetSessionAsync("r-1", Arg.Any<CancellationToken>()).Returns(new MicroflowRunSessionEntity
+        var session = new MicroflowRunSessionEntity
         {
             Id = "r-1",
             ResourceId = "mf-1",
             WorkspaceId = "ws-1",
             TenantId = "tenant-1"
-        });
+        };
+        runRepo.GetSessionAsync("r-1", Arg.Any<CancellationToken>()).Returns(session);
 
-        var ex = await Assert.ThrowsAsync<MicroflowApiException>(() => guard.EnsureRunOwnedAsync("r-1", CancellationToken.None));
-        Assert.Equal(404, ex.HttpStatus);
+        var result = await guard.EnsureRunOwnedAsync("r-1", CancellationToken.None);
+        Assert.Same(session, result);
     }
 
     [Fact]

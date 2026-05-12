@@ -68,7 +68,8 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     window.addEventListener("atlas:microflow-inline-line-label-commit", listener as EventListener);
     try {
       renderLine({ label: "true" });
-      fireEvent.click(screen.getByRole("button"));
+      fireEvent.mouseEnter(screen.getByTestId("microflow-flowgram-line-label"));
+      fireEvent.click(screen.getByRole("button", { name: "编辑分支标签 true" }));
       const input = screen.getByTestId("mock-inline-input");
       fireEvent.change(input, { target: { value: "  approved  " } });
       fireEvent.keyDown(input, { key: "Enter" });
@@ -86,12 +87,13 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     window.addEventListener("atlas:microflow-inline-line-label-commit", listener as EventListener);
     try {
       renderLine({ label: "fallback" });
-      fireEvent.click(screen.getByRole("button"));
+      fireEvent.mouseEnter(screen.getByTestId("microflow-flowgram-line-label"));
+      fireEvent.click(screen.getByRole("button", { name: "编辑分支标签 fallback" }));
       const input = screen.getByTestId("mock-inline-input");
       fireEvent.change(input, { target: { value: "error" } });
       fireEvent.keyDown(input, { key: "Escape" });
       expect(committed).toEqual([]);
-      expect(screen.getByRole("button").textContent).toContain("fallback");
+      expect(screen.getByTestId("microflow-flowgram-line-label").textContent).toContain("fallback");
     } finally {
       window.removeEventListener("atlas:microflow-inline-line-label-commit", listener as EventListener);
     }
@@ -105,7 +107,8 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     window.addEventListener("atlas:microflow-inline-line-label-commit", listener as EventListener);
     try {
       renderLine({ label: "true" });
-      fireEvent.click(screen.getByRole("button"));
+      fireEvent.mouseEnter(screen.getByTestId("microflow-flowgram-line-label"));
+      fireEvent.click(screen.getByRole("button", { name: "编辑分支标签 true" }));
       const input = screen.getByTestId("mock-inline-input");
       fireEvent.change(input, { target: { value: "  timeout  " } });
       fireEvent.blur(input);
@@ -124,7 +127,8 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     window.addEventListener("atlas:microflow-inline-line-label-commit", listener as EventListener);
     try {
       renderLine({ label: "fallback" });
-      fireEvent.click(screen.getByRole("button"));
+      fireEvent.mouseEnter(screen.getByTestId("microflow-flowgram-line-label"));
+      expect(screen.queryByRole("button", { name: "编辑分支标签 fallback" })).toBeNull();
       expect(screen.queryByTestId("mock-inline-input")).toBeNull();
       expect(committed).toEqual([]);
     } finally {
@@ -149,7 +153,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
         } } as never}
       />,
     );
-    expect(screen.getByRole("button").className).toContain("is-runtime-active");
+    expect(screen.getByTestId("microflow-flowgram-line-label").querySelector(".microflow-branch-label")?.className).toContain("is-runtime-active");
 
     rerender(
       <FlowGramMicroflowLineRenderer
@@ -167,7 +171,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
         } } as never}
       />,
     );
-    expect(screen.getByRole("button").className).toContain("is-runtime-skipped");
+    expect(screen.getByTestId("microflow-flowgram-line-label").querySelector(".microflow-branch-label")?.className).toContain("is-runtime-skipped");
 
     rerender(
       <FlowGramMicroflowLineRenderer
@@ -185,7 +189,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
         } } as never}
       />,
     );
-    expect(screen.getByRole("button").className).toContain("is-runtime-error");
+    expect(screen.getByTestId("microflow-flowgram-line-label").querySelector(".microflow-branch-label")?.className).toContain("is-runtime-error");
 
     rerender(
       <FlowGramMicroflowLineRenderer
@@ -203,7 +207,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
         } } as never}
       />,
     );
-    expect(screen.getByRole("button").className).toContain("is-runtime-error");
+    expect(screen.getByTestId("microflow-flowgram-line-label").querySelector(".microflow-branch-label")?.className).toContain("is-runtime-error");
   });
 
   it("shows warning style when branch target is missing", () => {
@@ -213,8 +217,8 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
       targetNodeId: undefined,
       validationState: "warning",
     });
-    const button = screen.getByRole("button");
-    expect(button.className).toContain("is-warning");
+    const button = screen.getByTestId("microflow-flowgram-line-label");
+    expect(button.querySelector(".microflow-branch-label")?.className).toContain("is-warning");
     expect(button.getAttribute("title")).toContain("缺少目标节点");
     expect(button.querySelector(".microflow-branch-label__warning-dot")).toBeTruthy();
     expect(button.textContent).toContain("else");
@@ -225,9 +229,9 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
       edgeKind: "decisionCondition",
       caseValues: [{ kind: "empty", officialType: "Microflows$NoCase" }],
     });
-    let button = screen.getByRole("button");
+    let button = screen.getByTestId("microflow-flowgram-line-label");
     expect(button.textContent).toContain("(empty)");
-    expect(button.className).toContain("is-empty");
+    expect(button.querySelector(".microflow-branch-label")?.className).toContain("is-empty");
 
     rerender(
       <div className="gedit-flow-activity-edge">
@@ -246,9 +250,9 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
         />
       </div>,
     );
-    button = screen.getByRole("button");
+    button = screen.getByTestId("microflow-flowgram-line-label");
     expect(button.textContent).toContain("(empty)");
-    expect(button.className).toContain("is-empty");
+    expect(button.querySelector(".microflow-branch-label")?.className).toContain("is-empty");
   });
 
   it("derives labels for approval/loop edges from source port and keeps error-handler labels canonical", () => {
@@ -268,7 +272,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
         } } as never}
       />,
     );
-    expect(screen.getByRole("button").textContent).toContain("rejected");
+    expect(screen.getByTestId("microflow-flowgram-line-label").textContent).toContain("rejected");
 
     rerender(
       <FlowGramMicroflowLineRenderer
@@ -286,7 +290,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
         } } as never}
       />,
     );
-    expect(screen.getByRole("button").textContent).toContain("continue");
+    expect(screen.getByTestId("microflow-flowgram-line-label").textContent).toContain("continue");
 
     rerender(
       <FlowGramMicroflowLineRenderer
@@ -304,7 +308,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
         } } as never}
       />,
     );
-    expect(screen.getByRole("button").textContent).toContain("Error");
+    expect(screen.getByTestId("microflow-flowgram-line-label").textContent).toContain("Error");
   });
 
   it("projects edge kind classes onto the closest line wrapper", () => {
@@ -341,7 +345,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     );
     let wrapper = container.querySelector(".gedit-flow-activity-edge");
     expect(wrapper?.className).toContain("microflow-flowgram-line--error-handler-customWithoutRollback");
-    expect(screen.getByRole("button").className).toContain("is-error-handler-customWithoutRollback");
+    expect(screen.getByTestId("microflow-flowgram-line-label").querySelector(".microflow-branch-label")?.className).toContain("is-error-handler-customWithoutRollback");
 
     rerender(
       <div className="gedit-flow-activity-edge">
@@ -363,7 +367,7 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
     );
     wrapper = container.querySelector(".gedit-flow-activity-edge");
     expect(wrapper?.className).toContain("microflow-flowgram-line--error-handler-customWithRollback");
-    expect(screen.getByRole("button").className).toContain("is-error-handler-customWithRollback");
+    expect(screen.getByTestId("microflow-flowgram-line-label").querySelector(".microflow-branch-label")?.className).toContain("is-error-handler-customWithRollback");
   });
 
   it("renders decision labels from workflow edge context when FlowGram line JSON has no data payload", () => {
@@ -398,7 +402,8 @@ describe("FlowGramMicroflowLineRenderer interaction", () => {
       </MicroflowEdgeDataContext.Provider>,
     );
 
-    expect(screen.getByRole("button").textContent).toContain("true");
-    expect(screen.getByRole("button").getAttribute("data-flow-id")).toBe("flow-decision-true");
+    const label = screen.getByTestId("microflow-flowgram-line-label");
+    expect(label.textContent).toContain("true");
+    expect(label.getAttribute("data-flow-id")).toBe("flow-decision-true");
   });
 });

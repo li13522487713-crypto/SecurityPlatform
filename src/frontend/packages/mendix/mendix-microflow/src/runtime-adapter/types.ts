@@ -8,6 +8,7 @@ import type {
   PublishMicroflowPayload
 } from "../schema/types";
 import type {
+  MicroflowRunCallStackFrame,
   MicroflowRunSession,
   MicroflowRuntimeError,
   MicroflowTestRunOptions,
@@ -109,10 +110,23 @@ export interface MicroflowRunHistoryQuery {
 export interface MicroflowRunHistoryItem {
   runId: string;
   microflowId: string;
+  schemaId?: string;
   status: MicroflowRunHistoryStatus;
+  errorCode?: string;
   durationMs: number;
   startedAt: string;
   completedAt?: string;
+  finalized?: boolean;
+  parentRunId?: string;
+  rootRunId?: string;
+  callFrameId?: string;
+  callDepth?: number;
+  correlationId?: string;
+  traceFrameCount?: number;
+  logCount?: number;
+  childRunIds?: string[];
+  callStack?: string[];
+  callStackFrames?: MicroflowRunCallStackFrame[];
   errorMessage?: string;
   summary?: string;
 }

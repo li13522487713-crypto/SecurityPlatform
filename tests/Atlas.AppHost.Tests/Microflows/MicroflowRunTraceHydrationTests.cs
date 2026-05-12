@@ -150,9 +150,92 @@ public sealed class MicroflowRunTraceHydrationTests
         Assert.Equal("success", frame.Status);
     }
 
+    [Fact]
+    public async Task ListRuns_RehydratesHistoryMetadataFromSessionExtraJson()
+    {
+        var runRepository = Substitute.For<IMicroflowRunRepository>();
+        var ownershipGuard = Substitute.For<IMicroflowRunOwnershipGuard>();
+        var resourceRepository = Substitute.For<IMicroflowResourceRepository>();
+        resourceRepository.GetByIdAsync("mf-parent", Arg.Any<CancellationToken>())
+            .Returns(new MicroflowResourceEntity
+            {
+                Id = "mf-parent",
+                Name = "Parent",
+                ModuleId = "Sales",
+                WorkspaceId = "ws-1",
+                TenantId = "tenant-1"
+            });
+        runRepository.ListSessionsByResourceIdAsync("mf-parent", 1, 20, Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>())
+            .Returns(new[]
+            {
+                new MicroflowRunSessionEntity
+                {
+                    Id = "run-history-1",
+                    ResourceId = "mf-parent",
+                    SchemaSnapshotId = "schema-parent",
+                    Status = "failed",
+                    InputJson = "{}",
+                    ErrorJson = """{"code":"RuntimeCallMicroflowFailed","message":"child failed"}""",
+                    StartedAt = DateTimeOffset.Parse("2026-05-02T00:00:00Z"),
+                    EndedAt = DateTimeOffset.Parse("2026-05-02T00:00:02Z"),
+                    TraceFrameCount = 7,
+                    LogCount = 3,
+                    ExtraJson = """
+                    {
+                      "parentRunId": "run-root",
+                      "rootRunId": "run-root",
+                      "callFrameId": "frame-call-1",
+                      "callDepth": 2,
+                      "correlationId": "corr-history-1",
+                      "childRunIds": ["run-child-1"],
+                      "callStack": ["Sales.Parent", "Sales.Child"],
+                      "callStackFrames": [
+                        {
+                          "id": "frame-call-1",
+                          "runId": "run-history-1",
+                          "parentRunId": "run-root",
+                          "rootRunId": "run-root",
+                          "microflowId": "mf-child",
+                          "qualifiedName": "Sales.Child",
+                          "callerObjectId": "call-child",
+                          "callerActionId": "action-call-child",
+                          "depth": 2,
+                          "callMode": "sync",
+                          "status": "failed"
+                        }
+                      ]
+                    }
+                    """
+                }
+            });
+        runRepository.CountSessionsByResourceIdAsync("mf-parent", Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>())
+            .Returns(1);
+        var service = CreateService(runRepository, ownershipGuard, resourceRepository);
+
+        var response = await service.ListRunsAsync("mf-parent", new ListMicroflowRunsRequest(), CancellationToken.None);
+
+        var item = Assert.Single(response.Items);
+        Assert.Equal("schema-parent", item.SchemaId);
+        Assert.Equal("RuntimeCallMicroflowFailed", item.ErrorCode);
+        Assert.Equal("run-root", item.ParentRunId);
+        Assert.Equal("run-root", item.RootRunId);
+        Assert.Equal("frame-call-1", item.CallFrameId);
+        Assert.Equal(2, item.CallDepth);
+        Assert.Equal("corr-history-1", item.CorrelationId);
+        Assert.Equal(7, item.TraceFrameCount);
+        Assert.Equal(3, item.LogCount);
+        Assert.Equal(new[] { "run-child-1" }, item.ChildRunIds);
+        Assert.Equal(new[] { "Sales.Parent", "Sales.Child" }, item.CallStack);
+        var frame = Assert.Single(item.CallStackFrames);
+        Assert.Equal("call-child", frame.CallerObjectId);
+        Assert.Equal("action-call-child", frame.CallerActionId);
+        Assert.Equal("Sales.Child", frame.QualifiedName);
+    }
+
     private static MicroflowTestRunService CreateService(
         IMicroflowRunRepository runRepository,
-        IMicroflowRunOwnershipGuard ownershipGuard)
+        IMicroflowRunOwnershipGuard ownershipGuard,
+        IMicroflowResourceRepository? resourceRepository = null)
     {
         var requestContextAccessor = Substitute.For<IMicroflowRequestContextAccessor>();
         requestContextAccessor.Current.Returns(new MicroflowRequestContext
@@ -164,7 +247,7 @@ public sealed class MicroflowRunTraceHydrationTests
         });
 
         return new MicroflowTestRunService(
-            Substitute.For<IMicroflowResourceRepository>(),
+            resourceRepository ?? Substitute.For<IMicroflowResourceRepository>(),
             Substitute.For<IMicroflowSchemaSnapshotRepository>(),
             runRepository,
             Substitute.For<IMicroflowStorageTransaction>(),

@@ -15,6 +15,7 @@ using Atlas.Application.Microflows.Runtime.Loops;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Runtime.Transactions;
 using Atlas.Application.Microflows.Services;
+using Atlas.Domain.Microflows.Entities;
 
 namespace Atlas.Application.Microflows.Runtime;
 
@@ -46,6 +47,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     private readonly IMicroflowRuntimeDbSessionFactory? _runtimeDbSessionFactory;
     private readonly IVariableScopeForker _variableScopeForker;
     private readonly IBranchMergePolicy _branchMergePolicy;
+    private readonly IMicroflowCallStackService _callStackService;
 
     public MicroflowRuntimeEngine(IMicroflowSchemaReader schemaReader, IMicroflowClock clock)
         : this(schemaReader, clock, new MicroflowExpressionEvaluator(), null, null, null, null, null, null, null)
@@ -87,7 +89,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         IMicroflowTransactionManager? transactionManager = null,
         IMicroflowRuntimeDbSessionFactory? runtimeDbSessionFactory = null,
         IVariableScopeForker? variableScopeForker = null,
-        IBranchMergePolicy? branchMergePolicy = null)
+        IBranchMergePolicy? branchMergePolicy = null,
+        IMicroflowCallStackService? callStackService = null)
     {
         _schemaReader = schemaReader;
         _clock = clock;
@@ -105,6 +108,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         _runtimeDbSessionFactory = runtimeDbSessionFactory;
         _variableScopeForker = variableScopeForker ?? new DefaultVariableScopeForker();
         _branchMergePolicy = branchMergePolicy ?? new DefaultBranchMergePolicy();
+        _callStackService = callStackService ?? new MicroflowCallStackService();
     }
 
     public Task<MicroflowRunSessionDto> RunAsync(MicroflowExecutionRequest request, CancellationToken cancellationToken)
@@ -1483,22 +1487,10 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return NodeExecution.Failed(missingTargetError);
         }
 
-        if (context.CallDepth >= context.MaxCallDepth)
-        {
-            var depthError = Error(
-                RuntimeErrorCode.RuntimeCallStackOverflow,
-                $"Max call depth exceeded ({context.MaxCallDepth}).",
-                node.Id,
-                action.Id,
-                incomingFlowId,
-                microflowId: context.ResourceId,
-                callStack: context.CallStackPath);
-            context.AddNodeFailure(node, incomingFlowId, depthError);
-            return NodeExecution.Failed(depthError);
-        }
-
-        if (string.Equals(context.ResourceId, targetMicroflowId, StringComparison.Ordinal)
-            || context.CallStackPath.Contains(targetMicroflowId, StringComparer.Ordinal))
+        var allowRecursion = ReadBool(action.Raw, "allowRecursion");
+        if (!allowRecursion
+            && (string.Equals(context.ResourceId, targetMicroflowId, StringComparison.Ordinal)
+                || context.CallStackPath.Contains(targetMicroflowId, StringComparer.Ordinal)))
         {
             var cyclePath = context.CallStackPath.Concat([targetMicroflowId]).ToArray();
             var recursionError = Error(
@@ -1563,15 +1555,45 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return NodeExecution.Failed(targetSchemaMissingError);
         }
 
+        var targetQualifiedName = ReadString(action.Raw, "targetMicroflowQualifiedName")
+            ?? BuildRuntimeCallQualifiedName(targetResource);
+        var runtimeExecutionContext = context.AsRuntimeExecutionContext();
+        var enter = _callStackService.TryEnter(
+            runtimeExecutionContext,
+            targetResource.Id,
+            targetQualifiedName,
+            node.Id,
+            action.Id,
+            context.MaxCallDepth,
+            allowRecursion,
+            _clock.UtcNow);
+        if (!enter.Allowed || enter.Frame is null)
+        {
+            context.AddNodeFailure(
+                node,
+                incomingFlowId,
+                enter.Error ?? Error(RuntimeErrorCode.RuntimeCallMicroflowFailed, "CallMicroflow enter failed.", node.Id, action.Id, incomingFlowId));
+            return NodeExecution.Failed(
+                enter.Error ?? Error(RuntimeErrorCode.RuntimeCallMicroflowFailed, "CallMicroflow enter failed.", node.Id, action.Id, incomingFlowId));
+        }
+
+        var frame = enter.Frame;
+        frame.TargetSchemaId = snapshot.Id;
+        frame.TargetVersion = targetResource.Version;
+        using var frameLease = _callStackService.Activate(runtimeExecutionContext, frame);
+
         var targetSchema = MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson);
         var targetModel = _schemaReader.Read(targetSchema);
         var boundInput = BindCallMicroflowParameters(action, targetModel, context, node, incomingFlowId, out var bindings, out var bindingError);
         if (bindingError is not null)
         {
+            _callStackService.Complete(frame, MicroflowCallStackFrameStatus.Failed, _clock.UtcNow, bindingError);
             var outputWithBindingError = JsonObj(new
             {
                 actionKind = "callMicroflow",
                 targetMicroflowId,
+                targetMicroflowQualifiedName = targetQualifiedName,
+                callFrameId = frame.FrameId,
                 parameterBindings = bindings,
                 callStack = context.CallStackPath
             });
@@ -1592,6 +1614,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 Options = context.Options,
                 RequestContext = context.RequestContext,
                 CorrelationId = context.CorrelationId,
+                ParentRuntimeContext = runtimeExecutionContext,
+                CallFrame = frame,
                 MaxCallDepth = context.MaxCallDepth,
                 DebugSessionId = context.DebugSessionId
             },
@@ -1607,6 +1631,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 childRunId),
             cancellationToken);
 
+        frame.ChildRunId = childSession.Id;
+        frame.ChildTraceRootFrameId = childSession.Trace.FirstOrDefault()?.Id;
         context.AddChildRun(childSession);
         if (!string.Equals(childSession.Status, "success", StringComparison.OrdinalIgnoreCase))
         {
@@ -1629,6 +1655,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     details: childSession.Error is null ? null : JsonSerializer.Serialize(childSession.Error, JsonOptions),
                     microflowId: context.ResourceId,
                     callStack: nextStack);
+            _callStackService.Complete(frame, MicroflowCallStackFrameStatus.Failed, _clock.UtcNow, childFailedError);
             context.AddFrame(
                 node,
                 incomingFlowId,
@@ -1651,6 +1678,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         var returnBindingError = TryBindCallMicroflowReturnValue(context, action, targetModel, childSession, node, incomingFlowId);
         if (returnBindingError is not null)
         {
+            _callStackService.Complete(frame, MicroflowCallStackFrameStatus.Failed, _clock.UtcNow, returnBindingError);
             context.AddFrame(
                 node,
                 incomingFlowId,
@@ -1668,11 +1696,14 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return NodeExecution.Failed(returnBindingError);
         }
 
+        _callStackService.Complete(frame, MicroflowCallStackFrameStatus.Success, _clock.UtcNow);
+
         var callOutput = JsonObj(new
         {
             actionKind = "callMicroflow",
             targetMicroflowId,
-            targetMicroflowQualifiedName = ReadString(action.Raw, "targetMicroflowQualifiedName"),
+            targetMicroflowQualifiedName = targetQualifiedName,
+            callFrameId = frame.FrameId,
             parameterBindings = bindings,
             childRunId = childSession.Id,
             childStatus = childSession.Status,
@@ -1710,6 +1741,21 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         var flow = outgoing[0];
         context.AddFrame(node, incomingFlowId, flow.Id, "success", BuildActionTraceInput(node), output, null);
         return NodeExecution.Next(flow.DestinationObjectId!, flow.Id);
+    }
+
+    private static string BuildRuntimeCallQualifiedName(MicroflowResourceEntity resource)
+    {
+        if (!string.IsNullOrWhiteSpace(resource.ModuleName) && !string.IsNullOrWhiteSpace(resource.Name))
+        {
+            return $"{resource.ModuleName}.{resource.Name}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(resource.Name))
+        {
+            return resource.Name;
+        }
+
+        return resource.Id;
     }
 
     private static JsonElement BuildActionTraceInput(MicroflowObjectModel node, bool loopBodyTerminal = false)
@@ -2975,6 +3021,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 callCorrelationId: CorrelationId,
                 maxCallDepth: MaxCallDepth,
                 variableStore: _expressionVariableStore,
+                currentCallFrame: _request.CallFrame ?? parentRuntimeContext?.CurrentCallFrame,
+                callStackFrames: parentRuntimeContext?.CallStackFrames.ToArray(),
                 debugSessionId: _request.DebugSessionId,
                 databaseSession: databaseSession,
                 ownsTransactionLifecycle: !sharedTransaction,
@@ -3589,10 +3637,31 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             }
         }
 
+        private IReadOnlyList<MicroflowCallStackFrame> ResolveSessionCallStackFrames()
+        {
+            if (_executionContext?.CallStackFrames is { Count: > 0 } executionFrames)
+            {
+                return executionFrames;
+            }
+
+            if (_request.CallFrame is null)
+            {
+                return Array.Empty<MicroflowCallStackFrame>();
+            }
+
+            if (_request.ParentRuntimeContext?.CallStackFrames is { Count: > 0 } parentFrames)
+            {
+                return parentFrames;
+            }
+
+            return [_request.CallFrame];
+        }
+
         public MicroflowRunSessionDto BuildSession(string status, MicroflowRuntimeErrorDto? error, JsonElement? output = null)
         {
             FinalizeTransaction(status, error);
             var endedAt = _clock.UtcNow;
+            FinalizeCurrentCallFrame(status, error, endedAt);
             if (error is not null)
             {
                 error = error with
@@ -3610,6 +3679,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 Version = _request.Version,
                 ParentRunId = ParentRunId,
                 RootRunId = RootRunId,
+                CallFrameId = _request.CallFrame?.FrameId,
                 CallDepth = CallDepth,
                 CorrelationId = CorrelationId,
                 CallStack = CallStackPath,
@@ -3619,7 +3689,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                     RootRunId,
                     _request.SchemaId,
                     _request.Version,
-                    _executionContext?.CallStackFrames),
+                    ResolveSessionCallStackFrames()),
                 StartedAt = StartedAt,
                 EndedAt = endedAt,
                 Status = status,
@@ -3639,6 +3709,32 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 ChildRuns = ChildRuns,
                 ChildRunIds = ChildRuns.Select(child => child.Id).ToArray()
             };
+        }
+
+        private void FinalizeCurrentCallFrame(string sessionStatus, MicroflowRuntimeErrorDto? error, DateTimeOffset endedAt)
+        {
+            var frame = _request.CallFrame;
+            if (frame is null)
+            {
+                return;
+            }
+
+            var alreadyFinalized = frame.EndedAt.HasValue
+                && !string.Equals(frame.Status, MicroflowCallStackFrameStatus.Entering, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(frame.Status, MicroflowCallStackFrameStatus.Running, StringComparison.OrdinalIgnoreCase);
+            if (alreadyFinalized)
+            {
+                return;
+            }
+
+            frame.Status = string.Equals(sessionStatus, "success", StringComparison.OrdinalIgnoreCase)
+                ? MicroflowCallStackFrameStatus.Success
+                : string.Equals(sessionStatus, "cancelled", StringComparison.OrdinalIgnoreCase)
+                    ? MicroflowCallStackFrameStatus.Cancelled
+                    : MicroflowCallStackFrameStatus.Failed;
+            frame.EndedAt = endedAt;
+            frame.DurationMs = Math.Max(0, (int)(endedAt - frame.StartedAt).TotalMilliseconds);
+            frame.Error = error;
         }
 
         private Dictionary<string, MicroflowRuntimeVariableValueDto> SnapshotVariables()

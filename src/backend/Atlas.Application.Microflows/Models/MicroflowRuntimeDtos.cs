@@ -630,8 +630,14 @@ public sealed record MicroflowRunHistoryItemDto
     [JsonPropertyName("microflowId")]
     public string MicroflowId { get; init; } = string.Empty;
 
+    [JsonPropertyName("schemaId")]
+    public string? SchemaId { get; init; }
+
     [JsonPropertyName("status")]
     public string Status { get; init; } = "failed";
+
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; init; }
 
     [JsonPropertyName("durationMs")]
     public int DurationMs { get; init; }
@@ -641,6 +647,39 @@ public sealed record MicroflowRunHistoryItemDto
 
     [JsonPropertyName("completedAt")]
     public DateTimeOffset? CompletedAt { get; init; }
+
+    [JsonPropertyName("finalized")]
+    public bool Finalized { get; init; }
+
+    [JsonPropertyName("parentRunId")]
+    public string? ParentRunId { get; init; }
+
+    [JsonPropertyName("rootRunId")]
+    public string? RootRunId { get; init; }
+
+    [JsonPropertyName("callFrameId")]
+    public string? CallFrameId { get; init; }
+
+    [JsonPropertyName("callDepth")]
+    public int? CallDepth { get; init; }
+
+    [JsonPropertyName("correlationId")]
+    public string? CorrelationId { get; init; }
+
+    [JsonPropertyName("traceFrameCount")]
+    public int TraceFrameCount { get; init; }
+
+    [JsonPropertyName("logCount")]
+    public int LogCount { get; init; }
+
+    [JsonPropertyName("childRunIds")]
+    public IReadOnlyList<string> ChildRunIds { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("callStack")]
+    public IReadOnlyList<string> CallStack { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("callStackFrames")]
+    public IReadOnlyList<MicroflowRunCallStackFrameDto> CallStackFrames { get; init; } = Array.Empty<MicroflowRunCallStackFrameDto>();
 
     [JsonPropertyName("errorMessage")]
     public string? ErrorMessage { get; init; }

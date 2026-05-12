@@ -4,6 +4,7 @@ using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime.Actions;
+using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -65,6 +66,165 @@ public sealed class MicroflowRunApiControllerTests
         var envelope = Assert.IsType<MicroflowApiResponse<MicroflowRunStatusDto>>(ok.Value);
         Assert.Equal("running", envelope.Data?.Status);
         await testRunService.Received(1).GetRunStatusAsync("run-100", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetRun_returns_call_stack_frames()
+    {
+        var testRunService = Substitute.For<IMicroflowTestRunService>();
+        testRunService.GetRunSessionAsync("run-200", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new MicroflowRunSessionDto
+            {
+                Id = "run-200",
+                ResourceId = "mf-parent",
+                SchemaId = "schema-parent",
+                Status = "success",
+                StartedAt = DateTimeOffset.Parse("2026-05-12T03:00:00Z"),
+                Input = new Dictionary<string, JsonElement>(),
+                Trace = Array.Empty<MicroflowTraceFrameDto>(),
+                Logs = Array.Empty<MicroflowRuntimeLogDto>(),
+                Variables = Array.Empty<MicroflowRunSessionVariableSnapshotDto>(),
+                CallStackFrames =
+                [
+                    new MicroflowRunCallStackFrameDto
+                    {
+                        Id = "frame-1",
+                        RunId = "run-200",
+                        RootRunId = "run-200",
+                        MicroflowId = "mf-child",
+                        QualifiedName = "Sales.Child",
+                        CallerObjectId = "call-child",
+                        Depth = 1,
+                        CallMode = "sync",
+                        Status = "success"
+                    }
+                ]
+            }));
+        var controller = CreateController(testRunService);
+
+        var result = await controller.GetRun("run-200", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<MicroflowApiResponse<MicroflowRunSessionDto>>(ok.Value);
+        var frame = Assert.Single(envelope.Data?.CallStackFrames ?? Array.Empty<MicroflowRunCallStackFrameDto>());
+        Assert.Equal("call-child", frame.CallerObjectId);
+        Assert.Equal("Sales.Child", frame.QualifiedName);
+        await testRunService.Received(1).GetRunSessionAsync("run-200", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetRunByMicroflow_returns_call_stack_frames()
+    {
+        var testRunService = Substitute.For<IMicroflowTestRunService>();
+        testRunService.GetRunSessionAsync("mf-parent", "run-201", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new MicroflowRunSessionDto
+            {
+                Id = "run-201",
+                ResourceId = "mf-parent",
+                SchemaId = "schema-parent",
+                Status = "success",
+                StartedAt = DateTimeOffset.Parse("2026-05-12T03:05:00Z"),
+                Input = new Dictionary<string, JsonElement>(),
+                Trace = Array.Empty<MicroflowTraceFrameDto>(),
+                Logs = Array.Empty<MicroflowRuntimeLogDto>(),
+                Variables = Array.Empty<MicroflowRunSessionVariableSnapshotDto>(),
+                CallStackFrames =
+                [
+                    new MicroflowRunCallStackFrameDto
+                    {
+                        Id = "frame-2",
+                        RunId = "run-201",
+                        RootRunId = "run-201",
+                        MicroflowId = "mf-child",
+                        QualifiedName = "Sales.Child",
+                        CallerObjectId = "call-child",
+                        CallerActionId = "action-call-child",
+                        Depth = 1,
+                        CallMode = "sync",
+                        Status = "success"
+                    }
+                ]
+            }));
+        var controller = CreateController(testRunService);
+
+        var result = await controller.GetRunByMicroflow("mf-parent", "run-201", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<MicroflowApiResponse<MicroflowRunSessionDto>>(ok.Value);
+        var frame = Assert.Single(envelope.Data?.CallStackFrames ?? Array.Empty<MicroflowRunCallStackFrameDto>());
+        Assert.Equal("action-call-child", frame.CallerActionId);
+        Assert.Equal("mf-child", frame.MicroflowId);
+        await testRunService.Received(1).GetRunSessionAsync("mf-parent", "run-201", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ListRuns_returns_history_metadata()
+    {
+        var testRunService = Substitute.For<IMicroflowTestRunService>();
+        testRunService.ListRunsAsync("mf-parent", Arg.Any<ListMicroflowRunsRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ListMicroflowRunsResponse
+            {
+                Items =
+                [
+                    new MicroflowRunHistoryItemDto
+                    {
+                        RunId = "run-history-1",
+                        MicroflowId = "mf-parent",
+                        SchemaId = "schema-parent",
+                        Status = "failed",
+                        ErrorCode = "RuntimeCallMicroflowFailed",
+                        ErrorMessage = "child failed",
+                        DurationMs = 123,
+                        StartedAt = DateTimeOffset.Parse("2026-05-12T04:00:00Z"),
+                        CompletedAt = DateTimeOffset.Parse("2026-05-12T04:00:01Z"),
+                        Finalized = true,
+                        ParentRunId = "run-root",
+                        RootRunId = "run-root",
+                        CallFrameId = "frame-call-1",
+                        CallDepth = 1,
+                        CorrelationId = "corr-run-history",
+                        TraceFrameCount = 5,
+                        LogCount = 2,
+                        ChildRunIds = ["run-child-1"],
+                        CallStack = ["Sales.Parent", "Sales.Child"],
+                        CallStackFrames =
+                        [
+                            new MicroflowRunCallStackFrameDto
+                            {
+                                Id = "frame-call-1",
+                                RunId = "run-history-1",
+                                MicroflowId = "mf-child",
+                                QualifiedName = "Sales.Child",
+                                CallerObjectId = "call-child",
+                                Depth = 1,
+                                Status = "failed"
+                            }
+                        ],
+                        Summary = "Run failed"
+                    }
+                ],
+                Total = 1
+            }));
+        var controller = CreateController(testRunService);
+
+        var result = await controller.ListRuns("mf-parent", cancellationToken: CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<MicroflowApiResponse<ListMicroflowRunsResponse>>(ok.Value);
+        var item = Assert.Single(envelope.Data?.Items ?? Array.Empty<MicroflowRunHistoryItemDto>());
+        Assert.Equal("schema-parent", item.SchemaId);
+        Assert.Equal("RuntimeCallMicroflowFailed", item.ErrorCode);
+        Assert.Equal("run-root", item.ParentRunId);
+        Assert.Equal("run-root", item.RootRunId);
+        Assert.Equal("frame-call-1", item.CallFrameId);
+        Assert.Equal(5, item.TraceFrameCount);
+        Assert.Equal(new[] { "run-child-1" }, item.ChildRunIds);
+        Assert.Equal(new[] { "Sales.Parent", "Sales.Child" }, item.CallStack);
+        Assert.Equal("call-child", Assert.Single(item.CallStackFrames).CallerObjectId);
+        await testRunService.Received(1).ListRunsAsync(
+            "mf-parent",
+            Arg.Is<ListMicroflowRunsRequest>(request => request.PageIndex == 1 && request.PageSize == 20 && request.Status == null),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

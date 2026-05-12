@@ -394,6 +394,14 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     expect(diamond?.getAttribute("data-decision-kind")).toBe("objectType");
   });
 
+  it("renders exclusive split with branch decision icon instead of hollow diamond glyph", () => {
+    renderNode("compact", "exclusiveSplit");
+    const node = screen.getByTestId("microflow-node-node-1");
+    const iconSvg = node.querySelector(".microflow-decision-compact__diamond svg");
+    expect(iconSvg?.querySelector("path")).not.toBeNull();
+    expect(iconSvg?.querySelector("polygon")).toBeNull();
+  });
+
   it("renders parameter object as compact oval pill with type line", () => {
     const value = {
       ...buildNodeValue("compact", "parameterObject"),

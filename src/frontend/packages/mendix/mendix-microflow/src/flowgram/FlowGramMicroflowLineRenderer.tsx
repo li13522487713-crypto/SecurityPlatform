@@ -247,6 +247,8 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
         }}
         onClick={event => {
           event.stopPropagation();
+        }}
+        onEdit={() => {
           if (readonly) {
             return;
           }

@@ -1,4 +1,4 @@
-import type { MouseEventHandler, ReactNode } from "react";
+import { useState, type MouseEventHandler, type ReactNode } from "react";
 
 export interface MicroflowEdgeProps {
   className: string;
@@ -7,8 +7,9 @@ export interface MicroflowEdgeProps {
   label: string;
   warningMissingTarget?: boolean;
   readonly?: boolean;
-  onMouseDown?: MouseEventHandler<HTMLButtonElement>;
-  onClick?: MouseEventHandler<HTMLButtonElement>;
+  onMouseDown?: MouseEventHandler<HTMLDivElement>;
+  onClick?: MouseEventHandler<HTMLDivElement>;
+  onEdit?: MouseEventHandler<HTMLButtonElement>;
   editAdornment?: ReactNode;
 }
 
@@ -21,22 +22,39 @@ export function MicroflowEdge({
   readonly = false,
   onMouseDown,
   onClick,
+  onEdit,
   editAdornment,
 }: MicroflowEdgeProps) {
+  const [hovered, setHovered] = useState(false);
   return (
-    <button
-      type="button"
-      className={className}
+    <div
+      className="microflow-edge-label"
       data-testid="microflow-flowgram-line-label"
       data-flow-id={flowId}
       data-edge-kind={edgeKind}
       onMouseDown={onMouseDown}
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       title={warningMissingTarget ? "缺少目标节点" : label}
     >
-      {label}
-      {!readonly ? editAdornment : null}
-      {warningMissingTarget ? <span aria-hidden="true" className="microflow-branch-label__warning-dot" /> : null}
-    </button>
+      <span className={className}>
+        {label}
+        {warningMissingTarget ? <span aria-hidden="true" className="microflow-branch-label__warning-dot" /> : null}
+      </span>
+      {!readonly && hovered && onEdit ? (
+        <button
+          type="button"
+          className="microflow-branch-label__edit-btn"
+          aria-label={`编辑分支标签 ${label}`}
+          onClick={event => {
+            event.stopPropagation();
+            onEdit(event);
+          }}
+        >
+          {editAdornment}
+        </button>
+      ) : null}
+    </div>
   );
 }
