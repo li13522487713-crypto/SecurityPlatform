@@ -5,3 +5,6 @@ export * from "./ErrorHandlingEditor";
 export * from "./RequiredMark";
 export * from "./ValidationIssueList";
 export * from "./VariableNameInput";
+export * from "./IssueSummaryBar";
+export * from "./issue-presenter";
+export * from "./field-locator";

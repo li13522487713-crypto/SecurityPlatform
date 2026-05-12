@@ -1,4 +1,4 @@
-import { Button, Input, Space, Tag, Typography } from "@douyinfe/semi-ui";
+import { Button, Input, Space, Tag } from "@douyinfe/semi-ui";
 import { useMemo } from "react";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowValidationIssue } from "../../schema";
 import {
@@ -10,8 +10,7 @@ import {
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
 import { dataTypeLabel } from "../panel-shared";
 import { FieldError } from "./FieldError";
-
-const { Text } = Typography;
+import { presentIssueMessage } from "./issue-presenter";
 
 function toIssue(message: string, fieldPath: string, index: number): MicroflowValidationIssue {
   return {
@@ -61,7 +60,7 @@ export function VariableNameInput({
       || issue.code === "DUPLICATE_VARIABLE"
       || issue.code === "MF_VARIABLE_PARAMETER_CONFLICT"
     ),
-  ).map((issue, index) => toIssue(issue.message, fieldPath, index + localIssues.length));
+  ).map((issue, index) => toIssue(presentIssueMessage(issue as unknown as MicroflowValidationIssue), fieldPath, index + localIssues.length));
   const allIssues = [...issues, ...localIssues, ...duplicateIssues];
 
   return (
@@ -81,7 +80,6 @@ export function VariableNameInput({
         </Button>
       </Space>
       {dataType ? <Tag color="blue">{dataTypeLabel(dataType)}</Tag> : null}
-      {duplicateIssues.length > 0 ? <Text size="small" type="warning">Duplicate variable name in current scope.</Text> : null}
       <FieldError issues={allIssues} />
     </div>
   );

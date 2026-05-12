@@ -139,4 +139,27 @@ describe("microflow toolbox cleanliness", () => {
     const missing = requiredKeys.filter(key => !presentKeys.has(key));
     expect(missing, `Missing toolbox entries: ${missing.join(", ")}`).toEqual([]);
   });
+
+  it("uses node-complexity tab presets for key Mendix-style nodes", () => {
+    const actionTabs = (kind: string) => defaultMicroflowActionRegistry.find(item => item.kind === kind)?.propertyTabs ?? [];
+    const objectTabs = (type: string) => microflowObjectNodeRegistries.find(item => item.type === type)?.propertyTabs ?? [];
+
+    expect(actionTabs("createObject")).toEqual(["properties", "output", "documentation"]);
+    expect(actionTabs("callMicroflow")).toEqual(["properties", "output", "documentation"]);
+    expect(actionTabs("restCall")).toEqual(["properties", "advanced", "output", "errorHandling", "documentation"]);
+    expect(actionTabs("retrieve")).toEqual(["properties", "documentation"]);
+    expect(actionTabs("changeMembers")).toEqual(["properties", "documentation"]);
+    expect(actionTabs("delete")).toEqual(["properties", "documentation"]);
+    expect(actionTabs("createList")).toEqual(["properties", "documentation"]);
+    expect(actionTabs("createVariable")).toEqual(["properties", "documentation"]);
+    expect(actionTabs("changeVariable")).toEqual(["properties", "documentation"]);
+
+    expect(objectTabs("startEvent")).toEqual(["properties"]);
+    expect(objectTabs("endEvent")).toEqual(["properties", "documentation"]);
+    expect(objectTabs("decision")).toEqual(["properties", "documentation"]);
+    expect(objectTabs("loop")).toEqual(["properties", "documentation"]);
+    expect(objectTabs("merge")).toEqual(["properties"]);
+    expect(objectTabs("annotation")).toEqual(["properties"]);
+    expect(objectTabs("tryCatch")).toEqual(["properties", "documentation"]);
+  });
 });

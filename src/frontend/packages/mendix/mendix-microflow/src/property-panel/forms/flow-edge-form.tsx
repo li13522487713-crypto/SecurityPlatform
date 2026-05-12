@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input, InputNumber, Select, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowFlow, MicroflowSequenceFlow } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
@@ -6,7 +6,7 @@ import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../../
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
 import { collectLoopObjects, getDecisionBranchConflicts, getLoopFlowKind } from "../../schema/utils";
 import { objectTypeCaseIdentity } from "../../schema/utils/case-utils";
-import { ValidationIssueList } from "../common";
+import { IssueSummaryBar, locateFieldByPath } from "../common";
 import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "../types";
 import { Header, PropertyTabs, Field, flowPatch, getFlowTabs, issuesFor, objectName } from "../panel-shared";
 import { forceOrthogonalLineKind } from "../../flowgram/FlowGramMicroflowTypes";
@@ -110,6 +110,10 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
   }, [flow.id, tabs]);
   const issues = issuesFor(props, undefined, flow.id);
   const patch = (next: MicroflowFlow) => props.onFlowChange?.(flow.id, next);
+  const panelBodyRef = useRef<HTMLDivElement | null>(null);
+  const handleLocateField = useCallback((fieldPath?: string) => {
+    locateFieldByPath(panelBodyRef.current, fieldPath);
+  }, []);
   const loopFlowKind = getLoopFlowKind(props.schema, flow);
   const loopSources = collectLoopObjects(props.schema).filter(loop => loop.id === flow.originObjectId);
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit flow edge settings." : "";
@@ -121,9 +125,9 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
         subtitle={flow.officialType}
         onDelete={() => props.onDeleteFlow?.(flow.id)}
       />
+      <IssueSummaryBar issues={issues} onLocateField={handleLocateField} />
       <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
-      <div style={{ padding: 14, display: "grid", gap: 12 }}>
-        <ValidationIssueList issues={issues} />
+      <div ref={panelBodyRef} style={{ padding: 14, display: "grid", gap: 12 }}>
         {activeTab === "properties" ? (
           <>
         <Field label="Flow ID">

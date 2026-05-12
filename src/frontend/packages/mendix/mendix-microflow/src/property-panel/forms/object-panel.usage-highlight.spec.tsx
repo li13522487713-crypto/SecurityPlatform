@@ -37,12 +37,15 @@ vi.mock("../../metadata", async () => {
 
 vi.mock("../common", () => ({
   ValidationIssueList: () => null,
+  IssueSummaryBar: () => null,
+  locateFieldByPath: () => false,
 }));
 
 vi.mock("../panel-shared", () => ({
   dataTypeLabel: (type: { kind?: string } | undefined) => type?.kind ?? "unknown",
   Field: ({ label, children }: any) => <section data-testid={`field-${String(label)}`}>{children}</section>,
-  getObjectTabs: () => ["properties"],
+  getObjectTabLabels: () => ({}),
+  getObjectTabs: () => ["output"],
   Header: () => null,
   issuesFor: () => [],
   objectTitle: () => "Object",
@@ -95,4 +98,3 @@ describe("ObjectPanel variable usage highlight", () => {
     expect(onHighlightVariableUsage).toHaveBeenCalledWith("orderId");
   });
 });
-

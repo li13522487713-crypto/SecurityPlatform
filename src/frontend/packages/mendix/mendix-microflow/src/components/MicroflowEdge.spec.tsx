@@ -16,11 +16,13 @@ describe("MicroflowEdge", () => {
         edgeKind="decisionCondition"
         label="true"
         onClick={onClick}
+        onEdit={vi.fn()}
         editAdornment={<span data-testid="edge-edit">✎</span>}
       />,
     );
 
     const button = screen.getByTestId("microflow-flowgram-line-label");
+    fireEvent.mouseEnter(button);
     fireEvent.click(button);
 
     expect(button.getAttribute("data-flow-id")).toBe("flow-1");

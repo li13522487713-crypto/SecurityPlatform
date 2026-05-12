@@ -1,4 +1,4 @@
-import { Input, Select, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Input, Select, Switch, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowActionActivityColor, MicroflowObject } from "../../schema";
 import { Field } from "../panel-shared";
 
@@ -50,13 +50,6 @@ export function ObjectBaseForm({ object, readonly, patch }: {
         )}
         {!object.caption?.trim() ? <Text type="warning" size="small">Caption 为空时画布会使用节点类型作为显示名称；不会写入示例值。</Text> : null}
       </Field>
-      <Field label="Description">
-        {withDisabledReason(
-          readonlyDisabledReason,
-          "Description",
-          <TextArea value={object.documentation ?? ""} autosize disabled={readonly} onChange={documentation => patch({ ...object, documentation } as MicroflowObject)} />
-        )}
-      </Field>
       {supportsBackgroundColor ? (
         <Field label="Background Color">
           {withDisabledReason(
@@ -72,9 +65,6 @@ export function ObjectBaseForm({ object, readonly, patch }: {
           )}
         </Field>
       ) : null}
-      <Field label="Position">
-        <Input value={`x=${object.relativeMiddlePoint.x}, y=${object.relativeMiddlePoint.y}`} disabled />
-      </Field>
       <Field label="Disabled">
         {withDisabledReason(
           readonlyDisabledReason,

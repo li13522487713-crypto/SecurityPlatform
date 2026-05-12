@@ -1273,9 +1273,6 @@ export function ActionActivityForm({
             />
             <Text type="tertiary" size="small">Stage 13 stores the expression text only; it does not evaluate expressions.</Text>
           </Field>
-          <Field label="Description">
-            <TextArea value={action.documentation ?? ""} autosize disabled={readonly} onChange={documentation => patchObject(updateAction(object, { documentation }))} />
-          </Field>
         </>
       ) : null}
 
@@ -1383,14 +1380,6 @@ export function ActionActivityForm({
               onChange={initialItemsExpression => patchObject(updateAction(object, { initialItemsExpression }))}
             />
             <Text type="tertiary" size="small">Expression text is stored only; Stage 18 does not execute it.</Text>
-          </Field>
-          <Field label="Description">
-            <TextArea
-              value={action.description ?? action.documentation ?? ""}
-              autosize
-              disabled={readonly}
-              onChange={description => patchObject(updateAction(object, { description, documentation: description }))}
-            />
           </Field>
         </>
       ) : null}

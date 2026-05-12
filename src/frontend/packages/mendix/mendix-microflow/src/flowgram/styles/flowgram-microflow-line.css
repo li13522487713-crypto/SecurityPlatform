@@ -2,7 +2,7 @@
 .microflow-flowgram-canvas .gedit-flow-lines-layer svg line,
 .microflow-flowgram-canvas .gedit-flow-activity-edge path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge line {
-  stroke: #3a4060 !important;
+  stroke: #4e5969 !important;
   stroke-width: 1.2px !important;
   fill: none !important;
   stroke-linecap: butt;
@@ -11,7 +11,7 @@
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge marker path {
   fill: none !important;
-  stroke: #3a4060 !important;
+  stroke: #4e5969 !important;
   stroke-width: 1.5px !important;
 }
 
@@ -31,23 +31,46 @@
 .microflow-flowgram-canvas .edge-executed path,
 .microflow-flowgram-canvas .is-runtime-visited path,
 .microflow-flowgram-canvas .is-runtime-selectedCase path {
-  stroke: #4ade80 !important;
-  stroke-width: 1.5px !important;
+  stroke: #165dff !important;
+  stroke-width: 2px !important;
+  stroke-dasharray: 10 6 !important;
+  animation: microflow-line-flow 1.1s linear infinite;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--sequence path,
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--sequence line {
+  stroke: #4e5969 !important;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--decisionCondition path,
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--decisionCondition line {
+  stroke: #165dff !important;
+}
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--decisionCondition marker path {
+  stroke: #165dff !important;
+}
+
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--objectTypeCondition path,
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--objectTypeCondition line {
+  stroke: #722ed1 !important;
+}
+.microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--objectTypeCondition marker path {
+  stroke: #722ed1 !important;
 }
 
 .microflow-flowgram-line--errorHandler {
-  stroke: #ef4444;
+  stroke: #f93920;
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--errorHandler path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--errorHandler line {
-  stroke: #ef4444 !important;
+  stroke: #f93920 !important;
   stroke-dasharray: 6 3 !important;
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--errorHandler marker path {
-  fill: #ef4444 !important;
-  stroke: #ef4444 !important;
+  fill: #f93920 !important;
+  stroke: #f93920 !important;
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--error-handler-customWithoutRollback path,
@@ -84,14 +107,14 @@
 }
 
 .microflow-flowgram-line--annotation {
-  stroke: #3a4060;
+  stroke: #86909c;
   stroke-width: 0.5px;
   stroke-dasharray: 4 4;
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--annotation path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-line--annotation line {
-  stroke: #3a4060 !important;
+  stroke: #86909c !important;
   stroke-width: 0.5px !important;
   stroke-dasharray: 4 4 !important;
 }
@@ -111,8 +134,10 @@
 
 .microflow-flowgram-line.is-runtime-visited,
 .microflow-flowgram-line.is-runtime-selectedCase {
-  stroke: #28c786;
+  stroke: #165dff;
   stroke-width: 2.1px;
+  stroke-dasharray: 10 6;
+  animation: microflow-line-flow 1.1s linear infinite;
 }
 
 .microflow-flowgram-line.is-runtime-errorHandlerVisited {
@@ -239,4 +264,10 @@
   transform: translate(-50%, -50%);
   z-index: 10;
   pointer-events: all;
+}
+
+@keyframes microflow-line-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
 }

@@ -40,12 +40,15 @@ vi.mock("../common", async () => {
   return {
     ...actual,
     ValidationIssueList: () => null,
+    IssueSummaryBar: () => null,
+    locateFieldByPath: () => false,
   };
 });
 
 vi.mock("../panel-shared", () => ({
   dataTypeLabel: (type: { kind?: string } | undefined) => type?.kind ?? "unknown",
   Field: ({ label, children }: any) => <section data-testid={`field-${String(label)}`}>{children}</section>,
+  getObjectTabLabels: () => ({}),
   getObjectTabs: () => ["errorHandling"],
   Header: () => null,
   issuesFor: () => [],

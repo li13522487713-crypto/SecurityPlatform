@@ -456,6 +456,11 @@ function engineSupportForNodeKind(kind: string, availability: MicroflowNodeAvail
 }
 
 function eventEntry(type: Extract<MicroflowRegistryNodeType, "startEvent" | "endEvent" | "errorEvent" | "breakEvent" | "continueEvent">, title: string, titleZh: string, ports: MicroflowPort[], tone: MicroflowRenderMetadata["tone"], description: string): MicroflowNodeRegistryEntry {
+  const propertyTabs: MicroflowPropertyTabKey[] = type === "startEvent"
+    ? ["properties"]
+    : type === "endEvent"
+      ? ["properties", "documentation"]
+      : ["properties", "documentation"];
   return createEntry({
     type,
     kind: "event",
@@ -473,7 +478,8 @@ function eventEntry(type: Extract<MicroflowRegistryNodeType, "startEvent" | "end
     ports,
     documentation: doc(description),
     render: { iconKey: type, shape: "event", tone, width: 124, height: 70 },
-    propertyForm: { formKey: type, sections: type === "endEvent" ? ["General", "Output"] : ["General"] }
+    propertyForm: { formKey: type, sections: type === "endEvent" ? ["General", "Output"] : ["General"] },
+    propertyTabs
   });
 }
 
@@ -597,7 +603,8 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     ports: [sequenceIn, decisionTrue, decisionFalse, errorOut],
     documentation: doc("Evaluates an expression or rule and routes execution to exactly one branch."),
     render: { iconKey: "decision", shape: "diamond", tone: "warning", width: 152, height: 104 },
-    propertyForm: { formKey: "decision", sections: ["General", "Output", "Error Handling"] }
+    propertyForm: { formKey: "decision", sections: ["General", "Output", "Error Handling"] },
+    propertyTabs: ["properties", "documentation"]
   }),
   createEntry({
     type: "objectTypeDecision",
@@ -614,7 +621,8 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     ports: [sequenceIn, objectTypeOut, errorOut],
     documentation: doc("Selects a branch according to an object's actual specialization entity."),
     render: { iconKey: "objectTypeDecision", shape: "diamond", tone: "warning", width: 168, height: 112 },
-    propertyForm: { formKey: "objectTypeDecision", sections: ["General", "Output", "Error Handling"] }
+    propertyForm: { formKey: "objectTypeDecision", sections: ["General", "Output", "Error Handling"] },
+    propertyTabs: ["properties", "documentation"]
   }),
   createEntry({
     type: "merge",
@@ -632,6 +640,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     documentation: doc("Merge is not a parallel synchronizer; it continues when any incoming branch arrives."),
     render: { iconKey: "merge", shape: "diamond", tone: "info", width: 112, height: 84 },
     propertyForm: { formKey: "merge", sections: ["General", "Output"] },
+    propertyTabs: ["properties"],
     supportsErrorHandling: false
   }),
   createEntry({
@@ -650,7 +659,8 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     documentation: doc("Runs child microflow elements for every list item or while an expression is true."),
     supportedErrorHandlingTypes: ["rollback", "customWithRollback", "customWithoutRollback", "continue"],
     render: { iconKey: "loop", shape: "loop", tone: "info", width: 178, height: 82 },
-    propertyForm: { formKey: "loop", sections: ["General", "Output", "Error Handling"] }
+    propertyForm: { formKey: "loop", sections: ["General", "Output", "Error Handling"] },
+    propertyTabs: ["properties", "documentation"]
   }),
   createEntry({
     type: "parameter",
@@ -686,6 +696,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     documentation: doc("Canvas-only documentation connected through annotation flows."),
     render: { iconKey: "annotation", shape: "annotation", tone: "neutral", width: 220, height: 100 },
     propertyForm: { formKey: "annotation", sections: ["General"] },
+    propertyTabs: ["properties"],
     supportsErrorHandling: false
   }),
   createEntry({
@@ -742,6 +753,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     documentation: doc("Try/Catch/Finally container. Used to model error handling scopes; testRun honours errors but does not branch on tryCatch yet."),
     render: { iconKey: "tryCatch", shape: "roundedRect", tone: "warning", width: 200, height: 86 },
     propertyForm: { formKey: "tryCatch", sections: ["General", "Error Handling"] },
+    propertyTabs: ["properties", "documentation"],
     supportsErrorHandling: true,
     supportedErrorHandlingTypes: ["customWithRollback", "customWithoutRollback"],
     engineSupport: { level: "partial", reason: "Try/Catch 节点进入 runtime 主路径；完整错误策略仍由 Activity errorHandling 字段承载。" }

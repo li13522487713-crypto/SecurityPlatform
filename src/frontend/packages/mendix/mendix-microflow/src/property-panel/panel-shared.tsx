@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Button, Space, Tabs, Tag, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Button, Space, Tabs, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconClose, IconCopy, IconDelete } from "@douyinfe/semi-icons";
 import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowExpression, MicroflowFlow, MicroflowObject } from "../schema";
 import type { MicroflowPropertyTabKey } from "../schema/types";
@@ -7,7 +7,7 @@ import { defaultMicroflowActionRegistry, defaultMicroflowEdgeRegistry, defaultMi
 import { findObjectWithCollection } from "../schema/utils/object-utils";
 import { FieldError } from "./common";
 import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "./types";
-import { countIssuesBySeverity, getIssuesForField, getIssuesForFlow, getIssuesForObject } from "./utils";
+import { getIssuesForField } from "./utils";
 
 const { Text, Title } = Typography;
 
@@ -35,13 +35,15 @@ export function updateAction(activity: MicroflowActionActivity, patch: Partial<M
   return { ...activity, action: actionPatch(activity.action, patch) };
 }
 
-const tabLabels: Record<MicroflowPropertyTabKey, string> = {
+const defaultTabLabels: Record<MicroflowPropertyTabKey, string> = {
   properties: "配置",
   documentation: "文档",
   errorHandling: "错误处理",
   output: "输入 / 输出",
   advanced: "高级",
 };
+
+type TabLabelMap = Partial<Record<MicroflowPropertyTabKey, string>>;
 
 export function issuesFor(props: MicroflowPropertyPanelProps, objectId?: string, flowId?: string, actionId?: string) {
   if (flowId) {
@@ -61,35 +63,14 @@ export function Header({ props, title, subtitle, onDelete, onDuplicate }: {
   onDuplicate?: () => void;
 }) {
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit this object." : "";
-  const counts = countIssuesBySeverity(props.selectedFlow
-    ? getIssuesForFlow(props.validationIssues, props.selectedFlow.id)
-    : props.selectedObject
-      ? getIssuesForObject(props.validationIssues, props.selectedObject.id, props.selectedObject.kind === "actionActivity" ? props.selectedObject.action.id : undefined)
-      : []);
-  const runtimeStatus = props.selectedFlow
-    ? runtimeStatusForFlow(props.traceFrames ?? [], props.selectedFlow.id)
-    : props.selectedObject
-      ? runtimeStatusForObject(props.traceFrames ?? [], props.selectedObject.id)
-      : undefined;
   return (
     <div style={{ padding: 14, borderBottom: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-2, #fff)" }}>
       <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
         <div style={{ minWidth: 0 }}>
-          <Title heading={6} style={{ margin: 0 }}>{title}</Title>
+          <Title heading={6} style={{ margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</Title>
           <Text size="small" type="tertiary">{subtitle}</Text>
-          {runtimeStatus ? (
-            <>
-              <br />
-              <Text size="small" type={runtimeStatus.status === "failed" ? "danger" : "tertiary"}>
-                最近执行：{runtimeStatus.status} · {runtimeStatus.durationMs ?? 0}ms{runtimeStatus.errorMessage ? ` · ${runtimeStatus.errorMessage}` : ""}
-              </Text>
-            </>
-          ) : null}
         </div>
         <Space>
-          {runtimeStatus ? <Tag color={runtimeStatus.status === "failed" ? "red" : runtimeStatus.status === "success" || runtimeStatus.status === "visited" ? "green" : "grey"}>{runtimeStatus.status}</Tag> : <Tag color="grey">notRun</Tag>}
-          {counts.errors > 0 ? <Tag color="red">{counts.errors} error</Tag> : null}
-          {counts.warnings > 0 ? <Tag color="orange">{counts.warnings} warning</Tag> : null}
           {onDuplicate ? (
             <Tooltip content={readonlyDisabledReason || "Duplicate"}>
               <span style={{ display: "inline-flex" }}>
@@ -111,29 +92,20 @@ export function Header({ props, title, subtitle, onDelete, onDuplicate }: {
   );
 }
 
-function runtimeStatusForObject(frames: MicroflowPropertyPanelProps["traceFrames"], objectId: string) {
-  const frame = [...(frames ?? [])].reverse().find(item => item.objectId === objectId);
-  if (!frame) {
-    return undefined;
-  }
-  return { status: frame.status, durationMs: frame.durationMs, errorMessage: frame.error?.message };
-}
-
-function runtimeStatusForFlow(frames: MicroflowPropertyPanelProps["traceFrames"], flowId: string) {
-  const frame = [...(frames ?? [])].reverse().find(item => item.incomingFlowId === flowId || item.outgoingFlowId === flowId);
-  if (!frame) {
-    return undefined;
-  }
-  return {
-    status: frame.outgoingFlowId === flowId || frame.incomingFlowId === flowId ? "visited" : "notRun",
-    durationMs: frame.durationMs,
-    errorMessage: frame.error?.flowId === flowId ? frame.error.message : undefined,
-  };
-}
-
-export function Field({ label, children, issues }: { label: string; children: ReactNode; issues?: ReturnType<typeof getIssuesForField> }) {
+export function Field({
+  label,
+  children,
+  issues,
+  fieldPath,
+}: {
+  label: string;
+  children: ReactNode;
+  issues?: ReturnType<typeof getIssuesForField>;
+  fieldPath?: string;
+}) {
+  const resolvedFieldPath = fieldPath ?? issues?.[0]?.fieldPath;
   return (
-    <label style={{ display: "grid", gap: 6 }}>
+    <label style={{ display: "grid", gap: 6 }} data-mf-field-path={resolvedFieldPath || undefined}>
       <Text size="small" strong>{label}</Text>
       {children}
       <FieldError issues={issues} />
@@ -146,6 +118,42 @@ export function getObjectTabs(object: MicroflowObject): MicroflowPropertyTabKey[
     return defaultMicroflowActionRegistry.find(item => item.kind === object.action.kind)?.propertyTabs ?? ["properties", "documentation", "errorHandling", "output", "advanced"];
   }
   return defaultMicroflowObjectNodeRegistry.find(item => item.objectKind === object.kind)?.propertyTabs ?? ["properties", "documentation"];
+}
+
+export function getObjectTabLabels(object: MicroflowObject): TabLabelMap {
+  if (object.kind === "startEvent") {
+    return { properties: "参数" };
+  }
+  if (object.kind === "endEvent") {
+    return { properties: "返回值", documentation: "文档" };
+  }
+  if (object.kind === "exclusiveSplit") {
+    return { properties: "分支", documentation: "文档" };
+  }
+  if (object.kind === "loopedActivity") {
+    return { properties: "循环配置", documentation: "文档" };
+  }
+  if (object.kind === "exclusiveMerge") {
+    return { properties: "合并配置" };
+  }
+  if (object.kind === "annotation") {
+    return { properties: "文档" };
+  }
+  if (object.kind === "tryCatch") {
+    return { properties: "分支配置", documentation: "文档" };
+  }
+  if (object.kind === "actionActivity") {
+    if (object.action.kind === "createObject") {
+      return { properties: "配置", output: "输入 / 输出", documentation: "文档" };
+    }
+    if (object.action.kind === "callMicroflow") {
+      return { properties: "配置", output: "输入 / 输出", documentation: "文档" };
+    }
+    if (object.action.kind === "restCall") {
+      return { properties: "基本配置", advanced: "请求", output: "响应", errorHandling: "错误处理", documentation: "文档" };
+    }
+  }
+  return {};
 }
 
 export function getFlowEdgeKind(flow: MicroflowFlow): "sequence" | "decisionCondition" | "objectTypeCondition" | "loopBody" | "errorHandler" | "annotation" {
@@ -167,10 +175,12 @@ export function PropertyTabs({
   tabs,
   activeKey,
   onChange,
+  labels,
 }: {
   tabs: MicroflowPropertyTabKey[];
   activeKey: MicroflowPropertyTabKey;
   onChange: (key: MicroflowPropertyTabKey) => void;
+  labels?: TabLabelMap;
 }) {
   return (
     <Tabs
@@ -179,7 +189,7 @@ export function PropertyTabs({
       style={{ padding: "0 14px", borderBottom: "1px solid var(--semi-color-border, #e5e6eb)" }}
       onChange={key => onChange(key as MicroflowPropertyTabKey)}
     >
-      {tabs.map(tab => <Tabs.TabPane key={tab} itemKey={tab} tab={tabLabels[tab]} />)}
+      {tabs.map(tab => <Tabs.TabPane key={tab} itemKey={tab} tab={labels?.[tab] ?? defaultTabLabels[tab]} />)}
     </Tabs>
   );
 }

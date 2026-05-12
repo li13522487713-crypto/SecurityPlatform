@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Input, Select, Space, Switch, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowAction, MicroflowFlow, MicroflowObject, MicroflowParameter, MicroflowVariableIndex, MicroflowVariableSymbol } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
 import { buildVariableIndex, getOutputVariablesForObject, variableSourceLabel } from "../../variables";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
-import { ErrorHandlingEditor, ValidationIssueList, supportedErrorHandlingTypesForAction, supportedErrorHandlingTypesForObject } from "../common";
+import { ErrorHandlingEditor, IssueSummaryBar, locateFieldByPath, supportedErrorHandlingTypesForAction, supportedErrorHandlingTypesForObject } from "../common";
 import { getMicroflowNodeFormForObject } from "../node-form-registry";
 import type { MicroflowPropertyPanelProps } from "../types";
 import {
   dataTypeLabel,
   Field,
+  getObjectTabLabels,
   getObjectTabs,
   Header,
   issuesFor,
@@ -100,6 +101,11 @@ function outputLine(symbol: MicroflowVariableSymbol): string {
   return `${symbol.name}: ${dataTypeLabel(symbol.dataType)} | ${variableSourceLabel(symbol)} | ${symbol.scope.kind ?? "collection"} | ${symbol.visibility ?? "definite"}`;
 }
 
+function maybeReason(symbol: MicroflowVariableSymbol): string {
+  const reason = symbol.maybeReason?.trim();
+  return reason?.length ? reason : "Variable is not definitely assigned on every normal path to this object.";
+}
+
 function normalizeVariableName(name: string | undefined): string {
   const trimmed = String(name ?? "").trim();
   if (!trimmed) {
@@ -136,11 +142,15 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
   const variableIndex = useMemo(() => buildVariableIndex(props.schema, effectiveCatalog), [props.schema, effectiveCatalog, metadataVersion]);
   const availableTabs = useMemo(() => getObjectTabs(object), [object]);
-  const tabs = useMemo<MicroflowPropertyTabKey[]>(() => ["properties", "output", "documentation"], []);
-  const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>("properties");
+  const tabs = useMemo<MicroflowPropertyTabKey[]>(() => {
+    const normalized = Array.from(new Set(availableTabs));
+    return normalized.length > 0 ? normalized : ["properties", "documentation"];
+  }, [availableTabs]);
+  const tabLabels = useMemo(() => getObjectTabLabels(object), [object]);
+  const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>(tabs[0] ?? "properties");
   useEffect(() => {
-    setActiveTab("properties");
-  }, [object.id]);
+    setActiveTab(tabs[0] ?? "properties");
+  }, [object.id, tabs]);
   const issues = issuesFor(props, object.id, undefined, object.kind === "actionActivity" ? object.action.id : undefined);
   const patch = (next: MicroflowObject) => props.onObjectChange(object.id, { object: next });
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit object settings." : "";
@@ -152,6 +162,10 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   const flowsForObject = useMemo<MicroflowFlow[]>(() => collectFlowsRecursive(props.schema), [props.schema]);
   const variablesForObject = useMemo<MicroflowVariableSymbol[]>(() => variableIndex.all ?? [], [variableIndex.all]);
   const outputVariables = useMemo(() => outputSymbolsForObject(variableIndex, object, parameter), [object, parameter, variableIndex]);
+  const panelBodyRef = useRef<HTMLDivElement | null>(null);
+  const handleLocateField = useCallback((fieldPath?: string) => {
+    locateFieldByPath(panelBodyRef.current, fieldPath);
+  }, []);
 
   const renderUsageButton = (symbol: MicroflowVariableSymbol) => (
     <Button
@@ -176,8 +190,8 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
           subtitle={(object as MicroflowObject).officialType ?? String(object.kind)}
           onDelete={() => props.onDeleteObject?.(object.id)}
         />
-        <div style={{ padding: 14, display: "grid", gap: 12 }}>
-          <ValidationIssueList issues={issues} />
+        <div ref={panelBodyRef} style={{ padding: 14, display: "grid", gap: 12 }}>
+          <IssueSummaryBar issues={issues} onLocateField={handleLocateField} />
           <Field label="Node ID">
             <Input value={object.id} disabled />
           </Field>
@@ -191,7 +205,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   }
   return (
     <>
-      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
+      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} labels={tabLabels} />
       <Header
         props={props}
         title={objectTitle(object)}
@@ -199,19 +213,12 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         onDelete={() => props.onDeleteObject?.(object.id)}
         onDuplicate={() => props.onDuplicateObject?.(object.id)}
       />
-      <div style={{ padding: 14, display: "grid", gap: 12 }}>
-        <ValidationIssueList issues={issues} />
+      <IssueSummaryBar issues={issues} onLocateField={handleLocateField} />
+      <div ref={panelBodyRef} style={{ padding: 14, display: "grid", gap: 12 }}>
         {activeTab === "properties" ? (
           registered ? (
             <>
               <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
-              {outputVariables.length ? (
-                <Field label="变量使用高亮">
-                  <Space vertical align="start" spacing={6}>
-                    {outputVariables.map(renderUsageButton)}
-                  </Space>
-                </Field>
-              ) : null}
               {registered.renderProperties({
                 object,
                 node: object,
@@ -226,13 +233,6 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
           ) : (
             <>
               <ObjectBaseForm object={object} readonly={props.readonly} patch={patch} />
-              {outputVariables.length ? (
-                <Field label="变量使用高亮">
-                  <Space vertical align="start" spacing={6}>
-                    {outputVariables.map(renderUsageButton)}
-                  </Space>
-                </Field>
-              ) : null}
               <EventNodesForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               <ExclusiveSplitForm props={props} object={object} issues={issues} metadata={effectiveCatalog} variableIndex={variableIndex} patch={patch} />
               <InheritanceSplitForm
@@ -264,61 +264,23 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
             </>
           )
         ) : null}
-        {activeTab === "properties" && availableTabs.includes("errorHandling") ? (
-          <>
-            {object.kind === "actionActivity" ? (
-              <Field label="Error Handling Type">
-                <ErrorHandlingEditor
-                  value={object.action.errorHandlingType}
-                  readonly={props.readonly}
-                  actionKind={object.action.kind}
-                  fieldPath="action.errorHandlingType"
-                  issues={getIssuesForField(issues, "action.errorHandlingType")}
-                  supportedTypes={supportedErrorHandlingTypesForAction(object.action.kind)}
-                  onChange={errorHandlingType => patch(updateAction(object, { errorHandlingType }))}
-                />
-              </Field>
-            ) : object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" || object.kind === "loopedActivity" ? (
-              <Field label="Error Handling Type">
-                <ErrorHandlingEditor
-                  value={object.errorHandlingType}
-                  readonly={props.readonly}
-                  objectKind={object.kind}
-                  fieldPath="errorHandlingType"
-                  issues={getIssuesForField(issues, "errorHandlingType")}
-                  supportedTypes={supportedErrorHandlingTypesForObject(object.kind)}
-                  onChange={errorHandlingType => patch({ ...object, errorHandlingType })}
-                />
-              </Field>
-            ) : null}
-          </>
-        ) : null}
-        {activeTab === "properties" && availableTabs.includes("advanced") ? (
-          <>
-            <Field label="Disabled">
-              {withDisabledReason(
-                readonlyDisabledReason,
-                "Disabled",
-                <Switch checked={Boolean(object.disabled)} disabled={props.readonly} onChange={disabled => patch({ ...object, disabled } as MicroflowObject)} />
-              )}
-            </Field>
-            <Field label="Performance Tag">
-              {withDisabledReason(
-                readonlyDisabledReason,
-                "Performance tag",
-                <Input value={(object.editor as unknown as { advanced?: { performanceTag?: string } }).advanced?.performanceTag ?? ""} disabled={props.readonly} onChange={performanceTag => patch(updateObjectAdvanced(object, { performanceTag }))} />
-              )}
-            </Field>
-          </>
-        ) : null}
         {activeTab === "documentation" ? (
-          <Field label="Documentation">
-            {withDisabledReason(
-              readonlyDisabledReason,
-              "Documentation",
-              <TextArea value={object.documentation ?? ""} autosize disabled={props.readonly} onChange={documentation => patch(updateObjectDocumentation(object, documentation))} />
-            )}
-          </Field>
+          <>
+            <Field label="Caption">
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Caption",
+                <Input value={object.caption ?? ""} disabled={props.readonly} onChange={caption => patch({ ...object, caption } as MicroflowObject)} />
+              )}
+            </Field>
+            <Field label="Documentation">
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Documentation",
+                <TextArea value={object.documentation ?? ""} autosize disabled={props.readonly} onChange={documentation => patch(updateObjectDocumentation(object, documentation))} />
+              )}
+            </Field>
+          </>
         ) : null}
         {activeTab === "errorHandling" ? (
           <>
@@ -361,7 +323,11 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
                     <Space key={symbol.id ?? `${symbol.name}:${symbol.scope.collectionId}`} align="center" spacing={6}>
                       {renderUsageButton(symbol)}
                       {symbol.dataType.kind === "unknown" ? <Tag size="small" color="red">unknown</Tag> : null}
-                      {symbol.visibility === "maybe" ? <Tag size="small" color="orange">maybe</Tag> : null}
+                      {symbol.visibility === "maybe" ? (
+                        <Tooltip content={maybeReason(symbol)}>
+                          <Tag size="small" color="orange">⚠ maybe</Tag>
+                        </Tooltip>
+                      ) : null}
                     </Space>
                   ))}
                 </Space>

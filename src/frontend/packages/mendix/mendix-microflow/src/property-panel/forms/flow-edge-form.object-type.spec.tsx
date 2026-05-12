@@ -51,6 +51,8 @@ vi.mock("../../schema/utils", () => ({
 
 vi.mock("../common", () => ({
   ValidationIssueList: () => null,
+  IssueSummaryBar: () => null,
+  locateFieldByPath: () => false,
 }));
 
 vi.mock("../panel-shared", () => ({

@@ -8,7 +8,7 @@ import {
 
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
 import { MicroflowEdgeDataContext } from "./FlowGramMicroflowTypes";
-import { emitInlineLineLabelCommit } from "./inline-events";
+import { emitInlineLineDelete, emitInlineLineLabelCommit } from "./inline-events";
 import { MicroflowEdge } from "../components/MicroflowEdge";
 
 function lineInfoKey(input: {
@@ -254,6 +254,11 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
           }
           setDraft(label);
           setEditing(true);
+        }}
+        onDelete={() => {
+          emitInlineLineDelete({
+            flowId: data.flowId,
+          });
         }}
         editAdornment={<span className="microflow-branch-label__edit" aria-hidden="true">✎</span>}
       />

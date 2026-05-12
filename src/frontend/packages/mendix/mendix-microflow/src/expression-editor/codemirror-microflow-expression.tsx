@@ -283,10 +283,11 @@ export function buildMicroflowExpressionCompletionOptions(input: {
       return left.name.localeCompare(right.name);
     });
   const variableOptions = variables.flatMap(variable => {
+    const maybeReason = (variable.maybeReason ?? "").trim() || "Variable is not definitely assigned on every normal path to this object.";
     const detail = [
       expressionTypeLabel(variable.dataType),
       variableSourceLabel(variable),
-      variable.visibility === "maybe" ? "maybe" : undefined,
+      variable.visibility === "maybe" ? `maybe - ${maybeReason}` : undefined,
     ].filter(Boolean).join(", ");
     const baseToken = variableToken(variable.name);
     const jsonToken = jsonVariableToken(variable.name);

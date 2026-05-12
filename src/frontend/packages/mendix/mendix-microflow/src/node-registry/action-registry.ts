@@ -682,7 +682,20 @@ function action(input: {
   outputSpec?: MicroflowActionRegistryItem["outputSpec"];
   inputSpec?: MicroflowActionRegistryItem["inputSpec"];
   supportsErrorHandling?: boolean;
+  propertyTabs?: MicroflowPropertyTabKey[];
 }): MicroflowActionRegistryItem {
+  const tabOverrides: Partial<Record<MicroflowActionKind, MicroflowPropertyTabKey[]>> = {
+    retrieve: ["properties", "documentation"],
+    createObject: ["properties", "output", "documentation"],
+    changeMembers: ["properties", "documentation"],
+    delete: ["properties", "documentation"],
+    createList: ["properties", "documentation"],
+    aggregateList: ["properties", "documentation"],
+    createVariable: ["properties", "documentation"],
+    changeVariable: ["properties", "documentation"],
+    callMicroflow: ["properties", "output", "documentation"],
+    restCall: ["properties", "advanced", "output", "errorHandling", "documentation"],
+  };
   const availability = input.availability ?? "supported";
   const supportsErrorHandling = input.supportsErrorHandling ?? !["client", "logging", "metrics", "variable"].includes(input.category);
   const runtimeSupportLevel: MicroflowActionRuntimeSupportLevel =
@@ -727,7 +740,9 @@ function action(input: {
     inputSpec: input.inputSpec,
     supportsErrorHandling,
     supportedErrorHandlingTypes: supportsErrorHandling ? ["rollback", "customWithRollback", "customWithoutRollback"] : [],
-    propertyTabs: supportsErrorHandling ? ["properties", "documentation", "errorHandling", "output", "advanced"] : ["properties", "documentation", "output"],
+    propertyTabs: input.propertyTabs
+      ?? tabOverrides[input.key]
+      ?? (supportsErrorHandling ? ["properties", "documentation", "errorHandling", "output", "advanced"] : ["properties", "documentation", "output"]),
     runtimeSupportLevel,
     createsActionActivity: true,
     createAction: ({ id, config, caption }: { id: string; config?: Partial<MicroflowActionActivityConfig>; caption?: string }) => createConcreteAction(item, id, { ...item.defaultConfig, ...config }, caption),
