@@ -151,6 +151,14 @@ const categoryStyle: CSSProperties = {
   overflow: "hidden"
 };
 
+const toolboxCategoryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))",
+  gap: 8,
+  padding: "2px 2px 10px",
+  borderBottom: "1px solid rgba(78, 89, 105, 0.12)",
+};
+
 const cardBaseStyle: CSSProperties = {
   position: "relative",
   display: "flex",
@@ -514,8 +522,8 @@ export function MicroflowNodeCard({
   const toolboxLayout = layout === "toolbox";
   const cardStyle: CSSProperties = {
     ...cardBaseStyle,
-    minHeight: toolboxLayout ? 76 : compact ? 30 : 34,
-    padding: toolboxLayout ? "8px 4px 6px" : compact ? "4px 8px" : cardBaseStyle.padding,
+    minHeight: toolboxLayout ? 86 : compact ? 30 : 34,
+    padding: toolboxLayout ? "10px 6px 8px" : compact ? "4px 8px" : cardBaseStyle.padding,
     opacity: disabled ? 0.58 : 1,
     cursor: disabled ? "not-allowed" : dragging ? "grabbing" : "grab",
     background: cardActive
@@ -634,13 +642,13 @@ export function MicroflowNodeCard({
           title={item.titleZh}
           style={{
             flexShrink: 0,
-            maxWidth: "100%",
+          maxWidth: "100%",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: toolboxLayout ? "normal" : "nowrap",
             lineHeight: toolboxLayout ? "13px" : "18px",
             textAlign: toolboxLayout ? "center" : "left",
-            fontSize: toolboxLayout ? 11 : undefined,
+            fontSize: toolboxLayout ? 12 : undefined,
             color: toolboxLayout ? "var(--semi-color-text-1, #1f2329)" : undefined,
             display: "-webkit-box",
             WebkitBoxOrient: "vertical",
@@ -1011,9 +1019,15 @@ export function MicroflowNodePanel({
 }: MicroflowNodePanelProps) {
   const labels = { ...defaultMicroflowNodePanelLabels, ...labelOverrides };
   void onInsertTemplate;
+  const defaultExpandedCategories = useMemo(() => mendixToolboxSections.map(section => section.key), []);
   const [keyword, setKeyword] = useState("");
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => readStoredStringList(nodePanelCategoryStorageKey, mendixToolboxSections.map(section => section.key)));
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => {
+    const stored = readStoredStringList(nodePanelCategoryStorageKey, defaultExpandedCategories);
+    const allowed = new Set(defaultExpandedCategories);
+    const normalized = stored.filter(item => allowed.has(item));
+    return normalized.length > 0 ? normalized : defaultExpandedCategories;
+  });
   const [contextMenu, setContextMenu] = useState<ContextMenuState>();
 
   const grouped = useMemo(() => buildMendixToolboxSections(registry, debouncedKeyword), [debouncedKeyword, registry]);
@@ -1109,15 +1123,7 @@ export function MicroflowNodePanel({
                     <Text size="small" strong>{section.label}</Text>
                   </button>
                   {open ? (
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                        gap: 6,
-                        padding: "2px 2px 8px",
-                        borderBottom: "1px solid rgba(78, 89, 105, 0.12)",
-                      }}
-                    >
+                    <div style={toolboxCategoryGridStyle}>
                       {section.items.map(item => (
                         <MicroflowNodeCard
                           key={getMicroflowNodeRegistryKey(item)}

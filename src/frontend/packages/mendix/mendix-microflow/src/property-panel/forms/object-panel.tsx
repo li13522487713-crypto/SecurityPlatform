@@ -135,11 +135,12 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   const { version: metadataVersion } = useMetadataStatus();
   const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
   const variableIndex = useMemo(() => buildVariableIndex(props.schema, effectiveCatalog), [props.schema, effectiveCatalog, metadataVersion]);
-  const tabs = useMemo(() => getObjectTabs(object), [object]);
-  const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>(tabs[0] ?? "properties");
+  const availableTabs = useMemo(() => getObjectTabs(object), [object]);
+  const tabs = useMemo<MicroflowPropertyTabKey[]>(() => ["properties", "output", "documentation"], []);
+  const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>("properties");
   useEffect(() => {
-    setActiveTab(tabs[0] ?? "properties");
-  }, [object.id, tabs]);
+    setActiveTab("properties");
+  }, [object.id]);
   const issues = issuesFor(props, object.id, undefined, object.kind === "actionActivity" ? object.action.id : undefined);
   const patch = (next: MicroflowObject) => props.onObjectChange(object.id, { object: next });
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit object settings." : "";
@@ -190,6 +191,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
   }
   return (
     <>
+      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
       <Header
         props={props}
         title={objectTitle(object)}
@@ -197,7 +199,6 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         onDelete={() => props.onDeleteObject?.(object.id)}
         onDuplicate={() => props.onDuplicateObject?.(object.id)}
       />
-      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
       <div style={{ padding: 14, display: "grid", gap: 12 }}>
         <ValidationIssueList issues={issues} />
         {activeTab === "properties" ? (
@@ -262,6 +263,53 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
               <ErrorHandlerForm object={object} readonly={props.readonly} patch={patch} />
             </>
           )
+        ) : null}
+        {activeTab === "properties" && availableTabs.includes("errorHandling") ? (
+          <>
+            {object.kind === "actionActivity" ? (
+              <Field label="Error Handling Type">
+                <ErrorHandlingEditor
+                  value={object.action.errorHandlingType}
+                  readonly={props.readonly}
+                  actionKind={object.action.kind}
+                  fieldPath="action.errorHandlingType"
+                  issues={getIssuesForField(issues, "action.errorHandlingType")}
+                  supportedTypes={supportedErrorHandlingTypesForAction(object.action.kind)}
+                  onChange={errorHandlingType => patch(updateAction(object, { errorHandlingType }))}
+                />
+              </Field>
+            ) : object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" || object.kind === "loopedActivity" ? (
+              <Field label="Error Handling Type">
+                <ErrorHandlingEditor
+                  value={object.errorHandlingType}
+                  readonly={props.readonly}
+                  objectKind={object.kind}
+                  fieldPath="errorHandlingType"
+                  issues={getIssuesForField(issues, "errorHandlingType")}
+                  supportedTypes={supportedErrorHandlingTypesForObject(object.kind)}
+                  onChange={errorHandlingType => patch({ ...object, errorHandlingType })}
+                />
+              </Field>
+            ) : null}
+          </>
+        ) : null}
+        {activeTab === "properties" && availableTabs.includes("advanced") ? (
+          <>
+            <Field label="Disabled">
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Disabled",
+                <Switch checked={Boolean(object.disabled)} disabled={props.readonly} onChange={disabled => patch({ ...object, disabled } as MicroflowObject)} />
+              )}
+            </Field>
+            <Field label="Performance Tag">
+              {withDisabledReason(
+                readonlyDisabledReason,
+                "Performance tag",
+                <Input value={(object.editor as unknown as { advanced?: { performanceTag?: string } }).advanced?.performanceTag ?? ""} disabled={props.readonly} onChange={performanceTag => patch(updateObjectAdvanced(object, { performanceTag }))} />
+              )}
+            </Field>
+          </>
         ) : null}
         {activeTab === "documentation" ? (
           <Field label="Documentation">

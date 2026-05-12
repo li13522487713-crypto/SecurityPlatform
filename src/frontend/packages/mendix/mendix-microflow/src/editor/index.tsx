@@ -67,14 +67,12 @@ import {
   MICROFLOW_INLINE_FIELD_COMMIT_EVENT,
   MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT,
   MICROFLOW_INLINE_NODE_INSPECT_EVENT,
-  MICROFLOW_INLINE_NODE_TOGGLE_EVENT,
   MICROFLOW_INLINE_QUICK_FIX_EVENT,
   subscribeInlineNodeInspect,
   subscribeInlineNodeToggle,
   type MicroflowInlineFieldCommitDetail,
   type MicroflowInlineLineLabelCommitDetail,
   type MicroflowInlineNodeInspectDetail,
-  type MicroflowInlineNodeToggleDetail,
   type MicroflowInlineQuickFixDetail,
 } from "../flowgram/inline-events";
 import type { FlowGramMicroflowEdgeData, MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
@@ -163,11 +161,10 @@ const { Text, Title } = Typography;
 const favoriteStorageKey = "atlas_microflow_node_panel_favorites";
 const leftPanelStorageKey = "atlas_microflow_panel_left_open";
 const rightPanelStorageKey = "atlas_microflow_panel_right_open";
-const rightPanelPinnedStorageKey = "atlas_microflow_panel_right_pinned";
 const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
 const bottomTabStorageKey = "atlas_microflow_panel_bottom_tab";
 const mendixLayoutStorageKey = "lowcode-studio:mendix-layout:v1";
-const RAIL_WIDTH_PX = 44;
+const NODE_TOOLBOX_PANEL_WIDTH_PX = 420;
 const RIGHT_PANEL_EXPANDED_PX = 260;
 const BOTTOM_STRIP_HEIGHT_PX = 32;
 const BOTTOM_DOCK_PEEK_HEIGHT_PX = 260;
@@ -611,8 +608,8 @@ export interface MicroflowEditorProps {
   toolbarSuffix?: ReactNode;
   nodePanelLabels?: Partial<MicroflowNodePanelLabels>;
   immersive?: boolean;
-  /** 未写入 localStorage 时的初始值；默认随 `immersive` 为 true 时展开，否则收起 */
   defaultRightPanelOpen?: boolean;
+  /** 底部 Dock 默认收起；只有用户点击 Problems/Debug 或校验失败时才展开。 */
   defaultBottomPanelOpen?: boolean;
   /** 是否把右/底面板开关持久化到 localStorage（默认 true） */
   persistAuxPanelState?: boolean;
@@ -942,30 +939,6 @@ function writeStoredBoolean(key: string, value: boolean): void {
   }
 }
 
-function normalizeBottomDockMode(value: unknown): BottomDockMode | undefined {
-  if (value === "collapsed" || value === "peek" || value === "full") {
-    return value;
-  }
-  if (value === true || value === "true") {
-    return "peek";
-  }
-  if (value === false || value === "false") {
-    return "collapsed";
-  }
-  return undefined;
-}
-
-function readStoredBottomDockMode(key: string): BottomDockMode | undefined {
-  if (typeof window === "undefined") {
-    return undefined;
-  }
-  try {
-    return normalizeBottomDockMode(window.localStorage.getItem(key));
-  } catch {
-    return undefined;
-  }
-}
-
 function writeStoredBottomDockMode(key: string, value: BottomDockMode): void {
   if (typeof window === "undefined") {
     return;
@@ -1031,11 +1004,6 @@ function writeMendixLayoutStorage(patch: MendixLayoutStorage): void {
 
 function readStoredExternalBottomTab(): MicroflowWorkbenchBottomTab | undefined {
   return normalizeWorkbenchBottomTab(readMendixLayoutStorage().activeBottomTab);
-}
-
-function readStoredExternalBottomDockMode(): BottomDockMode | undefined {
-  const storage = readMendixLayoutStorage();
-  return normalizeBottomDockMode(storage.bottomMode ?? storage.bottomOpen);
 }
 
 function clampBottomDockHeight(value: number): number {
@@ -2332,7 +2300,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const apiClient = props.apiClient ?? createMissingMicroflowApiClient();
   const persistAuxPanelState = props.persistAuxPanelState !== false;
   const rightPanelFallback = props.defaultRightPanelOpen ?? (props.immersive === true);
-  const bottomPanelFallback = props.defaultBottomPanelOpen ?? (props.immersive === true);
+  const bottomPanelFallback = props.defaultBottomPanelOpen ?? false;
 
   const [schema, setSchema] = useState<MicroflowSchema>(() =>
     refreshDerivedState(stripTransientSchemaState(props.schema), props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG),
@@ -2430,27 +2398,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     const stored = readStoredBoolean(rightPanelStorageKey);
     return stored !== undefined ? stored : rightPanelFallback;
   });
-  const [rightPinned, setRightPinned] = useState(() => {
-    if (!persistAuxPanelState) {
-      return false;
-    }
-    return readStoredBoolean(rightPanelPinnedStorageKey) === true;
-  });
   useEffect(() => {
     if (leftOpen && rightOpen) {
       setRightOpen(false);
     }
   }, [leftOpen, rightOpen]);
   const bottomPanelFallbackMode: BottomDockMode = bottomPanelFallback ? "peek" : "collapsed";
-  const [bottomDockMode, setBottomDockMode] = useState<BottomDockMode>(() => {
-    if (props.toolbarMode === "external") {
-      return readStoredExternalBottomDockMode() ?? bottomPanelFallbackMode;
-    }
-    if (!persistAuxPanelState) {
-      return bottomPanelFallbackMode;
-    }
-    return readStoredBottomDockMode(bottomPanelStorageKey) ?? bottomPanelFallbackMode;
-  });
+  const [bottomDockMode, setBottomDockMode] = useState<BottomDockMode>(bottomPanelFallbackMode);
   const [bottomDockHeight, setBottomDockHeight] = useState(() => {
     const storedHeight = readMendixLayoutStorage().bottomHeight;
     return clampBottomDockHeight(typeof storedHeight === "number" ? storedHeight : BOTTOM_DOCK_FULL_DEFAULT_PX);
@@ -2554,20 +2508,29 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }), [externalLayout, focusMode]);
 
   const bodyStyle = useMemo((): CSSProperties => {
+    const hasPropertySelection = Boolean(
+      schema.editor.selection.objectId
+      || schema.editor.selection.flowId
+      || schema.editor.selection.objectIds?.length
+      || schema.editor.selection.flowIds?.length
+    );
     const rightCol = focusMode || !AUXILIARY_PANELS_ENABLED
       ? 0
-      : leftOpen || rightOpen
-        ? RIGHT_PANEL_EXPANDED_PX
-        : RAIL_WIDTH_PX;
+      : leftOpen
+        ? NODE_TOOLBOX_PANEL_WIDTH_PX
+        : rightOpen && hasPropertySelection
+          ? RIGHT_PANEL_EXPANDED_PX
+          : 0;
     return {
       display: "grid",
       gridTemplateColumns: `minmax(0, 1fr) ${rightCol}px`,
       minHeight: 0,
       minWidth: 0,
       overflow: "hidden",
-      position: "relative"
+      position: "relative",
+      transition: "grid-template-columns 250ms cubic-bezier(0.4, 0, 0.2, 1)"
     };
-  }, [focusMode, leftOpen, rightOpen]);
+  }, [focusMode, leftOpen, rightOpen, schema.editor.selection.flowId, schema.editor.selection.flowIds?.length, schema.editor.selection.objectId, schema.editor.selection.objectIds?.length]);
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const graphIndex = useMemo(() => createMicroflowGraphIndex(schema), [schema.objectCollection, schema.flows]);
@@ -2653,22 +2616,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     return commands.has("continue") || commands.has("stepover") || commands.has("stepinto") || commands.has("stepout");
   }, [activeDebugSession]);
   const runtimeInlineReadonly = running && !isDebugPaused;
-  const hasExpandedInlineNode = useMemo(
-    () => Object.values(nodeViewModes).some(mode => mode === "expanded"),
-    [nodeViewModes],
-  );
-  const inlineEditState = useMemo<InlineEditState>(() => {
-    if (runtimeInlineReadonly) {
-      return "blocked";
-    }
-    if (isDebugPaused) {
-      return "paused-edit";
-    }
-    if (hasExpandedInlineNode) {
-      return "editing";
-    }
-    return "idle";
-  }, [hasExpandedInlineNode, isDebugPaused, runtimeInlineReadonly]);
   const activeDebugVariables = activeDebugSession ? debugVariablesBySessionId[activeDebugSession.id] ?? [] : [];
   const activeDebugTimeline = activeDebugSession ? debugTimelineBySessionId[activeDebugSession.id] ?? [] : [];
   const activeDebugSuspendPolicy = activeDebugSession ? debugSuspendPolicyBySessionId[activeDebugSession.id] ?? "all" : "all";
@@ -5031,29 +4978,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     commitSchema(nextSchema, source.parentLoopObjectId ? "addLoopNode" : "addNode", { historyLabel: "Paste selection", source: "flowgram" });
   };
 
-  const handleEnterInlineEdit = useCallback(() => {
-    const selection = schema.editor.selection;
-    const selectedObjectId = selection.objectId
-      ?? selection.objectIds?.find(id => Boolean(id && findObjectWithCollection(schema, id)));
-    if (!selectedObjectId) {
-      Toast.info("请先选中一个节点，再进入内敛编辑。");
-      return;
-    }
-    setNodeViewModes(current => ({ ...current, [selectedObjectId]: "expanded" }));
-    openPropertiesPanel();
-    applyPatch(
-      {
-        selectedObjectId,
-        selectedFlowId: undefined,
-        selectedCollectionId: findObjectWithCollection(schema, selectedObjectId)?.collectionId,
-      },
-      { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" },
-    );
-    if (runtimeInlineReadonly) {
-      Toast.info("运行中当前为只读；请在暂停点提交变更。");
-    }
-  }, [applyPatch, runtimeInlineReadonly, schema]);
-
   const handleEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (isEditableElement(event.target)) {
       return;
@@ -5082,7 +5006,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     if ((event.ctrlKey || event.metaKey) && key === "e") {
       event.preventDefault();
-      handleEnterInlineEdit();
+      if (schema.editor.selection.objectId || schema.editor.selection.flowId) {
+        openPropertiesPanel();
+      } else {
+        Toast.info("请先选中一个节点，再打开属性面板。");
+      }
       return;
     }
     if ((event.ctrlKey || event.metaKey) && key === "0") {
@@ -5129,7 +5057,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         writeMendixLayoutStorage({
           nodesDrawerOpen: leftOpen,
           inspectorOpen: rightOpen,
-          inspectorMode: "floating",
+          inspectorMode: "docked",
           inspectorWidth: RIGHT_PANEL_EXPANDED_PX,
           bottomOpen,
           bottomMode: bottomDockMode,
@@ -5147,11 +5075,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     writeStoredBoolean(leftPanelStorageKey, leftOpen);
     writeStoredBoolean(rightPanelStorageKey, rightOpen);
-    writeStoredBoolean(rightPanelPinnedStorageKey, rightPinned);
     writeStoredBottomDockMode(bottomPanelStorageKey, bottomDockMode);
     writeStoredBottomTab(bottomTab);
     return undefined;
-  }, [bottomDockHeight, bottomDockMode, bottomOpen, bottomTab, externalLayout, focusMode, leftOpen, persistAuxPanelState, rightOpen, rightPinned, schema.editor.gridEnabled, schema.editor.showMiniMap]);
+  }, [bottomDockHeight, bottomDockMode, bottomOpen, bottomTab, externalLayout, focusMode, leftOpen, persistAuxPanelState, rightOpen, schema.editor.gridEnabled, schema.editor.showMiniMap]);
 
   useEffect(() => {
     if (!schema.id) {
@@ -5159,21 +5086,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     void loadRunHistory(schema.id, runHistoryFilter);
   }, [schema.id, runHistoryFilter, loadRunHistory]);
-
-  const rightRailStyle: CSSProperties = {
-    width: RAIL_WIDTH_PX,
-    flexShrink: 0,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    paddingTop: 10,
-    gap: 6,
-    borderLeft: "1px solid var(--semi-color-border, #e5e6eb)",
-    background: "var(--semi-color-bg-2, #fff)",
-    cursor: "pointer",
-    userSelect: "none",
-    color: "var(--semi-color-text-1, rgba(28, 31, 35, 0.8))"
-  };
 
   const openNodePanel = useCallback(() => {
     setLeftOpen(true);
@@ -5292,7 +5204,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     } else {
       openNodePanel();
     }
-    setRightPinned(false);
     setBottomDockHeight(BOTTOM_DOCK_FULL_DEFAULT_PX);
     setBottomDockMode(bottomPanelFallbackMode);
     setBottomTab("problems");
@@ -5456,16 +5367,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       // Fallback: keep original seed so we at least store a mode for something.
       return [seeds[0]!];
     };
-    const onNodeToggleDetail = (detail: MicroflowInlineNodeToggleDetail) => {
-      const nodeIds = resolveInlineNodeIds(detail);
-      if (nodeIds.length === 0) {
-        return;
-      }
-      setNodeViewModes(current => ({
-        ...current,
-        ...Object.fromEntries(nodeIds.map(nodeId => [nodeId, detail.expanded ? "expanded" : "compact"])),
-      }));
-    };
     const onNodeInspectDetail = (detail: MicroflowInlineNodeInspectDetail) => {
       const nodeIds = resolveInlineNodeIds(detail);
       const primaryNodeId = nodeIds[0];
@@ -5478,9 +5379,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       }));
       applyPatch({ selectedObjectId: primaryNodeId, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
       openPropertiesPanel();
-    };
-    const onNodeToggle = (event: Event) => {
-      onNodeToggleDetail((event as CustomEvent<MicroflowInlineNodeToggleDetail>).detail);
     };
     const onNodeInspect = (event: Event) => {
       onNodeInspectDetail((event as CustomEvent<MicroflowInlineNodeInspectDetail>).detail);
@@ -5567,15 +5465,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         },
       }));
     };
-    const unsubscribeNodeToggle = subscribeInlineNodeToggle(onNodeToggleDetail);
+    const unsubscribeNodeToggle = subscribeInlineNodeToggle(detail => {
+      if (detail.nodeId || detail.runtimeNodeId) {
+        openPropertiesPanel();
+      }
+    });
     const unsubscribeNodeInspect = subscribeInlineNodeInspect(onNodeInspectDetail);
-    window.addEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, onNodeToggle as EventListener);
     window.addEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, onNodeInspect as EventListener);
     window.addEventListener(MICROFLOW_INLINE_FIELD_COMMIT_EVENT, onFieldCommit as EventListener);
     window.addEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
     window.addEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);
     return () => {
-      window.removeEventListener(MICROFLOW_INLINE_NODE_TOGGLE_EVENT, onNodeToggle as EventListener);
       window.removeEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, onNodeInspect as EventListener);
       unsubscribeNodeToggle();
       unsubscribeNodeInspect();
@@ -5583,7 +5483,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       window.removeEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
       window.removeEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);
     };
-  }, [applyPatch, commitSchema, emitPanelSyncEvent, isDebugPaused, props.readonly, running, schema]);
+  }, [applyPatch, commitSchema, emitPanelSyncEvent, isDebugPaused, openPropertiesPanel, props.readonly, running, schema]);
 
   // External hosts ride imperative handle; internal mode also receives the handle so
   // higher-level UIs can opt-in without forcing internal toolbar to disappear.
@@ -5739,13 +5639,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     { id: "validate", label: "Validate", run: () => void handleValidate() },
     { id: "run", label: "Run Test", disabled: running, disabledReason: running ? "A run is already in progress." : undefined, run: () => void handleTestRun() },
     { id: "debug", label: "Run Debug", disabled: running, disabledReason: running ? "A run is already in progress." : undefined, run: () => void startDebugSession() },
-    {
-      id: "inline-edit",
-      label: "Enter Inline Edit",
-      disabled: !(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length),
-      disabledReason: !(schema.editor.selection.objectId || schema.editor.selection.objectIds?.length) ? "Select a node first." : undefined,
-      run: () => handleEnterInlineEdit(),
-    },
     ...(AUXILIARY_PANELS_ENABLED ? [
       { id: "problems", label: "Open Problems", run: () => { setBottomDockMode("peek"); setBottomTab("problems"); } },
       { id: "properties", label: rightOpen ? "Hide Properties" : "Show Properties", run: () => togglePropertiesPanel() },
@@ -5765,7 +5658,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     ...problemPaletteActions,
     ...tracePaletteActions,
     ...nodePaletteActions,
-  ], [apiClient.retryMicroflowRun, apiClient.runRetention, dirty, focusMode, handleEnterInlineEdit, handleExportAsImage, handleRetentionDryRun, handleRetentionExecute, handleRetentionPreview, handleRetryQueuedRun, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, nodePaletteActions, problemPaletteActions, props.readonly, rightOpen, runSession?.id, running, saving, schema.editor.selection.objectId, schema.editor.selection.objectIds, schema.editor.viewport, selectedRunId, startDebugSession, toggleNodePanel, togglePropertiesPanel, tracePaletteActions]);
+  ], [apiClient.retryMicroflowRun, apiClient.runRetention, dirty, focusMode, handleExportAsImage, handleRetentionDryRun, handleRetentionExecute, handleRetentionPreview, handleRetryQueuedRun, handleSave, historyState.canRedo, historyState.canUndo, leftOpen, nodePaletteActions, problemPaletteActions, props.readonly, rightOpen, runSession?.id, running, saving, schema.editor.viewport, selectedRunId, startDebugSession, toggleNodePanel, togglePropertiesPanel, tracePaletteActions]);
 
   const canPasteSelection = Boolean(clipboardObject);
   const selectionObjectIds = [...new Set([...(schema.editor.selection.objectIds ?? []), schema.editor.selection.objectId].filter((id): id is string => Boolean(id)))];
@@ -5867,9 +5760,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           </Tag>
           {!focusMode && saveBlockers.length > 0 ? <Tag color="red">Save blocked {saveBlockers.length}</Tag> : null}
           {!focusMode && publishBlockers.length > 0 ? <Tag color="red">Publish blocked by {publishBlockers.length} errors</Tag> : null}
-          {!focusMode && inlineEditState === "blocked" ? <Tag color="orange">Inline edit: running-readonly (editable on pause)</Tag> : null}
-          {!focusMode && inlineEditState === "editing" ? <Tag color="green">Inline edit: editing</Tag> : null}
-          {!focusMode && inlineEditState === "paused-edit" ? <Tag color="blue">Inline edit: paused-edit</Tag> : null}
           {!focusMode && runSession ? <Tag color={runSession.status === "success" ? "green" : "red"}>{runSession.status} · {runSession.trace.length} frames</Tag> : null}
           {!focusMode ? (
             <span
@@ -6054,6 +5944,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }}
           onSelectionChange={selection => {
             setCanvasNodeContextMenu(undefined);
+            if (selection.objectId || selection.flowId) {
+              openPropertiesPanel();
+            }
             if (isDesignSchema(schema)) {
               commitSchema({
                 ...schema,
@@ -6083,6 +5976,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }}
           onCanvasBlankClick={() => {
             setCanvasNodeContextMenu(undefined);
+            closePropertiesPanel();
             if (isDesignSchema(schema)) {
               commitSchema({
                 ...schema,
@@ -6330,7 +6224,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </div>
           );
         })() : null}
-        {AUXILIARY_PANELS_ENABLED && !focusMode ? <div
+        {AUXILIARY_PANELS_ENABLED && !focusMode && (leftOpen || (rightOpen && (selectedObject || selectedFlow))) ? <div
           data-testid="microflow-editor-right-shell"
           style={{
             display: "flex",
@@ -6339,17 +6233,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             minHeight: 0,
             overflow: "hidden",
             background: "var(--semi-color-bg-1, #fff)",
-            ...(externalLayout
-              ? {
-                position: "absolute",
-                top: 0,
-                right: 0,
-                bottom: 0,
-                width: (leftOpen || rightOpen) ? RIGHT_PANEL_EXPANDED_PX + RAIL_WIDTH_PX : RAIL_WIDTH_PX,
-                zIndex: 22,
-                boxShadow: (leftOpen || rightOpen) ? "0 12px 32px rgba(31, 35, 41, 0.14)" : undefined
-              } satisfies CSSProperties
-              : {})
+            width: "100%",
+            transition: "width 250ms cubic-bezier(0.4, 0, 0.2, 1)"
           }}
         >
           {leftOpen ? (
@@ -6391,41 +6276,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               />
             </div>
           ) : null}
-          {rightOpen ? (
-            <div data-testid="microflow-property-panel" style={propertyPaneStyle}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  padding: "0 0 8px",
-                  marginBottom: 8,
-                  borderBottom: "1px solid var(--semi-color-border, #e5e6eb)"
-                }}
-              >
-                <Space spacing={6}>
-                  <IconSetting />
-                  <Text strong>{labels.properties}</Text>
-                </Space>
-                <Space spacing={4}>
-                  <Button
-                    size="small"
-                    theme={rightPinned ? "solid" : "borderless"}
-                    type="tertiary"
-                    onClick={() => setRightPinned(value => !value)}
-                  >
-                    {rightPinned ? "已固定" : "固定"}
-                  </Button>
-                  <Button
-                    aria-label="关闭属性面板"
-                    size="small"
-                    theme="borderless"
-                    icon={<IconClose />}
-                    onClick={closePropertiesPanel}
-                  />
-                </Space>
-              </div>
+          {rightOpen && (selectedObject || selectedFlow) ? (
+            <div data-testid="microflow-property-panel" style={{ ...propertyPaneStyle, padding: 0 }}>
               {isDesignSchema(schema) ? (
                 <MicroflowPropertyPanel
                   schemaProtocol="design"
@@ -6439,9 +6291,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   }}
                   onClose={() => {
                     applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true });
-                    if (!rightPinned) {
-                      closePropertiesPanel();
-                    }
+                    closePropertiesPanel();
                   }}
                   onHighlightVariableUsage={handleHighlightVariableUsage}
                 />
@@ -6508,76 +6358,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   }}
                   onClose={() => {
                     applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true });
-                    if (!rightPinned) {
-                      closePropertiesPanel();
-                    }
+                    closePropertiesPanel();
                   }}
                   onHighlightVariableUsage={handleHighlightVariableUsage}
                 />
               )}
             </div>
           ) : null}
-          <div style={rightRailStyle}>
-            <button
-              type="button"
-              data-testid="microflow-node-panel-rail"
-              aria-label={leftOpen ? "折叠节点面板" : "展开节点面板"}
-              title={labels.nodePanel}
-              style={{
-                border: 0,
-                background: leftOpen ? "rgba(22, 93, 255, 0.08)" : "transparent",
-                width: "100%",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 6,
-                padding: "10px 0",
-                cursor: "pointer",
-                color: leftOpen ? "var(--semi-color-primary, #165dff)" : "inherit"
-              }}
-              onClick={toggleNodePanel}
-            >
-              <IconMore style={{ fontSize: 18 }} />
-              <Text size="small" strong style={{ writingMode: "vertical-rl", textOrientation: "mixed", letterSpacing: 1 }}>{labels.nodePanel}</Text>
-            </button>
-            <button
-              type="button"
-              aria-label={rightOpen ? "折叠属性面板" : "展开属性面板"}
-              title={labels.properties}
-              style={{
-                border: 0,
-                background: rightOpen ? "rgba(22, 93, 255, 0.08)" : "transparent",
-                width: "100%",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 6,
-                padding: "10px 0",
-                cursor: "pointer",
-                color: rightOpen ? "var(--semi-color-primary, #165dff)" : "inherit"
-              }}
-              onClick={togglePropertiesPanel}
-              onKeyDown={event => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  togglePropertiesPanel();
-                }
-              }}
-            >
-              <IconSetting style={{ fontSize: 18 }} />
-              <Text
-                size="small"
-                strong
-                style={{
-                  writingMode: "vertical-rl",
-                  textOrientation: "mixed",
-                  letterSpacing: 1
-                }}
-              >
-                {labels.properties}
-              </Text>
-            </button>
-          </div>
         </div> : null}
       </div>
       {AUXILIARY_PANELS_ENABLED && !focusMode && bottomOpen ? (

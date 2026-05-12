@@ -24,41 +24,7 @@ vi.mock("@douyinfe/semi-ui", () => ({
 vi.mock("@douyinfe/semi-icons", () => ({
   IconChevronDown: () => <span>down</span>,
   IconChevronUp: () => <span>up</span>,
-  IconEdit: () => <span>edit</span>,
-  IconTickCircle: () => <span>tick</span>,
   IconMore: () => <span>more</span>,
-}));
-
-vi.mock("../inline-edit", () => ({
-  InlineNodeEditor: ({
-    onApplyQuickFix,
-    onCommitField,
-  }: {
-    onApplyQuickFix?: (input: { id: string; actionKind: string; fieldPath?: string; value?: string; editType?: string }) => void;
-    onCommitField?: (field: { fieldPath: string; editType: string }, value: string) => void;
-  }) => (
-    <div data-testid="inline-node-editor">
-      inline-node-editor
-      <button
-        type="button"
-        onClick={() => onCommitField?.({ fieldPath: "data.action.request.urlExpression.raw", editType: "http" }, "/api/inline-from-node")}
-      >
-        commit-field
-      </button>
-      <button
-        type="button"
-        onClick={() => onApplyQuickFix?.({
-          id: "fix-1",
-          actionKind: "setFieldValue",
-          fieldPath: "data.action.request.urlExpression.raw",
-          value: "/api/inline-fixed",
-          editType: "http",
-        })}
-      >
-        apply-fix
-      </button>
-    </div>
-  ),
 }));
 
 vi.mock("./FlowGramMicroflowPortRenderer", () => ({
@@ -86,7 +52,6 @@ vi.mock("@flowgram-adapter/free-layout-editor", () => ({
 }));
 
 import { FlowGramMicroflowNodeRenderer } from "./FlowGramMicroflowNodeRenderer";
-import { subscribeInlineNodeToggle } from "./inline-events";
 import { MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
 
 afterEach(() => {
@@ -161,7 +126,7 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
     expect(screen.getByText("Usage")).toBeTruthy();
   });
 
-  it("uses projected inlineConfig view mode when FlowGram renders outside React context", () => {
+  it("ignores projected inlineConfig view mode and keeps canvas inline editor hidden", () => {
     const value = buildNodeValue("expanded");
     const node = {
       id: "node-1",
@@ -178,11 +143,10 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
       </MicroflowNodeViewModesContext.Provider>
     );
 
-    expect(screen.getByRole("button", { name: "收起节点" })).toBeTruthy();
-    expect(screen.getByTestId("inline-node-editor")).toBeTruthy();
+    expect(screen.getByTestId("microflow-node-node-1").className).not.toContain("is-expanded");
   });
 
-  it("prefers projected doc JSON inline state over stale FlowGram form data", () => {
+  it("ignores projected doc JSON inline state over stale FlowGram form data", () => {
     const staleFormValue = buildNodeValue("compact");
     const projectedJsonValue = buildNodeValue("expanded");
     const node = {
@@ -203,92 +167,7 @@ describe("FlowGramMicroflowNodeRenderer interaction", () => {
       </MicroflowNodeViewModesContext.Provider>
     );
 
-    expect(screen.getByRole("button", { name: "收起节点" })).toBeTruthy();
-    expect(screen.getByTestId("inline-node-editor")).toBeTruthy();
-  });
-
-  it("dispatches inline node toggle event on double click", () => {
-    const events: Array<{ nodeId?: string; expanded?: boolean }> = [];
-    const unsub = subscribeInlineNodeToggle(detail => events.push(detail));
-    try {
-      renderNode();
-      fireEvent.doubleClick(screen.getByTestId("microflow-node-node-1"));
-      expect(events).toEqual([expect.objectContaining({ nodeId: "node-1", expanded: true })]);
-    } finally {
-      unsub();
-    }
-  });
-
-  it("dispatches inline node toggle event from header expand button", () => {
-    const events: Array<{ nodeId?: string; expanded?: boolean }> = [];
-    const unsub = subscribeInlineNodeToggle(detail => events.push(detail));
-    try {
-      renderNode();
-      fireEvent.click(screen.getByRole("button", { name: "展开节点" }));
-      expect(events).toEqual([expect.objectContaining({ nodeId: "node-1", expanded: true })]);
-    } finally {
-      unsub();
-    }
-  });
-
-  it("dispatches inline node toggle once from pointer activation", () => {
-    const events: Array<{ nodeId?: string; expanded?: boolean }> = [];
-    const unsub = subscribeInlineNodeToggle(detail => events.push(detail));
-    try {
-      renderNode();
-      const button = screen.getByRole("button", { name: "展开节点" });
-      fireEvent.pointerDown(button);
-      fireEvent.click(button);
-      expect(events).toEqual([expect.objectContaining({ nodeId: "node-1", expanded: true })]);
-    } finally {
-      unsub();
-    }
-  });
-
-  it("dispatches inline quick-fix apply event with expanded editor payload", () => {
-    const events: Array<Record<string, unknown>> = [];
-    const listener = (event: Event) => {
-      events.push((event as CustomEvent<Record<string, unknown>>).detail);
-    };
-    window.addEventListener("atlas:microflow-inline-quick-fix-apply", listener as EventListener);
-    try {
-      renderNode("expanded");
-      fireEvent.click(screen.getByText("apply-fix"));
-      expect(events).toEqual([
-        expect.objectContaining({
-          nodeId: "node-1",
-          suggestionId: "fix-1",
-          actionKind: "setFieldValue",
-          fieldPath: "data.action.request.urlExpression.raw",
-          value: "/api/inline-fixed",
-          editType: "http",
-        }),
-      ]);
-    } finally {
-      window.removeEventListener("atlas:microflow-inline-quick-fix-apply", listener as EventListener);
-    }
-  });
-
-  it("dispatches inline field commit event with node context", () => {
-    const events: Array<Record<string, unknown>> = [];
-    const listener = (event: Event) => {
-      events.push((event as CustomEvent<Record<string, unknown>>).detail);
-    };
-    window.addEventListener("atlas:microflow-inline-field-commit", listener as EventListener);
-    try {
-      renderNode("expanded");
-      fireEvent.click(screen.getByText("commit-field"));
-      expect(events).toEqual([
-        expect.objectContaining({
-          nodeId: "node-1",
-          fieldPath: "data.action.request.urlExpression.raw",
-          editType: "http",
-          value: "/api/inline-from-node",
-        }),
-      ]);
-    } finally {
-      window.removeEventListener("atlas:microflow-inline-field-commit", listener as EventListener);
-    }
+    expect(screen.getByTestId("microflow-node-node-1").className).not.toContain("is-expanded");
   });
 
   it("renders dedicated event styles for error/continue/break events", () => {

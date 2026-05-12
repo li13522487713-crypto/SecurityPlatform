@@ -1,20 +1,14 @@
 import {
   memo,
   useContext,
-  useLayoutEffect,
-  useRef,
   useState,
   type CSSProperties,
   type MouseEvent,
   type ReactNode,
-  type PointerEvent as ReactPointerEvent,
-  type TransitionEvent,
 } from "react";
 
 import { Tag, Typography } from "@douyinfe/semi-ui";
-import { IconEdit, IconTickCircle } from "@douyinfe/semi-icons";
 import { getMendixMicroflowCopy } from "../i18n/copy";
-import { InlineNodeEditor } from "../inline-edit";
 import { AnnotationNode } from "../components/AnnotationNode";
 import { ActivityNode } from "../components/ActivityNode";
 import type { MicroflowActionActivityColor } from "../schema";
@@ -27,32 +21,14 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import type { FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
-import { MicroflowNodeUsageHighlightsContext, MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
+import { MicroflowNodeUsageHighlightsContext } from "./FlowGramMicroflowTypes";
 import { FlowGramMicroflowPortRenderer } from "./FlowGramMicroflowPortRenderer";
-import {
-  emitInlineFieldCommit,
-  emitInlineNodeInspect,
-  emitInlineNodeToggle,
-  emitInlineQuickFix,
-} from "./inline-events";
+import { emitInlineNodeInspect } from "./inline-events";
 import {
   focusMicroflowNodeDragRoot,
   isMicroflowNodeDragBlockedTarget,
 } from "./flowgram-node-drag";
 import "./styles/flowgram-microflow-node.css";
-
-function stopEditorControlEvent(event: MouseEvent<HTMLElement> | ReactPointerEvent<HTMLElement>) {
-  event.preventDefault();
-  event.stopPropagation();
-}
-
-function isHeaderInlineControlRegion(event: MouseEvent<HTMLElement> | ReactPointerEvent<HTMLElement>): boolean {
-  const rect = event.currentTarget.getBoundingClientRect();
-  return event.clientX >= rect.right - 104
-    && event.clientX <= rect.right
-    && event.clientY >= rect.top
-    && event.clientY <= rect.top + 44;
-}
 
 function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeData | undefined {
   try {
@@ -377,72 +353,7 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   const [focused, setFocused] = useState(false);
   const data = tryReadNodeData(props);
   const resolvedNodeIdForState = String(data?.objectId || props.node.id);
-  const nodeViewModesCtx = useContext(MicroflowNodeViewModesContext);
   const usageHighlights = useContext(MicroflowNodeUsageHighlightsContext);
-  const dataProjectedViewMode = data?.inlineConfig?.viewMode;
-  const projectedExpanded =
-    dataProjectedViewMode === "expanded" ||
-    nodeViewModesCtx[resolvedNodeIdForState] === "expanded" ||
-    nodeViewModesCtx[`node-${resolvedNodeIdForState}`] === "expanded" ||
-    nodeViewModesCtx[resolvedNodeIdForState.replace(/^node-/, "")] === "expanded";
-  const currentExpanded = projectedExpanded;
-  const [editorMounted, setEditorMounted] = useState(currentExpanded);
-  const [collapsibleOpen, setCollapsibleOpen] = useState(currentExpanded);
-  const prevExpandedRef = useRef<boolean | null>(null);
-  const expandedForTransitionEndRef = useRef(currentExpanded);
-  expandedForTransitionEndRef.current = currentExpanded;
-
-  useLayoutEffect(() => {
-    const prev = prevExpandedRef.current;
-    prevExpandedRef.current = currentExpanded;
-
-    const reduced =
-      typeof window !== "undefined"
-      && typeof window.matchMedia === "function"
-      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    if (!currentExpanded) {
-      setCollapsibleOpen(false);
-      if (reduced) {
-        setEditorMounted(false);
-      }
-      return;
-    }
-
-    setEditorMounted(true);
-    if (reduced) {
-      setCollapsibleOpen(true);
-      return;
-    }
-
-    const wasExpanded = prev === true;
-    if (!wasExpanded && prev !== null) {
-      setCollapsibleOpen(false);
-      let raf1 = 0;
-      let raf2 = 0;
-      raf1 = requestAnimationFrame(() => {
-        raf2 = requestAnimationFrame(() => {
-          setCollapsibleOpen(true);
-        });
-      });
-      return () => {
-        cancelAnimationFrame(raf1);
-        cancelAnimationFrame(raf2);
-      };
-    }
-
-    setCollapsibleOpen(true);
-  }, [currentExpanded]);
-
-  const handleCollapsibleTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
-    if (event.propertyName !== "grid-template-rows") {
-      return;
-    }
-    if (expandedForTransitionEndRef.current) {
-      return;
-    }
-    setEditorMounted(false);
-  };
 
   const canStartNodeDrag = (event: MouseEvent<HTMLDivElement>) => {
     if (readonly || event.button !== 0) {
@@ -454,14 +365,11 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
     if (event.detail > 1) {
       return false;
     }
-    if (isHeaderInlineControlRegion(event)) {
-      return false;
-    }
     return !isMicroflowNodeDragBlockedTarget(event.target);
   };
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.button === 0 && !isHeaderInlineControlRegion(event) && !isMicroflowNodeDragBlockedTarget(event.target)) {
+    if (event.button === 0 && !isMicroflowNodeDragBlockedTarget(event.target)) {
       selectNode(event);
     }
     if (!canStartNodeDrag(event)) {
@@ -473,12 +381,6 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
 
   const handleFallbackClick = (event: MouseEvent<HTMLDivElement>) => {
     selectNode(event);
-  };
-
-  const handleDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    emitInlineNodeToggle({ nodeId: data?.objectId ?? String(props.node.id), runtimeNodeId: String(props.node.id), expanded: !currentExpanded });
   };
 
   if (!data?.objectKind) {
@@ -515,7 +417,6 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
 
   const tone = nodeTone(data.objectKind);
   const displayTitle = disabledAwareTitle(data.title, data.disabled);
-  const isExpanded = currentExpanded;
   const summaryLines = data.inlineConfig?.summaryLines ?? [];
   const compactSummary = summaryLines.slice(0, 3);
   const summaryOverflowCount = Math.max(0, summaryLines.length - compactSummary.length);
@@ -544,13 +445,8 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
 
   const handleNodeClick = (event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as Element | null;
-    if (target?.closest?.(".microflow-flowgram-node__expand-btn")) {
-      return;
-    }
-    const interactiveTarget = target?.closest?.("button,input,textarea,select,[contenteditable='true'],.microflow-inline-editor,.microflow-inline-field");
-    if (!isExpanded && (selected || activated) && !interactiveTarget) {
-      stopEditorControlEvent(event);
-      emitInlineNodeToggle({ nodeId: resolvedNodeId, runtimeNodeId: String(props.node.id), expanded: true });
+    const interactiveTarget = target?.closest?.("button,input,textarea,select,[contenteditable='true']");
+    if (interactiveTarget) {
       return;
     }
     selectNode(event);
@@ -576,11 +472,11 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
     ? { background: surfacePalette.background, borderColor: surfacePalette.borderColor, color: surfacePalette.accentColor }
     : undefined;
   const parameterStyle: CSSProperties | undefined = surfacePalette
-    ? {
-        ["--microflow-parameter-bg" as "--microflow-parameter-bg"]: surfacePalette.background,
-        ["--microflow-parameter-border" as "--microflow-parameter-border"]: surfacePalette.borderColor,
-        ["--microflow-parameter-accent" as "--microflow-parameter-accent"]: surfacePalette.accentColor,
-      }
+    ? ({
+        ["--microflow-parameter-bg" as const]: surfacePalette.background,
+        ["--microflow-parameter-border" as const]: surfacePalette.borderColor,
+        ["--microflow-parameter-accent" as const]: surfacePalette.accentColor,
+      } as CSSProperties)
     : undefined;
 
   return (
@@ -598,12 +494,10 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
         data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
         usageSourceHighlight ? "is-usage-source" : "",
         usageConsumerHighlight ? "is-usage-consumer" : "",
-        isExpanded ? "is-expanded" : "",
       ].filter(Boolean).join(" ")}
       draggable={false}
       onMouseDown={handleMouseDown}
       onClick={handleNodeClick}
-      onDoubleClick={handleDoubleClick}
       onFocus={() => {
         setFocused(true);
         onFocus();
@@ -776,31 +670,13 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
             aria-label={data.breakpointKind === "conditional" ? "conditional-breakpoint" : "breakpoint"}
           />
         ) : null}
-        <button
-          type="button"
-          className="microflow-flowgram-node__expand-btn"
-          data-flow-editor-selectable="false"
-          aria-label={isExpanded ? "收起节点" : "展开节点"}
-          title={isExpanded ? "收起（Esc）" : "展开编辑（双击节点也可）"}
-          style={{ pointerEvents: "auto", position: "relative", zIndex: 5 }}
-          onPointerDown={stopEditorControlEvent}
-          onMouseDown={stopEditorControlEvent}
-          onClick={event => {
-            stopEditorControlEvent(event);
-            emitInlineNodeToggle({ nodeId: resolvedNodeId, runtimeNodeId: String(props.node.id), expanded: !currentExpanded });
-          }}
-        >
-          {isExpanded
-            ? <IconTickCircle style={{ verticalAlign: "middle" }} />
-            : <IconEdit style={{ verticalAlign: "middle" }} />}
-        </button>
       </div>
       {usageConsumerHighlight ? (
         <div className="microflow-node-usage-pill">
           <StaticTag color="green">Usage</StaticTag>
         </div>
       ) : null}
-      <div className="microflow-flowgram-node__meta" aria-hidden={!isExpanded}>
+      <div className="microflow-flowgram-node__meta" aria-hidden="true">
         <StaticTag>{nodeKindLabel(data.actionKind || data.objectKind)}</StaticTag>
       </div>
       {compactSummary.length > 0 ? (
@@ -825,9 +701,6 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
               runtimeNodeId: String(props.node.id),
               inspect: runtime.error ? "error" : "runtime",
             });
-            if (!isExpanded) {
-              emitInlineNodeToggle({ nodeId: resolvedNodeId, runtimeNodeId: String(props.node.id), expanded: true });
-            }
           }}
         >
           {runtimeStateLabel ? <Typography.Text type={runtime.error || runtime.failed ? "danger" : "tertiary"} size="small">{runtimeStateLabel}</Typography.Text> : null}
@@ -842,40 +715,6 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
           ) : null}
           {!runtime.selectedBranchLabel && compactRuntimeOutputs.length === 0 ? <Typography.Text type="tertiary" size="small">{runtimeCopy.noOutput}</Typography.Text> : null}
         </button>
-      ) : null}
-      {editorMounted ? (
-        <div
-          className={[
-            "microflow-flowgram-node__collapsible",
-            collapsibleOpen ? "is-collapsible-open" : "",
-          ].filter(Boolean).join(" ")}
-          onTransitionEnd={handleCollapsibleTransitionEnd}
-        >
-          <div className="microflow-flowgram-node__collapsible-inner">
-            <InlineNodeEditor
-              inlineConfig={data.inlineConfig}
-              readonly={readonly}
-              onCommitField={(field, value) => {
-                emitInlineFieldCommit({
-                  nodeId: resolvedNodeId,
-                  fieldPath: field.fieldPath,
-                  editType: field.editType,
-                  value,
-                });
-              }}
-              onApplyQuickFix={suggestion => {
-                emitInlineQuickFix({
-                  nodeId: resolvedNodeId,
-                  suggestionId: suggestion.id,
-                  actionKind: suggestion.actionKind,
-                  fieldPath: suggestion.fieldPath,
-                  value: suggestion.value,
-                  editType: suggestion.editType,
-                });
-              }}
-            />
-          </div>
-        </div>
       ) : null}
       {ports.map(port => (
         <FlowGramMicroflowPortRenderer key={port.id} port={port} />

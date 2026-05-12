@@ -36,11 +36,11 @@ export function updateAction(activity: MicroflowActionActivity, patch: Partial<M
 }
 
 const tabLabels: Record<MicroflowPropertyTabKey, string> = {
-  properties: "Properties",
-  documentation: "Documentation",
-  errorHandling: "Error Handling",
-  output: "Output",
-  advanced: "Advanced",
+  properties: "配置",
+  documentation: "文档",
+  errorHandling: "错误处理",
+  output: "输入 / 输出",
+  advanced: "高级",
 };
 
 export function issuesFor(props: MicroflowPropertyPanelProps, objectId?: string, flowId?: string, actionId?: string) {

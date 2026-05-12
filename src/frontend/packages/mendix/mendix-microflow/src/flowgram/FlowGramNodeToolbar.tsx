@@ -1,16 +1,16 @@
-import { Button, Tooltip, Space } from "@douyinfe/semi-ui";
-import { IconCopy, IconDelete, IconEdit, IconMore } from "@douyinfe/semi-icons";
+import { Button, Tooltip } from "@douyinfe/semi-ui";
+import { IconCopy, IconDelete } from "@douyinfe/semi-icons";
 import React from "react";
 
 export interface FlowGramNodeToolbarProps {
   x: number;
   y: number;
-  onEdit: () => void;
+  onEdit?: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
 }
 
-export const FlowGramNodeToolbar = ({ x, y, onEdit, onDelete, onDuplicate }: FlowGramNodeToolbarProps) => (
+export const FlowGramNodeToolbar = ({ x, y, onDelete, onDuplicate }: FlowGramNodeToolbarProps) => (
   <div
     style={{
       position: "absolute",
@@ -25,7 +25,6 @@ export const FlowGramNodeToolbar = ({ x, y, onEdit, onDelete, onDuplicate }: Flo
       gap: "4px",
     }}
   >
-    <Tooltip content="Edit Properties"><Button icon={<IconEdit />} size="small" onClick={onEdit} /></Tooltip>
     <Tooltip content="Duplicate"><Button icon={<IconCopy />} size="small" onClick={onDuplicate} /></Tooltip>
     <Tooltip content="Delete"><Button icon={<IconDelete />} size="small" type="danger" onClick={onDelete} /></Tooltip>
   </div>
