@@ -34,6 +34,8 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sampleName, setSampleName] = useState("");
   const [expectedResultJson, setExpectedResultJson] = useState("");
+  const [traceCopied, setTraceCopied] = useState(false);
+  const [submitCooldown, setSubmitCooldown] = useState(false);
   const copyTraceDisabledReason = !props.lastSession ? copy.testRun.copyTraceDisabledReason : "";
   const cancelDisabledReason = props.running ? copy.testRun.cancelDisabledReason : "";
 
@@ -41,6 +43,8 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
     if (props.visible) {
       setOptions({ maxSteps: 200 });
       setErrors({});
+      setTraceCopied(false);
+      setSubmitCooldown(false);
     }
   }, [props.visible]);
 
@@ -51,11 +55,16 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
   }, [defaults, props.onValuesChange, props.values, props.visible]);
 
   const run = () => {
+    if (submitCooldown) {
+      return;
+    }
     const validation = validateRunInputs(model, parameters);
     setErrors(validation.errors);
     if (!validation.valid) {
       return;
     }
+    setSubmitCooldown(true);
+    setTimeout(() => setSubmitCooldown(false), 2000);
     props.onRun({ parameters: validation.values, options });
   };
 
@@ -99,7 +108,12 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
     }
     const payload = JSON.stringify(props.lastSession.trace, null, 2);
     if (typeof navigator !== "undefined" && navigator.clipboard) {
-      void navigator.clipboard.writeText(payload).then(() => Toast.success(copy.testRun.traceCopied));
+      void navigator.clipboard.writeText(payload).then(() => {
+        setTraceCopied(true);
+        setTimeout(() => setTraceCopied(false), 1500);
+      }).catch(() => {
+        Toast.error("复制失败，请重试。");
+      });
     }
   };
 
@@ -109,8 +123,9 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
       visible={props.visible}
       onCancel={props.onCancel}
       footer={null}
-      width={860}
+      width={560}
       maskClosable={!props.running}
+      maskStyle={{ backgroundColor: "rgba(15, 23, 42, 0.6)" }}
       data-testid="microflow-test-run-modal"
     >
       <Space data-testid="microflow-test-run-modal-content" vertical align="start" spacing={14} style={{ width: "100%" }}>
@@ -171,7 +186,7 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
         <Space style={{ width: "100%", justifyContent: "flex-end" }}>
           <Tooltip content={copyTraceDisabledReason || copy.testRun.copyTrace}>
             <span style={{ display: "inline-flex" }}>
-              <Button onClick={copyTrace} disabled={!props.lastSession}>{copy.testRun.copyTrace}</Button>
+              <Button onClick={copyTrace} disabled={!props.lastSession}>{traceCopied ? "已复制" : copy.testRun.copyTrace}</Button>
             </span>
           </Tooltip>
           <Tooltip content={cancelDisabledReason || copy.testRun.cancel}>
@@ -179,7 +194,15 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
               <Button data-testid="microflow-test-run-cancel" onClick={props.onCancel} disabled={props.running}>{copy.testRun.cancel}</Button>
             </span>
           </Tooltip>
-          <Button data-testid="microflow-test-run-submit" type="primary" loading={props.running} onClick={run}>{props.dirty ? copy.testRun.saveAndRun : copy.testRun.run}</Button>
+          <Button
+            data-testid="microflow-test-run-submit"
+            type="primary"
+            loading={props.running || submitCooldown}
+            disabled={submitCooldown}
+            onClick={run}
+          >
+            {props.running || submitCooldown ? "运行中…" : props.dirty ? copy.testRun.saveAndRun : copy.testRun.run}
+          </Button>
         </Space>
       </Space>
     </Modal>

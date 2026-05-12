@@ -423,23 +423,41 @@ export function MendixStudioApp({
                 overflow: "hidden"
               }}
             >
-              {/* Tab 栏 */}
-              <WorkbenchTabs />
-
-              {/* 工具栏：仅在已打开资源时显示，避免空工作台自动呈现 Page/Workflow 操作。 */}
-              {hasActiveWorkbenchTab ? (
-                isMicroflow ? (
+              {hasActiveWorkbenchTab && isMicroflow ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    minHeight: 48,
+                    height: 48,
+                    borderBottom: "1px solid var(--semi-color-border, #e5e6eb)",
+                    background: "var(--semi-color-bg-2, #fff)"
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+                    <WorkbenchTabs embedded />
+                  </div>
+                  <div style={{ width: 0.5, alignSelf: "stretch", background: "var(--semi-color-border, #e5e6eb)", opacity: 0.5 }} />
                   <MicroflowWorkbenchToolbar
                     microflowId={activeMicroflowId}
                     editorRef={microflowEditorHandleRef}
                     status={microflowWorkbenchStatus}
                     commandBus={commandBus}
+                    variant="embedded"
                     onViewReferences={openReferencesPanel}
                   />
-                ) : (
-                  <WorkbenchToolbar onViewMicroflowReferences={openReferencesPanel} />
-                )
-              ) : null}
+                </div>
+              ) : (
+                <>
+                  {/* Tab 栏 */}
+                  <WorkbenchTabs />
+
+                  {/* 工具栏：仅在已打开资源时显示，避免空工作台自动呈现 Page/Workflow 操作。 */}
+                  {hasActiveWorkbenchTab && !isMicroflow ? (
+                    <WorkbenchToolbar onViewMicroflowReferences={openReferencesPanel} />
+                  ) : null}
+                </>
+              )}
 
               {/* 内容区 */}
               {!hasActiveWorkbenchTab ? (

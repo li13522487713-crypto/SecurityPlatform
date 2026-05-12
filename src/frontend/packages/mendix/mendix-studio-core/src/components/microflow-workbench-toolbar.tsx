@@ -1,20 +1,24 @@
 import { useState, type Ref, type RefObject } from "react";
-import { Button, Space, Tag, Tooltip } from "@douyinfe/semi-ui";
+import { Button, Dropdown, Space, Tag, Toast, Tooltip } from "@douyinfe/semi-ui";
 import {
   IconBranch,
   IconCheckCircleStroked,
   IconClock,
-  IconDownloadStroked,
-  IconFullScreenStroked,
-  IconHandle,
+  IconMore,
   IconPlay,
   IconRedo,
   IconRefresh,
   IconSave,
   IconSend,
+  IconTickCircle,
   IconUndo
 } from "@douyinfe/semi-icons";
-import type { MicroflowEditorHandle, MicroflowEditorStatusSnapshot, MicroflowWorkbenchStatus } from "@atlas/microflow";
+import type {
+  MicroflowEditorHandle,
+  MicroflowEditorStatusSnapshot,
+  MicroflowToolboxToggleResult,
+  MicroflowWorkbenchStatus
+} from "@atlas/microflow";
 import { useMendixStudioStore } from "../store";
 import { MicroflowWorkbenchCommandBus } from "../microflow/workbench/microflow-workbench-command-bus";
 
@@ -23,20 +27,19 @@ export interface MicroflowWorkbenchToolbarProps {
   editorRef: RefObject<MicroflowEditorHandle | null>;
   status?: MicroflowWorkbenchStatus | null;
   commandBus?: MicroflowWorkbenchCommandBus;
+  variant?: "standalone" | "embedded";
   /** Notification for the host to refresh references / impact panels. */
   onViewReferences?: (microflowId: string) => void;
 }
 
-/**
- * Mendix Studio Workbench 顶部微流工具栏，对齐用户清单 §3.2 完整按钮集：
- *   保存 / 运行 / 调试运行 / 发布 / 撤销 / 重做 / 校验 /
- *   缩放 - / 缩放 + / 适应画布 / 自动布局 / 小地图 / 全屏。
- *
- * 所有按钮都通过 `editorRef.current` 命令式调用 MicroflowEditorHandle；
- * 状态通过 `editorRef.current.getStatus()` 实时拉取并展示在 Tag 与 disabled
- * 上，避免再造一份独立 store。
- */
-export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: controlledStatus, commandBus, onViewReferences }: MicroflowWorkbenchToolbarProps) {
+export function MicroflowWorkbenchToolbar({
+  microflowId,
+  editorRef,
+  status: controlledStatus,
+  commandBus,
+  variant = "standalone",
+  onViewReferences,
+}: MicroflowWorkbenchToolbarProps) {
   // store 拿 dirty / saving 是为了在 ref 还没有就绪（首次渲染、过渡中）时，
   // 工具栏仍能展示一致状态；ref 就绪后 status snapshot 是权威来源。
   const dirtyById = useMendixStudioStore(state => state.dirtyByWorkbenchTabId);
@@ -61,15 +64,11 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
   const hasAnnotation = status?.hasAnnotation === true;
   const canUndo = status?.canUndo ?? false;
   const canRedo = status?.canRedo ?? false;
-  const fullscreen = status?.fullscreen ?? false;
-  const canvasPanToolActive = status?.canvasPanToolActive === true;
   const degradedRunSession = "degradedRunSession" in (status ?? {}) ? Boolean((status as MicroflowWorkbenchStatus).degradedRunSession) : false;
   const sessionHydrated = "sessionHydrated" in (status ?? {}) ? Boolean((status as MicroflowWorkbenchStatus).sessionHydrated) : false;
-  const nodeCountText = nodeCountLevel === "error"
-    ? `✕ ${nodeElementCount} / ${recommendedMaxNodeCount} 建议拆分`
-    : nodeCountLevel === "warning"
-      ? `⚠ ${nodeElementCount} / ${recommendedMaxNodeCount}`
-      : `✓ ${nodeElementCount} / ${recommendedMaxNodeCount}`;
+  const toolboxReady = "toolboxReady" in (status ?? {}) ? Boolean((status as MicroflowWorkbenchStatus).toolboxReady) : true;
+  const toolboxLastError = "toolboxLastError" in (status ?? {}) ? (status as MicroflowWorkbenchStatus).toolboxLastError : undefined;
+  const nodeCountText = `${nodeElementCount}/${recommendedMaxNodeCount}`;
   const nodeCountColor = nodeCountLevel === "error" ? "red" : nodeCountLevel === "warning" ? "orange" : "green";
 
   const refreshStatus = () => {
@@ -80,17 +79,37 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
   const callHandle = <T extends keyof MicroflowEditorHandle>(method: T, ...args: Parameters<Extract<MicroflowEditorHandle[T], (...args: never[]) => unknown>>) => {
     const handle = editorRef.current;
     if (!handle) {
-      return;
+      return undefined;
     }
     const fn = handle[method] as unknown as ((...inner: unknown[]) => unknown) | undefined;
     if (typeof fn !== "function") {
-      return;
+      return undefined;
     }
     const result = fn.call(handle, ...(args as unknown[]));
     if (result && typeof (result as Promise<unknown>).then === "function") {
       (result as Promise<unknown>).finally(refreshStatus);
     } else {
       refreshStatus();
+    }
+    return result;
+  };
+
+  const toggleToolboxFromToolbar = () => {
+    const result = callHandle("toggleToolbox") as MicroflowToolboxToggleResult | undefined;
+    if (!result) {
+      Toast.warning("编辑器未就绪，无法打开节点工具箱。");
+      return;
+    }
+    if (result.reason === "focus_mode") {
+      Toast.warning("请先退出专注模式，再打开节点工具箱。");
+      return;
+    }
+    if (result.reason === "registry_empty") {
+      Toast.error("节点工具箱数据为空，请检查节点注册表。");
+      return;
+    }
+    if (result.reason === "aux_panel_disabled") {
+      Toast.error("当前模式禁用了侧边面板，无法打开节点工具箱。");
     }
   };
 
@@ -179,27 +198,31 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
         display: "flex",
         alignItems: "center",
         gap: 8,
-        padding: "6px 12px",
-        borderBottom: "1px solid var(--semi-color-border, #e5e6eb)",
+        padding: variant === "embedded" ? "0 12px" : "8px 12px",
+        borderBottom: variant === "embedded" ? "none" : "1px solid var(--semi-color-border, #e5e6eb)",
         background: "var(--semi-color-bg-2, #fff)",
-        minHeight: 40
+        minHeight: variant === "embedded" ? 0 : 48,
+        height: variant === "embedded" ? 48 : undefined
       }}
     >
       <Space spacing={6}>
         <Tooltip content={dirty ? "保存（Ctrl+S）" : "无未保存改动"}>
           <Button
             data-testid="microflow-workbench-save"
-            theme="solid"
-            type="primary"
+            theme="light"
             size="small"
             icon={<IconSave />}
             loading={saving}
-            disabled={disabled || !dirty}
+            disabled={disabled}
             onClick={() => runCommand("microflow.save")}
           >
             保存
           </Button>
         </Tooltip>
+      </Space>
+      <div style={{ width: 0.5, alignSelf: "stretch", background: "var(--semi-color-border, #e5e6eb)", opacity: 0.5 }} />
+
+      <Space spacing={6}>
         <Tooltip content={errorCount > 0 ? "存在校验错误，请先修复后再运行" : "运行"}>
           <Button
             data-testid="microflow-workbench-run"
@@ -207,6 +230,7 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
             icon={<IconPlay />}
             loading={running}
             disabled={disabled || errorCount > 0}
+            style={{ background: "#16a34a", color: "#ffffff", borderColor: "#15803d" }}
             onClick={() => runCommand("microflow.run")}
           >
             运行
@@ -219,11 +243,16 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
             icon={<IconBranch />}
             loading={running}
             disabled={disabled || errorCount > 0}
+            style={{ background: "#f59e0b", color: "#ffffff", borderColor: "#d97706" }}
             onClick={() => runCommand("microflow.debugRun")}
           >
             调试运行
           </Button>
         </Tooltip>
+      </Space>
+      <div style={{ width: 0.5, alignSelf: "stretch", background: "var(--semi-color-border, #e5e6eb)", opacity: 0.5 }} />
+
+      <Space spacing={6}>
         <Tooltip content="校验">
           <Button
             data-testid="microflow-workbench-validate"
@@ -243,70 +272,51 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
             disabled={disabled}
             onClick={() => callHandle("configureAllNodeAcceptance120")}
           >
-            验收120
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span>验收</span>
+              <span style={{ fontSize: 11, lineHeight: "16px", height: 16, padding: "0 6px", borderRadius: 999, border: "1px solid #3b82f6", color: "#2563eb", background: "#eff6ff" }}>120</span>
+            </span>
           </Button>
         </Tooltip>
+      </Space>
+      <div style={{ width: 0.5, alignSelf: "stretch", background: "var(--semi-color-border, #e5e6eb)", opacity: 0.5 }} />
+
+      <Space spacing={6}>
         <Tooltip content={errorCount > 0 ? "存在错误，无法发布" : "发布"}>
           <Button
             data-testid="microflow-workbench-publish"
             size="small"
             icon={<IconSend />}
             disabled={disabled || errorCount > 0 || dirty}
+            type="primary"
             onClick={() => runCommand("microflow.publish")}
           >
             发布
           </Button>
         </Tooltip>
-        <Tooltip content="导出当前画布为 PNG">
-          <Button
-            data-testid="microflow-workbench-export-image"
-            size="small"
-            icon={<IconDownloadStroked />}
-            disabled={disabled}
-            onClick={() => callHandle("exportAsImage")}
-          >
-            导出 PNG
-          </Button>
-        </Tooltip>
       </Space>
 
-      <div style={{ width: 1, height: 20, background: "var(--semi-color-border)" }} />
+      <div style={{ width: 0.5, alignSelf: "stretch", background: "var(--semi-color-border, #e5e6eb)", opacity: 0.5 }} />
 
       <Space spacing={4}>
         <Tooltip content="撤销 (Ctrl+Z)">
-          <Button data-testid="microflow-workbench-undo" size="small" theme="borderless" icon={<IconUndo />} disabled={disabled || !canUndo} onClick={() => runCommand("microflow.undo")} />
+          <Button data-testid="microflow-workbench-undo" size="small" theme="borderless" icon={<IconUndo />} style={{ opacity: disabled || !canUndo ? 0.3 : 1 }} disabled={disabled || !canUndo} onClick={() => runCommand("microflow.undo")} />
         </Tooltip>
         <Tooltip content="重做 (Ctrl+Y)">
-          <Button data-testid="microflow-workbench-redo" size="small" theme="borderless" icon={<IconRedo />} disabled={disabled || !canRedo} onClick={() => runCommand("microflow.redo")} />
-        </Tooltip>
-        <Tooltip content="平移画布：开启后在空白处拖移；也可按住空格或鼠标中键拖移。">
-          <Button
-            data-testid="microflow-workbench-pan-canvas"
-            size="small"
-            theme={canvasPanToolActive ? "solid" : "borderless"}
-            icon={<IconHandle />}
-            disabled={disabled}
-            aria-label="平移画布"
-            aria-pressed={canvasPanToolActive}
-            onClick={() => {
-              editorRef.current?.togglePanTool?.();
-              refreshStatus();
-            }}
-          />
-        </Tooltip>
-      </Space>
-
-      <Space spacing={4}>
-        <Tooltip content={fullscreen ? "退出专注模式" : "专注模式"}>
-          <Button data-testid="microflow-workbench-fullscreen" size="small" theme="borderless" icon={<IconFullScreenStroked />} disabled={disabled} onClick={() => runCommand("microflow.toggleFocusMode")} />
+          <Button data-testid="microflow-workbench-redo" size="small" theme="borderless" icon={<IconRedo />} style={{ opacity: disabled || !canRedo ? 0.3 : 1 }} disabled={disabled || !canRedo} onClick={() => runCommand("microflow.redo")} />
         </Tooltip>
       </Space>
 
       <div style={{ flex: 1 }} />
 
       <Space spacing={6}>
-        <Tag color={dirty ? "orange" : "green"} size="small" prefixIcon={<IconClock />}>
-          {dirty ? "草稿待保存" : saving ? "保存中" : "已保存"}
+        <Tag
+          color={saving ? "blue" : dirty ? "orange" : "green"}
+          size="small"
+          prefixIcon={saving || dirty ? <IconClock /> : <IconTickCircle />}
+          style={{ transition: "all 180ms ease" }}
+        >
+          {saving ? "保存中" : dirty ? "草稿待保存" : "已保存"}
         </Tag>
         <Tooltip content={annotationRecommended && !hasAnnotation ? "复杂微流建议补充注释说明目的和参数。" : "节点数量建议值 25。"}>
           <Tag color={nodeCountColor} size="small">
@@ -316,27 +326,78 @@ export function MicroflowWorkbenchToolbar({ microflowId, editorRef, status: cont
         {errorCount > 0 ? <Tag color="red" size="small">{errorCount} 错误</Tag> : null}
         {warningCount > 0 ? <Tag color="amber" size="small">{warningCount} 警告</Tag> : null}
         {validating ? <Tag color="blue" size="small" icon={<IconRefresh />}>校验中</Tag> : null}
+        {!toolboxReady ? <Tag color="orange" size="small">工具箱未就绪</Tag> : null}
+        {toolboxLastError ? <Tag color="red" size="small">工具箱异常</Tag> : null}
         {degradedRunSession ? <Tag color="orange" size="small">会话回读未完成</Tag> : null}
         {!degradedRunSession && sessionHydrated ? <Tag color="green" size="small">会话已收口</Tag> : null}
         {onViewReferences && microflowId ? (
           <Tooltip content="查看引用 / 影响面">
-            <Button data-testid="microflow-workbench-references" size="small" theme="borderless" onClick={() => runCommand("microflow.openPanel", { panel: "references" })}>
+            <Tag
+              data-testid="microflow-workbench-references"
+              tabIndex={disabled ? -1 : 0}
+              style={{ cursor: disabled ? "not-allowed" : "pointer", userSelect: "none", opacity: disabled ? 0.5 : 1 }}
+              onClick={() => {
+                if (!disabled) {
+                  runCommand("microflow.openPanel", { panel: "references" });
+                }
+              }}
+              onKeyDown={event => {
+                if (!disabled && (event.key === "Enter" || event.key === " ")) {
+                  event.preventDefault();
+                  runCommand("microflow.openPanel", { panel: "references" });
+                }
+              }}
+            >
               引用
-            </Button>
+            </Tag>
           </Tooltip>
         ) : null}
         <Tooltip content="节点工具箱">
-          <Button
+          <Tag
             data-testid="microflow-workbench-toolbox"
+            tabIndex={disabled ? -1 : 0}
+            style={{ cursor: disabled ? "not-allowed" : "pointer", userSelect: "none", opacity: disabled ? 0.5 : 1 }}
+            onClick={() => {
+              if (!disabled) {
+                toggleToolboxFromToolbar();
+              }
+            }}
+            onKeyDown={event => {
+              if (!disabled && (event.key === "Enter" || event.key === " ")) {
+                event.preventDefault();
+                toggleToolboxFromToolbar();
+              }
+            }}
+          >
+            节点工具箱
+          </Tag>
+        </Tooltip>
+        <Dropdown
+          trigger="click"
+          position="bottomRight"
+          render={(
+            <Dropdown.Menu>
+              <Dropdown.Item data-testid="microflow-workbench-more-export-image" disabled={disabled} onClick={() => callHandle("exportAsImage")}>
+                导出 PNG
+              </Dropdown.Item>
+              <Dropdown.Item data-testid="microflow-workbench-more-auto-layout" disabled={disabled} onClick={() => callHandle("autoLayout")}>
+                自动排版
+              </Dropdown.Item>
+              <Dropdown.Item data-testid="microflow-workbench-more-fit-view" disabled={disabled} onClick={() => callHandle("fitView")}>
+                适应视图
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          )}
+        >
+          <Button
+            data-testid="microflow-workbench-more"
             size="small"
             theme="borderless"
-            icon={<IconBranch />}
+            icon={<IconMore />}
             disabled={disabled}
-            onClick={() => callHandle("toggleToolbox")}
-          >
-            节点
-          </Button>
-        </Tooltip>
+            aria-label="更多"
+          />
+        </Dropdown>
       </Space>
     </div>
   );

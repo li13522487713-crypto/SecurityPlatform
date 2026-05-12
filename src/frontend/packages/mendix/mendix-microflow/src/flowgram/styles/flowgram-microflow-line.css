@@ -3,15 +3,16 @@
 .microflow-flowgram-canvas .gedit-flow-activity-edge path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge line {
   stroke: #3a4060 !important;
-  stroke-width: 1px !important;
+  stroke-width: 1.2px !important;
   fill: none !important;
-  stroke-linecap: square;
+  stroke-linecap: butt;
   stroke-linejoin: miter;
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge marker path {
-  fill: #3a4060 !important;
+  fill: none !important;
   stroke: #3a4060 !important;
+  stroke-width: 1.5px !important;
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.selected path,
@@ -157,9 +158,9 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   white-space: nowrap;
 }
-.microflow-branch-label.is-true { border-color: #1a3870; color: #60a5fa; background: #0c2042; }
+.microflow-branch-label.is-true { border-color: #166534; color: #86efac; background: #052e16; }
 .microflow-branch-label.is-false,
-.microflow-branch-label.is-else { border-color: #2e3450; color: #8892b0; background: #1e2540; }
+.microflow-branch-label.is-else { border-color: #7f1d1d; color: #fca5a5; background: #450a0a; }
 .microflow-branch-label.is-empty { border-color: #4a3200; color: #f59e0b; background: #271a00; }
 .microflow-branch-label.is-error-handler-customWithRollback {
   border-color: #7f1d1d;

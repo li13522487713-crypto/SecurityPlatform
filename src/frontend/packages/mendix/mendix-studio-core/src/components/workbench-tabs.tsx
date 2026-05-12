@@ -106,7 +106,7 @@ function resolveTabStatusTone(tab: StudioWorkbenchTab, dirty: boolean): TabStatu
   return "info";
 }
 
-export function WorkbenchTabs() {
+export function WorkbenchTabs({ embedded = false }: { embedded?: boolean } = {}) {
   const tabs = useMendixStudioStore(state => state.workbenchTabs);
   const activeWorkbenchTabId = useMendixStudioStore(state => state.activeWorkbenchTabId);
   const dirtyByWorkbenchTabId = useMendixStudioStore(state => state.dirtyByWorkbenchTabId);
@@ -166,7 +166,7 @@ export function WorkbenchTabs() {
 
   return (
     <>
-      <div className="studio-workbench-tabs">
+      <div className={`studio-workbench-tabs${embedded ? " studio-workbench-tabs--embedded" : ""}`}>
         {tabs.map(tab => {
           const tabType = getTabType(tab);
           const isActive = activeWorkbenchTabId === tab.id;

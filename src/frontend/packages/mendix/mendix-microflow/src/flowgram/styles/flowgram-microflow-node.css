@@ -543,14 +543,14 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
 }
 
 .microflow-event-dot__core {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   box-sizing: border-box;
   background: #166534;
@@ -632,10 +632,10 @@
 }
 
 .microflow-activity-compact {
-  width: 72px;
-  height: 72px;
+  width: 68px;
+  height: 68px;
   border: 1.5px solid var(--microflow-node-category-border-color);
-  border-radius: 14px;
+  border-radius: 13px;
   background: #1e2640;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.26);
   overflow: visible;
@@ -658,7 +658,7 @@
   height: 100%;
   flex: 0 0 100%;
   position: relative;
-  border-radius: 14px;
+  border-radius: 13px;
 }
 
 .microflow-activity-compact__text {

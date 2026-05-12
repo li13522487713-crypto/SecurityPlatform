@@ -16,6 +16,7 @@ function createHandle() {
     zoomIn: vi.fn(),
     zoomOut: vi.fn(),
     setZoom: vi.fn(),
+    toggleToolbox: vi.fn(() => ({ opened: true })),
     toggleFullscreen: vi.fn(),
     toggleFocusMode: vi.fn(),
     toggleMinimap: vi.fn(),
@@ -64,6 +65,23 @@ describe("MicroflowWorkbenchCommandBus", () => {
 
     expect(openReferencesPanel).toHaveBeenCalledWith("mf-1");
     expect(handle.openBottomTab).not.toHaveBeenCalled();
+  });
+
+  it("routes toolbox toggle command to editor handle", async () => {
+    const handle = createHandle();
+    const bus = new MicroflowWorkbenchCommandBus();
+    bus.bindContext({
+      microflowId: "mf-1",
+      tabId: "microflow:mf-1",
+      getEditorHandle: () => handle as any,
+    });
+
+    await bus.execute("microflow.toggleToolbox");
+
+    expect(handle.toggleToolbox).toHaveBeenCalledTimes(1);
+    expect(bus.getSnapshot().latestExecutionByCommand["microflow.toggleToolbox"]).toMatchObject({
+      state: "success",
+    });
   });
 
   it("records failed state when the underlying command throws", async () => {

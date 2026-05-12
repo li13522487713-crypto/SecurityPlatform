@@ -61,6 +61,8 @@ export {
   type PanelSyncEvent,
   type CommandPaletteAction,
   type MicroflowWorkbenchLayoutState,
+  type MicroflowToolboxToggleFailureReason,
+  type MicroflowToolboxToggleResult,
   type MicroflowWorkbenchStatus,
 } from "./editor";
 export {

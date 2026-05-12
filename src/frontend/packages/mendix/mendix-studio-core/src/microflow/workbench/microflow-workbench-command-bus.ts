@@ -9,6 +9,7 @@ export type MicroflowWorkbenchCommandName =
   | "microflow.undo"
   | "microflow.redo"
   | "microflow.openPanel"
+  | "microflow.toggleToolbox"
   | "microflow.resetLayout"
   | "microflow.toggleFocusMode";
 
@@ -34,6 +35,7 @@ export interface MicroflowWorkbenchCommandBusSnapshot {
 
 export interface MicroflowWorkbenchCommandPayloadMap {
   "microflow.openPanel": { panel: MicroflowWorkbenchBottomTab | "references" };
+  "microflow.toggleToolbox": undefined;
   "microflow.resetLayout": undefined;
   "microflow.toggleFocusMode": undefined;
   "microflow.save": undefined;
@@ -153,6 +155,9 @@ export class MicroflowWorkbenchCommandBus {
           } else if (payload?.panel) {
             handle?.openBottomTab(payload.panel);
           }
+          break;
+        case "microflow.toggleToolbox":
+          handle?.toggleToolbox?.();
           break;
         case "microflow.resetLayout":
           handle?.resetLayout?.();

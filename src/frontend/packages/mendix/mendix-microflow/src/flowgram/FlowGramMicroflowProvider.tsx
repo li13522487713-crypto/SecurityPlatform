@@ -12,11 +12,14 @@ import {
 
 import { FlowGramMicroflowContainerModule } from "./FlowGramMicroflowPlugins";
 import { FlowGramMicroflowLineRenderer } from "./FlowGramMicroflowLineRenderer";
+import { MicroflowOrthogonalLineContribution } from "./microflow-orthogonal-line";
 
 function createMicroflowFlowGramPreset(): Plugin[] {
   return [
     createFreeLinesPlugin({
       renderInsideLine: FlowGramMicroflowLineRenderer,
+      contributions: [MicroflowOrthogonalLineContribution],
+      defaultLineType: MicroflowOrthogonalLineContribution.type,
     }),
     createFreeHistoryPlugin({
       enable: true,

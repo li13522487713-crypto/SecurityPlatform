@@ -94,6 +94,12 @@ export function WorkbenchCommandPalette({ visible, status, commandBus, modules =
       run: () => commandBus.execute("microflow.openPanel", { panel: "references" }),
     },
     {
+      id: "toggle-toolbox",
+      label: "切换节点工具箱",
+      disabled: !status,
+      run: () => commandBus.execute("microflow.toggleToolbox"),
+    },
+    {
       id: "toggle-focus",
       label: copy.toggleFocusMode,
       hint: "F11",

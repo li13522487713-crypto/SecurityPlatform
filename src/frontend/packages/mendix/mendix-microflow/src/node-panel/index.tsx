@@ -115,8 +115,19 @@ export interface MicroflowNodePanelProps {
   onInsertTemplate?: (template: MicroflowNodePanelTemplate) => void;
   onStartDrag?: (payload: MicroflowNodeDragPayload) => void;
   onShowDocumentation?: (item: MicroflowNodeRegistryItem) => void;
+  onStateChange?: (state: MicroflowNodePanelRuntimeState) => void;
   labels?: Partial<MicroflowNodePanelLabels>;
   createContext?: MicroflowNodeCreateContext;
+}
+
+export type MicroflowNodePanelRenderState = "loading" | "ready" | "empty_registry" | "empty_filtered" | "render_error";
+
+export interface MicroflowNodePanelRuntimeState {
+  ready: boolean;
+  renderState: MicroflowNodePanelRenderState;
+  totalItemCount: number;
+  filteredItemCount: number;
+  keyword: string;
 }
 
 interface ContextMenuState {
@@ -1014,6 +1025,7 @@ export function MicroflowNodePanel({
   onInsertTemplate,
   onStartDrag,
   onShowDocumentation,
+  onStateChange,
   labels: labelOverrides,
   createContext
 }: MicroflowNodePanelProps) {
@@ -1031,6 +1043,23 @@ export function MicroflowNodePanel({
   const [contextMenu, setContextMenu] = useState<ContextMenuState>();
 
   const grouped = useMemo(() => buildMendixToolboxSections(registry, debouncedKeyword), [debouncedKeyword, registry]);
+  const totalItemCount = registry.length;
+  const filteredItemCount = useMemo(
+    () => grouped.reduce((sum, section) => sum + section.items.length, 0),
+    [grouped],
+  );
+  const renderState: MicroflowNodePanelRenderState = useMemo(() => {
+    if (createContext?.schemaLoaded === false) {
+      return "loading";
+    }
+    if (totalItemCount === 0) {
+      return "empty_registry";
+    }
+    if (filteredItemCount === 0) {
+      return debouncedKeyword.trim() ? "empty_filtered" : "render_error";
+    }
+    return "ready";
+  }, [createContext?.schemaLoaded, debouncedKeyword, filteredItemCount, totalItemCount]);
 
   const favoriteSet = useMemo(() => new Set(favoriteNodeKeys), [favoriteNodeKeys]);
 
@@ -1061,6 +1090,16 @@ export function MicroflowNodePanel({
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [contextMenu]);
+
+  useEffect(() => {
+    onStateChange?.({
+      ready: createContext?.schemaLoaded !== false && totalItemCount > 0,
+      renderState,
+      totalItemCount,
+      filteredItemCount,
+      keyword: debouncedKeyword,
+    });
+  }, [createContext?.schemaLoaded, debouncedKeyword, filteredItemCount, onStateChange, renderState, totalItemCount]);
 
   function toggleFavorite(item: MicroflowNodeRegistryItem) {
     const key = getMicroflowNodeRegistryKey(item);

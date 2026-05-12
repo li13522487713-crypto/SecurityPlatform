@@ -16,7 +16,12 @@ import {
   IconRedo,
   IconMore
 } from "@douyinfe/semi-icons";
-import { MicroflowNodePanel, type MicroflowNodePanelLabels, type MicroflowNodePanelTemplate } from "../node-panel";
+import {
+  MicroflowNodePanel,
+  type MicroflowNodePanelLabels,
+  type MicroflowNodePanelRuntimeState,
+  type MicroflowNodePanelTemplate
+} from "../node-panel";
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
 import { buildDesignPropertyPanelModel, setDesignParameterAsReturnValue } from "../property-panel/design-protocol-model";
 import {
@@ -676,7 +681,7 @@ export interface MicroflowEditorHandle {
   setZoom: (zoom: number) => void;
   /** Toggle “pan / hand” mode on the FlowGram canvas. */
   togglePanTool: () => void;
-  toggleToolbox: () => void;
+  toggleToolbox: () => MicroflowToolboxToggleResult;
   toggleFullscreen: () => void;
   toggleFocusMode: () => void;
   toggleMinimap: () => void;
@@ -730,6 +735,21 @@ export interface MicroflowWorkbenchLayoutState {
 
 export interface MicroflowWorkbenchStatus extends MicroflowEditorStatusSnapshot {
   layout: MicroflowWorkbenchLayoutState;
+  toolboxOpen: boolean;
+  toolboxReady: boolean;
+  toolboxItemCount: number;
+  toolboxFilteredCount: number;
+  toolboxLastError?: string;
+}
+
+export type MicroflowToolboxToggleFailureReason =
+  | "focus_mode"
+  | "aux_panel_disabled"
+  | "registry_empty";
+
+export interface MicroflowToolboxToggleResult {
+  opened: boolean;
+  reason?: MicroflowToolboxToggleFailureReason;
 }
 
 export interface MicroflowEditorLabels {
@@ -2378,6 +2398,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const shouldShowCanvasContextMenu = toolbarMode === "external" || AUXILIARY_PANELS_ENABLED;
   const shellMode = "editor-native-layout" as const;
   const externalLayout = true;
+  const toolboxRegistryCount = Object.keys(microflowNodeRegistryByKey).length;
   const [leftOpen, setLeftOpen] = useState(() => {
     if (props.toolbarMode === "external") {
       return readMendixLayoutStorage().nodesDrawerOpen ?? true;
@@ -2416,6 +2437,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const activeBottomDockHeight = bottomDockMode === "full" ? bottomDockHeight : BOTTOM_DOCK_PEEK_HEIGHT_PX;
   const [focusMode, setFocusMode] = useState(() => Boolean(readMendixLayoutStorage().focusMode));
   const [canvasPanToolActive, setCanvasPanToolActive] = useState(false);
+  const [toolboxLastError, setToolboxLastError] = useState<string | undefined>(undefined);
+  const [toolboxRuntimeState, setToolboxRuntimeState] = useState<MicroflowNodePanelRuntimeState>({
+    ready: toolboxRegistryCount > 0,
+    renderState: toolboxRegistryCount > 0 ? "ready" : "empty_registry",
+    totalItemCount: toolboxRegistryCount,
+    filteredItemCount: toolboxRegistryCount,
+    keyword: "",
+  });
   const [nodeViewModes, setNodeViewModes] = useState<Record<string, MicroflowNodeViewMode>>({});
   const onValidationStateChangeRef = useRef(props.onValidationStateChange);
   const onSchemaChangeRef = useRef(props.onSchemaChange);
@@ -5090,6 +5119,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const openNodePanel = useCallback(() => {
     setLeftOpen(true);
     setRightOpen(false);
+    setToolboxLastError(undefined);
   }, []);
 
   const closeNodePanel = useCallback(() => {
@@ -5112,6 +5142,35 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     openNodePanel();
   }, [closeNodePanel, leftOpen, openNodePanel]);
+
+  const toggleNodePanelWithResult = useCallback((): MicroflowToolboxToggleResult => {
+    if (focusMode) {
+      setToolboxLastError("focus_mode");
+      return { opened: leftOpen, reason: "focus_mode" };
+    }
+    if (!AUXILIARY_PANELS_ENABLED) {
+      setToolboxLastError("aux_panel_disabled");
+      return { opened: leftOpen, reason: "aux_panel_disabled" };
+    }
+    if (toolboxRuntimeState.totalItemCount <= 0) {
+      setToolboxLastError("registry_empty");
+      return { opened: leftOpen, reason: "registry_empty" };
+    }
+    toggleNodePanel();
+    return { opened: !leftOpen };
+  }, [focusMode, leftOpen, toggleNodePanel, toolboxRuntimeState.totalItemCount]);
+
+  const handleToolboxRuntimeStateChange = useCallback((state: MicroflowNodePanelRuntimeState) => {
+    setToolboxRuntimeState(current => (
+      current.ready === state.ready
+      && current.renderState === state.renderState
+      && current.totalItemCount === state.totalItemCount
+      && current.filteredItemCount === state.filteredItemCount
+      && current.keyword === state.keyword
+        ? current
+        : state
+    ));
+  }, []);
 
   const togglePropertiesPanel = useCallback(() => {
     if (rightOpen) {
@@ -5313,9 +5372,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       debugSessionHydrated: Boolean(activeDebugSession?.lastUpdatedAt),
       degradedRunSession: Boolean(currentRunSession && currentRunSession.hasHydratedTrace === false),
       canvasPanToolActive,
+      toolboxOpen: leftOpen,
+      toolboxReady: toolboxRuntimeState.ready,
+      toolboxItemCount: toolboxRuntimeState.totalItemCount,
+      toolboxFilteredCount: toolboxRuntimeState.filteredItemCount,
+      toolboxLastError,
       layout: layoutState,
     };
-  }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, canvasPanToolActive, complexitySummary, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, runSession, running, saving, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, validationStatus]);
+  }, [activeDebugSession?.lastUpdatedAt, bottomDockMode, bottomTab, canvasPanToolActive, complexitySummary, dirty, focusMode, fullscreenActive, historyState.canRedo, historyState.canUndo, issues, layoutState, leftOpen, runSession, running, saving, schema.editor.viewport, schema.editor.zoom, schema.id, schema.schemaVersion, selectedRunSession, toolboxLastError, toolboxRuntimeState.filteredItemCount, toolboxRuntimeState.ready, toolboxRuntimeState.totalItemCount, validationStatus]);
 
   useEffect(() => {
     props.onLayoutStateChange?.(layoutState);
@@ -5573,7 +5637,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       setCanvasPanToolActive(value => !value);
     },
     toggleToolbox: () => {
-      toggleNodePanel();
+      return toggleNodePanelWithResult();
     },
     configureAllNodeAcceptance120: handleConfigureAllNodeAcceptance120,
     resetLayout: resetWorkbenchLayout,
@@ -5587,7 +5651,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     getStatus: () => workbenchStatus,
   // The handle reads many derived values; React will re-create the impl each
   // render so callers always observe fresh values.
-  }), [commitSchema, dirty, focusMode, fullscreenActive, handleConfigureAllNodeAcceptance120, handleExportAsImage, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, toggleNodePanel, validationStatus, workbenchStatus]);
+  }), [commitSchema, dirty, focusMode, fullscreenActive, handleConfigureAllNodeAcceptance120, handleExportAsImage, handleSave, handleUndo, handleRedo, handleValidate, handleTestRun, handleAutoLayout, historyState.canRedo, historyState.canUndo, issues, labels.debug, layoutState, openBottomDock, props.onPublish, props.readonly, resetWorkbenchLayout, runSession, running, saving, schema, startDebugSession, toggleNodePanelWithResult, validationStatus, workbenchStatus]);
 
   const nodePaletteActions = useMemo<CommandPaletteAction[]>(() => (
     graph.nodes
@@ -6253,6 +6317,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 <Space spacing={6}>
                   <IconMore />
                   <Text strong>{labels.nodePanel}</Text>
+                  <Text type="tertiary" size="small" data-testid="microflow-toolbox-runtime-summary">
+                    {toolboxRuntimeState.filteredItemCount}/{toolboxRuntimeState.totalItemCount}
+                  </Text>
                 </Space>
                 <Button
                   aria-label="关闭节点面板"
@@ -6268,6 +6335,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   setFavoriteNodeKeys(keys);
                   saveFavoriteNodeKeys(keys);
                 }}
+                onStateChange={handleToolboxRuntimeStateChange}
                 onAddNode={(item, options) => handleAddNode(item, options)}
                 onInsertTemplate={handleInsertTemplate}
                 onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
