@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { Tag, Typography } from "@douyinfe/semi-ui";
+import { Tag, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { getMendixMicroflowCopy } from "../i18n/copy";
 import { AnnotationNode } from "../components/AnnotationNode";
 import { ActivityNode } from "../components/ActivityNode";
@@ -25,6 +25,7 @@ import {
 
 import type { FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
 import { MicroflowNodeUsageHighlightsContext } from "./FlowGramMicroflowTypes";
+import { MicroflowCanvasActionsContext } from "./MicroflowCanvasActionsContext";
 import { FlowGramMicroflowPortRenderer } from "./FlowGramMicroflowPortRenderer";
 import { emitInlineNodeInspect } from "./inline-events";
 import {
@@ -291,6 +292,7 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   const data = tryReadNodeData(props);
   const resolvedNodeIdForState = String(data?.objectId || props.node.id);
   const usageHighlights = useContext(MicroflowNodeUsageHighlightsContext);
+  const canvasActions = useContext(MicroflowCanvasActionsContext);
 
   const canStartNodeDrag = (event: MouseEvent<HTMLDivElement>) => {
     if (readonly || event.button !== 0) {
@@ -659,6 +661,23 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
             title={data.breakpointKind === "conditional" ? "Conditional breakpoint" : "Breakpoint"}
             aria-label={data.breakpointKind === "conditional" ? "conditional-breakpoint" : "breakpoint"}
           />
+        ) : null}
+        {data.validationState === "error" && data.issueCount > 0 ? (
+          <Tooltip
+            content={`${data.issueCount} 个错误，点击查看详情`}
+            position="top"
+          >
+            <span
+              className="microflow-node-validation-error-badge"
+              aria-label={`${data.issueCount} 个验证错误`}
+              onClick={event => {
+                event.stopPropagation();
+                canvasActions?.focusNodeIssue(data.objectId);
+              }}
+            >
+              ✕{data.issueCount > 1 ? ` ${data.issueCount}` : ""}
+            </span>
+          </Tooltip>
         ) : null}
       </div>
       {usageConsumerHighlight ? (

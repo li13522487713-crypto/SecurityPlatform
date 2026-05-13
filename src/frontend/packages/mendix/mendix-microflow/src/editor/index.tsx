@@ -3522,6 +3522,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         }
         const nextSchema = splitDesignFlowWithNode(schema, options.insertFlowId, node);
         commitSchema(nextSchema as unknown as MicroflowSchema, parentLoopObjectId ? "addLoopNode" : "addNode", { source: "nodePanel" });
+        if (item.activityType === "callMicroflow") {
+          openPropertiesPanel();
+        }
         return;
       }
       const nextSchema: MicroflowDesignSchema = alignRootDesignParameterNodesToStart({
@@ -3560,6 +3563,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         },
       });
       commitSchema(nextSchema as unknown as MicroflowSchema, parentLoopObjectId ? "addLoopNode" : "addNode", { source: "nodePanel" });
+      if (item.activityType === "callMicroflow") {
+        openPropertiesPanel();
+      }
       return;
     }
     if (options?.insertFlowId) {
@@ -5653,7 +5659,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       emitPanelSyncEvent({ type: "property-edit" });
       applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
     },
-  }), [applyDeleteTargets, applyDeleteTargetsInDesign, applyPatch, emitPanelSyncEvent, isDebugPaused, props.readonly, running, schema]);
+    focusNodeIssue: (nodeId: string) => {
+      const firstIssue = issues.find(
+        issue => (issue.objectId === nodeId || issue.nodeId === nodeId) && issue.severity === "error"
+      );
+      if (firstIssue) {
+        focusProblemIssue(firstIssue);
+      } else {
+        openBottomDock("problems");
+      }
+    },
+  }), [applyDeleteTargets, applyDeleteTargetsInDesign, applyPatch, emitPanelSyncEvent, focusProblemIssue, isDebugPaused, issues, openBottomDock, props.readonly, running, schema]);
 
   const handleSelectAll = () => {
     if (isDesignSchema(schema)) {
@@ -6264,6 +6280,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     onMoveSelection: handleMoveSelection,
     onGoTo: focusNodeSearch,
     onOpenProperties: openPropertiesPanel,
+    onRunTest: () => void handleTestRun(),
   });
 
   const [fullscreenActive, setFullscreenActive] = useState(false);
@@ -7010,15 +7027,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               { historyLabel: "Toggle grid", skipValidate: true, preserveSelection: true, source: "flowgram" },
             );
           }}
-          dirty={dirty}
-          saving={saving}
-          validating={validationStatus === "validating"}
-          onOpenProblemsPanel={AUXILIARY_PANELS_ENABLED ? () => {
-            openBottomDock("problems");
-          } : undefined}
           canvasPanToolActive={canvasPanToolActive}
           onCanvasPanToolChange={setCanvasPanToolActive}
-          showBuiltInToolbar={false}
         />
         </div>
         </MicroflowCanvasActionsContext.Provider>

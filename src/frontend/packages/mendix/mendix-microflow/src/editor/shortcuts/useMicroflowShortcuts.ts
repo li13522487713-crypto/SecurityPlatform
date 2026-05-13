@@ -28,6 +28,7 @@ export interface UseMicroflowShortcutsOptions {
   onOpenProperties?: () => void;
   onFocusSelected?: () => void;
   onResetZoom?: () => void;
+  onRunTest?: () => void;
 }
 
 export function useMicroflowShortcuts({
@@ -56,6 +57,7 @@ export function useMicroflowShortcuts({
   onOpenProperties,
   onFocusSelected,
   onResetZoom,
+  onRunTest,
 }: UseMicroflowShortcutsOptions) {
   useEffect(() => {
     if (!active) {
@@ -79,6 +81,12 @@ export function useMicroflowShortcuts({
       if (commandKey && key === "s") {
         event.preventDefault();
         onSave();
+        return;
+      }
+
+      if (commandKey && key === "enter" && !isEditableShortcutTarget(event.target) && onRunTest) {
+        event.preventDefault();
+        onRunTest();
         return;
       }
 
@@ -222,5 +230,5 @@ export function useMicroflowShortcuts({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [active, containerRef, onContinue, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onFocusSelected, onGoTo, onMoveSelection, onOpenProperties, onPasteSelection, onRedo, onResetZoom, onSave, onSearch, onSearchAll, onSelectAll, onStepInto, onStepOut, onStepOver, onUndo, readonly]);
+  }, [active, containerRef, onContinue, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onFocusSelected, onGoTo, onMoveSelection, onOpenProperties, onPasteSelection, onRedo, onResetZoom, onRunTest, onSave, onSearch, onSearchAll, onSelectAll, onStepInto, onStepOut, onStepOver, onUndo, readonly]);
 }
