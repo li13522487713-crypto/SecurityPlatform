@@ -1603,6 +1603,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       : undefined);
     if (selection) {
       props.onSelectionChange(selection);
+      // 确保 canvas 容器获得焦点，否则 Delete 等键盘快捷键的 container.contains(event.target) 检查会失败
+      if (document.activeElement !== containerRef.current && !containerRef.current?.contains(document.activeElement)) {
+        containerRef.current?.focus({ preventScroll: true });
+      }
       if (dragStartPosRef.current) {
         const dx = event.clientX - dragStartPosRef.current.x;
         const dy = event.clientY - dragStartPosRef.current.y;
@@ -2030,6 +2034,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     <div
       ref={containerRef}
       data-testid="microflow-flowgram-canvas"
+      tabIndex={-1}
       className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}${gridEnabled ? "" : " is-grid-hidden"}${panToolActive || spacePressed ? " is-pan-cursor" : ""}${isViewportPanGrabbing ? " is-pan-grabbing" : ""}${reconnectState ? " is-reconnect-dragging" : ""}`}
       onDragEnterCapture={event => {
         if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {

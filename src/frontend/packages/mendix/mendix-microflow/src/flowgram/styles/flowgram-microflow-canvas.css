@@ -3,6 +3,7 @@
   height: 100%;
   min-height: 560px;
   overflow: hidden;
+  outline: none;
   background:
     linear-gradient(90deg, rgba(220, 226, 238, 0.055) 1px, transparent 1px),
     linear-gradient(rgba(220, 226, 238, 0.055) 1px, transparent 1px),

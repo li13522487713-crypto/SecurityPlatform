@@ -6916,9 +6916,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   },
                 },
               }, "bulkUpdate", { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-              if (selection.objectId) {
-                openPropertiesPanel();
-              }
               return;
             }
             applyPatch({
@@ -6929,14 +6926,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               selectedFlowIds: selection.flowIds,
               selectionMode: selection.mode,
             }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-            if (selection.objectId) {
-              openPropertiesPanel();
-            }
           }}
           onNodeClickChange={selection => {
             if (selection.objectId) {
               setCanvasBlankContextMenu(undefined);
-              openPropertiesPanel();
             }
           }}
           onNodeDoubleClick={selection => {
@@ -6964,7 +6957,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           onCanvasBlankClick={() => {
             setCanvasNodeContextMenu(undefined);
             setCanvasBlankContextMenu(undefined);
-            openPropertiesPanel();
             if (isDesignSchema(schema)) {
               commitSchema({
                 ...schema,
