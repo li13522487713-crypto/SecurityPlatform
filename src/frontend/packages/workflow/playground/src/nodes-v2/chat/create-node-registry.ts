@@ -128,4 +128,17 @@ export const createNodeRegistry = (
     return nodeData;
   },
   formMeta,
+
+  onInit: async () => {
+    // Chat nodes do not require special initialization
+  },
+
+  checkError: () => {
+    // Validation is handled by the form system (Zod)
+    return undefined;
+  },
+
+  onDispose: () => {
+    // Chat nodes do not hold resources that need cleanup
+  },
 });

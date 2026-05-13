@@ -18,9 +18,11 @@ import { DEFAULT_NODE_META_PATH } from '@coze-workflow/nodes';
 import {
   StandardNodeType,
   type WorkflowNodeRegistry,
+  type WorkflowNodeJSON,
 } from '@coze-workflow/base';
 
 import { type NodeTestMeta } from '@/test-run-kit';
+import { type WorkflowPlaygroundContext } from '@/workflow-playground-context';
 
 import { test } from './node-test';
 import { VARIABLE_ASSIGN_FORM_META } from './form-meta';
@@ -44,4 +46,24 @@ export const VARIABLE_ASSIGN_NODE_REGISTRY: WorkflowNodeRegistry<NodeTestMeta> =
       inputsPathList: [],
     },
     formMeta: VARIABLE_ASSIGN_FORM_META,
+
+    onInit: async (nodeJson: WorkflowNodeJSON, context: WorkflowPlaygroundContext) => {
+      if (!nodeJson) {
+        return;
+      }
+    },
+
+    checkError: (nodeJson: WorkflowNodeJSON, context: WorkflowPlaygroundContext) => {
+      if (!nodeJson) {
+        return undefined;
+      }
+
+      return undefined;
+    },
+
+    onDispose: (nodeJson: WorkflowNodeJSON, context: WorkflowPlaygroundContext) => {
+      if (!nodeJson) {
+        return;
+      }
+    },
   };

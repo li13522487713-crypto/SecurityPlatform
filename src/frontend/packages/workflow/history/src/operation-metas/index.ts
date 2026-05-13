@@ -18,8 +18,14 @@ import { type OperationMeta } from '@flowgram-adapter/free-layout-editor';
 
 import { addNodeOperationMeta } from './add-node';
 import { addLineOperationMeta } from './add-line';
+import { deleteNodeOperationMeta } from './delete-node';
+import { deleteLineOperationMeta } from './delete-line';
+import { moveNodeOperationMeta } from './move-node';
 
 export const operationMetas: OperationMeta[] = [
   addNodeOperationMeta,
   addLineOperationMeta,
+  deleteNodeOperationMeta,
+  deleteLineOperationMeta,
+  moveNodeOperationMeta,
 ];

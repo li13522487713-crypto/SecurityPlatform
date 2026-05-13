@@ -18,9 +18,11 @@ import {
   DEFAULT_NODE_META_PATH,
   type WorkflowNodeRegistry,
 } from '@coze-workflow/nodes';
-import { StandardNodeType } from '@coze-workflow/base';
+import { StandardNodeType, type WorkflowNodeJSON } from '@coze-workflow/base';
 
 import { type NodeTestMeta } from '@/test-run-kit';
+import { type WorkflowPlaygroundContext } from '@/workflow-playground-context';
+import { WorkflowModelsService } from '@/services';
 
 import { test } from './node-test';
 import { LLM_FORM_META } from './llm-form-meta';
@@ -43,4 +45,39 @@ export const LLM_NODE_REGISTRY: WorkflowNodeRegistry<NodeTestMeta> = {
     helpLink: '/open/docs/guides/llm_node',
   },
   formMeta: LLM_FORM_META,
+
+  onInit: async (nodeJson: WorkflowNodeJSON, context: WorkflowPlaygroundContext) => {
+    if (!nodeJson) {
+      return;
+    }
+
+    const modelIds = nodeJson.data?.inputs?.llmParam?.find(p => p.name === 'modelType')?.input?.value?.content;
+    if (modelIds?.length) {
+      await context.entityManager.getService(WorkflowModelsService)?.loadModels?.(modelIds);
+    }
+  },
+
+  checkError: (nodeJson: WorkflowNodeJSON, context: WorkflowPlaygroundContext) => {
+    if (!nodeJson) {
+      return undefined;
+    }
+
+    const llmParam = nodeJson.data?.inputs?.llmParam;
+    if (!llmParam?.length) {
+      return undefined;
+    }
+
+    const modelType = llmParam.find(p => p.name === 'modelType');
+    if (!modelType?.input?.value?.content?.length) {
+      return undefined;
+    }
+
+    return undefined;
+  },
+
+  onDispose: (nodeJson: WorkflowNodeJSON, context: WorkflowPlaygroundContext) => {
+    if (!nodeJson) {
+      return;
+    }
+  },
 };

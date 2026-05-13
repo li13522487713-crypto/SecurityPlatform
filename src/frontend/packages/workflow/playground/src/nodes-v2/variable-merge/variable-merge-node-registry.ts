@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-import { type WorkflowNodeRegistry } from '@coze-workflow/nodes';
+import { type WorkflowNodeRegistry, type WorkflowNodeJSON } from '@coze-workflow/nodes';
 import { StandardNodeType } from '@coze-workflow/base';
+
+import { type WorkflowPlaygroundContext } from '@/workflow-playground-context';
 
 import { VARIABLE_MERGE_FORM_META } from './variable-merge-form-meta';
 
@@ -31,4 +33,24 @@ export const VARIABLE_MERGE_NODE_REGISTRY: WorkflowNodeRegistry = {
     helpLink: '/open/docs/guides/variable_merge_node',
   },
   formMeta: VARIABLE_MERGE_FORM_META,
+
+  onInit: async (nodeJson: WorkflowNodeJSON, context: WorkflowPlaygroundContext) => {
+    if (!nodeJson) {
+      return;
+    }
+  },
+
+  checkError: (nodeJson: WorkflowNodeJSON, context: WorkflowPlaygroundContext) => {
+    if (!nodeJson) {
+      return undefined;
+    }
+
+    return undefined;
+  },
+
+  onDispose: (nodeJson: WorkflowNodeJSON, context: WorkflowPlaygroundContext) => {
+    if (!nodeJson) {
+      return;
+    }
+  },
 };
