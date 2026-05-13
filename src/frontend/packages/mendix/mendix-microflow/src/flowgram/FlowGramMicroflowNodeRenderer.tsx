@@ -31,6 +31,7 @@ import {
   focusMicroflowNodeDragRoot,
   isMicroflowNodeDragBlockedTarget,
 } from "./flowgram-node-drag";
+import { NodeIcon } from "./NodeIcon";
 import "./styles/flowgram-microflow-node.css";
 
 function tryReadNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeData | undefined {
@@ -129,65 +130,7 @@ function nodeUsageAliases(nodeId: string, objectId?: string): string[] {
   return [...aliases];
 }
 
-/** 每种节点类型的语义 SVG 图标（16×16 viewBox） */
-function NodeIcon({ kind }: { kind: string }) {
-  const base = { width: 14, height: 14, viewBox: "0 0 16 16", fill: "currentColor", "aria-hidden": true as const, style: { display: "block" } };
-  switch (kind) {
-    case "startEvent":
-      // 实心播放三角
-      return <svg {...base}><polygon points="3,2 14,8 3,14" /></svg>;
-    case "endEvent":
-      // 实心正方形
-      return <svg {...base}><rect x="2" y="2" width="12" height="12" rx="1" /></svg>;
-    case "errorEvent":
-      // X 形
-      return <svg {...base}><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" /></svg>;
-    case "continueEvent":
-      // 继续箭头
-      return <svg {...base}><path d="M3 8h8M8 4l4 4-4 4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
-    case "breakEvent":
-      // 停止方块
-      return <svg {...base}><rect x="4" y="4" width="8" height="8" rx="1.3" /></svg>;
-    case "parameterObject":
-      // 参数椭圆里的 P
-      return <svg {...base}><path d="M5 12V4h4.1a2.9 2.9 0 0 1 0 5.8H5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
-    case "exclusiveSplit":
-      // 分支语义：主干 + 两条分支
-      return <svg {...base}><path d="M4 3v4M12 3v4M8 5v6M4 7h8M8 11l-3 2M8 11l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
-    case "inheritanceSplit":
-      // 继承分支（主干 + 子分支）
-      return <svg {...base}><path d="M8 2v3M4 7h8M4 7v5M12 7v5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
-    case "loopedActivity":
-      // 循环箭头
-      return <svg {...base}><path d="M8 2a6 6 0 1 1-4.24 1.76M8 2V6M8 2L5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
-    case "annotation":
-      // 文档/注释
-      return <svg {...base}><rect x="2" y="1" width="10" height="14" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" /><line x1="5" y1="5" x2="9" y2="5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><line x1="5" y1="8" x2="9" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><line x1="5" y1="11" x2="7" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>;
-    case "httpRequest":
-      // 地球/网络
-      return <svg {...base}><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" /><ellipse cx="8" cy="8" rx="2.5" ry="6" fill="none" stroke="currentColor" strokeWidth="1.2" /><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.2" /></svg>;
-    case "javaAction":
-    case "microflowCall":
-    case "nanoflowCall":
-      // 闪电/执行
-      return <svg {...base}><polygon points="9,1 3,9 8,9 7,15 13,7 8,7" /></svg>;
-    case "parallelSplit":
-    case "parallelMerge":
-      // 双竖线（并行）
-      return <svg {...base}><rect x="3" y="2" width="3" height="12" rx="1" /><rect x="10" y="2" width="3" height="12" rx="1" /></svg>;
-    case "tryCatch":
-      // 盾牌
-      return <svg {...base}><path d="M8 1L2 4v4c0 3 2.7 5.7 6 7 3.3-1.3 6-4 6-7V4L8 1z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>;
-    case "mergeActivity":
-      // 汇聚箭头
-      return <svg {...base}><path d="M2 4l6 4-6 4M14 4l-6 4 6 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
-    default:
-      // 通用动作：齿轮
-      return <svg {...base}><circle cx="8" cy="8" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>;
-  }
-}
-
-type NodeCategory = "data" | "variable" | "list" | "flow" | "event";
+type NodeCategory = "data" | "variable" | "list" | "flow" | "event" | "call" | "parallel" | "loop";
 
 type NodeTone = "start" | "end" | "error" | "continue" | "break" | "decision" | "merge" | "loop" | "parameter" | "annotation" | "action";
 type ErrorHandlingBadge = { text: "R" | "C" | "!"; className: string };
@@ -202,6 +145,9 @@ const NODE_CATEGORY_STYLE: Record<NodeCategory, {
   list: { iconColor: "#6ee7b7", iconBg: "#0d3824", borderColor: "#0a2e1e" },
   flow: { iconColor: "#c4b5fd", iconBg: "#321e5a", borderColor: "#2a1a4a" },
   event: { iconColor: "#f9a8d4", iconBg: "#4a0a2a", borderColor: "#3a0a24" },
+  call: { iconColor: "#f9a8d4", iconBg: "#5b21b6", borderColor: "#4c1d95" },
+  parallel: { iconColor: "#67e8f9", iconBg: "#0e3a4a", borderColor: "#0a2e3a" },
+  loop: { iconColor: "#a78bfa", iconBg: "#2d1a5e", borderColor: "#261655" },
 };
 
 const ACTIVITY_BACKGROUND_COLOR_STYLE: Record<Exclude<MicroflowActionActivityColor, "default">, { iconBg: string; iconColor: string }> = {
@@ -244,50 +190,36 @@ function surfacePaletteForBackgroundColor(backgroundColor: MicroflowActionActivi
 
 function nodeCategory(kind: string): NodeCategory {
   if ([
-    "createObject",
-    "changeObject",
-    "retrieveObject",
-    "commitObject",
-    "deleteObject",
+    "createObject", "changeObject", "retrieveObject", "commitObject", "deleteObject",
+    "objectCreate", "objectChange", "objectRetrieve", "objectCommit", "objectDelete",
+    "objectRollback", "objectCast",
   ].includes(kind)) {
     return "data";
   }
   if ([
-    "createVariable",
-    "changeVariable",
+    "createVariable", "changeVariable", "variableCreate", "variableChange",
   ].includes(kind)) {
     return "variable";
   }
   if ([
-    "filterList",
-    "sortList",
-    "aggregateList",
+    "filterList", "sortList", "aggregateList",
+    "listFilter", "listSort", "listAggregate", "listCreate", "listChange", "listOperation",
   ].includes(kind)) {
     return "list";
   }
   if ([
-    "callMicroflow",
-    "callRest",
-    "javaAction",
-    "microflowCall",
-    "nanoflowCall",
-    "httpRequest",
-    "actionActivity",
-    "tryCatch",
-    "parallelSplit",
-    "parallelMerge",
-    "exclusiveSplit",
-    "inheritanceSplit",
-    "loopedActivity",
-    "startEvent",
-    "endEvent",
-    "errorEvent",
-    "breakEvent",
-    "continueEvent",
-    "annotation",
-    "parameterObject",
+    "callMicroflow", "callRest", "javaAction", "microflowCall", "nanoflowCall",
+    "httpRequest", "restCall", "logMessage", "throwException",
   ].includes(kind)) {
-    return "flow";
+    return "call";
+  }
+  if ([
+    "parallelSplit", "parallelMerge", "parallelGateway", "inclusiveGateway",
+  ].includes(kind)) {
+    return "parallel";
+  }
+  if (kind === "loopedActivity") {
+    return "loop";
   }
   return "flow";
 }
@@ -565,7 +497,7 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
         {tone === "start" || tone === "end" || tone === "error" || tone === "continue" || tone === "break" ? (
           <div
             className="microflow-event-dot"
-            title={data.title}
+            title={tone === "start" ? `${data.title}（起始节点位置固定）` : data.title}
             data-node-tone={tone}
           >
             <span
@@ -575,6 +507,14 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
             {tone === "error" || tone === "continue" || tone === "break" ? (
               <span className="microflow-event-dot__icon" aria-hidden="true">
                 <NodeIcon kind={data.objectKind} />
+              </span>
+            ) : null}
+            {tone === "start" ? (
+              <span className="microflow-event-dot__lock-badge" aria-label="起始节点位置固定" title="起始节点位置固定">
+                <svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                  <rect x="2" y="5" width="6" height="5" rx="1" />
+                  <path d="M3 5V3.5a2 2 0 0 1 4 0V5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none" />
+                </svg>
               </span>
             ) : null}
           </div>
@@ -692,7 +632,12 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
             subtitle={activitySubtitle}
             icon={<NodeIcon kind={data.objectKind} />}
             iconStyle={actionIconStyle}
-            showRuntimeErrorDot={data.runtimeState === "failed"}
+            showRuntimeErrorDot={false}
+            runtimeInfo={runtime ? {
+              state: runtime.running ? "running" : runtime.success ? "success" : runtime.failed ? "failed" : runtime.skipped ? "skipped" : "idle",
+              durationMs: typeof runtime.durationMs === "number" ? runtime.durationMs : undefined,
+              errorMessage: runtime.error ?? undefined,
+            } : undefined}
           />
         )}
         {nodeErrorBadge && (tone === "action" || tone === "loop" || tone === "decision") ? (

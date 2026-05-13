@@ -1,5 +1,8 @@
-import { Button, Checkbox, Input, Select, Space, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { useState } from "react";
+import { Button, Checkbox, Input, Select, Space, Spin, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
+import { useMicroflowMetadata } from "../metadata";
+import { searchMicroflows } from "../metadata/metadata-catalog";
 import type {
   MicroflowActionActivityConfig,
   MicroflowRegistryActivityNode,
@@ -295,16 +298,79 @@ export function MicroflowParameterForm(rawProps: MicroflowNodeFormProps) {
   );
 }
 
+/** Minimal safe markdown → HTML: only bold, italic, code, headings, bullets, newlines */
+function renderMarkdownPreview(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/^### (.+)$/gm, "<h5 style=\"margin:4px 0;font-size:12px;font-weight:700\">$1</h5>")
+    .replace(/^## (.+)$/gm, "<h4 style=\"margin:4px 0;font-size:13px;font-weight:700\">$1</h4>")
+    .replace(/^# (.+)$/gm, "<h3 style=\"margin:4px 0;font-size:14px;font-weight:700\">$1</h3>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`(.+?)`/g, "<code style=\"background:rgba(0,0,0,0.08);padding:0 2px;border-radius:2px;font-family:monospace\">$1</code>")
+    .replace(/^[-*] (.+)$/gm, "• $1")
+    .replace(/\n/g, "<br/>");
+}
+
 export function MicroflowAnnotationForm(rawProps: MicroflowNodeFormProps) {
   const props = rawProps as unknown as MicroflowNodeFormProps<MicroflowRegistryAnnotationNode>;
+  const [previewMode, setPreviewMode] = useState(false);
+  const text = props.node.config.text ?? "";
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
       <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Title">
         <Input readonly={props.readonly} value={props.node.config.title ?? ""} onChange={title => props.onPatch({ config: { title } })} />
       </FieldRow>
-      <FieldRow label="Annotation content">
-        <TextArea autosize readonly={props.readonly} value={props.node.config.text} onChange={text => props.onPatch({ config: { text } })} />
+      <FieldRow
+        label={
+          <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+            <span>Annotation content</span>
+            <button
+              type="button"
+              style={{
+                marginLeft: 8,
+                padding: "1px 8px",
+                fontSize: 11,
+                border: "1px solid rgba(0,0,0,0.12)",
+                borderRadius: 4,
+                background: previewMode ? "rgba(22,93,255,0.08)" : "transparent",
+                color: previewMode ? "#165dff" : "#646a73",
+                cursor: "pointer",
+              }}
+              onClick={() => setPreviewMode(v => !v)}
+            >
+              {previewMode ? "✎ 编辑" : "👁 预览"}
+            </button>
+          </span>
+        }
+      >
+        {previewMode ? (
+          <div
+            style={{
+              minHeight: 64,
+              padding: "6px 8px",
+              border: "1px solid rgba(0,0,0,0.12)",
+              borderRadius: 6,
+              background: "#fafafa",
+              fontSize: 13,
+              lineHeight: "1.6",
+              wordBreak: "break-word",
+            }}
+            dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(text) || "<span style=\"color:#9ca3af;font-style:italic\">无内容</span>" }}
+          />
+        ) : (
+          <TextArea
+            autosize
+            readonly={props.readonly}
+            value={text}
+            placeholder={"支持 Markdown 语法\n**粗体** *斜体* `代码`\n# 标题 ## 二级\n- 列表项"}
+            onChange={val => props.onPatch({ config: { text: val } })}
+          />
+        )}
       </FieldRow>
       <FieldRow label="Color">
         <Input readonly={props.readonly} value={props.node.config.color ?? ""} placeholder="#fff7e0" onChange={color => props.onPatch({ config: { color } })} />
@@ -551,11 +617,31 @@ export function MicroflowVariableChangeForm(rawProps: MicroflowNodeFormProps) {
 
 export function MicroflowCallMicroflowForm(rawProps: MicroflowNodeFormProps) {
   const props = rawProps as unknown as ActivityFormProps;
+  const { catalog, loading } = useMicroflowMetadata();
+  const microflowOptions = catalog
+    ? searchMicroflows(catalog).map(mf => ({
+        value: mf.id,
+        label: mf.displayName ?? mf.qualifiedName ?? mf.name,
+      }))
+    : [];
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
       <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Target microflow" required>
-        <Input readonly={props.readonly} value={props.node.config.targetMicroflowId ?? ""} onChange={targetMicroflowId => updateActivityConfig(props, { targetMicroflowId })} />
+        {loading && !catalog ? (
+          <Spin size="small" />
+        ) : (
+          <Select
+            disabled={props.readonly}
+            style={{ width: "100%" }}
+            filter
+            showClear
+            placeholder="Search microflow…"
+            value={props.node.config.targetMicroflowId ?? ""}
+            optionList={microflowOptions}
+            onChange={targetMicroflowId => updateActivityConfig(props, { targetMicroflowId: targetMicroflowId ? String(targetMicroflowId) : undefined })}
+          />
+        )}
       </FieldRow>
       <FieldRow label="Return variable">
         <Input readonly={props.readonly} value={props.node.config.resultVariableName ?? ""} onChange={resultVariableName => updateActivityConfig(props, { resultVariableName })} />

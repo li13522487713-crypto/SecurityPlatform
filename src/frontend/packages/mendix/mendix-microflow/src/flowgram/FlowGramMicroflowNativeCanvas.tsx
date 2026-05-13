@@ -78,6 +78,7 @@ import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicr
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
 import { MicroflowNodeUsageHighlightsContext, MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
 import { FlowGramNodeToolbar } from "./FlowGramNodeToolbar";
+import { MicroflowNodeSpotlight } from "./MicroflowNodeSpotlight";
 import { findNearestInsertableEdgeFlowId } from "./drop-insert-utils";
 import type { MicroflowNodeUsageHighlights } from "../variables";
 import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
@@ -134,6 +135,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
   onCanvasBlankDoubleClick?: (point: { x: number; y: number }) => void;
   onNodeContextMenu?: (selection: FlowGramMicroflowSelection, point: { x: number; y: number }) => void;
   onNodeToolbarQuickAdd?: (objectId: string, point: { x: number; y: number }) => void;
+  onNodeToolbarQuickConnect?: (objectId: string, item: import("../node-registry").MicroflowNodeRegistryItem) => void;
   onDropRegistryItem?: (
     item: MicroflowNodeRegistryItem,
     position: MicroflowPoint,
@@ -162,6 +164,10 @@ export interface FlowGramMicroflowNativeCanvasProps {
   onDuplicateSelection?: () => void;
   onClearSelection?: () => void;
   onCanvasBlankContextMenu?: (point: { x: number; y: number }) => void;
+  onRun?: () => void;
+  onStopRun?: () => void;
+  isRunning?: boolean;
+  onNavigateToIssue?: (objectId: string) => void;
 }
 
 type DisposableLineSnapshot = {
@@ -1819,8 +1825,20 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       return;
     }
     initialViewportFitDoneRef.current = true;
-    props.onViewportChange?.(initialViewportFromStartNode(props.schema.workflow, rect), { skipDirty: true });
-  }, [props.schema.workflow, props.onViewportChange]);
+    const nodeCount = props.schema.workflow.nodes.length;
+    const savedViewport = props.schema.editor?.viewport;
+    const hasNonDefaultViewport = savedViewport && (
+      Math.abs(savedViewport.x) > 20 ||
+      Math.abs(savedViewport.y) > 20 ||
+      Math.abs(savedViewport.zoom - 1) > 0.05
+    );
+    if (nodeCount > 4 && !hasNonDefaultViewport) {
+      // Fit all nodes into view for larger flows without a saved viewport position
+      props.onViewportChange?.(fitViewportForWorkflow(props.schema.workflow, rect), { skipDirty: true });
+    } else {
+      props.onViewportChange?.(initialViewportFromStartNode(props.schema.workflow, rect), { skipDirty: true });
+    }
+  }, [props.schema.workflow, props.onViewportChange, props.schema.editor?.viewport]);
 
   useEffect(() => {
     if (props.focusObjectId) {
@@ -2073,18 +2091,63 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
             validating={props.validating}
             validationIssues={props.validationIssues}
             onOpenProblemsPanel={props.onOpenProblemsPanel}
+            onRun={props.onRun}
+            onStopRun={props.onStopRun}
+            isRunning={props.isRunning}
+            onNavigateToIssue={props.onNavigateToIssue ?? ((objectId) => focusNode(objectId))}
           />
         </div>
       ) : null}
       {miniMapVisible ? <FlowGramMicroflowNativeMiniMap schema={props.schema} onFocusNode={focusNode} /> : null}
+      {(props.schema.workflow.nodes ?? []).length === 0 && !props.readonly ? (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            pointerEvents: "none",
+            zIndex: 5,
+          }}
+        >
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 12,
+            padding: "24px 32px",
+            borderRadius: 12,
+            border: "1px dashed rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.03)",
+            maxWidth: 280,
+            textAlign: "center",
+          }}>
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+              <rect x="6" y="14" width="16" height="20" rx="3" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" strokeDasharray="4 2" />
+              <path d="M30 24l12 0M36 18l6 6-6 6" stroke="#4a9eff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="38" cy="24" r="6" fill="rgba(74,158,255,0.12)" stroke="rgba(74,158,255,0.6)" strokeWidth="1.2" />
+            </svg>
+            <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, lineHeight: "20px" }}>
+              从左侧节点面板拖拽节点到画布开始设计微流
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+              或双击画布快速添加节点
+            </div>
+          </div>
+        </div>
+      ) : null}
       {canvasNodeToolbar && !props.readonly ? (
         <FlowGramNodeToolbar
           x={canvasNodeToolbar.x}
           y={canvasNodeToolbar.y}
-          onQuickAdd={() => props.onNodeToolbarQuickAdd?.(canvasNodeToolbar.objectId, {
+          onQuickAdd={props.onNodeToolbarQuickAdd ? () => props.onNodeToolbarQuickAdd!(canvasNodeToolbar.objectId, {
             x: canvasNodeToolbar.x,
             y: canvasNodeToolbar.y,
-          })}
+          }) : undefined}
+          onQuickConnect={props.onNodeToolbarQuickConnect
+            ? (item) => props.onNodeToolbarQuickConnect!(canvasNodeToolbar.objectId, item)
+            : undefined
+          }
           onDelete={() => props.onDeleteSelection?.()}
           onDuplicate={() => props.onDuplicateSelection?.()}
         />
@@ -2094,6 +2157,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         readonly={props.readonly}
         onDelete={props.onDeleteSelection}
         onClear={props.onClearSelection ?? (() => props.onCanvasBlankClick?.())}
+      />
+      <MicroflowNodeSpotlight
+        workflow={props.schema.workflow as import("../schema/types").MicroflowWorkflowJSON}
+        onNavigate={focusNode}
       />
     </div>
   );

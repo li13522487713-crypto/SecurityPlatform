@@ -10,6 +10,8 @@ export interface FlowGramMicroflowStatusStripProps {
   validating: boolean;
   readonly?: boolean;
   onOpenProblemsPanel?: () => void;
+  /** Called with the objectId of the first error/warning node so the canvas can scroll to it. */
+  onNavigateToIssue?: (objectId: string) => void;
 }
 
 const draftStyle: CSSProperties = {
@@ -87,18 +89,27 @@ export function FlowGramMicroflowStatusStrip({
   validating,
   readonly: readOnly,
   onOpenProblemsPanel,
+  onNavigateToIssue,
 }: FlowGramMicroflowStatusStripProps) {
-  const { errorCount, warningCount } = useMemo(() => {
+  const { errorCount, warningCount, firstErrorObjectId, firstWarningObjectId } = useMemo(() => {
     let errors = 0;
     let warnings = 0;
+    let firstErr: string | undefined;
+    let firstWarn: string | undefined;
     for (const issue of validationIssues) {
       if (issue.severity === "error") {
         errors += 1;
+        if (!firstErr && issue.objectId) {
+          firstErr = issue.objectId;
+        }
       } else if (issue.severity === "warning") {
         warnings += 1;
+        if (!firstWarn && issue.objectId) {
+          firstWarn = issue.objectId;
+        }
       }
     }
-    return { errorCount: errors, warningCount: warnings };
+    return { errorCount: errors, warningCount: warnings, firstErrorObjectId: firstErr, firstWarningObjectId: firstWarn };
   }, [validationIssues]);
 
   const draftLabel = readOnly
@@ -109,7 +120,10 @@ export function FlowGramMicroflowStatusStrip({
         ? "草稿待保存"
         : "已保存";
 
-  const openProblems = () => {
+  const openProblems = (objectId?: string) => {
+    if (objectId && onNavigateToIssue) {
+      onNavigateToIssue(objectId);
+    }
     onOpenProblemsPanel?.();
   };
 
@@ -120,14 +134,14 @@ export function FlowGramMicroflowStatusStrip({
           {draftLabel}
         </Tag>
         {errorCount > 0 ? (
-          <IssueCountTag count={errorCount} suffix="错误" baseStyle={errorStyle} onOpen={onOpenProblemsPanel ? openProblems : undefined} />
+          <IssueCountTag count={errorCount} suffix="错误" baseStyle={errorStyle} onOpen={(onOpenProblemsPanel || onNavigateToIssue) ? () => openProblems(firstErrorObjectId) : undefined} />
         ) : null}
         {warningCount > 0 ? (
           <IssueCountTag
             count={warningCount}
             suffix="警告"
             baseStyle={warningStyle}
-            onOpen={onOpenProblemsPanel ? openProblems : undefined}
+            onOpen={(onOpenProblemsPanel || onNavigateToIssue) ? () => openProblems(firstWarningObjectId) : undefined}
           />
         ) : null}
         {validating ? (

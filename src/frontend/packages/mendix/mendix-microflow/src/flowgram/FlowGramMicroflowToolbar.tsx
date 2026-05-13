@@ -1,6 +1,6 @@
 import { type CSSProperties, useMemo } from "react";
-import { Button, Divider, Dropdown, Space, Tag, Tooltip } from "@douyinfe/semi-ui";
-import { IconClock, IconGridRectangle, IconHandle, IconMapPin, IconMinus, IconPlus, IconRedo, IconRefresh, IconTreeTriangleDown, IconUndo } from "@douyinfe/semi-icons";
+import { Button, Divider, Dropdown, Space, Spin, Tag, Tooltip } from "@douyinfe/semi-ui";
+import { IconClock, IconGridRectangle, IconHandle, IconMapPin, IconMinus, IconPlay, IconPlus, IconRedo, IconRefresh, IconStop, IconTreeTriangleDown, IconUndo } from "@douyinfe/semi-icons";
 import { WorkflowResetLayoutService, usePlayground, useService } from "@flowgram-adapter/free-layout-editor";
 
 import { getMendixMicroflowCopy } from "../i18n/copy";
@@ -79,7 +79,11 @@ export interface FlowGramMicroflowToolbarProps {
   validating?: boolean;
   validationIssues?: MicroflowValidationIssue[];
   onOpenProblemsPanel?: () => void;
+  onNavigateToIssue?: (objectId: string) => void;
   microflowComplexity?: MicroflowComplexitySummary;
+  onRun?: () => void;
+  onStopRun?: () => void;
+  isRunning?: boolean;
 }
 
 const draftTagStyle: CSSProperties = {
@@ -130,17 +134,21 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
   const copy = getMendixMicroflowCopy();
   const resetLayout = useService<WorkflowResetLayoutService>(WorkflowResetLayoutService);
 
-  const { errorCount, warningCount } = useMemo(() => {
+  const { errorCount, warningCount, firstErrorObjectId, firstWarningObjectId } = useMemo(() => {
     let errors = 0;
     let warnings = 0;
+    let firstErr: string | undefined;
+    let firstWarn: string | undefined;
     for (const issue of props.validationIssues ?? []) {
       if (issue.severity === "error") {
         errors += 1;
+        if (!firstErr && issue.objectId) firstErr = issue.objectId;
       } else if (issue.severity === "warning") {
         warnings += 1;
+        if (!firstWarn && issue.objectId) firstWarn = issue.objectId;
       }
     }
-    return { errorCount: errors, warningCount: warnings };
+    return { errorCount: errors, warningCount: warnings, firstErrorObjectId: firstErr, firstWarningObjectId: firstWarn };
   }, [props.validationIssues]);
 
   const fitView = () => {
@@ -202,7 +210,7 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
     : undefined;
 
   return (
-    <div className="microflow-flowgram-toolbar">
+    <div className="microflow-flowgram-toolbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
       <Space spacing={2}>
         {/* 平移工具 */}
         {props.onTogglePanTool ? (
@@ -317,7 +325,79 @@ export function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
             </Tooltip>
           </>
         ) : null}
+        {errorCount > 0 ? (
+          <>
+            <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
+            <Tooltip content="跳转到第一个错误节点" position="bottom">
+              <Tag
+                size="small"
+                style={{ ...errorTagStyle }}
+                onClick={() => {
+                  if (firstErrorObjectId) props.onNavigateToIssue?.(firstErrorObjectId);
+                  props.onOpenProblemsPanel?.();
+                }}
+              >
+                ✕ {errorCount} 错误
+              </Tag>
+            </Tooltip>
+          </>
+        ) : null}
+        {warningCount > 0 && errorCount === 0 ? (
+          <>
+            <Divider layout="vertical" style={{ height: 20, margin: "0 2px" }} />
+            <Tooltip content="跳转到第一个警告节点" position="bottom">
+              <Tag
+                size="small"
+                style={{ ...warningTagStyle }}
+                onClick={() => {
+                  if (firstWarningObjectId) props.onNavigateToIssue?.(firstWarningObjectId);
+                  props.onOpenProblemsPanel?.();
+                }}
+              >
+                ⚠ {warningCount} 警告
+              </Tag>
+            </Tooltip>
+          </>
+        ) : null}
       </Space>
+      {/* Run controls on the right */}
+      {(props.onRun || props.isRunning) ? (
+        <Space spacing={4}>
+          {props.isRunning ? (
+            <>
+              <Spin size="small" />
+              <Tag size="small" color="blue">执行中…</Tag>
+            </>
+          ) : null}
+          {props.isRunning && props.onStopRun ? (
+            <Tooltip content="停止执行" position="bottom">
+              <Button
+                icon={<IconStop />}
+                size="small"
+                type="danger"
+                theme="light"
+                aria-label="停止执行"
+                onClick={props.onStopRun}
+              />
+            </Tooltip>
+          ) : null}
+          {!props.isRunning && props.onRun ? (
+            <Tooltip content="测试运行 (Ctrl+Enter)" position="bottom">
+              <Button
+                icon={<IconPlay />}
+                size="small"
+                type="primary"
+                theme="solid"
+                aria-label="测试运行"
+                disabled={props.readonly}
+                onClick={props.onRun}
+              >
+                运行
+              </Button>
+            </Tooltip>
+          ) : null}
+        </Space>
+      ) : null}
     </div>
   );
 }

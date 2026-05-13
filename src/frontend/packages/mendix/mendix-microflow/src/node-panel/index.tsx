@@ -12,6 +12,7 @@ import {
   IconStarStroked
 } from "@douyinfe/semi-icons";
 import type { MicroflowRegistryNodeType, MicroflowActivityType } from "../schema";
+import { NodeIcon } from "../flowgram/NodeIcon";
 import {
   defaultMicroflowNodePanelRegistry,
   canDragRegistryItem,
@@ -480,7 +481,7 @@ export function buildMendixToolboxSections(
 
 function MicroflowNodeIcon({ item, size = 22 }: { item: MicroflowNodeRegistryItem; size?: number }) {
   const tone = iconTone(item);
-  const label = (item.title.match(/\b[A-Z]/g)?.slice(0, 2).join("") || item.activityType?.slice(0, 2) || item.type.slice(0, 2)).toUpperCase();
+  const iconKind = item.activityType ?? item.type;
   return (
     <span
       style={{
@@ -492,12 +493,11 @@ function MicroflowNodeIcon({ item, size = 22 }: { item: MicroflowNodeRegistryIte
         justifyContent: "center",
         background: tone.background,
         color: tone.color,
-        fontSize: Math.max(9, Math.round(size * 0.34)),
-        fontWeight: 700,
-        border: `1px solid ${tone.color}22`
+        border: `1px solid ${tone.color}22`,
+        flexShrink: 0,
       }}
     >
-      {label.toUpperCase()}
+      <NodeIcon kind={iconKind} size={Math.round(size * 0.62)} />
     </span>
   );
 }

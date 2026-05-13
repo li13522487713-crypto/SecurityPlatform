@@ -8,6 +8,7 @@ import { findObjectWithCollection } from "../schema/utils/object-utils";
 import { FieldError } from "./common";
 import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "./types";
 import { getIssuesForField, getIssuesForFlow, getIssuesForObject } from "./utils";
+import { NodeIcon } from "../flowgram/NodeIcon";
 
 const { Text, Title } = Typography;
 
@@ -36,6 +37,58 @@ export function objectSubtitle(object: MicroflowObject): string {
   }
   const objectItem = defaultMicroflowObjectNodeRegistry.find(item => item.objectKind === object.kind);
   return objectItem?.title ?? object.kind;
+}
+
+function objectIconColorTokens(object: MicroflowObject): { bg: string; color: string } {
+  if (object.kind === "actionActivity") {
+    switch (object.action.kind) {
+      case "createObject": case "retrieve": case "changeMembers": case "delete":
+        return { bg: "rgba(22, 93, 255, 0.1)", color: "#165dff" };
+      case "createList": case "aggregateList": case "listOperation": case "changeList":
+        return { bg: "rgba(0, 168, 112, 0.1)", color: "#00a870" };
+      case "createVariable": case "changeVariable":
+        return { bg: "rgba(245, 158, 11, 0.1)", color: "#f59e0b" };
+      case "callMicroflow":
+        return { bg: "rgba(114, 46, 209, 0.1)", color: "#722ed1" };
+      case "restCall":
+        return { bg: "rgba(249, 57, 32, 0.1)", color: "#f93920" };
+      default:
+        return { bg: "rgba(22, 93, 255, 0.08)", color: "#165dff" };
+    }
+  }
+  switch (object.kind) {
+    case "startEvent": return { bg: "rgba(0, 168, 112, 0.1)", color: "#00a870" };
+    case "endEvent": return { bg: "rgba(215, 49, 53, 0.1)", color: "#d73135" };
+    case "errorEvent": return { bg: "rgba(247, 114, 52, 0.1)", color: "#f77234" };
+    case "exclusiveSplit": case "inheritanceSplit": return { bg: "rgba(245, 158, 11, 0.1)", color: "#f59e0b" };
+    case "loopedActivity": return { bg: "rgba(114, 46, 209, 0.1)", color: "#722ed1" };
+    case "parallelGateway": case "inclusiveGateway": return { bg: "rgba(6, 182, 212, 0.1)", color: "#06b6d4" };
+    case "tryCatch": return { bg: "rgba(239, 68, 68, 0.1)", color: "#ef4444" };
+    case "annotation": return { bg: "rgba(246, 208, 112, 0.1)", color: "#d48806" };
+    case "parameterObject": return { bg: "rgba(245, 158, 11, 0.1)", color: "#f59e0b" };
+    default: return { bg: "rgba(22, 93, 255, 0.08)", color: "#165dff" };
+  }
+}
+
+export function objectNodeIconKind(object: MicroflowObject): string {
+  if (object.kind === "actionActivity") {
+    switch (object.action.kind) {
+      case "createObject": return "createObject";
+      case "retrieve": return "retrieveObject";
+      case "changeMembers": return "changeObject";
+      case "delete": return "deleteObject";
+      case "createList": return "listCreate";
+      case "aggregateList": return "listAggregate";
+      case "changeList": return "listChange";
+      case "listOperation": return "filterList";
+      case "createVariable": return "createVariable";
+      case "changeVariable": return "changeVariable";
+      case "callMicroflow": return "callMicroflow";
+      case "restCall": return "callRest";
+      default: return object.action.kind;
+    }
+  }
+  return object.kind;
 }
 
 export function objectIconGlyph(object: MicroflowObject): string {
@@ -110,33 +163,54 @@ export function issuesFor(props: MicroflowPropertyPanelProps, objectId?: string,
   return [];
 }
 
-export function Header({ props, title, subtitle, icon, onDelete, onDuplicate }: {
+export function Header({ props, title, subtitle, icon, object: objectProp, onDelete, onDuplicate }: {
   props: MicroflowPropertyPanelProps;
   title: string;
   subtitle: string;
   icon?: ReactNode;
+  object?: MicroflowObject;
   onDelete?: () => void;
   onDuplicate?: () => void;
 }) {
   const readonlyDisabledReason = props.readonly ? "Readonly mode cannot edit this object." : "";
+  const colorTokens = objectProp ? objectIconColorTokens(objectProp) : null;
+  const iconKind = objectProp ? objectNodeIconKind(objectProp) : null;
   return (
-    <div style={{ padding: 14, borderBottom: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-2, #fff)" }}>
+    <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-2, #fff)" }}>
       <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
           <Space align="center" spacing={8}>
-            {icon ? (
+            {iconKind && colorTokens ? (
               <span
                 aria-hidden="true"
                 style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: 9,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: "rgba(22, 93, 255, 0.12)",
+                  background: colorTokens.bg,
+                  color: colorTokens.color,
+                  border: `1px solid ${colorTokens.color}33`,
+                  flex: "0 0 auto",
+                }}
+              >
+                <NodeIcon kind={iconKind} size={16} />
+              </span>
+            ) : icon ? (
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(22, 93, 255, 0.1)",
                   color: "#165dff",
-                  fontSize: 11,
+                  fontSize: 13,
                   fontWeight: 700,
                   flex: "0 0 auto",
                 }}
@@ -144,9 +218,11 @@ export function Header({ props, title, subtitle, icon, onDelete, onDuplicate }: 
                 {icon}
               </span>
             ) : null}
-            <Title heading={6} style={{ margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</Title>
+            <div style={{ minWidth: 0 }}>
+              <Title heading={6} style={{ margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</Title>
+              <Text size="small" type="tertiary" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</Text>
+            </div>
           </Space>
-          <Text size="small" type="tertiary">{subtitle}</Text>
         </div>
         <Space>
           {onDuplicate ? (

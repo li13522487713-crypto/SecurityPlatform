@@ -539,6 +539,46 @@
   --microflow-node-category-border-color: #3a0a24;
 }
 
+.microflow-flowgram-node[data-node-category="call"] {
+  --microflow-node-category-icon-color: #f9a8d4;
+  --microflow-node-category-border-color: #4c1d95;
+}
+
+.microflow-flowgram-node[data-node-category="parallel"] {
+  --microflow-node-category-icon-color: #67e8f9;
+  --microflow-node-category-border-color: #0a2e3a;
+}
+
+.microflow-flowgram-node[data-node-category="loop"] {
+  --microflow-node-category-icon-color: #a78bfa;
+  --microflow-node-category-border-color: #261655;
+}
+
+/* Start node lock badge */
+.microflow-event-dot__lock-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1e2640;
+  border: 1.5px solid #4ade80;
+  display: grid;
+  place-items: center;
+  color: #4ade80;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.microflow-flowgram-node[data-node-tone="start"] {
+  cursor: default;
+}
+
+.microflow-flowgram-node[data-node-tone="start"] .microflow-event-dot {
+  cursor: default;
+}
+
 .microflow-event-dot {
   position: relative;
   display: grid;
@@ -816,6 +856,36 @@
   }
 }
 
+@keyframes microflow-node-success-flash {
+  0%   { box-shadow: 0 0 0 0   rgba(40, 199, 134, 0.7); }
+  40%  { box-shadow: 0 0 0 6px rgba(40, 199, 134, 0.28); }
+  100% { box-shadow: 0 0 0 2px rgba(40, 199, 134, 0.18); }
+}
+
+@keyframes microflow-node-failed-shake {
+  0%   { transform: translateX(0); }
+  18%  { transform: translateX(-4px); }
+  38%  { transform: translateX(4px); }
+  56%  { transform: translateX(-3px); }
+  72%  { transform: translateX(3px); }
+  88%  { transform: translateX(-1px); }
+  100% { transform: translateX(0); }
+}
+
+.microflow-flowgram-node.is-runtime-success .microflow-activity-compact,
+.microflow-flowgram-node.is-runtime-success .microflow-event-dot__core,
+.microflow-flowgram-node.is-runtime-success .microflow-decision-compact__diamond,
+.microflow-flowgram-node.is-runtime-success .microflow-merge-compact__diamond {
+  animation: microflow-node-success-flash 0.6s ease-out forwards;
+}
+
+.microflow-flowgram-node.is-runtime-failed .microflow-activity-compact,
+.microflow-flowgram-node.is-runtime-failed .microflow-event-dot__core,
+.microflow-flowgram-node.is-runtime-failed .microflow-decision-compact__diamond,
+.microflow-flowgram-node.is-runtime-failed .microflow-merge-compact__diamond {
+  animation: microflow-node-failed-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
 .microflow-loop-frame {
   display: grid;
   grid-template-rows: 34px 1fr;
@@ -1059,4 +1129,73 @@
 .microflow-mini-summary,
 .microflow-mini-runtime {
   display: none;
+}
+
+/* Activity node runtime state badges */
+.microflow-activity-runtime-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  z-index: 5;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.microflow-activity-runtime-badge--running {
+  background: #1e3a70;
+  border: 1.5px solid #5e9fff;
+  color: #93c5fd;
+}
+
+.microflow-activity-runtime-badge--success {
+  background: #052e16;
+  border: 1.5px solid #28c786;
+  color: #6ee7b7;
+}
+
+.microflow-activity-runtime-badge--failed {
+  background: #450a0a;
+  border: 1.5px solid #f05b5f;
+  color: #fca5a5;
+}
+
+.microflow-activity-runtime-badge--skipped {
+  background: #1e2235;
+  border: 1.5px solid #6b7280;
+  color: #9ca3af;
+}
+
+.microflow-activity-runtime-badge__spinner {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid rgba(147, 197, 253, 0.3);
+  border-top-color: #93c5fd;
+  border-radius: 50%;
+  animation: microflow-activity-spin 0.7s linear infinite;
+}
+
+@keyframes microflow-activity-spin {
+  to { transform: rotate(360deg); }
+}
+
+.microflow-activity-compact__io-summary {
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 1.2;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80px;
 }

@@ -177,6 +177,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         title={objectTitle(object)}
         subtitle={objectSubtitle(object)}
         icon={objectIconGlyph(object)}
+        object={object}
         onDelete={() => props.onDeleteObject?.(object.id)}
         onDuplicate={() => props.onDuplicateObject?.(object.id)}
       />

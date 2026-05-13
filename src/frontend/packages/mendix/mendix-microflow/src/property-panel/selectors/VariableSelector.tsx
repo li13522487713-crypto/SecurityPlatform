@@ -1,5 +1,5 @@
 import { Select, Typography } from "@douyinfe/semi-ui";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, type MicroflowMetadataCatalog, useMicroflowMetadata } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowVariableIndex, MicroflowVariableSymbol } from "../../schema";
 import type { ContextVariableCandidate } from "../../inline-edit/shared/ContextVariablePicker";
@@ -135,6 +135,7 @@ export function VariableSelector({
       .filter(symbol => !allowedTypes?.length || allowedTypes.some(type => type.kind === symbol.dataType.kind))
       .filter(symbol => variableFilter ? variableFilter(symbol) : true);
   }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, includeUnavailable, inlineCandidates, objectId, readonlyOnly, resolvedVariableIndex, schema, scopeMode, variableFilter, writableOnly]);
+  const [searchText, setSearchText] = useState("");
   const recentVariables = useMemo(() => readRecentVariables(), [value, variables.length]);
   const orderedVariables = useMemo(() => {
     if (!variables.length) {
@@ -156,6 +157,39 @@ export function VariableSelector({
       return a.name.localeCompare(b.name);
     });
   }, [recentVariables, variables]);
+
+  // Group variables by scope kind for clearer attribution
+  const groupedOptions = useMemo(() => {
+    const filtered = searchText
+      ? orderedVariables.filter(s => s.name.toLowerCase().includes(searchText.toLowerCase()))
+      : orderedVariables;
+    const groups = new Map<string, typeof filtered>();
+    for (const symbol of filtered) {
+      const groupKey = symbol.scope.kind ?? "other";
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(symbol);
+    }
+    const groupLabel: Record<string, string> = {
+      global: "全局变量",
+      downstream: "上游节点输出",
+      branch: "分支变量",
+      loop: "循环变量",
+      errorHandler: "异常处理变量",
+      system: "系统变量",
+    };
+    return [...groups.entries()].map(([key, symbols]) => ({
+      label: groupLabel[key] ?? key,
+      children: symbols.map(symbol => ({
+        value: symbol.name,
+        label: symbol.name,
+        showTick: true,
+        render: () => <VariableOptionLabel symbol={symbol} />,
+      })),
+    }));
+  }, [orderedVariables, searchText]);
+
   const current = value
       ? scopeMode === "index"
         ? variables.find(symbol => symbol.name === value)
@@ -179,18 +213,15 @@ export function VariableSelector({
         filter
         showClear
         style={{ width: "100%" }}
-        onClear={() => onChange(undefined)}
+        onSearch={setSearchText}
+        onClear={() => { setSearchText(""); onChange(undefined); }}
         onChange={nextValue => {
           const resolved = nextValue ? String(nextValue) : undefined;
+          setSearchText("");
           writeRecentVariable(resolved);
           onChange(resolved);
         }}
-        optionList={orderedVariables.map(symbol => ({
-          value: symbol.name,
-          label: symbol.name,
-          showTick: true,
-          render: () => <VariableOptionLabel symbol={symbol} />,
-        })).slice(0, 20)}
+        optionList={groupedOptions}
       />
       {variables.length === 0 ? <Text size="small" type="tertiary">{emptyMessage}</Text> : null}
       {!currentVisible ? <Text size="small" type="danger">Stale target: current variable is not available in this microflow scope.</Text> : null}

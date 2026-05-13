@@ -26,6 +26,8 @@ export interface UseMicroflowShortcutsOptions {
   onMoveSelection?: (dx: number, dy: number) => void;
   onGoTo?: () => void;
   onOpenProperties?: () => void;
+  onFocusSelected?: () => void;
+  onResetZoom?: () => void;
 }
 
 export function useMicroflowShortcuts({
@@ -52,6 +54,8 @@ export function useMicroflowShortcuts({
   onMoveSelection,
   onGoTo,
   onOpenProperties,
+  onFocusSelected,
+  onResetZoom,
 }: UseMicroflowShortcutsOptions) {
   useEffect(() => {
     if (!active) {
@@ -163,10 +167,27 @@ export function useMicroflowShortcuts({
         return;
       }
 
-      // Ctrl+0 / Ctrl+Shift+H：适应视图
+      // Ctrl+0 / Ctrl+Shift+H / Shift+1：适应视图
       if (commandKey && (key === "0" || (event.shiftKey && key === "h")) && onFitView) {
         event.preventDefault();
         onFitView();
+        return;
+      }
+      if (!commandKey && event.shiftKey && key === "1" && onFitView) {
+        event.preventDefault();
+        onFitView();
+        return;
+      }
+      // Shift+0：重置缩放到 100%
+      if (!commandKey && event.shiftKey && key === "0" && onResetZoom) {
+        event.preventDefault();
+        onResetZoom();
+        return;
+      }
+      // F：聚焦选中节点（无 modifier 键）
+      if (!commandKey && !event.shiftKey && !event.altKey && key === "f" && onFocusSelected) {
+        event.preventDefault();
+        onFocusSelected();
         return;
       }
 
@@ -201,5 +222,5 @@ export function useMicroflowShortcuts({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [active, containerRef, onContinue, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onGoTo, onMoveSelection, onOpenProperties, onPasteSelection, onRedo, onSave, onSearch, onSearchAll, onSelectAll, onStepInto, onStepOut, onStepOver, onUndo, readonly]);
+  }, [active, containerRef, onContinue, onCopySelection, onDeleteSelection, onDuplicateSelection, onEscape, onFitView, onFocusMode, onFocusSelected, onGoTo, onMoveSelection, onOpenProperties, onPasteSelection, onRedo, onResetZoom, onSave, onSearch, onSearchAll, onSelectAll, onStepInto, onStepOut, onStepOver, onUndo, readonly]);
 }
