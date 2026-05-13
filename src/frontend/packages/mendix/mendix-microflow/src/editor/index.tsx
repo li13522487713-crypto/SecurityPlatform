@@ -744,6 +744,63 @@ function getEditorApiErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function asNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function normalizeRunHistoryItems(items: MicroflowRunHistoryItem[] | undefined): MicroflowRunHistoryItem[] {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items.filter((item): item is MicroflowRunHistoryItem => Boolean(asNonEmptyString(item?.runId)));
+}
+
+function normalizeRunSession(session: MicroflowRunSession | undefined): MicroflowRunSession | undefined {
+  if (!session || !asNonEmptyString(session.id)) {
+    return undefined;
+  }
+  const fallbackRunId = session.id;
+  const trace = (Array.isArray(session.trace) ? session.trace : [])
+    .filter((frame): frame is MicroflowTraceFrame => Boolean(frame && typeof frame === "object" && asNonEmptyString(frame.objectId)))
+    .map((frame, index) => ({
+      ...frame,
+      id: asNonEmptyString(frame.id) ?? `${fallbackRunId}:frame:${index}`,
+      runId: asNonEmptyString(frame.runId) ?? fallbackRunId,
+    }));
+  const logs = (Array.isArray(session.logs) ? session.logs : [])
+    .filter((log): log is MicroflowRunSession["logs"][number] => Boolean(log && typeof log === "object"))
+    .map((log, index) => ({
+      ...log,
+      id: asNonEmptyString(log.id) ?? `${fallbackRunId}:log:${index}`,
+      message: typeof log.message === "string" ? log.message : "",
+      timestamp: typeof log.timestamp === "string" ? log.timestamp : session.startedAt,
+    }));
+  const callStackFrames = (Array.isArray(session.callStackFrames) ? session.callStackFrames : [])
+    .filter((frame): frame is NonNullable<MicroflowRunSession["callStackFrames"]>[number] => Boolean(frame && typeof frame === "object"))
+    .map((frame, index) => ({
+      ...frame,
+      id: asNonEmptyString(frame.id) ?? `${fallbackRunId}:stack:${index}`,
+      runId: asNonEmptyString(frame.runId) ?? fallbackRunId,
+    }));
+  const childRuns = (Array.isArray(session.childRuns) ? session.childRuns : [])
+    .map(child => normalizeRunSession(child))
+    .filter((child): child is MicroflowRunSession => Boolean(child));
+
+  return {
+    ...session,
+    trace,
+    logs,
+    callStackFrames,
+    childRuns,
+    childRunIds: Array.isArray(session.childRunIds)
+      ? session.childRunIds.filter((id): id is string => Boolean(asNonEmptyString(id)))
+      : [],
+    callStack: Array.isArray(session.callStack)
+      ? session.callStack.filter((item): item is string => Boolean(asNonEmptyString(item)))
+      : [],
+  };
+}
+
 function applyApiValidationIssues(error: unknown, setIssues: (issues: MicroflowValidationIssue[]) => void, openProblems: () => void): boolean {
   const issues = getApiErrorLike(error)?.validationIssues;
   if (!issues?.length) {
@@ -771,6 +828,7 @@ function selectionExists(schema: MicroflowSchema, selection?: MicroflowHistorySe
 export interface MicroflowEditorProps {
   schema: MicroflowSchema;
   apiClient?: MicroflowApiClient;
+  runtimeRequestHeaders?: Record<string, string> | (() => Record<string, string> | undefined);
   labels?: Partial<MicroflowEditorLabels>;
   toolbarPrefix?: ReactNode;
   toolbarSuffix?: ReactNode;
@@ -2122,6 +2180,7 @@ function DebugPanel({
   microflowName,
   session,
   serviceError,
+  liveTraceWarning,
   debugAvailable,
   debugSession,
   debugVariables,
@@ -2160,6 +2219,7 @@ function DebugPanel({
   microflowName?: string;
   session?: MicroflowRunSession;
   serviceError?: string;
+  liveTraceWarning?: string;
   debugAvailable?: boolean;
   debugSession?: MicroflowDebugSessionDto;
   debugVariables?: MicroflowDebugVariableSnapshotDto[];
@@ -2262,6 +2322,7 @@ function DebugPanel({
     }));
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
+      {liveTraceWarning ? <Tag color="orange">{liveTraceWarning}</Tag> : null}
       {debugAvailable && debugSession ? (
         <>
           <MicroflowStepDebugPanel
@@ -2427,7 +2488,7 @@ function DebugPanel({
                 </Tooltip>
               </Space>
               <div style={{ width: "100%", maxHeight: 180, overflow: "auto", border: "1px solid var(--semi-color-border)", borderRadius: 6, padding: 8 }}>
-                {(debugTimeline ?? []).slice(0, 50).map(item => (
+                {(debugTimeline ?? []).filter(item => Boolean(item)).slice(0, 50).map(item => (
                   <div key={item.id} style={{ marginBottom: 6 }}>
                     <Text size="small" type="secondary">{item.occurredAt} · {item.phase ?? "event"}</Text>
                     <br />
@@ -2659,6 +2720,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   });
   const [runSessionByMicroflowId, setRunSessionByMicroflowId] = useState<Record<string, MicroflowRunSession | undefined>>({});
   const [runtimeServiceErrorByMicroflowId, setRuntimeServiceErrorByMicroflowId] = useState<Record<string, string | undefined>>({});
+  const [runtimeLiveTraceWarningByMicroflowId, setRuntimeLiveTraceWarningByMicroflowId] = useState<Record<string, string | undefined>>({});
   const [runHistoryByMicroflowId, setRunHistoryByMicroflowId] = useState<Record<string, MicroflowRunHistoryItem[]>>({});
   const [runtimeCommandEntriesByMicroflowId, setRuntimeCommandEntriesByMicroflowId] = useState<Record<string, RuntimeCommandConsoleEntry[]>>({});
   const [selectedRunIdByMicroflowId, setSelectedRunIdByMicroflowId] = useState<Record<string, string | undefined>>({});
@@ -2891,15 +2953,16 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const activeMicroflowId = schema.id;
   const runtimeLiveRunId = runtimeLiveRunIdByMicroflowId[activeMicroflowId];
   const runtimeOverlayState = runtimeOverlayByMicroflowId[activeMicroflowId];
-  const runSession = runSessionByMicroflowId[activeMicroflowId];
+  const runSession = normalizeRunSession(runSessionByMicroflowId[activeMicroflowId]);
   const runtimeServiceError = runtimeServiceErrorByMicroflowId[activeMicroflowId];
+  const runtimeLiveTraceWarning = runtimeLiveTraceWarningByMicroflowId[activeMicroflowId];
   const selectedRunId = selectedRunIdByMicroflowId[activeMicroflowId];
   const runHistoryFilter = runHistoryStatusByMicroflowId[activeMicroflowId] ?? "all";
-  const runHistoryItems = runHistoryByMicroflowId[activeMicroflowId] ?? [];
+  const runHistoryItems = normalizeRunHistoryItems(runHistoryByMicroflowId[activeMicroflowId]);
   const runtimeCommandEntries = runtimeCommandEntriesByMicroflowId[activeMicroflowId] ?? [];
   const runHistoryLoading = Boolean(runHistoryLoadingByMicroflowId[activeMicroflowId]);
   const runHistoryError = runHistoryErrorByMicroflowId[activeMicroflowId];
-  const selectedRunSession = selectedRunId ? runDetailsByRunId[selectedRunId] : runSession;
+  const selectedRunSession = normalizeRunSession(selectedRunId ? runDetailsByRunId[selectedRunId] : runSession);
   const hasFinalTraceForLiveRun = Boolean(
     runtimeLiveRunId
       && selectedRunSession?.trace?.some(frame => frame.runId === runtimeLiveRunId),
@@ -2913,7 +2976,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   } = useRuntimeWebSocket({
     runId: runtimeLiveRunId,
     lastSequence: runtimeOverlayState?.lastSequence,
+    requestHeaders: props.runtimeRequestHeaders,
     onEvent: (event: MicroflowRuntimeWsEvent) => {
+      setRuntimeLiveTraceWarningByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
       setRuntimeOverlayByMicroflowId(current => {
         const previous = current[activeMicroflowId];
         const next = applyRuntimeOverlayEvent(previous, event);
@@ -2921,11 +2986,22 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       });
     },
     onSnapshot: snapshot => {
+      setRuntimeLiveTraceWarningByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
       setRuntimeOverlayByMicroflowId(current => {
         const previous = current[activeMicroflowId];
         const next = applyRuntimeOverlaySnapshot(previous, snapshot);
         return { ...current, [activeMicroflowId]: next };
       });
+    },
+    onTransportError: error => {
+      if (error.source !== "snapshot") {
+        return;
+      }
+      const warning = error.status === 401
+        ? "实时调试流鉴权已失效（401），本次运行结果已保留，可刷新登录后重试实时追踪。"
+        : "实时调试流不可用，已降级为仅展示已完成运行结果。";
+      setRuntimeLiveTraceWarningByMicroflowId(current => ({ ...current, [activeMicroflowId]: warning }));
+      setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     },
   });
   const traceFrames = useMemo(
@@ -3826,16 +3902,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (saving || running || props.readonly || !schema.id) {
       return;
     }
-    setTestRunModalOpen(true);
-    const validation = await validateForMode(stripTransientSchemaState(schema), "testRun");
-    if (validation.summary.errorCount > 0) {
-      setBottomTab("problems");
-      Toast.error("Fix validation errors before running.");
-      return;
-    }
-    if (validation.summary.warningCount > 0) {
-      Toast.warning(`Test run allowed with ${validation.summary.warningCount} warning(s).`);
-    }
+    // 运行按钮改为直跑：沿用当前缓存参数，使用默认 maxSteps=200。
+    await handleExecuteTestRun({
+      parameters: runInputsByMicroflowId[schema.id] ?? {},
+      options: { maxSteps: 200 },
+    });
   };
 
   const loadRunHistory = useCallback(async (microflowId: string, status: "all" | "success" | "failed" | "unsupported" | "cancelled" = "all") => {
@@ -3848,7 +3919,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       if (runHistoryRequestSeqRef.current[microflowId] !== requestSeq) {
         return;
       }
-      setRunHistoryByMicroflowId(current => ({ ...current, [microflowId]: response.items }));
+      setRunHistoryByMicroflowId(current => ({ ...current, [microflowId]: normalizeRunHistoryItems(response.items) }));
     } catch (error) {
       if (runHistoryRequestSeqRef.current[microflowId] !== requestSeq) {
         return;
@@ -3873,7 +3944,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           detail = await apiClient.getMicroflowRunSession(runId);
         }
         const trace = await apiClient.getMicroflowRunTrace(runId);
-        return { ...detail, trace };
+        const normalized = normalizeRunSession({ ...detail, trace });
+        if (!normalized) {
+          throw new Error(`Invalid run session payload: ${runId}`);
+        }
+        return normalized;
       } catch (error) {
         lastError = error;
         if (attempt < 2) {
@@ -3901,10 +3976,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, [apiClient]);
 
   const applySelectedRunSession = useCallback((sourceMicroflowId: string, detail: MicroflowRunSession, runId: string) => {
-    const outcome = resolveDebugRunSelectionOutcome(sourceMicroflowId, detail);
+    const normalizedDetail = normalizeRunSession(detail);
+    if (!normalizedDetail) {
+      return;
+    }
+    const outcome = resolveDebugRunSelectionOutcome(sourceMicroflowId, normalizedDetail);
     const targetMicroflowId = outcome.targetMicroflowId;
-    setRunDetailsByRunId(current => ({ ...current, [runId]: detail }));
-    setRunSessionByMicroflowId(current => ({ ...current, [targetMicroflowId]: detail }));
+    setRunDetailsByRunId(current => ({ ...current, [runId]: normalizedDetail }));
+    setRunSessionByMicroflowId(current => ({ ...current, [targetMicroflowId]: normalizedDetail }));
     setSelectedRunIdByMicroflowId(current => ({ ...current, [targetMicroflowId]: runId }));
     setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [targetMicroflowId]: undefined }));
     setPendingTraceFocusByMicroflowId(current => ({ ...current, [targetMicroflowId]: outcome.focusIntent }));
@@ -4296,8 +4375,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRunning(true);
     setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
     setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
-    setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [microflowId]: plannedRunId }));
-    setRuntimeOverlayByMicroflowId(current => ({ ...current, [microflowId]: createRuntimeOverlayState(plannedRunId) }));
+    setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+    setRuntimeOverlayByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+    setRuntimeLiveTraceWarningByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
     setFocusObjectId(undefined);
     try {
       if (enableQueuedExecution && !pendingDebugSessionId && apiClient.enqueueMicroflowRun && apiClient.getMicroflowRunStatus) {
@@ -4314,7 +4394,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }));
           setBottomDockMode("peek");
           setBottomTab("debug");
-          setTestRunModalOpen(false);
           void loadRunHistory(microflowId, runHistoryFilter);
           Toast.info(`Run ${terminalStatus}`);
           return;
@@ -4327,7 +4406,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           ...current,
           [microflowId]: [
             buildRunHistoryItemFromSession(microflowId, session),
-            ...(current[microflowId] ?? []).filter(item => item.runId !== session.id),
+            ...normalizeRunHistoryItems(current[microflowId]).filter(item => item.runId !== session.id),
           ].slice(0, 20) as MicroflowRunHistoryItem[],
         }));
         if (input.sampleId) {
@@ -4347,8 +4426,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }));
         }
         setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
-        setActiveTraceFrameId(session.trace[0]?.id);
-        setTestRunModalOpen(false);
+        setActiveTraceFrameId(session.trace?.[0]?.id);
         setBottomDockMode("peek");
         setBottomTab("debug");
         void loadRunHistory(microflowId, runHistoryFilter);
@@ -4361,8 +4439,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       const response = await apiClient.testRunMicroflow(
         buildRunRequest(normalized.schema, input.parameters, input.options, true, debugSessionId, plannedRunId),
       );
-      const session = response.session;
-      setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
+      const session = normalizeRunSession(response.session);
+      if (!session?.id) {
+        throw new Error("运行响应缺少 session.id。");
+      }
+      const sessionStatus = String(session.status ?? "").toLowerCase();
+      const shouldOpenRuntimeStream = sessionStatus === "running" || sessionStatus === "queued";
+      setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [microflowId]: shouldOpenRuntimeStream ? session.id : undefined }));
+      setRuntimeOverlayByMicroflowId(current => ({
+        ...current,
+        [microflowId]: shouldOpenRuntimeStream ? createRuntimeOverlayState(session.id) : undefined,
+      }));
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
       setRunDetailsByRunId(current => ({ ...current, [session.id]: session }));
@@ -4370,7 +4457,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         ...current,
         [microflowId]: [
           buildRunHistoryItemFromSession(microflowId, session),
-          ...(current[microflowId] ?? []).filter(item => item.runId !== session.id),
+          ...normalizeRunHistoryItems(current[microflowId]).filter(item => item.runId !== session.id),
         ].slice(0, 20) as MicroflowRunHistoryItem[],
       }));
       if (input.sampleId) {
@@ -4390,20 +4477,23 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         }));
       }
       setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
-      setActiveTraceFrameId(response.frames[0]?.id);
-      setTestRunModalOpen(false);
+      setActiveTraceFrameId(session.trace?.[0]?.id);
       setBottomDockMode("peek");
       setBottomTab("debug");
-      if (response.debugSession) {
-        syncDebugSessionNavigation(response.debugSession, microflowId, session);
-      }
-      if (response.debugVariables && (response.debugSession?.id ?? debugSessionId)) {
-        const responseDebugSessionId = response.debugSession?.id ?? debugSessionId!;
-        setDebugVariablesBySessionId(current => ({ ...current, [responseDebugSessionId]: response.debugVariables ?? [] }));
-      }
-      if (response.debugTrace && (response.debugSession?.id ?? debugSessionId)) {
-        const responseDebugSessionId = response.debugSession?.id ?? debugSessionId!;
-        setDebugTraceBySessionId(current => ({ ...current, [responseDebugSessionId]: response.debugTrace ?? [] }));
+      try {
+        if (response.debugSession) {
+          syncDebugSessionNavigation(response.debugSession, microflowId, session);
+        }
+        if (response.debugVariables && (response.debugSession?.id ?? debugSessionId)) {
+          const responseDebugSessionId = response.debugSession?.id ?? debugSessionId!;
+          setDebugVariablesBySessionId(current => ({ ...current, [responseDebugSessionId]: response.debugVariables ?? [] }));
+        }
+        if (response.debugTrace && (response.debugSession?.id ?? debugSessionId)) {
+          const responseDebugSessionId = response.debugSession?.id ?? debugSessionId!;
+          setDebugTraceBySessionId(current => ({ ...current, [responseDebugSessionId]: response.debugTrace ?? [] }));
+        }
+      } catch (debugSyncError) {
+        console.warn("[microflow-test-run] debug sync failed", debugSyncError);
       }
       if (debugSessionId) {
         setPendingDebugSessionId(undefined);
@@ -4492,7 +4582,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }));
         }
       }
-      props.onTestRunComplete?.(response);
+      try {
+        props.onTestRunComplete?.(response);
+      } catch (callbackError) {
+        console.warn("[microflow-test-run] onTestRunComplete callback failed", callbackError);
+      }
       void loadRunHistory(microflowId, runHistoryFilter);
       Toast[response.status === "succeeded" ? "success" : "error"](
         response.hydration?.degraded ? `Run ${response.status} (degraded hydration)` : `Run ${response.status}`
@@ -4502,6 +4596,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         setBottomTab("problems");
       });
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+      setRuntimeLiveTraceWarningByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setActiveTraceFrameId(undefined);
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
       setBottomDockMode("peek");
@@ -4552,6 +4647,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }
     setRunSessionByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setRuntimeLiveTraceWarningByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setSelectedRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setRuntimeOverlayByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
@@ -4571,18 +4667,22 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       const cancelResult = await apiClient.cancelMicroflowRun(runSession.id);
       const nextSession = await apiClient.getMicroflowRunDetail(microflowId, runSession.id);
       const nextTrace = await apiClient.getMicroflowRunTrace(runSession.id);
-      const session = { ...nextSession, trace: nextTrace };
+      const session = normalizeRunSession({ ...nextSession, trace: nextTrace });
+      if (!session) {
+        throw new Error("取消运行后返回了无效会话。");
+      }
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+      setRuntimeLiveTraceWarningByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
       setRunDetailsByRunId(current => ({ ...current, [session.id]: session }));
       setRunHistoryByMicroflowId(current => ({
         ...current,
         [microflowId]: [
           buildRunHistoryItemFromSession(microflowId, session),
-          ...(current[microflowId] ?? []).filter(item => item.runId !== session.id),
+          ...normalizeRunHistoryItems(current[microflowId]).filter(item => item.runId !== session.id),
         ].slice(0, 20) as MicroflowRunHistoryItem[],
       }));
-      setActiveTraceFrameId(current => current ?? nextTrace[0]?.id);
+      setActiveTraceFrameId(current => current ?? session.trace[0]?.id);
       Toast.info(`Run ${cancelResult?.status ?? session.status}`);
     } catch (error) {
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: getEditorApiErrorMessage(error) }));
@@ -4620,13 +4720,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       }
       const session = await hydrateRunSession(microflowId, retried.runId);
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+      setRuntimeLiveTraceWarningByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
       setRunDetailsByRunId(current => ({ ...current, [session.id]: session }));
       setRunHistoryByMicroflowId(current => ({
         ...current,
         [microflowId]: [
           buildRunHistoryItemFromSession(microflowId, session),
-          ...(current[microflowId] ?? []).filter(item => item.runId !== session.id),
+          ...normalizeRunHistoryItems(current[microflowId]).filter(item => item.runId !== session.id),
         ].slice(0, 20) as MicroflowRunHistoryItem[],
       }));
       setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
@@ -7691,6 +7792,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       microflowName={schema.displayName || schema.name}
                       session={selectedRunSession}
                       serviceError={runtimeServiceError}
+                      liveTraceWarning={runtimeLiveTraceWarning}
                       debugAvailable={Boolean(schema.id)}
                       debugSession={activeDebugSession}
                       debugVariables={activeDebugVariables}

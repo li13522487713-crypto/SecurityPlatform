@@ -70,7 +70,7 @@ import {
 } from "./flowgram-design-edge-semantics";
 import { getMendixMicroflowDropOffset, getMendixMicroflowNodeSize } from "./flowgram-node-geometry";
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
-import { MICROFLOW_GRID_SIZE, clientPointToFlowGramPoint, snapMicroflowPoint } from "./adapters/flowgram-coordinate";
+import { MICROFLOW_GRID_SIZE, clientPointToFlowGramPoint, logicalToContainer, snapMicroflowPoint } from "./adapters/flowgram-coordinate";
 import { stripTransientWorkflowState } from "./transient-workflow-state";
 import { MicroflowEdgeDataContext } from "./FlowGramMicroflowTypes";
 import { forceOrthogonalLineKind } from "./FlowGramMicroflowTypes";
@@ -1929,6 +1929,34 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     };
   }, [applyViewportZoomFromCanvasCenter, fitViewportToWorkflow, props.onAutoLayout, props.onRedo, props.onUndo]);
 
+  const currentViewport = props.schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+
+  const reconnectOverlay = reconnectState ? (() => {
+    const fixedPx = logicalToContainer(reconnectState.fixedPoint, currentViewport);
+    const dragPx = logicalToContainer(reconnectState.candidate?.point ?? reconnectState.pointer, currentViewport);
+    const originPx = logicalToContainer(reconnectState.originalPoint, currentViewport);
+    return (
+      <>
+        <svg className="microflow-flowgram-reconnect-overlay" aria-hidden="true">
+          <line
+            x1={fixedPx.x}
+            y1={fixedPx.y}
+            x2={dragPx.x}
+            y2={dragPx.y}
+            className={reconnectState.candidate?.allowed === false ? "is-invalid" : ""}
+          />
+        </svg>
+        <div
+          className="microflow-flowgram-reconnect-origin-mark"
+          style={{ left: originPx.x - 6, top: originPx.y - 6 }}
+          aria-hidden="true"
+        >
+          ×
+        </div>
+      </>
+    );
+  })() : null;
+
   return (
     <div
       ref={containerRef}
@@ -1979,48 +2007,26 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
           <button
             type="button"
             className="microflow-flowgram-reconnect-handle microflow-flowgram-reconnect-handle--source"
-            style={{
-              left: hoveredEdgeGeometry.sourcePoint.x - 5,
-              top: hoveredEdgeGeometry.sourcePoint.y - 5,
-            }}
+            style={(() => {
+              const c = logicalToContainer(hoveredEdgeGeometry.sourcePoint, currentViewport);
+              return { left: c.x - 5, top: c.y - 5 };
+            })()}
             onPointerDown={event => handleEdgeReconnectHandlePointerDown(hoveredEdgeGeometry.flowId, "source", event)}
             aria-label="Reconnect source endpoint"
           />
           <button
             type="button"
             className="microflow-flowgram-reconnect-handle microflow-flowgram-reconnect-handle--target"
-            style={{
-              left: hoveredEdgeGeometry.targetPoint.x - 5,
-              top: hoveredEdgeGeometry.targetPoint.y - 5,
-            }}
+            style={(() => {
+              const c = logicalToContainer(hoveredEdgeGeometry.targetPoint, currentViewport);
+              return { left: c.x - 5, top: c.y - 5 };
+            })()}
             onPointerDown={event => handleEdgeReconnectHandlePointerDown(hoveredEdgeGeometry.flowId, "target", event)}
             aria-label="Reconnect target endpoint"
           />
         </>
       ) : null}
-      {reconnectState ? (
-        <>
-          <svg className="microflow-flowgram-reconnect-overlay" aria-hidden="true">
-            <line
-              x1={reconnectState.fixedPoint.x}
-              y1={reconnectState.fixedPoint.y}
-              x2={reconnectState.candidate?.point.x ?? reconnectState.pointer.x}
-              y2={reconnectState.candidate?.point.y ?? reconnectState.pointer.y}
-              className={reconnectState.candidate?.allowed === false ? "is-invalid" : ""}
-            />
-          </svg>
-          <div
-            className="microflow-flowgram-reconnect-origin-mark"
-            style={{
-              left: reconnectState.originalPoint.x - 6,
-              top: reconnectState.originalPoint.y - 6,
-            }}
-            aria-hidden="true"
-          >
-            ×
-          </div>
-        </>
-      ) : null}
+      {reconnectOverlay}
       {dropPreview ? (
         <div
           className={`microflow-flowgram-drop-preview${dropPreview.valid ? "" : " is-invalid"}`}

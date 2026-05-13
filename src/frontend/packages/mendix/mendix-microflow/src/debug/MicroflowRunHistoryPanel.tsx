@@ -38,6 +38,7 @@ export function MicroflowRunHistoryPanel({
   onRefresh,
   onSelectRun,
 }: MicroflowRunHistoryPanelProps) {
+  const safeItems = items.filter(item => Boolean(item?.runId));
   const summarizeCallStack = (item: MicroflowRunHistoryItem): string | null => {
     if ((item.callStackFrames?.length ?? 0) > 0) {
       return item.callStackFrames!
@@ -77,7 +78,7 @@ export function MicroflowRunHistoryPanel({
           />
           <Button size="small" onClick={onRefresh}>Refresh</Button>
         </Space>
-        <Text type="tertiary" size="small">{items.length} records</Text>
+        <Text type="tertiary" size="small">{safeItems.length} records</Text>
       </Space>
       {loading ? <Spin spinning /> : null}
       {error ? (
@@ -88,8 +89,8 @@ export function MicroflowRunHistoryPanel({
           <Button type="primary" onClick={onRefresh}>Retry</Button>
         </Empty>
       ) : null}
-      {!loading && !error && items.length === 0 ? <Empty title="No runs yet" /> : null}
-      {!error && items.map(item => (
+      {!loading && !error && safeItems.length === 0 ? <Empty title="No runs yet" /> : null}
+      {!error && safeItems.map(item => (
         <Card
           key={item.runId}
           style={{ width: "100%", borderColor: selectedRunId === item.runId ? "var(--semi-color-primary)" : undefined }}

@@ -128,6 +128,7 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
           adapter={adapter}
           metadataAdapter={bundle?.metadataAdapter}
           runtimeAdapter={bundle?.runtimeAdapter}
+          runtimeRequestHeaders={bundle?.requestHeaders ?? adapterConfig?.requestHeaders}
           validationAdapter={bundle?.validationAdapter}
           adapterMode={bundle?.mode}
           apiBaseUrl={bundle?.apiBaseUrl}

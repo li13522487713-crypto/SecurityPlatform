@@ -53,3 +53,16 @@ export function snapMicroflowPoint(point: MicroflowPoint, gridSize = MICROFLOW_G
     y: Math.round(point.y / gridSize) * gridSize,
   };
 }
+
+/**
+ * Convert a logical (schema) coordinate to a container-pixel coordinate
+ * for position:absolute overlay elements (reconnect handles, SVG overlay lines).
+ *
+ * Inverse of clientPointToFlowGramPoint:
+ *   logicalX = (containerX + viewportX) / zoom
+ *   => containerX = logicalX * zoom - viewportX
+ */
+export function logicalToContainer(pt: MicroflowPoint, vp: FlowGramViewportLike): MicroflowPoint {
+  const zoom = vp.zoom || 1;
+  return { x: pt.x * zoom - vp.x, y: pt.y * zoom - vp.y };
+}

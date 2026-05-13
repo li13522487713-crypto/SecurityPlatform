@@ -8,9 +8,15 @@ export interface UseRuntimeWebSocketOptions {
   lastSequence?: number;
   autoReconnect?: number;
   reconnectDelayMs?: number;
+  requestHeaders?: Record<string, string> | (() => Record<string, string> | undefined);
   onEvent?: (event: MicroflowRuntimeWsEvent) => void;
   onSnapshot?: (snapshot: MicroflowRuntimeOverlaySnapshot) => void;
   onStatusChange?: (status: RuntimeWebSocketState) => void;
+  onTransportError?: (error: {
+    source: "snapshot" | "websocket";
+    status?: number;
+    message?: string;
+  }) => void;
 }
 
 export interface UseRuntimeWebSocketReturn {
@@ -46,9 +52,11 @@ export function useRuntimeWebSocket(options: UseRuntimeWebSocketOptions): UseRun
     lastSequence,
     autoReconnect = MAX_RECONNECT_ATTEMPTS,
     reconnectDelayMs = DEFAULT_RECONNECT_DELAY_MS,
+    requestHeaders,
     onEvent,
     onSnapshot,
     onStatusChange,
+    onTransportError,
   } = options;
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -56,17 +64,33 @@ export function useRuntimeWebSocket(options: UseRuntimeWebSocketOptions): UseRun
   const reconnectAttemptsRef = useRef(0);
   const closingRef = useRef(false);
   const runIdRef = useRef(runId);
+  const previousRunIdRef = useRef(runId);
+  const snapshotAuthFailedRef = useRef(false);
   const lastSequenceRef = useRef(lastSequence ?? 0);
+  const onEventRef = useRef(onEvent);
+  const onSnapshotRef = useRef(onSnapshot);
+  const onStatusChangeRef = useRef(onStatusChange);
+  const onTransportErrorRef = useRef(onTransportError);
+  const requestHeadersRef = useRef(requestHeaders);
   const connectRef = useRef<(() => void) | null>(null);
   const [status, setStatus] = useState<RuntimeWebSocketState>("disconnected");
 
   runIdRef.current = runId;
+  if (previousRunIdRef.current !== runId) {
+    previousRunIdRef.current = runId;
+    snapshotAuthFailedRef.current = false;
+  }
   lastSequenceRef.current = lastSequence ?? 0;
+  onEventRef.current = onEvent;
+  onSnapshotRef.current = onSnapshot;
+  onStatusChangeRef.current = onStatusChange;
+  onTransportErrorRef.current = onTransportError;
+  requestHeadersRef.current = requestHeaders;
 
   const setRuntimeStatus = useCallback((next: RuntimeWebSocketState) => {
     setStatus(next);
-    onStatusChange?.(next);
-  }, [onStatusChange]);
+    onStatusChangeRef.current?.(next);
+  }, []);
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -81,26 +105,49 @@ export function useRuntimeWebSocket(options: UseRuntimeWebSocketOptions): UseRun
       return;
     }
     try {
+      const runtimeHeaders = typeof requestHeadersRef.current === "function"
+        ? requestHeadersRef.current()
+        : requestHeadersRef.current;
       const response = await fetch(resolveRuntimeSnapshotUrl(activeRunId, lastSequenceRef.current), {
         credentials: "include",
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          ...(runtimeHeaders ?? {}),
+        },
       });
       if (!response.ok) {
+        if (response.status === 401) {
+          snapshotAuthFailedRef.current = true;
+        }
+        onTransportErrorRef.current?.({
+          source: "snapshot",
+          status: response.status,
+          message: `Snapshot request failed with status ${response.status}.`,
+        });
         return;
       }
+      snapshotAuthFailedRef.current = false;
       const body = await response.json() as { success?: boolean; data?: MicroflowRuntimeOverlaySnapshot };
       if (!body?.data) {
         return;
       }
-      onSnapshot?.(body.data);
-    } catch {
+      onSnapshotRef.current?.(body.data);
+    } catch (error) {
+      onTransportErrorRef.current?.({
+        source: "snapshot",
+        message: error instanceof Error ? error.message : String(error),
+      });
       // Snapshot refresh is best-effort; failures are handled by WS reconnect.
     }
-  }, [onSnapshot]);
+  }, []);
 
   const connectImpl = useCallback(() => {
     const activeRunId = runIdRef.current;
     if (!activeRunId) {
+      return;
+    }
+    if (snapshotAuthFailedRef.current) {
+      setRuntimeStatus("disconnected");
       return;
     }
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
@@ -128,7 +175,7 @@ export function useRuntimeWebSocket(options: UseRuntimeWebSocketOptions): UseRun
         if (typeof payload.sequence === "number") {
           lastSequenceRef.current = Math.max(lastSequenceRef.current, payload.sequence);
         }
-        onEvent?.(payload);
+        onEventRef.current?.(payload);
       } catch {
         // Ignore malformed runtime event messages.
       }
@@ -136,6 +183,10 @@ export function useRuntimeWebSocket(options: UseRuntimeWebSocketOptions): UseRun
 
     ws.onerror = () => {
       setRuntimeStatus("error");
+      onTransportErrorRef.current?.({
+        source: "websocket",
+        message: "Runtime websocket error.",
+      });
     };
 
     ws.onclose = () => {
@@ -158,7 +209,7 @@ export function useRuntimeWebSocket(options: UseRuntimeWebSocketOptions): UseRun
         setRuntimeStatus("error");
       }
     };
-  }, [autoReconnect, clearReconnectTimer, reconnectDelayMs, refreshSnapshot, setRuntimeStatus, onEvent]);
+  }, [autoReconnect, clearReconnectTimer, reconnectDelayMs, refreshSnapshot, setRuntimeStatus]);
 
   connectRef.current = connectImpl;
 
@@ -196,4 +247,3 @@ export function useRuntimeWebSocket(options: UseRuntimeWebSocketOptions): UseRun
     refreshSnapshot,
   };
 }
-

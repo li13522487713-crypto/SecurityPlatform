@@ -39,6 +39,7 @@ export interface MendixMicroflowEditorEntryProps {
   metadataAdapter?: MicroflowMetadataAdapter;
   metadataCatalog?: MicroflowMetadataCatalog;
   runtimeAdapter?: MicroflowApiClient;
+  runtimeRequestHeaders?: Record<string, string> | (() => Record<string, string> | undefined);
   validationAdapter?: MicroflowValidationAdapter;
   adapterMode?: MicroflowAdapterMode;
   apiBaseUrl?: string;
@@ -131,7 +132,7 @@ function reconcileSavedResourceSchema(
   };
 }
 
-export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode, onLayoutStateChange, onWorkbenchStatusChange, onViewReferences }: MendixMicroflowEditorEntryProps) {
+export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, runtimeRequestHeaders, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode, onLayoutStateChange, onWorkbenchStatusChange, onViewReferences }: MendixMicroflowEditorEntryProps) {
   const [schema, setSchema] = useState<MicroflowDesignSchema>(resource.schema);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -477,6 +478,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, mod
         key={currentResource.id}
         schema={schema}
         apiClient={apiClient}
+        runtimeRequestHeaders={runtimeRequestHeaders}
         metadataAdapter={metadataAdapter}
         metadataCatalog={metadataCatalog}
         metadataWorkspaceId={workspaceId}

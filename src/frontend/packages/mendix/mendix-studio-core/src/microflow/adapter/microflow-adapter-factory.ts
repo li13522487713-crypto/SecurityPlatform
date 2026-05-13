@@ -17,6 +17,7 @@ import { createHttpMicroflowValidationAdapter, createLocalMicroflowValidationAda
 export interface MicroflowAdapterBundle {
   mode: MicroflowAdapterMode;
   apiBaseUrl?: string;
+  requestHeaders?: Record<string, string> | (() => Record<string, string> | undefined);
   runtimePolicy: MicroflowAdapterRuntimePolicy;
   resourceAdapter: MicroflowResourceAdapter;
   metadataAdapter: MicroflowMetadataAdapter;
@@ -43,6 +44,7 @@ export function createMockMicroflowAdapterBundle(config: MicroflowAdapterFactory
   return {
     mode: "mock",
     apiBaseUrl: resolved.apiBaseUrl,
+    requestHeaders: resolved.requestHeaders,
     runtimePolicy: resolvePolicy(resolved),
     resourceAdapter: createMockMicroflowResourceAdapter(toLocalOptions(resolved)),
     metadataAdapter: createMockMicroflowMetadataAdapter(),
@@ -56,6 +58,7 @@ export function createLocalMicroflowAdapterBundle(config: MicroflowAdapterFactor
   return {
     mode: "local",
     apiBaseUrl: resolved.apiBaseUrl,
+    requestHeaders: resolved.requestHeaders,
     runtimePolicy: resolvePolicy(resolved),
     resourceAdapter: createLocalMicroflowResourceAdapter(toLocalOptions(resolved)),
     metadataAdapter: createLocalMicroflowMetadataAdapter(),
@@ -76,6 +79,7 @@ export function createHttpMicroflowAdapterBundle(config: MicroflowAdapterFactory
   return {
     mode: "http",
     apiBaseUrl: resolved.apiBaseUrl,
+    requestHeaders: resolved.requestHeaders,
     runtimePolicy: resolvePolicy(resolved),
     apiClient,
     resourceAdapter: createHttpMicroflowResourceAdapter({ ...resolved, apiClient }),

@@ -18,6 +18,9 @@ import {
   type WorkflowNodeRenderProps,
   usePlaygroundReadonlyState,
   useNodeRender,
+  useService,
+  WorkflowDragService,
+  WorkflowSelectService,
 } from "@flowgram-adapter/free-layout-editor";
 
 import type { FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
@@ -350,6 +353,8 @@ function StaticTag(props: { children: ReactNode; color?: "blue" | "orange" | "gr
 function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
   const { selected, activated, ports, selectNode, nodeRef, startDrag, onFocus, onBlur } = useNodeRender();
   const readonly = usePlaygroundReadonlyState();
+  const dragService = useService<WorkflowDragService>(WorkflowDragService);
+  const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
   const [focused, setFocused] = useState(false);
   const data = tryReadNodeData(props);
   const resolvedNodeIdForState = String(data?.objectId || props.node.id);
@@ -376,6 +381,12 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
       return;
     }
     focusMicroflowNodeDragRoot(event.currentTarget);
+    // When this node is part of a multi-selection, move all selected nodes together.
+    const selectionCount = (selectService.selection ?? []).length;
+    if (selected && selectionCount > 1) {
+      void dragService.startDragSelectedNodes(event.nativeEvent as globalThis.MouseEvent);
+      return;
+    }
     startDrag(event);
   };
 

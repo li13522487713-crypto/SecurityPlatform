@@ -31,6 +31,7 @@ function createMicroflowFlowGramPreset(): Plugin[] {
       edgeLineWidth: 1,
       alignLineWidth: 1,
       alignCrossWidth: 8,
+      edgeThreshold: 6,
     }),
     createHistoryNodePlugin({}),
     createContainerNodePlugin({}),

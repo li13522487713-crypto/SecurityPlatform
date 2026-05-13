@@ -170,7 +170,9 @@ export function MicroflowTracePanel({
     [session],
   );
   const orderedCallStackFrames = useMemo(
-    () => [...(session?.callStackFrames ?? [])].sort((left, right) => left.depth - right.depth),
+    () => [...(session?.callStackFrames ?? [])]
+      .filter((frame): frame is NonNullable<MicroflowRunSession["callStackFrames"]>[number] => Boolean(frame && typeof frame === "object"))
+      .sort((left, right) => left.depth - right.depth),
     [session?.callStackFrames],
   );
   const activeFrame = activeFrameId ? executionPath.find(item => item.frame.id === activeFrameId)?.frame : executionPath[0]?.frame;
@@ -528,7 +530,7 @@ export function MicroflowTracePanel({
             {session.childRuns?.length ? (
               <Space vertical align="start" style={{ width: "100%" }}>
                 <Text type="tertiary">child runs: {session.childRuns.length}</Text>
-                {session.childRuns.map(child => (
+                {session.childRuns.filter(child => Boolean(child?.id)).map(child => (
                   <Card key={child.id} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
                     <button
                       type="button"

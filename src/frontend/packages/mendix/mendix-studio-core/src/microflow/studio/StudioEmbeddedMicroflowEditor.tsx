@@ -197,6 +197,7 @@ export function StudioEmbeddedMicroflowEditor({
       metadataAdapter={adapterBundle.metadataAdapter}
       validationAdapter={adapterBundle.validationAdapter}
       runtimeAdapter={adapterBundle.runtimeAdapter}
+      runtimeRequestHeaders={adapterBundle.requestHeaders}
       adapterMode={adapterBundle.mode}
       apiBaseUrl={adapterBundle.apiBaseUrl}
       onDirtyChange={onDirtyChange}

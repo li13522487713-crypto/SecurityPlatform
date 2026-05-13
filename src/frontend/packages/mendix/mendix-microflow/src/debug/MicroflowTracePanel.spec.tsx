@@ -19,6 +19,12 @@ vi.mock("@douyinfe/semi-ui", async () => {
     Button: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) => <button type="button" onClick={onClick}>{children}</button>,
     Card: ({ children }: { children?: React.ReactNode }) => <section>{children}</section>,
     Empty: ({ title, description }: { title?: React.ReactNode; description?: React.ReactNode }) => <div>{title}{description}</div>,
+    Input: ({ value, placeholder, onChange }: { value?: string; placeholder?: string; onChange?: (value: string) => void }) => (
+      <input value={value ?? ""} placeholder={placeholder} onChange={event => onChange?.(event.target.value)} />
+    ),
+    Select: ({ value, onChange }: { value?: string; onChange?: (value: string) => void }) => (
+      <select value={value} onChange={event => onChange?.(event.target.value)} />
+    ),
     Space: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
     Tabs,
     Tag: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) => (
