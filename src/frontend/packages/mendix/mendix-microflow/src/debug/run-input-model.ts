@@ -184,7 +184,7 @@ export function coerceRunInputValue(rawValue: unknown, dataType: MicroflowDataTy
 }
 
 export function buildRunRequest(
-  schema: MicroflowSchema,
+  schema: MicroflowDesignSchema,
   values: Record<string, unknown>,
   options?: MicroflowTestRunOptions,
   includeDraftSchema = false,
@@ -194,7 +194,7 @@ export function buildRunRequest(
   return {
     microflowId: schema.id,
     input: values,
-    schema: includeDraftSchema ? schema as unknown as MicroflowDesignSchema : undefined,
+    schema: includeDraftSchema ? schema : undefined,
     schemaId: undefined,
     version: undefined,
     debug: true,

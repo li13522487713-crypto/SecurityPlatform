@@ -533,6 +533,40 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "微流当前 Schema 不存在。", 400);
         }
 
+        // 若快照不是新版协议，执行升级并覆盖回写，然后用升级后的 schema 继续试运行。
+        if (!string.Equals(snapshot.SchemaVersion, MicroflowDesignSchemaHelper.DesignSchemaVersion, StringComparison.Ordinal)
+            || MicroflowDesignSchemaHelper.TryParseStoredDesignSchema(snapshot.SchemaJson) is null)
+        {
+            var upgradedJson = MicroflowLegacySchemaUpgrader.Upgrade(snapshot.SchemaJson);
+            var context = _requestContextAccessor.Current;
+            var now = _clock.UtcNow;
+            var newSnapshot = new MicroflowSchemaSnapshotEntity
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                ResourceId = resource.Id,
+                WorkspaceId = resource.WorkspaceId,
+                TenantId = resource.TenantId,
+                SchemaVersion = MicroflowDesignSchemaHelper.DesignSchemaVersion,
+                MigrationVersion = "legacy-schema-auto-upgrade",
+                SchemaJson = upgradedJson,
+                SchemaHash = MicroflowSchemaJsonHelper.ComputeSha256(upgradedJson),
+                CreatedBy = context.UserId,
+                CreatedAt = now,
+                Reason = "legacy-schema-auto-upgrade",
+                BaseVersion = snapshot.Id,
+            };
+            await _schemaSnapshotRepository.InsertAsync(newSnapshot, cancellationToken);
+            resource.CurrentSchemaSnapshotId = newSnapshot.Id;
+            resource.SchemaId = newSnapshot.Id;
+            resource.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+            resource.UpdatedAt = now;
+            resource.UpdatedBy = context.UserId;
+            await _resourceRepository.UpdateAsync(resource, cancellationToken);
+
+            using var upgradedDoc = JsonDocument.Parse(upgradedJson);
+            return (upgradedDoc.RootElement.Clone(), newSnapshot.Id);
+        }
+
         return (MicroflowDesignSchemaHelper.ParseStoredDesignSchema(snapshot.SchemaJson, "微流当前设计态 Schema 不存在。"), snapshot.Id);
     }
 

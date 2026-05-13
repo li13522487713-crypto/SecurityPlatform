@@ -111,7 +111,6 @@ import {
   type MicroflowMetadataCatalog,
 } from "../metadata";
 import { validateMicroflowSchema } from "../validators/validate-microflow-schema";
-import { normalizeMicroflowAuthoringSchemaForRuntime } from "../schema/normalizer";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
 import { isBooleanExclusiveSplit } from "../schema/utils/exclusive-split-utils";
 import { setParameterAsMicroflowReturnValue } from "../schema/utils/microflow-signature";
@@ -1063,25 +1062,6 @@ function createValidationServiceIssue(error: unknown, mode: MicroflowValidationM
   };
 }
 
-function createNormalizerIssues(
-  microflowId: string,
-  blockingIssues: ReturnType<typeof normalizeMicroflowAuthoringSchemaForRuntime>["report"]["blockingIssues"],
-): MicroflowValidationIssue[] {
-  return blockingIssues.map(item => ({
-    id: `${microflowId}:normalizer:${item.code}:${item.flowId ?? item.objectId ?? "schema"}`,
-    microflowId,
-    code: item.code,
-    severity: item.severity,
-    source: "schema",
-    message: item.message,
-    objectId: item.objectId,
-    flowId: item.flowId,
-    edgeId: item.flowId,
-    fieldPath: item.fieldPath ?? (item.flowId ? `flows.${item.flowId}` : "objectCollection"),
-    blockSave: true,
-    blockPublish: true,
-  }));
-}
 
 function createMissingMicroflowApiClient(): MicroflowApiClient {
   return new Proxy({}, {
@@ -2842,18 +2822,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const validateForMode = useCallback(async (targetSchema: MicroflowSchema | MicroflowDesignSchema, mode: MicroflowValidationMode) => {
     const stableTargetSchema = stripTransientSchemaState(targetSchema);
-    const normalized = isDesignSchema(stableTargetSchema) ? null : normalizeMicroflowAuthoringSchemaForRuntime(stableTargetSchema);
-    const schemaForValidation = normalized?.schema ?? stableTargetSchema;
-    const normalizerIssues = normalized
-      ? createNormalizerIssues(schemaForValidation.id, normalized.report.blockingIssues)
-      : [];
+    const schemaForValidation = stableTargetSchema;
     try {
       const localResult = validateMicroflowSchema({
         schema: schemaForValidation,
         metadata: loadedMetadata,
         options: { mode, includeWarnings: true, includeInfo: true },
       });
-      const localIssues = [...normalizerIssues, ...localResult.issues];
+      const localIssues = [...localResult.issues];
       setIssues(localIssues);
       if (!props.validationAdapter) {
         return {
@@ -2876,7 +2852,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         blockSave: issue.blockSave ?? issue.severity === "error",
         blockPublish: issue.blockPublish ?? issue.severity === "error",
       }));
-      const issues = [...normalizerIssues, ...localResult.issues, ...serverIssues];
+      const issues = [...localResult.issues, ...serverIssues];
       const summary = summarizeValidationIssues(issues);
       setIssues(issues);
       return {
@@ -3824,16 +3800,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       return true;
     }
     const stableSchema = stripTransientSchemaState(schema);
-    const normalized = isDesignSchema(stableSchema) ? null : normalizeMicroflowAuthoringSchemaForRuntime(stableSchema);
-    const schemaToSave = normalized?.schema ?? stableSchema;
-    if (normalized?.report.repaired && !microflowSchemasEqual(schemaToSave, schema)) {
-      commitSchema(schemaToSave, "bulkUpdate", { pushHistory: false, skipValidate: true });
-    }
-    const saveRevision = schemaRevisionRef.current;
-    if (!isDesignSchema(schemaToSave)) {
+    if (!isDesignSchema(stableSchema)) {
       Toast.error("旧版 Authoring 编辑器不再支持保存，请使用新版 FlowGram Studio。");
       return false;
     }
+    const schemaToSave = stableSchema;
+    const saveRevision = schemaRevisionRef.current;
     const validation = await validateForMode(schemaToSave, "save");
     const blockers = validation.issues.filter(issue => issue.blockSave && issue.severity === "error");
     if (blockers.length > 0) {
@@ -4440,13 +4412,14 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         return;
       }
 
+      if (!isDesignSchema(stableSchema)) {
+        Toast.error("旧版 Authoring 不再支持试运行，请使用新版 FlowGram Studio。");
+        setRunning(false);
+        return;
+      }
       const debugSessionId = pendingDebugSessionId;
-      const authoringSchemaForRun = isDesignSchema(stableSchema)
-        ? buildDesignPropertyPanelModel(stableSchema).authoringSchema
-        : stableSchema;
-      const normalized = normalizeMicroflowAuthoringSchemaForRuntime(authoringSchemaForRun);
       const response = await apiClient.testRunMicroflow(
-        buildRunRequest(normalized.schema, input.parameters, input.options, true, debugSessionId, plannedRunId),
+        buildRunRequest(stableSchema, input.parameters, input.options, true, debugSessionId, plannedRunId),
       );
       const session = normalizeRunSession(response.session);
       if (!session?.id) {

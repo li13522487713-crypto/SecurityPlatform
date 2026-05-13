@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { sampleMicroflowSchema } from "../../schema/sample";
-import type { MicroflowSchema } from "../../schema";
+import type { MicroflowDesignSchema, MicroflowSchema } from "../../schema";
 import {
   buildRunInputModel,
   buildRunRequest,
@@ -26,6 +26,27 @@ function schemaWithParameters(id = "MF_RUN"): MicroflowSchema {
       { id: "param-approved", name: "approved", dataType: { kind: "boolean" }, required: false },
       { id: "param-tags", name: "tags", dataType: { kind: "list", itemType: { kind: "string" } }, required: false },
     ],
+  };
+}
+
+function designSchemaWithParameters(id = "MF_RUN"): MicroflowDesignSchema {
+  return {
+    schemaVersion: "flowgram.microflow.v1",
+    id,
+    stableId: id,
+    name: "TestMicroflow",
+    displayName: "Test Microflow",
+    moduleId: "test",
+    parameters: [
+      { id: "param-amount", name: "amount", dataType: { kind: "decimal" }, required: true },
+      { id: "param-user", name: "userName", dataType: { kind: "string" }, required: true },
+    ],
+    returnType: { kind: "boolean" },
+    workflow: { nodes: [], edges: [] },
+    variables: [],
+    validation: { issues: [] },
+    editor: { viewport: { x: 0, y: 0, zoom: 1 }, zoom: 1, selection: {}, gridEnabled: false, showMiniMap: false },
+    audit: { version: "v3", status: "draft", createdBy: "test", createdAt: "2026-01-01T00:00:00.000Z", updatedBy: "test", updatedAt: "2026-01-01T00:00:00.000Z" },
   };
 }
 
@@ -60,7 +81,7 @@ describe("Microflow Stage 21 run input model", () => {
   });
 
   it("builds real run request DTO with active microflow id and inputs", () => {
-    const schema = schemaWithParameters("MF_ACTIVE");
+    const schema = designSchemaWithParameters("MF_ACTIVE");
     const request = buildRunRequest(
       schema,
       { amount: 100, userName: "alice" },
@@ -74,6 +95,14 @@ describe("Microflow Stage 21 run input model", () => {
     expect(request.input).toEqual({ amount: 100, userName: "alice" });
     expect(request.options?.maxSteps).toBe(10);
     expect(request.options?.connectorCapabilities).toEqual(["rest", "soap"]);
+  });
+
+  it("includes design schema in request when includeDraftSchema=true", () => {
+    const schema = designSchemaWithParameters("MF_DRAFT");
+    const request = buildRunRequest(schema, {}, undefined, true);
+
+    expect(request.schema).toBe(schema);
+    expect(request.microflowId).toBe("MF_DRAFT");
   });
 
   it("blocks run for validation errors or input errors", () => {

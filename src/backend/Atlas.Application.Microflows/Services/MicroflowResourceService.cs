@@ -282,18 +282,69 @@ public sealed class MicroflowResourceService : IMicroflowResourceService
     public async Task<GetMicroflowSchemaResponseDto> GetSchemaAsync(string id, CancellationToken cancellationToken)
     {
         var (resource, snapshot) = await LoadResourceAndSnapshotAsync(id, requireSnapshot: true, cancellationToken);
-        var schema = MicroflowDesignSchemaHelper.ParseStoredDesignSchema(
-            snapshot!.SchemaJson,
-            "当前微流仍是旧设计态快照，无法在新版 Studio 中打开。");
 
+        // 若快照不是新版协议，执行运行时升级并覆盖回写。
+        string resolvedSchemaJson;
+        string resolvedSnapshotId = snapshot!.Id;
+        string resolvedSchemaVersion = snapshot.SchemaVersion ?? MicroflowDesignSchemaHelper.DesignSchemaVersion;
+        DateTimeOffset resolvedUpdatedAt = snapshot.CreatedAt;
+        string? resolvedUpdatedBy = snapshot.CreatedBy;
+
+        if (!string.Equals(snapshot.SchemaVersion, MicroflowDesignSchemaHelper.DesignSchemaVersion, StringComparison.Ordinal)
+            || MicroflowDesignSchemaHelper.TryParseStoredDesignSchema(snapshot.SchemaJson) is null)
+        {
+            resolvedSchemaJson = MicroflowLegacySchemaUpgrader.Upgrade(snapshot.SchemaJson ?? string.Empty);
+            var context = _requestContextAccessor.Current;
+            var now = _clock.UtcNow;
+            var newSnapshot = CreateSnapshot(
+                resource.Id,
+                resource.WorkspaceId,
+                context,
+                resolvedSchemaJson,
+                MicroflowDesignSchemaHelper.DesignSchemaVersion,
+                "legacy-schema-auto-upgrade",
+                snapshot.Id,
+                now);
+            await _schemaSnapshotRepository.InsertAsync(newSnapshot, cancellationToken);
+            resource.CurrentSchemaSnapshotId = newSnapshot.Id;
+            resource.SchemaId = newSnapshot.Id;
+            resource.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+            Touch(resource, context);
+            await _resourceRepository.UpdateAsync(resource, cancellationToken);
+            resolvedSnapshotId = newSnapshot.Id;
+            resolvedSchemaVersion = MicroflowDesignSchemaHelper.DesignSchemaVersion;
+            resolvedUpdatedAt = now;
+            resolvedUpdatedBy = context.UserId;
+
+            await SafeAuditAsync(new MicroflowAuditEvent
+            {
+                Action = "microflow.schema.legacy-upgrade",
+                Result = "success",
+                ResourceId = resource.Id,
+                ResourceName = resource.Name,
+                WorkspaceId = resource.WorkspaceId,
+                Target = $"{resource.ModuleId}/{resource.Name}",
+                Details = new Dictionary<string, object?>
+                {
+                    ["oldSnapshotId"] = snapshot.Id,
+                    ["newSnapshotId"] = newSnapshot.Id,
+                }
+            }, cancellationToken);
+        }
+        else
+        {
+            resolvedSchemaJson = snapshot.SchemaJson!;
+        }
+
+        using var schemaDoc = JsonDocument.Parse(resolvedSchemaJson);
         return new GetMicroflowSchemaResponseDto
         {
             ResourceId = resource.Id,
-            Schema = schema,
-            SchemaVersion = snapshot.SchemaVersion,
+            Schema = schemaDoc.RootElement.Clone(),
+            SchemaVersion = resolvedSchemaVersion,
             MigrationVersion = snapshot.MigrationVersion,
-            UpdatedAt = snapshot.CreatedAt,
-            UpdatedBy = snapshot.CreatedBy
+            UpdatedAt = resolvedUpdatedAt,
+            UpdatedBy = resolvedUpdatedBy
         };
     }
 
