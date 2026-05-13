@@ -3,6 +3,7 @@ import type {
   MicroflowCaseValue,
   MicroflowDataType,
   MicroflowDesignSchema,
+  MicroflowGlobalVariable,
   MicroflowTypeRef,
   MicroflowVariable,
   MicroflowVariableSymbol,
@@ -279,6 +280,20 @@ function parameterSymbol(parameter: MicroflowDesignSchema["parameters"][number])
   };
 }
 
+function globalVariableSymbol(variable: MicroflowGlobalVariable): MicroflowVariableSymbol {
+  return {
+    id: variable.id,
+    name: variable.name,
+    displayName: variable.name,
+    kind: "globalVariable",
+    dataType: variable.dataType,
+    source: { kind: "globalVariable", variableId: variable.id },
+    scope: { kind: "global", collectionId: ROOT_COLLECTION_ID },
+    readonly: false,
+    documentation: variable.description,
+  };
+}
+
 function sourceObjectId(symbol: MicroflowVariableSymbol): string | undefined {
   return "objectId" in symbol.source ? symbol.source.objectId : symbol.source.kind === "errorContext" ? symbol.source.sourceObjectId : undefined;
 }
@@ -392,7 +407,11 @@ export function toExecutionPlan(schema: MicroflowDesignSchema, options?: { resou
   const start = schema.workflow.nodes.find(node => nodeKind(node) === "startEvent")
     ?? schema.workflow.nodes.find(node => !["annotation", "parameterObject"].includes(nodeKind(node)));
   const endNodeIds = schema.workflow.nodes.filter(node => nodeKind(node) === "endEvent").map(nodeObjectId);
-  const variableSymbols = [...schema.parameters.map(parameterSymbol), ...(schema.variables ?? []).map(toVariableSymbol)];
+  const variableSymbols = [
+    ...schema.parameters.map(parameterSymbol),
+    ...(schema.globalVariables ?? []).map(globalVariableSymbol),
+    ...(schema.variables ?? []).map(toVariableSymbol),
+  ];
   const variableDeclarations = variableSymbols.map(toVariableDeclaration);
   return {
     id: `plan-${schema.id}`,

@@ -9,6 +9,7 @@ import type {
   MicroflowAction,
   MicroflowActionActivity,
   MicroflowDataType,
+  MicroflowGlobalVariable,
   MicroflowObject,
   MicroflowObjectCollection,
   MicroflowSchema,
@@ -889,6 +890,21 @@ export function buildVariableIndex(
       scope: { kind: "global", collectionId: schema.objectCollection.id },
       readonly: true,
       documentation: parameter.documentation,
+    }));
+  }
+  for (const globalVar of (schema.globalVariables ?? []) as MicroflowGlobalVariable[]) {
+    if (!globalVar.name?.trim()) {
+      continue;
+    }
+    validateOutputName(index, globalVar.name, undefined, undefined, "parameters");
+    addSymbol(index, createSymbol({
+      name: globalVar.name,
+      kind: "globalVariable",
+      dataType: globalVar.dataType,
+      source: { kind: "globalVariable", variableId: globalVar.id },
+      scope: { kind: "global", collectionId: schema.objectCollection.id },
+      readonly: false,
+      documentation: globalVar.description,
     }));
   }
   for (const { object, collectionId } of flattenObjects(schema.objectCollection)) {

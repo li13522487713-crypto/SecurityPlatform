@@ -211,6 +211,19 @@ export interface MicroflowVariable {
   defaultValue?: MicroflowExpression;
 }
 
+/**
+ * Microflow-level global variable declared at the schema top level.
+ * Accessible from any node in the microflow (read and write).
+ * Not connected to the flow graph; initialized at microflow start.
+ */
+export interface MicroflowGlobalVariable {
+  id: string;
+  name: string;
+  dataType: MicroflowDataType;
+  initialValue?: MicroflowExpression;
+  description?: string;
+}
+
 export interface MicroflowParameter {
   id: string;
   stableId?: string;
@@ -1366,6 +1379,7 @@ export type MicroflowVariableVisibility = "definite" | "maybe" | "unavailable";
 
 export type MicroflowVariableKind =
   | "parameter"
+  | "globalVariable"
   | "actionOutput"
   | "localVariable"
   | "objectOutput"
@@ -1382,6 +1396,7 @@ export type MicroflowVariableKind =
 
 export type MicroflowVariableSource =
   | { kind: "parameter"; parameterId: string }
+  | { kind: "globalVariable"; variableId: string }
   | { kind: "actionOutput"; objectId: string; actionId: string; actionKind?: MicroflowActionKind }
   | { kind: "createVariable"; objectId: string; actionId: string }
   | { kind: "createList"; objectId: string; actionId: string }
@@ -1582,6 +1597,7 @@ export interface MicroflowAuthoringSchema {
   concurrency: MicroflowConcurrencyConfig;
   exposure: MicroflowExposureConfig;
   variables?: MicroflowVariableIndex;
+  globalVariables?: MicroflowGlobalVariable[];
   validation: MicroflowValidationState;
   debug?: MicroflowDebugState;
   editor: MicroflowEditorState;
@@ -1675,6 +1691,7 @@ export interface MicroflowDesignSchema {
   concurrency?: MicroflowConcurrencyConfig;
   exposure?: MicroflowExposureConfig;
   variables: MicroflowVariable[];
+  globalVariables?: MicroflowGlobalVariable[];
   validation: MicroflowValidationState;
   audit: MicroflowAuditState;
   debug?: MicroflowDebugState;

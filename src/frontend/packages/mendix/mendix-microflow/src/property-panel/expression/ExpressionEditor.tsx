@@ -137,7 +137,7 @@ export function ExpressionEditor({
         placeholder="插入变量"
         style={{ width: "100%" }}
         value={undefined}
-        optionList={insertOptions.slice(0, 20)}
+        optionList={insertOptions}
         onChange={token => {
           if (token) {
             nextExpression(insertExpressionToken(raw, String(token)));

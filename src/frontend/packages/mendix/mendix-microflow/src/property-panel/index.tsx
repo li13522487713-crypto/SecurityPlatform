@@ -2,6 +2,7 @@ import { memo } from "react";
 import type { MicroflowVariableSymbol } from "../schema";
 import { FlowEdgeForm } from "./forms/flow-edge-form";
 import { MicroflowDocumentPropertiesForm } from "./forms/microflow-document-properties-form";
+import { MicroflowGlobalVariablesForm } from "./forms/microflow-global-variables-form";
 import { ObjectPanel } from "./forms/object-panel";
 import type { MicroflowAuthoringSchema } from "../schema";
 import {
@@ -61,6 +62,7 @@ function AuthoringMicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
           </div>
         ) : null}
         <MicroflowDocumentPropertiesForm {...props} />
+        <MicroflowGlobalVariablesForm schema={props.schema} onSchemaChange={props.onSchemaChange} readonly={props.readonly} />
       </div>
     );
   }

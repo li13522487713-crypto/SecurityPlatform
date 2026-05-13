@@ -31,7 +31,9 @@ function normalizeName(name: string, mode: InlineVariableOptionMode): string {
     return "";
   }
   if (mode === "expression") {
-    return trimmed.startsWith("$") ? trimmed : `$${trimmed}`;
+    if (trimmed.startsWith("$.")) return trimmed;
+    if (trimmed.startsWith("$")) return `$.${trimmed.slice(1)}`;
+    return `$.${trimmed}`;
   }
   return trimmed.startsWith("$") ? trimmed.slice(1) : trimmed;
 }
@@ -114,18 +116,6 @@ function pushOption(
   list.push({ label: baseLabel, value });
   mergedLabels.set(value, baseLabel);
   seen.add(value);
-  if (mode === "expression") {
-    const jsonRoot = normalizeJsonRootName(input.name);
-    if (jsonRoot && !seen.has(jsonRoot)) {
-      seen.add(jsonRoot);
-      const jsonLabel = `${input.source}::${jsonRoot}${suffix}`;
-      list.push({
-        label: jsonLabel,
-        value: jsonRoot,
-      });
-      mergedLabels.set(jsonRoot, jsonLabel);
-    }
-  }
 }
 
 function extractActionOutputs(node: MicroflowWorkflowNodeJSON): string[] {

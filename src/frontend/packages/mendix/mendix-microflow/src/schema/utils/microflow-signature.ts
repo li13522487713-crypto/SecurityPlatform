@@ -2,6 +2,7 @@ import type {
   MicroflowAuthoringSchema,
   MicroflowDataType,
   MicroflowExpression,
+  MicroflowGlobalVariable,
   MicroflowObject,
   MicroflowObjectCollection,
   MicroflowParameter,
@@ -2059,6 +2060,57 @@ function findActionOutputObject(
         return nested;
       }
     }
+  }
+  return undefined;
+}
+
+export function getMicroflowGlobalVariables(schema: MicroflowAuthoringSchema): MicroflowGlobalVariable[] {
+  return schema.globalVariables ?? [];
+}
+
+export function upsertMicroflowGlobalVariable(
+  schema: MicroflowAuthoringSchema,
+  variable: MicroflowGlobalVariable,
+): MicroflowAuthoringSchema {
+  const exists = (schema.globalVariables ?? []).some(item => item.id === variable.id);
+  return {
+    ...schema,
+    globalVariables: exists
+      ? (schema.globalVariables ?? []).map(item => item.id === variable.id ? { ...item, ...variable } : item)
+      : [...(schema.globalVariables ?? []), variable],
+  };
+}
+
+export function removeMicroflowGlobalVariable(
+  schema: MicroflowAuthoringSchema,
+  variableId: string,
+): MicroflowAuthoringSchema {
+  return {
+    ...schema,
+    globalVariables: (schema.globalVariables ?? []).filter(item => item.id !== variableId),
+  };
+}
+
+export function getGlobalVariableNameWarning(
+  schema: MicroflowAuthoringSchema,
+  variableId: string,
+  name: string,
+): string | undefined {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "Variable name is required.";
+  }
+  if (isReservedSystemVariableName(trimmed)) {
+    return "Variable name conflicts with a reserved system variable.";
+  }
+  const normalized = trimmed.toLocaleLowerCase();
+  const duplicateParam = schema.parameters.some(p => p.name.toLocaleLowerCase() === normalized);
+  if (duplicateParam) {
+    return "Variable name conflicts with an existing parameter.";
+  }
+  const duplicateGlobal = (schema.globalVariables ?? []).some(v => v.id !== variableId && v.name.toLocaleLowerCase() === normalized);
+  if (duplicateGlobal) {
+    return "Variable name must be unique in the current microflow.";
   }
   return undefined;
 }

@@ -266,12 +266,22 @@ export function buildMicroflowExpressionCompletionOptions(input: {
   fieldPath?: string;
   expectedType?: MicroflowDataType;
 }): Array<{ label: string; value: string; detail?: string; disabled?: boolean }> {
-  const variableToken = (name: string) => name.startsWith("$") ? name : `$${name}`;
-  const jsonVariableToken = (name: string) => name.startsWith("$") ? `$.${name.slice(1)}` : `$.${name}`;
+  const jsonVariableToken = (name: string) => name.startsWith("$.") ? name : name.startsWith("$") ? `$.${name.slice(1)}` : `$.${name}`;
   const context: MicroflowExpressionScopeContext = { objectId: input.objectId ?? "", actionId: input.actionId, fieldPath: input.fieldPath };
   const variableMetrics = buildVariableUsageMetrics({ schema: input.schema, variableIndex: input.variableIndex, objectId: input.objectId });
+
+  const kindSortWeight = (kind: string | undefined): number => {
+    if (kind === "parameter") return 0;
+    if (kind === "globalVariable") return 1;
+    if (kind === "actionOutput" || kind === "localVariable" || kind === "primitiveOutput" || kind === "objectOutput" || kind === "listOutput") return 2;
+    if (kind === "system") return 4;
+    return 3;
+  };
+
   const variables = (input.objectId ? getVariablesForExpressionFromIndex(input.schema, input.variableIndex, context) : [])
     .sort((left, right) => {
+      const kindDiff = kindSortWeight(left.kind) - kindSortWeight(right.kind);
+      if (kindDiff !== 0) return kindDiff;
       const leftCount = variableMetrics[left.name]?.referenceCount ?? 0;
       const rightCount = variableMetrics[right.name]?.referenceCount ?? 0;
       if (rightCount !== leftCount) {
@@ -289,49 +299,30 @@ export function buildMicroflowExpressionCompletionOptions(input: {
       variableSourceLabel(variable),
       variable.visibility === "maybe" ? `maybe - ${maybeReason}` : undefined,
     ].filter(Boolean).join(", ");
-    const baseToken = variableToken(variable.name);
     const jsonToken = jsonVariableToken(variable.name);
-    const base = { label: baseToken, value: baseToken, detail };
     const jsonPathBase = { label: jsonToken, value: jsonToken, detail };
     if (variable.dataType.kind !== "object") {
-      return [base, jsonPathBase];
+      return [jsonPathBase];
     }
     const variableObjectType = variable.dataType;
     const associationOptions = getAssociationsForEntity(input.metadata, variableObjectType.entityQualifiedName).flatMap(association => {
       const target = getTargetEntityByAssociation(input.metadata, association.qualifiedName, variableObjectType.entityQualifiedName);
-      const associationValue = `${baseToken}/${association.qualifiedName}`;
       const associationJsonValue = `${jsonToken}/${association.qualifiedName}`;
       if (!target) {
-        return [
-          { label: associationValue, value: associationValue, detail: "association" },
-          { label: associationJsonValue, value: associationJsonValue, detail: "association" },
-        ];
+        return [{ label: associationJsonValue, value: associationJsonValue, detail: "association" }];
       }
-      const nestedAttributes = getEntityAttributes(input.metadata, target.qualifiedName).map(attribute => ({
-        label: `${associationValue}/${target.qualifiedName}/${attribute.name}`,
-        value: `${associationValue}/${target.qualifiedName}/${attribute.name}`,
-        detail: `${target.name}.${attribute.name}: ${expressionTypeLabel(attribute.type)}`,
-      }));
       const nestedJsonAttributes = getEntityAttributes(input.metadata, target.qualifiedName).map(attribute => ({
         label: `${associationJsonValue}/${target.qualifiedName}/${attribute.name}`,
         value: `${associationJsonValue}/${target.qualifiedName}/${attribute.name}`,
         detail: `${target.name}.${attribute.name}: ${expressionTypeLabel(attribute.type)}`,
       }));
       return [
-        { label: associationValue, value: associationValue, detail: `association -> ${target.qualifiedName}` },
         { label: associationJsonValue, value: associationJsonValue, detail: `association -> ${target.qualifiedName}` },
-        ...nestedAttributes,
         ...nestedJsonAttributes,
       ];
     });
     return [
-      base,
       jsonPathBase,
-      ...getEntityAttributes(input.metadata, variableObjectType.entityQualifiedName).map(attribute => ({
-        label: `${baseToken}/${attribute.name}`,
-        value: `${baseToken}/${attribute.name}`,
-        detail: expressionTypeLabel(attribute.type),
-      })),
       ...getEntityAttributes(input.metadata, variableObjectType.entityQualifiedName).map(attribute => ({
         label: `${jsonToken}/${attribute.name}`,
         value: `${jsonToken}/${attribute.name}`,
