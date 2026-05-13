@@ -8,7 +8,7 @@ import {
 
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
 import { MicroflowEdgeDataContext, MicroflowSelectedFlowIdContext } from "./FlowGramMicroflowTypes";
-import { emitInlineLineDelete, emitInlineLineLabelCommit } from "./inline-events";
+import { emitInlineLineLabelCommit } from "./inline-events";
 import { MicroflowEdge } from "../components/MicroflowEdge";
 
 function lineInfoKey(input: {
@@ -186,6 +186,8 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
     || data.edgeKind === "errorHandler"
   );
   const branchLabel = label.toLowerCase();
+  const isSelected = Boolean(selectedFlowId && selectedFlowId === data.flowId);
+
   if (!branchLabel && !warningMissingTarget) {
     return <div ref={hostRef} data-flow-id={data.flowId} style={{ display: "none" }} aria-hidden="true" />;
   }
@@ -234,7 +236,6 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
     );
   }
 
-  const isSelected = Boolean(selectedFlowId && selectedFlowId === data.flowId);
   return (
     <div ref={hostRef} data-flow-id={data.flowId}>
       <MicroflowEdge
@@ -257,11 +258,6 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
           }
           setDraft(label);
           setEditing(true);
-        }}
-        onDelete={() => {
-          emitInlineLineDelete({
-            flowId: data.flowId,
-          });
         }}
         editAdornment={<span className="microflow-branch-label__edit" aria-hidden="true">✎</span>}
       />

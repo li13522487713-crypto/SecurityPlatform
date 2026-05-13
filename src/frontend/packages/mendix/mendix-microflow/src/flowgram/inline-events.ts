@@ -3,7 +3,6 @@ export const MICROFLOW_INLINE_NODE_INSPECT_EVENT = "atlas:microflow-inline-node-
 export const MICROFLOW_INLINE_FIELD_COMMIT_EVENT = "atlas:microflow-inline-field-commit";
 export const MICROFLOW_INLINE_QUICK_FIX_EVENT = "atlas:microflow-inline-quick-fix-apply";
 export const MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT = "atlas:microflow-inline-line-label-commit";
-export const MICROFLOW_INLINE_LINE_DELETE_EVENT = "atlas:microflow-inline-line-delete";
 
 export interface MicroflowInlineNodeToggleDetail {
   nodeId?: string;
@@ -30,10 +29,6 @@ export interface MicroflowInlineLineLabelCommitDetail {
   value?: string;
 }
 
-export interface MicroflowInlineLineDeleteDetail {
-  edgeId?: string;
-  flowId?: string;
-}
 
 export interface MicroflowInlineQuickFixDetail {
   nodeId: string;
@@ -94,9 +89,6 @@ export function emitInlineLineLabelCommit(detail: MicroflowInlineLineLabelCommit
   dispatchInlineEvent(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, detail);
 }
 
-export function emitInlineLineDelete(detail: MicroflowInlineLineDeleteDetail): void {
-  dispatchInlineEvent(MICROFLOW_INLINE_LINE_DELETE_EVENT, detail);
-}
 
 export function emitInlineQuickFix(detail: MicroflowInlineQuickFixDetail): void {
   dispatchInlineEvent(MICROFLOW_INLINE_QUICK_FIX_EVENT, detail);

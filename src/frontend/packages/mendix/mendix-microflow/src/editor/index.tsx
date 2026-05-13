@@ -85,18 +85,17 @@ import { stripTransientDesignSchema } from "../flowgram/transient-workflow-state
 import { MicroflowInlineNodeEditor } from "../flowgram/inline/MicroflowInlineNodeEditor";
 import {
   MICROFLOW_INLINE_FIELD_COMMIT_EVENT,
-  MICROFLOW_INLINE_LINE_DELETE_EVENT,
   MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT,
   MICROFLOW_INLINE_NODE_INSPECT_EVENT,
   MICROFLOW_INLINE_QUICK_FIX_EVENT,
   subscribeInlineNodeInspect,
   subscribeInlineNodeToggle,
   type MicroflowInlineFieldCommitDetail,
-  type MicroflowInlineLineDeleteDetail,
   type MicroflowInlineLineLabelCommitDetail,
   type MicroflowInlineNodeInspectDetail,
   type MicroflowInlineQuickFixDetail,
 } from "../flowgram/inline-events";
+import { MicroflowCanvasActionsContext } from "../flowgram/MicroflowCanvasActionsContext";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, MicroflowNodeViewMode } from "../flowgram/FlowGramMicroflowTypes";
 import { deriveNodeInlineConfig } from "../node-inline/derive-node-inline-config";
 import { MICROFLOW_GRID_SIZE } from "../flowgram/adapters/flowgram-coordinate";
@@ -4436,7 +4435,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       }
 
       const debugSessionId = pendingDebugSessionId;
-      const normalized = normalizeMicroflowAuthoringSchemaForRuntime(stableSchema);
+      const authoringSchemaForRun = isDesignSchema(stableSchema)
+        ? buildDesignPropertyPanelModel(stableSchema).authoringSchema
+        : stableSchema;
+      const normalized = normalizeMicroflowAuthoringSchemaForRuntime(authoringSchemaForRun);
       const response = await apiClient.testRunMicroflow(
         buildRunRequest(normalized.schema, input.parameters, input.options, true, debugSessionId, plannedRunId),
       );
@@ -5658,6 +5660,47 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     confirmDeleteTargets(deletableObjectIds, flowIds, "flowgram");
   };
 
+  const canvasActions = useMemo(() => ({
+    deleteFlow: (flowId: string) => {
+      if (props.readonly) return;
+      if (running && !isDebugPaused) {
+        Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再删除。");
+        return;
+      }
+      if (isDesignSchema(schema)) {
+        applyDeleteTargetsInDesign([], [flowId]);
+      } else {
+        applyDeleteTargets([], [flowId], "flowgram");
+      }
+      emitPanelSyncEvent({ type: "property-edit" });
+      applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+    },
+    deleteNode: (objectId: string) => {
+      if (props.readonly) return;
+      if (running && !isDebugPaused) {
+        Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再删除。");
+        return;
+      }
+      if (isDesignSchema(schema)) {
+        const node = schema.workflow.nodes.find(n => n.id === objectId);
+        if (isDesignStartNode(node)) {
+          Toast.warning("Start Event 不能删除。");
+          return;
+        }
+        applyDeleteTargetsInDesign([objectId], []);
+      } else {
+        const node = findObject(schema, objectId);
+        if (node?.kind === "startEvent") {
+          Toast.warning("Start Event 不能删除。");
+          return;
+        }
+        applyDeleteTargets([objectId], [], "flowgram");
+      }
+      emitPanelSyncEvent({ type: "property-edit" });
+      applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
+    },
+  }), [applyDeleteTargets, applyDeleteTargetsInDesign, applyPatch, emitPanelSyncEvent, isDebugPaused, props.readonly, running, schema]);
+
   const handleSelectAll = () => {
     if (isDesignSchema(schema)) {
       const objectIds = schema.workflow.nodes.map(node => node.id);
@@ -6480,27 +6523,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       applyPatch({ selectedObjectId: undefined, selectedFlowId: flowId }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
       openPropertiesPanel();
     };
-    const onLineDelete = (event: Event) => {
-      if (props.readonly) {
-        return;
-      }
-      const detail = (event as CustomEvent<MicroflowInlineLineDeleteDetail>).detail;
-      const flowId = detail?.flowId ?? detail?.edgeId;
-      if (!flowId) {
-        return;
-      }
-      if (running && !isDebugPaused) {
-        Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再删除。");
-        return;
-      }
-      if (!findFlowWithCollection(schema, flowId)) {
-        return;
-      }
-      applyDeleteTargets([], [flowId], "flowgram");
-      emitPanelSyncEvent({ type: "property-edit" });
-      applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-      openPropertiesPanel();
-    };
     const onQuickFix = (event: Event) => {
       const detail = (event as CustomEvent<MicroflowInlineQuickFixDetail>).detail;
       if (!detail?.nodeId || detail.actionKind !== "setFieldValue" || !detail.fieldPath) {
@@ -6524,7 +6546,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     window.addEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, onNodeInspect as EventListener);
     window.addEventListener(MICROFLOW_INLINE_FIELD_COMMIT_EVENT, onFieldCommit as EventListener);
     window.addEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
-    window.addEventListener(MICROFLOW_INLINE_LINE_DELETE_EVENT, onLineDelete as EventListener);
     window.addEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);
     return () => {
       window.removeEventListener(MICROFLOW_INLINE_NODE_INSPECT_EVENT, onNodeInspect as EventListener);
@@ -6532,7 +6553,6 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       unsubscribeNodeInspect();
       window.removeEventListener(MICROFLOW_INLINE_FIELD_COMMIT_EVENT, onFieldCommit as EventListener);
       window.removeEventListener(MICROFLOW_INLINE_LINE_LABEL_COMMIT_EVENT, onLineLabelCommit as EventListener);
-      window.removeEventListener(MICROFLOW_INLINE_LINE_DELETE_EVENT, onLineDelete as EventListener);
       window.removeEventListener(MICROFLOW_INLINE_QUICK_FIX_EVENT, onQuickFix as EventListener);
     };
   }, [applyDeleteTargets, applyPatch, commitSchema, emitPanelSyncEvent, isDebugPaused, openPropertiesPanel, props.readonly, running, schema]);
@@ -6859,6 +6879,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
         }
       `}</style>
       <div style={bodyStyle}>
+        <MicroflowCanvasActionsContext.Provider value={canvasActions}>
         <div data-testid="microflow-canvas" style={{ ...canvasStyle, minWidth: 0, minHeight: 0 }}>
         <FlowGramMicroflowNativeCanvas
           schema={schema}
@@ -6895,7 +6916,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   },
                 },
               }, "bulkUpdate", { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-              if (selection.objectId || selection.flowId) {
+              if (selection.objectId) {
                 openPropertiesPanel();
               }
               return;
@@ -6908,12 +6929,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               selectedFlowIds: selection.flowIds,
               selectionMode: selection.mode,
             }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
-            if (selection.objectId || selection.flowId) {
+            if (selection.objectId) {
               openPropertiesPanel();
             }
           }}
           onNodeClickChange={selection => {
-            if (selection.objectId || selection.flowId) {
+            if (selection.objectId) {
               setCanvasBlankContextMenu(undefined);
               openPropertiesPanel();
             }
@@ -7054,6 +7075,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           showBuiltInToolbar={false}
         />
         </div>
+        </MicroflowCanvasActionsContext.Provider>
         {quickInsertState ? (
           <div
             data-testid="microflow-quick-insert-panel"

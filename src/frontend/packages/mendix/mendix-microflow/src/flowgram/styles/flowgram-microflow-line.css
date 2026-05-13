@@ -19,28 +19,24 @@
 .microflow-flowgram-canvas .gedit-flow-activity-edge.is-selected path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge.selected line,
 .microflow-flowgram-canvas .gedit-flow-activity-edge.is-selected line {
-  stroke: #165dff !important;
-  stroke-width: 2px !important;
-  filter: drop-shadow(0 0 3px rgba(22, 93, 255, 0.55));
+  stroke: #4080ff !important;
+  stroke-width: 2.5px !important;
+  filter: drop-shadow(0 0 5px rgba(64, 128, 255, 0.8));
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.is-selected marker path {
-  stroke: #165dff !important;
-  fill: none !important;
+  stroke: #4080ff !important;
+  fill: #4080ff !important;
 }
 
 /* 选中连线标签高亮 */
 .microflow-edge-label.is-selected .microflow-branch-label {
-  background: rgba(22, 93, 255, 0.1);
-  border-color: rgba(22, 93, 255, 0.55) !important;
-  color: #165dff;
+  background: rgba(64, 128, 255, 0.18);
+  border-color: #4080ff !important;
+  color: #a0c0ff;
+  box-shadow: 0 0 0 2px rgba(64, 128, 255, 0.3);
 }
 
-/* 选中状态下始终显示删除按钮 */
-.microflow-edge-label.is-selected .microflow-flowgram-line__delete-btn {
-  opacity: 1;
-  pointer-events: auto;
-}
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-edge-drop-target path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-edge-drop-target line {
@@ -295,14 +291,6 @@
   outline: none;
 }
 
-.microflow-flowgram-line__delete-btn {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 10;
-  pointer-events: all;
-}
 
 .microflow-flowgram-reconnect-handle {
   position: absolute;

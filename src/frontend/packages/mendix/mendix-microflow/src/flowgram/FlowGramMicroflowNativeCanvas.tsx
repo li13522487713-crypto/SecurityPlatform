@@ -2191,6 +2191,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         <FlowGramNodeToolbar
           x={canvasNodeToolbar.x}
           y={canvasNodeToolbar.y}
+          nodeId={canvasNodeToolbar.objectId}
           onQuickAdd={props.onNodeToolbarQuickAdd ? () => props.onNodeToolbarQuickAdd!(canvasNodeToolbar.objectId, {
             x: canvasNodeToolbar.x,
             y: canvasNodeToolbar.y,
@@ -2199,7 +2200,6 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
             ? (item) => props.onNodeToolbarQuickConnect!(canvasNodeToolbar.objectId, item)
             : undefined
           }
-          onDelete={() => props.onDeleteSelection?.()}
           onDuplicate={() => props.onDuplicateSelection?.()}
         />
       ) : null}

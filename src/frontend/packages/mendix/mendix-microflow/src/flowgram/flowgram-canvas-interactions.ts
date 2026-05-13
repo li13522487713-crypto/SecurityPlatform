@@ -1,9 +1,9 @@
 const FLOWGRAM_PAN_EXEMPT_SELECTOR =
-  ".microflow-flowgram-node, .gedit-flow-activity-edge, .microflow-edge-label, .microflow-flowgram-reconnect-handle, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
+  ".microflow-flowgram-node, .gedit-flow-activity-edge, .microflow-edge-label, .microflow-flowgram-reconnect-handle, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal, [data-flow-editor-selectable=\"false\"]";
 
 /** 空格键按住时排除节点本身，让空格拖动全局生效 */
 const FLOWGRAM_PAN_EXEMPT_SELECTOR_SPACE =
-  ".gedit-flow-activity-edge, .microflow-edge-label, .microflow-flowgram-reconnect-handle, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal";
+  ".gedit-flow-activity-edge, .microflow-edge-label, .microflow-flowgram-reconnect-handle, .microflow-flowgram-canvas-controls, .microflow-flowgram-toolbar, .microflow-flowgram-status-strip, .microflow-flowgram-minimap, .semi-popover, .semi-dropdown, .semi-modal, [data-flow-editor-selectable=\"false\"]";
 
 const FLOWGRAM_NODE_HIT_SELECTOR =
   "[data-microflow-object-id], .microflow-flowgram-node, .workflow-node-render, .workflow-port-render";

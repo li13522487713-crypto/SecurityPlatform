@@ -3,19 +3,21 @@ import { Button, Tooltip } from "@douyinfe/semi-ui";
 import { IconCopy, IconDelete, IconPlus } from "@douyinfe/semi-icons";
 import type { MicroflowNodeRegistryItem } from "../node-registry";
 import { MicroflowQuickConnectPicker } from "./MicroflowQuickConnectPicker";
+import { useMicroflowCanvasActions } from "./MicroflowCanvasActionsContext";
 
 export interface FlowGramNodeToolbarProps {
   x: number;
   y: number;
+  nodeId: string;
   onEdit?: () => void;
   onQuickAdd?: () => void;
   onQuickConnect?: (item: MicroflowNodeRegistryItem) => void;
-  onDelete: () => void;
   onDuplicate: () => void;
 }
 
-export function FlowGramNodeToolbar({ x, y, onQuickAdd, onQuickConnect, onDelete, onDuplicate }: FlowGramNodeToolbarProps) {
+export function FlowGramNodeToolbar({ x, y, nodeId, onQuickAdd, onQuickConnect, onDuplicate }: FlowGramNodeToolbarProps) {
   const [pickerVisible, setPickerVisible] = useState(false);
+  const actions = useMicroflowCanvasActions();
 
   return (
     <div
@@ -57,7 +59,7 @@ export function FlowGramNodeToolbar({ x, y, onQuickAdd, onQuickConnect, onDelete
         </Tooltip>
       ) : null}
       <Tooltip content="Duplicate"><Button icon={<IconCopy />} size="small" onClick={onDuplicate} /></Tooltip>
-      <Tooltip content="Delete"><Button icon={<IconDelete />} size="small" type="danger" onClick={onDelete} /></Tooltip>
+      <Tooltip content="Delete"><Button icon={<IconDelete />} size="small" type="danger" onClick={() => actions.deleteNode(nodeId)} /></Tooltip>
     </div>
   );
 }

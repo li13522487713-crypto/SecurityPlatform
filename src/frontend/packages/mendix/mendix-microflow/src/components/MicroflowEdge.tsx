@@ -12,7 +12,6 @@ export interface MicroflowEdgeProps {
   onMouseDown?: MouseEventHandler<HTMLDivElement>;
   onClick?: MouseEventHandler<HTMLDivElement>;
   onEdit?: MouseEventHandler<HTMLButtonElement>;
-  onDelete?: MouseEventHandler<HTMLButtonElement>;
   editAdornment?: ReactNode;
 }
 
@@ -27,7 +26,6 @@ export function MicroflowEdge({
   onMouseDown,
   onClick,
   onEdit,
-  onDelete,
   editAdornment,
 }: MicroflowEdgeProps) {
   const [hovered, setHovered] = useState(false);
@@ -59,19 +57,6 @@ export function MicroflowEdge({
           }}
         >
           {editAdornment}
-        </button>
-      ) : null}
-      {showActions && onDelete ? (
-        <button
-          type="button"
-          className="microflow-flowgram-line__delete-btn"
-          aria-label={`删除连线 ${label}`}
-          onClick={event => {
-            event.stopPropagation();
-            onDelete(event);
-          }}
-        >
-          ×
         </button>
       ) : null}
     </div>
