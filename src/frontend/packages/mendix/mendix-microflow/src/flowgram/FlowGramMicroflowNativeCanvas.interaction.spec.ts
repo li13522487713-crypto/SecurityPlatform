@@ -82,6 +82,20 @@ describe("FlowGramMicroflowNativeCanvas hand-tool interactions", () => {
     expect(shouldPan).toBe(true);
   });
 
+  it("keeps reconnect handle interactions exempt from viewport panning", () => {
+    const reconnectHandle = makeTarget(selector => selector.includes(".microflow-flowgram-reconnect-handle"));
+
+    const shouldPan = shouldViewportPanFromPointerDown({
+      target: reconnectHandle,
+      button: 0,
+      panToolActive: false,
+      spacePressed: false,
+      draggingNode: false,
+    });
+
+    expect(shouldPan).toBe(false);
+  });
+
   it("keeps node context-menu path when right button is pressed on a node", () => {
     const nodeTarget = makeTarget(selector => selector.includes("[data-microflow-object-id]"));
 

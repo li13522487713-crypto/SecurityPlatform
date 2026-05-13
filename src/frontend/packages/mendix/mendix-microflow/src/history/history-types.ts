@@ -7,6 +7,7 @@ export type MicroflowHistoryReason =
   | "moveNode"
   | "addFlow"
   | "deleteFlow"
+  | "reconnectEdge"
   | "updateFlow"
   | "updateFlowCase"
   | "updateNodeProperty"

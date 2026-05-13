@@ -76,7 +76,7 @@ import {
 } from "../adapters";
 import { MicroflowHistoryManager, labelForHistoryReason, microflowSchemasEqual, type MicroflowHistoryReason, type MicroflowHistorySelection, type MicroflowHistoryState } from "../history";
 import { applyAutoLayout } from "../layout";
-import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
+import { canConnectPorts, canConnectPortsV2, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowNativeCanvas } from "../flowgram";
 import { FlowGramMicroflowRuntimeContext } from "../flowgram/FlowGramMicroflowContext";
 import { getMendixMicroflowNodeSize } from "../flowgram/flowgram-node-geometry";
@@ -101,6 +101,7 @@ import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, MicroflowNod
 import { deriveNodeInlineConfig } from "../node-inline/derive-node-inline-config";
 import { MICROFLOW_GRID_SIZE } from "../flowgram/adapters/flowgram-coordinate";
 import { createStableId } from "../schema/utils/ids";
+import { parsePortId } from "../schema/utils/port-utils";
 import { alignRootDesignParameterNodesToStart, removeStaleDesignParameters } from "../schema/utils/design-parameter-layout";
 import { buildVariableIndex, getVariablesBeforeObject } from "../variables";
 import {
@@ -506,6 +507,98 @@ function splitDesignFlowWithNode(
   };
 }
 
+type ReconnectFlowDragEndpoint = "source" | "target";
+type ReconnectSequenceEdgeKind = Exclude<MicroflowEditorEdgeKind, "annotation">;
+type ReconnectEvaluationInput = {
+  flowId: string;
+  dragEndpoint: ReconnectFlowDragEndpoint;
+  targetObjectId: string;
+  targetPortId: string;
+};
+type ReconnectEvaluationResult = {
+  allowed: boolean;
+  message?: string;
+  edgeKind?: ReconnectSequenceEdgeKind;
+};
+
+function edgeKindAfterReconnect(
+  currentEdgeKind: ReconnectSequenceEdgeKind | undefined,
+  nextEdgeKind: MicroflowEditorEdgeKind | undefined,
+): ReconnectSequenceEdgeKind {
+  if (!nextEdgeKind || nextEdgeKind === "annotation") {
+    return currentEdgeKind ?? "sequence";
+  }
+  return nextEdgeKind as ReconnectSequenceEdgeKind;
+}
+
+function caseValuesAfterReconnect(current: MicroflowCaseValue[], edgeKind: ReconnectSequenceEdgeKind): MicroflowCaseValue[] {
+  if (edgeKind === "decisionCondition" || edgeKind === "objectTypeCondition") {
+    return current;
+  }
+  return [];
+}
+
+function applyDesignFlowReconnect(
+  schema: MicroflowDesignSchema,
+  input: ReconnectEvaluationInput,
+  evaluatedEdgeKind?: ReconnectSequenceEdgeKind,
+): MicroflowDesignSchema {
+  const edgeIndex = schema.workflow.edges.findIndex(edge => designEdgeId(edge) === input.flowId || edge.id === input.flowId);
+  if (edgeIndex < 0) {
+    return schema;
+  }
+  const currentEdge = schema.workflow.edges[edgeIndex];
+  const currentData = (currentEdge.data ?? {}) as Partial<FlowGramMicroflowEdgeData> & Record<string, unknown>;
+  const nextEdgeKind = edgeKindAfterReconnect(
+    ((currentData.edgeKind as MicroflowEditorEdgeKind | undefined) ?? "sequence") as ReconnectSequenceEdgeKind,
+    evaluatedEdgeKind,
+  );
+  const nextCaseValues = caseValuesAfterReconnect(
+    Array.isArray(currentData.caseValues) ? currentData.caseValues : [],
+    nextEdgeKind,
+  );
+  const nextEdge: MicroflowWorkflowEdgeJSON = input.dragEndpoint === "source"
+    ? {
+        ...currentEdge,
+        sourceNodeID: input.targetObjectId,
+        sourcePortID: input.targetPortId,
+        data: {
+          ...currentData,
+          sourceNodeId: input.targetObjectId,
+          sourcePortId: input.targetPortId,
+          edgeKind: nextEdgeKind,
+          isErrorHandler: nextEdgeKind === "errorHandler",
+          caseValues: nextCaseValues,
+        },
+      }
+    : {
+        ...currentEdge,
+        targetNodeID: input.targetObjectId,
+        targetPortID: input.targetPortId,
+        data: {
+          ...currentData,
+          targetNodeId: input.targetObjectId,
+          targetPortId: input.targetPortId,
+          edgeKind: nextEdgeKind,
+          isErrorHandler: nextEdgeKind === "errorHandler",
+          caseValues: nextCaseValues,
+        },
+      };
+  const nextEdges = [...schema.workflow.edges];
+  nextEdges[edgeIndex] = nextEdge;
+  return {
+    ...schema,
+    workflow: {
+      ...schema.workflow,
+      edges: nextEdges,
+    },
+    audit: {
+      ...schema.audit,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 type MendixLayoutInspectorMode = "floating" | "docked";
 type BottomDockMode = "collapsed" | "peek" | "full";
 export type MicroflowWorkbenchBottomTab = "problems" | "debug" | "references" | "info" | "console";
@@ -587,6 +680,8 @@ function mapSchemaChangeReason(reason: string | MicroflowHistoryReason): Microfl
       return "addFlow";
     case "flowgramLineDelete":
       return "deleteFlow";
+    case "flowgramEdgeReconnect":
+      return "reconnectEdge";
     case "flowgramNodeDelete":
       return "deleteNode";
     case "updateParameter":
@@ -606,6 +701,7 @@ function isMicroflowHistoryReason(value: string): value is MicroflowHistoryReaso
     "moveNode",
     "addFlow",
     "deleteFlow",
+    "reconnectEdge",
     "updateFlow",
     "updateFlowCase",
     "updateNodeProperty",
@@ -3408,6 +3504,125 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       Toast.warning(warning);
     }
   };
+
+  const evaluateFlowReconnect = useCallback((input: ReconnectEvaluationInput): ReconnectEvaluationResult => {
+    const authoringSchema = isDesignSchema(schema)
+      ? buildDesignPropertyPanelModel(schema).authoringSchema
+      : schema;
+    const graphModel = toEditorGraph(authoringSchema);
+    const edge = graphModel.edges.find(item => item.flowId === input.flowId);
+    if (!edge || edge.edgeKind === "annotation") {
+      return { allowed: false, message: "当前连线不支持重连。" };
+    }
+    const portById = new Map<string, MicroflowEditorPort>();
+    for (const node of graphModel.nodes) {
+      for (const port of node.ports) {
+        portById.set(port.id, port);
+      }
+    }
+    const hoveredPort = portById.get(input.targetPortId);
+    if (!hoveredPort || hoveredPort.objectId !== input.targetObjectId) {
+      return { allowed: false, message: "未找到目标端口。" };
+    }
+    const fixedSourcePort = portById.get(edge.sourcePortId);
+    const fixedTargetPort = portById.get(edge.targetPortId);
+    if (!fixedSourcePort || !fixedTargetPort) {
+      return { allowed: false, message: "原连线端口无效。" };
+    }
+    const sourcePort = input.dragEndpoint === "source" ? hoveredPort : fixedSourcePort;
+    const targetPort = input.dragEndpoint === "target" ? hoveredPort : fixedTargetPort;
+    const result = canConnectPortsV2({
+      schema: authoringSchema,
+      sourceObjectId: sourcePort.objectId,
+      sourcePortId: sourcePort.id,
+      sourcePortKind: sourcePort.kind,
+      sourceConnectionIndex: sourcePort.connectionIndex,
+      targetObjectId: targetPort.objectId,
+      targetPortId: targetPort.id,
+      targetPortKind: targetPort.kind,
+      targetConnectionIndex: targetPort.connectionIndex,
+      mode: "reconnect",
+    }, sourcePort, targetPort);
+    if (!result.allowed) {
+      return { allowed: false, message: result.message ?? "无法连接到目标端口。" };
+    }
+    const currentEdgeKind = edge.edgeKind === "annotation"
+      ? "sequence"
+      : (edge.edgeKind as ReconnectSequenceEdgeKind);
+    return { allowed: true, edgeKind: edgeKindAfterReconnect(currentEdgeKind, result.suggestedEdgeKind ?? edge.edgeKind) };
+  }, [schema]);
+
+  const handleReconnectFlow = useCallback((input: ReconnectEvaluationInput): { ok: boolean; message?: string } => {
+    if (props.readonly) {
+      return { ok: false, message: "当前为只读模式。" };
+    }
+    const evaluation = evaluateFlowReconnect(input);
+    if (!evaluation.allowed) {
+      return { ok: false, message: evaluation.message };
+    }
+    if (isDesignSchema(schema)) {
+      const edge = schema.workflow.edges.find(item => designEdgeId(item) === input.flowId || item.id === input.flowId);
+      if (!edge) {
+        return { ok: false, message: "未找到待重连的连线。" };
+      }
+      if (
+        (input.dragEndpoint === "source" && edge.sourceNodeID === input.targetObjectId && String(edge.sourcePortID ?? "") === input.targetPortId)
+        || (input.dragEndpoint === "target" && edge.targetNodeID === input.targetObjectId && String(edge.targetPortID ?? "") === input.targetPortId)
+      ) {
+        return { ok: true };
+      }
+      const nextSchema = applyDesignFlowReconnect(schema, input, evaluation.edgeKind);
+      commitSchema(nextSchema as unknown as MicroflowSchema, "reconnectEdge", { source: "flowgram" });
+      return { ok: true };
+    }
+    const parsedTarget = parsePortId(input.targetPortId);
+    if (!parsedTarget) {
+      return { ok: false, message: "目标端口格式无效。" };
+    }
+    const flow = collectFlowsRecursive(schema).find(item => item.id === input.flowId);
+    if (!flow || flow.kind !== "sequence") {
+      return { ok: false, message: "当前连线不支持重连。" };
+    }
+    const unchanged = input.dragEndpoint === "source"
+      ? flow.originObjectId === parsedTarget.objectId && flow.originConnectionIndex === parsedTarget.connectionIndex
+      : flow.destinationObjectId === parsedTarget.objectId && flow.destinationConnectionIndex === parsedTarget.connectionIndex;
+    if (unchanged) {
+      return { ok: true };
+    }
+    const nextEdgeKind = edgeKindAfterReconnect(flow.editor.edgeKind, evaluation.edgeKind);
+    const nextCaseValues = caseValuesAfterReconnect(flow.caseValues, nextEdgeKind);
+    const nextSchema = updateFlow(schema, flow.id, current => {
+      if (current.kind !== "sequence") {
+        return current;
+      }
+      if (input.dragEndpoint === "source") {
+        return {
+          ...current,
+          originObjectId: parsedTarget.objectId,
+          originConnectionIndex: parsedTarget.connectionIndex,
+          isErrorHandler: nextEdgeKind === "errorHandler",
+          caseValues: nextCaseValues,
+          editor: {
+            ...current.editor,
+            edgeKind: nextEdgeKind,
+          },
+        };
+      }
+      return {
+        ...current,
+        destinationObjectId: parsedTarget.objectId,
+        destinationConnectionIndex: parsedTarget.connectionIndex,
+        isErrorHandler: nextEdgeKind === "errorHandler",
+        caseValues: nextCaseValues,
+        editor: {
+          ...current.editor,
+          edgeKind: nextEdgeKind,
+        },
+      };
+    });
+    commitSchema(nextSchema, "reconnectEdge", { source: "flowgram" });
+    return { ok: true };
+  }, [commitSchema, evaluateFlowReconnect, props.readonly, schema]);
 
   const handleInsertTemplate = (template: MicroflowNodePanelTemplate) => {
     if (props.readonly) {
@@ -6658,7 +6873,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             payload,
             source: "drop",
             parentLoopObjectId: options?.parentLoopObjectId,
+            insertFlowId: options?.insertFlowId,
           })}
+          onEvaluateFlowReconnect={evaluateFlowReconnect}
+          onReconnectFlow={handleReconnectFlow}
           canUndo={historyState.canUndo}
           canRedo={historyState.canRedo}
           onUndo={handleUndo}

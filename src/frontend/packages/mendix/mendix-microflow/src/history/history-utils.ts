@@ -47,6 +47,8 @@ export function labelForHistoryReason(reason: MicroflowHistoryReason): string {
       return "Add flow";
     case "deleteFlow":
       return "Delete flow";
+    case "reconnectEdge":
+      return "Reconnect edge";
     case "updateFlow":
       return "Update flow";
     case "updateFlowCase":

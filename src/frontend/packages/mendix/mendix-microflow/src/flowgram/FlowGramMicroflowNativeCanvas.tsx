@@ -94,6 +94,23 @@ type FlowGramPlaygroundViewportConfig = {
   updateConfig?: (config: { zoom?: number; scrollX?: number; scrollY?: number }) => void;
 };
 
+type ReconnectFlowDragEndpoint = "source" | "target";
+type ReconnectFlowInput = {
+  flowId: string;
+  dragEndpoint: ReconnectFlowDragEndpoint;
+  targetObjectId: string;
+  targetPortId: string;
+};
+type ReconnectFlowEvaluationResult = {
+  allowed: boolean;
+  message?: string;
+  edgeKind?: string;
+};
+type ReconnectFlowCommitResult = {
+  ok: boolean;
+  message?: string;
+};
+
 export interface FlowGramMicroflowNativeCanvasProps {
   schema: MicroflowDesignSchema;
   validationIssues: MicroflowValidationIssue[];
@@ -122,6 +139,8 @@ export interface FlowGramMicroflowNativeCanvasProps {
     payload: MicroflowNodeDragPayload,
     options?: { parentLoopObjectId?: string; insertFlowId?: string },
   ) => void;
+  onEvaluateFlowReconnect?: (input: ReconnectFlowInput) => ReconnectFlowEvaluationResult;
+  onReconnectFlow?: (input: ReconnectFlowInput) => ReconnectFlowCommitResult;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
@@ -493,6 +512,24 @@ type GraphNodeLike = {
   ports: GraphNodePortLike[];
 };
 
+type EdgeReconnectGeometry = {
+  flowId: string;
+  edgeKind: string;
+  sourceObjectId: string;
+  sourcePortId: string;
+  sourcePoint: { x: number; y: number };
+  targetObjectId: string;
+  targetPortId: string;
+  targetPoint: { x: number; y: number };
+};
+
+type GraphPortGeometry = {
+  id: string;
+  objectId: string;
+  direction: "input" | "output";
+  point: { x: number; y: number };
+};
+
 function absolutePortPosition(node: GraphNodeLike, port?: GraphNodePortLike): { x: number; y: number } {
   const relative = port?.position ?? {
     x: port?.direction === "input" ? 0 : node.size.width,
@@ -502,6 +539,74 @@ function absolutePortPosition(node: GraphNodeLike, port?: GraphNodePortLike): { 
     x: node.position.x + relative.x,
     y: node.position.y + relative.y,
   };
+}
+
+function buildReconnectGeometry(schema: MicroflowDesignSchema): {
+  edgeByFlowId: Map<string, EdgeReconnectGeometry>;
+  ports: GraphPortGeometry[];
+} {
+  const graph = toEditorGraph(schema as unknown as Parameters<typeof toEditorGraph>[0]);
+  const nodeByObjectId = new Map<string, GraphNodeLike>(
+    graph.nodes.map(node => [String(node.objectId), node]),
+  );
+  const ports: GraphPortGeometry[] = [];
+  for (const node of graph.nodes) {
+    const nodeLike = nodeByObjectId.get(String(node.objectId));
+    if (!nodeLike) {
+      continue;
+    }
+    for (const port of node.ports) {
+      ports.push({
+        id: port.id,
+        objectId: String(node.objectId),
+        direction: port.direction,
+        point: absolutePortPosition(nodeLike, port),
+      });
+    }
+  }
+  const edgeByFlowId = new Map<string, EdgeReconnectGeometry>();
+  for (const edge of graph.edges) {
+    const source = nodeByObjectId.get(String(edge.sourceNodeId).replace(/^node-/, ""));
+    const target = nodeByObjectId.get(String(edge.targetNodeId).replace(/^node-/, ""));
+    if (!source || !target) {
+      continue;
+    }
+    const sourcePort = source.ports.find(port => port.id === edge.sourcePortId) ?? source.ports.find(port => port.direction === "output");
+    const targetPort = target.ports.find(port => port.id === edge.targetPortId) ?? target.ports.find(port => port.direction === "input");
+    if (!sourcePort || !targetPort || !edge.flowId) {
+      continue;
+    }
+    edgeByFlowId.set(edge.flowId, {
+      flowId: edge.flowId,
+      edgeKind: edge.edgeKind,
+      sourceObjectId: String(source.objectId),
+      sourcePortId: sourcePort.id,
+      sourcePoint: absolutePortPosition(source, sourcePort),
+      targetObjectId: String(target.objectId),
+      targetPortId: targetPort.id,
+      targetPoint: absolutePortPosition(target, targetPort),
+    });
+  }
+  return { edgeByFlowId, ports };
+}
+
+function nearestReconnectPortCandidate(
+  ports: GraphPortGeometry[],
+  point: { x: number; y: number },
+  direction: "input" | "output",
+  radius = 16,
+): GraphPortGeometry | undefined {
+  let nearest: { item: GraphPortGeometry; distance: number } | undefined;
+  for (const port of ports) {
+    if (port.direction !== direction) {
+      continue;
+    }
+    const distance = Math.hypot(point.x - port.point.x, point.y - port.point.y);
+    if (distance <= radius && (!nearest || distance < nearest.distance)) {
+      nearest = { item: port, distance };
+    }
+  }
+  return nearest?.item;
 }
 
 function distanceToSegment(point: { x: number; y: number }, source: { x: number; y: number }, target: { x: number; y: number }): number {
@@ -520,7 +625,7 @@ function findNearestDropInsertFlowId(
   point: { x: number; y: number },
   threshold = 12,
 ): string | undefined {
-  const graph = toEditorGraph(schema);
+  const graph = toEditorGraph(schema as unknown as Parameters<typeof toEditorGraph>[0]);
   const nodeById = new Map<string, GraphNodeLike>(
     graph.nodes.map(node => [String(node.objectId), node]),
   );
@@ -545,7 +650,7 @@ function findNearestDropInsertFlowId(
 }
 
 function resolveFlowInsertAnchor(schema: MicroflowDesignSchema, flowId: string): MicroflowPoint | undefined {
-  const graph = toEditorGraph(schema);
+  const graph = toEditorGraph(schema as unknown as Parameters<typeof toEditorGraph>[0]);
   const edge = graph.edges.find(item => item.flowId === flowId);
   if (!edge) {
     return undefined;
@@ -737,6 +842,27 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const [internalPanToolActive, setInternalPanToolActive] = useState(false);
   const panToolControlled = props.canvasPanToolActive !== undefined;
   const [canvasNodeToolbar, setCanvasNodeToolbar] = useState<{ x: number; y: number; objectId: string } | undefined>();
+  const [hoveredFlowId, setHoveredFlowId] = useState<string>();
+  const [reconnectState, setReconnectState] = useState<{
+    flowId: string;
+    dragEndpoint: ReconnectFlowDragEndpoint;
+    pointer: { x: number; y: number };
+    fixedPoint: { x: number; y: number };
+    fixedPortId: string;
+    fixedObjectId: string;
+    originalPoint: { x: number; y: number };
+    originalPortId: string;
+    originalObjectId: string;
+    candidate?: {
+      objectId: string;
+      portId: string;
+      point: { x: number; y: number };
+      allowed: boolean;
+      message?: string;
+    };
+    failedAt?: number;
+  }>();
+  const [portFlashState, setPortFlashState] = useState<{ portId: string; tick: number }>();
   const panToolActive = panToolControlled ? Boolean(props.canvasPanToolActive) : internalPanToolActive;
   const togglePanTool = () => {
     const next = !panToolActive;
@@ -805,6 +931,16 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     () => summarizeMicroflowComplexity(props.schema),
     [props.schema],
   );
+  const reconnectGeometry = useMemo(
+    () => buildReconnectGeometry(props.schema),
+    [props.schema],
+  );
+  const hoveredEdgeGeometry = hoveredFlowId ? reconnectGeometry.edgeByFlowId.get(hoveredFlowId) : undefined;
+  useEffect(() => {
+    if (reconnectState && !reconnectGeometry.edgeByFlowId.has(reconnectState.flowId)) {
+      setReconnectState(undefined);
+    }
+  }, [reconnectGeometry.edgeByFlowId, reconnectState]);
   useEffect(() => {
     const canvas = containerRef.current;
     if (!canvas) {
@@ -822,6 +958,67 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       });
     };
   }, [dropPreview?.insertFlowId, renderedWorkflow]);
+
+  useEffect(() => {
+    const canvas = containerRef.current;
+    if (!canvas) {
+      return;
+    }
+    const edgeElements = canvas.querySelectorAll<HTMLElement>(".gedit-flow-activity-edge");
+    edgeElements.forEach(edgeElement => {
+      const flowId = edgeElement.getAttribute("data-flow-id");
+      const isHovered = Boolean(flowId && hoveredFlowId && flowId === hoveredFlowId && !reconnectState);
+      const isReconnecting = Boolean(flowId && reconnectState?.flowId && flowId === reconnectState.flowId);
+      edgeElement.classList.toggle("microflow-flowgram-edge-hovered", isHovered);
+      edgeElement.classList.toggle("microflow-flowgram-edge-reconnecting", isReconnecting);
+      edgeElement.classList.toggle("microflow-flowgram-edge-reconnect-failed", Boolean(isReconnecting && reconnectState?.failedAt));
+    });
+    return () => {
+      edgeElements.forEach(edgeElement => {
+        edgeElement.classList.remove("microflow-flowgram-edge-hovered");
+        edgeElement.classList.remove("microflow-flowgram-edge-reconnecting");
+        edgeElement.classList.remove("microflow-flowgram-edge-reconnect-failed");
+      });
+    };
+  }, [hoveredFlowId, reconnectState]);
+
+  useEffect(() => {
+    const canvas = containerRef.current;
+    if (!canvas) {
+      return;
+    }
+    const tagged = new Set<HTMLElement>();
+    const candidatePortId = reconnectState?.candidate?.portId;
+    if (candidatePortId) {
+      const candidateEl = canvas.querySelector<HTMLElement>(`[data-port-id="${candidatePortId}"]`);
+      if (candidateEl) {
+        candidateEl.classList.add(reconnectState?.candidate?.allowed ? "microflow-flowgram-port-reconnect-valid" : "microflow-flowgram-port-reconnect-invalid");
+        tagged.add(candidateEl);
+      }
+    }
+    const fixedEl = reconnectState?.fixedPortId
+      ? canvas.querySelector<HTMLElement>(`[data-port-id="${reconnectState.fixedPortId}"]`)
+      : undefined;
+    if (fixedEl) {
+      fixedEl.classList.add("microflow-flowgram-port-reconnect-pending-disconnect");
+      tagged.add(fixedEl);
+    }
+    if (portFlashState?.portId) {
+      const flashEl = canvas.querySelector<HTMLElement>(`[data-port-id="${portFlashState.portId}"]`);
+      if (flashEl) {
+        flashEl.classList.add("microflow-flowgram-port-reconnect-flash");
+        tagged.add(flashEl);
+      }
+    }
+    return () => {
+      for (const el of tagged) {
+        el.classList.remove("microflow-flowgram-port-reconnect-valid");
+        el.classList.remove("microflow-flowgram-port-reconnect-invalid");
+        el.classList.remove("microflow-flowgram-port-reconnect-pending-disconnect");
+        el.classList.remove("microflow-flowgram-port-reconnect-flash");
+      }
+    };
+  }, [portFlashState, reconnectState]);
 
   useLayoutEffect(() => {
     selectorBoxConfig.disabled = panToolActive || spacePressed;
@@ -1227,6 +1424,74 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     });
   }, [props.schema.editor.selection]);
 
+  const handleEdgeReconnectHandlePointerDown = (
+    flowId: string,
+    dragEndpoint: ReconnectFlowDragEndpoint,
+    event: PointerEvent<HTMLButtonElement>,
+  ) => {
+    if (props.readonly) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const geometry = reconnectGeometry.edgeByFlowId.get(flowId);
+    if (!geometry || geometry.edgeKind === "annotation") {
+      return;
+    }
+    const pointer = clientPointToFlowGramPoint(
+      { x: event.clientX, y: event.clientY },
+      containerRef.current?.getBoundingClientRect(),
+      latestSchemaRef.current.editor.viewport ?? { x: 0, y: 0, zoom: 1 },
+    );
+    const fixed = dragEndpoint === "source"
+      ? {
+          point: geometry.targetPoint,
+          portId: geometry.targetPortId,
+          objectId: geometry.targetObjectId,
+        }
+      : {
+          point: geometry.sourcePoint,
+          portId: geometry.sourcePortId,
+          objectId: geometry.sourceObjectId,
+        };
+    const original = dragEndpoint === "source"
+      ? {
+          point: geometry.sourcePoint,
+          portId: geometry.sourcePortId,
+          objectId: geometry.sourceObjectId,
+        }
+      : {
+          point: geometry.targetPoint,
+          portId: geometry.targetPortId,
+          objectId: geometry.targetObjectId,
+        };
+    setHoveredFlowId(flowId);
+    setReconnectState({
+      flowId,
+      dragEndpoint,
+      pointer,
+      fixedPoint: fixed.point,
+      fixedPortId: fixed.portId,
+      fixedObjectId: fixed.objectId,
+      originalPoint: original.point,
+      originalPortId: original.portId,
+      originalObjectId: original.objectId,
+    });
+  };
+
+  const handleMouseMoveCapture = (event: MouseEvent<HTMLDivElement>) => {
+    if (reconnectState) {
+      return;
+    }
+    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const flowId = target?.closest<HTMLElement>("[data-flow-id]")?.dataset.flowId;
+    if (flowId) {
+      setHoveredFlowId(current => current === flowId ? current : flowId);
+      return;
+    }
+    setHoveredFlowId(undefined);
+  };
+
   const openContextMenuFromTarget = (target: HTMLElement | undefined, point: { x: number; y: number }): boolean => {
     const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
     if (!selection) {
@@ -1242,6 +1507,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       return;
     }
     const target = event.target instanceof HTMLElement ? event.target : undefined;
+    if (target?.closest(".microflow-flowgram-reconnect-handle")) {
+      return;
+    }
     const selectionFromEventTarget = selectionFromTarget(target, latestSchemaRef.current.workflow);
     const fallbackFlowId = selectionFromEventTarget
       ? undefined
@@ -1334,6 +1602,34 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (reconnectState) {
+      const pointer = clientPointToFlowGramPoint(
+        { x: event.clientX, y: event.clientY },
+        containerRef.current?.getBoundingClientRect(),
+        latestSchemaRef.current.editor.viewport ?? { x: 0, y: 0, zoom: 1 },
+      );
+      const candidateDirection = reconnectState.dragEndpoint === "source" ? "output" : "input";
+      const candidatePort = nearestReconnectPortCandidate(reconnectGeometry.ports, pointer, candidateDirection, 16);
+      const nextCandidate = candidatePort
+        ? (() => {
+            const check = propsRef.current.onEvaluateFlowReconnect?.({
+              flowId: reconnectState.flowId,
+              dragEndpoint: reconnectState.dragEndpoint,
+              targetObjectId: candidatePort.objectId,
+              targetPortId: candidatePort.id,
+            }) ?? { allowed: true };
+            return {
+              objectId: candidatePort.objectId,
+              portId: candidatePort.id,
+              point: candidatePort.point,
+              allowed: check.allowed,
+              message: check.message,
+            };
+          })()
+        : undefined;
+      setReconnectState(current => current ? { ...current, pointer, candidate: nextCandidate, failedAt: undefined } : current);
+      return;
+    }
     if (viewportPanPointerIdRef.current !== event.pointerId || !viewportPanOriginRef.current) {
       return;
     }
@@ -1359,6 +1655,27 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   };
 
   const endViewportPointerPan = (event: PointerEvent<HTMLDivElement>) => {
+    if (reconnectState) {
+      const candidate = reconnectState.candidate;
+      if (candidate?.allowed) {
+        const result = propsRef.current.onReconnectFlow?.({
+          flowId: reconnectState.flowId,
+          dragEndpoint: reconnectState.dragEndpoint,
+          targetObjectId: candidate.objectId,
+          targetPortId: candidate.portId,
+        }) ?? { ok: true };
+        if (result.ok) {
+          setPortFlashState({ portId: candidate.portId, tick: Date.now() });
+          setReconnectState(undefined);
+          window.setTimeout(() => setPortFlashState(undefined), 350);
+          return;
+        }
+      }
+      Toast.warning({ content: candidate?.message || "无法连接", duration: 1.5 });
+      setReconnectState(current => current ? { ...current, failedAt: Date.now() } : current);
+      window.setTimeout(() => setReconnectState(undefined), 300);
+      return;
+    }
     if (viewportPanPointerIdRef.current !== event.pointerId) {
       return;
     }
@@ -1391,6 +1708,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     const target = event.target instanceof HTMLElement ? event.target : undefined;
+    if (target?.closest(".microflow-flowgram-reconnect-handle")) {
+      return;
+    }
     const shouldPan = shouldViewportPanFromPointerDown({
       target,
       button: event.button,
@@ -1594,7 +1914,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     <div
       ref={containerRef}
       data-testid="microflow-flowgram-canvas"
-      className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}${gridEnabled ? "" : " is-grid-hidden"}${panToolActive || spacePressed ? " is-pan-cursor" : ""}${isViewportPanGrabbing ? " is-pan-grabbing" : ""}`}
+      className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}${gridEnabled ? "" : " is-grid-hidden"}${panToolActive || spacePressed ? " is-pan-cursor" : ""}${isViewportPanGrabbing ? " is-pan-grabbing" : ""}${reconnectState ? " is-reconnect-dragging" : ""}`}
       onDragEnterCapture={event => {
         if (props.readonly || !hasMicroflowNodeDragType(event.dataTransfer)) {
           return;
@@ -1610,6 +1930,12 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         }
       }}
       onDropCapture={handleDrop}
+      onMouseMoveCapture={handleMouseMoveCapture}
+      onMouseLeave={() => {
+        if (!reconnectState) {
+          setHoveredFlowId(undefined);
+        }
+      }}
       onAuxClick={event => {
         if (event.button === 1) {
           event.preventDefault();
@@ -1627,6 +1953,53 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       onLostPointerCapture={handleLostPointerCapture}
     >
       <PlaygroundReactRenderer />
+      {hoveredEdgeGeometry && !props.readonly && !reconnectState ? (
+        <>
+          <button
+            type="button"
+            className="microflow-flowgram-reconnect-handle microflow-flowgram-reconnect-handle--source"
+            style={{
+              left: hoveredEdgeGeometry.sourcePoint.x - 5,
+              top: hoveredEdgeGeometry.sourcePoint.y - 5,
+            }}
+            onPointerDown={event => handleEdgeReconnectHandlePointerDown(hoveredEdgeGeometry.flowId, "source", event)}
+            aria-label="Reconnect source endpoint"
+          />
+          <button
+            type="button"
+            className="microflow-flowgram-reconnect-handle microflow-flowgram-reconnect-handle--target"
+            style={{
+              left: hoveredEdgeGeometry.targetPoint.x - 5,
+              top: hoveredEdgeGeometry.targetPoint.y - 5,
+            }}
+            onPointerDown={event => handleEdgeReconnectHandlePointerDown(hoveredEdgeGeometry.flowId, "target", event)}
+            aria-label="Reconnect target endpoint"
+          />
+        </>
+      ) : null}
+      {reconnectState ? (
+        <>
+          <svg className="microflow-flowgram-reconnect-overlay" aria-hidden="true">
+            <line
+              x1={reconnectState.fixedPoint.x}
+              y1={reconnectState.fixedPoint.y}
+              x2={reconnectState.candidate?.point.x ?? reconnectState.pointer.x}
+              y2={reconnectState.candidate?.point.y ?? reconnectState.pointer.y}
+              className={reconnectState.candidate?.allowed === false ? "is-invalid" : ""}
+            />
+          </svg>
+          <div
+            className="microflow-flowgram-reconnect-origin-mark"
+            style={{
+              left: reconnectState.originalPoint.x - 6,
+              top: reconnectState.originalPoint.y - 6,
+            }}
+            aria-hidden="true"
+          >
+            ×
+          </div>
+        </>
+      ) : null}
       {dropPreview ? (
         <div
           className={`microflow-flowgram-drop-preview${dropPreview.valid ? "" : " is-invalid"}`}
