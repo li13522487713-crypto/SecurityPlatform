@@ -59,6 +59,28 @@ function renderLine(dataPatch: Partial<FlowGramMicroflowEdgeData>) {
 }
 
 describe("FlowGramMicroflowLineRenderer interaction", () => {
+  it("keeps data-flow-id on wrapper even when line label is visually hidden", () => {
+    const { container } = render(
+      <div className="gedit-flow-activity-edge">
+        <FlowGramMicroflowLineRenderer
+          key="line-1"
+          lineType={"polyline" as never}
+          version="1"
+          line={{ data: {
+            flowId: "flow-hidden-label",
+            flowKind: "sequence",
+            edgeKind: "sequence",
+            isErrorHandler: false,
+            caseValues: [],
+            validationState: "valid",
+          } } as never}
+        />
+      </div>,
+    );
+    const wrapper = container.querySelector(".gedit-flow-activity-edge");
+    expect(wrapper?.getAttribute("data-flow-id")).toBe("flow-hidden-label");
+  });
+
   it("commits trimmed label on Enter", () => {
     const committed: Array<{ flowId: string; value: string }> = [];
     const listener = (event: Event) => {

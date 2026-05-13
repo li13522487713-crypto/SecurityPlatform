@@ -119,6 +119,13 @@ import { setParameterAsMicroflowReturnValue } from "../schema/utils/microflow-si
 import { canApplyBooleanBranchQuickFix, createMissingBooleanBranch } from "./problem-quick-fixes";
 import { normalizePanelOpenState, resolveRightColumnWidth } from "./panel-layout-state";
 import {
+  quickInsertGroupKeyFromItem,
+  quickInsertGroupOrder,
+  resolveIncomingQuickInsertChoices,
+  type QuickInsertGroupKey,
+  type QuickInsertIncomingEdgeChoice,
+} from "./quick-insert-utils";
+import {
   collectDebugSessionMicroflowIds,
   MicroflowRunHistoryPanel,
   MicroflowStepDebugPanel,
@@ -2669,6 +2676,12 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [canvasNodeContextMenu, setCanvasNodeContextMenu] = useState<CanvasNodeContextMenuState>();
   const [canvasBlankContextMenu, setCanvasBlankContextMenu] = useState<{ x: number; y: number } | undefined>();
   const [quickInsertState, setQuickInsertState] = useState<QuickInsertState>();
+  const [pendingQuickInsertEdgeChoice, setPendingQuickInsertEdgeChoice] = useState<{
+    point: { x: number; y: number };
+    canvasPosition?: { x: number; y: number };
+    sourceObjectId: string;
+    choices: QuickInsertIncomingEdgeChoice[];
+  }>();
   const [quickInsertQuery, setQuickInsertQuery] = useState("");
   const quickInsertDraggingKeyRef = useRef<string>();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -5928,6 +5941,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     });
   }, [openQuickInsert, projectScreenPointToCanvas]);
 
+  const resolveIncomingQuickInsertChoicesForTarget = useCallback((targetObjectId: string): QuickInsertIncomingEdgeChoice[] => {
+    return resolveIncomingQuickInsertChoices(graph, targetObjectId);
+  }, [graph]);
+
   const closeQuickInsert = useCallback(() => {
     setQuickInsertState(undefined);
     setQuickInsertQuery("");
@@ -6875,6 +6892,27 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             parentLoopObjectId: options?.parentLoopObjectId,
             insertFlowId: options?.insertFlowId,
           })}
+          onNodeToolbarQuickAdd={(objectId, point) => {
+            const canvasPosition = projectScreenPointToCanvas(point);
+            const incomingChoices = resolveIncomingQuickInsertChoicesForTarget(objectId);
+            if (incomingChoices.length > 1) {
+              setPendingQuickInsertEdgeChoice({
+                point,
+                canvasPosition,
+                sourceObjectId: objectId,
+                choices: incomingChoices,
+              });
+              return;
+            }
+            openQuickInsert({
+              x: point.x,
+              y: point.y,
+              canvasPosition,
+              insertFlowId: incomingChoices[0]?.flowId,
+              sourceObjectId: objectId,
+              source: "node",
+            });
+          }}
           onEvaluateFlowReconnect={evaluateFlowReconnect}
           onReconnectFlow={handleReconnectFlow}
           canUndo={historyState.canUndo}
@@ -6942,14 +6980,15 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 onChange={setQuickInsertQuery}
                 placeholder="搜索节点类型..."
                 size="small"
-                autofocus
+                autoFocus
               />
             </div>
             <div style={{ flex: 1, overflow: "auto", padding: 8 }}>
               {(() => {
+                const registryItems = [...microflowNodeRegistryByKey.values()];
                 const filtered = quickInsertQuery
-                  ? searchMicroflowNodes([...microflowNodeRegistryByKey.values()], quickInsertQuery)
-                  : [...microflowNodeRegistryByKey.values()].sort((a, b) => {
+                  ? searchMicroflowNodes(quickInsertQuery, registryItems)
+                  : registryItems.sort((a, b) => {
                     const aKey = getMicroflowNodeRegistryKey(a);
                     const bKey = getMicroflowNodeRegistryKey(b);
                     const aRecent = recentQuickInsertNodeKeys.indexOf(aKey);
@@ -6958,72 +6997,110 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     if (aRecent < 0 && bRecent >= 0) return 1;
                     if (aRecent >= 0 && bRecent >= 0) return aRecent - bRecent;
                     return a.title.localeCompare(b.title);
-                  }).slice(0, 20);
+                  }).slice(0, 24);
                 if (filtered.length === 0) {
                   return <Empty title="未找到匹配节点" description="Try another keyword." style={{ padding: 16 }} />;
                 }
+                const grouped = new Map<QuickInsertGroupKey, MicroflowNodeRegistryItem[]>();
+                for (const item of filtered) {
+                  const key = quickInsertGroupKeyFromItem(item);
+                  grouped.set(key, [...(grouped.get(key) ?? []), item]);
+                }
                 return (
                   <Space vertical align="start" style={{ width: "100%" }}>
-                    {filtered.slice(0, 12).map(item => {
-                      const key = getMicroflowNodeRegistryKey(item);
-                      const isRecent = recentQuickInsertNodeKeys.includes(key);
+                    {quickInsertGroupOrder.map(group => {
+                      const items = grouped.get(group.key);
+                      if (!items?.length) {
+                        return null;
+                      }
                       return (
-                        <Button
-                          key={key}
-                          block
-                          size="small"
-                          theme="borderless"
-                          type="tertiary"
-                          draggable
-                          style={{
-                            justifyContent: "flex-start",
-                            gap: 8,
-                            transition: "transform 150ms ease, box-shadow 150ms ease",
-                          }}
-                          onMouseDown={() => {
-                            beginMicroflowNodePointerDrag(createDragPayloadFromRegistryItem(item));
-                          }}
-                          onDragStart={event => {
-                            const payload = createDragPayloadFromRegistryItem(item);
-                            quickInsertDraggingKeyRef.current = key;
-                            event.dataTransfer.effectAllowed = "copy";
-                            event.dataTransfer.setData(MICROFLOW_NODE_DND_TYPE, JSON.stringify(payload));
-                            event.dataTransfer.setData("application/json", JSON.stringify(payload));
-                            event.dataTransfer.setData("text/plain", payload.registryKey);
-                            const target = event.currentTarget;
-                            target.style.transform = "translateY(-2px) scale(1.02)";
-                            target.style.boxShadow = "0 10px 20px rgba(31,35,41,0.14)";
-                          }}
-                          onDragEnd={event => {
-                            event.currentTarget.style.transform = "";
-                            event.currentTarget.style.boxShadow = "";
-                            window.setTimeout(() => {
-                              if (quickInsertDraggingKeyRef.current === key) {
-                                quickInsertDraggingKeyRef.current = undefined;
-                              }
-                            }, 40);
-                          }}
-                          onClick={() => {
-                            if (quickInsertDraggingKeyRef.current === key) {
-                              return;
-                            }
-                            const canvasPoint = quickInsertState.canvasPosition
-                              ? { x: quickInsertState.canvasPosition.x, y: quickInsertState.canvasPosition.y }
-                              : { x: quickInsertState.x, y: quickInsertState.y };
-                            handleAddNode(item, {
-                              source: "contextMenu",
-                              position: canvasPoint,
-                            });
-                            recordRecentQuickInsert(item);
-                            closeQuickInsert();
-                          }}
-                        >
-                          <span style={{ fontSize: 14 }}>{item.icon ?? "●"}</span>
-                          <span style={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {item.title}
-                          </span>
-                          {isRecent ? <Tag size="small" color="blue">最近</Tag> : null}
-                        </Button>
+                        <div key={group.key} style={{ width: "100%" }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--semi-color-text-2)", margin: "2px 2px 6px" }}>
+                            {group.label}
+                          </div>
+                          <Space vertical align="start" style={{ width: "100%" }}>
+                            {items.slice(0, 8).map(item => {
+                              const key = getMicroflowNodeRegistryKey(item);
+                              const isRecent = recentQuickInsertNodeKeys.includes(key);
+                              return (
+                                <Button
+                                  key={key}
+                                  block
+                                  size="small"
+                                  theme="borderless"
+                                  type="tertiary"
+                                  draggable
+                                  style={{
+                                    justifyContent: "flex-start",
+                                    gap: 8,
+                                    transition: "transform 150ms ease, box-shadow 150ms ease",
+                                  }}
+                                  onMouseDown={() => {
+                                    beginMicroflowNodePointerDrag(createDragPayloadFromRegistryItem(item));
+                                  }}
+                                  onDragStart={event => {
+                                    const payload = createDragPayloadFromRegistryItem(item);
+                                    quickInsertDraggingKeyRef.current = key;
+                                    event.dataTransfer.effectAllowed = "copy";
+                                    event.dataTransfer.setData(MICROFLOW_NODE_DND_TYPE, JSON.stringify(payload));
+                                    event.dataTransfer.setData("application/json", JSON.stringify(payload));
+                                    event.dataTransfer.setData("text/plain", payload.registryKey);
+                                    const target = event.currentTarget;
+                                    target.style.transform = "translateY(-2px) scale(1.02)";
+                                    target.style.boxShadow = "0 10px 20px rgba(31,35,41,0.14)";
+                                  }}
+                                  onDragEnd={event => {
+                                    event.currentTarget.style.transform = "";
+                                    event.currentTarget.style.boxShadow = "";
+                                    window.setTimeout(() => {
+                                      if (quickInsertDraggingKeyRef.current === key) {
+                                        quickInsertDraggingKeyRef.current = undefined;
+                                      }
+                                    }, 40);
+                                  }}
+                                  onClick={() => {
+                                    if (quickInsertDraggingKeyRef.current === key) {
+                                      return;
+                                    }
+                                    const canvasPoint = quickInsertState.canvasPosition
+                                      ? { x: quickInsertState.canvasPosition.x, y: quickInsertState.canvasPosition.y }
+                                      : { x: quickInsertState.x, y: quickInsertState.y };
+                                    handleAddNode(item, {
+                                      source: "contextMenu",
+                                      position: canvasPoint,
+                                      insertFlowId: quickInsertState.insertFlowId,
+                                    });
+                                    recordRecentQuickInsert(item);
+                                    closeQuickInsert();
+                                  }}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    style={{
+                                      width: 16,
+                                      height: 16,
+                                      borderRadius: 4,
+                                      background: group.background,
+                                      color: group.color,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    {group.label[0]}
+                                  </span>
+                                  <span style={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {item.title}
+                                  </span>
+                                  {isRecent ? <Tag size="small" color="blue">最近</Tag> : null}
+                                </Button>
+                              );
+                            })}
+                          </Space>
+                        </div>
                       );
                     })}
                   </Space>
@@ -7032,11 +7109,54 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
             </div>
             <div style={{ padding: "6px 12px", borderTop: "1px solid var(--semi-color-border, #e5e6eb)" }}>
               <Text size="small" type="tertiary">
-                {quickInsertState.source === "blank-canvas" ? "空白画布快速添加" : "快速插入节点"}
+                {quickInsertState.source === "blank-canvas"
+                  ? "空白画布快速添加"
+                  : quickInsertState.source === "node"
+                    ? "节点前插入 · 选择后自动拆线重连"
+                    : "快速插入节点"}
               </Text>
             </div>
           </div>
         ) : null}
+        <Modal
+          title="选择插入位置"
+          visible={Boolean(pendingQuickInsertEdgeChoice)}
+          onCancel={() => setPendingQuickInsertEdgeChoice(undefined)}
+          footer={null}
+          closeOnEsc
+        >
+          <Space vertical align="start" style={{ width: "100%" }}>
+            <Text size="small" type="tertiary">
+              该节点有多条入边，请选择要插入的连线。
+            </Text>
+            {(pendingQuickInsertEdgeChoice?.choices ?? []).map(choice => (
+              <Button
+                key={choice.flowId}
+                block
+                theme="borderless"
+                type="tertiary"
+                style={{ justifyContent: "flex-start" }}
+                onClick={() => {
+                  const state = pendingQuickInsertEdgeChoice;
+                  if (!state) {
+                    return;
+                  }
+                  setPendingQuickInsertEdgeChoice(undefined);
+                  openQuickInsert({
+                    x: state.point.x,
+                    y: state.point.y,
+                    canvasPosition: state.canvasPosition,
+                    insertFlowId: choice.flowId,
+                    sourceObjectId: state.sourceObjectId,
+                    source: "node",
+                  });
+                }}
+              >
+                {`${choice.sourceTitle} -> 当前节点 (${choice.edgeKind})`}
+              </Button>
+            ))}
+          </Space>
+        </Modal>
         {shouldShowCanvasContextMenu && canvasNodeContextMenu ? (() => {
           const hasNode = Boolean(canvasNodeContextMenu.objectId);
           const parameterBinding = contextMenuParameterBinding(canvasNodeContextMenu);

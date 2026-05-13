@@ -186,7 +186,7 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   );
   const branchLabel = label.toLowerCase();
   if (!branchLabel && !warningMissingTarget) {
-    return null;
+    return <div ref={hostRef} style={{ display: "none" }} aria-hidden="true" />;
   }
   const className = [
     "microflow-branch-label",

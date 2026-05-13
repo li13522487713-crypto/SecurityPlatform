@@ -23,9 +23,9 @@
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-edge-drop-target path,
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-edge-drop-target line {
-  stroke: #4a9eff !important;
-  stroke-width: 1.6px !important;
-  filter: drop-shadow(0 0 2px rgba(74, 158, 255, 0.65));
+  stroke: #185fa5 !important;
+  stroke-width: 1.8px !important;
+  filter: drop-shadow(0 0 2px rgba(24, 95, 165, 0.65));
 }
 
 .microflow-flowgram-canvas .gedit-flow-activity-edge.microflow-flowgram-edge-hovered path,

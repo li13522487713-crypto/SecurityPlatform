@@ -78,6 +78,7 @@ import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicr
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
 import { MicroflowNodeUsageHighlightsContext, MicroflowNodeViewModesContext } from "./FlowGramMicroflowTypes";
 import { FlowGramNodeToolbar } from "./FlowGramNodeToolbar";
+import { findNearestInsertableEdgeFlowId } from "./drop-insert-utils";
 import type { MicroflowNodeUsageHighlights } from "../variables";
 import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import "@flowgram-adapter/free-layout-editor/css-load";
@@ -609,44 +610,37 @@ function nearestReconnectPortCandidate(
   return nearest?.item;
 }
 
-function distanceToSegment(point: { x: number; y: number }, source: { x: number; y: number }, target: { x: number; y: number }): number {
-  const dx = target.x - source.x;
-  const dy = target.y - source.y;
-  const lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared === 0) {
-    return Math.hypot(point.x - source.x, point.y - source.y);
-  }
-  const t = Math.max(0, Math.min(1, ((point.x - source.x) * dx + (point.y - source.y) * dy) / lengthSquared));
-  return Math.hypot(point.x - (source.x + t * dx), point.y - (source.y + t * dy));
-}
-
 function findNearestDropInsertFlowId(
   schema: MicroflowDesignSchema,
   point: { x: number; y: number },
-  threshold = 12,
+  threshold = 24,
 ): string | undefined {
   const graph = toEditorGraph(schema as unknown as Parameters<typeof toEditorGraph>[0]);
   const nodeById = new Map<string, GraphNodeLike>(
     graph.nodes.map(node => [String(node.objectId), node]),
   );
-  let nearest: { flowId: string; distance: number } | undefined;
+  const candidates: Array<{
+    flowId: string;
+    edgeKind?: string;
+    sourcePoint: { x: number; y: number };
+    targetPoint: { x: number; y: number };
+  }> = [];
   for (const edge of graph.edges) {
-    if (edge.edgeKind === "annotation") {
-      continue;
-    }
     const source = nodeById.get(String(edge.sourceNodeId).replace(/^node-/, ""));
     const target = nodeById.get(String(edge.targetNodeId).replace(/^node-/, ""));
-    if (!source || !target) {
+    if (!source || !target || !edge.flowId) {
       continue;
     }
     const sourcePort = source.ports.find(port => port.id === edge.sourcePortId) ?? source.ports.find(port => port.direction === "output");
     const targetPort = target.ports.find(port => port.id === edge.targetPortId) ?? target.ports.find(port => port.direction === "input");
-    const distance = distanceToSegment(point, absolutePortPosition(source, sourcePort), absolutePortPosition(target, targetPort));
-    if (distance <= threshold && (!nearest || distance < nearest.distance)) {
-      nearest = { flowId: edge.flowId, distance };
-    }
+    candidates.push({
+      flowId: edge.flowId,
+      edgeKind: edge.edgeKind,
+      sourcePoint: absolutePortPosition(source, sourcePort),
+      targetPoint: absolutePortPosition(target, targetPort),
+    });
   }
-  return nearest?.flowId;
+  return findNearestInsertableEdgeFlowId(candidates, point, threshold);
 }
 
 function resolveFlowInsertAnchor(schema: MicroflowDesignSchema, flowId: string): MicroflowPoint | undefined {
@@ -888,6 +882,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const viewportPanMovedRef = useRef(false);
   const suppressNextContextMenuRef = useRef(false);
   const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const edgeHoverTimerRef = useRef<number | undefined>();
+  const edgeHoverCandidateRef = useRef<string | undefined>();
   const userViewportPanningRef = useRef(false);
   const lastSyncedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   propsRef.current = props;
@@ -1026,6 +1022,10 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       selectorBoxConfig.disabled = false;
     };
   }, [panToolActive, selectorBoxConfig, spacePressed]);
+
+  useEffect(() => () => {
+    clearEdgeHoverTimer();
+  }, []);
 
   const commitWorkflow = (workflow: WorkflowJSON, reason: string, options: { snapToGrid?: boolean; preferredNodeIds?: string[] } = {}) => {
     const nextWorkflow = stripTransientWorkflowState(normalizeWorkflow(workflow, options));
@@ -1281,7 +1281,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       ? selectionFromTarget(nativeEvent.target, latestSchemaRef.current.workflow)?.flowId
       : undefined;
     const insertFlowId = hintedInsertFlowId
-      ?? findNearestDropInsertFlowId(latestSchemaRef.current, logicalCursor, 12);
+      ?? findNearestDropInsertFlowId(latestSchemaRef.current, logicalCursor, 24);
     const parentLoopObjectId = findLoopParentAtPoint(
       normalizeWorkflow(latestSchemaRef.current.workflow),
       logicalCursor,
@@ -1465,6 +1465,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
           portId: geometry.targetPortId,
           objectId: geometry.targetObjectId,
         };
+    edgeHoverCandidateRef.current = flowId;
+    clearEdgeHoverTimer();
     setHoveredFlowId(flowId);
     setReconnectState({
       flowId,
@@ -1479,6 +1481,13 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     });
   };
 
+  const clearEdgeHoverTimer = () => {
+    if (edgeHoverTimerRef.current !== undefined) {
+      window.clearTimeout(edgeHoverTimerRef.current);
+      edgeHoverTimerRef.current = undefined;
+    }
+  };
+
   const handleMouseMoveCapture = (event: MouseEvent<HTMLDivElement>) => {
     if (reconnectState) {
       return;
@@ -1486,9 +1495,19 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     const target = event.target instanceof HTMLElement ? event.target : undefined;
     const flowId = target?.closest<HTMLElement>("[data-flow-id]")?.dataset.flowId;
     if (flowId) {
-      setHoveredFlowId(current => current === flowId ? current : flowId);
+      if (hoveredFlowId === flowId || edgeHoverCandidateRef.current === flowId) {
+        return;
+      }
+      clearEdgeHoverTimer();
+      edgeHoverCandidateRef.current = flowId;
+      edgeHoverTimerRef.current = window.setTimeout(() => {
+        setHoveredFlowId(current => current === flowId ? current : flowId);
+        edgeHoverTimerRef.current = undefined;
+      }, 200);
       return;
     }
+    edgeHoverCandidateRef.current = undefined;
+    clearEdgeHoverTimer();
     setHoveredFlowId(undefined);
   };
 
@@ -1932,6 +1951,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       onDropCapture={handleDrop}
       onMouseMoveCapture={handleMouseMoveCapture}
       onMouseLeave={() => {
+        edgeHoverCandidateRef.current = undefined;
+        clearEdgeHoverTimer();
         if (!reconnectState) {
           setHoveredFlowId(undefined);
         }
