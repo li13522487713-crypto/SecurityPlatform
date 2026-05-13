@@ -146,6 +146,7 @@ import {
 } from "../debug";
 import { createDebugStore, type DebugCallStackFrame as DebugWsCallStackFrame, type DebugLoopIteration, type DebugWsNodeHighlight } from "../stores/debug-store";
 import { useDebugWebSocket, DEBUG_WS_COMMANDS } from "../hooks/use-debug-ws";
+import { useRuntimeWebSocket } from "../hooks/use-runtime-ws";
 import { MicroflowStepDebugApiClient } from "../debug/step-debug-api";
 import { createMicroflowGraphIndex, useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
 import { useMicroflowShortcuts } from "./shortcuts";
@@ -153,7 +154,13 @@ import { exportCanvasAsPng } from "./export-image";
 import { buildAcceptance120Schema } from "./acceptance-120-fixture";
 import { getDebugLatencyColor, getDebugWsStatusTag } from "./debug-status";
 import { resolveDebugRunSelectionOutcome } from "./debug-run-selection";
-import { composeTraceFramesForRuntimePreview } from "./ws-runtime-trace";
+import {
+  applyRuntimeOverlayEvent,
+  applyRuntimeOverlaySnapshot,
+  createRuntimeOverlayState,
+  type MicroflowRuntimeOverlayState,
+  type MicroflowRuntimeWsEvent,
+} from "../runtime/runtime-overlay";
 import { buildSessionDebugRouteIntent, buildWsDebugRouteIntent, resolveCallStackFrameClickIntent } from "./debug-routing";
 import { summarizeMicroflowComplexity } from "../utils/microflow-validator";
 import { buildNodeUsageHighlights, buildVariableUsageHighlights } from "../variables";
@@ -206,6 +213,11 @@ const AUXILIARY_PANELS_ENABLED = true;
 
 function isDesignSchema(schema: unknown): schema is MicroflowDesignSchema {
   return (schema as { workflow?: unknown }).workflow != null;
+}
+
+function createRuntimeRunId(microflowId: string): string {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `mf-run-${microflowId}-${Date.now()}-${suffix}`;
 }
 
 function stripTransientSchemaState<T extends MicroflowSchema | MicroflowDesignSchema>(targetSchema: T): T {
@@ -833,6 +845,7 @@ export interface MicroflowEditorLabels {
   contextDelete: string;
   contextCenterView: string;
   contextCopyId: string;
+  contextOpenNodePanel: string;
   contextSetAsReturnValue: string;
   contextAddBreakpoint: string;
   contextRemoveBreakpoint: string;
@@ -865,6 +878,7 @@ const defaultLabels: MicroflowEditorLabels = {
   contextDelete: "Delete",
   contextCenterView: "Center View",
   contextCopyId: "Copy ID",
+  contextOpenNodePanel: "Open Node Panel",
   contextSetAsReturnValue: "Set as Return Value",
   contextAddBreakpoint: "Add Breakpoint",
   contextRemoveBreakpoint: "Remove Breakpoint",
@@ -2016,6 +2030,7 @@ function DebugPanel({
   activeErrorStack,
   runtimeNodeState,
   runtimeCallStack,
+  runtimeOverlay,
   activeUsageVariableName,
   activeFrameId,
   onSelectFrame,
@@ -2053,6 +2068,7 @@ function DebugPanel({
   activeErrorStack?: string;
   runtimeNodeState?: DebugWsNodeHighlight;
   runtimeCallStack?: DebugWsCallStackFrame[];
+  runtimeOverlay?: MicroflowRuntimeOverlayState;
   activeUsageVariableName?: string;
   activeFrameId?: string;
   onSelectFrame: (frame: MicroflowTraceFrame) => void;
@@ -2090,13 +2106,16 @@ function DebugPanel({
     return <Empty title="运行服务不可用" description={serviceError} />;
   }
   const hasTrace = Boolean(session && buildExecutionPath(session).length > 0);
+  const hasLiveTrace = Boolean(!session && (runtimeOverlay?.events.length ?? 0) > 0);
   const canApplyPolicy = Boolean(onDebugSuspendPolicyChange);
   const applyPolicyDisabledReason = canApplyPolicy ? "" : "Suspend policy update is unavailable in current context.";
   const canRefreshTimeline = Boolean(onDebugRefreshTimeline);
   const refreshTimelineDisabledReason = canRefreshTimeline ? "" : "Debug timeline refresh is unavailable in current context.";
-  const canRerun = session ? session.status !== "running" : false;
+  const canRerun = session ? session.status !== "running" : runtimeOverlay?.status !== "running";
   const rerunDisabledReason = canRerun ? "" : "Cannot rerun while current run is still running.";
-  const canCancelRun = session ? session.status === "running" || session.status === "queued" : false;
+  const canCancelRun = session
+    ? session.status === "running" || session.status === "queued"
+    : runtimeOverlay?.status === "running" || runtimeOverlay?.status === "starting";
   const cancelRunDisabledReason = canCancelRun ? "" : "Only queued/running sessions can be cancelled.";
   const canRetryQueuedRun = Boolean(onRetryQueuedRun && session && session.status !== "running" && session.status !== "queued");
   const retryQueuedRunDisabledReason = !onRetryQueuedRun
@@ -2340,7 +2359,7 @@ function DebugPanel({
       {!debugAvailable ? (
         <Tag color="grey">Trace mode</Tag>
       ) : null}
-      {!hasTrace ? <Empty title="No trace" description="Run a test to see object/flow trace frames." /> : null}
+      {!hasTrace && !hasLiveTrace ? <Empty title="No trace" description="Run a test to see object/flow trace frames." /> : null}
       {session && hasTrace ? (
       <>
       <Space style={{ width: "100%", justifyContent: "space-between" }}>
@@ -2376,6 +2395,10 @@ function DebugPanel({
         microflowId={microflowId}
         microflowName={microflowName}
         session={session}
+        runtimeRunId={runtimeOverlay?.runId}
+        runtimeStatus={runtimeOverlay?.status}
+        runtimeResult={runtimeOverlay?.result}
+        runtimeEvents={runtimeOverlay?.events}
         activeFrameId={activeFrameId}
         onSelectFrame={onSelectFrame}
         onSelectFlow={onSelectFlow}
@@ -2384,6 +2407,22 @@ function DebugPanel({
         onSelectCallStackFrame={onSelectCallStackFrame}
       />
       </>
+      ) : null}
+      {!session && hasLiveTrace ? (
+        <MicroflowTracePanel
+          microflowId={microflowId}
+          microflowName={microflowName}
+          runtimeRunId={runtimeOverlay?.runId}
+          runtimeStatus={runtimeOverlay?.status}
+          runtimeResult={runtimeOverlay?.result}
+          runtimeEvents={runtimeOverlay?.events}
+          activeFrameId={activeFrameId}
+          onSelectFrame={onSelectFrame}
+          onSelectFlow={onSelectFlow}
+          onSelectError={onSelectError}
+          onSelectRun={onSelectRun}
+          onSelectCallStackFrame={onSelectCallStackFrame}
+        />
       ) : null}
     </Space>
   );
@@ -2556,6 +2595,9 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [runtimeLiveRunIdByMicroflowId, setRuntimeLiveRunIdByMicroflowId] = useState<Record<string, string | undefined>>({});
+  const [runtimeOverlayByMicroflowId, setRuntimeOverlayByMicroflowId] = useState<Record<string, MicroflowRuntimeOverlayState | undefined>>({});
+  const lastRuntimeFocusedNodeRef = useRef<string>();
   const lastDebugRouteKeyRef = useRef<string>();
   const schemaRevisionRef = useRef(0);
   const toolbarMode = props.toolbarMode ?? "internal";
@@ -2737,21 +2779,50 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     () => isDesignSchema(schema) ? buildVariableIndex(schema, loadedMetadata ?? EMPTY_MICROFLOW_METADATA_CATALOG) : emptyVariableIndex,
     [loadedMetadata, schema],
   );
-  const traceFrames = useMemo(() => {
-    const base = filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId);
-    return composeTraceFramesForRuntimePreview({
-      baseFrames: base,
-      wsCurrentNodeId: debugStoreSnapshot.nodeState.currentNodeId,
-      wsCurrentBranchId: debugStoreSnapshot.nodeState.currentBranchId,
-      sessionId: debugSessionId,
-    });
-  }, [
-    selectedRunSession,
-    activeMicroflowId,
-    debugStoreSnapshot.nodeState.currentNodeId,
-    debugStoreSnapshot.nodeState.currentBranchId,
-    debugSessionId,
-  ]);
+  const activeMicroflowId = schema.id;
+  const runtimeLiveRunId = runtimeLiveRunIdByMicroflowId[activeMicroflowId];
+  const runtimeOverlayState = runtimeOverlayByMicroflowId[activeMicroflowId];
+  const runSession = runSessionByMicroflowId[activeMicroflowId];
+  const runtimeServiceError = runtimeServiceErrorByMicroflowId[activeMicroflowId];
+  const selectedRunId = selectedRunIdByMicroflowId[activeMicroflowId];
+  const runHistoryFilter = runHistoryStatusByMicroflowId[activeMicroflowId] ?? "all";
+  const runHistoryItems = runHistoryByMicroflowId[activeMicroflowId] ?? [];
+  const runtimeCommandEntries = runtimeCommandEntriesByMicroflowId[activeMicroflowId] ?? [];
+  const runHistoryLoading = Boolean(runHistoryLoadingByMicroflowId[activeMicroflowId]);
+  const runHistoryError = runHistoryErrorByMicroflowId[activeMicroflowId];
+  const selectedRunSession = selectedRunId ? runDetailsByRunId[selectedRunId] : runSession;
+  const hasFinalTraceForLiveRun = Boolean(
+    runtimeLiveRunId
+      && selectedRunSession?.trace?.some(frame => frame.runId === runtimeLiveRunId),
+  );
+  const effectiveRuntimeOverlay = hasFinalTraceForLiveRun ? undefined : runtimeOverlayState;
+  const activeDebugSession = debugSessionByMicroflowId[activeMicroflowId];
+  const debugSessionId = activeDebugSession?.id ?? debugStoreSnapshot.sessionId;
+  const {
+    connect: connectRuntimeWs,
+    disconnect: disconnectRuntimeWs,
+  } = useRuntimeWebSocket({
+    runId: runtimeLiveRunId,
+    lastSequence: runtimeOverlayState?.lastSequence,
+    onEvent: (event: MicroflowRuntimeWsEvent) => {
+      setRuntimeOverlayByMicroflowId(current => {
+        const previous = current[activeMicroflowId];
+        const next = applyRuntimeOverlayEvent(previous, event);
+        return { ...current, [activeMicroflowId]: next };
+      });
+    },
+    onSnapshot: snapshot => {
+      setRuntimeOverlayByMicroflowId(current => {
+        const previous = current[activeMicroflowId];
+        const next = applyRuntimeOverlaySnapshot(previous, snapshot);
+        return { ...current, [activeMicroflowId]: next };
+      });
+    },
+  });
+  const traceFrames = useMemo(
+    () => filterNodeResultsByMicroflowId(selectedRunSession, activeMicroflowId),
+    [selectedRunSession, activeMicroflowId],
+  );
   const runtimeTraceByObjectId = useMemo(() => {
     const next = new Map<string, MicroflowTraceFrame>();
     for (const frame of traceFrames) {
@@ -2769,12 +2840,15 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (!isDesignSchema(schema) || !selectedObject || !selectedDesignNode) {
       return undefined;
     }
-    const nodeData = (selectedDesignNode.data ?? {}) as FlowGramMicroflowNodeData;
+    const nodeData = (selectedDesignNode.data ?? {}) as unknown as FlowGramMicroflowNodeData;
     const runtimeFrame = runtimeTraceByObjectId.get(selectedDesignNode.id) ?? runtimeTraceByObjectId.get(selectedObject.id);
+    const runtimeOverlayNode = effectiveRuntimeOverlay?.nodeOverlays[selectedDesignNode.id]
+      ?? effectiveRuntimeOverlay?.nodeOverlays[selectedObject.id];
     const inlineConfig = deriveNodeInlineConfig({
       node: selectedDesignNode,
       schema,
       runtimeFrame,
+      runtimeOverlay: runtimeOverlayNode,
       issues: issues.filter(issue => issue.objectId === selectedObject.id || issue.nodeId === selectedObject.id),
       viewMode: resolveEditorNodeViewMode(selectedObject.id, nodeViewModes),
     });
@@ -2813,7 +2887,58 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       usageSourceHighlight: nodeData.usageSourceHighlight,
       usageConsumerHighlight: nodeData.usageConsumerHighlight,
     } as FlowGramMicroflowNodeData;
-  }, [issues, nodeViewModes, runtimeTraceByObjectId, schema, selectedDesignNode, selectedObject]);
+  }, [effectiveRuntimeOverlay, issues, nodeViewModes, runtimeTraceByObjectId, schema, selectedDesignNode, selectedObject]);
+  const selectedRuntimeInspector = useMemo(() => {
+    if (!isDesignSchema(schema) || !selectedObject || !selectedDesignNode) {
+      return undefined;
+    }
+    const runtimeFrame = runtimeTraceByObjectId.get(selectedDesignNode.id) ?? runtimeTraceByObjectId.get(selectedObject.id);
+    const runtimeOverlayNode = effectiveRuntimeOverlay?.nodeOverlays[selectedDesignNode.id]
+      ?? effectiveRuntimeOverlay?.nodeOverlays[selectedObject.id];
+    if (!runtimeFrame && !runtimeOverlayNode) {
+      return undefined;
+    }
+
+    return {
+      title: selectedPropertyInlineNode?.title ?? selectedObject.id,
+      summary: {
+        objectId: selectedObject.id,
+        status: runtimeOverlayNode?.status ?? runtimeFrame?.status ?? "idle",
+        durationMs: runtimeOverlayNode?.durationMs ?? runtimeFrame?.durationMs,
+      },
+      input: {
+        inputSummary: runtimeOverlayNode?.inputSummary,
+        inputVariables: runtimeFrame?.inputVariables,
+        actionInput: runtimeFrame?.actionInput,
+        evaluatedExpressions: runtimeFrame?.evaluatedExpressions,
+      },
+      output: {
+        outputSummary: runtimeOverlayNode?.outputSummary,
+        outputVariables: runtimeFrame?.outputVariables,
+        actionResult: runtimeFrame?.output,
+      },
+      variableDelta: {
+        variableDeltaSummary: runtimeOverlayNode?.variableDeltaSummary,
+        variableDelta: runtimeFrame?.variableDelta,
+      },
+      flow: {
+        incomingFlowId: runtimeFrame?.incomingFlowId,
+        outgoingFlowId: runtimeFrame?.outgoingFlowId,
+        selectedCaseLabel: runtimeOverlayNode?.selectedCaseLabel,
+        selectedCaseValue: runtimeOverlayNode?.selectedCaseValue ?? runtimeFrame?.selectedCaseValue,
+      },
+      loopGateway: {
+        loopIteration: runtimeOverlayNode?.loopIteration ?? runtimeFrame?.loopIteration,
+        gatewaySummary: runtimeOverlayNode?.gatewaySummary,
+      },
+      error: runtimeOverlayNode?.error ?? runtimeFrame?.error,
+      runResult: effectiveRuntimeOverlay?.result,
+      raw: {
+        runtimeOverlayNode,
+        runtimeFrame,
+      },
+    };
+  }, [effectiveRuntimeOverlay, runtimeTraceByObjectId, schema, selectedDesignNode, selectedObject, selectedPropertyInlineNode?.title]);
   useEffect(() => {
     if (!selectedObject || !rightOpen) {
       return;
@@ -2825,20 +2950,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     }, 200);
     return () => clearTimeout(timer);
   }, [schema.editor.selection.objectId, rightOpen]);
-  const activeMicroflowId = schema.id;
   const saveBlockers = issues.filter(issue => issue.blockSave && issue.severity === "error");
   const publishBlockers = issues.filter(issue => issue.blockPublish && issue.severity === "error");
-  const runSession = runSessionByMicroflowId[activeMicroflowId];
-  const runtimeServiceError = runtimeServiceErrorByMicroflowId[activeMicroflowId];
-  const selectedRunId = selectedRunIdByMicroflowId[activeMicroflowId];
-  const runHistoryFilter = runHistoryStatusByMicroflowId[activeMicroflowId] ?? "all";
-  const runHistoryItems = runHistoryByMicroflowId[activeMicroflowId] ?? [];
-  const runtimeCommandEntries = runtimeCommandEntriesByMicroflowId[activeMicroflowId] ?? [];
-  const runHistoryLoading = Boolean(runHistoryLoadingByMicroflowId[activeMicroflowId]);
-  const runHistoryError = runHistoryErrorByMicroflowId[activeMicroflowId];
-  const selectedRunSession = selectedRunId ? runDetailsByRunId[selectedRunId] : runSession;
-  const activeDebugSession = debugSessionByMicroflowId[activeMicroflowId];
-  const debugSessionId = activeDebugSession?.id ?? debugStoreSnapshot.sessionId;
   const {
     status: debugConnectionStatus,
     latencyMs: debugLatencyMs,
@@ -2865,6 +2978,42 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   useEffect(() => () => {
     disconnectDebugConnection();
   }, [disconnectDebugConnection]);
+  useEffect(() => {
+    if (!runtimeLiveRunId) {
+      disconnectRuntimeWs();
+      return;
+    }
+    connectRuntimeWs();
+  }, [connectRuntimeWs, disconnectRuntimeWs, runtimeLiveRunId]);
+  useEffect(() => () => {
+    disconnectRuntimeWs();
+  }, [disconnectRuntimeWs]);
+  useEffect(() => {
+    const currentNodeId = runtimeOverlayState?.currentObjectId;
+    if (!currentNodeId || runtimeOverlayState?.status !== "running") {
+      return;
+    }
+    if (lastRuntimeFocusedNodeRef.current === currentNodeId) {
+      return;
+    }
+    const nodeExists = graph.nodes.some(item => item.objectId === currentNodeId);
+    if (!nodeExists) {
+      return;
+    }
+    lastRuntimeFocusedNodeRef.current = currentNodeId;
+    setFocusObjectId(currentNodeId);
+    setFocusRequestSeq(value => value + 1);
+  }, [graph.nodes, runtimeOverlayState?.currentObjectId, runtimeOverlayState?.status]);
+  useEffect(() => {
+    if (!runtimeLiveRunId) {
+      return;
+    }
+    const status = runtimeOverlayState?.status;
+    if (status === "completed" || status === "failed" || status === "cancelled") {
+      disconnectRuntimeWs();
+      setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    }
+  }, [activeMicroflowId, disconnectRuntimeWs, runtimeLiveRunId, runtimeOverlayState?.status]);
   useEffect(() => {
     if (!props.onOpenMicroflow) {
       return;
@@ -3006,6 +3155,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRunSessionByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setSelectedRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setRuntimeOverlayByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setActiveTraceFrameId(undefined);
     setFocusObjectId(undefined);
   };
@@ -3894,7 +4045,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   }, [activeDebugSession, patchActiveDebugSession, sendDebugConnectionCommand]);
 
   const handleExecuteTestRun = async (input: MicroflowTestRunInput) => {
+    lastRuntimeFocusedNodeRef.current = undefined;
     const microflowId = schema.id;
+    const plannedRunId = createRuntimeRunId(microflowId);
+    const enableQueuedExecution = false;
     const stableSchema = stripTransientSchemaState(schema);
     const validation = await validateForMode(stableSchema, "testRun");
     const gate = shouldBlockRun(validation.issues, {}, dirty, "saveAndRun");
@@ -3914,9 +4068,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRunning(true);
     setSelectedRunIdByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
     setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
+    setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [microflowId]: plannedRunId }));
+    setRuntimeOverlayByMicroflowId(current => ({ ...current, [microflowId]: createRuntimeOverlayState(plannedRunId) }));
     setFocusObjectId(undefined);
     try {
-      if (!pendingDebugSessionId && apiClient.enqueueMicroflowRun && apiClient.getMicroflowRunStatus) {
+      if (enableQueuedExecution && !pendingDebugSessionId && apiClient.enqueueMicroflowRun && apiClient.getMicroflowRunStatus) {
         const enqueued = await apiClient.enqueueMicroflowRun({
           microflowId,
           schemaId: schema.id,
@@ -3974,8 +4130,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
       const debugSessionId = pendingDebugSessionId;
       const normalized = normalizeMicroflowAuthoringSchemaForRuntime(stableSchema);
-      const response = await apiClient.testRunMicroflow(buildRunRequest(normalized.schema, input.parameters, input.options, true, debugSessionId));
+      const response = await apiClient.testRunMicroflow(
+        buildRunRequest(normalized.schema, input.parameters, input.options, true, debugSessionId, plannedRunId),
+      );
       const session = response.session;
+      setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [microflowId]: session.id }));
       setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [microflowId]: undefined }));
       setRunSessionByMicroflowId(current => ({ ...current, [microflowId]: session }));
       setRunDetailsByRunId(current => ({ ...current, [session.id]: session }));
@@ -4157,6 +4316,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const clearTestRun = () => {
+    lastRuntimeFocusedNodeRef.current = undefined;
     const debugSessionId = debugSessionByMicroflowId[activeMicroflowId]?.id;
     if (debugSessionId) {
       debugStoreRef.current.resetForSession(undefined);
@@ -4165,6 +4325,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRunSessionByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setRuntimeServiceErrorByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setSelectedRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setRuntimeLiveRunIdByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
+    setRuntimeOverlayByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setPendingDebugSessionId(undefined);
     setDebugSessionByMicroflowId(current => ({ ...current, [activeMicroflowId]: undefined }));
     setActiveTraceFrameId(undefined);
@@ -5486,6 +5648,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setToolboxLastError(undefined);
   }, []);
 
+  const revealNodePanel = useCallback(() => {
+    setFocusMode(false);
+    openNodePanel();
+  }, [openNodePanel]);
+
   const closeNodePanel = useCallback(() => {
     setLeftOpen(false);
   }, []);
@@ -6363,6 +6530,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           schema={schema}
           validationIssues={issues}
           runtimeTrace={traceFrames}
+          runtimeOverlay={effectiveRuntimeOverlay}
           loopIteration={debugStoreSnapshot.loopIteration}
           pausedNodeIds={pausedNodeIds}
           breakpointNodeIds={breakpointNodeIds}
@@ -6856,6 +7024,20 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               theme="borderless"
               type="tertiary"
               style={{ justifyContent: "flex-start" }}
+              disabled={props.readonly}
+              onClick={() => {
+                setCanvasBlankContextMenu(undefined);
+                revealNodePanel();
+              }}
+            >
+              {labels.contextOpenNodePanel}
+            </Button>
+            <Button
+              block
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              style={{ justifyContent: "flex-start" }}
               onClick={() => {
                 setCanvasBlankContextMenu(undefined);
                 openBottomDock("debug");
@@ -6930,6 +7112,49 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                           </div>
                         ))}
                       </div>
+                    ) : null}
+                    {selectedRuntimeInspector ? (
+                      <Card
+                        bordered
+                        bodyStyle={{ padding: 10 }}
+                        style={{
+                          background: "#fff",
+                          borderColor: "rgba(22, 93, 255, 0.16)",
+                        }}
+                      >
+                        <Space vertical align="start" style={{ width: "100%" }}>
+                          <Space wrap spacing={6}>
+                            <Tag color={selectedRuntimeInspector.summary.status === "failed" ? "red" : selectedRuntimeInspector.summary.status === "running" ? "blue" : selectedRuntimeInspector.summary.status === "succeeded" ? "green" : "grey"}>
+                              {selectedRuntimeInspector.summary.status}
+                            </Tag>
+                            {typeof selectedRuntimeInspector.summary.durationMs === "number" ? (
+                              <Tag>{selectedRuntimeInspector.summary.durationMs}ms</Tag>
+                            ) : null}
+                            <Tag>{selectedRuntimeInspector.summary.objectId}</Tag>
+                          </Space>
+                          <Tabs type="card" style={{ width: "100%" }}>
+                            <Tabs.TabPane tab="Input" itemKey="runtime-input">
+                              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(selectedRuntimeInspector.input, null, 2)}</pre>
+                            </Tabs.TabPane>
+                            <Tabs.TabPane tab="Output" itemKey="runtime-output">
+                              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(selectedRuntimeInspector.output, null, 2)}</pre>
+                            </Tabs.TabPane>
+                            <Tabs.TabPane tab="Flow" itemKey="runtime-flow">
+                              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(selectedRuntimeInspector.flow, null, 2)}</pre>
+                            </Tabs.TabPane>
+                            <Tabs.TabPane tab="Loop/Gateway" itemKey="runtime-loop-gateway">
+                              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(selectedRuntimeInspector.loopGateway, null, 2)}</pre>
+                            </Tabs.TabPane>
+                            <Tabs.TabPane tab="Delta/Error" itemKey="runtime-delta-error">
+                              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify({
+                                variableDelta: selectedRuntimeInspector.variableDelta,
+                                error: selectedRuntimeInspector.error,
+                                runResult: selectedRuntimeInspector.runResult,
+                              }, null, 2)}</pre>
+                            </Tabs.TabPane>
+                          </Tabs>
+                        </Space>
+                      </Card>
                     ) : null}
                     {selectedPropertyInlineNode.inlineConfig?.viewMode === "editing" ? (
                       <MicroflowInlineNodeEditor
@@ -7138,6 +7363,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                       activeErrorStack={debugStoreSnapshot.activeErrorStack}
                       runtimeNodeState={debugStoreSnapshot.nodeState}
                       runtimeCallStack={debugStoreSnapshot.callStack}
+                      runtimeOverlay={effectiveRuntimeOverlay}
                       debugWatches={activeDebugWatches}
                       activeUsageVariableName={selectedUsageVariableName}
                       activeFrameId={activeTraceFrameId}
@@ -7265,6 +7491,16 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
           }}
         >
           <Space spacing={8}>
+            <Button
+              aria-label="打开节点面板"
+              size="small"
+              theme={leftOpen ? "solid" : "borderless"}
+              type="tertiary"
+              icon={<IconGridRectangle />}
+              onClick={revealNodePanel}
+            >
+              {labels.nodePanel}
+            </Button>
             <Button
               aria-label="展开问题 Dock"
               size="small"

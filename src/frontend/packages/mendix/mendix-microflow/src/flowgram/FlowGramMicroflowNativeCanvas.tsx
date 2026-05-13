@@ -20,6 +20,7 @@ import {
 
 import type { MicroflowTraceFrame } from "../debug/trace-types";
 import type { DebugLoopIteration } from "../stores/debug-store";
+import type { MicroflowRuntimeOverlayState } from "../runtime/runtime-overlay";
 import {
   canCreateRegistryItem,
   canDragRegistryItem,
@@ -97,6 +98,7 @@ export interface FlowGramMicroflowNativeCanvasProps {
   schema: MicroflowDesignSchema;
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
+  runtimeOverlay?: MicroflowRuntimeOverlayState;
   loopIteration?: DebugLoopIteration;
   pausedNodeIds?: string[];
   breakpointNodeIds?: string[];
@@ -772,6 +774,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       schema: props.schema,
       validationIssues: props.validationIssues,
       runtimeTrace: props.runtimeTrace,
+      runtimeOverlay: props.runtimeOverlay,
       loopIteration: props.loopIteration,
       pausedNodeIds: props.pausedNodeIds,
       breakpointNodeIds: props.breakpointNodeIds,
@@ -786,6 +789,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       props.nodeViewModes,
       props.loopIteration,
       props.runtimeTrace,
+      props.runtimeOverlay,
       props.schema,
       props.usageHighlights,
       props.validationIssues,

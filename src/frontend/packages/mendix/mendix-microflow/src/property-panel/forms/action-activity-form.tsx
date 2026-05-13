@@ -1387,6 +1387,69 @@ export function ActionActivityForm({
             />
             <Text type="tertiary" size="small">Stage 13 stores the expression text only; it does not evaluate expressions.</Text>
           </Field>
+          <Field label="Run Input">
+            {withDisabledReason(
+              readonlyDisabledReason,
+              "Run Input",
+              <Switch
+                checked={Boolean(action.runInput)}
+                disabled={readonly}
+                onChange={runInput => patchObject(updateAction(object, {
+                  runInput,
+                  runInputKey: runInput ? (action.runInputKey?.trim() || action.variableName) : action.runInputKey,
+                }))}
+              />
+            )}
+            <Text type="tertiary" size="small">启用后，该变量可在运行输入面板按“本次运行值”注入。</Text>
+          </Field>
+          <Field label="Run Input Key">
+            <Input
+              value={action.runInputKey ?? action.variableName}
+              disabled={readonly || !action.runInput}
+              onChange={runInputKey => patchObject(updateAction(object, { runInputKey }))}
+            />
+          </Field>
+          <Field label="Run Input Display Name">
+            <Input
+              value={action.runInputDisplayName ?? ""}
+              disabled={readonly || !action.runInput}
+              onChange={runInputDisplayName => patchObject(updateAction(object, { runInputDisplayName }))}
+            />
+          </Field>
+          <Field label="Run Input Description">
+            <TextArea
+              autosize
+              value={action.runInputDescription ?? ""}
+              disabled={readonly || !action.runInput}
+              onChange={runInputDescription => patchObject(updateAction(object, { runInputDescription }))}
+            />
+          </Field>
+          <Field label="Run Input Required">
+            <Switch
+              checked={Boolean(action.runInputRequired)}
+              disabled={readonly || !action.runInput}
+              onChange={runInputRequired => patchObject(updateAction(object, { runInputRequired }))}
+            />
+          </Field>
+          <Field label="Test Default Value">
+            <TextArea
+              autosize
+              value={action.testDefaultValue === undefined ? "" : JSON.stringify(action.testDefaultValue, null, 2)}
+              disabled={readonly || !action.runInput}
+              onChange={value => {
+                const trimmed = value.trim();
+                if (!trimmed) {
+                  patchObject(updateAction(object, { testDefaultValue: undefined }));
+                  return;
+                }
+                try {
+                  patchObject(updateAction(object, { testDefaultValue: JSON.parse(trimmed) }));
+                } catch {
+                  patchObject(updateAction(object, { testDefaultValue: trimmed }));
+                }
+              }}
+            />
+          </Field>
         </>
       ) : null}
 

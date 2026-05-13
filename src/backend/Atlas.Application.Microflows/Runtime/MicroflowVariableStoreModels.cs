@@ -136,7 +136,7 @@ public sealed record MicroflowVariableDefinition
     public bool System { get; init; }
     public int? DeclaredAtStep { get; init; }
     public string? Documentation { get; init; }
-    public bool AllowShadowing { get; init; }
+    public bool AllowRedeclare { get; init; }
     public ExecutionMemoryBudget? MemoryBudget { get; init; }
     public bool PreferReferenceWhenLarge { get; init; }
     public string? ValueRefKind { get; init; }

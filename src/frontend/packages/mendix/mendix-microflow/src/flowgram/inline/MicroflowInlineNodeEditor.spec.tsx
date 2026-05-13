@@ -325,7 +325,7 @@ describe("MicroflowInlineNodeEditor schema helpers", () => {
     expect(changed?.kind === "actionActivity" && changed.action.kind === "changeVariable" ? changed.action.newValueExpression.raw : undefined).toBe("$finalResult");
   });
 
-  it("writes modern create/change variable fields instead of legacy inline bridge fields", () => {
+  it("writes modern create/change variable fields instead of legacy inline compatibility fields", () => {
     const createVariable = createVariableObject();
     const changeVariable = changeVariableObject("approvalLevel", "$approvalLevel");
     const schema = schemaWith([createVariable, changeVariable]);

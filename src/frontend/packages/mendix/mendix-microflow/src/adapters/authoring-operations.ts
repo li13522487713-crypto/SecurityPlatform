@@ -1028,7 +1028,13 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       variableName: String(config.variableName ?? "newVariable"),
       dataType: { kind: "string" },
       initialValue: undefined,
-      readonly: false
+      readonly: false,
+      runInput: false,
+      runInputKey: String(config.variableName ?? "newVariable"),
+      runInputDisplayName: undefined,
+      runInputDescription: undefined,
+      runInputRequired: false,
+      testDefaultValue: undefined,
     } as MicroflowAction;
   }
   if (kind === "changeVariable") {

@@ -1,8 +1,10 @@
-import { Button, Card, Empty, Space, Tabs, Tag, Typography } from "@douyinfe/semi-ui";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Card, Empty, Input, Select, Space, Tabs, Tag, Typography } from "@douyinfe/semi-ui";
 
 import { extractGatewayBranchTrace, type MicroflowRunCallStackFrame, type MicroflowRunSession, type MicroflowRuntimeError, type MicroflowTraceFrame } from "./trace-types";
 import { buildCallStackPaths, buildExecutionPath } from "./trace-history-utils";
 import { buildMicroflowNodeIoViewModel } from "./node-io-view-model";
+import type { MicroflowRuntimeWsEvent } from "../runtime/runtime-overlay";
 
 const { Text } = Typography;
 
@@ -10,6 +12,10 @@ export interface MicroflowTracePanelProps {
   microflowId: string;
   microflowName?: string;
   session?: MicroflowRunSession;
+  runtimeRunId?: string;
+  runtimeStatus?: string;
+  runtimeResult?: unknown;
+  runtimeEvents?: MicroflowRuntimeWsEvent[];
   activeFrameId?: string;
   onSelectFrame: (frame: MicroflowTraceFrame) => void;
   onSelectFlow: (flowId: string) => void;
@@ -19,14 +25,17 @@ export interface MicroflowTracePanelProps {
 }
 
 function statusColor(status: string): "green" | "red" | "blue" | "grey" | "orange" {
-  if (status === "success") {
+  if (status === "success" || status === "succeeded" || status === "completed") {
     return "green";
   }
   if (status === "failed") {
     return "red";
   }
-  if (status === "running") {
+  if (status === "running" || status === "starting" || status === "queued") {
     return "blue";
+  }
+  if (status === "paused") {
+    return "orange";
   }
   if (status === "unsupported") {
     return "orange";
@@ -94,6 +103,10 @@ export function MicroflowTracePanel({
   microflowId,
   microflowName,
   session,
+  runtimeRunId,
+  runtimeStatus,
+  runtimeResult,
+  runtimeEvents,
   activeFrameId,
   onSelectFrame,
   onSelectFlow,
@@ -101,32 +114,176 @@ export function MicroflowTracePanel({
   onSelectRun,
   onSelectCallStackFrame,
 }: MicroflowTracePanelProps) {
-  if (!session) {
-    return <Empty title="No trace" description="Run this microflow or select a run history item." />;
-  }
-  const executionPath = buildExecutionPath(session);
-  const callStackPaths = buildCallStackPaths(session);
-  const orderedCallStackFrames = [...(session.callStackFrames ?? [])].sort((left, right) => left.depth - right.depth);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [nodeFilter, setNodeFilter] = useState<string>("");
+  const [replayRunning, setReplayRunning] = useState(false);
+  const [replayIndex, setReplayIndex] = useState<number>(0);
+  const liveEvents = runtimeEvents ?? [];
+  const executionPath = useMemo(
+    () => session ? buildExecutionPath(session) : [],
+    [session],
+  );
+  const filteredRuntimeEvents = useMemo(
+    () => liveEvents.filter(item => {
+      const status = runtimeEventStatus(item);
+      if (statusFilter !== "all" && status !== statusFilter) {
+        return false;
+      }
+      const keyword = nodeFilter.trim().toLowerCase();
+      if (!keyword) {
+        return true;
+      }
+      return [
+        item.objectId,
+        item.flowId,
+        item.type,
+      ]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(keyword));
+    }),
+    [liveEvents, nodeFilter, statusFilter],
+  );
+  const filteredExecutionPath = useMemo(
+    () => executionPath.filter(item => {
+      if (statusFilter !== "all" && item.frame.status !== statusFilter) {
+        return false;
+      }
+      const keyword = nodeFilter.trim().toLowerCase();
+      if (!keyword) {
+        return true;
+      }
+      return [
+        item.frame.objectId,
+        item.frame.nodeTitle,
+        item.frame.objectTitle,
+        item.frame.nodeKind,
+        item.frame.actionKind,
+      ]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(keyword));
+    }),
+    [executionPath, nodeFilter, statusFilter],
+  );
+  const replayFrames = filteredExecutionPath;
+  const callStackPaths = useMemo(
+    () => session ? buildCallStackPaths(session) : [],
+    [session],
+  );
+  const orderedCallStackFrames = useMemo(
+    () => [...(session?.callStackFrames ?? [])].sort((left, right) => left.depth - right.depth),
+    [session?.callStackFrames],
+  );
   const activeFrame = activeFrameId ? executionPath.find(item => item.frame.id === activeFrameId)?.frame : executionPath[0]?.frame;
-  const errors = collectErrors(session);
+  const errors = useMemo(() => collectErrors(session), [session]);
   const activeNodeIo = activeFrame ? buildMicroflowNodeIoViewModel(activeFrame) : undefined;
   const activeBranchTrace = activeNodeIo?.flow.branchTrace ?? [];
-  const runHierarchy = [
-    session.rootRunId && session.rootRunId !== session.id ? { label: "root", runId: session.rootRunId } : null,
-    session.parentRunId && session.parentRunId !== session.id && session.parentRunId !== session.rootRunId ? { label: "parent", runId: session.parentRunId } : null,
-    { label: "current", runId: session.id },
-  ].filter(Boolean) as Array<{ label: string; runId: string }>;
+  const runHierarchy = useMemo(
+    () => session
+      ? [
+        session.rootRunId && session.rootRunId !== session.id ? { label: "root", runId: session.rootRunId } : null,
+        session.parentRunId && session.parentRunId !== session.id && session.parentRunId !== session.rootRunId ? { label: "parent", runId: session.parentRunId } : null,
+        { label: "current", runId: session.id },
+      ].filter(Boolean) as Array<{ label: string; runId: string }>
+      : [],
+    [session],
+  );
+
+  useEffect(() => {
+    if (!replayRunning || replayFrames.length === 0) {
+      return;
+    }
+    const timer = setInterval(() => {
+      setReplayIndex(current => {
+        const next = current + 1;
+        if (next >= replayFrames.length) {
+          setReplayRunning(false);
+          return replayFrames.length - 1;
+        }
+        onSelectFrame(replayFrames[next].frame);
+        return next;
+      });
+    }, 500);
+    return () => clearInterval(timer);
+  }, [onSelectFrame, replayFrames, replayRunning]);
+
+  const copyFilteredTrace = async () => {
+    if (!session) {
+      const payload = filteredRuntimeEvents.map(item => ({
+        sequence: item.sequence,
+        type: item.type,
+        timestamp: item.timestamp,
+        objectId: item.objectId,
+        flowId: item.flowId,
+        payload: item.payload,
+      }));
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      return;
+    }
+
+    const payload = filteredExecutionPath.map(item => ({
+      objectId: item.frame.objectId,
+      nodeTitle: item.frame.nodeTitle ?? item.frame.objectTitle,
+      status: item.frame.status,
+      durationMs: item.frame.durationMs,
+      incomingFlowId: item.frame.incomingFlowId,
+      outgoingFlowId: item.frame.outgoingFlowId,
+      selectedCaseValue: item.frame.selectedCaseValue,
+      loopIteration: item.frame.loopIteration,
+      branchTrace: extractGatewayBranchTrace(item.frame),
+      error: item.frame.error,
+    }));
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+  };
+
+  const exportFilteredTrace = () => {
+    if (!session && filteredRuntimeEvents.length === 0) {
+      return;
+    }
+    const payload = session
+      ? filteredExecutionPath.map(item => item.frame)
+      : filteredRuntimeEvents;
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `microflow-trace-${session?.id ?? runtimeRunId ?? "live"}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const replayFromStart = () => {
+    if (replayFrames.length === 0) {
+      return;
+    }
+    setReplayIndex(0);
+    onSelectFrame(replayFrames[0].frame);
+    setReplayRunning(true);
+  };
+
+  const replayNext = () => {
+    if (replayFrames.length === 0) {
+      return;
+    }
+    const next = Math.min(replayFrames.length - 1, replayIndex + 1);
+    setReplayIndex(next);
+    onSelectFrame(replayFrames[next].frame);
+  };
+
+  if (!session && filteredRuntimeEvents.length === 0) {
+    return <Empty title="No trace" description="Run this microflow or select a run history item." />;
+  }
 
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       <Card style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
         <Space wrap>
-          <Tag color={statusColor(session.status)}>{session.status}</Tag>
-          <Tag>runId {session.id}</Tag>
+          <Tag color={statusColor(session?.status ?? runtimeStatus ?? "running")}>{session?.status ?? runtimeStatus ?? "running"}</Tag>
+          <Tag>runId {session?.id ?? runtimeRunId ?? "-"}</Tag>
           <Tag>{microflowName || microflowId}</Tag>
-          <Tag>{session.startedAt}</Tag>
-          {session.endedAt ? <Tag>{Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime())}ms</Tag> : null}
-          {session.error?.message ? <Tag color="red">{session.error.message}</Tag> : null}
+          {session?.startedAt ? <Tag>{session.startedAt}</Tag> : null}
+          {session?.endedAt ? <Tag>{Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime())}ms</Tag> : null}
+          {session?.error?.message ? <Tag color="red">{session.error.message}</Tag> : null}
+          {!session ? <Tag>live events {filteredRuntimeEvents.length}/{liveEvents.length}</Tag> : null}
         </Space>
         {runHierarchy.length > 1 ? (
           <>
@@ -144,11 +301,66 @@ export function MicroflowTracePanel({
             </Space>
           </>
         ) : null}
+        <br />
+        <Space wrap spacing={6}>
+          <Select
+            value={statusFilter}
+            style={{ width: 140 }}
+            optionList={[
+              { label: "all status", value: "all" },
+              { label: "running", value: "running" },
+              { label: "success", value: "success" },
+              { label: "failed", value: "failed" },
+              { label: "skipped", value: "skipped" },
+              { label: "unsupported", value: "unsupported" },
+            ]}
+            onChange={value => setStatusFilter(String(value ?? "all"))}
+          />
+          <Input
+            value={nodeFilter}
+            placeholder="filter by node/object id"
+            style={{ width: 220 }}
+            onChange={value => setNodeFilter(value)}
+          />
+          <Button size="small" onClick={() => void copyFilteredTrace()}>Copy Trace</Button>
+          <Button size="small" onClick={exportFilteredTrace}>Export Trace</Button>
+          <Button size="small" onClick={replayFromStart} disabled={!session || replayFrames.length === 0}>Replay</Button>
+          <Button size="small" onClick={() => setReplayRunning(false)} disabled={!session || !replayRunning}>Stop</Button>
+          <Button size="small" onClick={replayNext} disabled={!session || replayFrames.length === 0}>Next</Button>
+          <Tag>{session ? `frames ${filteredExecutionPath.length}/${executionPath.length}` : `events ${filteredRuntimeEvents.length}/${liveEvents.length}`}</Tag>
+        </Space>
       </Card>
+      {!session ? (
+        <Card style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+          <Space vertical align="start" style={{ width: "100%" }}>
+            {filteredRuntimeEvents.map(item => (
+              <Card key={`${item.sequence}:${item.eventId ?? item.type}`} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+                <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
+                  <Space wrap>
+                    <Tag>{item.sequence}</Tag>
+                    <Tag color={statusColor(runtimeEventStatus(item))}>{runtimeEventStatus(item)}</Tag>
+                    <Tag>{item.type}</Tag>
+                    {item.objectId ? <Tag>{item.objectId}</Tag> : null}
+                    {item.flowId ? <Tag onClick={() => onSelectFlow(item.flowId as string)}>flow {item.flowId}</Tag> : null}
+                  </Space>
+                  <Text size="small" type="tertiary">{item.timestamp}</Text>
+                </Space>
+                <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(item.payload ?? null, null, 2)}</pre>
+              </Card>
+            ))}
+            {runtimeResult !== undefined ? (
+              <Card style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+                <Text strong>Result</Text>
+                <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify(runtimeResult, null, 2)}</pre>
+              </Card>
+            ) : null}
+          </Space>
+        </Card>
+      ) : (
       <Tabs type="line" style={{ width: "100%" }}>
         <Tabs.TabPane tab="Execution Path" itemKey="execution-path">
           <Space vertical align="start" style={{ width: "100%" }}>
-            {executionPath.length === 0 ? <Empty title="No executed nodes" /> : executionPath.map((item, index) => (
+            {filteredExecutionPath.length === 0 ? <Empty title="No executed nodes" /> : filteredExecutionPath.map((item, index) => (
               <Card
                 key={`${item.frame.id}:${index}`}
                 style={{
@@ -370,6 +582,7 @@ export function MicroflowTracePanel({
           )}
         </Tabs.TabPane>
       </Tabs>
+      )}
       {activeFrame ? (
         <Card style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
           <Text strong>Active Frame</Text>
@@ -378,4 +591,20 @@ export function MicroflowTracePanel({
       ) : null}
     </Space>
   );
+}
+
+function runtimeEventStatus(event: MicroflowRuntimeWsEvent): "running" | "success" | "failed" | "skipped" | "unsupported" {
+  if (event.type === "run.completed" || event.type === "node.completed" || event.type === "gateway.merge.completed") {
+    return "success";
+  }
+  if (event.type === "run.failed" || event.type === "node.failed" || event.type === "gateway.merge.failed" || event.type === "edge.failed") {
+    return "failed";
+  }
+  if (event.type === "branch.skipped") {
+    return "skipped";
+  }
+  if (event.type === "run.started" || event.type === "node.started" || event.type === "edge.running") {
+    return "running";
+  }
+  return "unsupported";
 }

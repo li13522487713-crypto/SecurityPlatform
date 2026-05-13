@@ -442,6 +442,40 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
           : runtime?.success
             ? "✓"
             : "";
+  const runtimeDetailLines: string[] = [];
+  if (runtime?.decisionExpression) {
+    runtimeDetailLines.push(`Expr: ${runtime.decisionExpression}`);
+  }
+  if (runtime?.decisionEvaluatedValue) {
+    runtimeDetailLines.push(`Result: ${runtime.decisionEvaluatedValue}`);
+  }
+  if (runtime?.selectedBranchLabel) {
+    runtimeDetailLines.push(`${runtimeCopy.selected}: ${runtime.selectedBranchLabel}`);
+  }
+  if (runtime?.loopIterationLabel) {
+    runtimeDetailLines.push(runtime.loopIterationLabel);
+  }
+  if (runtime?.gatewayProgressLabel) {
+    runtimeDetailLines.push(runtime.gatewayProgressLabel);
+  }
+  if (runtime?.gatewayMergeLabel) {
+    runtimeDetailLines.push(runtime.gatewayMergeLabel);
+  }
+  if (runtime?.inputPreview) {
+    runtimeDetailLines.push(`Input: ${runtime.inputPreview}`);
+  }
+  if (runtime?.outputPreview) {
+    runtimeDetailLines.push(`Output: ${runtime.outputPreview}`);
+  }
+  if (runtime?.deltaPreview) {
+    runtimeDetailLines.push(`Delta: ${runtime.deltaPreview}`);
+  }
+  if (runtimeDetailLines.length === 0 && compactRuntimeOutputs.length > 0) {
+    runtimeDetailLines.push(`${compactRuntimeOutputs.join(" · ")}${runtimeOutputOverflowCount > 0 ? ` +${runtimeOutputOverflowCount}` : ""}`);
+  }
+  if (runtimeDetailLines.length === 0) {
+    runtimeDetailLines.push(runtimeCopy.noOutput);
+  }
 
   const handleNodeClick = (event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as Element | null;
@@ -703,17 +737,18 @@ function FlowGramMicroflowNodeRendererInner(props: WorkflowNodeRenderProps) {
             });
           }}
         >
-          {runtimeStateLabel ? <Typography.Text type={runtime.error || runtime.failed ? "danger" : "tertiary"} size="small">{runtimeStateLabel}</Typography.Text> : null}
-          {typeof runtime.durationMs === "number" ? (
-            <Typography.Text type="tertiary" size="small">{runtime.durationMs}ms</Typography.Text>
+          <div className="microflow-mini-runtime__header">
+            {runtimeStateLabel ? <Typography.Text type={runtime.error || runtime.failed ? "danger" : "tertiary"} size="small">{runtimeStateLabel}</Typography.Text> : null}
+            {typeof runtime.durationMs === "number" ? (
+              <Typography.Text type="tertiary" size="small">{runtime.durationMs}ms</Typography.Text>
+            ) : null}
+          </div>
+          {runtimeDetailLines.slice(0, 3).map((line, index) => (
+            <Typography.Text key={`${data.objectId}-runtime-${index}`} type="tertiary" size="small">{line}</Typography.Text>
+          ))}
+          {runtimeDetailLines.length > 3 ? (
+            <Typography.Text type="tertiary" size="small">+{runtimeDetailLines.length - 3} more</Typography.Text>
           ) : null}
-          {runtime.selectedBranchLabel ? <Typography.Text type="tertiary" size="small">{runtimeCopy.selected}: {runtime.selectedBranchLabel}</Typography.Text> : null}
-          {!runtime.selectedBranchLabel && compactRuntimeOutputs.length > 0 ? (
-            <Typography.Text type="tertiary" size="small">
-              {compactRuntimeOutputs.join(" · ")}{runtimeOutputOverflowCount > 0 ? ` +${runtimeOutputOverflowCount}` : ""}
-            </Typography.Text>
-          ) : null}
-          {!runtime.selectedBranchLabel && compactRuntimeOutputs.length === 0 ? <Typography.Text type="tertiary" size="small">{runtimeCopy.noOutput}</Typography.Text> : null}
         </button>
       ) : null}
       {ports.map(port => (

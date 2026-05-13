@@ -28,7 +28,7 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
             return;
         }
 
-        if (!definition.AllowShadowing && _scopeStack.VisibleNameExists(definition.Name))
+        if (!definition.AllowRedeclare && _scopeStack.VisibleNameExists(definition.Name))
         {
             AddDiagnostic(
                 MicroflowVariableStoreDiagnosticCode.RuntimeVariableDuplicated,
@@ -38,7 +38,7 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
             return;
         }
 
-        if (definition.AllowShadowing && _scopeStack.VisibleNameExists(definition.Name))
+        if (definition.AllowRedeclare && _scopeStack.VisibleNameExists(definition.Name))
         {
             AddDiagnostic(
                 MicroflowVariableStoreDiagnosticCode.RuntimeVariableDuplicated,

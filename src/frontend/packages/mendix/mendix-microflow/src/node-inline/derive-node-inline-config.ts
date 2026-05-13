@@ -1,6 +1,7 @@
 import type { MicroflowTraceFrame } from "../debug/trace-types";
 import type { MicroflowNodeViewMode, MicroflowNodeInlineConfig } from "../flowgram/FlowGramMicroflowTypes";
 import type { MicroflowDesignSchema, MicroflowValidationIssue, MicroflowWorkflowNodeJSON } from "../schema/types";
+import type { RuntimeNodeOverlay } from "../runtime/runtime-overlay";
 import { deriveApprovalNodeInline } from "./approval-node-inline";
 import { deriveAnnotationNodeInline } from "./annotation-node-inline";
 import { deriveActionNodeInline } from "./action-node-inline";
@@ -169,6 +170,7 @@ export function deriveNodeInlineConfig(input: {
   node: MicroflowWorkflowNodeJSON;
   schema: MicroflowDesignSchema;
   runtimeFrame?: MicroflowTraceFrame;
+  runtimeOverlay?: RuntimeNodeOverlay;
   issues?: MicroflowValidationIssue[];
   viewMode?: MicroflowNodeViewMode;
 }): MicroflowNodeInlineConfig {
@@ -176,6 +178,7 @@ export function deriveNodeInlineConfig(input: {
     node: input.node,
     schema: input.schema,
     runtimeFrame: input.runtimeFrame,
+    runtimeOverlay: input.runtimeOverlay,
     issues: input.issues,
     viewMode: input.viewMode,
   };

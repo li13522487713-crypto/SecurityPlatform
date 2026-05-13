@@ -46,7 +46,7 @@ public sealed class DefaultVariableScopeForker : IVariableScopeForker
                 Value = pair.Value with { },
                 DataTypeJson = pair.Value.DataTypeJson,
                 ScopeKind = MicroflowVariableScopeKind.ParallelBranch,
-                AllowShadowing = true
+                AllowRedeclare = true
             });
         }
 
@@ -88,7 +88,7 @@ public sealed class DefaultBranchMergePolicy : IBranchMergePolicy
                         Value = mergedValue,
                         DataTypeJson = mergedValue.DataTypeJson,
                         ScopeKind = MicroflowVariableScopeKind.BranchMerge,
-                        AllowShadowing = true
+                        AllowRedeclare = true
                     });
                 }
 

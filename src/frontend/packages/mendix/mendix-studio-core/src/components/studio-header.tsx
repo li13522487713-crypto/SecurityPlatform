@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button, Dropdown, Space, Toast } from "@douyinfe/semi-ui";
 import {
   IconBell,
@@ -60,6 +60,7 @@ export function StudioHeader({
     }
     return microflowStatus.microflowId;
   }, [microflowStatus?.microflowId]);
+  const [moreMenuVisible, setMoreMenuVisible] = useState(false);
 
   const runCommand = async <T extends MicroflowWorkbenchCommandName>(
     command: T,
@@ -139,11 +140,14 @@ export function StudioHeader({
       <Dropdown
         trigger="click"
         position="bottomRight"
+        visible={moreMenuVisible}
+        onVisibleChange={setMoreMenuVisible}
         render={
           <Dropdown.Menu>
             <Dropdown.Item
               disabled={!microflowStatus}
               onClick={() => {
+                setMoreMenuVisible(false);
                 if (onViewMicroflowReferences) {
                   onViewMicroflowReferences();
                   return;
@@ -153,25 +157,46 @@ export function StudioHeader({
             >
               查看引用
             </Dropdown.Item>
-            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.toggleToolbox")}>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => {
+              setMoreMenuVisible(false);
+              void runCommand("microflow.toggleToolbox");
+            }}>
               切换节点工具箱
             </Dropdown.Item>
-            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.autoLayout")}>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => {
+              setMoreMenuVisible(false);
+              void runCommand("microflow.autoLayout");
+            }}>
               自动排版
             </Dropdown.Item>
-            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.fitView")}>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => {
+              setMoreMenuVisible(false);
+              void runCommand("microflow.fitView");
+            }}>
               适应视图
             </Dropdown.Item>
-            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.exportImage")}>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => {
+              setMoreMenuVisible(false);
+              void runCommand("microflow.exportImage");
+            }}>
               导出 PNG
             </Dropdown.Item>
-            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.acceptance120")}>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => {
+              setMoreMenuVisible(false);
+              void runCommand("microflow.acceptance120");
+            }}>
               验收 120
             </Dropdown.Item>
-            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.toggleFocusMode")}>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => {
+              setMoreMenuVisible(false);
+              void runCommand("microflow.toggleFocusMode");
+            }}>
               切换专注模式
             </Dropdown.Item>
-            <Dropdown.Item disabled={!microflowStatus} onClick={() => void runCommand("microflow.resetLayout")}>
+            <Dropdown.Item disabled={!microflowStatus} onClick={() => {
+              setMoreMenuVisible(false);
+              void runCommand("microflow.resetLayout");
+            }}>
               恢复默认布局
             </Dropdown.Item>
           </Dropdown.Menu>

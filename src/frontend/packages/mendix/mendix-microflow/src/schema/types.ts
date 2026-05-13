@@ -918,6 +918,12 @@ export interface MicroflowCreateVariableAction extends MicroflowActionBase {
   dataType: MicroflowDataType;
   initialValue?: MicroflowExpression;
   readonly: boolean;
+  runInput?: boolean;
+  runInputKey?: string;
+  runInputDisplayName?: string;
+  runInputDescription?: string;
+  runInputRequired?: boolean;
+  testDefaultValue?: unknown;
 }
 
 export interface MicroflowChangeVariableAction extends MicroflowActionBase {

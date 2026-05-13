@@ -30,6 +30,8 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
   const model = useMemo(() => buildRunInputModel(props.schema), [props.schema]);
   const defaults = useMemo(() => buildDefaultRunInputValues(model), [model]);
   const parameters = props.values ?? defaults;
+  const [inputMode, setInputMode] = useState<"form" | "json">("form");
+  const [jsonText, setJsonText] = useState("{}");
   const [options, setOptions] = useState<MicroflowTestRunOptions>({ maxSteps: 200 });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sampleName, setSampleName] = useState("");
@@ -42,24 +44,55 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
   useEffect(() => {
     if (props.visible) {
       setOptions({ maxSteps: 200 });
+      setInputMode("form");
       setErrors({});
+      setJsonText(JSON.stringify(parameters, null, 2));
       setTraceCopied(false);
       setSubmitCooldown(false);
     }
-  }, [props.visible]);
+  }, [parameters, props.visible]);
 
   useEffect(() => {
     if (props.visible && props.values === undefined) {
-      props.onValuesChange?.(defaults);
+      const latestSample = pickLatestSample(props.samples ?? []);
+      if (latestSample) {
+        props.onValuesChange?.(latestSample.parameters);
+        setSampleName(latestSample.name);
+        setExpectedResultJson(latestSample.expectedResult === undefined ? "" : JSON.stringify(latestSample.expectedResult, null, 2));
+      } else {
+        props.onValuesChange?.(defaults);
+      }
     }
-  }, [defaults, props.onValuesChange, props.values, props.visible]);
+  }, [defaults, props.onValuesChange, props.samples, props.values, props.visible]);
+
+  useEffect(() => {
+    if (inputMode !== "json") {
+      return;
+    }
+    setJsonText(JSON.stringify(parameters, null, 2));
+  }, [inputMode, parameters]);
+
+  const resolveRunValues = (): { valid: true; values: Record<string, unknown> } | { valid: false } => {
+    const values = inputMode === "json" ? parseJsonParameters(jsonText) : parameters;
+    if (!values.ok) {
+      setErrors({ __json__: "JSON 格式错误，必须是对象，例如 {\"numbers\":[1,2,3]}" });
+      return { valid: false };
+    }
+
+    const validation = validateRunInputs(model, values.value);
+    setErrors(validation.errors);
+    if (!validation.valid) {
+      return { valid: false };
+    }
+
+    return { valid: true, values: validation.values };
+  };
 
   const run = () => {
     if (submitCooldown) {
       return;
     }
-    const validation = validateRunInputs(model, parameters);
-    setErrors(validation.errors);
+    const validation = resolveRunValues();
     if (!validation.valid) {
       return;
     }
@@ -72,9 +105,35 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
     props.onValuesChange?.({ ...parameters, [name]: value });
   };
 
+  const handleInputModeChange = (next: "form" | "json") => {
+    if (next === inputMode) {
+      return;
+    }
+    if (next === "form") {
+      const parsed = parseJsonParameters(jsonText);
+      if (!parsed.ok) {
+        setErrors({ __json__: "JSON 格式错误，无法切换到表单模式。" });
+        return;
+      }
+      setErrors(current => {
+        const { __json__, ...rest } = current;
+        return rest;
+      });
+      props.onValuesChange?.(parsed.value);
+      setInputMode("form");
+      return;
+    }
+
+    setJsonText(JSON.stringify(parameters, null, 2));
+    setErrors(current => {
+      const { __json__, ...rest } = current;
+      return rest;
+    });
+    setInputMode("json");
+  };
+
   const saveSample = () => {
-    const validation = validateRunInputs(model, parameters);
-    setErrors(validation.errors);
+    const validation = resolveRunValues();
     if (!validation.valid) {
       return;
     }
@@ -147,15 +206,39 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
         </Text>
         {model.warnings.map(warning => <Text key={warning} type="warning" size="small">{warning}</Text>)}
         {model.fields.length === 0 ? <Text type="tertiary">{copy.testRun.noInputParameters}</Text> : null}
-        {model.fields.map(field => (
-          <ParameterField
-            key={field.parameter.id}
-            field={field}
-            value={parameters[field.parameter.name]}
-            error={errors[field.parameter.name]}
-            onChange={value => updateParameter(field.parameter.name, value)}
+        <Space style={{ width: "100%", justifyContent: "space-between" }}>
+          <Text strong>Run Input</Text>
+          <Select
+            size="small"
+            value={inputMode}
+            optionList={[
+              { label: "Form", value: "form" },
+              { label: "JSON", value: "json" },
+            ]}
+            onChange={value => handleInputModeChange(value === "json" ? "json" : "form")}
+            style={{ width: 120 }}
           />
-        ))}
+        </Space>
+        {inputMode === "form" ? model.fields.map(field => (
+          <ParameterField
+            key={field.source.id}
+            field={field}
+            value={parameters[field.source.name]}
+            error={errors[field.source.name]}
+            onChange={value => updateParameter(field.source.name, value)}
+          />
+        )) : (
+          <label style={{ display: "grid", gap: 6, width: "100%" }}>
+            <Text size="small" strong>JSON Input</Text>
+            <TextArea
+              autosize={{ minRows: 8, maxRows: 18 }}
+              value={jsonText}
+              onChange={setJsonText}
+              style={{ fontFamily: "Consolas, Monaco, monospace" }}
+            />
+            {errors.__json__ ? <Text type="danger" size="small">{errors.__json__}</Text> : null}
+          </label>
+        )}
         <TestSamplesPanel
           samples={props.samples ?? []}
           expectedResultJson={expectedResultJson}
@@ -301,17 +384,21 @@ function ParameterField(props: {
   error?: string;
   onChange: (value: unknown) => void;
 }) {
-  const parameter = props.field.parameter;
+  const parameter = props.field.source;
   return (
     <label style={{ display: "grid", gap: 6, width: "100%" }}>
       <Space>
-        <Text size="small" strong>{parameter.name}{parameter.required ? " *" : ""}</Text>
+        <Text size="small" strong>{parameter.displayName || parameter.name}{parameter.required ? " *" : ""}</Text>
+        {parameter.displayName && parameter.displayName !== parameter.name ? <Text size="small" type="tertiary">({parameter.name})</Text> : null}
         <Tag size="small">{props.field.typeLabel}</Tag>
+        <Tag size="small" color={parameter.sourceKind === "variable" ? "cyan" : "grey"}>
+          {parameter.sourceKind === "variable" ? "VariableNode" : "Parameter"}
+        </Tag>
       </Space>
       <div data-testid={`microflow-test-run-parameter-${parameter.name}`}>
         {renderInput(parameter.dataType, props.value, props.onChange)}
       </div>
-      {parameter.documentation || parameter.description ? <Text type="tertiary" size="small">{parameter.documentation ?? parameter.description}</Text> : null}
+      {parameter.documentation ? <Text type="tertiary" size="small">{parameter.documentation}</Text> : null}
       {props.field.warning ? <Text type="warning" size="small">{props.field.warning}</Text> : null}
       {props.error ? <Text type="danger" size="small">{props.error}</Text> : null}
     </label>
@@ -431,6 +518,29 @@ function parseOptionalJson(value: string): { ok: true; value?: unknown } | { ok:
   } catch {
     return { ok: false };
   }
+}
+
+function parseJsonParameters(value: string): { ok: true; value: Record<string, unknown> } | { ok: false } {
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { ok: false };
+    }
+    return { ok: true, value: parsed as Record<string, unknown> };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function pickLatestSample(samples: MicroflowTestRunSample[]): MicroflowTestRunSample | undefined {
+  if (samples.length === 0) {
+    return undefined;
+  }
+  return [...samples].sort((left, right) => {
+    const leftTime = new Date(left.updatedAt).getTime();
+    const rightTime = new Date(right.updatedAt).getTime();
+    return rightTime - leftTime;
+  })[0];
 }
 
 function stableJson(value: unknown): string {

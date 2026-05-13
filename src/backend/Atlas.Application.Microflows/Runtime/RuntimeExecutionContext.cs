@@ -84,6 +84,7 @@ public sealed class RuntimeExecutionContext
     public MicroflowRuntimeSecurityContext RuntimeSecurityContext { get; init; } = MicroflowRuntimeSecurityContext.System();
     public MicroflowMetadataCatalogDto? MetadataCatalog { get; init; }
     public string? MetadataVersion { get; init; }
+    public IReadOnlyDictionary<string, JsonElement> Input { get; init; } = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
 
     /// <summary>可选：绑定调试会话 ID，供 CallMicroflow 子执行传播。</summary>
     public string? DebugSessionId { get; init; }
@@ -150,7 +151,8 @@ public sealed class RuntimeExecutionContext
             PlanQuery = planQuery ?? new MicroflowExecutionPlanQuery(executionPlan),
             TraceCaptureMode = ShouldCaptureRawValues(normalizedMode, debugSessionId)
                 ? ExecutionTraceCaptureMode.Full
-                : ExecutionTraceCaptureMode.Summary
+                : ExecutionTraceCaptureMode.Summary,
+            Input = input ?? new Dictionary<string, JsonElement>(StringComparer.Ordinal),
         };
         if (callStackFrames is not null)
         {
@@ -162,7 +164,7 @@ public sealed class RuntimeExecutionContext
         // already initialised in the prior context to avoid duplicating them.
         if (variableStore is null)
         {
-            context.InitializeParameters(input ?? new Dictionary<string, JsonElement>());
+            context.InitializeParameters(context.Input);
             context.InitializeSystemVariables();
         }
 
@@ -214,7 +216,7 @@ public sealed class RuntimeExecutionContext
                 LoopObjectId = loopObjectId,
                 ScopeKind = MicroflowVariableScopeKind.Loop,
                 Readonly = true,
-                AllowShadowing = true
+                AllowRedeclare = true
             });
         }
         VariableStore.Define(new MicroflowVariableDefinition
@@ -229,7 +231,7 @@ public sealed class RuntimeExecutionContext
             ScopeKind = MicroflowVariableScopeKind.Loop,
             Readonly = true,
             System = true,
-            AllowShadowing = true
+            AllowRedeclare = true
         });
         return new RuntimeScopeLease(lease, () =>
         {
@@ -267,7 +269,7 @@ public sealed class RuntimeExecutionContext
             ScopeKind = MicroflowVariableScopeKind.ErrorHandler,
             Readonly = true,
             System = true,
-            AllowShadowing = true
+            AllowRedeclare = true
         });
         if (latestHttpResponse.HasValue)
         {
@@ -285,7 +287,7 @@ public sealed class RuntimeExecutionContext
                 ScopeKind = MicroflowVariableScopeKind.ErrorHandler,
                 Readonly = true,
                 System = true,
-                AllowShadowing = true
+                AllowRedeclare = true
             });
         }
         if (latestSoapFault.HasValue)
@@ -304,7 +306,7 @@ public sealed class RuntimeExecutionContext
                 ScopeKind = MicroflowVariableScopeKind.ErrorHandler,
                 Readonly = true,
                 System = true,
-                AllowShadowing = true
+                AllowRedeclare = true
             });
         }
 

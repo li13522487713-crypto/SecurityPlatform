@@ -1909,6 +1909,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
     private static NodeExecution ExecuteDecision(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId)
     {
+        var outgoing = graph.NormalOutgoing(node.Id);
         var expression = ReadExpressionTextByPath(node.Raw, "splitCondition", "expression")
             ?? ReadExpressionTextByPath(node.Raw, "config", "expression")
             ?? ReadExpressionText(node.Raw, "expression");
@@ -1941,7 +1942,15 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             selected.Flow!.Id,
             "success",
             JsonObj(new { expression }),
-            JsonObj(new { expressionResult = selectedValue, selectedFlowId = selected.Flow.Id }),
+            JsonObj(new
+            {
+                expressionResult = selectedValue,
+                selectedFlowId = selected.Flow.Id,
+                skippedFlowIds = outgoing
+                    .Where(flow => !string.Equals(flow.Id, selected.Flow.Id, StringComparison.Ordinal))
+                    .Select(flow => flow.Id)
+                    .ToArray()
+            }),
             null,
             selected.CaseValue);
         return NodeExecution.Next(selected.Flow.DestinationObjectId!, selected.Flow.Id);
@@ -1983,7 +1992,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 return NodeExecution.Failed(error);
             }
 
-            return ContinueObjectType(context, node, incomingFlowId, emptyFlow.Value.Flow, emptyFlow.Value.CaseValue, actualEntity: null);
+            return ContinueObjectType(context, node, incomingFlowId, outgoing, emptyFlow.Value.Flow, emptyFlow.Value.CaseValue, actualEntity: null);
         }
 
         var actualEntity = ReadString(objectValue.Value, "entityType")
@@ -2012,7 +2021,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
 
                 if (IsEntityAssignable(actualEntity, token!, context.Metadata))
                 {
-                    return ContinueObjectType(context, node, incomingFlowId, flow, caseValue, actualEntity);
+                    return ContinueObjectType(context, node, incomingFlowId, outgoing, flow, caseValue, actualEntity);
                 }
             }
         }
@@ -2025,10 +2034,17 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             return NodeExecution.Failed(error);
         }
 
-        return ContinueObjectType(context, node, incomingFlowId, fallback.Value.Flow, fallback.Value.CaseValue, actualEntity);
+        return ContinueObjectType(context, node, incomingFlowId, outgoing, fallback.Value.Flow, fallback.Value.CaseValue, actualEntity);
     }
 
-    private static NodeExecution ContinueObjectType(RuntimeContext context, MicroflowObjectModel node, string? incomingFlowId, MicroflowFlowModel selectedFlow, JsonElement selectedCase, string? actualEntity)
+    private static NodeExecution ContinueObjectType(
+        RuntimeContext context,
+        MicroflowObjectModel node,
+        string? incomingFlowId,
+        IReadOnlyList<MicroflowFlowModel> outgoing,
+        MicroflowFlowModel selectedFlow,
+        JsonElement selectedCase,
+        string? actualEntity)
     {
         context.AddFrame(
             node,
@@ -2036,7 +2052,16 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             selectedFlow.Id,
             "success",
             JsonObj(new { actualEntity }),
-            JsonObj(new { actualEntity, selectedFlowId = selectedFlow.Id, selectedCase }),
+            JsonObj(new
+            {
+                actualEntity,
+                selectedFlowId = selectedFlow.Id,
+                selectedCase,
+                skippedFlowIds = outgoing
+                    .Where(flow => !string.Equals(flow.Id, selectedFlow.Id, StringComparison.Ordinal))
+                    .Select(flow => flow.Id)
+                    .ToArray()
+            }),
             null,
             selectedCase);
         return NodeExecution.Next(selectedFlow.DestinationObjectId!, selectedFlow.Id);
@@ -2821,6 +2846,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         private int _steps;
         private bool _sessionFinalized;
         private Dictionary<string, MicroflowRuntimeVariableValueDto>? _lastTraceVariablesSnapshot;
+        private readonly IMicroflowRuntimeWsEventStream? _runtimeWsEvents;
+        private bool _runCompletionPublished;
 
         public RuntimeContext(
             MicroflowExecutionRequest request,
@@ -2858,6 +2885,8 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             CallerActionId = callerActionId;
             _expressionVariableStore = variableStore ?? new MicroflowVariableStore();
             BranchId = branchId;
+            _runtimeWsEvents = request.RuntimeWsEventStream;
+            _runtimeWsEvents?.StartRun(runId, request.ResourceId, startedAt);
         }
 
         public MicroflowSchemaModel Model { get; }
@@ -3158,7 +3187,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 ValuePreview = Preview(value),
                 SourceKind = source,
                 ScopeKind = source == "parameter" ? MicroflowVariableScopeKind.Global : MicroflowVariableScopeKind.Action,
-                AllowShadowing = true
+                AllowRedeclare = true
             };
             if (_expressionVariableStore.Exists(name))
             {
@@ -3399,7 +3428,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             var outputVariables = VariablesToJson(currentVariables);
             var variableDelta = BuildVariableDelta(previousVariables, currentVariables);
             var transactionEffect = BuildTransactionEffect();
-            Frames.Add(new MicroflowTraceFrameDto
+            var frame = new MicroflowTraceFrameDto
             {
                 Id = Guid.NewGuid().ToString("N"),
                 RunId = RunId,
@@ -3433,7 +3462,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 Error = error,
                 VariablesSnapshot = currentVariables,
                 Message = message ?? objectTitle
-            });
+            };
+            Frames.Add(frame);
+            _runtimeWsEvents?.PublishFrame(frame);
             _lastTraceVariablesSnapshot = currentVariables;
             AsRuntimeExecutionContext().NodeResults[objectId] = new NodeExecutionResultSummary
             {
@@ -3671,7 +3702,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 };
             }
 
-            return new MicroflowRunSessionDto
+            var session = new MicroflowRunSessionDto
             {
                 Id = RunId,
                 SchemaId = _request.SchemaId,
@@ -3709,6 +3740,17 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 ChildRuns = ChildRuns,
                 ChildRunIds = ChildRuns.Select(child => child.Id).ToArray()
             };
+            if (!_runCompletionPublished)
+            {
+                _runtimeWsEvents?.CompleteRun(
+                    RunId,
+                    status,
+                    endedAt,
+                    session.Output,
+                    error);
+                _runCompletionPublished = true;
+            }
+            return session;
         }
 
         private void FinalizeCurrentCallFrame(string sessionStatus, MicroflowRuntimeErrorDto? error, DateTimeOffset endedAt)

@@ -16,6 +16,7 @@ import type {
 import type { MicroflowNodeUsageHighlights } from "../variables";
 import type { DebugLoopIteration } from "../stores/debug-store";
 import { deriveEdgeRuntimeStateByFlowId } from "./runtime-edge-state";
+import type { MicroflowRuntimeOverlayState, RuntimeNodeOverlay } from "../runtime/runtime-overlay";
 import { normalizeMicroflowDesignEdges } from "./flowgram-design-edge-semantics";
 import { getMendixMicroflowNodeSize } from "./flowgram-node-geometry";
 import type { WorkflowEdgeJSON, WorkflowJSON } from "@flowgram-adapter/free-layout-editor";
@@ -133,9 +134,6 @@ export function runtimeStateFromTraceStatus(status: MicroflowTraceFrame["status"
   if (!status) {
     return "idle";
   }
-  if (status === "paused") {
-    return "paused";
-  }
   if (status === "success") {
     return "success";
   }
@@ -158,6 +156,7 @@ export function decorateWorkflow(input: {
   schema: MicroflowDesignSchema;
   validationIssues: MicroflowValidationIssue[];
   runtimeTrace: MicroflowTraceFrame[];
+  runtimeOverlay?: MicroflowRuntimeOverlayState;
   loopIteration?: DebugLoopIteration;
   pausedNodeIds?: string[];
   nodeViewModes?: Record<string, MicroflowNodeViewMode>;
@@ -172,8 +171,12 @@ export function decorateWorkflow(input: {
       runtimeFrameByObjectId.set(frame.objectId, frame);
     }
   }
+  const runtimeOverlayByObjectId = new Map<string, RuntimeNodeOverlay>(Object.entries(input.runtimeOverlay?.nodeOverlays ?? {}).map(([key, value]) => [key, value]));
 
   const edgeRuntimeByFlowId = deriveEdgeRuntimeStateByFlowId(input.runtimeTrace);
+  for (const [flowId, overlay] of Object.entries(input.runtimeOverlay?.flowOverlays ?? {})) {
+    edgeRuntimeByFlowId.set(flowId, mapRuntimeFlowStatus(overlay.status));
+  }
 
   const nodes = (normalized.nodes ?? []) as MicroflowWorkflowNodeJSON[];
   const edges = (normalized.edges ?? []) as MicroflowWorkflowEdgeJSON[];
@@ -187,7 +190,9 @@ export function decorateWorkflow(input: {
     ...normalized,
     nodes: nodes.map(node => {
       const data = (node.data ?? {}) as unknown as FlowGramMicroflowNodeData;
-      const frame = runtimeFrameByObjectId.get(node.id) ?? runtimeFrameByObjectId.get(data.objectId);
+      const runtimeOverlay = runtimeOverlayByObjectId.get(node.id) ?? runtimeOverlayByObjectId.get(data.objectId);
+      const frame = runtimeFrameByObjectId.get(node.id)
+        ?? runtimeFrameByObjectId.get(data.objectId);
       const nodeIssues = input.validationIssues.filter(item => item.objectId === node.id || item.nodeId === node.id);
       const validationState: FlowGramMicroflowNodeData["validationState"] =
         nodeIssues.some(item => item.severity === "error")
@@ -197,13 +202,16 @@ export function decorateWorkflow(input: {
             : "valid";
       const runtimeState = pausedNodeIds.has(node.id) || pausedNodeIds.has(data.objectId)
         ? "paused"
-        : runtimeStateFromTraceStatus(frame?.status);
+        : runtimeOverlay
+          ? mapRuntimeNodeStatus(runtimeOverlay.status)
+          : runtimeStateFromTraceStatus(frame?.status);
       const viewMode = resolveNodeViewMode(node.id, data, input.nodeViewModes);
       const expanded = viewMode === "expanded" || viewMode === "editing" || viewMode === "inspectingError" || viewMode === "inspectingRuntime";
       const inlineConfig = deriveNodeInlineConfig({
         node,
         schema: input.schema,
         runtimeFrame: frame,
+        runtimeOverlay,
         issues: nodeIssues,
         viewMode,
       });
@@ -211,12 +219,20 @@ export function decorateWorkflow(input: {
       const hasNormalBreakpoint = breakpointNodeIds.has(node.id) || breakpointNodeIds.has(data.objectId);
       const hasBreakpoint = hasConditionalBreakpoint || hasNormalBreakpoint;
       const loopIteration = data.objectKind === "loopedActivity"
-        && input.loopIteration
-        && (input.loopIteration.nodeId === node.id || input.loopIteration.nodeId === data.objectId)
-        ? {
-            iterationIndex: input.loopIteration.iterationIndex,
-            totalIterations: input.loopIteration.totalIterations,
-          }
+        ? (
+          input.loopIteration
+            && (input.loopIteration.nodeId === node.id || input.loopIteration.nodeId === data.objectId)
+            ? {
+                iterationIndex: input.loopIteration.iterationIndex,
+                totalIterations: input.loopIteration.totalIterations,
+              }
+            : runtimeOverlay?.loopIteration
+              ? {
+                  iterationIndex: runtimeOverlay.loopIteration.index,
+                  totalIterations: runtimeOverlay.loopIteration.total,
+                }
+              : undefined
+        )
         : undefined;
       return {
         ...node,
@@ -229,8 +245,8 @@ export function decorateWorkflow(input: {
           validationState,
           issueCount: nodeIssues.length,
           runtimeState,
-          runtimeErrorCode: frame?.error?.code,
-          runtimeErrorMessage: frame?.error?.message,
+          runtimeErrorCode: frame?.error?.code ?? runtimeOverlay?.error?.code,
+          runtimeErrorMessage: frame?.error?.message ?? runtimeOverlay?.error?.message,
           hasBreakpoint,
           breakpointKind: hasConditionalBreakpoint ? "conditional" : hasNormalBreakpoint ? "normal" : undefined,
           loopIteration,
@@ -269,4 +285,23 @@ export function decorateWorkflow(input: {
       };
     }) as WorkflowJSON["edges"],
   };
+}
+
+function mapRuntimeNodeStatus(status: RuntimeNodeOverlay["status"]): FlowGramMicroflowNodeData["runtimeState"] {
+  if (status === "succeeded") return "success";
+  if (status === "failed") return "failed";
+  if (status === "running" || status === "queued") return "running";
+  if (status === "paused") return "paused";
+  if (status === "skipped") return "skipped";
+  return "idle";
+}
+
+function mapRuntimeFlowStatus(status: string): FlowGramMicroflowEdgeData["runtimeState"] {
+  if (status === "selectedCase") return "selectedCase";
+  if (status === "skipped") return "skipped";
+  if (status === "failed") return "failed";
+  if (status === "errorHandlerVisited") return "errorHandlerVisited";
+  if (status === "running") return "running";
+  if (status === "visited") return "visited";
+  return "idle";
 }

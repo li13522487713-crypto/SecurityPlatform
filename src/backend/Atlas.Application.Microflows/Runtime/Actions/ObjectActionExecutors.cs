@@ -563,7 +563,7 @@ public sealed class CastObjectActionExecutor : IMicroflowActionExecutor
             SourceActionId = context.ActionId,
             ScopeKind = MicroflowVariableScopeKind.Action,
             Value = value,
-            AllowShadowing = true
+            AllowRedeclare = true
         });
     }
 

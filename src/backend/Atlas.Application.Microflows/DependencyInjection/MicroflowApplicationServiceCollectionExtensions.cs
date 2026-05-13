@@ -38,6 +38,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowReferenceIndexer, MicroflowReferenceIndexer>();
         services.TryAddScoped<IMicroflowReferenceService, MicroflowReferenceService>();
         services.TryAddSingleton<IMicroflowDebugCoordinator, MicroflowDebugCoordinator>();
+        services.TryAddSingleton<IMicroflowRuntimeWsEventStream, InMemoryMicroflowRuntimeWsEventStream>();
         services.TryAddScoped<IMicroflowRuntimeEngine>(sp => new MicroflowRuntimeEngine(
             sp.GetRequiredService<IMicroflowSchemaReader>(),
             sp.GetRequiredService<IMicroflowClock>(),

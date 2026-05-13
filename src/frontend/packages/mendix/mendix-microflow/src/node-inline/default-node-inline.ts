@@ -8,6 +8,7 @@ import type {
   MicroflowValidationIssue,
   MicroflowWorkflowNodeJSON,
 } from "../schema/types";
+import type { RuntimeNodeOverlay } from "../runtime/runtime-overlay";
 import { deriveRuntimeInlineState } from "./inline-runtime";
 import { nodeIssues } from "./inline-validation";
 
@@ -15,13 +16,14 @@ export interface DeriveNodeInlineInput {
   node: MicroflowWorkflowNodeJSON;
   schema: MicroflowDesignSchema;
   runtimeFrame?: MicroflowTraceFrame;
+  runtimeOverlay?: RuntimeNodeOverlay;
   issues?: MicroflowValidationIssue[];
   viewMode?: MicroflowNodeViewMode;
 }
 
 export function createDefaultInlineConfig(input: DeriveNodeInlineInput): MicroflowNodeInlineConfig {
   const localIssues = nodeIssues(input.issues, input.node.id);
-  const runtime = deriveRuntimeInlineState(input.runtimeFrame, input.issues, input.node.id);
+  const runtime = deriveRuntimeInlineState(input.runtimeFrame, input.runtimeOverlay, input.issues, input.node.id);
   return {
     viewMode: input.viewMode ?? "compact",
     summaryLines: [{

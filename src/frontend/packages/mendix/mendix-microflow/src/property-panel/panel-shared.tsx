@@ -7,7 +7,7 @@ import { defaultMicroflowActionRegistry, defaultMicroflowEdgeRegistry, defaultMi
 import { findObjectWithCollection } from "../schema/utils/object-utils";
 import { FieldError } from "./common";
 import type { MicroflowEdgePatch, MicroflowPropertyPanelProps } from "./types";
-import { getIssuesForField } from "./utils";
+import { getIssuesForField, getIssuesForFlow, getIssuesForObject } from "./utils";
 
 const { Text, Title } = Typography;
 

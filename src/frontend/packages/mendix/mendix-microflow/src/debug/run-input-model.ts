@@ -4,8 +4,22 @@ import type { MicroflowTestRunOptions } from "./trace-types";
 
 export type MicroflowRunInputControlKind = "text" | "number" | "boolean" | "dateTime" | "json" | "readonly";
 
+export interface MicroflowRunInputSource {
+  id: string;
+  name: string;
+  displayName?: string;
+  dataType: MicroflowDataType;
+  required: boolean;
+  documentation?: string;
+  defaultExpressionRaw?: string;
+  exampleValue?: unknown;
+  testDefaultValue?: unknown;
+  sourceKind: "parameter" | "variable";
+  sourceObjectId?: string;
+}
+
 export interface MicroflowRunInputField {
-  parameter: MicroflowParameter;
+  source: MicroflowRunInputSource;
   controlKind: MicroflowRunInputControlKind;
   typeLabel: string;
   defaultValue: unknown;
@@ -63,22 +77,44 @@ export function buildRunInputModel(schema: MicroflowSchema | MicroflowDesignSche
     warnings.push("schema-level parameters and Parameter nodes differ; schema-level parameters are used.");
   }
 
+  const runInputVariables = "objectCollection" in schema && schema.objectCollection
+    ? collectRunInputVariableSources(schema.objectCollection)
+    : [];
+  if (runInputVariables.length > 0) {
+    warnings.push(`runInput variable nodes enabled: ${runInputVariables.length}`);
+  }
+
+  const sources: MicroflowRunInputSource[] = [
+    ...parameters.map(parameter => ({
+      id: parameter.id,
+      name: parameter.name,
+      displayName: undefined,
+      dataType: parameter.dataType,
+      required: parameter.required,
+      documentation: parameter.documentation ?? parameter.description,
+      defaultExpressionRaw: parameter.defaultValue?.raw,
+      exampleValue: parameter.exampleValue,
+      sourceKind: "parameter" as const,
+    })),
+    ...runInputVariables,
+  ];
+
   return {
     microflowId: schema.id,
     schemaVersion: schema.schemaVersion,
-    fields: parameters.map(parameter => ({
-      parameter,
-      controlKind: controlKindForDataType(parameter.dataType),
-      typeLabel: dataTypeLabel(parameter.dataType),
-      defaultValue: defaultRunInputValue(parameter),
-      warning: warningForDataType(parameter.dataType),
+    fields: sources.map(source => ({
+      source,
+      controlKind: controlKindForDataType(source.dataType),
+      typeLabel: dataTypeLabel(source.dataType),
+      defaultValue: defaultRunInputValue(source),
+      warning: warningForDataType(source.dataType),
     })),
     warnings,
   };
 }
 
 export function buildDefaultRunInputValues(model: MicroflowRunInputModel): Record<string, unknown> {
-  return Object.fromEntries(model.fields.map(field => [field.parameter.name, field.defaultValue]));
+  return Object.fromEntries(model.fields.map(field => [field.source.name, field.defaultValue]));
 }
 
 export function validateRunInputs(model: MicroflowRunInputModel, values: Record<string, unknown>): MicroflowRunInputValidationResult {
@@ -86,16 +122,16 @@ export function validateRunInputs(model: MicroflowRunInputModel, values: Record<
   const coercedValues: Record<string, unknown> = {};
 
   for (const field of model.fields) {
-    const name = field.parameter.name;
+    const name = field.source.name;
     const rawValue = values[name];
-    if (field.parameter.required && isEmptyRunInputValue(rawValue)) {
+    if (field.source.required && isEmptyRunInputValue(rawValue)) {
       errors[name] = "必填参数不能为空";
       continue;
     }
-    if (!field.parameter.required && isEmptyRunInputValue(rawValue)) {
+    if (!field.source.required && isEmptyRunInputValue(rawValue)) {
       continue;
     }
-    const coerced = coerceRunInputValue(rawValue, field.parameter.dataType);
+    const coerced = coerceRunInputValue(rawValue, field.source.dataType);
     if (coerced.error) {
       errors[name] = coerced.error;
       continue;
@@ -153,6 +189,7 @@ export function buildRunRequest(
   options?: MicroflowTestRunOptions,
   includeDraftSchema = false,
   debugSessionId?: string,
+  correlationId?: string,
 ): TestRunMicroflowRequest {
   return {
     microflowId: schema.id,
@@ -162,7 +199,7 @@ export function buildRunRequest(
     version: undefined,
     debug: true,
     debugSessionId,
-    correlationId: `mf-run-${schema.id}-${Date.now()}`,
+    correlationId: correlationId ?? `mf-run-${schema.id}-${Date.now()}`,
     options,
   };
 }
@@ -211,16 +248,20 @@ function controlKindForDataType(dataType: MicroflowDataType): MicroflowRunInputC
   return "text";
 }
 
-function defaultRunInputValue(parameter: MicroflowParameter): unknown {
-  if (parameter.exampleValue !== undefined) {
-    return coerceRunInputValue(parameter.exampleValue, parameter.dataType).value ?? parameter.exampleValue;
+function defaultRunInputValue(source: MicroflowRunInputSource): unknown {
+  if (source.testDefaultValue !== undefined) {
+    const value = source.testDefaultValue;
+    return coerceRunInputValue(value, source.dataType).value ?? value;
   }
-  if (parameter.defaultValue?.raw !== undefined) {
-    return expressionDefaultValue(parameter.defaultValue.raw, parameter.dataType);
+  if (source.exampleValue !== undefined) {
+    return coerceRunInputValue(source.exampleValue, source.dataType).value ?? source.exampleValue;
   }
-  if (parameter.dataType.kind === "boolean") return false;
-  if (parameter.dataType.kind === "object" || parameter.dataType.kind === "json" || parameter.dataType.kind === "unknown") return "{}";
-  if (parameter.dataType.kind === "list") return "[]";
+  if (source.defaultExpressionRaw !== undefined) {
+    return expressionDefaultValue(source.defaultExpressionRaw, source.dataType);
+  }
+  if (source.dataType.kind === "boolean") return false;
+  if (source.dataType.kind === "object" || source.dataType.kind === "json" || source.dataType.kind === "unknown") return "{}";
+  if (source.dataType.kind === "list") return "[]";
   return "";
 }
 
@@ -277,6 +318,33 @@ function collectParameterObjects(collection?: MicroflowObjectCollection): Array<
   for (const object of collection.objects) {
     if (object.kind === "parameterObject") result.push(object);
     if (object.kind === "loopedActivity") result.push(...collectParameterObjects(object.objectCollection));
+  }
+  return result;
+}
+
+function collectRunInputVariableSources(collection?: MicroflowObjectCollection): MicroflowRunInputSource[] {
+  const result: MicroflowRunInputSource[] = [];
+  if (!collection || !Array.isArray(collection.objects)) {
+    return result;
+  }
+  for (const object of collection.objects) {
+    if (object.kind === "actionActivity" && object.action.kind === "createVariable" && object.action.runInput) {
+      const runInputKey = object.action.runInputKey?.trim() || object.action.variableName;
+      result.push({
+        id: object.action.id,
+        name: runInputKey,
+        displayName: object.action.runInputDisplayName?.trim() || undefined,
+        dataType: object.action.dataType,
+        required: Boolean(object.action.runInputRequired),
+        documentation: object.action.runInputDescription,
+        sourceKind: "variable",
+        sourceObjectId: object.id,
+        testDefaultValue: object.action.testDefaultValue,
+      });
+    }
+    if (object.kind === "loopedActivity") {
+      result.push(...collectRunInputVariableSources(object.objectCollection));
+    }
   }
   return result;
 }

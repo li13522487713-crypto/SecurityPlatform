@@ -168,7 +168,7 @@ public abstract class ListActionExecutorBase : IMicroflowActionExecutor
         JsonElement value,
         JsonElement dataType,
         string sourceKind,
-        bool allowShadowing = true)
+        bool allowRedeclare = true)
     {
         var rawValueJson = value.GetRawText();
         var dataTypeJson = dataType.GetRawText();
@@ -200,7 +200,7 @@ public abstract class ListActionExecutorBase : IMicroflowActionExecutor
             SourceObjectId = context.ObjectId,
             SourceActionId = context.ActionId,
             ScopeKind = MicroflowVariableScopeKind.Action,
-            AllowShadowing = allowShadowing,
+            AllowRedeclare = allowRedeclare,
             Value = variable
         });
     }

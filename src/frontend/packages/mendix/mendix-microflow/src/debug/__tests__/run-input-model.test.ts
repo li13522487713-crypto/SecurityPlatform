@@ -33,7 +33,7 @@ describe("Microflow Stage 21 run input model", () => {
   it("builds fields from schema-level parameters", () => {
     const model = buildRunInputModel(schemaWithParameters());
 
-    expect(model.fields.map(field => field.parameter.name)).toEqual(["amount", "userName", "approved", "tags"]);
+    expect(model.fields.map(field => field.source.name)).toEqual(["amount", "userName", "approved", "tags"]);
     expect(model.fields.map(field => field.controlKind)).toEqual(["number", "text", "boolean", "json"]);
   });
 

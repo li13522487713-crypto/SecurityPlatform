@@ -89,5 +89,7 @@ public sealed record MicroflowExecutionRequest
     public string TransactionBoundary { get; init; } = MicroflowCallTransactionBoundary.Inherit;
 
     public int MaxCallDepth { get; init; } = 10;
+
+    public IMicroflowRuntimeWsEventStream? RuntimeWsEventStream { get; init; }
 }
 

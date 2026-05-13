@@ -28,11 +28,30 @@ public sealed class CreateVariableActionExecutor : IMicroflowActionExecutor
         var dataTypeJson = context.ActionConfig.TryGetProperty("dataType", out var dataType)
             ? dataType.GetRawText()
             : JsonSerializer.Serialize(new { kind = "unknown" }, JsonOptions);
+        var runInputEnabled = ReadBool(context.ActionConfig, "runInput")
+            || ReadBool(ReadObject(context.ActionConfig, "runtimeInput"), "enabled");
+        var runInputKey = ReadString(context.ActionConfig, "runInputKey")
+            ?? ReadString(context.ActionConfig, "runInputName")
+            ?? variableName;
+        var runInputRequired = ReadBool(context.ActionConfig, "runInputRequired")
+            || ReadBool(ReadObject(context.ActionConfig, "runtimeInput"), "required");
+        var runInputValue = default(JsonElement);
+        var hasRunInputValue = false;
+        if (runInputEnabled && !string.IsNullOrWhiteSpace(runInputKey))
+        {
+            hasRunInputValue = context.RuntimeExecutionContext.Input.TryGetValue(runInputKey!, out runInputValue);
+        }
         var expression = ReadExpressionText(context.ActionConfig, "initialValue")
             ?? ReadExpressionText(context.ActionConfig, "initialValueExpression");
-        var rawValueJson = string.IsNullOrWhiteSpace(expression)
-            ? "null"
-            : EvaluateExpression(context, expression!);
+        if (runInputEnabled && !hasRunInputValue && runInputRequired)
+        {
+            return Task.FromResult(Failed(started, RuntimeErrorCode.RuntimeValidationBlocked, $"Run input '{runInputKey}' is required."));
+        }
+        var rawValueJson = hasRunInputValue
+            ? runInputValue.GetRawText()
+            : string.IsNullOrWhiteSpace(expression)
+                ? "null"
+                : EvaluateExpression(context, expression!);
         var value = MicroflowVariableStore.ToJsonElement(rawValueJson) ?? JsonSerializer.SerializeToElement<object?>(null, JsonOptions);
 
         context.VariableStore.Define(new MicroflowVariableDefinition
@@ -126,6 +145,18 @@ public sealed class CreateVariableActionExecutor : IMicroflowActionExecutor
             && value.ValueKind == JsonValueKind.String
                 ? value.GetString()
                 : null;
+
+    internal static bool ReadBool(JsonElement element, string propertyName)
+        => element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty(propertyName, out var value)
+            && value.ValueKind == JsonValueKind.True;
+
+    internal static JsonElement ReadObject(JsonElement element, string propertyName)
+        => element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty(propertyName, out var value)
+            && value.ValueKind == JsonValueKind.Object
+                ? value
+                : default;
 
     internal static string? ReadExpressionText(JsonElement element, string propertyName)
     {

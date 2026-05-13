@@ -183,8 +183,14 @@ export interface MicroflowNodeRuntimeInlineState {
   inputCount?: number;
   outputCount?: number;
   selectedBranchLabel?: string;
+  decisionExpression?: string;
+  decisionEvaluatedValue?: string;
   inputPreview?: string;
   outputPreview?: string;
+  deltaPreview?: string;
+  loopIterationLabel?: string;
+  gatewayProgressLabel?: string;
+  gatewayMergeLabel?: string;
   outputSummaries?: string[];
   inputGroup?: MicroflowRuntimeValueGroup;
   outputGroup?: MicroflowRuntimeValueGroup;

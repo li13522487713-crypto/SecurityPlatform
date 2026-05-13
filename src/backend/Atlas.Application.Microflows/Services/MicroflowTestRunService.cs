@@ -32,6 +32,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private readonly IMicroflowRunCancellationRegistry _cancellationRegistry;
     private readonly IMicroflowRunOwnershipGuard _ownershipGuard;
     private readonly IDebugSessionStore _debugSessions;
+    private readonly IMicroflowRuntimeWsEventStream _runtimeWsEvents;
 
     public MicroflowTestRunService(
         IMicroflowResourceRepository resourceRepository,
@@ -47,7 +48,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         IMicroflowClock clock,
         IMicroflowRunCancellationRegistry cancellationRegistry,
         IMicroflowRunOwnershipGuard ownershipGuard,
-        IDebugSessionStore debugSessions)
+        IDebugSessionStore debugSessions,
+        IMicroflowRuntimeWsEventStream runtimeWsEvents)
     {
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
@@ -63,6 +65,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         _cancellationRegistry = cancellationRegistry;
         _ownershipGuard = ownershipGuard;
         _debugSessions = debugSessions;
+        _runtimeWsEvents = runtimeWsEvents;
     }
 
     public async Task<TestRunMicroflowApiResponse> TestRunAsync(
@@ -119,9 +122,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         // P0-6: 注册 cancellation handle 与全局 RunTimeoutSeconds 联动；
         // 同一 traceId/runId 既写入 trace context 也作为 registry key，
         // 这样 CancelAsync(runId) 可以真正中断正在跑的引擎主循环。
-        var runId = !string.IsNullOrWhiteSpace(_requestContextAccessor.Current.TraceId)
-            ? _requestContextAccessor.Current.TraceId
-            : Guid.NewGuid().ToString("N");
+        var runId = ResolveRunId(request.CorrelationId, _requestContextAccessor.Current.TraceId);
         var runTimeoutSeconds = ResolveRunTimeoutSeconds();
         using var registryCts = _cancellationRegistry.Register(runId, cancellationToken);
         if (runTimeoutSeconds > 0)
@@ -147,7 +148,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                     RequestContext = _requestContextAccessor.Current with { TraceId = runId },
                     CorrelationId = request.CorrelationId,
                     DebugSessionId = request.DebugSessionId,
-                    MaxCallDepth = 10
+                    MaxCallDepth = 10,
+                    RuntimeWsEventStream = _runtimeWsEvents
                 },
                 registryCts.Token);
         }
@@ -994,6 +996,21 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             var value when string.Equals(value, MicroflowRuntimeExecutionMode.PreviewRun, StringComparison.OrdinalIgnoreCase) => MicroflowRuntimeExecutionMode.PreviewRun,
             _ => MicroflowRuntimeExecutionMode.TestRun
         };
+
+    private static string ResolveRunId(string? correlationId, string? requestTraceId)
+    {
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            return correlationId.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(requestTraceId))
+        {
+            return requestTraceId.Trim();
+        }
+
+        return Guid.NewGuid().ToString("N");
+    }
 
     private static SessionExtra ReadSessionExtra(string? json)
     {
