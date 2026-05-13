@@ -2240,7 +2240,9 @@ function MicroflowMultiSelectBar(props: {
   const objectCount = [...new Set([...(selection.objectIds ?? []), selection.objectId].filter(Boolean))].length;
   const flowCount = [...new Set([...(selection.flowIds ?? []), selection.flowId].filter(Boolean))].length;
   const total = objectCount + flowCount;
-  if (total < 2) {
+  /** 单节点有画布浮动工具栏；仅选中一条连线时与 Delete 键对齐，提供可见删除入口 */
+  const showEdgeOnlySingleSelectBar = objectCount === 0 && flowCount === 1;
+  if (total < 2 && !showEdgeOnlySingleSelectBar) {
     return null;
   }
   const label = objectCount > 0 && flowCount > 0

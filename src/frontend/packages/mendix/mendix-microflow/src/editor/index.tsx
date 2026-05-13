@@ -5162,81 +5162,31 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     if (props.readonly || !canvasNodeContextMenu) {
       return;
     }
+    if (running && !isDebugPaused) {
+      Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再删除。");
+      return;
+    }
     const currentSchema = latestSchemaRef.current;
-    const objectIds = canvasNodeContextMenu.objectId ? [canvasNodeContextMenu.objectId] : [];
-    const flowIds = canvasNodeContextMenu.flowId ? [canvasNodeContextMenu.flowId] : [];
-    if (objectIds.length === 0 && flowIds.length === 0) {
+    const rawObjectIds = canvasNodeContextMenu.objectId ? [canvasNodeContextMenu.objectId] : [];
+    const rawFlowIds = canvasNodeContextMenu.flowId ? [canvasNodeContextMenu.flowId] : [];
+    if (rawObjectIds.length === 0 && rawFlowIds.length === 0) {
       return;
     }
-    if (objectIds.length === 1 && flowIds.length === 0) {
-      const objectId = objectIds[0];
-      if (isDesignSchema(currentSchema)) {
-        commitSchema(
-          deleteDesignSelection(currentSchema, objectIds, flowIds) as unknown as MicroflowSchema,
-          "flowgramNodeDelete",
-          { historyLabel: "Delete selection", source: "flowgram" },
-        );
-      } else {
-        const located = findObjectWithCollection(currentSchema, objectId);
-        if (!located) {
-          setCanvasNodeContextMenu(undefined);
-          return;
-        }
-        commitSchema(
-          deleteObject(currentSchema, objectId),
-          located.parentLoopObjectId ? "deleteLoopNode" : "deleteNode",
-          { source: "flowgram" },
-        );
-      }
-      Toast.info({ content: "已删除节点，可按 Ctrl+Z 撤销", duration: 4 });
-      setCanvasNodeContextMenu(undefined);
-      return;
+    const deletableObjectIds = isDesignSchema(currentSchema)
+      ? rawObjectIds.filter(id => !isDesignStartNode(currentSchema.workflow.nodes.find(node => node.id === id)))
+      : rawObjectIds.filter(id => findObject(currentSchema, id)?.kind !== "startEvent");
+    if (deletableObjectIds.length < rawObjectIds.length) {
+      Toast.warning("Start Event 不能删除。");
     }
-    if (flowIds.length === 1 && objectIds.length === 0) {
-      const flowId = flowIds[0];
-      if (isDesignSchema(currentSchema)) {
-        commitSchema(
-          deleteDesignSelection(currentSchema, objectIds, flowIds) as unknown as MicroflowSchema,
-          "flowgramLineDelete",
-          { historyLabel: "Delete selection", source: "flowgram" },
-        );
-      } else {
-        const located = findFlowWithCollection(currentSchema, flowId);
-        if (!located) {
-          setCanvasNodeContextMenu(undefined);
-          return;
-        }
-        commitSchema(
-          deleteFlow(currentSchema, flowId),
-          located.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow",
-          { source: "flowgram" },
-        );
-      }
-      Toast.info({ content: "已删除连线，可按 Ctrl+Z 撤销", duration: 4 });
+    if (deletableObjectIds.length === 0 && rawFlowIds.length === 0) {
       setCanvasNodeContextMenu(undefined);
       return;
     }
     if (isDesignSchema(currentSchema)) {
-      const selectedObjectCount = objectIds.length;
-      const selectedFlowCount = flowIds.length;
-      Modal.confirm({
-        title: "删除前影响确认",
-        okText: "确认删除",
-        okButtonProps: { type: "danger" },
-        cancelText: "取消",
-        content: `将删除节点 ${selectedObjectCount} 个、连线 ${selectedFlowCount} 条。`,
-        onOk: () => {
-          commitSchema(
-            deleteDesignSelection(currentSchema, objectIds, flowIds) as unknown as MicroflowSchema,
-            selectedObjectCount > 0 ? "flowgramNodeDelete" : "flowgramNodeDelete",
-            { historyLabel: "Delete selection", source: "flowgram" },
-          );
-        },
-      });
-      setCanvasNodeContextMenu(undefined);
-      return;
+      confirmDeleteTargetsInDesign(deletableObjectIds, rawFlowIds);
+    } else {
+      confirmDeleteTargets(deletableObjectIds, rawFlowIds, "flowgram");
     }
-    confirmDeleteTargets(objectIds, flowIds, "flowgram");
     setCanvasNodeContextMenu(undefined);
   };
 
@@ -5639,6 +5589,10 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const handleDeleteSelection = () => {
     if (props.readonly) {
+      return;
+    }
+    if (running && !isDebugPaused) {
+      Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再删除。");
       return;
     }
     const selection = schema.editor.selection;
@@ -7303,6 +7257,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                 boxShadow: "0 8px 24px rgba(31, 35, 41, 0.14)"
               }}
               onClick={event => event.stopPropagation()}
+              onPointerDown={event => event.stopPropagation()}
+              onMouseDown={event => event.stopPropagation()}
               onContextMenu={event => event.preventDefault()}
             >
               {hasNode ? (
@@ -7470,6 +7426,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
               boxShadow: "0 8px 24px rgba(31, 35, 41, 0.14)"
             }}
             onClick={event => event.stopPropagation()}
+            onPointerDown={event => event.stopPropagation()}
+            onMouseDown={event => event.stopPropagation()}
             onContextMenu={event => event.preventDefault()}
           >
             <Button
@@ -7645,6 +7603,20 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     commitSchema(nextSchema, reason, { source: "propertyPanel" });
                     emitPanelSyncEvent({ type: "property-edit" });
                   }}
+                  onDeleteObject={objectId => {
+                    if (running && !isDebugPaused) {
+                      Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再删除。");
+                      return;
+                    }
+                    confirmDeleteTargetsInDesign([objectId], []);
+                  }}
+                  onDeleteFlow={flowId => {
+                    if (running && !isDebugPaused) {
+                      Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再删除。");
+                      return;
+                    }
+                    confirmDeleteTargetsInDesign([], [flowId]);
+                  }}
                   onClose={() => {
                     applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true });
                     closePropertiesPanel();
@@ -7707,9 +7679,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                     commitSchema(duplicateObject(schema, objectId), located?.parentLoopObjectId ? "addLoopNode" : "addNode", { source: "propertyPanel" });
                   }}
                   onDeleteObject={objectId => {
+                    if (running && !isDebugPaused) {
+                      Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再删除。");
+                      return;
+                    }
                     confirmDeleteTargets([objectId], [], "propertyPanel");
                   }}
                   onDeleteFlow={flowId => {
+                    if (running && !isDebugPaused) {
+                      Toast.warning("运行中仅支持在暂停点修改。请先 Pause/断点暂停后再删除。");
+                      return;
+                    }
                     confirmDeleteTargets([], [flowId], "propertyPanel");
                   }}
                   onClose={() => {

@@ -107,12 +107,12 @@ function DesignMicroflowPropertyPanel(props: MicroflowDesignPropertyPanelProps) 
     onDuplicateObject: (objectId: string) => {
       props.onSchemaChange?.(duplicateDesignObject(props.schema, objectId), "duplicateNode");
     },
-    onDeleteObject: (objectId: string) => {
+    onDeleteObject: props.onDeleteObject ?? ((objectId: string) => {
       props.onSchemaChange?.(deleteDesignObject(props.schema, objectId), "deleteNode");
-    },
-    onDeleteFlow: (flowId: string) => {
+    }),
+    onDeleteFlow: props.onDeleteFlow ?? ((flowId: string) => {
       props.onSchemaChange?.(deleteDesignFlow(props.schema, flowId), "deleteFlow");
-    },
+    }),
   };
   return <AuthoringMicroflowPropertyPanel {...authoringProps} />;
 }

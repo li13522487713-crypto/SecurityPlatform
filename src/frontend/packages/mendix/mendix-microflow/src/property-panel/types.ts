@@ -60,6 +60,10 @@ export interface MicroflowDesignPropertyPanelProps {
   onClose: () => void;
   onLocateObject?: (objectId: string) => void;
   onHighlightVariableUsage?: (variableName?: string) => void;
+  /** 若提供则替代内置 deleteDesignObject（可与画布 Delete / confirmDeleteTargetsInDesign 对齐） */
+  onDeleteObject?: (objectId: string) => void;
+  /** 若提供则替代内置 deleteDesignFlow */
+  onDeleteFlow?: (flowId: string) => void;
 }
 
 export type MicroflowPropertyPanelRuntimeProps = MicroflowPropertyPanelProps | MicroflowDesignPropertyPanelProps;
