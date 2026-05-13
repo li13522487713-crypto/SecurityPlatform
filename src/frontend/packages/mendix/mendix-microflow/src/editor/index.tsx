@@ -3631,6 +3631,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
       targetPortKind: targetPort.kind,
       targetConnectionIndex: targetPort.connectionIndex,
       mode: "reconnect",
+      excludeFlowId: input.flowId,
     }, sourcePort, targetPort);
     if (!result.allowed) {
       return { allowed: false, message: result.message ?? "无法连接到目标端口。" };

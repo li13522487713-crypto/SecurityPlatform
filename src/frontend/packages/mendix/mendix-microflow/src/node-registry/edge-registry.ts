@@ -36,6 +36,8 @@ export interface MicroflowCanConnectPortsInput {
   targetConnectionIndex: number;
   targetCollectionId?: string;
   mode: "create" | "reconnect" | "validate";
+  /** 重连时排除自身，避免把当前边误计入占用检测 */
+  excludeFlowId?: string;
 }
 
 export interface MicroflowPortConnection {
@@ -269,12 +271,20 @@ function supportsErrorFlow(object: MicroflowObject): boolean {
   return ["actionActivity", "loopedActivity", "exclusiveSplit", "inheritanceSplit"].includes(object.kind);
 }
 
-function hasIncoming(schema: MicroflowSchema, port: MicroflowEditorPort): boolean {
-  return collectFlowsRecursive(schema).some(flow => flow.destinationObjectId === port.objectId && (flow.destinationConnectionIndex ?? 0) === port.connectionIndex);
+function hasIncoming(schema: MicroflowSchema, port: MicroflowEditorPort, excludeFlowId?: string): boolean {
+  return collectFlowsRecursive(schema).some(flow =>
+    flow.destinationObjectId === port.objectId &&
+    (flow.destinationConnectionIndex ?? 0) === port.connectionIndex &&
+    (!excludeFlowId || flow.id !== excludeFlowId)
+  );
 }
 
-function hasOutgoing(schema: MicroflowSchema, port: MicroflowEditorPort): boolean {
-  return collectFlowsRecursive(schema).some(flow => flow.originObjectId === port.objectId && (flow.originConnectionIndex ?? 0) === port.connectionIndex);
+function hasOutgoing(schema: MicroflowSchema, port: MicroflowEditorPort, excludeFlowId?: string): boolean {
+  return collectFlowsRecursive(schema).some(flow =>
+    flow.originObjectId === port.objectId &&
+    (flow.originConnectionIndex ?? 0) === port.connectionIndex &&
+    (!excludeFlowId || flow.id !== excludeFlowId)
+  );
 }
 
 function hasErrorHandlerFlow(schema: MicroflowSchema, sourceObjectId: string): boolean {
@@ -422,10 +432,10 @@ export function canConnectPortsV2(input: MicroflowCanConnectPortsInput, sourcePo
   if (edgeKind === "objectTypeCondition" && source.kind !== "inheritanceSplit") {
     return fail("MF_CONNECT_OBJECT_TYPE_SOURCE", "Object type condition flow must start from InheritanceSplit.", edgeKind);
   }
-  if (sourcePort.cardinality === "one" && hasOutgoing(schema, sourcePort)) {
+  if (sourcePort.cardinality === "one" && hasOutgoing(schema, sourcePort, input.excludeFlowId)) {
     return fail("MF_CONNECT_SOURCE_CARDINALITY", "Source port already has an outgoing flow.", edgeKind);
   }
-  if (targetPort.cardinality === "one" && hasIncoming(schema, targetPort)) {
+  if (targetPort.cardinality === "one" && hasIncoming(schema, targetPort, input.excludeFlowId)) {
     return fail("MF_CONNECT_TARGET_CARDINALITY", "Target port already has an incoming flow.", edgeKind);
   }
   if (edgeKind === "decisionCondition" && source.kind === "exclusiveSplit") {

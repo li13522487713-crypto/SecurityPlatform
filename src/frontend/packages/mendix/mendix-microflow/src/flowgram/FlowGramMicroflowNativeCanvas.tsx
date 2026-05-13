@@ -72,7 +72,7 @@ import { getMendixMicroflowDropOffset, getMendixMicroflowNodeSize } from "./flow
 import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 import { MICROFLOW_GRID_SIZE, clientPointToFlowGramPoint, logicalToContainer, snapMicroflowPoint } from "./adapters/flowgram-coordinate";
 import { stripTransientWorkflowState } from "./transient-workflow-state";
-import { MicroflowEdgeDataContext } from "./FlowGramMicroflowTypes";
+import { MicroflowEdgeDataContext, MicroflowSelectedFlowIdContext } from "./FlowGramMicroflowTypes";
 import { forceOrthogonalLineKind } from "./FlowGramMicroflowTypes";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowNodeData, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import type { MicroflowNodeViewMode } from "./FlowGramMicroflowTypes";
@@ -168,6 +168,11 @@ export interface FlowGramMicroflowNativeCanvasProps {
   onStopRun?: () => void;
   isRunning?: boolean;
   onNavigateToIssue?: (objectId: string) => void;
+}
+
+interface FlowGramMicroflowNativeCanvasInnerProps extends FlowGramMicroflowNativeCanvasProps {
+  /** 由外层组件传入的持久化 ref，跨 structureKey remount 保持 viewport 初始化状态 */
+  viewportInitializedRef?: React.MutableRefObject<boolean>;
 }
 
 type DisposableLineSnapshot = {
@@ -814,7 +819,7 @@ function FlowGramMicroflowNativeMiniMap(props: { schema: MicroflowDesignSchema; 
   );
 }
 
-function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvasProps) {
+function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvasInnerProps) {
   const playground = usePlayground();
   const showBuiltInToolbar = props.showBuiltInToolbar ?? false;
   const playgroundRef = useRef(playground);
@@ -830,7 +835,9 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   const reloadingRef = useRef(false);
   const draggingRef = useRef(false);
   const lastWorkflowSignatureRef = useRef<string>();
-  const initialViewportFitDoneRef = useRef(false);
+  const localViewportInitRef = useRef(false);
+  // 优先使用外层组件传入的持久化 ref，避免 structureKey remount 后 viewport 重置
+  const initialViewportFitDoneRef = props.viewportInitializedRef ?? localViewportInitRef;
   const [dropActive, setDropActive] = useState(false);
   const [dropPreview, setDropPreview] = useState<{
     position: MicroflowPoint;
@@ -984,6 +991,25 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     };
   }, [hoveredFlowId, reconnectState]);
 
+  // 将选中连线的 is-selected CSS 类同步到 .gedit-flow-activity-edge DOM 元素
+  const selectedFlowId = props.schema.editor.selection?.flowId;
+  useEffect(() => {
+    const canvas = containerRef.current;
+    if (!canvas) {
+      return;
+    }
+    const edgeElements = canvas.querySelectorAll<HTMLElement>(".gedit-flow-activity-edge");
+    edgeElements.forEach(edgeElement => {
+      const flowId = edgeElement.getAttribute("data-flow-id");
+      edgeElement.classList.toggle("is-selected", Boolean(flowId && selectedFlowId && flowId === selectedFlowId));
+    });
+    return () => {
+      edgeElements.forEach(edgeElement => {
+        edgeElement.classList.remove("is-selected");
+      });
+    };
+  }, [selectedFlowId, renderedWorkflow]);
+
   useEffect(() => {
     const canvas = containerRef.current;
     if (!canvas) {
@@ -1012,15 +1038,29 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         tagged.add(flashEl);
       }
     }
+    // 拖拽重连时，高亮所有方向匹配且不属于固定端节点的可用端口
+    if (reconnectState) {
+      const availableDirection = reconnectState.dragEndpoint === "source" ? "output" : "input";
+      for (const port of reconnectGeometry.ports) {
+        if (port.direction !== availableDirection) continue;
+        if (port.objectId === reconnectState.fixedObjectId) continue;
+        const el = canvas.querySelector<HTMLElement>(`[data-port-id="${port.id}"]`);
+        if (el && !tagged.has(el)) {
+          el.classList.add("microflow-flowgram-port-available");
+          tagged.add(el);
+        }
+      }
+    }
     return () => {
       for (const el of tagged) {
         el.classList.remove("microflow-flowgram-port-reconnect-valid");
         el.classList.remove("microflow-flowgram-port-reconnect-invalid");
         el.classList.remove("microflow-flowgram-port-reconnect-pending-disconnect");
         el.classList.remove("microflow-flowgram-port-reconnect-flash");
+        el.classList.remove("microflow-flowgram-port-available");
       }
     };
-  }, [portFlashState, reconnectState]);
+  }, [portFlashState, reconnectState, reconnectGeometry]);
 
   useLayoutEffect(() => {
     selectorBoxConfig.disabled = panToolActive || spacePressed;
@@ -1283,8 +1323,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       : undefined;
     const logicalCursor = dragPosition ?? fallback;
     const objectKind = objectKindFromRegistryItem(item);
-    const hintedInsertFlowId = nativeEvent?.target instanceof HTMLElement
-      ? selectionFromTarget(nativeEvent.target, latestSchemaRef.current.workflow)?.flowId
+    const hintedInsertFlowId = nativeEvent?.target instanceof Element
+      ? selectionFromTarget(nativeEvent.target as HTMLElement, latestSchemaRef.current.workflow)?.flowId
       : undefined;
     const insertFlowId = hintedInsertFlowId
       ?? findNearestDropInsertFlowId(latestSchemaRef.current, logicalCursor, 24);
@@ -1498,7 +1538,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     if (reconnectState) {
       return;
     }
-    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const target = event.target instanceof Element ? event.target as HTMLElement : undefined;
     const flowId = target?.closest<HTMLElement>("[data-flow-id]")?.dataset.flowId;
     if (flowId) {
       if (hoveredFlowId === flowId || edgeHoverCandidateRef.current === flowId) {
@@ -1531,8 +1571,12 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     if (event.button !== 0) {
       return;
     }
-    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const target = event.target instanceof Element ? event.target as HTMLElement : undefined;
     if (target?.closest(".microflow-flowgram-reconnect-handle")) {
+      return;
+    }
+    // 点击画布 UI 控件（工具栏、多选栏等）时不干预 selection 状态
+    if (target?.closest('[data-flow-editor-selectable="false"], .microflow-flowgram-canvas-controls')) {
       return;
     }
     const selectionFromEventTarget = selectionFromTarget(target, latestSchemaRef.current.workflow);
@@ -1570,6 +1614,12 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       }
       dragStartPosRef.current = null;
       props.onNodeClickChange?.(selection);
+    } else {
+      // 点击空白画布时清除选中状态（连线高亮消失）
+      const currentSelection = latestSchemaRef.current.editor?.selection;
+      if (currentSelection?.flowId || currentSelection?.objectId) {
+        props.onSelectionChange({ objectId: undefined, flowId: undefined, collectionId: undefined, objectIds: [], flowIds: [], mode: "none" });
+      }
     }
   };
 
@@ -1577,7 +1627,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     if (event.button !== 0) {
       return;
     }
-    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const target = event.target instanceof Element ? event.target as HTMLElement : undefined;
     const selection = selectionFromTarget(target, latestSchemaRef.current.workflow);
     if (selection && selection.objectId) {
       props.onNodeDoubleClick?.(selection);
@@ -1588,7 +1638,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (event.button === 1) {
-      const target = event.target instanceof HTMLElement ? event.target : undefined;
+      const target = event.target instanceof Element ? event.target as HTMLElement : undefined;
       if (!isPointerTargetPanExempt(target, spacePressedRef.current)) {
         event.preventDefault();
       }
@@ -1597,7 +1647,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     if (event.button !== 2) {
       return;
     }
-    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const target = event.target instanceof Element ? event.target as HTMLElement : undefined;
     const point = { x: event.clientX, y: event.clientY };
     if (openContextMenuFromTarget(target, point)) {
       event.preventDefault();
@@ -1612,7 +1662,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
       event.stopPropagation();
       return;
     }
-    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const target = event.target instanceof Element ? event.target as HTMLElement : undefined;
     const point = { x: event.clientX, y: event.clientY };
     if (openContextMenuFromTarget(target, point)) {
       event.preventDefault();
@@ -1634,7 +1684,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
         latestSchemaRef.current.editor.viewport ?? { x: 0, y: 0, zoom: 1 },
       );
       const candidateDirection = reconnectState.dragEndpoint === "source" ? "output" : "input";
-      const candidatePort = nearestReconnectPortCandidate(reconnectGeometry.ports, pointer, candidateDirection, 16);
+      const candidatePort = nearestReconnectPortCandidate(reconnectGeometry.ports, pointer, candidateDirection, 48);
       const nextCandidate = candidatePort
         ? (() => {
             const check = propsRef.current.onEvaluateFlowReconnect?.({
@@ -1717,7 +1767,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     } catch {
       // Ignore — capture may already be released.
     }
-    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const target = event.target instanceof Element ? event.target as HTMLElement : undefined;
     const intent = resolveViewportPanEndIntent({
       button,
       moved,
@@ -1732,7 +1782,7 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    const target = event.target instanceof HTMLElement ? event.target : undefined;
+    const target = event.target instanceof Element ? event.target as HTMLElement : undefined;
     if (target?.closest(".microflow-flowgram-reconnect-handle")) {
       return;
     }
@@ -1838,7 +1888,8 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     } else {
       props.onViewportChange?.(initialViewportFromStartNode(props.schema.workflow, rect), { skipDirty: true });
     }
-  }, [props.schema.workflow, props.onViewportChange, props.schema.editor?.viewport]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.onViewportChange]);
 
   useEffect(() => {
     if (props.focusObjectId) {
@@ -1853,11 +1904,11 @@ function FlowGramMicroflowNativeCanvasInner(props: FlowGramMicroflowNativeCanvas
     }
     const onWheel = (e: WheelEvent) => {
       const t = e.target;
-      if (!(t instanceof HTMLElement) || !root.contains(t)) {
+      if (!(t instanceof Element) || !root.contains(t)) {
         return;
       }
 
-      if (isPointerTargetPanExempt(t, false)) {
+      if (isPointerTargetPanExempt(t as HTMLElement, false)) {
         return;
       }
 
@@ -2222,6 +2273,8 @@ function MicroflowMultiSelectBar(props: {
 }
 
 export function FlowGramMicroflowNativeCanvas(props: FlowGramMicroflowNativeCanvasProps) {
+  // 持久化 ref，跨 structureKey remount 保持 viewport 初始化标记，避免重连/拖入节点时视口抖动
+  const viewportInitializedRef = useRef(false);
   const structureKey = workflowRenderStructureKey(props.schema.workflow);
   const edgeDataByLineKey = useMemo(
     () => createEdgeDataByLineKey(props.schema.workflow),
@@ -2235,13 +2288,16 @@ export function FlowGramMicroflowNativeCanvas(props: FlowGramMicroflowNativeCanv
     }),
     [props.usageHighlights],
   );
+  const selectedFlowId = props.schema.editor.selection?.flowId;
   return (
     <MicroflowNodeViewModesContext.Provider value={props.nodeViewModes ?? {}}>
       <MicroflowNodeUsageHighlightsContext.Provider value={usageHighlightState}>
         <MicroflowEdgeDataContext.Provider value={edgeDataByLineKey}>
-          <FlowGramMicroflowProvider key={structureKey}>
-            <FlowGramMicroflowNativeCanvasInner {...props} />
-          </FlowGramMicroflowProvider>
+          <MicroflowSelectedFlowIdContext.Provider value={selectedFlowId}>
+            <FlowGramMicroflowProvider key={structureKey}>
+              <FlowGramMicroflowNativeCanvasInner {...props} viewportInitializedRef={viewportInitializedRef} />
+            </FlowGramMicroflowProvider>
+          </MicroflowSelectedFlowIdContext.Provider>
         </MicroflowEdgeDataContext.Provider>
       </MicroflowNodeUsageHighlightsContext.Provider>
     </MicroflowNodeViewModesContext.Provider>

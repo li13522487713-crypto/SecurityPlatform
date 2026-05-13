@@ -5,6 +5,8 @@ export interface MicroflowEdgeProps {
   flowId: string;
   edgeKind: string;
   label: string;
+  /** 当前连线是否被选中（来自 schema.editor.selection.flowId） */
+  selected?: boolean;
   warningMissingTarget?: boolean;
   readonly?: boolean;
   onMouseDown?: MouseEventHandler<HTMLDivElement>;
@@ -19,6 +21,7 @@ export function MicroflowEdge({
   flowId,
   edgeKind,
   label,
+  selected = false,
   warningMissingTarget = false,
   readonly = false,
   onMouseDown,
@@ -28,9 +31,10 @@ export function MicroflowEdge({
   editAdornment,
 }: MicroflowEdgeProps) {
   const [hovered, setHovered] = useState(false);
+  const showActions = (hovered || selected) && !readonly;
   return (
     <div
-      className="microflow-edge-label"
+      className={["microflow-edge-label", selected ? "is-selected" : ""].filter(Boolean).join(" ")}
       data-testid="microflow-flowgram-line-label"
       data-flow-id={flowId}
       data-edge-kind={edgeKind}
@@ -44,7 +48,7 @@ export function MicroflowEdge({
         {label}
         {warningMissingTarget ? <span aria-hidden="true" className="microflow-branch-label__warning-dot" /> : null}
       </span>
-      {!readonly && hovered && onEdit ? (
+      {showActions && onEdit ? (
         <button
           type="button"
           className="microflow-branch-label__edit-btn"
@@ -57,7 +61,7 @@ export function MicroflowEdge({
           {editAdornment}
         </button>
       ) : null}
-      {!readonly && hovered && onDelete ? (
+      {showActions && onDelete ? (
         <button
           type="button"
           className="microflow-flowgram-line__delete-btn"

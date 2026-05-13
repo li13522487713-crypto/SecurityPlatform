@@ -7,7 +7,7 @@ import {
 } from "@flowgram-adapter/free-layout-editor";
 
 import type { FlowGramMicroflowEdgeData } from "./FlowGramMicroflowTypes";
-import { MicroflowEdgeDataContext } from "./FlowGramMicroflowTypes";
+import { MicroflowEdgeDataContext, MicroflowSelectedFlowIdContext } from "./FlowGramMicroflowTypes";
 import { emitInlineLineDelete, emitInlineLineLabelCommit } from "./inline-events";
 import { MicroflowEdge } from "../components/MicroflowEdge";
 
@@ -144,6 +144,7 @@ export function lineClassNameFromEdgeData(data: FlowGramMicroflowEdgeData): stri
 export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   const readonly = usePlaygroundReadonlyState();
   const edgeDataByLineKey = useContext(MicroflowEdgeDataContext);
+  const selectedFlowId = useContext(MicroflowSelectedFlowIdContext);
   const data = edgeDataFromLine(line, edgeDataByLineKey);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -186,7 +187,7 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
   );
   const branchLabel = label.toLowerCase();
   if (!branchLabel && !warningMissingTarget) {
-    return <div ref={hostRef} style={{ display: "none" }} aria-hidden="true" />;
+    return <div ref={hostRef} data-flow-id={data.flowId} style={{ display: "none" }} aria-hidden="true" />;
   }
   const className = [
     "microflow-branch-label",
@@ -233,13 +234,15 @@ export function FlowGramMicroflowLineRenderer({ line }: LineRenderProps) {
     );
   }
 
+  const isSelected = Boolean(selectedFlowId && selectedFlowId === data.flowId);
   return (
-    <div ref={hostRef}>
+    <div ref={hostRef} data-flow-id={data.flowId}>
       <MicroflowEdge
         className={className}
         flowId={data.flowId}
         edgeKind={data.edgeKind}
         label={label}
+        selected={isSelected}
         warningMissingTarget={warningMissingTarget}
         readonly={readonly}
         onMouseDown={event => {

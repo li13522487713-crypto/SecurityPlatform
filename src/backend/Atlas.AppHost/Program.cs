@@ -39,6 +39,7 @@ using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.SignalR;
 using Atlas.Presentation.Shared.Authorization;
 using Atlas.Presentation.Shared.Security;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Localization;
 using Microsoft.IdentityModel.Tokens;
 using NLog.Web;
@@ -78,6 +79,31 @@ builder.Configuration.AddJsonFile(platformRuntimeConfigPath, optional: true, rel
 // 也加载 AppHost 自身的运行时配置（优先级更高，允许独立覆盖）
 var appRuntimeConfigPath = Path.Combine(builder.Environment.ContentRootPath, "appsettings.runtime.json");
 builder.Configuration.AddJsonFile(appRuntimeConfigPath, optional: true, reloadOnChange: false);
+
+// SQLite：未限定的 Data Source 相对路径解析到 AppHost 内容根（与 appsettings.runtime.json、atlas*.db 同目录）
+var configuredConn = builder.Configuration["Database:ConnectionString"];
+var configuredDbType = builder.Configuration["Database:DbType"];
+var useSqliteDefaults = string.IsNullOrWhiteSpace(configuredDbType)
+                        || string.Equals(configuredDbType, "SQLite", StringComparison.OrdinalIgnoreCase);
+if (useSqliteDefaults && !string.IsNullOrWhiteSpace(configuredConn))
+{
+    try
+    {
+        var csb = new SqliteConnectionStringBuilder(configuredConn);
+        if (!string.IsNullOrWhiteSpace(csb.DataSource) && !Path.IsPathRooted(csb.DataSource))
+        {
+            csb.DataSource = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, csb.DataSource));
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Database:ConnectionString"] = csb.ConnectionString
+            });
+        }
+    }
+    catch (ArgumentException)
+    {
+        // 连接串无法按 SQLite 解析时保持原样
+    }
+}
 
 var platformSetupStatePath = Path.Combine(platformConfigRoot, "setup-state.json");
 

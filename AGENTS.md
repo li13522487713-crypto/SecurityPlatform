@@ -48,7 +48,7 @@ if ($conns) {
 ```
 3. 重启：
 ```powershell
-dotnet run -c Debug --project src/backend/Atlas.AppHost/Atlas.AppHost.csproj
+dotnet run -c Debug --project src/backend/Atlas.AppHost/Atlas.AppHost.csproj --launch-profile Atlas.AppHost
 ```
 4. 确认监听与日志：
 ```powershell

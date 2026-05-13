@@ -303,3 +303,5 @@ import { createContext } from "react";
 export const MicroflowNodeViewModesContext = createContext<Record<string, MicroflowNodeViewMode>>({});
 export const MicroflowNodeUsageHighlightsContext = createContext<MicroflowNodeUsageHighlightState>({ sourceNodeIds: [], consumerNodeIds: [] });
 export const MicroflowEdgeDataContext = createContext<ReadonlyMap<string, FlowGramMicroflowEdgeData>>(new Map());
+/** 当前选中连线的 flowId，供 LineRenderer 读取以显示选中高亮和删除按钮 */
+export const MicroflowSelectedFlowIdContext = createContext<string | undefined>(undefined);

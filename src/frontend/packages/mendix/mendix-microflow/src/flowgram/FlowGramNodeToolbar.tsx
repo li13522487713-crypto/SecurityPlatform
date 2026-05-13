@@ -19,6 +19,9 @@ export function FlowGramNodeToolbar({ x, y, onQuickAdd, onQuickConnect, onDelete
 
   return (
     <div
+      data-flow-editor-selectable="false"
+      onMouseDown={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
       style={{
         position: "absolute",
         left: x,
