@@ -196,6 +196,107 @@ public sealed class DatabaseManagementService : IDatabaseManagementService
         ];
     }
 
+    public async Task<DatabaseCenterParameterizedSqlResult> ExecuteParameterizedAsync(
+        TenantId tenantId,
+        string sourceId,
+        string sql,
+        IReadOnlyList<DatabaseSqlParameter> parameters,
+        DatabaseCenterSqlExecuteOptions options,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var instanceId = ParseSourceId(sourceId);
+        var instance = await _instanceRepository.FindByIdAsync(tenantId, instanceId, cancellationToken)
+            ?? throw new BusinessException("数据源不存在。", ErrorCodes.NotFound);
+
+        if (instance.Environment == AiDatabaseRecordEnvironment.Online
+            && options.Mode != DatabaseSqlExecuteMode.SelectOnly
+            && IsWriteSql(sql))
+        {
+            throw new BusinessException("Online 实例只读，禁止执行写入 SQL。", ErrorCodes.ValidationError);
+        }
+
+        var connection = _secretProtector.Decrypt(instance.EncryptedConnection);
+        using var client = new SqlSugarClient(new ConnectionConfig
+        {
+            ConnectionString = connection,
+            DbType = DataSourceDriverRegistry.ResolveDbType(instance.DriverCode),
+            IsAutoCloseConnection = true
+        });
+        client.Ado.CommandTimeOut = options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 30;
+
+        var trimmedSql = sql.Trim().TrimEnd(';');
+        var sqlParams = parameters.Select(p => new SugarParameter(p.Name, p.Value)).ToArray();
+        var started = DateTime.UtcNow;
+
+        try
+        {
+            if (IsSelectSql(trimmedSql) || options.Mode == DatabaseSqlExecuteMode.SelectOnly)
+            {
+                var limit = options.MaxRows > 0 ? Math.Min(options.MaxRows, 10000) : 1000;
+                var limitedSql = _dialects.Resolve(instance.DriverCode).BuildSelectPreviewSql(trimmedSql, limit);
+                var table = await client.Ado.GetDataTableAsync(limitedSql, sqlParams);
+                var elapsed = (long)(DateTime.UtcNow - started).TotalMilliseconds;
+                var columns = table.Columns.Cast<System.Data.DataColumn>().Select(c => c.ColumnName).ToList();
+                var rows = table.Rows.Cast<System.Data.DataRow>().Select(row =>
+                {
+                    var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                    foreach (System.Data.DataColumn col in table.Columns)
+                    {
+                        dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                    }
+
+                    return (IReadOnlyDictionary<string, object?>)dict;
+                }).ToList();
+                return new DatabaseCenterParameterizedSqlResult
+                {
+                    Success = true,
+                    Columns = columns,
+                    Rows = rows,
+                    AffectedRows = null,
+                    ElapsedMs = elapsed,
+                    Truncated = table.Rows.Count >= limit
+                };
+            }
+            else
+            {
+                var affected = await client.Ado.ExecuteCommandAsync(trimmedSql, sqlParams);
+                var elapsed = (long)(DateTime.UtcNow - started).TotalMilliseconds;
+                return new DatabaseCenterParameterizedSqlResult
+                {
+                    Success = true,
+                    Columns = Array.Empty<string>(),
+                    Rows = Array.Empty<IReadOnlyDictionary<string, object?>>(),
+                    AffectedRows = affected,
+                    ElapsedMs = elapsed,
+                    Truncated = false
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            var elapsed = (long)(DateTime.UtcNow - started).TotalMilliseconds;
+            return new DatabaseCenterParameterizedSqlResult
+            {
+                Success = false,
+                ErrorMessage = _secretProtector.MaskConnectionString(ex.Message),
+                Columns = Array.Empty<string>(),
+                Rows = Array.Empty<IReadOnlyDictionary<string, object?>>(),
+                ElapsedMs = elapsed
+            };
+        }
+    }
+
+    private static bool IsSelectSql(string sql)
+    {
+        var trimmed = sql.TrimStart();
+        return trimmed.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("WITH", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsWriteSql(string sql)
+        => !IsSelectSql(sql);
+
     private async Task<(AiDatabasePhysicalInstance Instance, SqlSugarClient Client, IDatabaseDialect Dialect)> OpenAsync(
         TenantId tenantId,
         string sourceId,

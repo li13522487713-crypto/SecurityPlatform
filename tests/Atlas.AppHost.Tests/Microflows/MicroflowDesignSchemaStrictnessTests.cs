@@ -15,7 +15,7 @@ namespace Atlas.AppHost.Tests.Microflows;
 public sealed class MicroflowDesignSchemaStrictnessTests
 {
     [Fact]
-    public async Task GetSchemaAsync_WhenSnapshotIsLegacyRuntimeSchema_ThrowsSchemaInvalid()
+    public async Task GetSchemaAsync_WhenSnapshotIsLegacyRuntimeSchema_AutoUpgradesAndSavesNewSnapshot()
     {
         var fixture = BuildResourceFixture();
         fixture.ResourceRepo.GetByIdAsync("mf-1", Arg.Any<CancellationToken>()).Returns(CreateResource("schema-legacy"));
@@ -31,10 +31,19 @@ public sealed class MicroflowDesignSchemaStrictnessTests
             CreatedAt = new DateTimeOffset(2026, 4, 30, 1, 0, 0, TimeSpan.Zero),
         });
 
-        var ex = await Assert.ThrowsAsync<MicroflowApiException>(() => fixture.Service.GetSchemaAsync("mf-1", CancellationToken.None));
+        // 服务现行为：旧 schema 自动升级回写，不抛错
+        var result = await fixture.Service.GetSchemaAsync("mf-1", CancellationToken.None);
 
-        Assert.Equal(MicroflowApiErrorCode.MicroflowSchemaInvalid, ex.Code);
-        Assert.Contains("旧设计态快照", ex.Message);
+        // 返回升级后的 schema，版本号为最新设计态协议版本
+        Assert.Equal("flowgram.microflow.v1", result.SchemaVersion);
+        // 新快照应当被持久化
+        await fixture.SnapshotRepo.Received(1).InsertAsync(
+            Arg.Is<MicroflowSchemaSnapshotEntity>(s => s.MigrationVersion == "legacy-schema-auto-upgrade"),
+            Arg.Any<CancellationToken>());
+        // 资源记录应当被更新（指向新快照）
+        await fixture.ResourceRepo.Received(1).UpdateAsync(
+            Arg.Any<MicroflowResourceEntity>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -107,4 +107,36 @@ public interface IDatabaseManagementService
         TenantId tenantId,
         string sourceId,
         CancellationToken cancellationToken);
+
+    Task<DatabaseCenterParameterizedSqlResult> ExecuteParameterizedAsync(
+        TenantId tenantId,
+        string sourceId,
+        string sql,
+        IReadOnlyList<DatabaseSqlParameter> parameters,
+        DatabaseCenterSqlExecuteOptions options,
+        CancellationToken cancellationToken);
+}
+
+public sealed record DatabaseSqlParameter(string Name, object? Value);
+
+public sealed record DatabaseCenterSqlExecuteOptions
+{
+    public string? SchemaName { get; init; }
+    public AiDatabaseRecordEnvironment Environment { get; init; } = AiDatabaseRecordEnvironment.Draft;
+    public int TimeoutSeconds { get; init; } = 30;
+    public int MaxRows { get; init; } = 1000;
+    public DatabaseSqlExecuteMode Mode { get; init; } = DatabaseSqlExecuteMode.Auto;
+}
+
+public enum DatabaseSqlExecuteMode { Auto, SelectOnly, DmlOnly }
+
+public sealed record DatabaseCenterParameterizedSqlResult
+{
+    public bool Success { get; init; }
+    public string? ErrorMessage { get; init; }
+    public IReadOnlyList<string> Columns { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows { get; init; } = Array.Empty<IReadOnlyDictionary<string, object?>>();
+    public int? AffectedRows { get; init; }
+    public long ElapsedMs { get; init; }
+    public bool Truncated { get; init; }
 }

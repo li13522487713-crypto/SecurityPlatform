@@ -1,6 +1,8 @@
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Repositories;
+using Atlas.Application.Microflows.Runtime.Actions;
+using Atlas.Application.Microflows.Runtime.Actions.Database;
 using Atlas.Application.Microflows.Runtime.Connectors;
 using Atlas.Application.Microflows.Runtime.Objects;
 using Atlas.Application.Microflows.Runtime.Transactions;
@@ -53,6 +55,11 @@ public static class MicroflowInfrastructureServiceRegistration
         services.AddScoped<IMendixDomainModelService, MendixDomainModelService>();
         services.AddHostedService<MicroflowSeedDataHostedService>();
         services.AddHostedService<MicroflowMetadataSeedHostedService>();
+
+        // 数据库查询节点
+        services.AddScoped<IMicroflowDatabaseQueryService, MicroflowDatabaseQueryService>();
+        services.AddScoped<DatabaseQueryActionExecutor>();
+        services.AddScoped<DeclareLocalVariableActionExecutor>();
 
         return services;
     }

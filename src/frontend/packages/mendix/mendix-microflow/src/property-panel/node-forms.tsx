@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button, Checkbox, Input, Select, Space, Spin, Switch, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
+import { DatabaseNodeForm } from "./forms/database-node-form";
 import { useMicroflowMetadata } from "../metadata";
 import { searchMicroflows } from "../metadata/metadata-catalog";
 import type {
@@ -751,6 +752,152 @@ export function MicroflowClosePageForm(rawProps: MicroflowNodeFormProps) {
   );
 }
 
+export function MicroflowDeclareLocalVariableForm(rawProps: MicroflowNodeFormProps) {
+  const props = rawProps as unknown as ActivityFormProps;
+  const config = props.node.config;
+  const sourceOptions = [
+    { label: "空值", value: "empty" },
+    { label: "字面量", value: "literal" },
+    { label: "表达式", value: "expression" },
+    { label: "引用变量", value: "reference" }
+  ];
+  const scopeOptions = [
+    { label: "局部变量 ($.)", value: "local" },
+    { label: "全局变量 ($global.)", value: "global" }
+  ];
+  const dataTypeOptions = ["String", "Integer", "Boolean", "Decimal", "DateTime", "Object", "List", "Array"].map(v => ({ label: v, value: v.toLowerCase() }));
+  return (
+    <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
+      <FieldRow label="变量名" required>
+        <Input readonly={props.readonly} value={config.variableName ?? ""} onChange={variableName => updateActivityConfig(props, { variableName })} />
+      </FieldRow>
+      <FieldRow label="作用域">
+        <Select disabled={props.readonly} style={{ width: "100%" }} value={config.scope ?? "local"} optionList={scopeOptions} onChange={scope => updateActivityConfig(props, { scope: scope as "local" | "global" })} />
+      </FieldRow>
+      <FieldRow label="数据类型">
+        <Select disabled={props.readonly} style={{ width: "100%" }} value={config.dataType?.kind ?? "string"} optionList={dataTypeOptions} onChange={kind => updateActivityConfig(props, { dataType: { kind: kind as "string" } })} />
+      </FieldRow>
+      <FieldRow label="赋值来源">
+        <Select disabled={props.readonly} style={{ width: "100%" }} value={config.source ?? "empty"} optionList={sourceOptions} onChange={source => updateActivityConfig(props, { source: source as "literal" | "expression" | "reference" | "empty" })} />
+      </FieldRow>
+      {config.source === "literal" && (
+        <FieldRow label="字面量值">
+          <Input readonly={props.readonly} value={config.value ?? ""} onChange={value => updateActivityConfig(props, { value })} />
+        </FieldRow>
+      )}
+      {config.source === "expression" && (
+        <FieldRow label="表达式">
+          <ExpressionEditor readonly={props.readonly} value={config.expression} variables={props.variables} onChange={expression => updateActivityConfig(props, { expression })} />
+        </FieldRow>
+      )}
+      {config.source === "reference" && (
+        <FieldRow label="引用变量">
+          <VariableSelector value={config.reference} variables={props.variables} readonly={props.readonly} onChange={reference => updateActivityConfig(props, { reference })} />
+        </FieldRow>
+      )}
+      <FieldRow label="描述">
+        <Input readonly={props.readonly} value={config.description ?? ""} onChange={description => updateActivityConfig(props, { description })} />
+      </FieldRow>
+    </Space>
+  );
+}
+
+export function MicroflowDatabaseQueryForm(rawProps: MicroflowNodeFormProps) {
+  const props = rawProps as unknown as ActivityFormProps;
+  const config = props.node.config;
+  const outputKindOptions = [
+    { label: "Object（首行对象）", value: "object" },
+    { label: "List（全部行列表）", value: "list" },
+    { label: "Array（单列数组）", value: "array" }
+  ];
+  const errorModeOptions = [
+    { label: "失败并中断（fail）", value: "fail" },
+    { label: "继续执行（continue）", value: "continue" },
+    { label: "返回空值（empty）", value: "empty" }
+  ];
+  return (
+    <Space vertical align="start" spacing={16} style={{ width: "100%" }}>
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
+
+      {/* 连接 */}
+      <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
+        <Text strong>数据源连接</Text>
+        <FieldRow label="数据源 ID" required>
+          <Input readonly={props.readonly} value={config.databaseSourceId ?? ""} onChange={databaseSourceId => updateActivityConfig(props, { databaseSourceId })} />
+        </FieldRow>
+        <FieldRow label="Schema">
+          <Input readonly={props.readonly} value={config.schemaName ?? ""} onChange={schemaName => updateActivityConfig(props, { schemaName })} />
+        </FieldRow>
+      </Space>
+
+      {/* SQL */}
+      <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
+        <Text strong>SQL 语句</Text>
+        <FieldRow label="SQL">
+          <TextArea
+            readonly={props.readonly}
+            value={config.sql ?? ""}
+            rows={6}
+            onChange={sql => updateActivityConfig(props, { sql })}
+            placeholder={"SELECT * FROM table WHERE id = $.recordId"}
+          />
+        </FieldRow>
+        <Text type="tertiary" size="small">占位符使用 $.变量名、$global.变量名 或 $currentUser.字段名</Text>
+      </Space>
+
+      {/* 输出 */}
+      <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
+        <Text strong>输出配置</Text>
+        <FieldRow label="输出变量名">
+          <Input readonly={props.readonly} value={config.output?.variableName ?? ""} onChange={variableName => updateActivityConfig(props, { output: { ...config.output, variableName } })} />
+        </FieldRow>
+        <FieldRow label="输出类型">
+          <Select disabled={props.readonly} style={{ width: "100%" }} value={config.output?.kind ?? "list"} optionList={outputKindOptions} onChange={kind => updateActivityConfig(props, { output: { ...config.output, kind: kind as "object" | "list" | "array" } })} />
+        </FieldRow>
+        {config.output?.kind === "array" && (
+          <FieldRow label="列名（Array 模式）" required>
+            <Input readonly={props.readonly} value={config.output?.column ?? ""} onChange={column => updateActivityConfig(props, { output: { ...config.output, column } })} />
+          </FieldRow>
+        )}
+        <FieldRow label="赋值全局变量（可选）">
+          <Input readonly={props.readonly} value={config.globalAssignment?.target ?? ""} onChange={target => updateActivityConfig(props, { globalAssignment: { target } })} placeholder="$global.resultVar" />
+        </FieldRow>
+      </Space>
+
+      {/* 高级 */}
+      <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
+        <Text strong>高级设置</Text>
+        <FieldRow label="超时（秒）">
+          <input
+            type="number"
+            readOnly={props.readonly}
+            value={config.advanced?.timeoutSeconds ?? 30}
+            onChange={e => updateActivityConfig(props, { advanced: { ...config.advanced, timeoutSeconds: Number(e.target.value) } })}
+            style={{ width: "100%", padding: "4px 8px", border: "1px solid var(--semi-color-border)" }}
+            min={1}
+            max={300}
+          />
+        </FieldRow>
+        <FieldRow label="最大行数">
+          <input
+            type="number"
+            readOnly={props.readonly}
+            value={config.advanced?.maxRows ?? 1000}
+            onChange={e => updateActivityConfig(props, { advanced: { ...config.advanced, maxRows: Number(e.target.value) } })}
+            style={{ width: "100%", padding: "4px 8px", border: "1px solid var(--semi-color-border)" }}
+            min={1}
+            max={10000}
+          />
+        </FieldRow>
+        <FieldRow label="错误处理">
+          <Select disabled={props.readonly} style={{ width: "100%" }} value={config.advanced?.errorMode ?? "fail"} optionList={errorModeOptions} onChange={errorMode => updateActivityConfig(props, { advanced: { ...config.advanced, errorMode: errorMode as "fail" | "continue" | "empty" } })} />
+        </FieldRow>
+      </Space>
+    </Space>
+  );
+}
+
 function unsupportedForm(props: MicroflowNodeFormProps) {
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
@@ -790,6 +937,8 @@ export const microflowNodeFormRegistry: MicroflowNodeFormRegistry = {
   "activity:objectDelete": registryItem(MicroflowObjectDeleteForm, ["properties", "documentation", "errorHandling", "output"]),
   "activity:objectRollback": registryItem(MicroflowObjectRollbackForm, ["properties", "documentation", "errorHandling", "output"]),
   "activity:variableCreate": registryItem(MicroflowVariableCreateForm, ["properties", "documentation", "output"]),
+  "activity:declareLocalVariable": registryItem(MicroflowDeclareLocalVariableForm, ["properties", "documentation", "output"]),
+  "activity:queryExternalDatabase": registryItem(DatabaseNodeForm, ["properties", "documentation", "output"]),
   "activity:variableChange": registryItem(MicroflowVariableChangeForm, ["properties", "documentation", "output"]),
   "activity:callMicroflow": registryItem(MicroflowCallMicroflowForm, ["properties", "documentation", "errorHandling", "output"]),
   "activity:callJavaAction": registryItem(unsupportedForm, ["properties", "documentation", "errorHandling", "output"]),
@@ -799,7 +948,6 @@ export const microflowNodeFormRegistry: MicroflowNodeFormRegistry = {
   "activity:callExternalAction": registryItem(unsupportedForm, ["properties", "documentation", "errorHandling", "output"]),
   "activity:importWithMapping": registryItem(unsupportedForm, ["properties", "documentation", "errorHandling", "output"]),
   "activity:exportWithMapping": registryItem(unsupportedForm, ["properties", "documentation", "errorHandling", "output"]),
-  "activity:queryExternalDatabase": registryItem(unsupportedForm, ["properties", "documentation", "errorHandling", "output"]),
   "activity:sendRestRequestBeta": registryItem(unsupportedForm, ["properties", "documentation", "errorHandling", "output"]),
   "activity:logMessage": registryItem(MicroflowLogMessageForm, ["properties", "documentation"]),
   "activity:showPage": registryItem(MicroflowShowPageForm, ["properties", "documentation", "output"]),

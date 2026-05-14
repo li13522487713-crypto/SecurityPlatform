@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Atlas.Application.Microflows.Models;
+using Atlas.Application.Microflows.Runtime.Actions.Database;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Application.Microflows.Runtime.Actions;
@@ -40,6 +41,26 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
 
     public bool TryGet(string? actionKind, out IMicroflowActionExecutor executor)
     {
+        if (string.Equals(actionKind, "queryExternalDatabase", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<DatabaseQueryActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "declareLocalVariable", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<DeclareLocalVariableActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (string.Equals(actionKind, "createVariable", StringComparison.OrdinalIgnoreCase))
         {
             var specialized = _serviceProvider?.GetService<CreateVariableActionExecutor>();
@@ -423,6 +444,7 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Server("sortList", "SortListAction", "list", "SortListActionExecutor", producesVariables: true, producesTransaction: false, reason: "Sort List orders items by a primitive member and produces a new list variable."),
 
             Server("createVariable", "CreateVariableAction", "variable", "CreateVariableActionExecutor", producesVariables: true, producesTransaction: false),
+            Server("declareLocalVariable", "DeclareLocalVariableAction", "variable", "DeclareLocalVariableActionExecutor", producesVariables: true, producesTransaction: false, reason: "DeclareLocalVariable supports scope(local/global), dataType, source(literal/expression/reference/empty), replaces createVariable."),
             Server("changeVariable", "ChangeVariableAction", "variable", "ChangeVariableActionExecutor", producesVariables: true, producesTransaction: false),
             Server("break", "BreakAction", "loop", "BreakActionExecutor", producesVariables: false, producesTransaction: false),
             Server("continue", "ContinueAction", "loop", "ContinueActionExecutor", producesVariables: false, producesTransaction: false),
@@ -439,7 +461,7 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Connector("exportXml", "ExportXmlAction", "integration", "XmlMappingActionExecutor", MicroflowRuntimeConnectorCapability.XmlExportMapping, "XML export mapping requires mapping connector."),
             Connector("callExternalAction", "CallExternalAction", "integration", "ConnectorBackedActionExecutor:callExternalAction", "external.action", "External action requires connector capability."),
             Connector("restOperationCall", "RestOperationCallAction", "integration", "ConnectorBackedActionExecutor:restOperationCall", MicroflowRuntimeConnectorCapability.RestRealHttp, "REST operation calls require real HTTP connector capability."),
-            Connector("queryExternalDatabase", "QueryExternalDatabaseAction", "integration", "ConnectorBackedActionExecutor:queryExternalDatabase", "externalDatabase.query", "External database query requires external database connector capability."),
+            Server("queryExternalDatabase", "QueryExternalDatabaseAction", "integration", "DatabaseQueryActionExecutor", producesVariables: true, producesTransaction: false, reason: "DatabaseQueryActionExecutor executes parameterized SQL against DatabaseCenter sources (AiDatabase/TenantDataSource/External) with variable placeholder substitution."),
 
             Command("showPage", "ShowPageAction", "client", "ShowPageActionExecutor", "showPage"),
             Command("showHomePage", "ShowHomePageAction", "client", "ShowHomePageActionExecutor", "showHomePage"),

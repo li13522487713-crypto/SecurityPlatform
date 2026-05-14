@@ -15,6 +15,8 @@ import { deriveRestNodeInline } from "./rest-node-inline";
 import { deriveStartNodeInline } from "./start-node-inline";
 import { deriveTryCatchNodeInline } from "./try-catch-node-inline";
 import { deriveVariableNodeInline } from "./variable-node-inline";
+import { deriveDatabaseNodeInline } from "./database-node-inline";
+import { deriveDeclareLocalVariableNodeInline } from "./declare-local-variable-node-inline";
 import { buildNodeInlineVariableOptions } from "./inline-variable-options";
 import { appendOutputMappingsInlineSection } from "./output-mappings-inline";
 
@@ -212,6 +214,12 @@ export function deriveNodeInlineConfig(input: {
   }
   if (actionKind === "createVariable" || actionKind === "changeVariable") {
     return finalizeInlineConfig(deriveVariableNodeInline(deriveInput), deriveInput);
+  }
+  if (actionKind === "declareLocalVariable") {
+    return finalizeInlineConfig(deriveDeclareLocalVariableNodeInline(deriveInput), deriveInput);
+  }
+  if (actionKind === "queryExternalDatabase") {
+    return finalizeInlineConfig(deriveDatabaseNodeInline(deriveInput), deriveInput);
   }
   if (objectKind === "tryCatch") {
     return finalizeInlineConfig(deriveTryCatchNodeInline(deriveInput), deriveInput);

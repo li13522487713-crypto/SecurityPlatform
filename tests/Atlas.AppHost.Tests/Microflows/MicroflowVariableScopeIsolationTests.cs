@@ -30,7 +30,7 @@ public sealed class MicroflowVariableScopeIsolationTests
                 RawValueJson = "\"inner\"",
                 ValuePreview = "inner",
                 ScopeKind = MicroflowVariableScopeKind.ParallelBranch,
-                AllowShadowing = true
+                AllowRedeclare = true
             });
 
             Assert.Equal("\"inner\"", store.Get("value").RawValueJson);

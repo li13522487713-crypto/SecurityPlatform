@@ -124,6 +124,8 @@ const SERVER_EXECUTABLE_ACTION_KINDS = new Set<MicroflowActionKind>([
   "filterList",
   "sortList",
   "createVariable",
+  "declareLocalVariable",
+  "queryExternalDatabase",
   "changeVariable",
   "callMicroflow",
   "restCall",
@@ -401,6 +403,21 @@ const genericActionDefaults: Partial<Record<MicroflowActionKind, GenericActionCo
     sortField: "",
     memberName: "",
     direction: "asc"
+  },
+  declareLocalVariable: {
+    variableName: "newVar",
+    scope: "local",
+    dataType: { kind: "string" },
+    source: "empty"
+  },
+  queryExternalDatabase: {
+    databaseSourceId: "",
+    driverCode: "",
+    schemaName: "",
+    tables: [],
+    sql: "",
+    output: { variableName: "queryResult", kind: "list" },
+    advanced: { timeoutSeconds: 30, errorMode: "fail", maxRows: 1000, transactional: false }
   }
 };
 
@@ -413,6 +430,8 @@ const actionOutputs: Partial<Record<MicroflowActionKind, MicroflowActionRegistry
   listOperation: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "listOperation" }],
   callMicroflow: [{ id: "return", name: "returnValue.outputVariableName", dataType: unknownType, source: "callMicroflow" }],
   createVariable: [{ id: "variable", name: "variableName", dataType: unknownType, source: "createVariable" }],
+  declareLocalVariable: [{ id: "variable", name: "variableName", dataType: unknownType, source: "declareLocalVariable" }],
+  queryExternalDatabase: [{ id: "output", name: "output.variableName", dataType: { kind: "list", itemType: unknownType }, source: "queryExternalDatabase" }],
   restCall: [{ id: "response", name: "response.handling.outputVariableName", dataType: unknownType, source: "restCall" }],
   webServiceCall: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "webServiceCall" }],
   importXml: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "importXml" }],
@@ -527,6 +546,31 @@ function createConcreteAction(item: MicroflowActionRegistryItem, id: string, con
       officialType: "Microflows$ChangeVariableAction",
       targetVariableName: String(config.variableName ?? ""),
       newValueExpression: expression("")
+    };
+  }
+  if (item.actionKind === "declareLocalVariable") {
+    return {
+      ...base,
+      kind: "declareLocalVariable",
+      officialType: "Microflows$DeclareLocalVariableAction",
+      variableName: String(config.variableName ?? "newVar"),
+      scope: "local" as const,
+      dataType: { kind: "string" } as MicroflowDataType,
+      source: "empty" as const
+    };
+  }
+  if (item.actionKind === "queryExternalDatabase") {
+    return {
+      ...base,
+      kind: "queryExternalDatabase",
+      officialType: "Microflows$QueryExternalDatabaseAction",
+      databaseSourceId: "",
+      driverCode: "",
+      schemaName: "",
+      tables: [],
+      sql: "",
+      output: { variableName: "queryResult", kind: "list" as const },
+      advanced: { timeoutSeconds: 30, errorMode: "fail" as const, maxRows: 1000, transactional: false }
     };
   }
   if (item.actionKind === "createList") {
@@ -647,6 +691,15 @@ function validateAction(action: MicroflowAction): MicroflowValidationIssue[] {
   }
   if (action.kind === "createVariable" && !action.variableName) {
     return [issue("MF_ACTION_VARIABLE_NAME_REQUIRED", "Create variable action requires variableName.", action.id)];
+  }
+  if (action.kind === "declareLocalVariable" && !action.variableName) {
+    return [issue("MF_ACTION_VARIABLE_NAME_REQUIRED", "局部变量节点需要填写变量名。", action.id)];
+  }
+  if (action.kind === "queryExternalDatabase" && !action.databaseSourceId) {
+    return [issue("MF_DB_SOURCE_REQUIRED", "数据库节点需要选择数据源连接。", action.id, "warning")];
+  }
+  if (action.kind === "queryExternalDatabase" && !action.sql?.trim()) {
+    return [issue("MF_DB_SQL_REQUIRED", "数据库节点需要填写 SQL 语句。", action.id, "warning")];
   }
   if (action.kind === "createList" && !action.outputListVariableName.trim()) {
     return [issue("MF_ACTION_CREATE_LIST_NAME_MISSING", "Create List action requires a list variable name.", action.id, "warning")];
@@ -786,6 +839,8 @@ export const defaultMicroflowActionRegistry: MicroflowActionRegistryItem[] = [
   action({ key: "callJavaScriptAction", activityType: "callJavaScriptAction", officialType: "Microflows$JavaScriptActionCallAction", title: "Call JavaScript Action", titleZh: "调用 JavaScript 动作", description: "Client-side JavaScript action; runtime emits a client command.", category: "call" }),
   action({ key: "callNanoflow", activityType: "callNanoflow", officialType: "Microflows$NanoflowCallAction", title: "Call Nanoflow", titleZh: "调用纳流", description: "Client-side nanoflow call; runtime emits a client command.", category: "call", availability: "nanoflowOnlyDisabled", supportsErrorHandling: false }),
   action({ key: "createVariable", activityType: "variableCreate", officialType: "Microflows$CreateVariableAction", title: "Create Variable", titleZh: "创建变量", description: "Creates a local microflow variable.", category: "variable", defaultConfig: createDefaultActionConfig("createVariable"), supportsErrorHandling: false }),
+  action({ key: "declareLocalVariable", activityType: "variableCreate", officialType: "Microflows$DeclareLocalVariableAction", title: "Local Variable", titleZh: "局部变量", description: "声明局部或全局作用域的变量，支持字面量/表达式/引用/空四种赋值方式。", category: "variable", defaultConfig: createDefaultActionConfig("declareLocalVariable"), supportsErrorHandling: false }),
+  action({ key: "queryExternalDatabase", activityType: "queryExternalDatabase", officialType: "Microflows$QueryExternalDatabaseAction", title: "Database Query", titleZh: "数据库查询", description: "通过资源库数据源执行参数化 SQL，输出到变量或全局变量。", category: "integration", defaultConfig: createDefaultActionConfig("queryExternalDatabase") }),
   action({ key: "changeVariable", activityType: "variableChange", officialType: "Microflows$ChangeVariableAction", title: "Change Variable", titleZh: "修改变量", description: "Changes the value of an existing variable.", category: "variable", defaultConfig: createDefaultActionConfig("changeVariable"), supportsErrorHandling: false }),
   action({ key: "closePage", activityType: "closePage", officialType: "Microflows$ClosePageAction", title: "Close Page", titleZh: "关闭页面", description: "Closes the current or last opened page.", category: "client", supportsErrorHandling: false }),
   action({ key: "downloadFile", activityType: "downloadFile", officialType: "Microflows$DownloadFileAction", title: "Download File", titleZh: "下载文件", description: "Downloads a file document in the browser.", category: "client", supportsErrorHandling: false }),
@@ -879,6 +934,26 @@ export function toRuntimeP0ActionPayload(action: MicroflowAction): MicroflowDisc
       return runtimeDto(action, { metricName: action.metricName, valueExpression: action.valueExpression, tags: action.tags });
     case "createVariable":
       return runtimeDto(action, { variableName: action.variableName, dataType: action.dataType, initialValue: action.initialValue, readonly: action.readonly });
+    case "declareLocalVariable":
+      return runtimeDto(action, {
+        variableName: action.variableName,
+        scope: action.scope,
+        dataType: action.dataType,
+        source: action.source,
+        value: action.value,
+        expression: action.expression,
+        reference: action.reference
+      } as unknown as MicroflowDiscriminatedRuntimeP0ActionDto["config"]);
+    case "queryExternalDatabase":
+      return runtimeDto(action, {
+        databaseSourceId: action.databaseSourceId,
+        driverCode: action.driverCode,
+        schemaName: action.schemaName,
+        sql: action.sql,
+        output: action.output,
+        globalAssignment: action.globalAssignment,
+        advanced: action.advanced
+      } as unknown as MicroflowDiscriminatedRuntimeP0ActionDto["config"]);
     case "changeVariable":
       return runtimeDto(action, { targetVariableName: action.targetVariableName, newValueExpression: action.newValueExpression });
     case "callMicroflow":

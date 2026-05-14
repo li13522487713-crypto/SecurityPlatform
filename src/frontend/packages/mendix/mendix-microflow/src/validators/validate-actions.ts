@@ -256,6 +256,26 @@ export function validateActions(schema: MicroflowSchema, context: MicroflowValid
         issues.push(issue("MF_CREATE_VARIABLE_NAME_MISSING", "CreateVariableAction.variableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.variableName" }));
       }
     }
+    if (action.kind === "declareLocalVariable") {
+      if (!action.variableName.trim()) {
+        issues.push(issue("MF_DECLARE_LOCAL_VARIABLE_NAME_MISSING", "局部变量节点：variableName 是必填项。", { objectId: object.id, actionId: action.id, fieldPath: "action.variableName" }));
+      }
+    }
+    if (action.kind === "queryExternalDatabase") {
+      const dbAction = action as unknown as Record<string, unknown>;
+      if (!textField(dbAction, "databaseSourceId")) {
+        issues.push(issue("MF_DATABASE_NODE_SOURCE_MISSING", "数据库节点：必须选择数据库连接（databaseSourceId）。", { objectId: object.id, actionId: action.id, fieldPath: "action.databaseSourceId" }));
+      }
+      if (!textField(dbAction, "sql")) {
+        issues.push(issue("MF_DATABASE_NODE_SQL_MISSING", "数据库节点：SQL 语句不能为空。", { objectId: object.id, actionId: action.id, fieldPath: "action.sql" }));
+      }
+      if (!nestedText(dbAction, "output", "variableName")) {
+        issues.push(issue("MF_DATABASE_NODE_OUTPUT_VAR_MISSING", "数据库节点：输出变量名（output.variableName）不能为空。", { objectId: object.id, actionId: action.id, fieldPath: "action.output.variableName" }));
+      }
+      if (nestedText(dbAction, "output", "kind") === "array" && !nestedText(dbAction, "output", "column")) {
+        issues.push(issue("MF_DATABASE_NODE_ARRAY_COLUMN_MISSING", "数据库节点：Array 输出模式必须指定列名（output.column）。", { objectId: object.id, actionId: action.id, fieldPath: "action.output.column" }));
+      }
+    }
     if (action.kind === "changeVariable") {
       if (!action.targetVariableName.trim()) {
         issues.push(issue("MF_CHANGE_VARIABLE_TARGET_MISSING", "ChangeVariableAction.targetVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetVariableName" }));

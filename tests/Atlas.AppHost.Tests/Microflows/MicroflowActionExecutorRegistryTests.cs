@@ -12,7 +12,7 @@ public sealed class MicroflowActionExecutorRegistryTests
     [
         "retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "cast",
         "aggregateList", "createList", "changeList", "listOperation", "filterList", "sortList",
-        "createVariable", "changeVariable",
+        "createVariable", "declareLocalVariable", "changeVariable",
         "callMicroflow", "callJavaAction", "callJavaScriptAction", "callNanoflow",
         "restCall", "webServiceCall", "importXml", "exportXml", "callExternalAction", "restOperationCall", "queryExternalDatabase",
         "closePage", "downloadFile", "showHomePage", "showMessage", "showPage", "validationFeedback", "synchronize",

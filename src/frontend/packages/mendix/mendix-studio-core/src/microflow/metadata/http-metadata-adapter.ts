@@ -3,7 +3,7 @@
  * Uses backend API contracts and MicroflowApiResponse envelope.
  */
 import type { MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
-import type { GetMicroflowMetadataRequest, MicroflowMetadataAdapter } from "@atlas/microflow/metadata";
+import type { GetMicroflowMetadataRequest, MicroflowMetadataAdapter, GetDatabaseSourcesRequest } from "@atlas/microflow/metadata";
 
 import type { GetMicroflowMetadataResponseBody } from "../contracts/api/microflow-metadata-api-contract";
 import { MicroflowApiClient, type MicroflowApiClientOptions } from "../adapter/http/microflow-api-client";
@@ -66,5 +66,33 @@ export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadat
       moduleId: request?.moduleId,
       keyword: request?.keyword,
     }),
+    getDatabaseSources: async (request?: GetDatabaseSourcesRequest) => {
+      try {
+        const result = await client.get<{ items: unknown[] } | unknown[]>("/database-center/sources", {
+          workspaceId: request?.workspaceId ?? options.workspaceId,
+          keyword: request?.keyword,
+          pageSize: 200,
+        });
+        const items = Array.isArray(result) ? result : (result as { items: unknown[] }).items ?? [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return items as any[];
+      } catch {
+        return [];
+      }
+    },
+    getDatabaseSchemaStructure: (sourceId: string, schemaName?: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return client.get<any>(`/database-center/sources/${encodeURIComponent(sourceId)}/schemas/${encodeURIComponent(schemaName ?? "default")}/structure`, {
+        workspaceId: options.workspaceId,
+      });
+    },
+    previewDatabaseSql: (sourceId: string, sql: string, schemaName?: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return client.post<any>("/database-center/sql/preview", {
+        sourceId,
+        sql,
+        schema: schemaName,
+      });
+    },
   };
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Button, Modal, Space, Switch, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconArrowLeft } from "@douyinfe/semi-icons";
-import { MicroflowEditor, type MicroflowApiClient, type MicroflowDesignSchema, type MicroflowEditorHandle, type MicroflowWorkbenchLayoutState, type MicroflowWorkbenchStatus, type SaveMicroflowRequest } from "@atlas/microflow";
+import { MicroflowEditor, migrateCreateVariableToDeclareLocalVariable, type MicroflowApiClient, type MicroflowDesignSchema, type MicroflowEditorHandle, type MicroflowWorkbenchLayoutState, type MicroflowWorkbenchStatus, type SaveMicroflowRequest } from "@atlas/microflow";
 import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
@@ -133,7 +133,7 @@ function reconcileSavedResourceSchema(
 }
 
 export function MendixMicroflowEditorEntry({ resource, adapter, workspaceId, moduleId, metadataAdapter, metadataCatalog, runtimeAdapter, runtimeRequestHeaders, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onOpenMicroflow, onRefreshResourceList, microflowResourceIndex, onBack, readonly, editorRef, toolbarMode, onLayoutStateChange, onWorkbenchStatusChange, onViewReferences }: MendixMicroflowEditorEntryProps) {
-  const [schema, setSchema] = useState<MicroflowDesignSchema>(resource.schema);
+  const [schema, setSchema] = useState<MicroflowDesignSchema>(() => migrateCreateVariableToDeclareLocalVariable(resource.schema) as MicroflowDesignSchema);
   const [autosaveEnabled, setAutosaveEnabled] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);

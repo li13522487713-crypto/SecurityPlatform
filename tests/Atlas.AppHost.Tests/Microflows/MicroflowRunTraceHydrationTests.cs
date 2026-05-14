@@ -260,6 +260,7 @@ public sealed class MicroflowRunTraceHydrationTests
             Substitute.For<IMicroflowClock>(),
             Substitute.For<IMicroflowRunCancellationRegistry>(),
             ownershipGuard,
-            Substitute.For<IDebugSessionStore>());
+            Substitute.For<IDebugSessionStore>(),
+            Substitute.For<IMicroflowRuntimeWsEventStream>());
     }
 }

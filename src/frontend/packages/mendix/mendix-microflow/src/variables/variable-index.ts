@@ -591,6 +591,33 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
       readonly: action.readonly ?? false,
     }), "action.variableName");
   }
+  if (action.kind === "declareLocalVariable" && action.variableName) {
+    const isGlobal = action.scope === "global";
+    const variableScope = isGlobal
+      ? { kind: "global" as const, collectionId: "global" }
+      : downstream;
+    addOutput(index, createSymbol({
+      name: action.variableName,
+      kind: "localVariable",
+      dataType: action.dataType ?? { kind: "unknown", reason: "declareLocalVariable" },
+      source: { kind: "declareLocalVariable", objectId: object.id, actionId: action.id, scope: action.scope },
+      scope: variableScope,
+      readonly: false,
+    }), "action.variableName");
+  }
+  if (action.kind === "queryExternalDatabase" && action.output?.variableName) {
+    const dbOutputDataType: MicroflowDataType = action.output.kind === "object"
+      ? { kind: "json" }
+      : { kind: "list", itemType: { kind: "json" } };
+    addOutput(index, createSymbol({
+      name: action.output.variableName,
+      kind: "actionOutput",
+      dataType: dbOutputDataType,
+      source: { kind: "queryExternalDatabase", objectId: object.id, actionId: action.id },
+      scope: downstream,
+      readonly: false,
+    }), "action.output.variableName");
+  }
   if (action.kind === "callMicroflow" && action.returnValue.storeResult && action.returnValue.outputVariableName) {
     const target = getMicroflowById(metadata, action.targetMicroflowId);
     const dataType = target?.returnType ?? action.returnValue.dataType ?? { kind: "unknown", reason: "microflow return" };

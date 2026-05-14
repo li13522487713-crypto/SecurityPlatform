@@ -78,6 +78,7 @@ export type MicroflowActivityType =
   | "listOperation"
   | "listAggregate"
   | "variableCreate"
+  | "declareLocalVariable"
   | "variableChange"
   | "callMicroflow"
   | "callJavaAction"
@@ -448,6 +449,33 @@ export interface MicroflowActionActivityConfig {
   mappingId?: string;
   outputType?: string;
   tags?: Array<{ key: string; value: string }>;
+  /** 数据库节点（queryExternalDatabase）字段 */
+  databaseSourceId?: string;
+  driverCode?: string;
+  schemaName?: string;
+  sql?: string;
+  output?: {
+    variableName?: string;
+    kind?: "object" | "list" | "array";
+    column?: string;
+  };
+  globalAssignment?: {
+    target?: string;
+  };
+  advanced?: {
+    timeoutSeconds?: number;
+    errorMode?: "fail" | "continue" | "empty";
+    maxRows?: number;
+    transactional?: boolean;
+  };
+  /** 局部变量节点（declareLocalVariable）字段 */
+  scope?: "local" | "global";
+  source?: "literal" | "expression" | "reference" | "empty";
+  value?: string;
+  expression?: MicroflowExpression;
+  reference?: string;
+  description?: string;
+  dataType?: MicroflowDataType;
 }
 
 export interface MicroflowParameterConfig {
@@ -733,6 +761,8 @@ export type MicroflowActionKind =
   | "callJavaScriptAction"
   | "callNanoflow"
   | "createVariable"
+  | "declareLocalVariable"
+  | "queryExternalDatabase"
   | "changeVariable"
   | "closePage"
   | "downloadFile"
@@ -939,6 +969,66 @@ export interface MicroflowCreateVariableAction extends MicroflowActionBase {
   testDefaultValue?: unknown;
 }
 
+export type MicroflowLocalVariableScope = "local" | "global";
+export type MicroflowLocalVariableSource = "literal" | "expression" | "reference" | "empty";
+
+export interface MicroflowDeclareLocalVariableAction extends MicroflowActionBase {
+  kind: "declareLocalVariable";
+  officialType: "Microflows$DeclareLocalVariableAction";
+  variableName: string;
+  description?: string;
+  scope: MicroflowLocalVariableScope;
+  dataType: MicroflowDataType;
+  /** 赋值来源 */
+  source: MicroflowLocalVariableSource;
+  /** source=literal 时的字面量值 */
+  value?: string;
+  /** source=expression 时的表达式 */
+  expression?: MicroflowExpression;
+  /** source=reference 时引用的变量名 */
+  reference?: string;
+}
+
+export type MicroflowDatabaseOutputKind = "object" | "list" | "array";
+export type MicroflowDatabaseErrorMode = "fail" | "continue" | "empty";
+
+export interface MicroflowDatabaseSource {
+  id: string;
+  name: string;
+  sourceKind: string;
+  driverCode: string;
+  environment?: string;
+}
+
+export interface MicroflowQueryExternalDatabaseAction extends MicroflowActionBase {
+  kind: "queryExternalDatabase";
+  officialType: "Microflows$QueryExternalDatabaseAction";
+  /** DatabaseCenter 统一 sourceId，格式 "ai:{instanceId}" */
+  databaseSourceId?: string;
+  driverCode?: string;
+  schemaName?: string;
+  /** 已引入的数据表名列表（用于 SQL 补全提示） */
+  tables?: string[];
+  sql?: string;
+  output?: {
+    variableName?: string;
+    kind: MicroflowDatabaseOutputKind;
+    /** kind=array 时需指定列名 */
+    column?: string;
+  };
+  globalAssignment?: {
+    target?: string;
+  };
+  advanced?: {
+    timeoutSeconds?: number;
+    errorMode?: MicroflowDatabaseErrorMode;
+    maxRows?: number;
+    transactional?: boolean;
+  };
+  /** 运行时临时标注：数据源名称（展示用）*/
+  _sourceName?: string;
+}
+
 export interface MicroflowChangeVariableAction extends MicroflowActionBase {
   kind: "changeVariable";
   officialType: "Microflows$ChangeVariableAction";
@@ -1140,6 +1230,8 @@ export interface MicroflowGenericAction extends MicroflowActionBase {
     | MicroflowRollbackAction["kind"]
     | MicroflowCallMicroflowAction["kind"]
     | MicroflowCreateVariableAction["kind"]
+    | MicroflowDeclareLocalVariableAction["kind"]
+    | MicroflowQueryExternalDatabaseAction["kind"]
     | MicroflowChangeVariableAction["kind"]
     | MicroflowCreateListAction["kind"]
     | MicroflowChangeListAction["kind"]
@@ -1164,6 +1256,8 @@ export type MicroflowAction =
   | MicroflowRollbackAction
   | MicroflowCallMicroflowAction
   | MicroflowCreateVariableAction
+  | MicroflowDeclareLocalVariableAction
+  | MicroflowQueryExternalDatabaseAction
   | MicroflowChangeVariableAction
   | MicroflowCreateListAction
   | MicroflowChangeListAction
@@ -1399,6 +1493,8 @@ export type MicroflowVariableSource =
   | { kind: "globalVariable"; variableId: string }
   | { kind: "actionOutput"; objectId: string; actionId: string; actionKind?: MicroflowActionKind }
   | { kind: "createVariable"; objectId: string; actionId: string }
+  | { kind: "declareLocalVariable"; objectId: string; actionId: string; scope?: "local" | "global" }
+  | { kind: "queryExternalDatabase"; objectId: string; actionId: string }
   | { kind: "createList"; objectId: string; actionId: string }
   | { kind: "aggregateList"; objectId: string; actionId: string }
   | { kind: "listOperation"; objectId: string; actionId: string }

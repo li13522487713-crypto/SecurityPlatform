@@ -32,6 +32,51 @@ export interface GetWorkflowRefsRequest extends GetMicroflowMetadataRequest {
   keyword?: string;
 }
 
+/** 简要信息，与 app-web DatabaseCenterSourceSummary 保持字段对齐 */
+export interface MicroflowDatabaseSourceSummary {
+  id: string;
+  name: string;
+  sourceKind: string;
+  driverCode: string;
+  environment?: string | null;
+  status?: string | null;
+  readOnly?: boolean | null;
+  defaultSchemaName?: string | null;
+}
+
+export interface MicroflowDatabaseColumnSummary {
+  name: string;
+  dataType: string;
+  nullable: boolean;
+  primaryKey: boolean;
+}
+
+export interface MicroflowDatabaseObjectSummary {
+  id: string;
+  name: string;
+  objectType: string;
+  columns?: MicroflowDatabaseColumnSummary[];
+}
+
+export interface MicroflowDatabaseSchemaStructure {
+  sourceId: string;
+  schemaName: string;
+  objects: MicroflowDatabaseObjectSummary[];
+  columnsByObject: Record<string, MicroflowDatabaseColumnSummary[]>;
+}
+
+export interface MicroflowDatabaseSqlResult {
+  columns: Array<{ name: string; dataType?: string | null }>;
+  rows: Record<string, unknown>[];
+  elapsedMs?: number | null;
+  truncated?: boolean;
+}
+
+export interface GetDatabaseSourcesRequest {
+  workspaceId?: string;
+  keyword?: string;
+}
+
 /**
  * 元数据唯一异步加载入口（不依赖 React / app-web）。
  * 生产环境通过 {@link createHttpMicroflowMetadataAdapter} 或业务 Adapter 注入；
@@ -45,6 +90,12 @@ export interface MicroflowMetadataAdapter {
   getMicroflowRefs?(request?: GetMicroflowRefsRequest): Promise<MetadataMicroflowRef[]>;
   getPageRefs?(request?: GetPageRefsRequest): Promise<MetadataPageRef[]>;
   getWorkflowRefs?(request?: GetWorkflowRefsRequest): Promise<MetadataWorkflowRef[]>;
+  /** 列出工作区下所有数据库连接（可选，未实现时表单回退到手动输入） */
+  getDatabaseSources?(request?: GetDatabaseSourcesRequest): Promise<MicroflowDatabaseSourceSummary[]>;
+  /** 获取某个数据源的 schema 结构（表/列/外键）*/
+  getDatabaseSchemaStructure?(sourceId: string, schemaName?: string): Promise<MicroflowDatabaseSchemaStructure>;
+  /** 预览 SQL 执行结果（只读） */
+  previewDatabaseSql?(sourceId: string, sql: string, schemaName?: string): Promise<MicroflowDatabaseSqlResult>;
 }
 
 /**
